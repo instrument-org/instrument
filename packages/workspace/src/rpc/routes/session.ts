@@ -3,14 +3,11 @@ import { isExpectedNetworkError } from "@instrument-org/shared";
 import { call, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
-import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { runningForks, stopFork } from "../../lib/fork-on-interrupt";
-import { isForkOnInterruptEnabled } from "../../lib/one-agent";
 import { resolveChat } from "../../lib/record-folders";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
-import { cancelHold } from "../../lib/task-hold";
 import { recordTaskActivity } from "../../lib/task-settings";
 import { Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
@@ -100,7 +97,6 @@ const run = base
     context.workspaceRef.send({
       type: "runTurn",
       value: {
-        agentName: agentNameForTask(taskId),
         id,
         model: modelResult.value,
         sessionId,
@@ -116,19 +112,16 @@ const run = base
 const stop = base
   .input(z.object({ id: TaskIdSchema }))
   .handler(async ({ context, input }) => {
-    // A task held from starting has no session to stop; stopping it cancels
-    // the start instead.
-    cancelHold(input.id);
     context.workspaceRef.send({
       type: "stopSessions",
       value: {
         id: input.id,
       },
     });
-    // Under fork on interrupt a chat's work can be running in forks the user
-    // never asked for, so stopping the chat stops them too.
+    // A chat's work can be running in forks the user never asked for (fork
+    // on interrupt), so stopping the chat stops them too.
     const chatId = resolveChat(input.id);
-    if (chatId && isForkOnInterruptEnabled()) {
+    if (chatId) {
       for (const forkId of await runningForks(chatId)) {
         stopFork(forkId);
       }

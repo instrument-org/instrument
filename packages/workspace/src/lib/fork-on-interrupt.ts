@@ -3,7 +3,6 @@ import { folderReach } from "./chat/folder-reach";
 import { expectStop } from "./chat/wake";
 import { defaultTaskName } from "./default-task-name";
 import { isToolPart } from "./is-tool-part";
-import { inForkWords } from "./one-agent";
 import { chatTaskIds } from "./record-folders";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import {
@@ -25,11 +24,10 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 
 /**
- * Fork on interrupt, behind the `one_agent_fork_on_interrupt` flag: when the
- * user writes while the chat's turn is mid-work, the turn is stopped as it
- * always is, and then the harness, not the model, forks what the turn had
- * done so far to the background, where a copy of the agent carries the work
- * on. The chat answers the new message with the work still going.
+ * Fork on interrupt: when the user writes while the chat's turn is mid-work,
+ * the turn is stopped, and then the harness, not the model, forks what the
+ * turn had done so far to the background, where a copy of the agent carries
+ * the work on. The chat answers the new message with the work still going.
  *
  * The fork starts from the turn's last finished step: every step whose
  * request completed and whose tool calls all came back. A step still running
@@ -126,8 +124,7 @@ function isFinished(message: SessionMessage.WithParts): boolean {
 /**
  * Forks an interrupted turn of a chat to the background, or does nothing
  * (undefined) when there is nothing to carry on or the chat's last auto-fork
- * is still running, in which case the interruption ends the turn as it always
- * has. Runs after the turn has stopped, so what it reads is settled. A fork
+ * is still running, in which case the interruption only ends the turn. Runs after the turn has stopped, so what it reads is settled. A fork
  * made as `signal` aborts (the user stopped the chat meanwhile) is stopped
  * at once.
  */
@@ -184,7 +181,7 @@ export async function forkInterruptedTurn({
     model,
     modelURI,
     name,
-    prompt: forkDirective(CARRY_ON, { apps: [], files: [] }),
+    prompt: forkDirective(CARRY_ON),
     settings: { forkedOnInterrupt: true },
   });
   autoForks.set(chatId, taskId);
@@ -204,19 +201,15 @@ const CARRY_ON =
  * been forked: the work goes on, so this reply is for the message alone.
  */
 export function interruptedNote({ name, taskId }: ForkedTurn): string {
-  return inForkWords(interruptedNoteText({ name, taskId }));
-}
-
-function interruptedNoteText({ name, taskId }: ForkedTurn): string {
   return systemNote`
     The user sent this while you were still working on their earlier request. That work was not dropped: it carries on in the background as task ${taskId} ("${name}"), a fork of you that picks up from your last finished step, and you will be told when it finishes. Do not redo it or wait on it; answer this message. If this message changes that work, \`${TASK_COMMAND.name} send ${taskId}\` passes the change on; if it calls the work off, \`${TASK_COMMAND.name} stop ${taskId}\`.
   `.trim();
 }
 
 /**
- * The chat's forks still running, for a stop of the chat to end with it: under
- * fork on interrupt, the user's work may be running in one they never asked
- * for, and Stop means all of it.
+ * The chat's forks still running, for a stop of the chat to end with it: the
+ * user's work may be running in one they never asked for (fork on
+ * interrupt), and Stop means all of it.
  */
 export async function runningForks(chatId: ChatId): Promise<TaskId[]> {
   const ids = chatTaskIds(chatId).filter((id) => isWorking(id));

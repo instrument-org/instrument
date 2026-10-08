@@ -23,17 +23,16 @@ import { omit } from "radashi";
 import { fromPromise } from "xstate";
 
 import { type AnyAgent } from "../agents/types";
-import { TOOL_SAY_PARAM_NAME } from "../constants";
 import { classifyProviderError } from "../lib/classify-provider-error";
-import { firstLineStepFor, sayOf } from "../lib/first-line";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isStorageFullError } from "../lib/is-storage-full-error";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { prepareModelMessages } from "../lib/prepare-model-messages";
 import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call";
-import { cacheSessionFor } from "../lib/one-agent";
+import { cacheSessionFor } from "../lib/fork-cache-session";
 import { Store } from "../lib/store";
+import { turnNoteFor } from "../lib/turn-note";
 import { taskDir } from "../lib/task-dir-utils";
 import { getTaskSettings } from "../lib/task-settings";
 import { getWorkspaceConfig } from "../lib/workspace-config";
@@ -52,12 +51,6 @@ import { TOOL_NAMES, ToolNameSchema } from "../tools/name";
 // since its last save, whichever comes first.
 const DELTA_SAVE_INTERVAL_MS = 100;
 const DELTA_SAVE_MAX_UNSAVED_CHARS = 4096;
-
-// A call's `say` (`lib/first-line.ts`) is whole once a later field has
-// started, which a model writing fields in order reaches long before the
-// call's input is done. Past this much input with no `say` yet, the streamed
-// input stops being parsed for one and the finished call settles it.
-const SAY_SEARCH_LIMIT_CHARS = 4000;
 
 interface LLMRequestInput {
   agent: AnyAgent;
@@ -235,7 +228,6 @@ export const llmRequestLogic = fromPromise<
   const tools: ToolSet = {};
   for (const tool of agentTools) {
     tools[tool.name as string] = await tool.aiSDKTool({
-      agentName: input.agent.name,
       model: input.model,
       taskId: input.taskId,
     });
@@ -256,17 +248,16 @@ export const llmRequestLogic = fromPromise<
   }
 
   // Read before this step's message is stored, so the turn it describes is
-  // the steps already taken. See `lib/first-line.ts`.
-  const firstLine = await firstLineStepFor({
-    agentName: input.agent.name,
+  // the steps already taken. See `lib/turn-note.ts`.
+  const turnNote = await turnNoteFor({
     sessionId: input.sessionId,
     signal,
     taskId: input.taskId,
   });
-  if (firstLine.note !== undefined) {
+  if (turnNote !== undefined) {
     // After the cache breakpoints, like the budget notice: for this request
     // alone, and never stored.
-    messagesResult.value.push({ content: firstLine.note, role: "user" });
+    messagesResult.value.push({ content: turnNote, role: "user" });
   }
 
   if (signal.aborted) {
@@ -325,57 +316,6 @@ export const llmRequestLogic = fromPromise<
   const invalidToolCallErrors = new Map<string, unknown>();
   const toolCallInputText: Record<string, string> = {};
 
-  // The `say` of the step's first call, shown as text ahead of it when the
-  // step has said nothing (`lib/first-line.ts`). Its part id is taken before
-  // the call's own, so the text sorts ahead of the call it rides on.
-  const step: {
-    claimed: boolean;
-    said: boolean;
-    say?: {
-      done: boolean;
-      part?: SessionMessagePart.TextPart;
-      partId: StoreId.Part;
-      toolCallId: string;
-    };
-  } = { claimed: false, said: false };
-  const claimSay = (toolCallId: string) => {
-    if (!firstLine.takesSay || step.claimed) {
-      return;
-    }
-    step.claimed = true;
-    if (!step.said) {
-      step.say = { done: false, partId: StoreId.newPartId(), toolCallId };
-    }
-  };
-  const showSay = async (
-    toolCallId: string,
-    callInput: unknown,
-    done: boolean,
-  ) => {
-    const { say } = step;
-    if (say?.toolCallId !== toolCallId || say.done || step.said) {
-      return;
-    }
-    const text = sayOf(callInput);
-    if (text === undefined || (!done && text === say.part?.text)) {
-      return;
-    }
-    const now = getCurrentDate();
-    say.done = done;
-    say.part = {
-      metadata: {
-        createdAt: say.part?.metadata.createdAt ?? now,
-        id: say.partId,
-        messageId: assistantMessage.id,
-        sessionId: input.sessionId,
-        ...(done ? { endedAt: now } : {}),
-      },
-      state: done ? "done" : "streaming",
-      text,
-      type: "text",
-    };
-    await scopedStore.savePart(say.part);
-  };
   try {
     // Fetch AI SDK model at the last moment before making the LLM request
     const workspaceConfig = getWorkspaceConfig();
@@ -462,7 +402,7 @@ export const llmRequestLogic = fromPromise<
         // no-op to avoid excessive logging
       },
       providerOptions,
-      toolChoice: firstLine.toolChoice ?? input.toolChoice,
+      toolChoice: input.toolChoice,
       tools: searchesNatively ? omit(tools, [TOOL_NAMES.webSearch]) : tools,
     });
 
@@ -690,9 +630,6 @@ export const llmRequestLogic = fromPromise<
           break;
         }
         case "text-delta": {
-          if (part.text.trim() !== "") {
-            step.said = true;
-          }
           if (currentTextPart) {
             const textPart = currentTextPart;
             textPart.text += part.text;
@@ -758,9 +695,6 @@ export const llmRequestLogic = fromPromise<
           if (part.invalid) {
             invalidToolCallErrors.set(part.toolCallId, part.error);
           }
-          if (toolCalls[part.toolCallId] === undefined) {
-            claimSay(part.toolCallId);
-          }
           const existingPart = toolCalls[part.toolCallId];
           if (existingPart?.state === "input-streaming") {
             const updatedPart: SessionMessagePart.ToolPart = {
@@ -811,7 +745,6 @@ export const llmRequestLogic = fromPromise<
             toolCalls[part.toolCallId] = newPart;
             await scopedStore.savePart(newPart);
           }
-          await showSay(part.toolCallId, part.input, true);
           captureEvent("llm.tool_called", {
             modelId,
             providerId,
@@ -900,24 +833,6 @@ export const llmRequestLogic = fromPromise<
           if (toolCall?.state === "input-streaming") {
             toolCallInputText[part.id] =
               (toolCallInputText[part.id] || "") + part.delta;
-            const inputSoFar = toolCallInputText[part.id] ?? "";
-            if (
-              step.say?.toolCallId === part.id &&
-              !step.say.done &&
-              (step.say.part !== undefined ||
-                inputSoFar.length < SAY_SEARCH_LIMIT_CHARS)
-            ) {
-              const { value: partialInput } =
-                await parsePartialJson(inputSoFar);
-              const fields =
-                typeof partialInput === "object" && partialInput !== null
-                  ? Object.keys(partialInput)
-                  : [];
-              const at = fields.indexOf(TOOL_SAY_PARAM_NAME);
-              if (at !== -1) {
-                await showSay(part.id, partialInput, at < fields.length - 1);
-              }
-            }
             await savePartCoalesced(
               toolCall.metadata.id,
               part.delta.length,
@@ -949,7 +864,6 @@ export const llmRequestLogic = fromPromise<
           break;
         }
         case "tool-input-start": {
-          claimSay(part.id);
           const toolNameResult = ToolNameSchema.safeParse(part.toolName);
           const newPart: SessionMessagePart.ToolPart = {
             input: undefined,

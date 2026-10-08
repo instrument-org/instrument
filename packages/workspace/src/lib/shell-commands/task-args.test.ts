@@ -3,43 +3,18 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { noop } from "radashi";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { MOUNT } from "../../mount-points";
 import { FolderAttachment } from "../../schemas/folder-attachment";
-import { TaskDirSchema } from "../../schemas/paths";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { getWorkspaceConfig } from "../workspace-config";
-import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import {
   awaitAnswers,
-  chatOnlyPathsIn,
-  parseDelay,
   parseFolderSpec,
-  requireFilesNamedInBrief,
   requireFoldersOnDisk,
-  resolveFileUploads,
   resolveFolders,
 } from "./task-args";
-
-describe("parseDelay", () => {
-  it.each([
-    ["30s", 30_000],
-    ["5m", 300_000],
-    ["1h", 3_600_000],
-    ["90 sec", 90_000],
-    ["2 hours", 7_200_000],
-    ["1.5m", 90_000],
-    ["45", 45_000],
-  ])("reads %s", (raw, expected) => {
-    expect(parseDelay(raw)).toBe(expected);
-  });
-
-  it.each([["0"], ["soon"], ["5 days"], [""], ["-5m"]])("refuses %s", (raw) => {
-    expect(parseDelay(raw)).toBeUndefined();
-  });
-});
 
 describe("parseFolderSpec", () => {
   it.each([
@@ -127,7 +102,7 @@ describe("resolveFolders", () => {
       }),
     };
 
-    it("reads the whole and refuses to write it, naming the folder inside to hand instead", () => {
+    it("reads the whole and refuses to write it, naming the folder inside to add instead", () => {
       expect(resolveFolders(["Root"], home)).toEqual([
         {
           access: "read-only",
@@ -137,7 +112,7 @@ describe("resolveFolders", () => {
         },
       ]);
       expect(() => resolveFolders(["Root:rw"], home)).toThrow(
-        "/mnt/Root holds Instrument's own data, so a task reads it whole and never writes it whole. Hand it the folder inside that the work needs: --folder /mnt/Root/<folder>:rw.",
+        "/mnt/Root holds Instrument's own data, so it is read whole and never written whole. Add the folder inside that the work needs: /mnt/Root/<folder>.",
       );
     });
 
@@ -296,184 +271,6 @@ describe("requireFoldersOnDisk", () => {
   );
 });
 
-describe("resolveFileUploads", () => {
-  createMockTaskConfig(TaskIdSchema.parse("chat"));
-  const root = mkdtempSync(path.join(os.tmpdir(), "task-files-"));
-  const taskHostRoot = TaskDirSchema.parse(path.join(root, "conversation"));
-  const desktop = path.join(root, "Desktop");
-  const layout = buildWorkspaceFsLayout({
-    attachedFolders: {
-      Desktop: FolderAttachment.Schema.parse({
-        access: "read-write",
-        createdAt: 1,
-        id: "01ARZ3NDEKTSV4RRFFQ69G5FAY",
-        mountName: "Desktop",
-        path: desktop,
-        source: "user",
-      }),
-    },
-    taskHostRoot,
-  });
-
-  beforeAll(async () => {
-    await fs.mkdir(path.join(taskHostRoot, "attachments"), { recursive: true });
-    await fs.mkdir(path.join(taskHostRoot, ".instrument"), { recursive: true });
-    await fs.mkdir(desktop, { recursive: true });
-    await fs.writeFile(
-      path.join(taskHostRoot, "attachments", "screen.png"),
-      "png bytes",
-    );
-    await fs.writeFile(path.join(taskHostRoot, ".instrument", "task.db"), "");
-    await fs.writeFile(path.join(desktop, "report.pdf"), "pdf bytes");
-  });
-
-  // The file the user sent, as the note names it: bare, from the shell's
-  // working directory, and again by its absolute path.
-  it("reads a sent file by its bare name and by its path, from the conversation's folder or a mount", async () => {
-    const files = await resolveFileUploads(
-      [
-        "attachments/screen.png",
-        "/task/attachments/screen.png",
-        "/mnt/Desktop/report.pdf",
-      ],
-      { cwd: MOUNT.task, layout },
-    );
-    expect(files).toEqual([
-      {
-        filename: "screen.png",
-        mimeType: "image/png",
-        path: path.join(taskHostRoot, "attachments", "screen.png"),
-        size: 9,
-      },
-      {
-        filename: "screen.png",
-        mimeType: "image/png",
-        path: path.join(taskHostRoot, "attachments", "screen.png"),
-        size: 9,
-      },
-      {
-        filename: "report.pdf",
-        mimeType: "application/pdf",
-        path: path.join(desktop, "report.pdf"),
-        size: 9,
-      },
-    ]);
-  });
-
-  it("counts a relative spec from the working directory", async () => {
-    const files = await resolveFileUploads(["report.pdf"], {
-      cwd: `${MOUNT.attachedFolders}/Desktop`,
-      layout,
-    });
-    expect(files).toEqual([
-      {
-        filename: "report.pdf",
-        mimeType: "application/pdf",
-        path: path.join(desktop, "report.pdf"),
-        size: 9,
-      },
-    ]);
-  });
-
-  it("refuses a file that is not there, by the spec that named it", async () => {
-    await expect(
-      resolveFileUploads(["attachments/gone.png"], { cwd: MOUNT.task, layout }),
-    ).rejects.toThrow(
-      'no file at "attachments/gone.png": nothing is on disk there',
-    );
-  });
-
-  it("refuses a folder, naming --folder", async () => {
-    await expect(
-      resolveFileUploads(["/mnt/Desktop"], { cwd: MOUNT.task, layout }),
-    ).rejects.toThrow(
-      '"/mnt/Desktop" is a folder. --file hands a task one file; a folder goes with --folder.',
-    );
-  });
-
-  it("refuses the conversation's private folder", async () => {
-    await expect(
-      resolveFileUploads([".instrument/task.db"], { cwd: MOUNT.task, layout }),
-    ).rejects.toThrow('no file at ".instrument/task.db"');
-  });
-});
-
-describe("requireFilesNamedInBrief", () => {
-  createMockTaskConfig(TaskIdSchema.parse("chat"));
-  const taskHostRoot = TaskDirSchema.parse(
-    path.join(
-      mkdtempSync(path.join(os.tmpdir(), "task-brief-")),
-      "conversation",
-    ),
-  );
-  const layout = buildWorkspaceFsLayout({ attachedFolders: {}, taskHostRoot });
-  const own = { cwd: MOUNT.task, layout };
-
-  beforeAll(async () => {
-    await fs.mkdir(path.join(taskHostRoot, "attachments"), { recursive: true });
-    await fs.writeFile(
-      path.join(taskHostRoot, "attachments", "status.png"),
-      "png bytes",
-    );
-  });
-
-  it("lets a brief through when every file it names in the conversation's folder is handed over", async () => {
-    await expect(
-      requireFilesNamedInBrief(
-        "Look at /task/attachments/status.png and attachments/notes.txt, then answer.",
-        ["/task/attachments/status.png", "attachments/notes.txt"],
-        own,
-      ),
-    ).resolves.toBeUndefined();
-  });
-
-  it("matches a bare name against the same file handed by its full path", async () => {
-    await expect(
-      requireFilesNamedInBrief(
-        "Read attachments/status.png.",
-        ["/task/attachments/status.png"],
-        own,
-      ),
-    ).resolves.toBeUndefined();
-  });
-
-  // The move every model made first: the file named in the brief, in the
-  // conversation's own folder, and no --file. The refusal carries the flag.
-  it("refuses a brief that names a file in the conversation's folder without --file", async () => {
-    await expect(
-      requireFilesNamedInBrief(
-        "Look at the attached image /task/attachments/status.png (a copy is in your attachments folder).",
-        [],
-        own,
-      ),
-    ).rejects.toThrow(
-      "the brief names \"/task/attachments/status.png\" in this conversation's own folder, which no task can see. Add --file /task/attachments/status.png: a copy lands in the task's own attachments/ under the same name.",
-    );
-  });
-
-  it("leaves a mount's attachments folder and a task's bare folder alone", async () => {
-    await expect(
-      requireFilesNamedInBrief(
-        "Read /mnt/Home/attachments/old.png and put results in your attachments/ folder; see /tasks/one/attachments/a.txt.",
-        [],
-        own,
-      ),
-    ).resolves.toBeUndefined();
-  });
-
-  // `/task` in a brief is the task's own folder too: a path with nothing
-  // behind it here is where the brief asks the task to write.
-  it("leaves a path the brief asks the task to write", async () => {
-    await expect(
-      requireFilesNamedInBrief(
-        "Write the report to /task/report.md, the chart to /task/attachments/chart.png, and keep notes in /task/out/.",
-        [],
-        own,
-      ),
-    ).resolves.toBeUndefined();
-  });
-});
-
 describe("awaitAnswers", () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "task-answers-"));
 
@@ -550,39 +347,5 @@ describe("awaitAnswers", () => {
   it("does not wait at all with no yield left", async () => {
     const { looks } = await askedFolder();
     await expect(awaitAnswers(looks, -1000)).resolves.toHaveLength(1);
-  });
-});
-
-describe("chatOnlyPathsIn", () => {
-  it.each([
-    [
-      "an app folder",
-      "Save it to /apps/beacon/icon.png.",
-      [],
-      ["/apps/beacon/icon.png"],
-    ],
-    [
-      "a task's folder",
-      "Read `/tasks/2026-10-04-x/work/a.md`",
-      [],
-      ["/tasks/2026-10-04-x/work/a.md"],
-    ],
-    ["the bare mount", "anything in /apps", [], ["/apps"]],
-    ["a handed file", "Use /tasks/t/work/a.md", ["/tasks/t/work/a.md"], []],
-    [
-      "a path inside a mount of the task's",
-      "Write /mnt/Instrument/apps/x",
-      [],
-      [],
-    ],
-    [
-      "a word that only starts the same",
-      "see /applications and /tasksheet",
-      [],
-      [],
-    ],
-    ["a URL", "https://example.com/apps/x", [], []],
-  ])("%s", (_, prompt, handed, expected) => {
-    expect(chatOnlyPathsIn(prompt, handed)).toEqual(expected);
   });
 });

@@ -100,8 +100,7 @@ const maxRunSeconds = values["max-run-seconds"]
 // Reading only the first silently ran a subset: `run region unreadable` looked
 // like it covered both suites and covered one.
 // A pattern that is an eval's whole name means that eval alone, so a name
-// that begins another (`handoff-guide-g`, `handoff-guide-g-say`) still picks
-// out one.
+// that begins another still picks out one.
 const namePatterns = positionals.slice(1);
 const matchesPattern = (name: string) =>
   namePatterns.length === 0 ||
@@ -183,7 +182,7 @@ if (paidModels.length > 0 && !values.paid) {
 const adHocEval = values.prompt
   ? defineEval({
       // `--chat` runs the prompt through the agent the user talks to
-      // in the app window, which delegates to tasks of its own.
+      // in the app window, which forks tasks of its own.
       kind: values.chat ? "chat" : undefined,
       name: values.name ?? "ad-hoc",
       prompt: values.prompt,

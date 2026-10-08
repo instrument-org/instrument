@@ -138,7 +138,6 @@ describe("executeToolCallMachine", () => {
   }) {
     const actor = createActor(executeToolCallMachine, {
       input: {
-        agentName: "main",
         model,
         part,
         sessionId,

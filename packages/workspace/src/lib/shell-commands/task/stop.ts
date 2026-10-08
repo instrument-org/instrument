@@ -6,13 +6,11 @@ import {
 import { isWorking, leftRunning } from "../../chat/activity";
 import { describeLeftRunning } from "../../chat/left-running";
 import { expectStop } from "../../chat/wake";
-import { cancelHold } from "../../task-hold";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import { type SubcommandInput, subcommand } from "../subcommands";
 import { TASK_COMMAND } from "../task-command";
 import { requireOwnChild } from "./children";
 import { type TaskCommandContext } from "./context";
-import { describeHold } from "./delivery";
 
 export const stopSubcommand = subcommand<TaskCommandContext>({
   booleans: ["all"],
@@ -24,8 +22,7 @@ export const stopSubcommand = subcommand<TaskCommandContext>({
       \`show\` lists them), stop only that process the task left running in
       the background, and leave its turn alone. --all ends the turn and every
       process it left running. A server the user is still using is theirs to
-      keep; a scan nobody is waiting on is not. A task still waiting to
-      start is canceled instead, and never runs.
+      keep; a scan nobody is waiting on is not.
 `,
 });
 
@@ -57,12 +54,9 @@ async function runStop(input: SubcommandInput, context: TaskCommandContext) {
   if (processId !== undefined) {
     return await stopBackground(task.id, processId);
   }
-  const canceled = cancelHold(task.id);
-  const turn = canceled
-    ? `Stopped ${task.id} before it started; it was waiting: ${describeHold(canceled)}. It never ran, and nothing sent to it will run; start a new task if the work is still wanted.\n`
-    : isWorking(task.id)
-      ? await stopTurn(task.id, context)
-      : `${task.id} is not running.\n`;
+  const turn = isWorking(task.id)
+    ? await stopTurn(task.id, context)
+    : `${task.id} is not running.\n`;
   if (all) {
     return `${turn}${await stopBackground(task.id)}`;
   }

@@ -9,19 +9,26 @@ import { type TaskId } from "../../schemas/task-id";
 import { getTasksIn } from "../get-tasks";
 import { chatTaskDirs, chatTaskIds } from "../record-folders";
 import { taskDir } from "../task-dir-utils";
+import { hasOwnWorkFolder } from "../work-dir";
 import { type WorkspaceFsMount } from "../workspace-fs-layout";
 
 /**
- * One read-only mount per child at `/tasks/<id>`, with the child's private
- * directory masked the way its own agent's view of it is. The chat
- * reads a child's scratch and output to see what it made, and never writes
- * there: a child's folder is the child's, and a transcript is read through
- * `task log`, which renders it from the store rather than opening the file.
+ * One read-only mount at `/tasks/<id>` per child that works in a folder of
+ * its own (a briefed task; a fork works in the chat's folder and has nothing
+ * there to mount), with the child's private directory masked the way its
+ * own agent's view of it is. The chat reads such a child's scratch and
+ * output, which its transcript names under `/tasks/<id>`, and never writes
+ * there: a transcript is read through `task log`, which renders it from the
+ * store rather than opening the file.
  */
 export async function childTaskMounts(
   chatId: ChatId,
 ): Promise<WorkspaceFsMount[]> {
-  return taskMounts(chatTaskIds(chatId).map((id) => taskDir(id)));
+  return taskMounts(
+    chatTaskIds(chatId)
+      .filter((id) => hasOwnWorkFolder(id))
+      .map((id) => taskDir(id)),
+  );
 }
 
 /**

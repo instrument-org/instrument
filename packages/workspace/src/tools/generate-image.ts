@@ -15,7 +15,7 @@ import { findAvailableName } from "../lib/find-available-name";
 import { formatBytes } from "../lib/format-bytes";
 import { generateImageStream } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
-import { toolFolders } from "../lib/one-agent";
+import { folderReach } from "../lib/chat/folder-reach";
 import { pathExists } from "../lib/path-exists";
 import { prepareSourceImage } from "../lib/prepare-source-image";
 import {
@@ -145,17 +145,9 @@ export const GenerateImage = setupTool({
       configs: getWorkspaceConfig().getAIProviderConfigs(),
     })}
   `,
-  async *execute({
-    agentName,
-    input,
-    model,
-    sessionId,
-    signal,
-    taskId,
-    taskState,
-  }) {
+  async *execute({ input, model, sessionId, signal, taskId, taskState }) {
     const layout = buildWorkspaceFsLayout({
-      attachedFolders: await toolFolders(agentName, taskId, taskState),
+      attachedFolders: await folderReach(taskId, taskState),
       taskHostRoot: workDir(taskId),
     });
     const filePathResult = resolveWritableToolPath({

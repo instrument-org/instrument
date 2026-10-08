@@ -5,7 +5,6 @@ import { type SessionMessageDataPart } from "../schemas/session/message-data-par
 import { asClause } from "./as-clause";
 import { describeHoldings } from "./chat/describe-holdings";
 import { describeLeftRunning } from "./chat/left-running";
-import { inForkWords, isForkOnlyEnabled } from "./one-agent-mode";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { systemNote } from "./system-note";
 
@@ -18,10 +17,6 @@ import { systemNote } from "./system-note";
 export function taskEventModelNote(
   data: SessionMessageDataPart.TaskEventDataPart,
 ) {
-  return inForkWords(taskEventNote(data));
-}
-
-function taskEventNote(data: SessionMessageDataPart.TaskEventDataPart) {
   const lines = data.events.map((event) => {
     const outcome =
       event.status === "error"
@@ -83,12 +78,11 @@ function taskEventNote(data: SessionMessageDataPart.TaskEventDataPart) {
       event.needs && event.needs.length > 0
         ? `\n  It cannot go on without:\n${event.needs.map((need) => `      ${need}`).join("\n")}`
         : "";
-    // A fork-only chat's tasks work in its own folder: none has one of its
-    // own to describe.
-    const holds =
-      event.holds && !isForkOnlyEnabled()
-        ? `\n  Its folder ${MOUNT.tasks}/${event.taskId} holds${event.status === "overdue" ? " so far" : ""}: ${describeHoldings(event.holds)}.`
-        : "";
+    // Only a briefed task has a folder of its own to describe; a fork works
+    // in the chat's, and its event carries no holdings.
+    const holds = event.holds
+      ? `\n  Its folder ${MOUNT.tasks}/${event.taskId} holds${event.status === "overdue" ? " so far" : ""}: ${describeHoldings(event.holds)}.`
+      : "";
     // Where a result that lives on a page is: the tab, by the id `tab show`
     // takes, since the task's transcript holds only its account of the page.
     const tabs =

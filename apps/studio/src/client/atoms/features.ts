@@ -8,12 +8,6 @@ const defaultFeatures: Features = {
   bash_summary_chip: false,
   context_ring: false,
   external_browser: false,
-  one_agent: false,
-  one_agent_foreground: false,
-  one_agent_fork_on_interrupt: false,
-  one_agent_fork_only: false,
-  one_agent_fork_only_background: false,
-  task_context: false,
 };
 
 async function listen(

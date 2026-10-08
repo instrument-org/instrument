@@ -10,7 +10,7 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { initializeTask } from "../initialize-task";
 import { forgetRecordFolders } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { listChildTasks } from "./children";
+import { childTaskMounts, listChildTasks } from "./children";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
 let rootDir: string;
@@ -34,12 +34,15 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-async function make(id: string, chatId: ChatId) {
+async function make(id: string, chatId: ChatId, { fork = false } = {}) {
   const taskId = TaskIdSchema.parse(id);
   const made = await initializeTask(
     {
       chatId,
-      initialSettings: { name: id },
+      initialSettings: {
+        name: id,
+        ...(fork ? { fork: true, workdir: chatId } : {}),
+      },
       taskId,
       workspaceConfig: getWorkspaceConfig(),
     },
@@ -88,5 +91,20 @@ describe("listChildTasks", () => {
 
     expect(tasks.map((task) => task.id)).toEqual([kept]);
     expect(await fs.readdir(broken)).toEqual(["settings.json"]);
+  });
+});
+
+describe("childTaskMounts", () => {
+  it("mounts a briefed task's own folder at /tasks/<id>, and no fork's", async () => {
+    const chatId = chatFor(
+      undefined,
+      ChatIdSchema.parse("2026-10-07-a-chat-with-both"),
+    );
+    const briefed = await make("2026-10-01-briefed-task", chatId);
+    await make("2026-10-07-a-fork", chatId, { fork: true });
+
+    expect(
+      (await childTaskMounts(chatId)).map((mount) => mount.mountPoint),
+    ).toEqual([`/tasks/${briefed}`]);
   });
 });

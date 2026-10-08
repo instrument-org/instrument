@@ -2,7 +2,7 @@ import { noop } from "radashi";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type AnyActorRef, createActor, fromPromise, waitFor } from "xstate";
 
-import { mainAgent } from "../agents/main";
+import { instrumentAgent } from "../agents/instrument";
 import { isToolPart } from "../lib/is-tool-part";
 import { Store } from "../lib/store";
 import { type SessionMessage } from "../schemas/session/message";
@@ -79,7 +79,7 @@ describe("agentMachine", () => {
       }),
       {
         input: {
-          agent: mainAgent,
+          agent: instrumentAgent,
           baseLLMRetryDelayMs: 1,
           llmRequestChunkTimeoutMs: 120_000,
           maxStepCount: 1,
@@ -106,7 +106,7 @@ describe("agentMachine", () => {
     sessionId: StoreId.Session;
   }) {
     return {
-      agent: mainAgent,
+      agent: instrumentAgent,
       baseLLMRetryDelayMs: 1,
       llmRequestChunkTimeoutMs: 120_000,
       maxStepCount: 1,

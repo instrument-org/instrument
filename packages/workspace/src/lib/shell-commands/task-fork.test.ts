@@ -1,4 +1,4 @@
-import { encodeUtf8ToBytes, InMemoryFs } from "just-bash";
+import { encodeUtf8ToBytes } from "just-bash";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -13,7 +13,7 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { subcommandRunner } from "../../test/helpers/run-subcommand";
-import { oneAgent } from "../../agents/one";
+import { instrumentAgent } from "../../agents/instrument";
 import { folderReach } from "../chat/folder-reach";
 import { createSession } from "../create-session";
 import {
@@ -28,13 +28,11 @@ import { getTaskState, setTaskState } from "../task-record";
 import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
-import { type OneAgentMode } from "../../types";
-import { createBackgroundCommand } from "./task/command";
-import { forkOnlyFolderSubcommand } from "./task/folder";
-import { forkOnlyNewSubcommand, forkSubcommand } from "./task/fork";
+import { folderSubcommand } from "./task/folder";
+import { newSubcommand } from "./task/fork";
 import { type HandOff, withHandOffs } from "./task-hand-off";
 
-const runFork = subcommandRunner(forkSubcommand, "task fork");
+const runNew = subcommandRunner(newSubcommand, "task new");
 
 const sent = vi.hoisted(() => ({ events: [] as unknown[] }));
 
@@ -58,13 +56,9 @@ let counter = 0;
 let rootDir: string;
 let context: TaskCommandContext;
 let chatSessionId: StoreId.Session;
-let oneAgentOn = true;
-let mode: OneAgentMode = "fork";
 
 beforeEach(async () => {
   counter += 1;
-  oneAgentOn = true;
-  mode = "fork";
   sent.events = [];
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-fork-"));
   // The chat reaches the home folder read and write, so a test that writes
@@ -82,7 +76,6 @@ beforeEach(async () => {
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../../templates/default"),
     ),
-    oneAgentMode: () => (oneAgentOn ? mode : undefined),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   chatSessionId = StoreId.newSessionId();
@@ -128,7 +121,7 @@ afterEach(async () => {
 
 /**
  * A chat mid-turn: its baseline, the user's ask, a finished command, and the
- * reply in flight whose last call is the `fork` itself, still unanswered.
+ * reply in flight whose last call is the `task new` itself, still unanswered.
  */
 function conversation(sessionId: StoreId.Session): SessionMessage.WithParts[] {
   const createdAt = new Date("2026-10-06T10:00:00.000Z");
@@ -160,14 +153,18 @@ function conversation(sessionId: StoreId.Session): SessionMessage.WithParts[] {
     message((id) => ({
       id,
       metadata: {
-        agentName: "instrument-one" as const,
+        agentName: "instrument" as const,
         contextVersion: SESSION_CONTEXT_VERSION,
         createdAt,
         realRole: "system" as const,
         sessionId,
       },
       parts: [
-        { metadata: meta(id), text: oneAgent.systemPrompt(), type: "text" },
+        {
+          metadata: meta(id),
+          text: instrumentAgent.systemPrompt(),
+          type: "text",
+        },
       ],
       role: "session-context" as const,
     })),
@@ -217,7 +214,7 @@ function conversation(sessionId: StoreId.Session): SessionMessage.WithParts[] {
         },
         {
           input: {
-            command: "task fork --name 'Rename photos'",
+            command: "task new --name 'Rename photos'",
             explanation: "Forking",
             yieldMs: 1000,
           },
@@ -232,11 +229,11 @@ function conversation(sessionId: StoreId.Session): SessionMessage.WithParts[] {
   ];
 }
 
-async function fork() {
+async function fork(args: string[] = []) {
   const handOffs: HandOff[] = [];
   const result = await withHandOffs(handOffs, () =>
-    runFork(
-      ["--name", "Rename photos"],
+    runNew(
+      ["--name", "Rename photos", ...args],
       context,
       // A directive of its own per test, since the fork's id comes from it
       // and a store handle is kept per id.
@@ -252,8 +249,8 @@ function forkId(handOffs: HandOff[]): TaskId {
   return TaskIdSchema.parse(handOffs[0]?.taskId);
 }
 
-describe("task fork", () => {
-  it("starts the one agent on the chat's conversation, then the directive", async () => {
+describe("task new", () => {
+  it("starts the agent on the chat's conversation, then the directive", async () => {
     const { handOffs, result } = await fork();
     expect(result.exitCode).toBe(0);
     expect(handOffs.map((handOff) => handOff.kind)).toEqual(["created"]);
@@ -307,11 +304,12 @@ describe("task fork", () => {
         "type" in event &&
         event.type === "createSession",
     );
-    expect(start?.value).toMatchObject({ agentName: "instrument-one", id });
+    expect(start?.value).toMatchObject({ id });
     const directive = JSON.stringify(start?.value);
     expect(directive).toContain(
-      "Everything above is background context, not your assignment",
+      "as a task: you, carrying on in the background",
     );
+    expect(directive).toContain("named for this job");
     expect(directive).toContain("Your assignment:\\nBatch");
     expect(directive).toContain(
       "rename every photo in Downloads by its date taken",
@@ -330,17 +328,21 @@ describe("task fork", () => {
     expect(await fs.readdir(taskDir(id))).toEqual([".instrument"]);
   });
 
-  it("is what `task new` runs, and --fresh is not", async () => {
-    const asNew = subcommandRunner(forkSubcommand, "task new");
-    const handOffs: HandOff[] = [];
-    await withHandOffs(handOffs, () =>
-      asNew(
-        ["--name", "Rename photos"],
-        context,
-        encodeUtf8ToBytes(`Batch ${counter}: rename them.`),
-      ),
-    );
-    expect((await getTaskSettings(taskDir(forkId(handOffs))))?.fork).toBe(true);
+  it("says it started, with nothing of a task folder", async () => {
+    const { handOffs, result } = await fork();
+    expect(result.stdout).toContain(`Started task ${forkId(handOffs)}`);
+    expect(result.stdout).not.toContain("/tasks");
+  });
+
+  it("refuses the flags that would hand a fork what it already has", async () => {
+    for (const flag of [
+      ["--fresh"],
+      ["--folder", "/mnt/x"],
+      ["--file", "a"],
+      ["--app", "linear"],
+    ]) {
+      await expect(fork(flag)).rejects.toThrow(/unknown flag/);
+    }
   });
 
   it("sends the chat's request as the prefix of its first one", async () => {
@@ -364,7 +366,7 @@ describe("task fork", () => {
     const request = async (taskId: TaskId, session: StoreId.Session) =>
       (
         await prepareModelMessages({
-          agent: oneAgent,
+          agent: instrumentAgent,
           model,
           sessionId: session,
           signal: new AbortController().signal,
@@ -389,30 +391,16 @@ describe("task fork", () => {
     expect(forked.slice(0, chat.length)).toEqual(chat);
     expect(forked).toHaveLength(chat.length + 1);
     expect(JSON.stringify(forked.at(-1))).toContain(
-      "Everything above is background context, not your assignment",
+      "Everything above is this conversation as it stood",
     );
   });
 
-  it("grants nothing it already reaches, and leaves the chat's folders alone", async () => {
+  it("reaches exactly the chat's folders, and leaves them alone", async () => {
     const reach = Object.values(await folderReach(context.chatId));
-    const writable = reach.find(
-      (folder) => effectiveFolderAccess(folder) === "read-write",
-    );
-    if (!writable) {
-      throw new Error("the chat reaches no writable folder");
-    }
-    await fs.mkdir(path.join(writable.path, "Ideas"), { recursive: true });
     const before = (await getTaskState(taskDir(context.chatId)))
       .attachedFolders;
 
-    const handOffs: HandOff[] = [];
-    await withHandOffs(handOffs, () =>
-      runFork(
-        ["--name", "Ideas", "--folder", `/mnt/${writable.mountName}/Ideas:rw`],
-        context,
-        encodeUtf8ToBytes(`Batch ${counter}: write the ideas.`),
-      ),
-    );
+    const { handOffs } = await fork();
 
     expect(
       (await getTaskState(taskDir(context.chatId))).attachedFolders,
@@ -424,80 +412,11 @@ describe("task fork", () => {
       reach.map((folder) => folder.path).toSorted(),
     );
   });
-
-  it("refuses without the one agent", async () => {
-    oneAgentOn = false;
-    await expect(fork()).rejects.toThrow(/not available/);
-  });
 });
 
-describe("task new under fork-only", () => {
-  const startOnly = async (args: string[], text = "rename them.") => {
-    const handOffs: HandOff[] = [];
-    const result = await withHandOffs(handOffs, () =>
-      subcommandRunner(forkOnlyNewSubcommand(), "task new")(
-        ["--name", "Rename photos", ...args],
-        context,
-        encodeUtf8ToBytes(`Batch ${counter}: ${text}`),
-      ),
-    );
-    return { handOffs, result };
-  };
-
-  const directiveOf = () =>
-    JSON.stringify(
-      sent.events.find(
-        (event) =>
-          typeof event === "object" &&
-          event !== null &&
-          "type" in event &&
-          event.type === "createSession",
-      ),
-    );
-
-  it("forks into the chat's folder, saying nothing of a task folder", async () => {
-    mode = "fork-only";
-    const { handOffs, result } = await startOnly([]);
-    const id = forkId(handOffs);
-    expect(await getTaskSettings(taskDir(id))).toMatchObject({
-      fork: true,
-      workdir: context.chatId,
-    });
-    expect(result.stdout).toContain(`Started task ${id}`);
-    expect(result.stdout).not.toContain("/tasks");
-    const directive = directiveOf();
-    expect(directive).toContain(
-      "as a task: you, carrying on in the background",
-    );
-    expect(directive).toContain("named for this job");
-    expect(directive).not.toContain("one of the chat's tasks");
-  });
-
-  it("refuses --fresh and the flags that hand a fork what it already has", async () => {
-    mode = "fork-only";
-    for (const flag of [
-      ["--fresh"],
-      ["--folder", "/mnt/x"],
-      ["--file", "a"],
-      ["--app", "linear"],
-    ]) {
-      await expect(startOnly(flag)).rejects.toThrow(/unknown flag/);
-    }
-  });
-
-  it("speaks of background work, never a task, in the background mode", async () => {
-    mode = "background";
-    const { result } = await startOnly([]);
-    expect(result.stdout).toMatch(/^Started background work /);
-    expect(result.stdout).not.toMatch(/\btasks?\b/i);
-    const note = /Everything above[^]*?Your assignment/.exec(directiveOf());
-    expect(note?.[0]).toContain("as background work: you, carrying on");
-    expect(note?.[0]).not.toMatch(/\btasks?\b/i);
-  });
-
+describe("task folder", () => {
   it("gives the chat and its running forks a folder inside one it reaches", async () => {
-    mode = "fork-only";
-    const { handOffs } = await startOnly([]);
+    const { handOffs } = await fork();
     const id = forkId(handOffs);
     const writable = Object.values(await folderReach(context.chatId)).find(
       (folder) => effectiveFolderAccess(folder) === "read-write",
@@ -507,10 +426,10 @@ describe("task new under fork-only", () => {
     }
     const inside = path.join(writable.path, "Sales");
     await fs.mkdir(inside, { recursive: true });
-    const result = await subcommandRunner(
-      forkOnlyFolderSubcommand(),
-      "task folder",
-    )(["--add", `/mnt/${writable.mountName}/Sales`], context);
+    const result = await subcommandRunner(folderSubcommand, "task folder")(
+      ["--add", `/mnt/${writable.mountName}/Sales`],
+      context,
+    );
     expect(result.stdout).toContain("You now have");
     const held = (dir: TaskId) =>
       getTaskState(taskDir(dir)).then((state) =>
@@ -518,30 +437,5 @@ describe("task new under fork-only", () => {
       );
     expect(await held(context.chatId)).toContain(inside);
     expect(await held(id)).toContain(inside);
-  });
-});
-
-describe("the background command", () => {
-  const run = (args: string[]) =>
-    createBackgroundCommand(context).execute(args, {
-      cwd: "/task",
-      env: new Map(),
-      fs: new InMemoryFs(),
-      stdin: encodeUtf8ToBytes(`Batch ${counter}: rename them.`),
-    } as never);
-
-  it("is not there outside the background mode", async () => {
-    mode = "fork-only";
-    expect((await run(["new", "--name", "x"])).exitCode).toBe(127);
-  });
-
-  it("starts a fork in the background mode, in its own words", async () => {
-    mode = "background";
-    const help = await run(["help"]);
-    expect(help.stdout).toContain("background new --name");
-    expect(help.stdout).not.toMatch(/\btasks?\b/i);
-    const started = await run(["new", "--name", "Rename photos"]);
-    expect(started.exitCode).toBe(0);
-    expect(started.stdout).toMatch(/^Started background work /);
   });
 });

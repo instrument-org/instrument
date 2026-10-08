@@ -103,38 +103,6 @@ export function toChatPaths(text: string, aliases: MountAlias[]): string {
 }
 
 /**
- * The paths in `text` under one of the chat's mounts that no path in
- * `handed` covers: what a task handed only those would not find. Each is cut
- * where the writing around it most likely resumes, which is enough to say
- * which folder was meant.
- *
- * A path is only ever compared against a whole mount path, so nothing here
- * decides where a path ends: `/mnt/Home/Downloads` covers
- * `/mnt/Home/Downloads/notes.md` and `/mnt/Home/Downloads.` at the end of a
- * sentence, and not `/mnt/Home/Downloads-old`.
- */
-export function mountPathsOutside(
-  text: string,
-  chatFolders: FolderMounts,
-  handed: string[],
-): string[] {
-  const chatPaths = Object.values(chatFolders).map(
-    (folder) => `${PREFIX}${folder.mountName}`,
-  );
-  const outside = new Set<string>();
-  for (const at of prefixOccurrences(text)) {
-    if (!chatPaths.some((chatPath) => startsWithPath(text, at, chatPath))) {
-      continue;
-    }
-    if (handed.some((handedPath) => startsWithPath(text, at, handedPath))) {
-      continue;
-    }
-    outside.add(pathAt(text, at));
-  }
-  return [...outside];
-}
-
-/**
  * The task's own root wherever a path starts with it: at the start of the
  * text, after whitespace, or after an opening quote, bracket, or backtick.
  * Not the same segment inside another path or an address, where the word
@@ -173,15 +141,6 @@ export function translateTaskFolderPaths(
       );
       return fence.replace(body, () => `\n${lines.join("\n")}\n`);
     });
-}
-
-/** Where a path in prose most likely ends: before a space, a quote, or a bracket, and before punctuation closing a sentence. */
-function pathAt(text: string, at: number): string {
-  const rest = text.slice(at);
-  const end = rest.search(/[\s"'`<>()[\]{}]/u);
-  return (end === -1 ? rest : rest.slice(0, end))
-    .replace(/[.,;:!?]+$/u, "")
-    .replace(/\/$/u, "");
 }
 
 /** Every index in `text` where a mount path begins. */

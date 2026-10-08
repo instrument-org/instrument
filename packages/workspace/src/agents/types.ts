@@ -43,9 +43,13 @@ export interface Agent<T extends AgentTools> {
   systemPrompt: () => string;
 }
 
-const AGENT_NAMES = ["main", "instrument", "instrument-one"] as const;
-
-export type AgentName = (typeof AGENT_NAMES)[number];
+/**
+ * The agent's name, as written on a session's baseline. A session stored
+ * under an earlier name (`main`, `instrument-one`) is read and continued by
+ * this agent all the same: its baseline's system prompt differs from
+ * `systemPrompt()`, so it is rebuilt on the next turn.
+ */
+export type AgentName = "instrument";
 export type AgentTools = Partial<Record<InternalToolName, AnyAgentTool>>;
 
 export type AnyAgent = Agent<AgentTools>;

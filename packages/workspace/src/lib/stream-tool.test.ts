@@ -17,7 +17,6 @@ const taskId = TaskIdSchema.parse("stream-tool");
 
 function makeOptions(sessionId: StoreId.Session) {
   return {
-    agentName: "main" as const,
     input: {},
     messageId: StoreId.newMessageId(),
     model,

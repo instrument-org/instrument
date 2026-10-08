@@ -13,8 +13,10 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
+import { pathExists } from "./path-exists";
 import { forgetRecord, placeChat, placeTask } from "./record-folders";
 import { updateTaskSettings } from "./task-settings";
+import { workDir } from "./work-dir";
 
 type InitialSettings = Omit<
   TaskSettingsUpdate,
@@ -39,7 +41,6 @@ export function initializeTask(
 ) {
   return initializeRecord({
     initialSettings,
-    isChat: false,
     place: () => placeTask(taskId, chatId),
     taskId,
     workspaceConfig,
@@ -60,7 +61,6 @@ export function initializeChat({
 }) {
   return initializeRecord({
     initialSettings: { ...initialSettings, chatSessionId: sessionId },
-    isChat: true,
     place: () => placeChat(chatId, sessionId),
     taskId: chatId,
     workspaceConfig,
@@ -69,13 +69,11 @@ export function initializeChat({
 
 async function initializeRecord({
   initialSettings,
-  isChat,
   place,
   taskId,
   workspaceConfig,
 }: {
   initialSettings: Omit<TaskSettingsUpdate, "createdWithAppVersion">;
-  isChat: boolean;
   place: () => TaskDir;
   taskId: TaskId;
   workspaceConfig: WorkspaceConfig;
@@ -121,22 +119,6 @@ async function initializeRecord({
             ),
     );
 
-    // A chat runs no code of its own, so it takes none of a task's scaffold,
-    // except under the one agent, which does its work in the chat's folder. A
-    // task that works in another record's folder (a fork, in its chat's)
-    // takes none either: its own folder holds only its record.
-    const worksElsewhere = initialSettings.workdir !== undefined;
-    if (
-      !worksElsewhere &&
-      (!isChat || workspaceConfig.oneAgentMode?.() !== undefined)
-    ) {
-      yield* copyTask({
-        includePrivateFolder: false,
-        sourceDir: workspaceConfig.defaultTaskTemplateDir,
-        targetDir: dir,
-      });
-    }
-
     const createdAt = getCurrentDate();
 
     yield* updateTaskSettings(taskId, {
@@ -149,26 +131,10 @@ async function initializeRecord({
       lastActivityAt: createdAt,
     });
 
-    // Create standard directories so they appear in the file tree. Avoids agent
-    // spending a tool call to create them. `work` normally arrives via the
-    // template copy above; creating it here too makes the agent-visible pair
-    // a guarantee of task initialization rather than a template detail (venv
-    // creation, pnpm guidance, and skill installs all assume it exists).
-    const standardDirs = [
-      TASK_FOLDER_NAMES.attachments,
-      TASK_FOLDER_NAMES.work,
-    ];
-    for (const dirName of worksElsewhere ? [] : standardDirs) {
-      yield* ResultAsync.fromPromise(
-        fs.mkdir(absolutePathJoin(dir, dirName), {
-          recursive: true,
-        }),
-        (error) =>
-          new TypedError.FileSystem(
-            error instanceof Error ? error.message : "Unknown error",
-            { cause: error },
-          ),
-      );
+    // A task that works in another record's folder (a fork, in its chat's)
+    // takes no scaffold: its own folder holds only its record.
+    if (initialSettings.workdir === undefined) {
+      yield* scaffoldWorkFolder(dir, workspaceConfig);
     }
 
     return ok({ taskId });
@@ -176,4 +142,55 @@ async function initializeRecord({
     release?.();
     return error;
   });
+}
+
+/**
+ * What a working folder starts with: the template's package root, and the
+ * folders the agent is told it has. `work` normally arrives with the template;
+ * made here too, so the pair is a guarantee of the folder rather than a
+ * template detail (venv creation, pnpm guidance, and skill installs all
+ * assume it exists).
+ */
+function scaffoldWorkFolder(dir: TaskDir, workspaceConfig: WorkspaceConfig) {
+  return safeTry(async function* () {
+    yield* copyTask({
+      includePrivateFolder: false,
+      sourceDir: workspaceConfig.defaultTaskTemplateDir,
+      targetDir: dir,
+    });
+    for (const dirName of [
+      TASK_FOLDER_NAMES.attachments,
+      TASK_FOLDER_NAMES.work,
+    ]) {
+      yield* ResultAsync.fromPromise(
+        fs.mkdir(absolutePathJoin(dir, dirName), { recursive: true }),
+        (error) =>
+          new TypedError.FileSystem(
+            error instanceof Error ? error.message : "Unknown error",
+            { cause: error },
+          ),
+      );
+    }
+    return ok(undefined);
+  });
+}
+
+/**
+ * Scaffolds the folder a task or chat works in when it has none: a chat made
+ * before chats did their own work holds only its record, and its agent
+ * expects a package root to install into. A folder with a `package.json`
+ * already is left as it is.
+ */
+export async function ensureWorkFolder(
+  taskId: TaskId,
+  workspaceConfig: WorkspaceConfig,
+) {
+  const dir = workDir(taskId);
+  if (await pathExists(absolutePathJoin(dir, "package.json"))) {
+    return;
+  }
+  const scaffolded = await scaffoldWorkFolder(dir, workspaceConfig);
+  if (scaffolded.isErr()) {
+    workspaceConfig.captureException(scaffolded.error);
+  }
 }

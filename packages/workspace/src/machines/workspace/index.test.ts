@@ -87,7 +87,6 @@ const spawnSession = (
   actor.send({
     type: "internal.spawnSession",
     value: {
-      agentName: "main",
       message: buildUserMessage(),
       model: createMockAIGatewayModel(),
       sessionId: StoreId.newSessionId(),

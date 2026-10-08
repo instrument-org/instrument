@@ -227,103 +227,6 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
-  it("leaves a call's say out of the input it replays", async () => {
-    const { sessionId } = baseMetadata();
-    const messageId = StoreId.newMessageId();
-    const call = (n: number, say: string): SessionMessagePart.Type => ({
-      input: {
-        activity: "Totaling the invoices",
-        command: `cat invoice-${n}.txt`,
-        explanation: "Reading an invoice",
-        say,
-        yieldMs: 1000,
-      },
-      metadata: {
-        createdAt: mockDate,
-        endedAt: mockDate,
-        id: StoreId.newPartId(),
-        messageId,
-        sessionId,
-        toolName: "bash",
-      },
-      output: {
-        command: `cat invoice-${n}.txt`,
-        commands: ["cat"],
-        durationMs: 0,
-        exitCode: 0,
-        omittedBytes: 0,
-        output: "",
-      },
-      state: "output-available",
-      toolCallId: StoreId.ToolCallSchema.parse(`call_say_${n}`),
-      type: "tool-bash",
-    });
-    const messages: SessionMessage.WithParts[] = [
-      {
-        id: messageId,
-        metadata: {
-          aiGatewayModel: undefined,
-          createdAt: mockDate,
-          finishReason: "tool-calls",
-          modelId: "claude-haiku-5.5",
-          providerId: "openrouter",
-          sessionId,
-        },
-        parts: [
-          {
-            metadata: {
-              createdAt: mockDate,
-              id: StoreId.newPartId(),
-              messageId,
-              sessionId,
-            },
-            state: "done",
-            text: "Reading the invoices.",
-            type: "text",
-          },
-          call(1, "Reading the invoices."),
-          call(2, "Still reading."),
-        ],
-        role: "assistant",
-      },
-    ];
-
-    const result = await SessionMessage.toModelMessages(
-      messages,
-      TOOLS_FOR_MODEL_OUTPUT,
-    );
-
-    expect(
-      result.flatMap((message) =>
-        typeof message.content === "string"
-          ? []
-          : message.content.flatMap((content) =>
-              content.type === "text"
-                ? [content.text]
-                : content.type === "tool-call"
-                  ? [content.input]
-                  : [],
-            ),
-      ),
-    ).toMatchInlineSnapshot(`
-      [
-        "Reading the invoices.",
-        {
-          "activity": "Totaling the invoices",
-          "command": "cat invoice-1.txt",
-          "explanation": "Reading an invoice",
-          "yieldMs": 1000,
-        },
-        {
-          "activity": "Totaling the invoices",
-          "command": "cat invoice-2.txt",
-          "explanation": "Reading an invoice",
-          "yieldMs": 1000,
-        },
-      ]
-    `);
-  });
-
   it("replays persisted bounded tool output byte for byte", async () => {
     const { sessionId } = baseMetadata();
     const messageId = StoreId.newMessageId();
@@ -941,46 +844,7 @@ describe("SessionMessage.toModelMessages", () => {
     expect(text).toContain("write_file");
   });
 
-  // The conversation's agent has no file tools, so its copy of the rules says
-  // a task writes and never names a tool it has not got.
-  it("tells the conversation's agent a task writes into an attached folder", async () => {
-    const { messageMetadata, partMetadata } = baseMetadata();
-
-    const result = await SessionMessage.toModelMessages(
-      [
-        {
-          id: StoreId.newMessageId(),
-          metadata: messageMetadata,
-          parts: [{ metadata: partMetadata, text: "hello", type: "text" }],
-          role: "user",
-        },
-        {
-          id: StoreId.newMessageId(),
-          metadata: messageMetadata,
-          parts: [
-            attachedFoldersPart(partMetadata),
-            { metadata: partMetadata, text: "summarize these", type: "text" },
-          ],
-          role: "user",
-        },
-      ],
-      TOOLS_FOR_MODEL_OUTPUT,
-      { agentName: "instrument" },
-    );
-
-    const text = JSON.stringify(result);
-    expect(text).toContain(
-      "a task reaches one only when you pass it with --folder",
-    );
-    expect(text).toContain("written by a task handed the folder with --folder");
-    expect(text).not.toContain("write_file");
-    expect(text).not.toContain("read_file");
-  });
-
-  // A file sent to the conversation lands in its own folder, which no task can
-  // see, and it cannot read a picture itself: the note says how to hand the
-  // file on rather than calling it available "in the task".
-  it("tells the conversation's agent to hand a sent file to a task with --file", async () => {
+  it("lists a sent file at the path the agent reads it by", async () => {
     const { messageMetadata, partMetadata } = baseMetadata();
     const sentFile = SessionMessagePart.coerce({
       data: {
@@ -1009,23 +873,11 @@ describe("SessionMessage.toModelMessages", () => {
       },
     ] satisfies SessionMessage.WithParts[];
 
-    const forConversation = JSON.stringify(
-      await SessionMessage.toModelMessages(messages, TOOLS_FOR_MODEL_OUTPUT, {
-        agentName: "instrument",
-      }),
-    );
-    expect(forConversation).toContain("The user sent these files");
-    expect(forConversation).toContain(
-      "put --file <path> on the task new or task send that needs it",
-    );
-    expect(forConversation).toContain("- /task/attachments/screen.png (18KB)");
-    expect(forConversation).not.toContain("available in the task");
-
-    const forTask = JSON.stringify(
+    const note = JSON.stringify(
       await SessionMessage.toModelMessages(messages, TOOLS_FOR_MODEL_OUTPUT),
     );
-    expect(forTask).toContain("now available in the task");
-    expect(forTask).not.toContain("--file");
+    expect(note).toContain("now available in the task");
+    expect(note).not.toContain("--file");
   });
 
   // A tool's output schema outgrows the sessions already recorded against it,

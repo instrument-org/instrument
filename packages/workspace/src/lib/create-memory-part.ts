@@ -89,7 +89,7 @@ export async function createMemoryPart({
       return {
         data: {
           forgotten: [],
-          memories: memories.slice(0, MEMORIES_IN_NOTE).map(memoryNoteRow),
+          memories: memories.slice(0, MEMORIES_IN_NOTE).map(noteRow),
           more: Math.max(0, memories.length - MEMORIES_IN_NOTE),
           sentAt,
           tells: "whole",
@@ -103,7 +103,7 @@ export async function createMemoryPart({
         forgotten: Object.keys(told).filter((name) => !(name in digests)),
         memories: memories
           .filter((memory) => told[memory.name] !== digests[memory.name])
-          .map(memoryNoteRow),
+          .map(noteRow),
         more: 0,
         sentAt,
         tells: "changes",
@@ -171,7 +171,7 @@ export async function resetMemoryReported({
   await storage.value.removeItem(StorageKey.memoryReported(sessionId));
 }
 
-export function memoryNoteRow(memory: Memory) {
+function noteRow(memory: Memory) {
   return {
     at: memory.at,
     ...(memory.from ? { from: memory.from.title } : {}),

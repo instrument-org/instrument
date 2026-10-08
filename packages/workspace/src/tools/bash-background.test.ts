@@ -47,7 +47,6 @@ describe("bash background processes, end to end", () => {
 
   function toolOptions<TInput>(input: TInput) {
     return {
-      agentName: "main" as const,
       input,
       model,
       sessionId,

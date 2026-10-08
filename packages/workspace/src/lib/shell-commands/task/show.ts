@@ -14,10 +14,8 @@ import {
   toChatPaths,
   translateTaskFolderPaths,
 } from "../../chat/mount-paths";
-import { isForkOnlyEnabled } from "../../one-agent";
 import { taskDir } from "../../task-dir-utils";
-import { chatPathOfWorkDir } from "../../work-dir";
-import { taskHold } from "../../task-hold";
+import { chatPathOfWorkDir, hasOwnWorkFolder } from "../../work-dir";
 import { getTaskState } from "../../task-record";
 import { getTaskSettings } from "../../task-settings";
 import { getTaskUsageSummary } from "../../usage-summary";
@@ -27,7 +25,6 @@ import { TASK_COMMAND } from "../task-command";
 import { formatAge } from "../task-list-output";
 import { requireChild } from "./children";
 import { type TaskCommandContext } from "./context";
-import { describeHold } from "./delivery";
 import { describeHeldTabs } from "./tab-choice";
 
 export const showSubcommand = subcommand<TaskCommandContext>({
@@ -42,7 +39,6 @@ async function runShow(input: SubcommandInput, context: TaskCommandContext) {
   const task = await requireChild(input.positional[0], context);
   const state = await getTaskState(taskDir(task.id));
   const running = isWorking(task.id);
-  const held = taskHold(task.id);
   // Everything below is the task's, said in this conversation's paths, which
   // are the task's own for every folder this conversation granted it under
   // shared names (see mount-paths.ts).
@@ -82,7 +78,7 @@ async function runShow(input: SubcommandInput, context: TaskCommandContext) {
   const inFlight = running ? await stepInFlight(task.id) : undefined;
   const lines = [
     `${task.id}: "${task.title}"`,
-    `status: ${held ? `waiting: ${describeHold(held)}` : running ? "running" : "idle"}`,
+    `status: ${running ? "running" : "idle"}`,
     ...(inFlight ? [`now: ${inFlight}`] : []),
     ...(background.length > 0
       ? [
@@ -95,12 +91,13 @@ async function runShow(input: SubcommandInput, context: TaskCommandContext) {
     `folders: ${folders.length > 0 ? folders.join(", ") : "none"}`,
     `apps: ${handedApps.length > 0 ? handedApps.join(", ") : "none"}`,
     `tabs: ${describeHeldTabs(state.browserTabs)}`,
-    // A fork-only chat's tasks work in its own folder, which is no news.
-    ...(isForkOnlyEnabled()
-      ? []
-      : [
+    // A fork works in the chat's own folder, which is no news; a briefed
+    // task's folder is its own.
+    ...(hasOwnWorkFolder(task.id)
+      ? [
           `folder: ${MOUNT.tasks}/${task.id}, holding ${describeHoldings(holds)}`,
-        ]),
+        ]
+      : []),
     `last said: ${lastSaid ? `\n  ${lastSaid.replaceAll("\n", "\n  ")}` : "nothing yet"}`,
   ];
   return `${lines.join("\n")}\n`;

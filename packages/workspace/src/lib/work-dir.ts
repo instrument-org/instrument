@@ -46,3 +46,13 @@ export function chatPathOfWorkDir(taskId: TaskId, chatId: TaskId): string {
     ? MOUNT.task
     : `${MOUNT.tasks}/${taskId}`;
 }
+
+/**
+ * Whether a task works in a folder of its own rather than in its chat's:
+ * a briefed task, which a workspace can still hold, where a fork works in
+ * its chat's folder. The chat reaches a briefed task's folder at
+ * `/tasks/<id>`.
+ */
+export function hasOwnWorkFolder(id: TaskId): boolean {
+  return workDir(id) === taskDir(id);
+}

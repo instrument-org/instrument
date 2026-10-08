@@ -23,7 +23,7 @@ import {
   interruptedNote,
   keepsTheWork,
 } from "../lib/fork-on-interrupt";
-import { chatSpokenFor, isForkOnInterruptEnabled } from "../lib/one-agent";
+import { resolveChat } from "../lib/record-folders";
 import { recordChanged } from "../lib/record-changes";
 import { Store } from "../lib/store";
 import { isTypedByUser } from "../lib/typed-by-user";
@@ -135,14 +135,13 @@ export const sessionMachine = setup({
     forkInterruptedTurn: fromPromise<
       ForkedTurn | undefined,
       {
-        agent: AnyAgent;
         exclude: StoreId.Message[];
         sessionId: StoreId.Session;
         taskId: TaskId;
         turnMessageId: StoreId.Message;
       }
     >(async ({ input, signal }) => {
-      const chatId = chatSpokenFor(input.agent.name, input.taskId);
+      const chatId = resolveChat(input.taskId);
       if (!chatId) {
         return undefined;
       }
@@ -248,13 +247,12 @@ export const sessionMachine = setup({
     }),
   },
   guards: {
-    // The user wrote to a chat mid-turn, under fork on interrupt, and not to
-    // call the work off: the turn's work goes on in a fork once it stops.
+    // The user wrote to a chat mid-turn, and not to call the work off: the
+    // turn's work goes on in a fork once it stops.
     forksOnInterrupt: ({ context, event }) =>
       event.type === "addMessage" &&
       context.turnMessageId !== undefined &&
-      isForkOnInterruptEnabled() &&
-      chatSpokenFor(context.agent.name, context.taskId) !== undefined &&
+      resolveChat(context.taskId) !== undefined &&
       isTypedByUser(event.value) &&
       keepsTheWork(event.value),
     isAgentRefActive: ({ context }) =>
@@ -365,13 +363,13 @@ export const sessionMachine = setup({
         // A running agent hears it at its next point between steps and then
         // says so, which is what takes it back out of the queue. Until then it
         // stays queued, so a turn that ends first runs it as a turn of its own.
-        // The conversation's own agent is superseded instead: a message the
-        // user typed while it was composing stops the turn, and the queue runs
-        // the message as a turn of its own, over everything said so far. A
-        // note from a task or an app steers, since the reply in flight is
-        // still the reply to what the user said. A sender that asks to
-        // interrupt supersedes any agent's step the same way. Under fork on
-        // interrupt, the superseded turn's work is forked once it stops.
+        // A chat's turn is superseded instead: a message the user typed while
+        // it was working stops the turn, the turn's work is forked once it
+        // stops (fork on interrupt), and the queue runs the message as a turn
+        // of its own, over everything said so far. A note from a task or an
+        // app steers, since the reply in flight is still the reply to what
+        // the user said. A sender that asks to interrupt supersedes any
+        // agent's step the same way.
         enqueueActions(({ check, context, enqueue, event }) => {
           const agentRef = context.agentRef;
           if (agentRef?.getSnapshot().status !== "active") {
@@ -379,7 +377,7 @@ export const sessionMachine = setup({
           }
           if (
             event.interrupt ||
-            (chatSpokenFor(context.agent.name, context.taskId) !== undefined &&
+            (resolveChat(context.taskId) !== undefined &&
               isTypedByUser(event.value))
           ) {
             if (check("forksOnInterrupt")) {
@@ -581,7 +579,7 @@ export const sessionMachine = setup({
     // The turn a newer message superseded goes on in a fork, and the message
     // that superseded it says so to the agent that answers it. Nothing to
     // carry on, or a fork of the chat's already running, and the message
-    // simply runs next, as it does without the flag. A stop here drops the
+    // simply runs next. A stop here drops the
     // fork, and one that was made as the stop landed stops with it.
     ForkingInterruptedTurn: {
       exit: assign({ interruptedTurn: undefined }),
@@ -589,7 +587,6 @@ export const sessionMachine = setup({
         input: ({ context }) => {
           invariant(context.interruptedTurn, "No interrupted turn to fork");
           return {
-            agent: context.agent,
             exclude: context.queuedMessages.map((message) => message.id),
             sessionId: context.sessionId,
             taskId: context.taskId,

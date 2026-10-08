@@ -370,7 +370,6 @@ describe("WebSearch execution", () => {
     "does not search for the placeholder query %o",
     async (query) => {
       const result = await runTool(WebSearch, {
-        agentName: "main",
         input: { query },
         model,
         signal: new AbortController().signal,

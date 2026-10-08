@@ -47,7 +47,6 @@ describe("background job commands", () => {
 
   async function bash(command: string, yieldMs = 30_000) {
     const result = await runTool(BashTool, {
-      agentName: "main" as const,
       input: { command, yieldMs },
       model,
       sessionId,

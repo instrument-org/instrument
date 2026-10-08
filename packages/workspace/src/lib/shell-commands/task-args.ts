@@ -3,17 +3,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { noop } from "radashi";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT, WORKSPACE_SKILLS_MOUNT } from "../../mount-points";
-import { type FileUpload } from "../../schemas/file-upload";
 import { type FolderAttachment } from "../../schemas/folder-attachment";
-import { getMimeType } from "../get-mime-type";
 import { readRefusalOf } from "../read-refusal";
-import { resolveExistingFilePath } from "../resolve-agent-path";
 import {
   effectiveFolderAccess,
   folderHoldsWorkspace,
-  type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 
 /**
@@ -75,7 +70,7 @@ export async function requireFoldersOnDisk(
       stat = await fs.stat(folder.path);
     } catch {
       throw new Error(
-        `no folder at "${spec}": nothing is on disk at ${folder.path}. A folder renamed or moved since it was named is under its new name; \`ls\` its parent to see what is there. A path with a space in it needs quotes: --folder '${MOUNT.attachedFolders}/<mount>/a folder:rw'.`,
+        `no folder at "${spec}": nothing is on disk at ${folder.path}. A folder renamed or moved since it was named is under its new name; \`ls\` its parent to see what is there. A path with a space in it needs quotes: '${MOUNT.attachedFolders}/<mount>/a folder'.`,
       );
     }
     if (!stat.isDirectory()) {
@@ -137,112 +132,11 @@ export async function awaitAnswers(
 }
 
 /**
- * The files a task is handed, from the `--file` specs on `task new` and
- * `task send`: each a path the conversation can read, resolved through its own
- * view of the filesystem to the file on disk. The message the task gets copies
- * each into the task's `attachments/`, the way a file the user attaches to a
- * message reaches a task, so a file is handed over without the folder around
- * it: no grant widens, and the original stays where it is.
- *
- * Relative specs count from the shell's working directory, as `cat` would read
- * them, rather than from the task root the file tools assume.
- */
-export async function resolveFileUploads(
-  specs: string[],
-  { cwd, layout }: { cwd: string; layout: WorkspaceFsLayout },
-): Promise<FileUpload.Type[]> {
-  return Promise.all(
-    specs.map(async (spec) => {
-      const inputPath = path.posix.isAbsolute(spec)
-        ? spec
-        : path.posix.join(cwd, spec);
-      const resolved = resolveExistingFilePath({ inputPath, layout });
-      if (resolved.isErr()) {
-        throw new Error(`no file at "${spec}": ${resolved.error.message}`);
-      }
-      const hostPath = resolved.value.absolutePath;
-      let stat;
-      try {
-        stat = await fs.stat(hostPath);
-      } catch {
-        throw new Error(
-          `no file at "${spec}": nothing is on disk there. \`ls\` its folder to see what is there; a path with a space in it needs quotes.`,
-        );
-      }
-      if (stat.isDirectory()) {
-        throw new Error(
-          `"${spec}" is a folder. --file hands a task one file; a folder goes with --folder.`,
-        );
-      }
-      return {
-        filename: path.basename(hostPath),
-        mimeType: getMimeType(hostPath),
-        path: hostPath,
-        size: stat.size,
-      };
-    }),
-  );
-}
-
-/**
- * A path in the conversation's own folder as a brief writes one: from the
- * root, or bare from the folder the shell is in.
- */
-const OWN_FILE_IN_BRIEF = new RegExp(
-  String.raw`(?<![\w/.-])((?:${MOUNT.task}|${TASK_FOLDER_NAMES.attachments})/[^\s'"\`()[\]]+)`,
-  "g",
-);
-
-/**
- * A brief that names a file in this conversation's own folder without handing
- * it over is refused, with the flag to add: no task can see that folder, so
- * the task would fail at its first read and wake the conversation about it,
- * which is a turn spent on what this catches. A file handed over lands at the
- * same path in the task's own folder, so the brief's name for it stays right.
- *
- * `/task` in a brief is also the task's own folder, so a path with no file
- * behind it is an output the brief asks the task to make, and passes.
- */
-export async function requireFilesNamedInBrief(
-  prompt: string,
-  specs: string[],
-  { cwd, layout }: { cwd: string; layout: WorkspaceFsLayout },
-): Promise<void> {
-  const handed = new Set(specs.map((spec) => ownPath(spec, cwd)));
-  const unhanded = [
-    ...new Set(
-      [...prompt.matchAll(OWN_FILE_IN_BRIEF)].map((match) =>
-        ownPath((match[1] ?? "").replace(/[.,;:]+$/, ""), cwd),
-      ),
-    ),
-  ].filter((named) => !handed.has(named));
-  const found = await Promise.all(
-    unhanded.map(async (inputPath) => {
-      const resolved = resolveExistingFilePath({ inputPath, layout });
-      if (resolved.isErr()) {
-        return;
-      }
-      const isFile = await fs.stat(resolved.value.absolutePath).then(
-        (stat) => stat.isFile(),
-        () => false,
-      );
-      return isFile ? inputPath : undefined;
-    }),
-  );
-  const missing = found.filter((inputPath) => inputPath !== undefined);
-  if (missing.length > 0) {
-    throw new Error(
-      `the brief names ${missing.map((named) => `"${named}"`).join(", ")} in this conversation's own folder, which no task can see. Add ${missing.map((named) => `--file ${named}`).join(" ")}: a copy lands in the task's own ${TASK_FOLDER_NAMES.attachments}/ under the same name.`,
-    );
-  }
-}
-
-/**
- * The folders a task is handed, from the `--folder` specs on `task new` and
- * the folders the conversation has: each a host path inside a mount, with the
- * conversation's access unless the spec narrows it, and the name the task
- * mounts it under, which is the conversation's own path for it
- * (`Home/Downloads` for `--folder /mnt/Home/Downloads`).
+ * The folders `task folder --add` names, against the folders the
+ * conversation has: each a host path inside a mount, with the conversation's
+ * access unless the spec narrows it, and the name it mounts under, which is
+ * the conversation's own path for it (`Home/Downloads` for
+ * `/mnt/Home/Downloads`).
  */
 export function resolveFolders(
   specs: string[],
@@ -260,12 +154,12 @@ export function resolveFolders(
     const folder = byMount.get(name);
     if (!folder && spec.startsWith(`${MOUNT.skills}/`)) {
       throw new Error(
-        `"${spec}" needs no --folder: every task writes skills to ${WORKSPACE_SKILLS_MOUNT}/<name>/ on its own.`,
+        `"${spec}" needs no grant: skills are written to ${WORKSPACE_SKILLS_MOUNT}/<name>/ as they are.`,
       );
     }
     if (!folder && name === "") {
       throw new Error(
-        `"${spec}" is not one of this conversation's folders: --folder takes ${MOUNT.attachedFolders}/<mount>[/<folder>]. Yours: ${available}.`,
+        `"${spec}" is not one of this conversation's folders: a folder is ${MOUNT.attachedFolders}/<mount>[/<folder>]. Yours: ${available}.`,
       );
     }
     if (!folder) {
@@ -279,7 +173,7 @@ export function resolveFolders(
     const folderPath = subpath ? path.resolve(root, subpath) : root;
     if (folderPath !== root && !folderPath.startsWith(`${root}${path.sep}`)) {
       throw new Error(
-        `"${spec}" leaves ${MOUNT.attachedFolders}/${name}. A task can be handed a folder inside a mount, not one outside it.`,
+        `"${spec}" leaves ${MOUNT.attachedFolders}/${name}. A folder inside a mount can be granted, not one outside it.`,
       );
     }
     // The grant is judged for the folder handed, not for the mount: the home
@@ -292,12 +186,12 @@ export function resolveFolders(
     if (access === "read-write" && granted !== "read-write") {
       throw new Error(
         folder.access === "read-write" && folderHoldsWorkspace(folderPath)
-          ? `${MOUNT.attachedFolders}/${name} holds ${APP_NAME}'s own data, so a task reads it whole and never writes it whole. Hand it the folder inside that the work needs: --folder ${MOUNT.attachedFolders}/${name}/<folder>:rw.`
-          : `${MOUNT.attachedFolders}/${name} is read-only in this conversation, so a task cannot write to it. Ask the user to attach it with write access.`,
+          ? `${MOUNT.attachedFolders}/${name} holds ${APP_NAME}'s own data, so it is read whole and never written whole. Add the folder inside that the work needs: ${MOUNT.attachedFolders}/${name}/<folder>.`
+          : `${MOUNT.attachedFolders}/${name} is read-only in this conversation, so nothing writes to it. Ask the user to attach it with write access.`,
       );
     }
     const inside = path.relative(root, folderPath).split(path.sep);
-    // The task gets what the conversation has unless the brief narrows it.
+    // What the conversation has, unless the spec narrows it.
     return {
       access: access ?? granted,
       mountName: [name, ...inside.filter(Boolean)].join("/"),
@@ -305,12 +199,6 @@ export function resolveFolders(
       source: "user" as const,
     };
   });
-}
-
-function ownPath(spec: string, cwd: string): string {
-  return path.posix.normalize(
-    path.posix.isAbsolute(spec) ? spec : path.posix.join(cwd, spec),
-  );
 }
 
 /**
@@ -321,29 +209,6 @@ function ownPath(spec: string, cwd: string): string {
  * {@link ANSWER_WAIT_MS}.
  */
 const LOOK_INSIDE_MS = 750;
-
-/**
- * A delay the way the conversation writes one: `30s`, `5m`, `1h`, `90 sec`,
- * `2 hours`, or bare seconds. Undefined for anything else, and for zero.
- */
-export function parseDelay(raw: string): number | undefined {
-  const match =
-    /^(\d+(?:\.\d+)?)\s*([smh]|sec|secs|second|seconds|min|mins|minute|minutes|hr|hrs|hour|hours)?$/i.exec(
-      raw.trim(),
-    );
-  if (!match?.[1]) {
-    return undefined;
-  }
-  const amount = Number(match[1]);
-  const unit = (match[2] ?? "s").toLowerCase();
-  const perUnit = unit.startsWith("h")
-    ? 3_600_000
-    : unit.startsWith("m")
-      ? 60_000
-      : 1000;
-  const delay = amount * perUnit;
-  return delay > 0 ? Math.round(delay) : undefined;
-}
 
 function refusal(error: unknown, spec: string) {
   const code =
@@ -404,33 +269,4 @@ async function requireReadable(
     throw new Error(outcome.reason);
   }
   return undefined;
-}
-
-/**
- * Paths a brief names under the app folders or the tasks' folders, which are
- * the conversation's alone: no task is ever handed them, so a brief naming
- * one sends the task looking for something it cannot have, or making a
- * stand-in for it somewhere it can write. A file handed with --file covers
- * its own path.
- */
-export function chatOnlyPathsIn(prompt: string, handed: string[]): string[] {
-  const named = [
-    ...prompt.matchAll(
-      new RegExp(
-        `(?<![\\w./-])(?:${MOUNT.apps}|${MOUNT.tasks})(?![\\w-])(?:/[^\\s'"\`)\\]>,;]*)?`,
-        "g",
-      ),
-    ),
-  ].map(([match]) => match.replace(/[.:]+$/, ""));
-  return [
-    ...new Set(
-      named.filter(
-        (candidate) =>
-          !handed.some(
-            (itemPath) =>
-              candidate === itemPath || candidate.startsWith(`${itemPath}/`),
-          ),
-      ),
-    ),
-  ];
 }

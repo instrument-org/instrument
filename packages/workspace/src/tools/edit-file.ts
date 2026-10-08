@@ -14,8 +14,9 @@ import {
   LINE_NUMBER_SEPARATOR,
 } from "../lib/add-line-numbers";
 import { executeError } from "../lib/execute-error";
-import { chatSpokenFor, toolFolders } from "../lib/one-agent";
+import { folderReach } from "../lib/chat/folder-reach";
 import { pathExists } from "../lib/path-exists";
+import { resolveChat } from "../lib/record-folders";
 import {
   applyUnicodeFallbacks,
   resolveWritableToolPath,
@@ -770,16 +771,14 @@ export const EditFile = setupTool({
     - The edit fails if \`${INPUT_PARAMS.oldString}\` is not unique in the file. Either provide a larger string with more surrounding context to make it unique, or use \`${INPUT_PARAMS.replaceAll}\` to change every instance. \`${INPUT_PARAMS.replaceAll}\` matches literal text, not symbols, so a rename also hits the name inside comments, strings, and longer identifiers -- check the returned diff.
     - Edits apply one at a time in the order you send them, so several edits to the same file in one response land cleanly.
   `,
-  execute: async ({ agentName, input, signal, taskId, taskState }) => {
+  execute: async ({ input, signal, taskId, taskState }) => {
     if (input.oldString === input.newString) {
       return executeError("oldString and newString must be different");
     }
 
     const layout = buildWorkspaceFsLayout({
-      apps:
-        agentName === "instrument" ||
-        chatSpokenFor(agentName, taskId) !== undefined,
-      attachedFolders: await toolFolders(agentName, taskId, taskState),
+      apps: resolveChat(taskId) !== undefined,
+      attachedFolders: await folderReach(taskId, taskState),
       taskHostRoot: workDir(taskId),
     });
     const pathResult = resolveWritableToolPath({

@@ -148,25 +148,11 @@ export function createWorkspaceActor() {
       // index is derived, and a workspace may sit in a synced folder.
       indexesDir: path.join(app.getPath("userData"), "indexes"),
       isExternalBrowserEnabled: () => isFeatureEnabled("external_browser"),
-      isForkOnInterruptEnabled: () =>
-        isFeatureEnabled("one_agent_fork_on_interrupt"),
-      isTaskContextEnabled: () => isFeatureEnabled("task_context"),
       modelCache: diskModelCache,
       nodeExecEnv: {
         // Required to allow Electron to operate as a node process
         // See https://www.electronjs.org/docs/latest/api/environment-variables
         ELECTRON_RUN_AS_NODE: "1",
-      },
-      oneAgentMode: () => {
-        if (!isFeatureEnabled("one_agent")) {
-          return undefined;
-        }
-        if (isFeatureEnabled("one_agent_fork_only")) {
-          return isFeatureEnabled("one_agent_fork_only_background")
-            ? "background"
-            : "fork-only";
-        }
-        return isFeatureEnabled("one_agent_foreground") ? "foreground" : "fork";
       },
       pnpmBinPath: getPNPMBinPath(),
       // Beside the app-managed `bin` and `uv`, and outside the workspace: the

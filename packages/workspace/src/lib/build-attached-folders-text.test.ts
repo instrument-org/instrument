@@ -117,35 +117,6 @@ describe("buildAttachedFoldersText", () => {
 
   // The chat has no file tools and a shell that refuses to write, so
   // its copy names the task as the writer rather than tools it has not got.
-  it("names a task as the writer for a reader without file tools", () => {
-    const folders = [
-      {
-        access: "read-write" as const,
-        mountPoint: "/mnt/Instrument",
-        path: "/Users/sam/Documents/Instrument",
-      },
-      {
-        access: "read-only" as const,
-        mountPoint: "/mnt/sam",
-        path: "/Users/sam",
-      },
-    ];
-    const here = buildAttachedFoldersText({ folders, intro: INTRO });
-    const throughTasks = buildAttachedFoldersText({
-      folders,
-      intro: INTRO,
-      writes: "through-tasks",
-    });
-
-    expect(here).toContain("write_file");
-    expect(throughTasks).not.toContain("write_file");
-    expect(throughTasks).not.toContain("edit_file");
-    expect(throughTasks).not.toContain("read_file");
-    expect(throughTasks).toContain("--folder");
-    expect(throughTasks).toContain("Writing into a read-only folder fails");
-    expect(listOf(throughTasks)).toEqual(listOf(here));
-  });
-
   it("labels the home folder as writable inside without calling it read-only", () => {
     const text = buildAttachedFoldersText({
       folders: [
@@ -157,19 +128,18 @@ describe("buildAttachedFoldersText", () => {
         },
       ],
       intro: INTRO,
-      writes: "through-tasks",
     });
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "sam" -> \`/mnt/sam\` (read-only for you, and a task handed a folder inside it can write there)",
+        "- "sam" -> \`/mnt/sam\` (read-only, and \`task folder --add\` gives you write on a folder inside it)",
       ]
     `);
     expect(text).not.toContain("Writing into a read-only folder fails");
   });
 
   it.runIf(process.platform === "darwin")(
-    "tells a reader with file tools what a refusal from macOS looks like",
+    "says what a refusal from macOS looks like",
     () => {
       const folders = [
         {
@@ -181,13 +151,6 @@ describe("buildAttachedFoldersText", () => {
       expect(buildAttachedFoldersText({ folders, intro: INTRO })).toContain(
         "Operation not permitted",
       );
-      expect(
-        buildAttachedFoldersText({
-          folders,
-          intro: INTRO,
-          writes: "through-tasks",
-        }),
-      ).not.toContain("Operation not permitted");
     },
   );
 

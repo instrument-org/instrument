@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TASKS_DIR_NAME } from "../../../constants";
 import { recordChanged } from "../../../lib/record-changes";
 import { Store } from "../../../lib/store";
-import { cancelHold, holdTask } from "../../../lib/task-hold";
 import { updateTaskSettings } from "../../../lib/task-settings";
 import { setWorkspaceActorRef } from "../../../lib/workspace-actor-ref";
 import { getWorkspaceConfig } from "../../../lib/workspace-config";
@@ -114,18 +113,6 @@ describe("task.live.status", () => {
       isWorking: false,
       title: "Lisbon hotel",
     });
-
-    holdTask(taskId, {
-      reason: "r",
-      start: () => undefined,
-      until: new Promise<undefined>(() => undefined),
-      userReason: "Waiting for you to allow access to Desktop",
-    });
-    expect((await next())?.held).toBe(
-      "Waiting for you to allow access to Desktop",
-    );
-    cancelHold(taskId);
-    expect((await next())?.held).toBeUndefined();
 
     const sessionId = StoreId.newSessionId();
     (

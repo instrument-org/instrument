@@ -1,15 +1,10 @@
-import fs from "node:fs/promises";
 import { dedent, sift } from "radashi";
 
-import { TASK_FOLDER_NAMES } from "../constants";
 import { contextDateKey, formatContextDate } from "../lib/context-date";
-import { fileTree } from "../lib/file-tree";
-import { generateTreeString } from "../lib/generate-tree-string";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getSystemInfo } from "../lib/get-system-info";
 import { isToolPart } from "../lib/is-tool-part";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { type AbsolutePath } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { type AgentName } from "./types";
@@ -115,31 +110,6 @@ export function getSystemInfoText({ network }: { network?: string } = {}) {
 }
 
 /**
- * The task's files as a tree, or nothing when there is nothing to show: a
- * task holding only the scaffold every task starts with is described by the
- * prompt's Task Folder section already, and a tree of it says so again.
- */
-export async function getTaskLayoutContext(dir: AbsolutePath) {
-  const fileTreeResult = await fileTree(dir);
-  const scaffold = await scaffoldTree();
-
-  return fileTreeResult.match(
-    (tree) =>
-      tree === scaffold
-        ? ""
-        : dedent`
-      <task_layout>
-      This is the current task directory structure. All files and folders shown below exist right now. This structure will not update during the conversation, but should be considered accurate at the start.
-      \`\`\`plaintext
-      ${tree}
-      \`\`\`
-      </task_layout>
-    `,
-    () => "",
-  );
-}
-
-/**
  * Who the agent is working for, when someone is signed in: their name when
  * the account gives one, so a reply can address them and a service reached
  * under their account is read as theirs, and the email that account goes by. Nothing while signed out,
@@ -175,20 +145,4 @@ export function shouldContinueWithToolCalls({
   return Promise.resolve(
     lastAssistantMessage.parts.some((part) => isToolPart(part)),
   );
-}
-
-/** What a fresh task's tree renders as: the template's files and the two empty folders. */
-async function scaffoldTree() {
-  let templateFiles: string[] = [];
-  try {
-    templateFiles = await fs.readdir(
-      getWorkspaceConfig().defaultTaskTemplateDir,
-    );
-  } catch {
-    // No template to compare against reads as no scaffold, so the tree shows.
-  }
-  return generateTreeString(templateFiles, [
-    TASK_FOLDER_NAMES.attachments,
-    TASK_FOLDER_NAMES.work,
-  ]);
 }

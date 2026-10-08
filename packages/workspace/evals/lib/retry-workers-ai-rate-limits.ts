@@ -5,7 +5,7 @@
  * Loaded with `--import` by `evals/handoff-matrix.ts`. Several eval
  * processes on one Cloudflare account reach the limit together, and a model
  * request refused that way fails the run as a provider error, which says
- * nothing about the arm being measured. Each wait is written to stderr as a
+ * nothing about the agent being measured. Each wait is written to stderr as a
  * `rate-limit wait` line, so the matrix can tell a run whose timings include
  * one from a run whose timings do not.
  *

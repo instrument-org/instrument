@@ -362,7 +362,6 @@ export async function prepareModelMessages({
   const modelMessages = await SessionMessage.toModelMessages(
     portableMessagesResult.messages,
     TOOLS_FOR_MODEL_OUTPUT,
-    { agentName: agent.name },
   );
 
   const nonEmptyModelMessages = modelMessages.filter(

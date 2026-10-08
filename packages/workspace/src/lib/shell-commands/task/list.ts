@@ -1,7 +1,6 @@
 import { type Task } from "../../../schemas/task";
 import { isWorking, leftRunning } from "../../chat/activity";
 import { listChildTasks } from "../../chat/children";
-import { taskHold } from "../../task-hold";
 import { type SubcommandInput, subcommand } from "../subcommands";
 import { TASK_COMMAND } from "../task-command";
 import {
@@ -13,7 +12,6 @@ import {
   selectTasks,
 } from "../task-list-output";
 import { type TaskCommandContext } from "./context";
-import { describeHold } from "./delivery";
 
 export const listSubcommand = subcommand<TaskCommandContext>({
   booleans: ["all", "running"],
@@ -47,8 +45,8 @@ async function runList(input: SubcommandInput, context: TaskCommandContext) {
   return renderTaskList(selection);
 }
 
-/** The window and date flags `list` and `search` share. */
-export function listQueryFrom(input: SubcommandInput): TaskListQuery {
+/** The window and date flags `list` takes. */
+function listQueryFrom(input: SubcommandInput): TaskListQuery {
   const rawLimit = input.value("limit");
   if (rawLimit !== undefined && !Number.isInteger(Number(rawLimit))) {
     throw new Error(`--limit takes a whole number, not "${rawLimit}".`);
@@ -64,16 +62,14 @@ export function listQueryFrom(input: SubcommandInput): TaskListQuery {
   };
 }
 
-export function listRowsOf(tasks: Task[]): TaskListRow[] {
+function listRowsOf(tasks: Task[]): TaskListRow[] {
   return tasks.map((task) => {
-    const held = taskHold(task.id);
     return {
       id: task.id,
       isRunning: isWorking(task.id),
       leftRunning: leftRunning(task.id).length,
       title: task.title,
       updatedAt: task.updatedAt,
-      ...(held ? { waiting: describeHold(held) } : {}),
     };
   });
 }

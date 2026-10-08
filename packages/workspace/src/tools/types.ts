@@ -6,7 +6,6 @@ import { type z } from "zod";
 
 import type { ToolNameSchema } from "./name";
 
-import { type AgentName } from "../agents/types";
 import { type ExecuteError } from "../lib/execute-error";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
@@ -18,19 +17,16 @@ export interface AgentTool<
   TOutputSchema extends z.ZodType = z.ZodType,
 > {
   aiSDKTool: (options: {
-    agentName: AgentName;
     model: AIGatewayModel.Type;
     taskId: TaskId;
   }) => Promise<Tool<z.output<TInputSchema>, z.output<TOutputSchema>>>;
   description:
     | ((options: {
-        agentName: AgentName;
         model: AIGatewayModel.Type;
         taskId: TaskId;
       }) => Promise<string> | string)
     | string;
   execute: (options: {
-    agentName: AgentName;
     input: z.output<TInputSchema>;
     messageId: StoreId.Message;
     model: AIGatewayModel.Type;
@@ -42,7 +38,7 @@ export interface AgentTool<
   }) =>
     | AsyncGenerator<ExecuteResult<z.output<TOutputSchema>>>
     | Promise<ExecuteResult<z.output<TOutputSchema>>>;
-  inputSchema: ((agentName: AgentName) => TInputSchema) | TInputSchema;
+  inputSchema: TInputSchema;
   name: TName;
   outputSchema: TOutputSchema;
   readOnly: boolean;

@@ -27,7 +27,6 @@ import {
   sessionOfChat,
 } from "../../lib/record-folders";
 import { taskDir } from "../../lib/task-dir-utils";
-import { taskHold } from "../../lib/task-hold";
 import { trashChat } from "../../lib/trash-task";
 import { StoreId } from "../../schemas/store-id";
 import { TaskInChatSchema } from "../../schemas/task";
@@ -45,7 +44,7 @@ const ChildTaskSchema = TaskInChatSchema.extend({
     kind: z.enum(["done", "failed", "running", "waiting"]),
     line: z.string(),
   }),
-  /** Whether a stop has something to end: an agent at work, or a hold on its start. */
+  /** Whether a stop has something to end: an agent at work. */
   stoppable: z.boolean(),
 });
 
@@ -61,7 +60,7 @@ async function childTasks(id: ChatId) {
         ...task,
         dir: taskDir(task.id),
         standing: await taskStanding({ isRunning: running, taskId: task.id }),
-        stoppable: running || taskHold(task.id) !== undefined,
+        stoppable: running,
       };
     }),
   );

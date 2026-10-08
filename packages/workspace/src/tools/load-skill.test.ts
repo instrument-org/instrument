@@ -60,7 +60,6 @@ afterEach(async () => {
 
 function baseExecuteArgs() {
   return {
-    agentName: "main" as const,
     model,
     signal: AbortSignal.timeout(10_000),
     taskId: createTaskConfigWithDirs(),
@@ -123,7 +122,6 @@ describe("LoadSkill", () => {
     expect(typeof LoadSkill.description).toBe("string");
     const description = await (typeof LoadSkill.description === "function"
       ? LoadSkill.description({
-          agentName: "main",
           model,
           taskId: createTaskConfigWithDirs(),
         })

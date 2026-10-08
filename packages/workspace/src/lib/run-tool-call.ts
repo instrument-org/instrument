@@ -1,6 +1,5 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 
-import { type AgentName } from "../agents/types";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
@@ -13,14 +12,12 @@ import { getTaskState } from "./task-record";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function runToolCall({
-  agentName,
   model,
   part,
   sessionId,
   signal,
   taskId,
 }: {
-  agentName: AgentName;
   model: AIGatewayModel.Type;
   part: SessionMessagePart.ToolPartInputAvailable;
   sessionId: StoreId.Session;
@@ -54,7 +51,6 @@ export async function runToolCall({
     for await (const { output, type } of streamTool({
       execute: tool.execute,
       options: {
-        agentName,
         input: part.input as never,
         messageId: part.metadata.messageId,
         model,

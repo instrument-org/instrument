@@ -123,7 +123,6 @@ describe("WebFetch model output", () => {
     );
 
     const result = await runTool(WebFetch, {
-      agentName: "main",
       input: { url: "https://93.184.216.34/article" },
       model,
       partId: StoreId.newPartId(),
@@ -157,7 +156,6 @@ describe("WebFetch model output", () => {
     );
 
     const result = await runTool(WebFetch, {
-      agentName: "main",
       input: {
         maxCharacters: 20,
         url: "https://93.184.216.34/article",
@@ -199,7 +197,6 @@ describe("WebFetch failures", () => {
       vi.fn(() => response),
     );
     const result = await runTool(WebFetch, {
-      agentName: "main",
       input: { url: "https://93.184.216.34/article" },
       model,
       partId: StoreId.newPartId(),
@@ -291,7 +288,6 @@ describe("WebFetch page cache", () => {
     vi.stubGlobal("fetch", fetchSpy);
     const run = async (input: Record<string, unknown>) => {
       const result = await runTool(WebFetch, {
-        agentName: "main",
         input: { url: "https://93.184.216.34/article", ...input },
         model,
         partId: StoreId.newPartId(),
@@ -402,7 +398,6 @@ describe("WebFetch addresses", () => {
     mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
     vi.stubGlobal("fetch", fetchSpy);
     const result = await runTool(WebFetch, {
-      agentName: "main",
       input: { url },
       model,
       partId: StoreId.newPartId(),

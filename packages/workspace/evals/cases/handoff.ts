@@ -1,45 +1,18 @@
 /**
- * Does handing work from the chat to a task cost the user anything, and is
- * one agent that keeps the work better at the root?
- *
- * The chat (`src/agents/instrument.ts`) delegates nearly everything to task
- * agents (`src/agents/main.ts`), and a task sees only the brief the chat
- * writes: never the user's words, their memories, or their topic's
- * instructions. Every scenario here is a failure seen in real use, or an ask
- * real use is full of, and each runs as several arms from one definition, so
- * the prompt, the fixtures, and the assertions are the same and only the
- * route differs:
- *
- * - **a, today:** the user's words go to the chat, which delegates.
- * - **c, one agent:** a, with the process opted into the one-agent
- *   prototype (`INSTRUMENT_EVAL_ONE_AGENT=1`), which does quick work itself
- *   and forks slow work.
- * - **d, one agent in the foreground:** c with no background at all
- *   (`INSTRUMENT_EVAL_ONE_AGENT=foreground`).
- * - **e, today with a fuller hand-off:** a, with tasks also given the user's
- *   own words, memories and topic instructions
- *   (`INSTRUMENT_EVAL_TASK_CONTEXT=1`).
- * - **f, one agent that forks on interrupt:** c, where a message the user
- *   sends mid-turn forks the turn's work to the background instead of
- *   ending it (`INSTRUMENT_EVAL_ONE_AGENT=fork-on-interrupt`).
- * - **g, fork only:** one agent whose only tasks are forks in the chat's
- *   folder, with a prompt of its own and fork on interrupt
- *   (`INSTRUMENT_EVAL_ONE_AGENT=fork-only`).
- * - **h, fork only, called background:** g, where the agent's word for
- *   that work is "background" and its command is `background`
- *   (`INSTRUMENT_EVAL_ONE_AGENT=background`).
- * - **b, direct** and **v, direct in the chat's voice:** round one's arms,
- *   which showed a task without the chat's context fails. Kept runnable, off
- *   by default in `evals/handoff-matrix.ts`.
+ * What working through one agent costs the user: the chat does the work
+ * itself and forks what can run on its own (`src/agents/instrument.ts`).
+ * Every scenario here is a failure seen in real use, or an ask real use is
+ * full of: tiny asks timed end to end, context only the chat heard (a
+ * memory, a topic's instructions, a preference stated earlier), dictation,
+ * background jobs, and messages sent while work is under way.
  *
  * Every assertion reads the outcome (a file on disk, a figure the user was
- * shown, how long they waited for an answer), never the wording of a brief.
+ * shown, how long they waited for an answer), never the wording of a reply.
  *
  * Fixtures are made in the run's home by each case's `setup`, and the
  * workspace folder is the home's, so two runs in one process see each
  * other's files. Run each case in a process of its own with its own
- * `INSTRUMENT_EVAL_HOME`, which `evals/handoff-matrix.ts` does, setting each
- * arm's switch.
+ * `INSTRUMENT_EVAL_HOME`, which `evals/handoff-matrix.ts` does.
  */
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -47,7 +20,6 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 
-import { instrumentAgent } from "../../src/agents/instrument";
 import { AGENT_MESSAGE_LANGUAGE } from "../../src/constants";
 import { outputFolderPath } from "../../src/lib/chat/output-folder";
 import { memoryDir, saveMemory } from "../../src/lib/memory/store";
@@ -1187,7 +1159,7 @@ const FEEDBACK_NAMES = [
   "Femi",
   "Grace",
   "Hiro",
-  "Ines",
+  "Lines",
   "Jonah",
   "Kofi",
   "Lena",
@@ -1522,8 +1494,8 @@ const wroteNoFile: Assertion = {
 
 /**
  * Checks a worker document assertion against every task folder in the run's
- * tree, since in a chat the file is made by a task or a fork rather than the
- * chat itself. Passes when any folder passes.
+ * tree, since the file may be made by the chat or by a fork of it. Passes
+ * when any folder passes.
  */
 function inAnyTask(assertion: Assertion): Assertion {
   return {
@@ -2502,7 +2474,7 @@ const DATA_FIXTURE = path.resolve(import.meta.dirname, "../fixtures/Data");
 // Scenarios
 // ---------------------------------------------------------------------------
 
-/** One scenario, run as each arm. */
+/** One scenario, run as a chat case. */
 interface Scenario {
   answers?: EvalCase["answers"];
   assertions: Assertion[];
@@ -2521,75 +2493,7 @@ interface Scenario {
   topics?: EvalCase["topics"];
 }
 
-/**
- * The chat's own rules for how it talks to the user, as its prompt has them
- * today, for the arm that asks a task to talk the same way.
- */
-function chatVoice(): string {
-  const prompt = instrumentAgent.systemPrompt();
-  const at = prompt.indexOf("# How you speak");
-  if (at === -1) {
-    throw new Error("The chat's prompt has no How you speak section.");
-  }
-  return prompt.slice(at);
-}
-
-/**
- * What the chat reaches without being sent anything, handed to a task
- * directly: the home folder and the workspace folder.
- */
-const REACH = [HOME, WORKSPACE];
-
-/**
- * The switches each arm runs under, which a process sets as a whole; without
- * this check, a d case run without its switch would quietly run today's chat
- * and be scored as the foreground prototype.
- */
-const ARM_SWITCHES: Record<
-  string,
-  { context?: string; firstLine?: string; oneAgent?: string }
-> = {
-  a: {},
-  b: {},
-  c: { oneAgent: "1" },
-  d: { oneAgent: "foreground" },
-  e: { context: "1" },
-  f: { oneAgent: "fork-on-interrupt" },
-  g: { oneAgent: "fork-only" },
-  "g-nudge": { firstLine: "nudge", oneAgent: "fork-only" },
-  "g-note": { firstLine: "turn-note", oneAgent: "fork-only" },
-  "g-off": { firstLine: "tools-off", oneAgent: "fork-only" },
-  "g-pre": { firstLine: "preamble", oneAgent: "fork-only" },
-  "g-say": { firstLine: "say", oneAgent: "fork-only" },
-  h: { oneAgent: "background" },
-  v: {},
-};
-
-function requireArm(arm: string) {
-  const wanted = ARM_SWITCHES[arm] ?? {};
-  const oneAgent = process.env.INSTRUMENT_EVAL_ONE_AGENT || undefined;
-  const context = process.env.INSTRUMENT_EVAL_TASK_CONTEXT || undefined;
-  const firstLine = process.env.INSTRUMENT_EVAL_FIRST_LINE || undefined;
-  if (
-    oneAgent !== wanted.oneAgent ||
-    context !== wanted.context ||
-    firstLine !== wanted.firstLine
-  ) {
-    throw new Error(
-      `Arm ${arm} runs with INSTRUMENT_EVAL_ONE_AGENT=${wanted.oneAgent ?? "(unset)"}, INSTRUMENT_EVAL_TASK_CONTEXT=${wanted.context ?? "(unset)"} and INSTRUMENT_EVAL_FIRST_LINE=${wanted.firstLine ?? "(unset)"}; this process has ${oneAgent ?? "(unset)"}, ${context ?? "(unset)"} and ${firstLine ?? "(unset)"}.`,
-    );
-  }
-}
-
-/**
- * Every arm of one scenario: a, today's chat; c, the one-agent prototype; d,
- * the prototype in the foreground only; e, today's chat with a fuller
- * hand-off; f, c forking a turn the user interrupts; g, the fork-only
- * design; g-off, g-say, g-nudge, g-pre and g-note, g under each first-line
- * mechanism (`lib/first-line-mode.ts`); h, g calling its forks background; b, a task
- * given the words directly; v, b in the chat's voice.
- */
-function arms(scenario: Scenario): EvalCase[] {
+function toEval(scenario: Scenario): EvalCase {
   const sent = [
     ...(scenario.sent ?? []).map((folder) => ({
       access: "read-write" as const,
@@ -2601,60 +2505,26 @@ function arms(scenario: Scenario): EvalCase[] {
       path: folder,
     })),
   ];
-  const direct = [
-    ...REACH.map((folder) => ({
-      access: "read-write" as const,
-      inPlace: true,
-      path: folder,
-    })),
-    ...sent,
-  ];
-  const make = (
-    arm: string,
-    fields: Omit<EvalCase, "assertions" | "name" | "prompt" | "setup">,
-  ): EvalCase =>
-    defineEval(
-      Object.defineProperty(
-        {
-          answers: scenario.answers,
-          assertions: scenario.assertions,
-          beforeFollowUp: scenario.beforeFollowUp,
-          files: scenario.files,
-          followUps: scenario.followUps,
-          marks: scenario.marks,
-          ...fields,
-          name: `handoff-${scenario.slug}-${arm}`,
-          prompt: "",
-          setup: async () => {
-            requireArm(arm);
-            await scenario.setup?.();
-          },
-        },
-        "prompt",
-        { enumerable: true, get: () => scenario.prompt },
-      ),
-    );
-  const chat = {
-    folders: sent.length > 0 ? sent : undefined,
-    kind: "chat" as const,
-    topics: scenario.topics,
-  };
-  return [
-    make("a", chat),
-    make("b", { folders: direct, kind: "task" }),
-    make("c", chat),
-    make("d", chat),
-    make("e", chat),
-    make("f", chat),
-    make("g", chat),
-    make("g-off", chat),
-    make("g-say", chat),
-    make("g-nudge", chat),
-    make("g-pre", chat),
-    make("g-note", chat),
-    make("h", chat),
-    make("v", { folders: direct, kind: "task", taskSystemAppend: chatVoice }),
-  ];
+  return defineEval(
+    Object.defineProperty(
+      {
+        answers: scenario.answers,
+        assertions: scenario.assertions,
+        beforeFollowUp: scenario.beforeFollowUp,
+        files: scenario.files,
+        folders: sent.length > 0 ? sent : undefined,
+        followUps: scenario.followUps,
+        kind: "chat" as const,
+        marks: scenario.marks,
+        name: `handoff-${scenario.slug}`,
+        prompt: "",
+        setup: scenario.setup,
+        topics: scenario.topics,
+      },
+      "prompt",
+      { enumerable: true, get: () => scenario.prompt },
+    ),
+  );
 }
 
 const SCENARIOS: Scenario[] = [
@@ -2762,8 +2632,7 @@ const SCENARIOS: Scenario[] = [
     slug: "long-chat",
   },
   {
-    // The fact lives only in a memory, which the chat is told and a task is
-    // not.
+    // The fact lives only in a memory.
     assertions: [answeredFromMemory],
     prompt: "what's the URL for my home assistant config page?",
     setup: async () => {
@@ -2775,8 +2644,8 @@ const SCENARIOS: Scenario[] = [
     slug: "memory",
   },
   {
-    // A preference stated in passing, early, that a job started later has to
-    // carry: the chat heard it, and a brief has to repeat it.
+    // A preference stated in passing, early, that a job started later in the
+    // background has to carry.
     assertions: [madeThirtyNotes, namedDateFirst],
     followUps: [
       {
@@ -2789,9 +2658,8 @@ const SCENARIOS: Scenario[] = [
     slug: "earlier-preference",
   },
   {
-    // A long job, then a quick question ten seconds in. One agent with no
-    // background has to finish a step before it can hear the question; a
-    // chat with a task, or an agent that forked, is free to answer.
+    // A long job, then a quick question ten seconds in, which the chat is
+    // free to answer once the job is forked.
     assertions: [answeredTheQuickQuestion, repliedToEveryNote],
     followUps: [
       { afterMs: 10_000, prompt: "unrelated, quick: what's 18% of 240?" },
@@ -2803,8 +2671,7 @@ const SCENARIOS: Scenario[] = [
     slug: "responsiveness",
   },
   {
-    // The fact lives only in the topic's instructions, which the chat is
-    // told and a task is not.
+    // The fact lives only in the topic's instructions.
     assertions: [filedUnderQuarterly],
     files: [
       {
@@ -2826,8 +2693,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     // Dictated: "it" points back at the kitchen folder, "to do dot md" is
-    // todo.md, and "their" is "there". The chat cleans that up; raw words
-    // passed on do not.
+    // todo.md, and "their" is "there". The chat has to clean that up.
     answers: [
       (input) => ({
         note: undefined,
@@ -2988,9 +2854,8 @@ const SCENARIOS: Scenario[] = [
   },
   {
     // A job the agent does itself, a few tool calls long, and a quick
-    // question sent while one of those calls is running. One agent that
-    // forks on interrupt carries the job on in the background and answers;
-    // one that does not has to finish or drop it.
+    // question sent while one of those calls is running: the turn is forked,
+    // so the job carries on in the background while the chat answers.
     assertions: [answeredTheQuickQuestion, renamedTheScans],
     followUps: [
       {
@@ -3007,8 +2872,8 @@ const SCENARIOS: Scenario[] = [
   },
   {
     // Two background jobs at once whose scratch would naturally share a
-    // name (a totals script, a totals.json), in one folder for the one-agent
-    // arms: both have to come out right.
+    // name (a totals script, a totals.json), both forks working in the
+    // chat's one folder: both have to come out right.
     assertions: [totaledTheSalesFiles, totaledTheWarehouses],
     followUps: [
       "And another one in the background: in Documents/Stock Counts, add up the units per warehouse across all the CSVs and save totals.json in that folder, mapping each warehouse to its units.",
@@ -3020,4 +2885,4 @@ const SCENARIOS: Scenario[] = [
   },
 ];
 
-export const HANDOFF_EVALS = SCENARIOS.flatMap((scenario) => arms(scenario));
+export const HANDOFF_EVALS = SCENARIOS.map(toEval);

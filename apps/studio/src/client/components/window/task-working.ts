@@ -23,8 +23,3 @@ export function useTaskStatus(taskId: TaskId) {
 export function useIsTaskWorking(taskId: TaskId) {
   return useTaskStatus(taskId)?.isWorking ?? false;
 }
-
-/** Why the task has not started yet, in the user's words, while something holds it. */
-export function useTaskHold(taskId: TaskId) {
-  return useTaskStatus(taskId)?.held;
-}

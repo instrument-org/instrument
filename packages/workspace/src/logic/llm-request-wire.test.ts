@@ -719,7 +719,7 @@ describe.skipIf(!captureDir)("llm request wire capture", () => {
                 contextMessage("user", "<task_layout>work/</task_layout>"),
               ]),
             getTools: () => Promise.resolve(Object.values(TOOLS)),
-            name: "main",
+            name: "instrument",
             onFinish: () => Promise.resolve(),
             onStart: () => Promise.resolve(),
             shouldContinue: () => Promise.resolve(true),

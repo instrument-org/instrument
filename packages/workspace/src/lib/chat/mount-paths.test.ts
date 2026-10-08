@@ -5,7 +5,6 @@ import {
   type FolderMounts,
   mountAliases,
   mountPathOf,
-  mountPathsOutside,
   toChatPaths,
   toTaskPaths,
   translateTaskFolderPaths,
@@ -129,54 +128,6 @@ describe("toTaskPaths and toChatPaths", () => {
     expect(toTaskPaths("/mnt/Photos/holiday.jpg", aliases)).toBe(
       "/mnt/Photos/holiday.jpg",
     );
-  });
-});
-
-describe("mountPathsOutside", () => {
-  it("names a folder the task was not handed, beside one it was", () => {
-    expect(
-      mountPathsOutside(
-        "Your paths map under `/mnt/Home`. Add the lines to /mnt/Home/Downloads/notes.md, then read /mnt/Home/Desktop/todo.md.",
-        conversation,
-        ["/mnt/Home/Downloads", "/mnt/Instrument"],
-      ),
-    ).toMatchInlineSnapshot(`
-      [
-        "/mnt/Home",
-        "/mnt/Home/Desktop/todo.md",
-      ]
-    `);
-  });
-
-  it("names nothing when every path is under a folder the task has", () => {
-    expect(
-      mountPathsOutside(
-        "Read /mnt/Home/Downloads/a.pdf and write /mnt/Instrument/out.md, all in /mnt/Home/Downloads.",
-        conversation,
-        ["/mnt/Home/Downloads", "/mnt/Instrument"],
-      ),
-    ).toEqual([]);
-  });
-
-  it("does not read a longer name as the handed one", () => {
-    expect(
-      mountPathsOutside(
-        "Compare /mnt/Home/Downloads-old/a.md with /mnt/Home/Downloads.old/b.md.",
-        conversation,
-        ["/mnt/Home/Downloads"],
-      ),
-    ).toMatchInlineSnapshot(`
-      [
-        "/mnt/Home/Downloads-old/a.md",
-        "/mnt/Home/Downloads.old/b.md",
-      ]
-    `);
-  });
-
-  it("leaves a mount the conversation does not have to the task", () => {
-    expect(
-      mountPathsOutside("See /mnt/Photos/holiday.jpg.", conversation, []),
-    ).toEqual([]);
   });
 });
 

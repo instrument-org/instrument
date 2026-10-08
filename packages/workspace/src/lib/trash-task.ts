@@ -67,7 +67,7 @@ export async function trashChat({
   return await trashTask({ id, workspaceConfig, workspaceRef });
 }
 
-export async function trashTask({
+async function trashTask({
   id,
   keepFolder = false,
   workspaceConfig,

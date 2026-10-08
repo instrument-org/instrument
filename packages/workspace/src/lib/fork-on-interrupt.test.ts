@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { oneAgent } from "../agents/one";
+import { instrumentAgent } from "../agents/instrument";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
@@ -284,8 +284,6 @@ describe("forkInterruptedTurn", () => {
       defaultTaskTemplateDir: AbsolutePathSchema.parse(
         path.resolve(import.meta.dirname, "../../templates/default"),
       ),
-      isForkOnInterruptEnabled: () => true,
-      oneAgentMode: () => "fork",
       rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
     });
     chatSessionId = StoreId.newSessionId();
@@ -303,7 +301,7 @@ describe("forkInterruptedTurn", () => {
     const baseline: SessionMessage.WithParts = {
       id: StoreId.newMessageId(),
       metadata: {
-        agentName: "instrument-one",
+        agentName: "instrument",
         contextVersion: SESSION_CONTEXT_VERSION,
         createdAt,
         realRole: "system",
@@ -314,7 +312,7 @@ describe("forkInterruptedTurn", () => {
     };
     baseline.parts.push({
       metadata: meta(baseline.id, chatSessionId),
-      text: oneAgent.systemPrompt(),
+      text: instrumentAgent.systemPrompt(),
       type: "text",
     });
     ask = user(
@@ -384,13 +382,10 @@ describe("forkInterruptedTurn", () => {
     expect(copied.every((message) => message.metadata.inherited)).toBe(true);
 
     const [start] = started();
-    expect(start?.value).toMatchObject({
-      agentName: "instrument-one",
-      id: forked.taskId,
-    });
+    expect(start?.value).toMatchObject({ id: forked.taskId });
     const directive = JSON.stringify(start?.value);
     expect(directive).toContain(
-      "Everything above is background context, not your assignment",
+      "Everything above is this conversation as it stood",
     );
     expect(directive).toContain(
       "Carry on with the work this conversation was in the middle of",

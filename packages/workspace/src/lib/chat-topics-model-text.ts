@@ -50,7 +50,7 @@ export function chatTopicsModelNote(
  * A topic's instructions as the agent is given them: trimmed, and cut on a
  * paragraph break past the budget, saying so.
  */
-export function topicInstructions(instructions: string | undefined) {
+function topicInstructions(instructions: string | undefined) {
   const trimmed = instructions?.trim();
   if (!trimmed) {
     return;

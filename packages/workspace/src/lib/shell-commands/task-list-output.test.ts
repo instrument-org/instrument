@@ -5,7 +5,6 @@ import {
   formatAge,
   parseListDate,
   renderTaskList,
-  renderTaskSearch,
   selectTasks,
   TASK_LIST_WINDOW,
   type TaskListRow,
@@ -153,62 +152,12 @@ describe("renderTaskList", () => {
     `);
   });
 
-  it("says why a task held from starting waits, and lists it with --running", () => {
-    const tasks = [
-      {
-        ...row("2026-09-08-desktop", "Tidy the Desktop", 0),
-        waiting: 'macOS is asking the user about "Desktop" (38s)',
-      },
-      row("2026-09-08-hey", "hey", 0, true),
-      row("2026-09-04-webauthn", "Test WebAuthn registration", 4),
-    ];
-    expect(renderTaskList(selectTasks(tasks, { running: true }), { now: NOW }))
-      .toMatchInlineSnapshot(`
-        "2026-09-08-desktop  waiting: macOS is asking the user about "Desktop" (38s)  2026-09-08  1s ago  Tidy the Desktop
-        2026-09-08-hey      running                                                  2026-09-08  1s ago  hey
-        "
-      `);
-  });
-
   it("names every way to narrow when it left rows behind", () => {
     const many = Array.from({ length: 30 }, (_, index) =>
       row(`task-${index}`, `Task ${index}`, index),
     );
     expect(renderTaskList(selectTasks(many), { now: NOW })).toContain(
-      "… 5 more of 30. Narrow with --since <date> or --until <date>, or find one with `task search <words>`; --all shows every match.",
+      "… 5 more of 30. Narrow with --since <date> or --until <date>; --all shows every match.",
     );
-  });
-});
-
-describe("renderTaskSearch", () => {
-  const found = [
-    {
-      ...row("2026-09-01-chair", "Cheap small chair options on Wayfair", 7),
-      count: 29,
-      snippet: "…Opening Wayfair chair search…",
-    },
-    {
-      ...row("2026-08-14-nest", "Second-floor Nest eco mode guard", 25),
-      count: 0,
-      snippet: "",
-    },
-  ];
-
-  it("puts what was said under each task", () => {
-    expect(
-      renderTaskSearch({ omitted: 0, shown: found, total: 2 }, { now: NOW }),
-    ).toMatchInlineSnapshot(`
-      "2026-09-01-chair  2026-09-01  7d ago   Cheap small chair options on Wayfair
-          29×  …Opening Wayfair chair search…
-      2026-08-14-nest   2026-08-14  25d ago  Second-floor Nest eco mode guard
-          in its name  matched its name
-      "
-    `);
-  });
-
-  it("says a name-only match was one", () => {
-    expect(
-      renderTaskSearch({ omitted: 0, shown: found, total: 2 }, { now: NOW }),
-    ).toContain("in its name  matched its name");
   });
 });

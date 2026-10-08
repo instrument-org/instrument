@@ -27,7 +27,6 @@ function makeExecuteArgs(
   input: Parameters<typeof WriteFile.execute>[0]["input"],
 ) {
   return {
-    agentName: "main" as const,
     input,
     model,
     signal: AbortSignal.timeout(10_000),

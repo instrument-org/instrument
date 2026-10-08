@@ -676,7 +676,7 @@ async function runCatalog(args: string[], signal: AbortSignal | undefined) {
       );
     }
     return ok(
-      `Nothing in the directory matches "${query}". Set it up by hand. A service you do not know is a short research task first, and the brief has to name what you can actually write, or what comes back is a manifest shape this command does not take: ask it for the service's MCP endpoint if it has one, otherwise its API base URL, one cheap GET that proves a key, and which of oauth, bearer, basic, basic:<user>, header:<Name>, query:<param>, or none the key rides in -- those words, not a scheme of its own. Then \`${APP_COMMAND.name} new\`, or write ${APP_MANIFEST_FILE_NAME} and ${APP_GUIDE_FILE_NAME} yourself.\n`,
+      `Nothing in the directory matches "${query}". Set it up by hand. For a service you do not know, look up what this command can actually take, not a manifest shape of your own: the service's MCP endpoint if it has one, otherwise its API base URL, one cheap GET that proves a key, and which of oauth, bearer, basic, basic:<user>, header:<Name>, query:<param>, or none the key rides in -- those words, not a scheme of its own. Then \`${APP_COMMAND.name} new\`, or write ${APP_MANIFEST_FILE_NAME} and ${APP_GUIDE_FILE_NAME} yourself.\n`,
     );
   }
   // Every entry in full runs past what a command's output keeps, and what gets

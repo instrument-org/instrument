@@ -196,7 +196,7 @@ describe("llmRequestLogic", () => {
                 agentTools: {},
                 getMessages,
                 getTools: () => Promise.resolve(Object.values(TOOLS)),
-                name: "main",
+                name: "instrument",
                 onFinish: () => Promise.resolve(),
                 onStart: () => Promise.resolve(),
                 shouldContinue: () => Promise.resolve(true),

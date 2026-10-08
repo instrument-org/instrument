@@ -18,7 +18,6 @@ import { type z } from "zod";
 
 import type { Session } from "../src/schemas/session";
 
-import { AGENTS } from "../src/agents/all";
 import { attachChats, workspaceMachine } from "../src/electron";
 import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
@@ -29,8 +28,6 @@ import { isTypedByUser } from "../src/lib/typed-by-user";
 import { expectStop, wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
-import { parseFirstLineMode } from "../src/lib/first-line-mode";
-import { FORK_ON_INTERRUPT, parseOneAgentMode } from "../src/lib/one-agent";
 import { Store } from "../src/lib/store";
 import { taskDir } from "../src/lib/task-dir-utils";
 import { getTaskSettings, updateTaskSettings } from "../src/lib/task-settings";
@@ -108,7 +105,7 @@ function evalPrefix(name: string): string {
 export const HOUSE_FLOOR = "zai-org/glm-5.3-flash";
 
 export interface CompletedRun {
-  /** Every task this run's task started, however deep. Empty unless it delegated. */
+  /** Every task this run's task started, however deep. Empty unless it forked. */
   childTaskIds: TaskId[];
   /** Approximate USD, when the model's price is known. See `formatCost`. */
   costUSD?: number;
@@ -129,7 +126,7 @@ export interface CompletedRun {
   /** Absent when the agent ended the turn itself. */
   stoppedBy?: RunStop;
   taskId: TaskId;
-  /** This task plus every task it started. Equal to `usage` when it delegated nothing. */
+  /** This task plus every task it started. Equal to `usage` when it forked nothing. */
   treeUsage: { inputTokens: number; outputTokens: number; totalTokens: number };
   /** 1-based, and only meaningful when `repeat` asked for more than one. */
   trial: number;
@@ -143,8 +140,8 @@ export interface CompletedRun {
  */
 export interface RunMetrics {
   /**
-   * Forks the harness made when the user wrote mid-turn (arm f), rather than
-   * the agent; among `tasksCreated`.
+   * Forks the harness made when the user wrote mid-turn, rather than the
+   * agent; among `tasksCreated`.
    */
   autoForks: number;
   /** Cached input tokens across the tree, for pricing a run. */
@@ -168,8 +165,8 @@ export interface RunMetrics {
    * counts the ones that ran a `task` command, the hand-off calls.
    */
   refusals: { all: number; task: number };
-  /** `task fork` and `task new` commands the run's own agent ran. */
-  taskCommands: { fork: number; new: number };
+  /** `task new` commands the run's own agent ran. */
+  taskCommands: { new: number };
   /** Tasks the run started, however deep. */
   tasksCreated: number;
   /** Tool calls by every agent in the tree. */
@@ -300,11 +297,11 @@ export interface EvalCase {
   /**
    * Connected apps to stand up before the run, each a real loopback server with
    * a real manifest and a connection on record. For the paths that only exist
-   * once a service is reachable: handing one to a task, and calling it.
+   * once a service is reachable: calling it, from the chat or a task.
    *
    * One apps directory serves every case in a run, so these are listed in every
    * case's context, not only this one's. Run an app case on its own. A task
-   * case is handed these, as a chat's `task new --app` would.
+   * case reaches these, as every fork reaches the chat's apps.
    */
   apps?: AppFixture[];
   assertions?: Assertion[];
@@ -354,10 +351,10 @@ export interface EvalCase {
     said: string;
   };
   /**
-   * Which agent answers the prompt. A chat delegates to tasks it
-   * creates inside the same workspace, so a run of that kind produces the
-   * chat's transcript plus one per task it made. A task case runs the task
-   * agent in a task of a chat the run makes for it (`startRun`).
+   * Where the prompt is answered. A chat forks tasks inside the same
+   * workspace, so a run of that kind produces the chat's transcript plus one
+   * per task it made. A task case runs the agent in a task of a chat the run
+   * makes for it (`startRun`), as a fork is told what to do.
    */
   kind?: "chat" | "task";
   /**
@@ -382,12 +379,6 @@ export interface EvalCase {
     part: SessionMessagePart.Type,
     taskId: TaskId,
   ) => boolean | Promise<boolean>;
-  /**
-   * Text appended to every task agent's system prompt in this process. The
-   * prompt is the agent's, not the task's, so every case in one run has to
-   * agree on it; a run that mixes them is refused.
-   */
-  taskSystemAppend?: () => string;
   /**
    * Topics the chat is filed under from its first message, made before the
    * run with these instructions, the way a chat started from a topic in the
@@ -494,18 +485,6 @@ export async function runEvals(
     return { runs: [], workspaceRootDir };
   }
 
-  const taskSystemAppends = _.unique(
-    evals.map((evalCase) => evalCase.taskSystemAppend),
-  );
-  if (taskSystemAppends.length > 1) {
-    throw new Error(
-      "These cases disagree on the task agent's system prompt, which is one per process. Run the cases with taskSystemAppend in a run of their own.",
-    );
-  }
-  const [taskSystemAppend] = taskSystemAppends;
-  if (taskSystemAppend) {
-    appendToTaskSystemPrompt(taskSystemAppend);
-  }
   // Shells run in the bash worker, as they do in Studio. On this thread,
   // just-bash's defenses wrap the whole process's environment while a script
   // runs, which breaks anything else here that writes it, the Claude Agent
@@ -538,18 +517,6 @@ export async function runEvals(
       ),
       getAIProviderConfigs: () => providerConfigs,
       isExternalBrowserEnabled: () => true,
-      // Arm F: arm C's agent, with a mid-turn message forking the turn.
-      isForkOnInterruptEnabled: () =>
-        process.env.INSTRUMENT_EVAL_ONE_AGENT === FORK_ON_INTERRUPT,
-      // Arms C (`1`) and D (`foreground`) of the one-agent comparison.
-      oneAgentMode: () =>
-        parseOneAgentMode(process.env.INSTRUMENT_EVAL_ONE_AGENT),
-      // Arms g-off, g-say, g-nudge, g-pre and g-note: g with a first-line mechanism.
-      firstLineMode: () =>
-        parseFirstLineMode(process.env.INSTRUMENT_EVAL_FIRST_LINE),
-      // Arm E: today's chat and tasks, with the chat's background on a task.
-      isTaskContextEnabled: () =>
-        process.env.INSTRUMENT_EVAL_TASK_CONTEXT === "1",
       // The Mac helper as a checkout builds it (`pnpm --filter
       // @instrument-org/studio build:mac-helper`), so a run reaches
       // Calendar, Reminders, and Contacts the way the app does; without
@@ -1057,9 +1024,9 @@ export async function runEvals(
       }
 
       const usage = await getTaskUsageSummary(id);
-      // What a delegating run actually spent is the conversation plus every
+      // What a forking run actually spent is the conversation plus every
       // task it started; the conversation's own total is a fraction of it, and
-      // reporting only that would make delegation look free.
+      // reporting only that would make forking look free.
       const childTaskIds = await treeTaskIds(id);
       const childUsages = await Promise.all(
         childTaskIds.map((childId) => getTaskUsageSummary(childId)),
@@ -1284,33 +1251,6 @@ async function openChatUnderTopics(
 }
 
 /**
- * Appends to the task agent's system prompt for the rest of the process,
- * both where the baseline is built and where a stored one is checked
- * against it, so the two agree and the baseline is not rebuilt every turn.
- */
-function appendToTaskSystemPrompt(extra: () => string) {
-  const agent = AGENTS.main;
-  const baseSystemPrompt = agent.systemPrompt;
-  const baseGetMessages = agent.getMessages;
-  agent.systemPrompt = () => `${baseSystemPrompt()}\n\n${extra()}`;
-  agent.getMessages = async (options) => {
-    const base = baseSystemPrompt();
-    return (await baseGetMessages(options)).map((message) =>
-      message.metadata.realRole === "system"
-        ? {
-            ...message,
-            parts: message.parts.map((part) =>
-              part.type === "text" && part.text === base
-                ? { ...part, text: `${part.text}\n\n${extra()}` }
-                : part,
-            ),
-          }
-        : message,
-    );
-  };
-}
-
-/**
  * What a shell says when it turns a call down: the product's own refusals
  * ("refuses", "refused") and a command line it could not parse.
  */
@@ -1329,7 +1269,7 @@ async function metricsFor(
 ): Promise<Omit<RunMetrics, "cacheReadTokens">> {
   const own = await Store.getSessions(taskId);
   let visibleChars = 0;
-  const taskCommands = { fork: 0, new: 0 };
+  const taskCommands = { new: 0 };
   const turns: NonNullable<RunMetrics["turns"]> = [];
   const turnShapes: TurnShape[] = [];
   for (const session of own.isOk() ? own.value : []) {
@@ -1351,11 +1291,8 @@ async function metricsFor(
         }
         if (part.type === "tool-bash" && part.input?.command) {
           const command: string = part.input.command;
-          taskCommands.fork += [
-            ...command.matchAll(/(?:^|[\n;&|])\s*task fork\b/g),
-          ].length;
           taskCommands.new += [
-            ...command.matchAll(/(?:^|[\n;&|])\s*(?:task|background) new\b/g),
+            ...command.matchAll(/(?:^|[\n;&|])\s*task new\b/g),
           ].length;
         }
       }
@@ -1380,9 +1317,7 @@ async function metricsFor(
           if (REFUSED.test(said)) {
             refusals.all += 1;
             if (
-              /(?:^|[\n;&|(])\s*(?:task|background)\s+[a-z]/.test(
-                part.input?.command ?? "",
-              )
+              /(?:^|[\n;&|(])\s*task\s+[a-z]/.test(part.input?.command ?? "")
             ) {
               refusals.task += 1;
             }

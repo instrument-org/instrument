@@ -8,7 +8,7 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { TaskIdSchema } from "../schemas/task-id";
 import { chatFor } from "../test/helpers/chat-record";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
-import { initializeTask } from "./initialize-task";
+import { ensureWorkFolder, initializeTask } from "./initialize-task";
 import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -146,3 +146,36 @@ async function listPaths(dir: string) {
   await walk("");
   return paths.sort();
 }
+
+describe("ensureWorkFolder", () => {
+  it("scaffolds a chat that holds only its record, and leaves a scaffolded one alone", async () => {
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      defaultTaskTemplateDir: AbsolutePathSchema.parse(
+        path.resolve(import.meta.dirname, "../../templates/default"),
+      ),
+      rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
+    });
+    // A chat as one made before chats did their own work: its record alone.
+    const chatId = chatFor();
+    expect(await listPaths(taskDir(chatId))).toEqual([
+      ".instrument/",
+      ".instrument/settings.json",
+    ]);
+
+    await ensureWorkFolder(chatId, getWorkspaceConfig());
+    const scaffolded = await listPaths(taskDir(chatId));
+    expect(scaffolded).toEqual(
+      expect.arrayContaining(["attachments/", "package.json", "work/"]),
+    );
+
+    await fs.writeFile(
+      path.join(taskDir(chatId), "package.json"),
+      '{"name":"mine"}',
+    );
+    await ensureWorkFolder(chatId, getWorkspaceConfig());
+    await expect(
+      fs.readFile(path.join(taskDir(chatId), "package.json"), "utf8"),
+    ).resolves.toBe('{"name":"mine"}');
+  });
+});

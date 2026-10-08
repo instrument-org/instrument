@@ -137,9 +137,6 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
           : "";
       return `<data-browserStatus status="${part.data.status}"${target}${previousUrl} />`;
     }
-    case "data-chatBackground": {
-      return `<data-chatBackground messages="${part.data.messages.length}" />`;
-    }
     case "data-chatContext": {
       return `<data-chatContext>${part.data.chats.map((chat) => chat.title).join(",")}</data-chatContext>`;
     }

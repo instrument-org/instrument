@@ -3,6 +3,7 @@ import { dedent } from "radashi";
 
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { TOOL_NAMES } from "../tools/name";
+import { TASK_COMMAND } from "./shell-commands/task-command";
 import { folderLabel, folderParentLabel } from "./folder-parent-label";
 
 /**
@@ -21,7 +22,6 @@ export function buildAttachedFoldersText({
   folders,
   guidance = true,
   intro,
-  writes = "here",
 }: {
   folders: {
     access: FolderAttachment.Access;
@@ -42,13 +42,6 @@ export function buildAttachedFoldersText({
    */
   guidance?: boolean;
   intro: string;
-  /**
-   * Who writes a file's contents into a folder: the reader of this text, with
-   * its file tools, or a task the reader hands the folder to. The chat
-   * has no file tools and a shell that refuses to write, so telling it about
-   * `write_file` sends it looking for a tool it has not got.
-   */
-  writes?: "here" | "through-tasks";
 }) {
   const displayNames = folders.map((folder) => folderLabel(folder.path));
   const nameCounts = new Map<string, number>();
@@ -66,7 +59,7 @@ export function buildAttachedFoldersText({
         access === "read-write"
           ? "read and write"
           : writableInside
-            ? "read-only for you, and a task handed a folder inside it can write there"
+            ? `read-only, and \`${TASK_COMMAND.name} folder --add\` gives you write on a folder inside it`
             : "read-only",
         missing ? "no longer exists" : null,
       ]
@@ -92,34 +85,21 @@ export function buildAttachedFoldersText({
 
   // Lines, not a `- ` list: the folder list above already is one, and a second
   // list under it reads as more folders.
-  const rules = (
-    writes === "through-tasks"
-      ? [
-          `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
-          `Look inside by mount path with bash (\`ls\`, \`cat\`, \`head\`, \`find\`), like any other directory.`,
-          writable
-            ? `A file's contents are written by a task handed the folder with --folder; what you do yourself is \`cp\` or \`mv\` a finished file into a folder listed above as read and write for you. One that is read-only for you refuses that with \`EROFS\`, however writable a task finds a folder inside it: moving a file there is a task's. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
-            : null,
-          readOnly
-            ? `Writing into a read-only folder fails, for you and for a task. It mirrors the user's real files and is not yours to change.`
-            : null,
-        ]
-      : [
-          `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
-          `Read, list, and search by mount path with \`${TOOL_NAMES.readFile}\` or bash (\`ls\`, \`rg\`, \`find\`), like any other directory. On a large folder \`rg\` is the one that finishes: \`rg --files -g '<glob>'\` lists and \`rg -l\` searches a whole home folder in seconds, where \`find\` stops part way with a traversal limit and returns nothing. Narrow it to a glob or a subdirectory either way, since an unfiltered \`rg --files\` over a home folder is millions of lines.`,
-          writable
-            ? `In the read-and-write folders you may also create, edit, move, rename, and delete, with \`${TOOL_NAMES.writeFile}\`, \`${TOOL_NAMES.editFile}\`, and bash. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
-            : null,
-          readOnly
-            ? `Writing into a read-only folder fails. It mirrors the user's real files and is not yours to change.`
-            : null,
-          process.platform === "darwin"
-            ? `\`EPERM\` or "Operation not permitted" on reading or listing one of these means macOS refused ${APP_NAME} the folder when it asked the user. Stop and say so rather than trying again; they can allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders.`
-            : null,
-          `\`cp\`, \`mv\`, the file tools, the sandboxed script runtimes (\`python\`, \`js-exec\`), and \`git\` reach a mount directly, one mount to another included, so reading a file, parsing it in a script, or putting one where it belongs takes no copy through the task. A real subprocess (python-native, node, ffmpeg, pnpm) is the exception: it cannot see a mount at all, so copy in first and run it on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
-          `A repository in a folder is read in place: \`git -C '<mount path>' log\`, or \`cd\` there first. In a read-only folder git may only read (log, show, diff, blame, status); committing or changing files there needs the folder attached read and write.`,
-        ]
-  )
+  const rules = [
+    `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
+    `Read, list, and search by mount path with \`${TOOL_NAMES.readFile}\` or bash (\`ls\`, \`rg\`, \`find\`), like any other directory. On a large folder \`rg\` is the one that finishes: \`rg --files -g '<glob>'\` lists and \`rg -l\` searches a whole home folder in seconds, where \`find\` stops part way with a traversal limit and returns nothing. Narrow it to a glob or a subdirectory either way, since an unfiltered \`rg --files\` over a home folder is millions of lines.`,
+    writable
+      ? `In the read-and-write folders you may also create, edit, move, rename, and delete, with \`${TOOL_NAMES.writeFile}\`, \`${TOOL_NAMES.editFile}\`, and bash. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
+      : null,
+    readOnly
+      ? `Writing into a read-only folder fails. It mirrors the user's real files and is not yours to change.`
+      : null,
+    process.platform === "darwin"
+      ? `\`EPERM\` or "Operation not permitted" on reading or listing one of these means macOS refused ${APP_NAME} the folder when it asked the user. Stop and say so rather than trying again; they can allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders.`
+      : null,
+    `\`cp\`, \`mv\`, the file tools, the sandboxed script runtimes (\`python\`, \`js-exec\`), and \`git\` reach a mount directly, one mount to another included, so reading a file, parsing it in a script, or putting one where it belongs takes no copy through the task. A real subprocess (python-native, node, ffmpeg, pnpm) is the exception: it cannot see a mount at all, so copy in first and run it on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
+    `A repository in a folder is read in place: \`git -C '<mount path>' log\`, or \`cd\` there first. In a read-only folder git may only read (log, show, diff, blame, status); committing or changing files there needs the folder attached read and write.`,
+  ]
     .filter((line) => line !== null)
     .join("\n");
 

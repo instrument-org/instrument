@@ -73,7 +73,6 @@ const attachedFolders: Record<string, FolderAttachment.Type> = {
 describe("ReadFile", () => {
   describe("main agent", () => {
     const baseInput = {
-      agentName: "main" as const,
       model,
       // A getter, so spreading this gives each call its own deadline. Built once
       // it would be a budget for the whole file rather than for one tool call,
@@ -281,7 +280,6 @@ describe("ReadFile", () => {
     it("tells the model which media it can read", async () => {
       const mediaLine = async (features: AIGatewayModel.ModelFeatures[]) => {
         const tool = await ReadFile.aiSDKTool({
-          agentName: "main",
           model: createMockAIGatewayModel({ features }),
           taskId,
         });
@@ -1004,7 +1002,6 @@ describe("ReadFile Unicode path fallbacks", () => {
 
     const value = (
       await runTool(TOOLS.ReadFile, {
-        agentName: "main" as const,
         input: { explanation: "read", filePath: `./${inputName}` },
         model,
         signal: AbortSignal.timeout(10_000),

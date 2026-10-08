@@ -71,7 +71,7 @@ async function tabTargetOf(tab: string): Promise<BrowserTargetId> {
 }
 
 /** The id a tab goes by in the note and on `--tab`. */
-export function tabIdOf(targetId: BrowserTargetId): string {
+function tabIdOf(targetId: BrowserTargetId): string {
   return decodeBrowserTargetId(targetId)?.sessionId ?? targetId;
 }
 

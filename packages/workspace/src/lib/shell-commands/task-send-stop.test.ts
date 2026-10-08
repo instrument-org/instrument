@@ -2,7 +2,6 @@ import { encodeUtf8ToBytes } from "just-bash";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { noop } from "radashi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
@@ -13,7 +12,6 @@ import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-mod
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { initializeTask } from "../initialize-task";
 import { taskDir } from "../task-dir-utils";
-import { holdTask, taskHold } from "../task-hold";
 import { getTaskState, setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
@@ -219,95 +217,6 @@ describe("task stop", () => {
       "<id> is not running.
       "
     `);
-    expect(sent.events).toEqual([]);
-  });
-});
-
-/** Output with the id and the hold's age, which the clock decides, taken out. */
-function held(stdout: string) {
-  return stdout.replaceAll(CHILD_ID, "<id>").replace(/\(\d+s\)/, "(<age>)");
-}
-
-/**
- * Holds the child from starting the way `task new` does while macOS asks
- * about a folder; the returned function lets it go.
- */
-function holdChild() {
-  let release: () => void = noop;
-  holdTask(CHILD_ID, {
-    reason: 'macOS is asking the user about "Desktop"',
-    start: () => {
-      sent.events.push({ type: "createSession" });
-    },
-    until: new Promise<void>((resolve) => {
-      release = resolve;
-    }),
-    userReason: "Waiting for you to allow access to Desktop",
-  });
-  return () => {
-    release();
-    return new Promise((resolve) => setTimeout(resolve, 0));
-  };
-}
-
-describe("a task held from starting", () => {
-  beforeEach(() => {
-    working.value = () => false;
-  });
-
-  it("queues a message sent to it, and delivers it after the brief once it starts", async () => {
-    const release = holdChild();
-    const result = await send(["--now"]);
-    expect(held(result.stdout)).toMatchInlineSnapshot(`
-      "Queued for <id>, which has not started: macOS is asking the user about "Desktop" (<age>). It hears this right after its brief once it starts; you will be told when it finishes.
-      "
-    `);
-    expect(sent.events).toEqual([]);
-
-    await release();
-
-    expect(
-      sent.events.map((event) =>
-        typeof event === "object" && event !== null && "type" in event
-          ? event.type
-          : event,
-      ),
-    ).toEqual(["createSession", "addMessage"]);
-  });
-
-  it("does not report a message queued behind it as a hand-off", async () => {
-    const release = holdChild();
-    const handOffs: HandOff[] = [];
-    await withHandOffs(handOffs, () => send([]));
-    expect(handOffs).toEqual([]);
-    await release();
-  });
-
-  it("cancels its start on stop, so it never runs", async () => {
-    const release = holdChild();
-    const result = await runStop([CHILD_ID], context);
-    expect(held(result.stdout)).toMatchInlineSnapshot(`
-      "Stopped <id> before it started; it was waiting: macOS is asking the user about "Desktop" (<age>). It never ran, and nothing sent to it will run; start a new task if the work is still wanted.
-      "
-    `);
-    expect(taskHold(CHILD_ID)).toBeUndefined();
-
-    await release();
-
-    expect(sent.events).toEqual([]);
-  });
-
-  it("cancels its start on stop --all too", async () => {
-    const release = holdChild();
-    const result = await runStop([CHILD_ID, "--all"], context);
-    expect(held(result.stdout)).toMatchInlineSnapshot(`
-      "Stopped <id> before it started; it was waiting: macOS is asking the user about "Desktop" (<age>). It never ran, and nothing sent to it will run; start a new task if the work is still wanted.
-      <id> has nothing running in the background.
-      "
-    `);
-
-    await release();
-
     expect(sent.events).toEqual([]);
   });
 });

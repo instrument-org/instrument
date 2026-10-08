@@ -51,12 +51,7 @@ import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { boundedSkillBody } from "./load-skill";
-import { chatRefusal } from "./chat-shell-policy";
-import {
-  chatSpokenFor,
-  isForkOnlyEnabled,
-  ONE_AGENT_NAME,
-} from "../lib/one-agent";
+import { resolveChat } from "../lib/record-folders";
 import { workDir } from "../lib/work-dir";
 
 const DEFAULT_YIELD_MS = ms("30 seconds");
@@ -169,38 +164,18 @@ export const BashTool = setupTool({
 }).create({
   // Built per call: the command list it renders describes capabilities that a
   // feature flag can turn on and off while the app is running.
-  description: ({ agentName }) =>
-    createBashDescription({
-      chat: agentName === "instrument",
-      oneAgent: agentName === ONE_AGENT_NAME,
-    }),
-  async execute({ agentName, input, partId, sessionId, signal, taskId }) {
-    if (agentName === "instrument") {
-      const refused = chatRefusal(input.command);
-      if (refused) {
-        return executeError(refused);
-      }
-    }
+  description: () => createBashDescription(),
+  async execute({ input, partId, sessionId, signal, taskId }) {
     const attachedFolders = await folderReach(taskId);
     const yieldMs = clampYieldMs(input.yieldMs);
     const startedAt = performance.now();
-    const chatId = chatSpokenFor(agentName, taskId);
+    const chatId = resolveChat(taskId);
     const chat = chatId
-      ? {
-          // A fork-only chat's tasks work in its own folder, so there is
-          // no task folder to mount.
-          childMounts:
-            agentName === ONE_AGENT_NAME && isForkOnlyEnabled()
-              ? []
-              : await childTaskMounts(chatId),
-          full: agentName === ONE_AGENT_NAME,
-          id: chatId,
-        }
+      ? { childMounts: await childTaskMounts(chatId), id: chatId }
       : undefined;
     const bash = await createBashEnv({
       attachedFolders,
       chat,
-      oneAgent: agentName === ONE_AGENT_NAME,
       // `fg` waits inside this call, so what is left of the window is its
       // ceiling. Measured from here rather than from the race below, which only
       // makes it return sooner than it strictly has to.
@@ -303,12 +278,9 @@ export const BashTool = setupTool({
     }
 
     const pageAfter = await browserFollowUp.take(signal);
-    // The chat's shell refuses the command, so only a task can have run it.
-    const browserSkill =
-      agentName !== "instrument" &&
-      commands.includes(AGENT_BROWSER_COMMAND.name)
-        ? await browserSkillToDeliver({ sessionId, signal, taskId })
-        : undefined;
+    const browserSkill = commands.includes(AGENT_BROWSER_COMMAND.name)
+      ? await browserSkillToDeliver({ sessionId, signal, taskId })
+      : undefined;
 
     return ok({
       ...(browserSkill ? { browserSkill } : {}),

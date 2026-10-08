@@ -1,7 +1,6 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 
 import { type WorkspaceActorRef } from "../../src/machines/workspace";
-import { agentNameForTask } from "../../src/lib/agent-name-for-task";
 import { ensureChat } from "../../src/lib/chat/chat-records";
 import { createSession } from "../../src/lib/create-session";
 import { initializeTask } from "../../src/lib/initialize-task";
@@ -20,9 +19,9 @@ import { type WorkspaceConfig } from "../../src/types";
  *
  * A chat case opens a chat with the prompt, as the window's first send does.
  * A task case makes a chat and a task inside it, then sends the prompt to the
- * task, as `task new` does after the chat decides to delegate: the task agent
- * answers in a task a chat owns, the only kind the product makes, without
- * spending a chat turn to get there. That chat is never written in, so it is
+ * task, as `task new` does when the chat forks: the agent answers in a task a
+ * chat owns, the only kind the product makes, without spending a chat turn to
+ * get there. That chat is never written in, so it is
  * never woken when the task finishes.
  */
 export async function startRun(
@@ -36,7 +35,7 @@ export async function startRun(
     prompt,
     viewing,
   }: {
-    /** The apps a task case is handed, as a chat's `task new --app` hands them. */
+    /** The apps a task case reaches through the `app` command, by slug. */
     apps?: string[];
     files?: FileUpload.Type[];
     folders?: { access?: FolderAttachment.Access; path: string }[];
@@ -114,7 +113,6 @@ export async function startRun(
   workspaceRef.send({
     type: "createSession",
     value: {
-      agentName: agentNameForTask(taskId),
       id: taskId,
       message,
       model,

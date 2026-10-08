@@ -3,7 +3,6 @@ import type * as z from "zod";
 
 import { tool, type ToolResultPart } from "ai";
 
-import type { AgentName } from "../agents/types";
 import type { AgentTool, ToolName } from "./types";
 
 import { toolInputSchemaForLLM } from "./base";
@@ -22,7 +21,7 @@ interface SetupOptions<
   TInputSchema extends z.ZodType,
   TOutputSchema extends z.ZodType,
 > {
-  inputSchema: ((agentName: AgentName) => TInputSchema) | TInputSchema;
+  inputSchema: TInputSchema;
   name: TName;
   outputSchema: TOutputSchema;
 }
@@ -79,15 +78,10 @@ function buildTool<
   return {
     ...setup,
     ...options,
-    aiSDKTool: async ({ agentName, model, taskId }) => {
+    aiSDKTool: async ({ model, taskId }) => {
       const description = await (typeof options.description === "function"
-        ? options.description({ agentName, model, taskId })
+        ? options.description({ model, taskId })
         : options.description);
-
-      const inputSchema =
-        typeof setup.inputSchema === "function"
-          ? setup.inputSchema(agentName)
-          : setup.inputSchema;
 
       return (
         // Our tools take no execution context.
@@ -97,7 +91,7 @@ function buildTool<
           Record<string, never>
         >({
           description,
-          inputSchema: toolInputSchemaForLLM(inputSchema, agentName),
+          inputSchema: toolInputSchemaForLLM(setup.inputSchema),
           outputSchema: setup.outputSchema,
           toModelOutput,
           type: "function",
@@ -109,23 +103,17 @@ function buildTool<
      * `toModelOutput` mapping in `prepareModelMessages`. Do not use this
      * for constructing tools passed to the LLM -- use `aiSDKTool` instead.
      */
-    staticAISDKTool: () => {
-      const inputSchema =
-        typeof setup.inputSchema === "function"
-          ? setup.inputSchema("main")
-          : setup.inputSchema;
-
-      return tool<
+    staticAISDKTool: () =>
+      tool<
         z.output<TInputSchema>,
         z.output<TOutputSchema>,
         Record<string, never>
       >({
         description: "", // None because this is never shown to agent
-        inputSchema,
+        inputSchema: setup.inputSchema,
         outputSchema: setup.outputSchema,
         toModelOutput,
         type: "function",
-      });
-    },
+      }),
   };
 }

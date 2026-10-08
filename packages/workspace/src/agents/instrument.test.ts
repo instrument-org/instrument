@@ -5,7 +5,8 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { type HandOff } from "../lib/shell-commands/task-hand-off";
-import { shouldContinueAfterHandingOff } from "./instrument";
+import { TOOL_NAMES } from "../tools/name";
+import { instrumentAgent, shouldContinueAfterHandingOff } from "./instrument";
 
 const sessionId = StoreId.newSessionId();
 const createdAt = new Date("2026-01-01T00:00:00.000Z");
@@ -235,5 +236,71 @@ describe("shouldContinueAfterHandingOff", () => {
         ],
       }),
     ).resolves.toBe(true);
+  });
+});
+
+describe("instrumentAgent", () => {
+  const prompt = instrumentAgent.systemPrompt();
+
+  it("does the work with every tool, the chat's and a worker's alike", () => {
+    expect(
+      Object.values(instrumentAgent.agentTools)
+        .map((tool) => tool.name)
+        .toSorted(),
+    ).toEqual(
+      [
+        TOOL_NAMES.bash,
+        TOOL_NAMES.choose,
+        TOOL_NAMES.connectApp,
+        TOOL_NAMES.editFile,
+        TOOL_NAMES.generateImage,
+        TOOL_NAMES.loadSkill,
+        TOOL_NAMES.readFile,
+        TOOL_NAMES.requestFolder,
+        TOOL_NAMES.webFetch,
+        TOOL_NAMES.webSearch,
+        TOOL_NAMES.writeFile,
+      ].toSorted(),
+    );
+  });
+
+  it("starts a task as a fork of itself, in the same folder", () => {
+    expect(prompt).toContain(
+      "A task is you, continuing in the background with this conversation in hand",
+    );
+    expect(prompt).toContain("task new --name '<title>' [--tab <id>]");
+    expect(prompt).toContain("task folder --add");
+  });
+
+  it("carries nothing of briefed tasks or their folders", () => {
+    for (const gone of [
+      "--fresh",
+      "--folder",
+      "--file",
+      "--app",
+      "/tasks",
+      "brief",
+      "folder self",
+    ]) {
+      expect(prompt).not.toContain(gone);
+    }
+  });
+
+  it("keeps the rules the chat and the worker each had", () => {
+    for (const kept of [
+      "One line, then act, in the same reply",
+      "memory save <name> <<'EOF'",
+      "the save and the start go in one command, the save first",
+      "name scratch files and folders after the job",
+      "Nothing of theirs is deleted or overwritten unless they said so",
+      "in a subfolder named for the job",
+      "IMPORTANT: Never fabricate a URL.",
+      "links it the first time",
+      "Every call carries an `activity`",
+      "```files fence",
+      "```message fence",
+    ]) {
+      expect(prompt).toContain(kept);
+    }
   });
 });

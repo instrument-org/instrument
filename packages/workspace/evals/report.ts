@@ -363,7 +363,7 @@ export async function generateReport({
 
     let assertionResults: AssertionResult[] = [];
     if (evalCase?.assertions && evalCase.assertions.length > 0) {
-      // A conversation that delegates does most of what it is being scored on
+      // A conversation that forks does much of what it is being scored on
       // inside its tasks, and those are separate tasks rather than sessions of
       // this one, so `sessions` alone cannot see the work. Read lazily: only an
       // chat case has children, and only some of its assertions ask.

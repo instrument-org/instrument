@@ -1,7 +1,6 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { assign, fromPromise, log, setup } from "xstate";
 
-import { type AgentName } from "../agents/types";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
 import { runToolCall } from "../lib/run-tool-call";
@@ -95,15 +94,13 @@ export async function saveStoppedToolCallPart(
 const executeToolLogic = fromPromise<
   { preliminarySaved: boolean },
   {
-    agentName: AgentName;
     model: AIGatewayModel.Type;
     part: SessionMessagePart.ToolPartInputAvailable;
     sessionId: StoreId.Session;
     taskId: TaskId;
   }
->(async ({ input: { agentName, model, part, sessionId, taskId }, signal }) => {
+>(async ({ input: { model, part, sessionId, taskId }, signal }) => {
   return runToolCall({
-    agentName,
     model,
     part,
     sessionId,
@@ -142,7 +139,6 @@ export const executeToolCallMachine = setup({
 
   types: {
     context: {} as {
-      agentName: AgentName;
       cancellationReason: CancellationReason;
       model: AIGatewayModel.Type;
       part: SessionMessagePart.ToolPartInputAvailable;
@@ -151,7 +147,6 @@ export const executeToolCallMachine = setup({
     },
     events: {} as { reason?: StopReason; type: "stop" },
     input: {} as {
-      agentName: AgentName;
       model: AIGatewayModel.Type;
       part: SessionMessagePart.ToolPartInputAvailable;
       sessionId: StoreId.Session;
@@ -160,7 +155,6 @@ export const executeToolCallMachine = setup({
   },
 }).createMachine({
   context: ({ input }) => ({
-    agentName: input.agentName,
     cancellationReason: "unknown",
     model: input.model,
     part: input.part,
@@ -194,7 +188,6 @@ export const executeToolCallMachine = setup({
       },
       invoke: {
         input: ({ context }) => ({
-          agentName: context.agentName,
           model: context.model,
           part: context.part,
           sessionId: context.sessionId,

@@ -93,9 +93,6 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // under. Context for the model; the head of the chat is the user's copy.
   "data-chatContext": "dev",
   "data-chatTopics": "dev",
-  // What a task was given of its chat beside the brief (the `task_context`
-  // flag). Context for the model; the chat is the user's copy.
-  "data-chatBackground": "dev",
   // Which earlier version's task a chat was made from. Context for the
   // model; the user sees the conversation it carried on.
   "data-adoptedTask": "dev",
@@ -201,16 +198,6 @@ export function renderDataPart({
           compact={compact}
           key={part.metadata.id}
           text={browserStatusModelNote(part.data)}
-        />
-      );
-    }
-    case "data-chatBackground": {
-      return (
-        <ModelContextDebugCard
-          className={noteClassName}
-          compact={compact}
-          key={part.metadata.id}
-          text={`From the chat: ${part.data.messages.length} of the user's messages${part.data.topics?.length ? `, ${part.data.topics.length} topics` : ""}${part.data.memories?.length ? `, ${part.data.memories.length} memories` : ""}`}
         />
       );
     }

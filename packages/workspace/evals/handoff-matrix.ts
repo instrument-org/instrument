@@ -1,44 +1,22 @@
 /**
- * Runs the hand-off suite (`cases/handoff.ts`) as a matrix of case, arm,
- * model, and trial, each run in a process of its own with a home of its own,
- * then tabulates what they cost the user.
+ * Runs the hand-off suite (`cases/handoff.ts`) as a matrix of case, model,
+ * and trial, each run in a process of its own with a home of its own, then
+ * tabulates what they cost the user.
  *
  * One process per run because a run's fixtures and output live in its home
- * and workspace folder, which a process shares across everything it runs,
- * and because every arm but a changes an agent for the whole process.
+ * and workspace folder, which a process shares across everything it runs.
  *
  *   node --import tsx evals/handoff-matrix.ts run --model glm --repeat 3
- *   node --import tsx evals/handoff-matrix.ts run --model plan-luna --arms a,c --out <dir>
+ *   node --import tsx evals/handoff-matrix.ts run --model plan-luna --model or-haiku55 --cases guide,email --out <dir>
  *   node --import tsx evals/handoff-matrix.ts summarize <dir>
  *   node --import tsx evals/handoff-matrix.ts rescore <dir>
  *   node --import tsx evals/handoff-matrix.ts plan-usage
  *   node --import tsx evals/handoff-matrix.ts openrouter-usage
  *
- * Arms, each set by an environment variable the harness reads:
- *
- * - a: today's chat, which briefs a task.
- * - c: one agent that does quick work itself and forks slow work
- *   (`INSTRUMENT_EVAL_ONE_AGENT=1`).
- * - d: the same agent with no background at all
- *   (`INSTRUMENT_EVAL_ONE_AGENT=foreground`).
- * - e: today's chat, with tasks also given the user's own words, memories
- *   and topic instructions (`INSTRUMENT_EVAL_TASK_CONTEXT=1`).
- * - f: c, where a message the user sends mid-turn has the harness fork the
- *   turn's work to the background rather than end it
- *   (`INSTRUMENT_EVAL_ONE_AGENT=fork-on-interrupt`).
- * - g: one agent whose only tasks are forks in the chat's folder, with a
- *   prompt of its own and fork on interrupt
- *   (`INSTRUMENT_EVAL_ONE_AGENT=fork-only`).
- * - g-off, g-say, g-nudge, g-pre, g-note: g under each first-line mechanism
- *   (`INSTRUMENT_EVAL_FIRST_LINE=tools-off|say|nudge|preamble|turn-note`,
- *   `lib/first-line-mode.ts`).
- * - h: g, where the agent's word for its forks is "background"
- *   (`INSTRUMENT_EVAL_ONE_AGENT=background`).
- * - b, v: round one's task-given-the-words arms, off by default.
- *
- * Each arm's runs, logs and homes go in a folder of the arm's own under the
- * output folder. `--cases` and `--arms` narrow the matrix:
- * `--cases guide,email --arms a,c`. `--out` adds to an existing output folder.
+ * Runs, logs and homes go in `runs/`, `logs/` and `homes/` under the output
+ * folder, with `matrix.json` and `report.md` beside them. `--cases` narrows
+ * the matrix: `--cases guide,email`. `--out` adds to an existing output
+ * folder.
  *
  * Models are limited to the ChatGPT plan (`plan-luna`, `plan-sol`),
  * Workers AI (`glm`, or `cf:<id>`), and the metered models cleared for spend
@@ -103,41 +81,6 @@ const CASE_MAX_RUN_TOKENS: Record<string, number> = {
 
 /** Cases that need the plan's own web search, which Workers AI runs lack. */
 const PLAN_ONLY = new Set(["research"]);
-
-/** What each arm sets in the child's environment. */
-const ARM_ENV: Record<string, Record<string, string>> = {
-  a: {},
-  b: {},
-  c: { INSTRUMENT_EVAL_ONE_AGENT: "1" },
-  d: { INSTRUMENT_EVAL_ONE_AGENT: "foreground" },
-  e: { INSTRUMENT_EVAL_TASK_CONTEXT: "1" },
-  f: { INSTRUMENT_EVAL_ONE_AGENT: "fork-on-interrupt" },
-  g: { INSTRUMENT_EVAL_ONE_AGENT: "fork-only" },
-  "g-nudge": {
-    INSTRUMENT_EVAL_FIRST_LINE: "nudge",
-    INSTRUMENT_EVAL_ONE_AGENT: "fork-only",
-  },
-  "g-note": {
-    INSTRUMENT_EVAL_FIRST_LINE: "turn-note",
-    INSTRUMENT_EVAL_ONE_AGENT: "fork-only",
-  },
-  "g-off": {
-    INSTRUMENT_EVAL_FIRST_LINE: "tools-off",
-    INSTRUMENT_EVAL_ONE_AGENT: "fork-only",
-  },
-  "g-pre": {
-    INSTRUMENT_EVAL_FIRST_LINE: "preamble",
-    INSTRUMENT_EVAL_ONE_AGENT: "fork-only",
-  },
-  "g-say": {
-    INSTRUMENT_EVAL_FIRST_LINE: "say",
-    INSTRUMENT_EVAL_ONE_AGENT: "fork-only",
-  },
-  h: { INSTRUMENT_EVAL_ONE_AGENT: "background" },
-  v: {},
-};
-
-const DEFAULT_ARMS = ["a", "c", "d", "e", "f"];
 
 /** A tool-using turn that shows the user more messages than this is chatty. */
 const CHATTY_MESSAGES = 2;
@@ -216,7 +159,6 @@ const PLAN_REFUSED =
   /usage_limit|usage limit|rate_limit|rate limit|Too Many Requests|Unauthorized|subscription_sharing|invalid_api_key|token.{0,20}expired|status(?:Code)?\W{1,3}(?:401|403|429)\b/i;
 
 interface RunRecord {
-  arm: string;
   assertions: { evidence: string; passed: boolean; text: string }[];
   erroredRequests: number;
   exitCode: number | null;
@@ -233,7 +175,7 @@ interface RunRecord {
     firstTextMs?: number;
     marks?: Record<string, null | number>;
     refusals?: { all: number; task: number };
-    taskCommands?: { fork: number; new: number };
+    taskCommands?: { new: number };
     tasksCreated: number;
     toolCalls: number;
     turns?: { chars: number; ms: number; tokens: number }[];
@@ -262,7 +204,6 @@ interface RunRecord {
 const { positionals, values } = parseArgs({
   allowPositionals: true,
   options: {
-    arms: { type: "string" },
     cases: { type: "string" },
     concurrency: { default: "4", type: "string" },
     "max-run-seconds": { default: "900", type: "string" },
@@ -297,10 +238,6 @@ function isPlanModel(uri: string): boolean {
   return uri.includes(PLAN);
 }
 
-function armDir(outDir: string, arm: string): string {
-  return path.join(outDir, arm);
-}
-
 /** Set once a plan run is refused by the plan; later plan runs are skipped. */
 let planHalted: string | undefined;
 
@@ -314,21 +251,14 @@ async function run() {
   if (unknown.length > 0) {
     throw new Error(`Unknown cases: ${unknown.join(", ")}`);
   }
-  const arms = values.arms?.split(",") ?? DEFAULT_ARMS;
-  const unknownArms = arms.filter((arm) => !(arm in ARM_ENV));
-  if (unknownArms.length > 0) {
-    throw new Error(`Unknown arms: ${unknownArms.join(", ")}`);
-  }
   const repeat = Number.parseInt(values.repeat, 10);
   const concurrency = Number.parseInt(values.concurrency, 10);
   const stamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
   const outDir = values.out
     ? path.resolve(values.out)
     : path.join(PACKAGE_DIR, "eval-results.local", `handoff-${stamp}`);
-  for (const arm of arms) {
-    for (const sub of ["runs", "logs", "homes"]) {
-      fs.mkdirSync(path.join(armDir(outDir, arm), sub), { recursive: true });
-    }
+  for (const sub of ["runs", "logs", "homes"]) {
+    fs.mkdirSync(path.join(outDir, sub), { recursive: true });
   }
 
   // Trials outermost, so a run cut short still has every cell sampled.
@@ -336,7 +266,7 @@ async function run() {
     models.flatMap((model) =>
       slugs
         .filter((slug) => isPlanModel(model) || !PLAN_ONLY.has(slug))
-        .flatMap((slug) => arms.map((arm) => ({ arm, model, slug, trial }))),
+        .map((slug) => ({ model, slug, trial })),
     ),
   );
   process.stderr.write(`${plan.length} runs into ${outDir}\n`);
@@ -346,7 +276,7 @@ async function run() {
     if (isPlanModel(one.model) && planHalted) {
       done += 1;
       process.stderr.write(
-        `[${done}/${plan.length}] ${one.slug}-${one.arm} skipped: the plan stopped answering (${planHalted})\n`,
+        `[${done}/${plan.length}] ${one.slug} skipped: the plan stopped answering (${planHalted})\n`,
       );
       return;
     }
@@ -354,7 +284,7 @@ async function run() {
     done += 1;
     const held = record.assertions.filter((a) => a.passed).length;
     process.stderr.write(
-      `[${done}/${plan.length}] ${one.slug}-${one.arm} ${modelName(one.model)} #${one.trial}: ${held}/${record.assertions.length}, ${Math.round((record.metrics?.doneMs ?? 0) / 1000)}s, ${record.treeTokens ?? "?"} tokens${record.stoppedBy ? `, stopped (${record.stoppedBy})` : ""}\n`,
+      `[${done}/${plan.length}] ${one.slug} ${modelName(one.model)} #${one.trial}: ${held}/${record.assertions.length}, ${Math.round((record.metrics?.doneMs ?? 0) / 1000)}s, ${record.treeTokens ?? "?"} tokens${record.stoppedBy ? `, stopped (${record.stoppedBy})` : ""}\n`,
     );
   });
   if (planHalted) {
@@ -366,18 +296,11 @@ async function run() {
 }
 
 /**
- * The environment a child runs in: the arm's switches, no metered keys but
- * the OpenRouter one on an `or-*` run, pinned to its one model.
+ * The environment a child runs in: no metered keys but the OpenRouter one
+ * on an `or-*` run, pinned to its one model.
  */
-function childEnv(
-  arm: string,
-  home: string,
-  model?: string,
-): NodeJS.ProcessEnv {
+function childEnv(home: string, model?: string): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
-  delete env.INSTRUMENT_EVAL_ONE_AGENT;
-  delete env.INSTRUMENT_EVAL_FIRST_LINE;
-  delete env.INSTRUMENT_EVAL_TASK_CONTEXT;
   delete env.APP_CHATGPT_PLAN_TOKEN;
   for (const key of METERED_KEYS) {
     env[key] = "";
@@ -391,7 +314,6 @@ function childEnv(
     INSTRUMENT_EVAL_HOME: home,
     INSTRUMENT_EVAL_OPENROUTER_MODEL: pinned ?? "",
     NO_COLOR: "1",
-    ...ARM_ENV[arm],
   };
 }
 
@@ -464,18 +386,12 @@ async function openRouterUsage() {
 }
 
 async function runOne(
-  {
-    arm,
-    model,
-    slug,
-    trial,
-  }: { arm: string; model: string; slug: string; trial: number },
+  { model, slug, trial }: { model: string; slug: string; trial: number },
   outDir: string,
 ): Promise<RunRecord> {
-  const key = `${slug}-${arm}-${modelName(model)}-${trial}`;
-  const dir = armDir(outDir, arm);
-  const env = childEnv(arm, path.join(dir, "homes", key), model);
-  const log = fs.createWriteStream(path.join(dir, "logs", `${key}.log`));
+  const key = `${slug}-${modelName(model)}-${trial}`;
+  const env = childEnv(path.join(outDir, "homes", key), model);
+  const log = fs.createWriteStream(path.join(outDir, "logs", `${key}.log`));
   let stdout = "";
   let stderr = "";
   let exitCode: number | null = null;
@@ -488,14 +404,14 @@ async function runOne(
       const token = planToken();
       if (!token) {
         log.end();
-        return emptyRecord({ arm, model, slug, trial }, outDir, key);
+        return emptyRecord({ model, slug, trial }, outDir, key);
       }
       env.APP_CHATGPT_PLAN_TOKEN = token;
     }
     ({ exitCode, stderr, stdout } = await spawnRun(
       [
         "run",
-        `handoff-${slug}-${arm}`,
+        `handoff-${slug}`,
         "--model",
         model,
         "--paid",
@@ -528,7 +444,6 @@ async function runOne(
   log.end();
 
   const record: RunRecord = {
-    arm,
     assertions: [],
     erroredRequests: 0,
     exitCode,
@@ -542,15 +457,12 @@ async function runOne(
   const line = stdout.split("\n").find((one) => one.startsWith("{"));
   if (line) {
     const rollup = JSON.parse(line) as {
-      results: (Omit<
-        RunRecord,
-        "arm" | "exitCode" | "model" | "slug" | "trial"
-      > & {
+      results: (Omit<RunRecord, "exitCode" | "model" | "slug" | "trial"> & {
         caseName: string;
       })[];
     };
     const result = rollup.results.find(
-      (one) => one.caseName === `handoff-${slug}-${arm}`,
+      (one) => one.caseName === `handoff-${slug}`,
     );
     if (result) {
       Object.assign(record, {
@@ -572,7 +484,7 @@ async function runOne(
     }
   }
   fs.writeFileSync(
-    path.join(dir, "runs", `${key}.json`),
+    path.join(outDir, "runs", `${key}.json`),
     JSON.stringify(record, null, 2),
   );
   return record;
@@ -580,7 +492,7 @@ async function runOne(
 
 /** A run that never started, filed so the summary counts it as left out. */
 function emptyRecord(
-  one: { arm: string; model: string; slug: string; trial: number },
+  one: { model: string; slug: string; trial: number },
   outDir: string,
   key: string,
 ): RunRecord {
@@ -591,7 +503,7 @@ function emptyRecord(
     exitCode: null,
   };
   fs.writeFileSync(
-    path.join(armDir(outDir, one.arm), "runs", `${key}.json`),
+    path.join(outDir, "runs", `${key}.json`),
     JSON.stringify(record, null, 2),
   );
   return record;
@@ -743,51 +655,34 @@ function median(numbers: number[]): number | undefined {
     : ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
 }
 
-/** Every arm folder under an output folder, by arm. */
-function armDirs(outDir: string): { arm: string; dir: string }[] {
-  return fs
-    .readdirSync(outDir, { withFileTypes: true })
-    .filter(
-      (entry) =>
-        entry.isDirectory() &&
-        fs.existsSync(path.join(outDir, entry.name, "runs")),
-    )
-    .map((entry) => ({ arm: entry.name, dir: path.join(outDir, entry.name) }));
-}
-
 /**
  * Scores every run in `outDir` again against its own workspace and home,
  * with the assertions as they stand now, at no model cost. The timings and
  * token counts are the run's and are kept.
  */
 async function rescore(outDir: string) {
-  const jobs = armDirs(outDir).flatMap(({ arm, dir }) =>
-    fs
-      .readdirSync(path.join(dir, "runs"))
-      .filter((name) => name.endsWith(".json"))
-      .map((name) => ({ arm, dir, key: name.replace(/\.json$/, "") })),
-  );
-  await _.parallel(4, jobs, async ({ arm, dir, key }) => {
-    const file = path.join(dir, "runs", `${key}.json`);
+  const keys = fs
+    .readdirSync(path.join(outDir, "runs"))
+    .filter((name) => name.endsWith(".json"))
+    .map((name) => name.replace(/\.json$/, ""));
+  await _.parallel(4, keys, async (key) => {
+    const file = path.join(outDir, "runs", `${key}.json`);
     const record = JSON.parse(fs.readFileSync(file, "utf8")) as RunRecord;
-    const log = fs.readFileSync(path.join(dir, "logs", `${key}.log`), "utf8");
+    const log = fs.readFileSync(
+      path.join(outDir, "logs", `${key}.log`),
+      "utf8",
+    );
     const workspace = /Workspace\s*:\s*(\S+)/.exec(log)?.[1];
     if (!workspace || !fs.existsSync(workspace)) {
       process.stderr.write(`${key}: no workspace to re-score\n`);
       return;
     }
     const sink = fs.createWriteStream(
-      path.join(dir, "logs", `${key}.rescore.log`),
+      path.join(outDir, "logs", `${key}.rescore.log`),
     );
     const { stdout } = await spawnRun(
-      [
-        "report",
-        workspace,
-        "--json",
-        "--name",
-        `handoff-${record.slug}-${record.arm}`,
-      ],
-      childEnv(arm, path.join(dir, "homes", key)),
+      ["report", workspace, "--json", "--name", `handoff-${record.slug}`],
+      childEnv(path.join(outDir, "homes", key)),
       sink,
     );
     sink.end();
@@ -800,9 +695,7 @@ async function rescore(outDir: string) {
               caseName: string;
             }[];
           }
-        ).results.find(
-          (one) => one.caseName === `handoff-${record.slug}-${record.arm}`,
-        )
+        ).results.find((one) => one.caseName === `handoff-${record.slug}`)
       : undefined;
     if (!result) {
       process.stderr.write(`${key}: the report had no result for it\n`);
@@ -826,24 +719,22 @@ function passed(record: RunRecord): boolean {
 }
 
 function readRecords(outDir: string): RunRecord[] {
-  return armDirs(outDir).flatMap(({ dir }) =>
-    fs
-      .readdirSync(path.join(dir, "runs"))
-      .filter((name) => name.endsWith(".json"))
-      .map(
-        (name) =>
-          JSON.parse(
-            fs.readFileSync(path.join(dir, "runs", name), "utf8"),
-          ) as RunRecord,
-      ),
-  );
+  return fs
+    .readdirSync(path.join(outDir, "runs"))
+    .filter((name) => name.endsWith(".json"))
+    .map(
+      (name) =>
+        JSON.parse(
+          fs.readFileSync(path.join(outDir, "runs", name), "utf8"),
+        ) as RunRecord,
+    );
 }
 
 function summarize(outDir: string) {
   const records = readRecords(outDir);
   const cells = _.group(
     records,
-    (record) => `${record.slug}|${record.arm}|${modelName(record.model)}`,
+    (record) => `${record.slug}|${modelName(record.model)}`,
   );
   const seconds = (ms?: number) =>
     ms === undefined ? "-" : `${(ms / 1000).toFixed(1)}`;
@@ -858,9 +749,9 @@ function summarize(outDir: string) {
       );
   const rows = Object.entries(cells)
     .map(([key, all = []]) => {
-      const [slug = "", arm = "", model = ""] = key.split("|");
+      const [slug = "", model = ""] = key.split("|");
       // A run whose model requests failed (rate limits, exhausted credits)
-      // says nothing about the arm; it is counted in the notes and left out.
+      // says nothing about the agent; it is counted in the notes and left out.
       const list = all.filter(isScorable);
       const pick = pickFrom(list);
       const quick = list.flatMap((record) => {
@@ -868,11 +759,9 @@ function summarize(outDir: string) {
         return value === undefined ? [] : [value];
       });
       return {
-        arm,
         cells: [
           slug,
           CASES[slug] ?? "",
-          arm,
           model,
           `${list.filter(passed).length}/${list.length}`,
           seconds(pick((record) => record.metrics?.firstTextMs)),
@@ -880,7 +769,7 @@ function summarize(outDir: string) {
           whole(pick((record) => record.treeTokens)),
           whole(pick((record) => record.metrics?.cacheReadTokens)),
           whole(pick((record) => record.metrics?.visibleChars)),
-          `${whole(pick((record) => record.metrics?.tasksCreated))} (${list.filter((record) => (record.metrics?.taskCommands?.fork ?? 0) > 0).length}f/${list.filter((record) => (record.metrics?.taskCommands?.new ?? 0) > 0).length}n/${list.filter((record) => (record.metrics?.autoForks ?? 0) > 0).length}i)`,
+          `${whole(pick((record) => record.metrics?.tasksCreated))} (${list.filter((record) => (record.metrics?.taskCommands?.new ?? 0) > 0).length}n/${list.filter((record) => (record.metrics?.autoForks ?? 0) > 0).length}i)`,
           `${list.reduce((sum, record) => sum + (record.metrics?.refusals?.task ?? 0), 0)}/${list.reduce((sum, record) => sum + (record.metrics?.refusals?.all ?? 0), 0)}`,
           quick.length > 0
             ? quick
@@ -918,13 +807,11 @@ function summarize(outDir: string) {
     .toSorted(
       (a, b) =>
         SLUGS.indexOf(a.slug) - SLUGS.indexOf(b.slug) ||
-        a.model.localeCompare(b.model) ||
-        a.arm.localeCompare(b.arm),
+        a.model.localeCompare(b.model),
     );
   const header = [
     "case",
     "kind",
-    "arm",
     "model",
     "pass",
     "first text s",
@@ -932,7 +819,7 @@ function summarize(outDir: string) {
     "tokens",
     "cached",
     "visible chars",
-    "tasks (runs that forked/ran task new/forked on interrupt)",
+    "tasks (runs that ran task new/forked on interrupt)",
     "refusals task/all",
     "quick answer s",
     "notes",
@@ -943,43 +830,40 @@ function summarize(outDir: string) {
     ...rows.map((row) => `| ${row.cells.join(" | ")} |`),
   ].join("\n");
 
-  // Per arm and model, the figures the pre-registered bar reads.
-  const byArm = _.group(
-    records.filter(isScorable),
-    (record) => `${record.arm}|${modelName(record.model)}`,
+  // Per model, the figures the bar reads.
+  const byModel = _.group(records.filter(isScorable), (record) =>
+    modelName(record.model),
   );
-  const barRows = Object.entries(byArm)
-    .map(([key, list = []]) => {
-      const [arm = "", model = ""] = key.split("|");
+  const barRows = Object.entries(byModel)
+    .map(([model, list = []]) => {
       const small = list.filter((record) => SMALL.has(record.slug));
       const pickSmall = pickFrom(small);
       const pickAll = pickFrom(list);
       const badCalls = list.filter(
         (record) => (record.metrics?.refusals?.task ?? 0) > 0,
       ).length;
-      return `| ${arm} | ${model} | ${list.filter(passed).length}/${list.length} | ${seconds(pickSmall((record) => record.metrics?.doneMs))} | ${seconds(pickAll((record) => record.metrics?.firstTextMs))} | ${seconds(_.max(list.map((record) => record.metrics?.firstTextMs ?? 0)) ?? undefined)} | ${badCalls}/${list.length} |`;
+      return `| ${model} | ${list.filter(passed).length}/${list.length} | ${seconds(pickSmall((record) => record.metrics?.doneMs))} | ${seconds(pickAll((record) => record.metrics?.firstTextMs))} | ${seconds(_.max(list.map((record) => record.metrics?.firstTextMs ?? 0)) ?? undefined)} | ${badCalls}/${list.length} |`;
     })
     .toSorted();
   const bar = [
-    "| arm | model | pass | small asks: median done s | median first text s | worst first text s | runs with a refused task call |",
-    "| --- | --- | --- | --- | --- | --- | --- |",
+    "| model | pass | small asks: median done s | median first text s | worst first text s | runs with a refused task call |",
+    "| --- | --- | --- | --- | --- | --- |",
     ...barRows,
   ].join("\n");
 
   const byKind = _.group(
     records.filter(isScorable),
-    (record) =>
-      `${CASES[record.slug] ?? ""}|${record.arm}|${modelName(record.model)}`,
+    (record) => `${CASES[record.slug] ?? ""}|${modelName(record.model)}`,
   );
   const kindRows = Object.entries(byKind)
     .map(([key, list = []]) => {
-      const [kind = "", arm = "", model = ""] = key.split("|");
-      return `| ${kind} | ${model} | ${arm} | ${list.filter(passed).length}/${list.length} | ${seconds(pickFrom(list)((record) => record.metrics?.doneMs))} |`;
+      const [kind = "", model = ""] = key.split("|");
+      return `| ${kind} | ${model} | ${list.filter(passed).length}/${list.length} | ${seconds(pickFrom(list)((record) => record.metrics?.doneMs))} |`;
     })
     .toSorted();
   const kinds = [
-    "| kind | model | arm | pass | median done s |",
-    "| --- | --- | --- | --- | --- |",
+    "| kind | model | pass | median done s |",
+    "| --- | --- | --- | --- |",
     ...kindRows,
   ].join("\n");
 
@@ -988,17 +872,17 @@ function summarize(outDir: string) {
     .filter((record) =>
       record.assertions.some((assertion) => !assertion.passed),
     )
-    .toSorted((a, b) => `${a.slug}${a.arm}`.localeCompare(`${b.slug}${b.arm}`))
+    .toSorted((a, b) => a.slug.localeCompare(b.slug))
     .flatMap((record) =>
       record.assertions
         .filter((assertion) => !assertion.passed)
         .map(
           (assertion) =>
-            `- ${record.slug}-${record.arm} ${modelName(record.model)} #${record.trial}: ${assertion.text}: ${assertion.evidence.slice(0, 240).replaceAll("\n", " ")}`,
+            `- ${record.slug} ${modelName(record.model)} #${record.trial}: ${assertion.text}: ${assertion.evidence.slice(0, 240).replaceAll("\n", " ")}`,
         ),
     );
   const firstLines = firstLineReport(records.filter(isScorable));
-  const report = `${table}\n\nMedians per cell. Pass is runs where every assertion passed, out of runs where no model request failed. Tasks is the median number of tasks or forks the run started, then how many runs ran \`task fork\`, how many ran \`task new\`, and how many the harness forked when the user wrote mid-turn. Refusals are shell calls a refusal or an unknown flag answered, summed over the cell: the ones running a \`task\` command, then all. Quick answer is each run's wait for the answer to the mid-job question, in seconds.\n\n## Per arm\n\n${bar}\n\n## Per kind\n\n${kinds}\n\n## Failed assertions\n\n${failures.join("\n") || "none"}\n\n## First lines\n\n${firstLines}\n`;
+  const report = `${table}\n\nMedians per cell. Pass is runs where every assertion passed, out of runs where no model request failed. Tasks is the median number of forks the run started, then how many runs ran \`task new\` and how many the harness forked when the user wrote mid-turn. Refusals are shell calls a refusal or an unknown flag answered, summed over the cell: the ones running a \`task\` command, then all. Quick answer is each run's wait for the answer to the mid-job question, in seconds.\n\n## Per model\n\n${bar}\n\n## Per kind\n\n${kinds}\n\n## Failed assertions\n\n${failures.join("\n") || "none"}\n\n## First lines\n\n${firstLines}\n`;
   fs.writeFileSync(path.join(outDir, "report.md"), report);
   fs.writeFileSync(
     path.join(outDir, "matrix.json"),
@@ -1008,18 +892,17 @@ function summarize(outDir: string) {
 }
 
 /**
- * How each arm's replies began, per model: the figures for the first-line
- * arms, then every run's first line verbatim, so filler and a guess stated
- * before any check can be read.
+ * How the replies began, per model: the figures for each model, then every
+ * run's first line verbatim, so filler and a guess stated before any check
+ * can be read.
  */
 function firstLineReport(records: RunRecord[]): string {
   const seconds = (ms?: number) =>
     ms === undefined ? "-" : `${(ms / 1000).toFixed(1)}`;
   const groups = Object.entries(
-    _.group(records, (record) => `${record.arm}|${modelName(record.model)}`),
+    _.group(records, (record) => modelName(record.model)),
   ).toSorted(([a], [b]) => a.localeCompare(b));
-  const rows = groups.map(([key, list = []]) => {
-    const [arm = "", model = ""] = key.split("|");
+  const rows = groups.map(([model, list = []]) => {
     const pick = (read: (record: RunRecord) => number | undefined) =>
       median(
         list.flatMap((record) => {
@@ -1052,7 +935,7 @@ function firstLineReport(records: RunRecord[]): string {
     const chatty = toolTurns.filter(
       (shape) => shape.textParts > CHATTY_MESSAGES,
     ).length;
-    return `| ${arm} | ${model} | ${list.filter(passed).length}/${list.length} | ${seconds(pick((record) => record.metrics?.firstTextMs))} | ${seconds(_.max(list.map((record) => record.metrics?.firstTextMs ?? 0)) ?? undefined)} | ${opened.filter(Boolean).length}/${opened.length} | ${laterOpened.filter(Boolean).length}/${laterOpened.length} | ${chatty}/${toolTurns.length} (${toolTurns.length === 0 ? 0 : Math.round((chatty / toolTurns.length) * 100)}%) | ${median(toolTurns.map((shape) => shape.textParts)) ?? "-"} | ${median(list.map((record) => _.max((record.metrics?.turnShapes ?? []).map((shape) => shape.textParts)) ?? 0)) ?? "-"} | ${seconds(pick((record) => record.metrics?.doneMs))} | ${Math.round(pick((record) => record.treeTokens) ?? 0)} | ${noToolTurns.filter((shape) => shape.textParts > 1).length}/${noToolTurns.length} |`;
+    return `| ${model} | ${list.filter(passed).length}/${list.length} | ${seconds(pick((record) => record.metrics?.firstTextMs))} | ${seconds(_.max(list.map((record) => record.metrics?.firstTextMs ?? 0)) ?? undefined)} | ${opened.filter(Boolean).length}/${opened.length} | ${laterOpened.filter(Boolean).length}/${laterOpened.length} | ${chatty}/${toolTurns.length} (${toolTurns.length === 0 ? 0 : Math.round((chatty / toolTurns.length) * 100)}%) | ${median(toolTurns.map((shape) => shape.textParts)) ?? "-"} | ${median(list.map((record) => _.max((record.metrics?.turnShapes ?? []).map((shape) => shape.textParts)) ?? 0)) ?? "-"} | ${seconds(pick((record) => record.metrics?.doneMs))} | ${Math.round(pick((record) => record.treeTokens) ?? 0)} | ${noToolTurns.filter((shape) => shape.textParts > 1).length}/${noToolTurns.length} |`;
   });
   const chattyTurns = groups.flatMap(([key, list = []]) =>
     list
@@ -1064,7 +947,7 @@ function firstLineReport(records: RunRecord[]): string {
         (record.metrics?.turnShapes ?? []).flatMap((shape, at) =>
           shape.toolCalls > 0 && shape.textParts > CHATTY_MESSAGES
             ? [
-                `- ${key.replace("|", " on ")}, ${record.slug} #${record.trial} turn ${at + 1} (${shape.textParts} messages, ${shape.toolCalls} tool calls)`,
+                `- ${key}, ${record.slug} #${record.trial} turn ${at + 1} (${shape.textParts} messages, ${shape.toolCalls} tool calls)`,
                 ...(shape.texts ?? [shape.firstText ?? ""]).map(
                   (text) => `  - ${JSON.stringify(text)}`,
                 ),
@@ -1099,11 +982,11 @@ function firstLineReport(records: RunRecord[]): string {
           ...later,
         ].join("\n");
       });
-    return `### ${key.replace("|", " on ")}\n\n${runs.join("\n")}`;
+    return `### ${key}\n\n${runs.join("\n")}`;
   });
   return [
-    `| arm | model | pass | median first text s | worst first text s | tool-using first turns with text before the first tool | same, later turns | tool-using turns with more than ${CHATTY_MESSAGES} visible messages | median visible messages per tool-using turn | median per-run max visible messages in a turn | median done s | median tokens | no-tool turns with more than one text part |`,
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    `| model | pass | median first text s | worst first text s | tool-using first turns with text before the first tool | same, later turns | tool-using turns with more than ${CHATTY_MESSAGES} visible messages | median visible messages per tool-using turn | median per-run max visible messages in a turn | median done s | median tokens | no-tool turns with more than one text part |`,
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...rows,
     "",
     "Visible messages are the non-empty text parts of the chat's own replies to one typed message, each one a message the user sees.",
@@ -1128,7 +1011,7 @@ if (subcommand === "summarize" && target) {
   await openRouterUsage();
 } else {
   process.stderr.write(
-    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|or-luna6|or-glm|or-haiku55|cf:id> [--repeat n] [--concurrency n] [--max-run-tokens n] [--cases guide,email] [--arms a,c,d,e,f,g,g-off,g-say,g-nudge,g-pre,g-note,h] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
+    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|or-luna6|or-glm|or-haiku55|cf:id> [--model ...] [--repeat n] [--concurrency n] [--max-run-tokens n] [--cases guide,email] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
   );
   process.exit(1);
 }

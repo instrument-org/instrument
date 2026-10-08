@@ -9,7 +9,7 @@ import * as z from "zod";
 
 import { buildReportWorkspaceConfig } from "../evals/utils";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
-import { TOOLS } from "../src/tools/all";
+import { instrumentAgent } from "../src/agents/instrument";
 
 // The bash tool builds its description from the running workspace (mount paths,
 // which commands exist), so a config has to be in place before it is read.
@@ -26,40 +26,30 @@ setWorkspaceConfig(
  * those sweeps a fixture instead of a hand-written approximation, which would
  * be measuring a prompt nothing ships.
  */
-const CHAT_TOOL_NAMES = [
-  "BashTool",
-  "Choose",
-  "ConnectApp",
-  "RequestFolder",
-] as const satisfies (keyof typeof TOOLS)[];
-
 const { values } = parseArgs({
   options: {
-    agent: { default: "instrument", type: "string" },
     out: { type: "string" },
   },
 });
 
-const tools = CHAT_TOOL_NAMES.map((name) => {
-  const agentTool = TOOLS[name];
-  const inputSchema =
-    typeof agentTool.inputSchema === "function"
-      ? agentTool.inputSchema(values.agent as never)
-      : agentTool.inputSchema;
-  return {
+const tools = await Promise.all(
+  Object.values(instrumentAgent.agentTools).map(async (agentTool) => ({
     function: {
       description:
         typeof agentTool.description === "function"
-          ? agentTool.description({ agentName: values.agent } as never)
+          ? await agentTool.description({
+              model: undefined as never,
+              taskId: undefined as never,
+            })
           : agentTool.description,
       name: agentTool.name,
-      parameters: z.toJSONSchema(inputSchema, { io: "input" }),
+      parameters: z.toJSONSchema(agentTool.inputSchema, { io: "input" }),
     },
     type: "function" as const,
-  };
-});
+  })),
+);
 
-const payload = { agent: values.agent, tools };
+const payload = { agent: instrumentAgent.name, tools };
 const text = `${JSON.stringify(payload, null, 2)}\n`;
 if (values.out) {
   fs.writeFileSync(values.out, text);

@@ -24,7 +24,7 @@ const WIDE_FILES = 21_000;
 let tmpDir: string;
 let taskId: TaskId;
 
-function shell({ oneAgent }: { oneAgent: boolean }) {
+function shell() {
   return createBashEnv({
     attachedFolders: {
       Home: {
@@ -36,14 +36,13 @@ function shell({ oneAgent }: { oneAgent: boolean }) {
         source: "user",
       },
     },
-    oneAgent,
     sessionId,
     taskId,
   });
 }
 
-async function run(command: string, options: { oneAgent: boolean }) {
-  const bash = await shell(options);
+async function run(command: string) {
+  const bash = await shell();
   return bash.exec(command, { signal: AbortSignal.timeout(60_000) });
 }
 
@@ -74,11 +73,9 @@ afterAll(async () => {
   await fs.rm(tmpDir, { force: true, recursive: true });
 });
 
-describe("the one agent's walks over the home folder", () => {
-  it("stop at the chat's budget, pointing at rg", async () => {
-    const result = await run("find /mnt/Home -name nothing-here", {
-      oneAgent: true,
-    });
+describe("walks over the home folder", () => {
+  it("stop at the home folder's budget, pointing at rg", async () => {
+    const result = await run("find /mnt/Home -name nothing-here");
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
@@ -87,27 +84,19 @@ describe("the one agent's walks over the home folder", () => {
     expect(result.stderr).toContain("rg --files");
   });
 
-  it("leave its own folder at a task's budget", async () => {
-    const result = await run("find work -type f | wc -l", { oneAgent: true });
+  it("leave the working folder at the sandbox's budget", async () => {
+    const result = await run("find work -type f | wc -l");
 
     expect(result.stderr).toBe("");
     expect(result.stdout.trim()).toBe(String(WIDE_FILES));
   });
 
   it("start over with each call into the same shell", async () => {
-    const bash = await shell({ oneAgent: true });
+    const bash = await shell();
     const first = await bash.exec("find /mnt/Home/wide -name f1");
     expect(first.stderr).toContain("stopped walking");
 
     const next = await bash.exec("ls /mnt/Home");
     expect(next.stdout).toContain("wide");
-  });
-
-  it("are not budgeted apart for a task's shell", async () => {
-    const result = await run("find /mnt/Home/wide -type f | wc -l", {
-      oneAgent: false,
-    });
-
-    expect(result.stdout.trim()).toBe(String(WIDE_FILES));
   });
 });

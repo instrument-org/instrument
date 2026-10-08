@@ -42,7 +42,6 @@ describe("bash attaches the agent-browser skill", () => {
 
   async function bash(command: string) {
     const result = await runTool(BashTool, {
-      agentName: "main",
       input: { command, yieldMs: 30_000 },
       model,
       sessionId,

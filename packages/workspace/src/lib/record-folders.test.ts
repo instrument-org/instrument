@@ -185,14 +185,13 @@ describe("record folders", () => {
     );
   });
 
-  it("gives a chat none of a task's scaffold", async () => {
+  it("gives a chat the scaffold a working folder starts with", async () => {
     await fs.writeFile(path.join(rootDir, "template", "package.json"), "{}");
     const chat = await makeChat("2026-09-24-transcribe-a-note");
-    const task = await make("2026-09-24-a-task", chat);
 
-    const chatFiles = await fs.readdir(taskDir(chat));
-    expect(chatFiles).not.toContain("package.json");
-    expect(await fs.readdir(taskDir(task))).toContain("package.json");
+    expect(await fs.readdir(taskDir(chat))).toEqual(
+      expect.arrayContaining(["attachments", "package.json", "work"]),
+    );
   });
 });
 

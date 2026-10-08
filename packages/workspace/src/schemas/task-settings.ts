@@ -9,9 +9,9 @@ import { StoreId } from "./store-id";
 // Making it strict would fail every task's settings at once and take every title
 // in the workspace with them.
 export const TaskSettingsSchema = z.object({
-  // The apps this task may reach through the `app` command, by slug. Set by
-  // the chat when it creates the task (`--app`), possibly to none.
-  // Absent on a task a person created, which reaches every app.
+  // The apps this task may reach through the `app` command, by slug: set on
+  // a briefed task, possibly to none. Absent on a fork, which reaches every
+  // app its chat does.
   apps: z.array(z.string()).optional(),
   // On a chat's record, the one session it holds. A chat's folder is named for
   // what it is about, so this is how a session finds its chat. Whether a
@@ -30,8 +30,8 @@ export const TaskSettingsSchema = z.object({
   // the session database is rewritten by the act of opening a task, so sorting
   // on its mtime moves a task to the top for having been read.
   lastActivityAt: z.coerce.date().optional(),
-  // A background run `task fork` started: it carries its chat's
-  // conversation and runs the chat's own agent rather than the task agent.
+  // A task `task new` started as a fork of its chat: it carries the chat's
+  // conversation and works in the chat's folder (`workdir`).
   fork: z.boolean().optional(),
   // A fork the harness made rather than the chat: the user wrote while the
   // chat's turn was mid-work, and the turn went on here

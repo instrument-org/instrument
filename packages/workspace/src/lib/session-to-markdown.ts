@@ -310,16 +310,9 @@ export async function sessionToMarkdown(
     ...alphabetical(nonContextMessages, (m) => m.id),
   ];
 
-  // The session's baseline names the agent it was written for, which is the
-  // agent every note in the transcript was phrased for.
-  const agentName = rootSession.messages.find(
-    (m): m is SessionMessage.ContextWithParts => m.role === "session-context",
-  )?.metadata.agentName;
   // Mapped as one list, because the notes a user turn carries depend on the
   // turns before it, then converted one message at a time below.
-  const uiMessages = SessionMessage.toUIMessages(orderedMessages, {
-    agentName,
-  });
+  const uiMessages = SessionMessage.toUIMessages(orderedMessages);
 
   const toolTimestamps = buildToolCallTimestampMap(rootSession);
 

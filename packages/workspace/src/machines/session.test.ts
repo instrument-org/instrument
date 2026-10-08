@@ -34,11 +34,13 @@ import {
 } from "xstate";
 
 import { setupAgent } from "../agents/create-agent";
-import { mainAgent } from "../agents/main";
+import { instrumentAgent } from "../agents/instrument";
 import { type AnyAgent } from "../agents/types";
+import * as recordFolders from "../lib/record-folders";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { type RelativePath } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
@@ -86,6 +88,16 @@ function createManualModelStream() {
 
 describe("sessionMachine", () => {
   const taskFolder = "pj-test";
+
+  /**
+   * Runs the session as a chat's, where a question waits on the user; a
+   * task's question has nobody to wait on, and answers at once.
+   */
+  function answersAsChat() {
+    vi.spyOn(recordFolders, "resolveChat").mockImplementation((id) =>
+      id === taskFolder ? ChatIdSchema.parse(taskFolder) : undefined,
+    );
+  }
   const defaultSessionId = StoreId.newSessionId();
   const mockDate = new Date("2025-01-01T00:00:00.000Z");
   const defaultMessageId = StoreId.newMessageId();
@@ -223,7 +235,7 @@ describe("sessionMachine", () => {
 
   async function createActorAndTask({
     actorOptions,
-    agent = mainAgent,
+    agent = instrumentAgent,
     aiSDKModel,
     baseLLMRetryDelayMs = 1000,
     chunkDelayMs,
@@ -457,8 +469,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="write_file" state="output-available" callId="test-call-2">
@@ -536,8 +548,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
@@ -631,8 +643,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
@@ -713,8 +725,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
@@ -793,8 +805,8 @@ describe("sessionMachine", () => {
           <step-start step="1" />
           <text state="done">First session</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
       </session>"
     `);
 
@@ -808,8 +820,8 @@ describe("sessionMachine", () => {
           <step-start step="1" />
           <text state="done">Second assistant message</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
       </session>"
     `,
     );
@@ -843,11 +855,11 @@ describe("sessionMachine", () => {
                 "filePath": "test.txt"
               }
             </input>
-            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: edit_file, generate_image, load_skill, read_file, bash, web_fetch, web_search, write_file.</error>
+            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, web_fetch, web_search, write_file.</error>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
@@ -918,8 +930,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
@@ -998,8 +1010,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
@@ -1044,8 +1056,8 @@ describe("sessionMachine", () => {
           <step-start step="1" />
           <text state="done">I'm done.</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
       </session>"
     `);
   });
@@ -1092,15 +1104,15 @@ describe("sessionMachine", () => {
     const result = await createActorAndTask({
       agent: setupAgent({
         agentTools: pick(TOOLS, ["ReadFile"]),
-        name: "main",
+        name: "instrument",
       }).create(() => ({
-        getMessages: mainAgent.getMessages,
+        getMessages: instrumentAgent.getMessages,
         onFinish: async () => {
           await onFinishPromise;
         },
-        onStart: mainAgent.onStart,
-        shouldContinue: mainAgent.shouldContinue,
-        systemPrompt: mainAgent.systemPrompt,
+        onStart: instrumentAgent.onStart,
+        shouldContinue: instrumentAgent.shouldContinue,
+        systemPrompt: instrumentAgent.systemPrompt,
       })),
       chunkSets: [finishChunks],
     });
@@ -1126,16 +1138,17 @@ describe("sessionMachine", () => {
   });
 
   it("should handle interactive tool calls with choose tool", async () => {
+    answersAsChat();
     const result = await createActorAndTask({
       agent: setupAgent({
         agentTools: pick(TOOLS, ["Choose"]),
-        name: "main",
+        name: "instrument",
       }).create(() => ({
-        getMessages: mainAgent.getMessages,
-        onFinish: mainAgent.onFinish,
-        onStart: mainAgent.onStart,
-        shouldContinue: mainAgent.shouldContinue,
-        systemPrompt: mainAgent.systemPrompt,
+        getMessages: instrumentAgent.getMessages,
+        onFinish: instrumentAgent.onFinish,
+        onStart: instrumentAgent.onStart,
+        shouldContinue: instrumentAgent.shouldContinue,
+        systemPrompt: instrumentAgent.systemPrompt,
       })),
       chunkSets: [chooseChunks, finishChunks],
     });
@@ -1189,8 +1202,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
@@ -1203,16 +1216,17 @@ describe("sessionMachine", () => {
   // made it can still be running: an answer that quick has to wait for the
   // step to end rather than find nothing pending and vanish.
   it("keeps an answer that arrives before the step ends", async () => {
+    answersAsChat();
     const result = await createActorAndTask({
       agent: setupAgent({
         agentTools: pick(TOOLS, ["Choose"]),
-        name: "main",
+        name: "instrument",
       }).create(() => ({
-        getMessages: mainAgent.getMessages,
-        onFinish: mainAgent.onFinish,
-        onStart: mainAgent.onStart,
-        shouldContinue: mainAgent.shouldContinue,
-        systemPrompt: mainAgent.systemPrompt,
+        getMessages: instrumentAgent.getMessages,
+        onFinish: instrumentAgent.onFinish,
+        onStart: instrumentAgent.onStart,
+        shouldContinue: instrumentAgent.shouldContinue,
+        systemPrompt: instrumentAgent.systemPrompt,
       })),
       chunkDelayMs: 100,
       chunkSets: [chooseChunks, finishChunks],
@@ -1259,16 +1273,17 @@ describe("sessionMachine", () => {
   });
 
   it("stops while a choose is pending without an unhandled event", async () => {
+    answersAsChat();
     const result = await createActorAndTask({
       agent: setupAgent({
         agentTools: pick(TOOLS, ["Choose"]),
-        name: "main",
+        name: "instrument",
       }).create(() => ({
-        getMessages: mainAgent.getMessages,
-        onFinish: mainAgent.onFinish,
-        onStart: mainAgent.onStart,
-        shouldContinue: mainAgent.shouldContinue,
-        systemPrompt: mainAgent.systemPrompt,
+        getMessages: instrumentAgent.getMessages,
+        onFinish: instrumentAgent.onFinish,
+        onStart: instrumentAgent.onStart,
+        shouldContinue: instrumentAgent.shouldContinue,
+        systemPrompt: instrumentAgent.systemPrompt,
       })),
       chunkSets: [chooseChunks],
     });
@@ -1305,8 +1320,8 @@ describe("sessionMachine", () => {
         <assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">
           <step-start step="1" />
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">
           <step-start step="1" />
         </assistant>
@@ -1470,8 +1485,8 @@ describe("sessionMachine", () => {
             <error>This action was stopped.</error>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
@@ -1530,7 +1545,8 @@ describe("sessionMachine", () => {
         result.actor,
         (state) =>
           state.matches({ Agent: "UsingReadOnlyTools" }) &&
-          state.context.agentRef?.getSnapshot().context.agent.name === "main",
+          state.context.agentRef?.getSnapshot().context.agent.name ===
+            "instrument",
       ).then(async () => {
         const agentRef = result.actor.getSnapshot().context.agentRef;
         if (!agentRef) {
@@ -1559,8 +1575,8 @@ describe("sessionMachine", () => {
               <error>This action was stopped by you.</error>
             </tool>
           </assistant>
-          <session-context main realRole="system" />
-          <session-context main realRole="user" />
+          <session-context instrument realRole="system" />
+          <session-context instrument realRole="user" />
         </session>"
       `);
     });
@@ -1577,7 +1593,8 @@ describe("sessionMachine", () => {
         result.actor,
         (state) =>
           state.matches({ Agent: "UsingReadOnlyTools" }) &&
-          state.context.agentRef?.getSnapshot().context.agent.name === "main",
+          state.context.agentRef?.getSnapshot().context.agent.name ===
+            "instrument",
       ).then(async () => {
         const agentRef = result.actor.getSnapshot().context.agentRef;
         if (!agentRef) {
@@ -1656,8 +1673,8 @@ describe("sessionMachine", () => {
               <error>This action was interrupted by a newer message from the user, and may not have finished.</error>
             </tool>
           </assistant>
-          <session-context main realRole="system" />
-          <session-context main realRole="user" />
+          <session-context instrument realRole="system" />
+          <session-context instrument realRole="user" />
           <user>
             <text>Make it about a submarine captain instead.</text>
           </user>
@@ -1799,8 +1816,8 @@ describe("sessionMachine", () => {
                 </output>
               </tool>
             </assistant>
-            <session-context main realRole="system" />
-            <session-context main realRole="user" />
+            <session-context instrument realRole="system" />
+            <session-context instrument realRole="user" />
             <user>
               <text>Make it about a submarine captain instead.</text>
             </user>
@@ -2043,8 +2060,8 @@ describe("sessionMachine", () => {
             <step-start step="1" />
             <text state="done">I'm done.</text>
           </assistant>
-          <session-context main realRole="system" />
-          <session-context main realRole="user" />
+          <session-context instrument realRole="system" />
+          <session-context instrument realRole="user" />
         </session>"
       `);
     });
@@ -2129,8 +2146,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">

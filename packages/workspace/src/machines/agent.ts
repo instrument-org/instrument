@@ -17,17 +17,11 @@ import {
 
 import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
-import {
-  firstLineContinues,
-  firstLineModeFor,
-  turnSoFar,
-} from "../lib/first-line";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getErrorAction } from "../lib/get-error-action";
 import { isInteractiveTool } from "../lib/is-interactive-tool";
 import { isToolPart } from "../lib/is-tool-part";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
-import { ONE_AGENT_NAME } from "../lib/one-agent";
 import { resolveChat } from "../lib/record-folders";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
@@ -337,20 +331,6 @@ export const agentMachine = setup({
         );
       }
 
-      // Under the `tools-off` first-line mode, the text-only first step is
-      // followed by one with tools whatever the agent's own rule says.
-      if (
-        firstLineContinues(
-          firstLineModeFor({
-            agentName: input.agent.name,
-            taskId: input.taskId,
-          }),
-          turnSoFar(messageResults.value),
-        )
-      ) {
-        return true;
-      }
-
       return input.agent.shouldContinue({
         messages: messageResults.value,
       });
@@ -537,7 +517,6 @@ export const agentMachine = setup({
           enqueue.spawnChild("executeToolCallMachine", {
             id: toolCallActorId(part),
             input: {
-              agentName: context.agent.name,
               model: context.model,
               part,
               sessionId: context.sessionId,
@@ -692,12 +671,11 @@ export const agentMachine = setup({
 
                 const tool = getToolByType(part.type);
 
-                // A fork runs the chat's agent, questions included, where
+                // A task runs the chat's agent, questions included, where
                 // nobody answers: its question runs, and says so.
                 if (
                   isInteractiveTool(tool.name) &&
-                  (context.agent.name !== ONE_AGENT_NAME ||
-                    resolveChat(context.taskId) !== undefined)
+                  resolveChat(context.taskId) !== undefined
                 ) {
                   pendingToolCalls.push(part);
                   continue;

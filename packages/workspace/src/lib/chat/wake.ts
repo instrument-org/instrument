@@ -8,9 +8,8 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
-import { agentNameForTask } from "../agent-name-for-task";
 import { filesNamedIn } from "../parse-files-block";
-import { chatPathOfWorkDir } from "../work-dir";
+import { chatPathOfWorkDir, hasOwnWorkFolder } from "../work-dir";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
 import { owningChat, resolveChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
@@ -424,7 +423,7 @@ async function onSessionDone(
       activeMs: usage.activeMs,
       ...(ending ? { ended: ending.line } : {}),
       ...(files.length > 0 ? { files } : {}),
-      holds: await taskFolderHoldings(id),
+      ...(hasOwnWorkFolder(id) ? { holds: await taskFolderHoldings(id) } : {}),
       ...(needs.length > 0 ? { needs } : {}),
       ...(running.length > 0 ? { running } : {}),
       status: ending?.failed ? "error" : "done",
@@ -515,7 +514,9 @@ async function stillWorkingEvent({
   return {
     activeMs: usage.activeMs,
     cachedTokens: usage.inputTokenDetails.cacheReadTokens,
-    holds: await taskFolderHoldings(taskId),
+    ...(hasOwnWorkFolder(taskId)
+      ? { holds: await taskFolderHoldings(taskId) }
+      : {}),
     inFlight: await stepInFlight(taskId),
     status: "overdue",
     steps: steps.filter((step) => step !== undefined),
@@ -580,7 +581,6 @@ async function wakeWith(
   workspaceRef.send({
     type: "addMessage",
     value: {
-      agentName: agentNameForTask(chatId),
       id: chatId,
       message,
       model,

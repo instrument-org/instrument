@@ -264,7 +264,7 @@ describe("prepareModelMessages", () => {
       agentTools: {},
       getMessages,
       getTools: () => Promise.resolve([]),
-      name: "main",
+      name: "instrument",
       onFinish: () => Promise.resolve(),
       onStart: () => Promise.resolve(),
       shouldContinue: () => Promise.resolve(true),
@@ -657,6 +657,26 @@ describe("prepareModelMessages", () => {
 
       expect(getMessages).toHaveBeenCalledOnce();
       expect(second).toEqual(first);
+    });
+
+    it("rebuilds the baseline of a session an agent since merged into this one wrote", async () => {
+      const stored = contextMessage(
+        new Date(),
+        "You are a task. Write a brief.",
+      );
+      await save({
+        ...stored,
+        metadata: { ...stored.metadata, agentName: "main" },
+      });
+      contextMessages = [
+        contextMessage(new Date(), "You are Instrument: the one agent."),
+      ];
+
+      const request = JSON.stringify(await prepare());
+
+      expect(getMessages).toHaveBeenCalledOnce();
+      expect(request).toContain("You are Instrument: the one agent.");
+      expect(request).not.toContain("Write a brief.");
     });
 
     it("keeps a baseline whose context message differs but whose prompt is current", async () => {

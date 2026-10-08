@@ -49,27 +49,12 @@ export interface TaskListRow {
   leftRunning: number;
   title: string;
   updatedAt: Date;
-  /** Why it is held from starting, and for how long so far, when it is. */
-  waiting?: string;
 }
 
 export interface TaskListSelection {
   /** Matched the query but fell outside the window, and so goes in the footer. */
   omitted: number;
   shown: TaskListRow[];
-  total: number;
-}
-
-/** A task that matched a search, with what it said about the term. */
-export interface TaskSearchRow extends TaskListRow {
-  /** Text parts that matched; zero when only the name did. */
-  count: number;
-  snippet: string;
-}
-
-export interface TaskSearchSelection {
-  omitted: number;
-  shown: TaskSearchRow[];
   total: number;
 }
 
@@ -165,11 +150,7 @@ export function renderTaskList(
   const anyLeft = selection.shown.some((row) => row.leftRunning > 0);
   const cells = selection.shown.map((row) => [
     row.id,
-    row.waiting
-      ? `waiting: ${row.waiting}`
-      : row.isRunning
-        ? "running"
-        : "idle",
+    row.isRunning ? "running" : "idle",
     ...(anyLeft
       ? [row.leftRunning > 0 ? `${row.leftRunning} in background` : ""]
       : []),
@@ -193,42 +174,6 @@ export function renderTaskList(
   if (selection.omitted === 0) {
     return `${table}\n`;
   }
-  return `${table}\n\n${moreLine(selection, ", or find one with `task search <words>`")}\n`;
-}
-
-/**
- * A search result: the same row, with what the task said about the term under
- * it. The status column goes, since what a task is doing now is not what is
- * being asked; the count stays, because one mention and thirty are different
- * answers and the ordering is built on the difference.
- */
-export function renderTaskSearch(
-  selection: TaskSearchSelection,
-  { now = new Date() }: { now?: Date } = {},
-): string {
-  const cells = selection.shown.map((row) => [
-    row.id,
-    row.updatedAt.toISOString().slice(0, 10),
-    `${formatAge(now.getTime() - row.updatedAt.getTime())} ago`,
-    row.title,
-  ]);
-  const widths = [0, 1, 2].map((column) =>
-    Math.max(...cells.map((row) => (row[column] ?? "").length)),
-  );
-  const table = selection.shown
-    .map((row, index) => {
-      const head = (cells[index] ?? [])
-        .map((cell, column) =>
-          column === 3 ? cell : cell.padEnd(widths[column] ?? 0),
-        )
-        .join("  ");
-      const mentions = row.count === 0 ? "in its name" : `${row.count}×`;
-      return `${head}\n    ${mentions}  ${row.snippet || "matched its name"}`;
-    })
-    .join("\n");
-  if (selection.omitted === 0) {
-    return `${table}\n`;
-  }
   return `${table}\n\n${moreLine(selection)}\n`;
 }
 
@@ -245,8 +190,7 @@ export function selectTasks(
   query: TaskListQuery = {},
 ): TaskListSelection {
   const matched = rows.filter((row) => {
-    // A task waiting to start is work in hand, and listed with what runs.
-    if (query.running && !row.isRunning && !row.waiting) {
+    if (query.running && !row.isRunning) {
       return false;
     }
     if (query.since && row.updatedAt < query.since) {
@@ -270,9 +214,6 @@ export function selectTasks(
  * narrow is the point of it: a listing that only says there is more invites an
  * answer drawn from the part that fit.
  */
-function moreLine(
-  selection: { omitted: number; total: number },
-  extra = "",
-): string {
-  return `… ${selection.omitted} more of ${selection.total}. Narrow with --since <date> or --until <date>${extra}; --all shows every match.`;
+function moreLine(selection: { omitted: number; total: number }): string {
+  return `… ${selection.omitted} more of ${selection.total}. Narrow with --since <date> or --until <date>; --all shows every match.`;
 }

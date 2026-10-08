@@ -4,9 +4,9 @@ import { type IFileSystem } from "just-bash";
  * A cap on how many directory entries one shell call may list under the
  * mounts it wraps, apart from the shell's own traversal limit.
  *
- * just-bash has one traversal budget per shell, and the one agent's shell
- * needs two: the task-sized one over its own folder, where a project with its
- * `node_modules` is ordinary work, and the chat-sized one over the home
+ * just-bash has one traversal budget per shell, and the agent's shell
+ * needs two: the sandbox's own over its working folder, where a project with its
+ * `node_modules` is ordinary work, and a smaller one over the home
  * folder, where a stray `find` or `grep -r` lists millions of entries with a
  * blocking call per entry and returns nothing. So the home mount is wrapped:
  * its listings are counted, and the listing that passes the limit throws,

@@ -71,7 +71,6 @@ function makeExecuteArgs(
   input: Parameters<typeof GenerateImage.execute>[0]["input"],
 ) {
   return {
-    agentName: "main" as const,
     input,
     model,
     signal: AbortSignal.timeout(30_000),

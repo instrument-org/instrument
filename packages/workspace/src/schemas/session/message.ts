@@ -9,7 +9,6 @@ import {
 } from "@instrument-org/shared/skill-mention";
 import {
   convertToModelMessages,
-  isToolUIPart,
   type ModelMessage,
   type ToolSet,
   type UIMessage,
@@ -17,8 +16,6 @@ import {
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { type AgentName } from "../../agents/types";
-import { TASK_FOLDER_NAMES, TOOL_SAY_PARAM_NAME } from "../../constants";
 import { adoptedTaskModelNote } from "../../lib/adopted-task-model-text";
 import { appEventModelNote } from "../../lib/app-event-model-text";
 import { asksModelNote } from "../../lib/asks-model-text";
@@ -29,7 +26,6 @@ import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
 import { chatContextModelNote } from "../../lib/chat-context-model-text";
 import { chatTopicsModelNote } from "../../lib/chat-topics-model-text";
-import { chatBackgroundModelNote } from "../../lib/chat-background-model-text";
 import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { isToolPart } from "../../lib/is-tool-part";
@@ -38,12 +34,10 @@ import { memoryModelNote } from "../../lib/memory-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { projectChangesModelNote } from "../../lib/project-changes-model-text";
 import { replyModelNote } from "../../lib/reply-model-text";
-import { TASK_COMMAND } from "../../lib/shell-commands/task-command";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
 import { taskAppChangesModelNote } from "../../lib/task-app-changes-model-text";
 import { taskEventModelNote } from "../../lib/task-event-model-text";
 import { viewContextModelNote } from "../../lib/view-context-model-text";
-import { MOUNT } from "../../mount-points";
 import { TOOL_NAMES } from "../../tools/name";
 import { StoreId } from "../store-id";
 import { SessionMessagePart } from "./message-part";
@@ -124,7 +118,7 @@ export namespace SessionMessage {
   const BaseMetadataSchema = z.object({
     createdAt: z.date(),
     /**
-     * Copied from the chat a fork was started from (`task fork`): the
+     * Copied from the chat a fork was started from (`task new`): the
      * conversation it holds as background rather than its own turns. Metadata
      * reaches no model request, so marking the copies leaves the prefix the
      * provider cached byte for byte the chat's.
@@ -133,7 +127,11 @@ export namespace SessionMessage {
     sessionId: StoreId.SessionSchema,
   });
   const ContextMetadataSchema = BaseMetadataSchema.extend({
-    agentName: z.custom<AgentName>(),
+    /**
+     * The agent that wrote the baseline. A session stored before the agents
+     * were one names `main` or `instrument-one`; read for display only.
+     */
+    agentName: z.string(),
     /**
      * Which shape of the session baseline this message holds
      * (`SESSION_CONTEXT_VERSION`), so a release that puts something new in the
@@ -290,45 +288,8 @@ export namespace SessionMessage {
   export async function toModelMessages(
     messages: WithParts[],
     tools: ToolSet,
-    {
-      agentName = "main",
-    }: {
-      /**
-       * Who reads the result. A note written onto a user turn is phrased for
-       * its reader, and the conversation's agent has no file tools: told
-       * about `write_file`, it goes looking for a tool it has not got.
-       */
-      agentName?: AgentName;
-    } = {},
   ): Promise<ModelMessage[]> {
-    return convertToModelMessages(
-      toUIMessages(messages, { agentName }).map(withoutToolSay),
-      { tools },
-    );
-  }
-
-  /**
-   * A message with the `say` taken off its tool calls' inputs (the first-line
-   * `say` mode, `lib/first-line.ts`). The say that opened a turn is already a
-   * text part ahead of its call, and the rest were never shown, so reading
-   * them back would tell the model it said lines the user never saw.
-   */
-  function withoutToolSay(message: UIMessage): UIMessage {
-    return {
-      ...message,
-      parts: message.parts.map((part) => {
-        if (
-          !isToolUIPart(part) ||
-          typeof part.input !== "object" ||
-          part.input === null ||
-          !(TOOL_SAY_PARAM_NAME in part.input)
-        ) {
-          return part;
-        }
-        const { [TOOL_SAY_PARAM_NAME]: _say, ...input } = part.input;
-        return { ...part, input };
-      }),
-    };
+    return convertToModelMessages(toUIMessages(messages), { tools });
   }
 
   /**
@@ -336,15 +297,7 @@ export namespace SessionMessage {
    * user turn carries. The notes depend on the turns before them, so a caller
    * converting messages one at a time maps the whole list here first.
    */
-  export function toUIMessages(
-    messages: WithParts[],
-    {
-      agentName = "main",
-    }: {
-      /** Who reads the notes; see `toModelMessages`. */
-      agentName?: AgentName;
-    } = {},
-  ): UIMessage[] {
+  export function toUIMessages(messages: WithParts[]): UIMessage[] {
     let previousBackgroundProcessesNote: string | undefined;
     let previousBrowserStatusNote: string | undefined;
     // What the user had on screen, told again only when it differs from the
@@ -436,32 +389,15 @@ export namespace SessionMessage {
         );
 
         if (attachmentsPart) {
-          // The conversation's agent has no file tools and a shell that
-          // refuses to write: its folders are read here and written by the
-          // tasks it hands them to, and a file it is sent is one it hands
-          // over rather than one it reads.
-          const throughTasks = agentName === "instrument";
           if (attachmentsPart.data.files.length > 0) {
-            // Its paths are spelled from the root: a bare `attachments/` had
-            // it guessing at a mount instead of looking in its own folder.
             const attachmentDescriptions = attachmentsPart.data.files
               .map((file) => {
                 const formattedSize = formatBytes(file.size);
-                const filePath = throughTasks
-                  ? `${MOUNT.task}/${file.filePath}`
-                  : file.filePath;
-                return `- ${filePath} (${formattedSize})`;
+                return `- ${file.filePath} (${formattedSize})`;
               })
               .join("\n");
 
-            const attachmentText = throughTasks
-              ? dedent`
-                  <uploaded_files>
-                  The user sent these files with this message, listed below at the paths you read them by (\`ls\`, \`file\`, \`head\`). A picture, a PDF, or a document is read by a task, and no task can see these until you hand one over: put --file <path> on the ${TASK_COMMAND.name} new or ${TASK_COMMAND.name} send that needs it, and the task gets a copy in its own ${TASK_FOLDER_NAMES.attachments}/ and is told it is there. Without --file the task has no file. Assume they are directly relevant to the user's request.
-                  ${attachmentDescriptions}
-                  </uploaded_files>
-                `
-              : dedent`
+            const attachmentText = dedent`
                   <uploaded_files>
                   The user uploaded these files with this message. They are now available in the task at the paths listed below. Assume they are directly relevant to the user's request.
                   ${attachmentDescriptions}
@@ -471,10 +407,9 @@ export namespace SessionMessage {
             injectedParts.push({ text: attachmentText, type: "text" });
           }
 
-          // Project folders ride along in the attachments part but are surfaced
-          // to the model as standing project context (see the main agent's
-          // context message), so exclude them here to avoid re-announcing them as
-          // folders the user attached with this message.
+          // Project folders ride along in the attachments part but are
+          // standing project context, so exclude them here to avoid
+          // re-announcing them as folders the user attached with this message.
           const userAttachedFolders = (
             attachmentsPart.data.folders ?? []
           ).filter((folder) => folder.source !== "project");
@@ -486,10 +421,7 @@ export namespace SessionMessage {
                 path: folder.path,
               })),
               guidance: message.id !== firstUserMessageId,
-              intro: throughTasks
-                ? `The user attached these folders with this message. Each is mounted for you at the path shown, and a task reaches one only when you pass it with --folder. Assume they are directly relevant to the user's request.`
-                : `The user attached these external folders with this message. They are mounted in the task and reachable with the bash tool. Assume they are directly relevant to the user's request.`,
-              writes: throughTasks ? "through-tasks" : "here",
+              intro: `The user attached these external folders with this message. They are mounted in the task and reachable with the bash tool. Assume they are directly relevant to the user's request.`,
             });
 
             injectedParts.push({ text: folderAttachmentText, type: "text" });
@@ -606,13 +538,9 @@ export namespace SessionMessage {
             )
             .join(", ");
           const plural = names.length > 1;
-          // The conversation cannot load a skill; a task it briefs can.
-          const loadLine =
-            agentName === "instrument"
-              ? `The user wants ${plural ? "these" : "it"} used: the brief for the work names ${plural ? "each" : "it"} by that exact name, for the task to load.`
-              : plural
-                ? `Load the ones the request needs with \`${TOOL_NAMES.loadSkill}\` before relying on them, and don't describe a skill from its name alone.`
-                : `Load it with \`${TOOL_NAMES.loadSkill}\` before relying on it, and don't describe a skill from its name alone.`;
+          const loadLine = plural
+            ? `Load the ones the request needs with \`${TOOL_NAMES.loadSkill}\` before relying on them, and don't describe a skill from its name alone.`
+            : `Load it with \`${TOOL_NAMES.loadSkill}\` before relying on it, and don't describe a skill from its name alone.`;
           injectedParts.push({
             text: `Skill ${plural ? "references" : "reference"} in the message above: ${mentions}. ${loadLine}`,
             type: "text",
@@ -793,23 +721,6 @@ export namespace SessionMessage {
             parts.push({ text: "</user_message>", type: "text" });
           }
           parts.push(...injectedParts);
-        }
-
-        // Ahead of everything, the brief included, and marked as background:
-        // what a task was given of its chat (`task_context`) is there to read
-        // the brief by, and the brief stays the assignment.
-        const chatBackgroundPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-chatBackground";
-          } => part.type === "data-chatBackground",
-        );
-        if (chatBackgroundPart) {
-          parts.unshift({
-            text: chatBackgroundModelNote(chatBackgroundPart.data),
-            type: "text",
-          });
         }
       }
 

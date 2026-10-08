@@ -170,34 +170,6 @@ export interface WorkspaceAppsConfig {
   };
 }
 
-/**
- * How a chat runs under the `one_agent` flag: `fork` does quick work itself
- * and forks slow work to the background; `foreground` does everything itself,
- * with no background at all. `fork-only` is `fork` with nothing but forks:
- * no briefed task, no task folder in sight, the chat's folders as the only
- * folders, one prompt of its own (`agents/one-simple.ts`), and fork on
- * interrupt always on. `background` is `fork-only` where the agent's word for
- * that work is "background" (the `background` command) rather than "task".
- */
-export type OneAgentMode = "background" | "fork" | "fork-only" | "foreground";
-
-/**
- * How the one agent's chat gets a line to the user before its work, an
- * experiment the evals switch on (`lib/first-line.ts`): `tools-off` makes the
- * first step of a turn the user started text only, `say` offers every tool
- * call a line to the user that the harness shows as text, `nudge` asks for
- * a line once the turn's first tool results are back with nothing said yet,
- * `preamble` gives the system prompt a section asking for the line before the
- * first call, and `turn-note` asks for it in a note on the first step of each
- * turn the user started.
- */
-export type FirstLineMode =
-  | "nudge"
-  | "preamble"
-  | "say"
-  | "tools-off"
-  | "turn-note";
-
 export interface WorkspaceConfig {
   apps: WorkspaceAppsConfig;
   appsDir: AbsolutePath;
@@ -216,11 +188,6 @@ export interface WorkspaceConfig {
    * absent altogether where there is no account to read (scripts, evals).
    */
   getUser?: () => Promise<undefined | { email: string; name?: string }>;
-  /**
-   * The first-line experiment the one agent's chat runs under, or none. See
-   * `FirstLineMode`. Absent is none.
-   */
-  firstLineMode?: () => FirstLineMode | undefined;
   /**
    * Where each workspace's index of its chats and tasks is kept: derived,
    * rebuilt from the workspace whenever it is missing or out of date, and
@@ -241,28 +208,8 @@ export interface WorkspaceConfig {
   // Read per invocation rather than captured at boot: the flag is a live store
   // the user can toggle from Settings, and this config is built once.
   isExternalBrowserEnabled: () => boolean;
-  /**
-   * The `one_agent_fork_on_interrupt` feature flag: under the one agent's
-   * `fork` mode, a message the user sends while the chat's turn is mid-work
-   * forks that turn to the background where it stands
-   * (`lib/fork-on-interrupt.ts`) rather than ending it. Absent is off.
-   */
-  isForkOnInterruptEnabled?: () => boolean;
-  /**
-   * The `task_context` feature flag: a task a chat starts gets the chat's
-   * topic instructions, memories, and the user's own words as background
-   * beside its brief (`lib/chat-background.ts`). Absent is off.
-   */
-  isTaskContextEnabled?: () => boolean;
   modelCache: ModelCache;
   nodeExecEnv: Record<string, string>;
-  /**
-   * The `one_agent` feature flag and its variant: a chat runs the merged agent
-   * (`agents/one.ts`), which works itself and, in `fork`, forks slow work to
-   * the background, or, in `foreground`, does all of it in the chat. Read per
-   * session spawn, like the browser flag. Absent is off.
-   */
-  oneAgentMode?: () => OneAgentMode | undefined;
   pnpmBinPath: AbsolutePath;
   // Where the skills the app ships are prepared for use. They cannot run from
   // the bundle -- it is signed, notarized, and replaced wholesale by the updater,

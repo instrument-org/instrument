@@ -19,8 +19,7 @@ import {
   type SnapshotFrom,
 } from "xstate";
 
-import { AGENTS } from "../../agents/all";
-import { type AgentName } from "../../agents/types";
+import { instrumentAgent } from "../../agents/instrument";
 import { APPS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
@@ -67,7 +66,6 @@ export type WorkspaceEvent =
   | {
       type: "addMessage";
       value: {
-        agentName: AgentName;
         id: TaskId;
         /** Stop the step in flight so the message runs as the next turn. */
         interrupt?: boolean;
@@ -81,7 +79,6 @@ export type WorkspaceEvent =
   | {
       type: "createSession";
       value: {
-        agentName: AgentName;
         id: TaskId;
         message: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
@@ -91,7 +88,6 @@ export type WorkspaceEvent =
   | {
       type: "internal.spawnSession";
       value: {
-        agentName: AgentName;
         // Absent for a turn that runs over what the session already holds.
         message?: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
@@ -123,7 +119,6 @@ export type WorkspaceEvent =
   | {
       type: "runTurn";
       value: {
-        agentName: AgentName;
         id: TaskId;
         model: AIGatewayModel.Type;
         sessionId: StoreId.Session;
@@ -371,16 +366,12 @@ export const workspaceMachine = setup({
       captureException: CaptureExceptionFunction;
       defaultTaskTemplateDir: string;
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
-      firstLineMode?: WorkspaceConfig["firstLineMode"];
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
       indexesDir?: string;
       isExternalBrowserEnabled: () => boolean;
-      isForkOnInterruptEnabled?: () => boolean;
-      isTaskContextEnabled?: () => boolean;
       modelCache: ModelCache;
       nodeExecEnv: Record<string, string>;
-      oneAgentMode?: WorkspaceConfig["oneAgentMode"];
       pnpmBinPath: string;
       preparedSkillsDir: string;
       refreshExpiredCredentials?: WorkspaceConfig["refreshExpiredCredentials"];
@@ -412,16 +403,8 @@ export const workspaceMachine = setup({
       ...(input.ensureOutputFolderIcon
         ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }
         : {}),
-      ...(input.firstLineMode ? { firstLineMode: input.firstLineMode } : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
-      ...(input.isForkOnInterruptEnabled
-        ? { isForkOnInterruptEnabled: input.isForkOnInterruptEnabled }
-        : {}),
-      ...(input.isTaskContextEnabled
-        ? { isTaskContextEnabled: input.isTaskContextEnabled }
-        : {}),
-      ...(input.oneAgentMode ? { oneAgentMode: input.oneAgentMode } : {}),
       ...(input.indexesDir && {
         indexesDir: AbsolutePathSchema.parse(input.indexesDir),
       }),
@@ -504,7 +487,6 @@ export const workspaceMachine = setup({
           return {
             type: "internal.spawnSession",
             value: {
-              agentName: event.value.agentName,
               message: event.value.message,
               model: event.value.model,
               saved: event.value.saved,
@@ -521,7 +503,6 @@ export const workspaceMachine = setup({
         return {
           type: "internal.spawnSession",
           value: {
-            agentName: event.value.agentName,
             message: event.value.message,
             model: event.value.model,
             sessionId: event.value.sessionId,
@@ -533,19 +514,12 @@ export const workspaceMachine = setup({
     "internal.spawnSession": {
       actions: enqueueActions(({ enqueue, event, self }) => {
         enqueue.assign(({ spawn }) => {
-          const {
-            agentName,
-            message,
-            model,
-            runRequested,
-            saved,
-            sessionId,
-            taskId,
-          } = event.value;
+          const { message, model, runRequested, saved, sessionId, taskId } =
+            event.value;
 
           const sessionMachineRef = spawn("sessionMachine", {
             input: {
-              agent: AGENTS[agentName],
+              agent: instrumentAgent,
               baseLLMRetryDelayMs: ms("1 second"),
               llmRequestChunkTimeoutMs: ms("5 minutes"),
               model,
@@ -655,7 +629,6 @@ export const workspaceMachine = setup({
         actions: raise(({ event }) => ({
           type: "internal.spawnSession",
           value: {
-            agentName: event.value.agentName,
             model: event.value.model,
             runRequested: true,
             sessionId: event.value.sessionId,

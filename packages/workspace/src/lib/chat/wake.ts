@@ -85,61 +85,11 @@ const OVERDUE_STEPS = 6;
 const overdueReportedAt = new Map<TaskId, number>();
 
 /**
- * Wakes the conversation asked for itself, one per child: a timer, and what
- * it was told to wait. A task with one pending is off the clock above, since
- * the conversation has said when it wants to look.
- */
-const askedWakes = new Map<
-  TaskId,
-  { afterMs: number; timer: NodeJS.Timeout }
->();
-
-/**
  * Children the chat itself told to stop. The turn that ends is the
  * one it ended, so there is nothing to wake it about; the next finish after
  * that is news again.
  */
 const stoppedByChat = new Set<TaskId>();
-
-/**
- * Wakes the conversation about one of its tasks after a delay of its choosing,
- * with the same note the clock sends. One per task: asking again moves the
- * wake. Dropped when the task finishes first, since the finish is the news.
- */
-export function askWake({
-  afterMs,
-  chatId,
-  taskId,
-  workspaceRef,
-}: {
-  afterMs: number;
-  chatId: TaskId;
-  taskId: TaskId;
-  workspaceRef: WorkspaceActorRef;
-}) {
-  cancelAskedWake(taskId);
-  const timer = setTimeout(() => {
-    askedWakes.delete(taskId);
-    deliverAskedWake({ afterMs, chatId, taskId }, workspaceRef).catch(
-      (error: unknown) => {
-        getWorkspaceConfig().captureException(error);
-      },
-    );
-  }, afterMs);
-  timer.unref();
-  askedWakes.set(taskId, { afterMs, timer });
-}
-
-/** Forgets a wake the conversation asked for; true when there was one. */
-export function cancelAskedWake(taskId: TaskId): boolean {
-  const asked = askedWakes.get(taskId);
-  if (!asked) {
-    return false;
-  }
-  clearTimeout(asked.timer);
-  askedWakes.delete(taskId);
-  return true;
-}
 
 /**
  * Wakes a chat about one of its tasks with an event composed elsewhere,
@@ -253,10 +203,6 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
   }
   for (const task of working) {
     const { chatId } = task;
-    // The conversation said when it wants to look; the clock stays quiet.
-    if (askedWakes.has(task.id)) {
-      continue;
-    }
     const reportedAt = overdueReportedAt.get(task.id);
     const turnStart = await turnStartedAt(task.id);
     const startedAt = reportedAt ?? turnStart?.getTime();
@@ -306,37 +252,6 @@ async function deliver(
 }
 
 /**
- * The note the conversation asked for, if the task is still at work when the
- * time comes. A task that finished first already woke it; one it stopped
- * itself is not news either. The clock starts over from here, so the asked
- * wake is not followed by the clock's own note a moment later.
- */
-async function deliverAskedWake(
-  {
-    afterMs,
-    chatId,
-    taskId,
-  }: { afterMs: number; chatId: TaskId; taskId: TaskId },
-  workspaceRef: WorkspaceActorRef,
-) {
-  if (!isWorking(taskId)) {
-    return;
-  }
-  const settings = await getTaskSettings(taskDir(taskId));
-  overdueReportedAt.set(taskId, Date.now());
-  const event = await stillWorkingEvent({
-    chatId,
-    taskId,
-    title: settings?.name ?? taskId,
-    turnStart: await turnStartedAt(taskId),
-  });
-  if (!isWorking(taskId)) {
-    return;
-  }
-  schedule(chatId, { ...event, askedAfterMs: afterMs }, workspaceRef);
-}
-
-/**
  * What a task said, in the paths the conversation that started it reads: its
  * own folder at `/tasks/<id>`, and any folder it holds under a name of its own
  * at the chat's path for it (see mount-paths.ts). A note is composed for the
@@ -375,7 +290,6 @@ async function onSessionDone(
   if (!chatId) {
     return;
   }
-  cancelAskedWake(id);
   if (stoppedByChat.delete(id)) {
     return;
   }

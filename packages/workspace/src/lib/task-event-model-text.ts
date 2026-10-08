@@ -100,14 +100,6 @@ export function taskEventModelNote(
   // the note says only what happened and why the turn is running.
   const overdue = data.events.every((event) => event.status === "overdue");
   if (overdue) {
-    const asked = data.events.find((event) => event.askedAfterMs !== undefined);
-    if (asked?.askedAfterMs !== undefined && data.events.length === 1) {
-      return systemNote`
-        You asked to look at a task after ${ms(asked.askedAfterMs, { long: true })}, and it is still at work:
-        ${lines.join("\n")}
-        Nothing has gone wrong that anyone has said. Nobody typed anything; this note is why you are awake.
-      `;
-    }
     return systemNote`
       ${data.events.length === 1 ? "A task you created is taking a while:" : "Tasks you created are taking a while:"}
       ${lines.join("\n")}

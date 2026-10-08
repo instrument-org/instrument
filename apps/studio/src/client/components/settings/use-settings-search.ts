@@ -10,6 +10,7 @@ import { useDecisionModelAvailable } from "@/client/components/window/use-decisi
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { FEATURE_METADATA } from "@/shared/features";
+import { decisionBar } from "@instrument-org/shared/decision-bars";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { useDeferredValue, useEffect, useState } from "react";
@@ -26,11 +27,12 @@ const MEANINGFUL = "meaningful";
  */
 const MEANINGFUL_AT_LEAST = 0.3;
 /**
- * How sure it has to be that an entry fits. Below chat search's 0.6, since a
- * setting is described in a few words where a chat's title says what it is
- * about: Jev puts Theme at 0.54 for "night mode". Spot-checked, not measured.
+ * How sure the answering model has to be that an entry fits; each scores on
+ * its own scale. On 29 labeled settings searches (`pnpm eval:decision --shape
+ * settings-search`), each of the three finds 22 of the 27 rows meant at its
+ * bar and offers about four that weren't, where 0.5 found 16 to 21.
  */
-const FITS_AT_LEAST = 0.5;
+const FITS_AT_LEAST = { clef: 0.35, clefFlash: 0.3, other: 0.3 };
 /** A skill's description can run to a paragraph; the model needs its gist. */
 const DETAIL_ASKED_CHARS = 160;
 
@@ -173,11 +175,15 @@ function useMeaningFallback({
   const { data, isError, isFetching } = useQuery({
     queryFn: asking
       ? async ({ signal }) => {
-          const { answers } = await rpcClient.workspace.decision.ask.call(
-            { questions: questionsFor(candidates), state: { search: settled } },
-            { signal },
-          );
-          return answers;
+          const { answers, model } =
+            await rpcClient.workspace.decision.ask.call(
+              {
+                questions: questionsFor(candidates),
+                state: { search: settled },
+              },
+              { signal },
+            );
+          return { answers, model };
         }
       : skipToken,
     queryKey: [
@@ -199,7 +205,10 @@ function useMeaningFallback({
 }
 
 /** The entries the answers say the search is after, best fit first, or none when the search names nothing. */
-function fitting(answers: Answers, candidates: SettingsEntry[]) {
+function fitting(
+  { answers, model }: { answers: Answers; model: string },
+  candidates: SettingsEntry[],
+) {
   if ((answers[MEANINGFUL]?.noul ?? 0) < MEANINGFUL_AT_LEAST) {
     return [];
   }
@@ -208,7 +217,7 @@ function fitting(answers: Answers, candidates: SettingsEntry[]) {
       chance: answers[String(index)]?.noul ?? 0,
       entry,
     }))
-    .filter(({ chance }) => chance >= FITS_AT_LEAST)
+    .filter(({ chance }) => chance >= decisionBar(model, FITS_AT_LEAST))
     .toSorted((a, b) => b.chance - a.chance)
     .slice(0, MOST)
     .map(({ entry }) => entry);

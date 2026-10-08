@@ -58,9 +58,8 @@ describe("matchSettings", () => {
   });
 
   it("highlights only the title", () => {
-    expect(
-      matchSettings([...SETTINGS_INDEX], "zoom")[0],
-    ).toMatchInlineSnapshot(`
+    expect(matchSettings([...SETTINGS_INDEX], "zoom")[0])
+      .toMatchInlineSnapshot(`
       {
         "entry": {
           "aliases": "text size bigger smaller scale font",

@@ -13,8 +13,13 @@ import { type ReactNode } from "react";
 // scale with the app's CSS `zoom`; the native overlay would stay a fixed pixel
 // size and clip out of the zoomed toolbar. On macOS the native traffic lights
 // are used instead, but the dev force-show toggle renders these too for layout
-// debugging.
-export function WindowControls() {
+// debugging. `maximizable={false}` leaves Maximize off, for a window held at a
+// fixed size.
+export function WindowControls({
+  maximizable = true,
+}: {
+  maximizable?: boolean;
+}) {
   const forceShow = useAtomValue(forceWindowControlsAtom);
   const shouldRender = isWindows() || isLinux() || (isMacOS() && forceShow);
 
@@ -47,18 +52,20 @@ export function WindowControls() {
       >
         <MinusIcon className="size-3.5" />
       </WindowControlButton>
-      <WindowControlButton
-        label={isMaximized ? "Restore" : "Maximize"}
-        onClick={() => {
-          toggleMaximize(undefined);
-        }}
-      >
-        {isMaximized ? (
-          <CopyIcon className="size-3" />
-        ) : (
-          <SquareIcon className="size-3" />
-        )}
-      </WindowControlButton>
+      {maximizable && (
+        <WindowControlButton
+          label={isMaximized ? "Restore" : "Maximize"}
+          onClick={() => {
+            toggleMaximize(undefined);
+          }}
+        >
+          {isMaximized ? (
+            <CopyIcon className="size-3" />
+          ) : (
+            <SquareIcon className="size-3" />
+          )}
+        </WindowControlButton>
+      )}
       <WindowControlButton
         label="Close"
         onClick={() => {

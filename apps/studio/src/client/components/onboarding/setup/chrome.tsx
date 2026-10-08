@@ -4,6 +4,7 @@ import {
   progressDot,
 } from "@/client/components/onboarding/setup/flow";
 import { Button } from "@/client/components/ui/button";
+import { WindowControls } from "@/client/components/window-controls";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
@@ -274,9 +275,12 @@ export function SetupQuietLink({
 
 /**
  * The ground every page sits on, with the title bar's drag strip at the top
- * (clear of the macOS traffic lights) and the soft glow under it.
+ * (clear of the macOS traffic lights, and holding the window's own buttons
+ * where the app draws them) and the soft glow under it. Someone new has the
+ * window at setup's fixed size, so there is no Maximize.
  */
 export function SetupGround({ children }: { children: ReactNode }) {
+  const { returning } = useSetup();
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-background select-none">
       <div
@@ -285,10 +289,12 @@ export function SetupGround({ children }: { children: ReactNode }) {
       />
       <div
         className={cn(
-          "relative h-12 shrink-0 [-webkit-app-region:drag]",
+          "relative flex h-12 shrink-0 justify-end [-webkit-app-region:drag]",
           isMacOS() && "pl-20",
         )}
-      />
+      >
+        <WindowControls maximizable={returning} />
+      </div>
       <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
     </div>
   );

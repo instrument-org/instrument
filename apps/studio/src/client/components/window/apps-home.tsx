@@ -15,6 +15,7 @@ import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { APPS_HREF } from "@/client/atoms/window";
 import {
   APP_CATEGORIES,
   directoryByUse,
@@ -62,7 +63,12 @@ export function AppsHome({
   /** Whether the services still to connect, and the broken ones to fix, are offered. */
   showsConnect?: boolean;
 }) {
-  const { ask } = useWindow();
+  const { ask, openScreen } = useWindow();
+  // Beside a chat or in a draft there is no search or Connect, so the way to
+  // a new app is the Apps place itself, in a tab of the window's own.
+  const openAppsPlace = () => {
+    openScreen(APPS_HREF, { newTab: true });
+  };
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
   const [query, setQuery] = useState("");
@@ -182,14 +188,21 @@ export function AppsHome({
                   }}
                 />
               ))}
+              {showsConnect ? null : <AddAppMark onOpen={openAppsPlace} />}
             </div>
           </PageSection>
         ) : null}
 
         {!showsConnect && list.data !== undefined && own.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Apps you connect show up here.
-          </p>
+          <div className="flex flex-col items-center gap-3 rounded-2xl bg-black/2 px-6 py-8 text-center dark:bg-white/3">
+            <p className="text-sm text-muted-foreground">
+              Once you connect an app, you can use it from any chat.
+            </p>
+            <Button onClick={openAppsPlace} size="sm" variant="outline">
+              <PlusIcon />
+              Add an app
+            </Button>
+          </div>
         ) : null}
 
         {/* The services still to connect, searchable: the popular ones and
@@ -355,6 +368,27 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
           {waiting ?? app.account}
         </span>
       ) : null}
+    </button>
+  );
+}
+
+/**
+ * The last of the workspace's marks: a dashed plate with a plus, which opens
+ * the Apps place where a new one is found and connected.
+ */
+function AddAppMark({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50"
+      onClick={onOpen}
+      type="button"
+    >
+      <span className="grid size-16 place-items-center rounded-2xl border border-dashed border-border text-muted-foreground transition-colors group-hover:text-foreground">
+        <PlusIcon className="size-6" />
+      </span>
+      <span className="w-full truncate text-[13px] leading-4 font-medium text-muted-foreground group-hover:text-foreground">
+        Add app
+      </span>
     </button>
   );
 }

@@ -624,6 +624,10 @@ export function ComposeWindow({
           openScreen: (href, options) => {
             if (options?.newTab) {
               appWindow.openScreen(href, options);
+              // A grown window would cover the tab brought up behind it.
+              if (isExpanded && !options.behind) {
+                onPlacementChange("docked");
+              }
             } else {
               openScreen(href);
             }

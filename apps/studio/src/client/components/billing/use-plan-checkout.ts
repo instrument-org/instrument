@@ -24,6 +24,8 @@ export function usePlanCheckout({
   onSubscribed: (plan: string) => void;
 }) {
   const [waitingFor, setWaitingFor] = useState<null | string>(null);
+  // The offer Checkout was opened with, so opening it again keeps it.
+  const offer = useRef<"beta" | undefined>(undefined);
   const { data: status } = useBillingStatus({
     pollMs: waitingFor ? WAITING_POLL_MS : undefined,
   });
@@ -58,13 +60,18 @@ export function usePlanCheckout({
     isOpening: checkout.isPending,
     reopen: () => {
       if (waitingFor) {
-        checkout.mutate({ plan: waitingFor });
+        checkout.mutate({
+          plan: waitingFor,
+          ...(offer.current && { offer: offer.current }),
+        });
       }
     },
-    start: (plan: string) => {
+    /** With `offer: "beta"`, Checkout carries the beta offer's free months. */
+    start: (plan: string, options: { offer?: "beta" } = {}) => {
       notified.current = null;
+      offer.current = options.offer;
       setWaitingFor(plan);
-      checkout.mutate({ plan });
+      checkout.mutate({ plan, ...(options.offer && { offer: options.offer }) });
     },
     waitingFor,
   };

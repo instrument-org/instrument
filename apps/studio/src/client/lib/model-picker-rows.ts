@@ -134,7 +134,7 @@ export function rowsForConnection({
   };
 
   if (folds) {
-    section("Recommended", byMaker(recommended));
+    section("Recommended", leadingDefault(byMaker(recommended)));
     if (!showAll) {
       rows.push({ type: "show-all" });
       return rows;
@@ -152,9 +152,9 @@ export function rowsForConnection({
   // A list with nothing older and nothing out of reach needs no heading over
   // its one group.
   if (older.length > 0 || restricted.length > 0) {
-    section("Latest", latest);
+    section("Latest", leadingDefault(latest));
   } else {
-    rows.push(...latest.map(row));
+    rows.push(...leadingDefault(latest).map(row));
   }
   section("Older versions", older);
   section("Requires a paid plan", restricted);
@@ -228,6 +228,16 @@ function modelRow(
     model.restricted?.message ??
     (replacedBy ? `Replaced by ${replacedBy}` : undefined);
   return { model, type: "model", ...(sub && { sub }) };
+}
+
+/**
+ * The provider's own pick first (Sonnet on a Claude key, rather than Fable
+ * by its name), when it is also one we recommend; the rest keep their order.
+ */
+function leadingDefault(models: AIGatewayModel.Type[]) {
+  const leads = (model: AIGatewayModel.Type) =>
+    model.tags.includes("default") && model.tags.includes("recommended");
+  return [...models.filter(leads), ...models.filter((model) => !leads(model))];
 }
 
 /** Grouped by who made them, so a maker's marks run together down the list. */

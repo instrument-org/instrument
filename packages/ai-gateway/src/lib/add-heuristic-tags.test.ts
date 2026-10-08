@@ -211,6 +211,33 @@ describe("addHeuristicTags", () => {
     expect(result.tags).toContain("default");
   });
 
+  it("should add default tag to every Sonnet on an anthropic key", () => {
+    const anthropicConfig: AIGatewayProviderConfig.Type = {
+      apiKey: "NOT_NEEDED",
+      cacheIdentifier: "anthropic",
+      id: AIProviderConfigIdSchema.parse("anthropic"),
+      type: "anthropic",
+    };
+    const tagsOf = (id: string) =>
+      addHeuristicTags(createMockModel(id), anthropicConfig).tags;
+    expect(tagsOf("anthropic/claude-sonnet-5.5")).toContain("default");
+    expect(tagsOf("anthropic/claude-fable-5.1")).not.toContain("default");
+  });
+
+  it("should add default tag to GLM Flash on Workers AI", () => {
+    const workersAiConfig: AIGatewayProviderConfig.Type = {
+      apiKey: "NOT_NEEDED",
+      baseURL: "https://api.cloudflare.com/client/v4/accounts/abc/ai/v1",
+      cacheIdentifier: "workers-ai",
+      id: AIProviderConfigIdSchema.parse("workers-ai"),
+      type: "openai-compatible",
+    };
+    const tagsOf = (id: string) =>
+      addHeuristicTags(createMockModel(id), workersAiConfig).tags;
+    expect(tagsOf("z-ai/glm-5.3-flash")).toContain("default");
+    expect(tagsOf("z-ai/glm-5.3")).not.toContain("default");
+  });
+
   it("should add default tag for google provider defaults", () => {
     const googleConfig: AIGatewayProviderConfig.Type = {
       apiKey: "NOT_NEEDED",

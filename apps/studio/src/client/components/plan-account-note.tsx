@@ -81,7 +81,7 @@ function planModel(
 /**
  * The note over the reply box when a turn stopped on the person's ChatGPT or
  * Claude plan. Out of usage, it says when the plan comes back and offers the
- * ways to keep going in the meantime; with the plan ended, it offers to
+ * ways to keep going in the meantime; with an account that cannot be used here, it offers to
  * connect another AI. Once a reset time has passed it offers to continue.
  */
 export function PlanAccountNote({
@@ -109,7 +109,7 @@ export function PlanAccountNote({
     stop.kind === "usage-limit" ? stop.resetsAt : undefined,
   );
 
-  if (stop.kind === "plan-ended") {
+  if (stop.kind === "not-eligible") {
     return (
       <ReplyNote
         action={
@@ -121,7 +121,7 @@ export function PlanAccountNote({
             Connect another AI
           </ReplyNoteButton>
         }
-        data-plan-account-note="plan-ended"
+        data-plan-account-note="not-eligible"
         icon={WarningIcon}
         tone="warn"
       >

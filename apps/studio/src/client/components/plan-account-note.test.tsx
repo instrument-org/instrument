@@ -87,10 +87,14 @@ describe("PlanAccountNote", () => {
     ).toBeDefined();
   });
 
-  it("offers another AI when the plan has ended", () => {
-    renderNote({ kind: "plan-ended", provider: "claude-account" });
+  it("offers another AI when the account can't be used here", () => {
+    renderNote({ kind: "not-eligible", provider: "claude-account" });
 
-    expect(screen.getByText("Your Claude plan has ended.")).toBeDefined();
+    expect(
+      screen.getByText(
+        "This Claude account can't be used here. It needs a paid Claude plan.",
+      ),
+    ).toBeDefined();
     expect(
       screen.getByRole("button", { name: "Connect another AI" }),
     ).toBeDefined();

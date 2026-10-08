@@ -66,9 +66,9 @@ describe("planAccountStop", () => {
       }),
     },
     {
-      line: "I couldn't start on this. ChatGPT says this account no longer has a paid plan.",
+      line: "I couldn't start on this. ChatGPT says this account can't be used in other apps without a paid plan.",
       name: "ChatGPT with no paid plan",
-      note: "Your ChatGPT plan has ended.",
+      note: "This ChatGPT account can't be used here. It needs a paid ChatGPT plan.",
       turn: stoppedTurn({
         body: { code: "subscription_sharing_user_not_eligible" },
         classification: "auth",

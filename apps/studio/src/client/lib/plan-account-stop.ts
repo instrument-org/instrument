@@ -9,17 +9,19 @@ export type PlanAccountProvider = "chatgpt-account" | "claude-account";
 /**
  * Why a turn on the person's ChatGPT or Claude plan stopped, when it is the
  * plan rather than the request: its usage ran out (with when it comes back,
- * where the provider says), or the account has no paid plan anymore.
+ * where the provider says), or the account cannot be used here: no paid plan,
+ * a plan that lapsed, or a workspace that does not allow other apps.
  */
 export type PlanAccountStop =
-  | { kind: "plan-ended"; provider: PlanAccountProvider }
+  | { kind: "not-eligible"; provider: PlanAccountProvider }
   | { kind: "usage-limit"; provider: PlanAccountProvider; resetsAt?: Date };
 
 /**
- * The provider codes that mean the account has no paid plan. ChatGPT answers
- * this one for an account its plan does not let use the app.
+ * The provider codes that mean the account cannot be used here. ChatGPT
+ * answers this one for an account its plan does not let use other apps,
+ * which is a free account, a lapsed one, or a workspace that turned it off.
  */
-const PLAN_ENDED_CODES = new Set(["subscription_sharing_user_not_eligible"]);
+const NOT_ELIGIBLE_CODES = new Set(["subscription_sharing_user_not_eligible"]);
 
 const bodySchema = z.object({
   error: z.object({
@@ -61,8 +63,8 @@ export function planAccountStop(
   const body =
     error.kind === "api-call" ? readBody(error.responseBody) : undefined;
   const code = body?.code ?? body?.type;
-  if (code && PLAN_ENDED_CODES.has(code)) {
-    return { kind: "plan-ended", provider };
+  if (code && NOT_ELIGIBLE_CODES.has(code)) {
+    return { kind: "not-eligible", provider };
   }
   if (!("classification" in error) || error.classification !== "usage-limit") {
     return undefined;
@@ -136,8 +138,8 @@ export function hasUsageReturned(stop: PlanAccountStop, now: Date) {
 /** The words of the note over the reply box. */
 export function planAccountNoteText(stop: PlanAccountStop, now: Date) {
   const name = planAccountName(stop.provider);
-  if (stop.kind === "plan-ended") {
-    return `Your ${name} plan has ended.`;
+  if (stop.kind === "not-eligible") {
+    return `This ${name} account can't be used here. It needs a paid ${name} plan.`;
   }
   if (hasUsageReturned(stop, now)) {
     return `Your ${name} plan has usage again.`;
@@ -153,8 +155,8 @@ export function planAccountNoteText(stop: PlanAccountStop, now: Date) {
  */
 export function planAccountStopLine(stop: PlanAccountStop, stoppedAt: Date) {
   const name = planAccountName(stop.provider);
-  if (stop.kind === "plan-ended") {
-    return `I couldn't start on this. ${name} says this account no longer has a paid plan.`;
+  if (stop.kind === "not-eligible") {
+    return `I couldn't start on this. ${name} says this account can't be used in other apps without a paid plan.`;
   }
   return stop.resetsAt
     ? `I had to stop here. Your ${name} plan is out of usage until ${describeReset(stop.resetsAt, stoppedAt)}.`

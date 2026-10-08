@@ -1,4 +1,5 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { AccountInfo } from "@/client/components/account-info";
 import {
   BlockToolbarButton,
@@ -312,7 +313,10 @@ function About() {
     <SettingsSection title="About">
       <div className="space-y-3">
         <Card className="p-4">
-          <div className="flex items-start justify-between gap-4">
+          <div
+            className="flex items-start justify-between gap-4"
+            {...settingAnchor("version")}
+          >
             <div className="min-w-0 flex-1 space-y-1">
               <div className="text-sm font-medium">
                 Version{" "}
@@ -333,7 +337,7 @@ function About() {
           </div>
         </Card>
         <Card className="bg-muted/30 p-4">
-          <div className="space-y-3">
+          <div className="space-y-3" {...settingAnchor("open-source")}>
             <div className="space-y-1">
               <div className="text-sm font-medium">Open source</div>
               <p className="text-xs text-muted-foreground">
@@ -367,7 +371,10 @@ function InterfaceAndTheme() {
     <SettingsSection title="Interface">
       <Card className="p-4">
         <div className="space-y-5">
-          <div className="flex items-center justify-between">
+          <div
+            className="flex items-center justify-between"
+            {...settingAnchor("theme")}
+          >
             <div className="space-y-0.5">
               <Label htmlFor="theme-toggle">Theme</Label>
               <p className="text-xs text-muted-foreground">
@@ -376,7 +383,10 @@ function InterfaceAndTheme() {
             </div>
             <ThemeToggle />
           </div>
-          <div className="flex items-center justify-between">
+          <div
+            className="flex items-center justify-between"
+            {...settingAnchor("zoom")}
+          >
             <div className="space-y-0.5">
               <Label>Zoom</Label>
               <p className="text-xs text-muted-foreground">
@@ -426,7 +436,10 @@ function ReleaseChannel() {
   return (
     <SettingsSection title="Release channel">
       <Card className="p-4">
-        <div className="flex items-start justify-between gap-4">
+        <div
+          className="flex items-start justify-between gap-4"
+          {...settingAnchor("release-channel")}
+        >
           <div className="space-y-1">
             <Label htmlFor="release-channel">Update from</Label>
             <p className="text-xs text-muted-foreground">
@@ -560,7 +573,7 @@ function DiagnosticLog() {
 
   return (
     <Card className="p-4">
-      <div className="space-y-3">
+      <div className="space-y-3" {...settingAnchor("diagnostic-log")}>
         <div className="space-y-1">
           <div className="text-sm font-medium">Diagnostic log</div>
           <p className="text-xs text-muted-foreground">
@@ -838,7 +851,10 @@ function Notifications() {
     <SettingsSection title="Notifications">
       <StateArrival state={arrival}>
         <Card className="p-4">
-          <div className="flex items-start justify-between gap-4">
+          <div
+            className="flex items-start justify-between gap-4"
+            {...settingAnchor("notifications")}
+          >
             <div className="space-y-1">
               <Label htmlFor="agent-completion-notifications">
                 Notify when tasks finish
@@ -913,7 +929,10 @@ function NotificationsPermission({
   }[state];
   return (
     <Card className="p-4">
-      <div className="flex items-center gap-3.5">
+      <div
+        className="flex items-center gap-3.5"
+        {...settingAnchor("notifications")}
+      >
         <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-brand-600 text-white">
           <BellSimpleIcon className="size-5" weight="fill" />
         </span>
@@ -980,7 +999,10 @@ function UsageMetrics() {
 
   return (
     <Card className="p-4">
-      <div className="flex items-center space-x-2">
+      <div
+        className="flex items-center space-x-2"
+        {...settingAnchor("usage-metrics")}
+      >
         <Switch
           checked={preferences?.enableUsageMetrics ?? false}
           disabled={setUsageMetricsMutation.isPending}

@@ -1,4 +1,5 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { SkillDetail } from "@/client/components/skills/skill-detail";
 import { SkillList } from "@/client/components/skills/skill-list";
 import {
@@ -94,7 +95,7 @@ export function SkillsSection() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-4" {...settingAnchor("new-skill")}>
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold">Skills</h3>
           <p className="mt-1 text-sm text-muted-foreground">

@@ -1,3 +1,4 @@
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import {
   Avatar,
   AvatarFallback,
@@ -18,7 +19,10 @@ export function UserInfoCard() {
 
   return (
     <Card className="p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div
+        className="flex flex-wrap items-center justify-between gap-3"
+        {...settingAnchor("account")}
+      >
         <div className="flex min-w-0 items-center gap-3">
           <Avatar className="size-10 shrink-0">
             <AvatarImage alt={user.name} src={user.image || undefined} />

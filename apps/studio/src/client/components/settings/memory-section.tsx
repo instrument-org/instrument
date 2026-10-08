@@ -1,4 +1,5 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { CHATS_HREF } from "@/client/atoms/window";
 import { VendorMark } from "@/client/components/vendor-mark";
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
@@ -212,6 +213,7 @@ function ImportEntry({ onOpen }: { onOpen: () => void }) {
       className="flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left hover:bg-accent/50 focus-visible:outline-2 focus-visible:outline-ring"
       onClick={onOpen}
       type="button"
+      {...settingAnchor("memory-import")}
     >
       <SourceMarks />
       <span className="min-w-0 flex-1">
@@ -828,7 +830,10 @@ function Memories({
  */
 function EmptyMemories({ onImport }: { onImport: () => void }) {
   return (
-    <div className="flex flex-col items-center rounded-lg border border-dashed px-6 py-8 text-center">
+    <div
+      className="flex flex-col items-center rounded-lg border border-dashed px-6 py-8 text-center"
+      {...settingAnchor("memory-import")}
+    >
       <SourceMarks />
       <p className="mt-4 text-sm font-medium">
         {APP_NAME} hasn&rsquo;t remembered anything yet

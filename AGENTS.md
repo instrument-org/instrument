@@ -32,9 +32,9 @@ Never commit machine-local paths (`/Users/...`, `~/code/...`, `C:\...`) or names
 
 Sources outside this repo are reachable by name instead: `agent-reference.json` (shared) and `agent-reference.local.json` (gitignored, where machine paths go) declare them, and `agent-reference status` lists them.
 
-## Pricing and plans
+## Plans and usage
 
-What a capability costs us, and how plans and limits are tuned, stays out of this repo: code, comments, docs, and commits. Enforce those choices in the API and keep the reasoning in the private server repo. Here, describe only what the app does.
+Plans, pricing, and usage limits belong to the API, which enforces them and records why. In this repo, treat them as answers the server gives rather than re-deciding them: build what the app does with them, and keep code, docs, and commits about that behavior.
 
 ## Registry Submodule
 

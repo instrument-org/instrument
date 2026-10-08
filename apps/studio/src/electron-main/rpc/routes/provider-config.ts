@@ -1,4 +1,11 @@
 import { liveRead } from "@instrument-org/workspace/electron";
+import { startAuthCallbackServer } from "@/electron-main/auth/server";
+import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import {
+  cancelOpenRouterConnect,
+  connectOpenRouter,
+  type OpenRouterConnectResult,
+} from "@/electron-main/lib/openrouter-connect";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
@@ -170,6 +177,64 @@ const create = base
     },
   );
 
+/**
+ * Adds OpenRouter by having OpenRouter create a key in the browser rather than
+ * by a pasted one, with the name and base URL the form holds. Answers how it
+ * ended, with what went wrong when it failed.
+ */
+const connectOpenRouterProvider = base
+  .input(
+    z.object({
+      baseURL: z.string().optional(),
+      displayName: z.string().optional(),
+    }),
+  )
+  .handler(
+    async ({
+      context,
+      input,
+    }): Promise<
+      OpenRouterConnectResult | { error: string; outcome: "failed" }
+    > => {
+      try {
+        const server = await startAuthCallbackServer();
+        if (!server) {
+          throw new Error("The sign-in callback server isn't running");
+        }
+        return await connectOpenRouter({
+          callbackPort: server.port,
+          // The key was just created for this, so checking it again would only
+          // race OpenRouter's own propagation.
+          save: (apiKey) =>
+            call(
+              create,
+              {
+                config: { ...input, apiKey, type: "openrouter" },
+                skipValidation: true,
+              },
+              { context },
+            ),
+        });
+      } catch (error) {
+        captureServerException(
+          new Error("Connecting OpenRouter failed", { cause: error }),
+          { scopes: ["auth"] },
+        );
+        return {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Couldn't connect OpenRouter",
+          outcome: "failed",
+        };
+      }
+    },
+  );
+
+const cancelConnectOpenRouter = base.handler(() => {
+  cancelOpenRouterConnect();
+});
+
 const credits = base
   .use(async ({ next }) => {
     return next({
@@ -244,6 +309,8 @@ const listMetadata = base
   });
 
 export const providerConfig = {
+  cancelConnectOpenRouter,
+  connectOpenRouter: connectOpenRouterProvider,
   create,
   credits,
   list,

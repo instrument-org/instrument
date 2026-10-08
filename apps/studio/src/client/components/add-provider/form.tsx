@@ -24,6 +24,7 @@ import {
   AccordionTrigger,
 } from "../ui/accordion";
 import { Alert, AlertDescription } from "../ui/alert";
+import { ConnectOpenRouter } from "./connect-openrouter";
 import { ProviderLinks } from "./provider-links";
 
 type AddProviderAction =
@@ -198,6 +199,18 @@ export function AddProviderForm({
     }
   };
 
+  // The base URL to save: only one the user changed, so a config follows the
+  // default when it moves.
+  const customBaseURL = () => {
+    if (!state.baseURL.trim()) {
+      return undefined;
+    }
+    const normalizedBaseURL = fixURL(state.baseURL);
+    return normalizedBaseURL === providerMetadata?.api.defaultBaseURL
+      ? undefined
+      : normalizedBaseURL;
+  };
+
   const handleSave = async (skipValidation = false) => {
     if (!state.selectedProviderType) {
       return;
@@ -300,6 +313,22 @@ export function AddProviderForm({
                   placeholder: "E.g. https://api.example.com/v1",
                 })}
               </>
+            )}
+
+            {state.selectedProviderType === "openrouter" && (
+              <ConnectOpenRouter
+                baseURL={customBaseURL()}
+                displayName={state.displayName.trim() || undefined}
+                onConnected={onSuccess}
+                onFailed={(message) => {
+                  dispatch({
+                    allowBypass: false,
+                    message,
+                    type: "SET_ERROR",
+                    validationFailed: false,
+                  });
+                }}
+              />
             )}
 
             {requiresAPIKey ? (

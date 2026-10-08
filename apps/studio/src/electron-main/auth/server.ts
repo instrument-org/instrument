@@ -8,6 +8,7 @@ import {
   GOOGLE_MARK,
   newAuthReference,
   OPENAI_MARK,
+  OPENROUTER_MARK,
   previewOutcomes,
   renderAuthPage,
 } from "@/electron-main/auth/page";
@@ -27,6 +28,10 @@ import {
   CHATGPT_CALLBACK_PATH,
   receiveChatGPTCallback,
 } from "@/electron-main/lib/chatgpt-account";
+import {
+  OPENROUTER_CALLBACK_PATH,
+  receiveOpenRouterCallback,
+} from "@/electron-main/lib/openrouter-connect";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getSessionStore } from "@/electron-main/stores/workspace/session";
@@ -412,6 +417,41 @@ async function start() {
             service: chatGPT,
           }),
         );
+      }
+    }
+  });
+
+  app.get(OPENROUTER_CALLBACK_PATH, async (c) => {
+    const finished = receiveOpenRouterCallback(
+      new URL(c.req.url).searchParams,
+    );
+    if (!finished) {
+      return c.html(renderAuthPage({ kind: "expired" }), 400);
+    }
+    const openRouter = { mark: OPENROUTER_MARK, name: "OpenRouter" };
+    const status = await finished.then(
+      (value) => ({ value }),
+      (error: unknown) =>
+        failed(new Error("Connecting OpenRouter failed", { cause: error }), {
+          connecting: openRouter.name,
+        }),
+    );
+    focusAppWindow();
+    if (!("value" in status)) {
+      return c.html(status, 400);
+    }
+    switch (status.value.outcome) {
+      case "canceled": {
+        // A newer connect took this one's place, or it was given up in the app.
+        return c.html(renderAuthPage({ kind: "expired" }), 400);
+      }
+      case "connected": {
+        return c.html(
+          renderAuthPage({ kind: "connected", service: openRouter }),
+        );
+      }
+      case "declined": {
+        return c.html(renderAuthPage({ kind: "declined", service: openRouter }));
       }
     }
   });

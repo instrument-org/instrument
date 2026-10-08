@@ -1,3 +1,4 @@
+import { isToolPart } from "./is-tool-part";
 import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
@@ -44,7 +45,35 @@ export function opensTypedTurn(messages: SessionMessage.WithParts[]): boolean {
 }
 
 /**
+ * What a step is sent with when the turn's last step only wrote, promising
+ * work it never called (`shouldContinueAfterHandingOff` gives it one more
+ * step). Without a message after it, the request would end on the agent's own
+ * reply, which some providers refuse as prefill.
+ */
+export const PROMISED_NOTE = systemNote`
+  Your last reply said you would start work but called no tool. Do it now, without saying the line again.
+`;
+
+/**
+ * Whether the next step continues the agent's own reply: the turn's latest
+ * message is a step of the agent's that finished with text and no tool call.
+ */
+export function continuesOwnReply(
+  messages: SessionMessage.WithParts[],
+): boolean {
+  const last = messages.at(-1);
+  return (
+    last?.role === "assistant" &&
+    last.metadata.error === undefined &&
+    !last.metadata.synthetic &&
+    last.parts.some((part) => part.type === "text" && part.text.trim() !== "") &&
+    !last.parts.some((part) => isToolPart(part))
+  );
+}
+
+/**
  * The note a session's next step carries, read from its stored transcript:
+ * `PROMISED_NOTE` on a step that continues the agent's own reply,
  * `TURN_NOTE` on the first step of a chat's typed turn, otherwise none.
  */
 export async function turnNoteFor({
@@ -56,14 +85,17 @@ export async function turnNoteFor({
   signal?: AbortSignal;
   taskId: TaskId;
 }): Promise<string | undefined> {
-  if (resolveChat(taskId) === undefined) {
-    return undefined;
-  }
   const messages = await Store.getMessagesWithParts(
     { sessionId, taskId },
     { signal },
   );
-  return messages.isOk() && opensTypedTurn(messages.value)
+  if (messages.isErr()) {
+    return undefined;
+  }
+  if (continuesOwnReply(messages.value)) {
+    return PROMISED_NOTE;
+  }
+  return resolveChat(taskId) !== undefined && opensTypedTurn(messages.value)
     ? TURN_NOTE
     : undefined;
 }

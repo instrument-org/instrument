@@ -5,7 +5,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { systemNoteBody } from "./system-note";
-import { opensTypedTurn, TURN_NOTE } from "./turn-note";
+import { continuesOwnReply, opensTypedTurn, TURN_NOTE } from "./turn-note";
 
 const sessionId = StoreId.newSessionId();
 const createdAt = new Date("2026-10-07T12:00:00Z");
@@ -115,5 +115,18 @@ describe("opensTypedTurn", () => {
     expect(systemNoteBody(TURN_NOTE)).toMatchInlineSnapshot(
       `"Before using any tool, write one sentence to the user about what you'll do, then nothing more until the outcome. If no tool is needed, just answer."`,
     );
+  });
+});
+
+describe("continuesOwnReply", () => {
+  const asked = message("user", ["text"]);
+
+  it.each<[string, SessionMessage.WithParts[], boolean]>([
+    ["a step after one that only wrote", [asked, message("assistant", ["text"])], true],
+    ["a step after one that called a tool", [asked, message("assistant", ["text", "tool"])], false],
+    ["the retry of a step that failed", [asked, message("assistant", ["text"], { error: true })], false],
+    ["the first step of a turn", [asked], false],
+  ])("%s", (_, messages, expected) => {
+    expect(continuesOwnReply(messages)).toBe(expected);
   });
 });

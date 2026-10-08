@@ -23,7 +23,6 @@ type BundledProviderPackage =
   | "@ai-sdk/mistral"
   | "@ai-sdk/openai"
   | "@ai-sdk/openai-compatible"
-  | "@ai-sdk/perplexity"
   | "@ai-sdk/togetherai"
   | "@ai-sdk/xai"
   | "@ai-sdk/zai"
@@ -136,14 +135,6 @@ const PROVIDER_TYPE_TO_AI_SDK_INFO: Partial<
     },
     exportName: "createOpenRouter",
     package: "@openrouter/ai-sdk-provider",
-  },
-  perplexity: {
-    envVars: {
-      apiKey: "PERPLEXITY_API_KEY",
-      baseURL: "PERPLEXITY_BASE_URL",
-    },
-    exportName: "createPerplexity",
-    package: "@ai-sdk/perplexity",
   },
   together: {
     envVars: {

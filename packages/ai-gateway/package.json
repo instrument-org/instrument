@@ -35,7 +35,6 @@
     "@ai-sdk/mistral": "^4.0.52",
     "@ai-sdk/openai": "^4.0.78",
     "@ai-sdk/openai-compatible": "^3.0.57",
-    "@ai-sdk/perplexity": "^4.0.52",
     "@ai-sdk/togetherai": "^3.0.58",
     "@ai-sdk/xai": "^5.0.10",
     "@ai-sdk/zai": "^3.0.19",

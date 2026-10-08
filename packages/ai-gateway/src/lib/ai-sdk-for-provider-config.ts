@@ -94,10 +94,6 @@ export async function aiSDKForProviderConfig(
         name: config.type,
       });
     }
-    case "@ai-sdk/perplexity": {
-      const { createPerplexity } = await import("@ai-sdk/perplexity");
-      return createPerplexity({ apiKey, baseURL });
-    }
     case "@ai-sdk/togetherai": {
       const { createTogetherAI } = await import("@ai-sdk/togetherai");
       return createTogetherAI({ apiKey, baseURL });

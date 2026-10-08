@@ -142,19 +142,6 @@ const PROVIDER_METADATA = {
     type: "huggingface",
     url: addRef("https://huggingface.co"),
   },
-  hyperbolic: {
-    api: {
-      defaultBaseURL: "https://api.hyperbolic.xyz/v1",
-    },
-    // Hyperbolic retired its serverless inference API in 2026, so no new
-    // config can be added; one already saved keeps loading so the store can
-    // still parse the list it sits in.
-    canAddManually: false,
-    description: "Budget-friendly GPU access for running various AI models",
-    name: "Hyperbolic",
-    type: "hyperbolic",
-    url: addRef("https://hyperbolic.ai"),
-  },
   jan: {
     api: {
       defaultBaseURL: "http://localhost:1337/v1",
@@ -300,17 +287,6 @@ const PROVIDER_METADATA = {
     tags: ["imageGeneration", "webSearch"],
     type: OUR_MODELS.providerType,
     url: addRef(APP_URL),
-  },
-  perplexity: {
-    api: {
-      defaultBaseURL: "https://api.perplexity.ai",
-      keyURL: addRef("https://console.perplexity.ai/project/keys"),
-    },
-    description:
-      "AI models specialized in search and real-time knowledge retrieval",
-    name: "Perplexity AI",
-    type: "perplexity",
-    url: addRef("https://www.perplexity.ai"),
   },
   together: {
     api: {

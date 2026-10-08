@@ -60,6 +60,12 @@ declare namespace NodeJS {
        */
       INSTRUMENT_WORKSPACE: string | undefined;
       NODE_ENV: string | undefined;
+      /** Windows only: where OneDrive keeps its folder, set by OneDrive. */
+      OneDrive: string | undefined;
+      /** Windows only: the work or school account's OneDrive folder. */
+      OneDriveCommercial: string | undefined;
+      /** Windows only: the personal account's OneDrive folder. */
+      OneDriveConsumer: string | undefined;
       PATH: string | undefined;
       /** Dev only: the port electron-vite gives the Electron child for CDP. */
       REMOTE_DEBUGGING_PORT: string | undefined;

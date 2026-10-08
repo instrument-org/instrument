@@ -9,6 +9,7 @@ import {
   inboxWidthAtom,
   paneOpenByGroupAtom,
   screenViewsAtom,
+  walkedFoldersAtom,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
 } from "@/client/atoms/window";
@@ -411,7 +412,9 @@ function RouteScreen({ href }: { href: string }) {
   const appWindow = useWindow();
   const shell = useShell();
   const appsBySlug = useAppsBySlug();
-  const screenView = useAtomValue(screenViewsAtom)[useTabId()];
+  const tabId = useTabId();
+  const screenView = useAtomValue(screenViewsAtom)[tabId];
+  const walkedFolder = useAtomValue(walkedFoldersAtom)[tabId];
   usePageSlot(null, undefined, false);
   // The row's head and tail, where a file's viewer puts a toggle for its
   // panel and its actions.
@@ -426,7 +429,12 @@ function RouteScreen({ href }: { href: string }) {
   });
   const location =
     fromHref.kind === "folder" && screenView?.folder
-      ? { ...fromHref, path: screenView.folder.display }
+      ? {
+          ...fromHref,
+          ...(walkedFolder
+            ? { hostPath: walkedFolder.hostPath, path: walkedFolder.walked }
+            : { path: screenView.folder.display }),
+        }
       : fromHref;
   // The apps' catalog is a place you arrive at from the rail, with nothing
   // above it to walk back up to and nothing to type an address for: a row

@@ -1,10 +1,12 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { AbsolutePathSchema } from "../../schemas/paths";
 import { accessIn, type AttachedRoot, listComputerFolder } from "./computer";
 
 // Host paths in the running platform's own separators, which is what the
@@ -113,4 +115,55 @@ describe("listComputerFolder", () => {
       await fs.chmod(shut, 0o700);
     }
   });
+
+  // The app folders iCloud Drive shows live in each app's own container; the
+  // Mac helper is what names them, stood in for here by a script.
+  it.runIf(process.platform === "darwin")(
+    "shows iCloud Drive's app folders by name and reads one through its name",
+    async () => {
+      folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-icloud-"));
+      vi.stubEnv("HOME", folder);
+      const containers = path.join(folder, "Library", "Mobile Documents");
+      const drive = path.join(containers, "com~apple~CloudDocs");
+      const vault = path.join(containers, "iCloud~md~obsidian", "Documents");
+      await fs.mkdir(path.join(drive, "Books"), { recursive: true });
+      await fs.mkdir(path.join(vault, "Notes"), { recursive: true });
+      const helper = path.join(folder, "instrument-mac");
+      await fs.writeFile(
+        helper,
+        `#!/bin/sh\necho '${JSON.stringify([{ name: "Obsidian", path: vault }])}'\n`,
+        { mode: 0o755 },
+      );
+      setWorkspaceConfig({
+        ...getWorkspaceConfig(),
+        macHelperBinPath: AbsolutePathSchema.parse(helper),
+      });
+
+      try {
+        const top = await listComputerFolder({ path: drive, taskId });
+        const inside = await listComputerFolder({
+          path: path.join(drive, "Obsidian"),
+          taskId,
+        });
+        if (top.kind !== "listing" || inside.kind !== "listing") {
+          throw new Error("refused");
+        }
+        expect({
+          inside: {
+            entries: inside.entries.map((entry) => entry.name),
+            path: inside.path,
+          },
+          top: top.entries.map((entry) => [entry.name, entry.path]),
+        }).toEqual({
+          inside: { entries: ["Notes"], path: vault },
+          top: [
+            ["Books", path.join(drive, "Books")],
+            ["Obsidian", vault],
+          ],
+        });
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
 });

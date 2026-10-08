@@ -20,8 +20,12 @@ import {
 import { childTaskMounts } from "./children";
 import { folderReach } from "./folder-reach";
 import { hiddenEntryNames } from "./hidden-entries";
+import {
+  iCloudAppFolders,
+  iCloudDrivePath,
+  resolveICloudPath,
+} from "./icloud-drive";
 import { linkedFiles } from "./linked-files";
-import { outputFolderPath } from "./output-folder";
 import { resolveChat } from "../record-folders";
 
 /**
@@ -116,14 +120,6 @@ export const ComputerFolderSchema = z.discriminatedUnion("kind", [
 ]);
 export type ComputerFolder = z.output<typeof ComputerFolderSchema>;
 
-const ComputerPlaceSchema = z.object({
-  name: z.string(),
-  path: z.string(),
-});
-export const ComputerPlacesSchema = z.object({
-  favorites: ComputerPlaceSchema.array(),
-  volumes: ComputerPlaceSchema.array(),
-});
 /** A granted folder as a host root, with how the agent reaches what is under it. */
 export interface AttachedRoot {
   /**
@@ -135,8 +131,6 @@ export interface AttachedRoot {
   mountPoint: string;
   root: string;
 }
-
-export type ComputerPlaces = z.output<typeof ComputerPlacesSchema>;
 
 /**
  * The deepest granted folder a host path sits in, and the virtual path the
@@ -170,60 +164,6 @@ export function accessIn(
 }
 
 /**
- * Where the computer is entered from: the folder Instrument keeps its own
- * outcomes in, which is where what the app made is looked for and so stands
- * first; then the folders a person keeps things in, and every mounted volume.
- * The home folder goes by its own name, as the file manager calls it.
- */
-export async function computerPlaces(): Promise<ComputerPlaces> {
-  const home = os.homedir();
-  const candidates: [string, string][] = [
-    ["Instrument", outputFolderPath()],
-    [path.basename(home), home],
-    ["Desktop", path.join(home, "Desktop")],
-    ["Documents", path.join(home, "Documents")],
-    ["Downloads", path.join(home, "Downloads")],
-  ];
-  const candidatePlaces = await Promise.all(
-    candidates.map(async ([name, folder]) =>
-      (await isDirectory(folder)) ? { name, path: folder } : undefined,
-    ),
-  );
-  const favorites = candidatePlaces.filter((place) => place !== undefined);
-
-  let volumes: ComputerPlaces["volumes"] = [];
-  try {
-    const names = await fs.readdir("/Volumes");
-    const mounted = await Promise.all(
-      names
-        .filter((name) => !name.startsWith("."))
-        .map(async (name) => {
-          try {
-            // The boot volume is a link to `/`; the others are themselves.
-            const real = await fs.realpath(path.join("/Volumes", name));
-            return { name, path: real };
-          } catch {
-            return;
-          }
-        }),
-    );
-    volumes = mounted.filter((place) => place !== undefined);
-  } catch {
-    // Not a Mac, or no volumes folder: the root the home folder sits on,
-    // named the way that system names it.
-    const { root } = path.parse(home);
-    volumes = [
-      {
-        name:
-          process.platform === "win32" ? root.replace(/[\\/]+$/, "") : "Root",
-        path: root,
-      },
-    ];
-  }
-  return { favorites, volumes };
-}
-
-/**
  * One folder of the computer: files and subfolders, folders first. Read as the
  * app's own user, which is what the person browsing is; whether the agent may
  * read it is a separate question, answered by `access`.
@@ -240,7 +180,7 @@ export async function listComputerFolder({
   path: string;
   taskId: TaskId;
 }): Promise<ComputerFolder> {
-  const hostPath = expandHomePath(input);
+  const hostPath = await resolveICloudPath(expandHomePath(input), exists);
   let dirents: Dirent[];
   let hiddenNames: ReadonlySet<string>;
   try {
@@ -278,6 +218,11 @@ export async function listComputerFolder({
         describeEntry(hostPath, entry.name, hiddenNames.has(entry.name)),
       ),
   );
+  if (process.platform === "darwin" && hostPath === iCloudDrivePath()) {
+    entries.push(
+      ...(await iCloudAppEntries(new Set(dirents.map((d) => d.name)))),
+    );
+  }
   entries.sort(compareEntries);
 
   return {
@@ -288,6 +233,29 @@ export async function listComputerFolder({
     path: hostPath,
     truncated,
   };
+}
+
+/**
+ * The app folders iCloud Drive shows beside its own, each by its app's name
+ * and at the folder it really is, so whatever is opened from one is opened
+ * where it lives. A name iCloud Drive itself holds keeps that name.
+ */
+async function iCloudAppEntries(
+  taken: ReadonlySet<string>,
+): Promise<ComputerEntry[]> {
+  const folders = (await iCloudAppFolders()).filter(
+    (folder) => !taken.has(folder.name),
+  );
+  return Promise.all(
+    folders.map(async (folder) => ({
+      ...(await describeEntry(
+        path.dirname(folder.path),
+        path.basename(folder.path),
+        false,
+      )),
+      name: folder.name,
+    })),
+  );
 }
 
 /**
@@ -477,10 +445,10 @@ function expandHomePath(input: string): string {
   return path.resolve(trimmed);
 }
 
-async function isDirectory(folder: string) {
+async function exists(hostPath: string) {
   try {
-    const stats = await fs.stat(folder);
-    return stats.isDirectory();
+    await fs.lstat(hostPath);
+    return true;
   } catch {
     return false;
   }

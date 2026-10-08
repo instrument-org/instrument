@@ -196,6 +196,12 @@ export interface FolderOnScreen {
   selected: string[];
   /** What is selected in it, by host path and kind. */
   selectedItems: ChosenItem[];
+  /**
+   * As the person walked to it, which is how the location bar names it.
+   * Differs from `display` where the folder lives somewhere other than
+   * where it is shown: an iCloud Drive app folder.
+   */
+  walked: string;
 }
 
 /**
@@ -874,6 +880,13 @@ export function ComputerPage({
     ? recentFolder && homeRelative(recentFolder, homePath)
     : (currentListing?.display ??
       (refusedHostPath && homeRelative(refusedHostPath, homePath)));
+  // Where the person walked to the folder, which is how the location bar
+  // names it: an iCloud Drive app folder under iCloud Drive, though it lives
+  // in its app's container.
+  const walked =
+    isRecents || display === undefined
+      ? display
+      : homeRelative(hostPathOf(onScreen, rootHostPath ?? root), homePath);
   const hostPath = isRecents
     ? recentFolder
     : (currentListing?.path ?? refusedHostPath);
@@ -921,10 +934,11 @@ export function ComputerPage({
       ...(mount === undefined ? {} : { mount }),
       selected: selectedOnScreen.map(({ name }) => name),
       selectedItems: selectedOnScreen.map(({ item }) => item),
+      walked: walked ?? display,
     });
     // The selection by its key: the rows are rebuilt on every re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [access, display, hostPath, mount, onFolderChange, selectedKey]);
+  }, [access, display, hostPath, mount, onFolderChange, selectedKey, walked]);
 
   const openFile = (file: FileSystemFileItem) => {
     const tab = fileTabOf(file);

@@ -41,6 +41,17 @@ export type ScreenView = Omit<
 
 export const screenViewsAtom = atom<Readonly<Record<string, ScreenView>>>({});
 
+/**
+ * Where the folder each Files screen shows was walked to, by the same tab as
+ * `screenViewsAtom`, which is how the location bar names it. Apart from the
+ * view because it is for the person alone: an iCloud Drive app folder is
+ * walked to under iCloud Drive, while the conversation is told where it
+ * really is.
+ */
+export const walkedFoldersAtom = atom<
+  Readonly<Record<string, { hostPath: string; walked: string }>>
+>({});
+
 /** A file or folder on this computer picked to go with a draft, by its path. */
 export interface ChosenItem {
   kind: "file" | "folder";

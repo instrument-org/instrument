@@ -224,14 +224,25 @@ export interface WorkspaceConfig {
   trashItem: (path: AbsolutePath) => Promise<void>;
   // Path to the bundled `uv` binary (escape hatch for python/pip/uv commands).
   uvBinPath: AbsolutePath;
-  // The bundled Mac helper behind the `calendar` and `contacts` commands; absent off
-  // macOS and in builds that do not carry it.
+  // The bundled Mac helper behind the `calendar` and `contacts` commands and
+  // iCloud Drive's app folders; absent off macOS and in builds that do not carry it.
   macHelperBinPath?: AbsolutePath;
+  // Where the system keeps the person's own folders, which is not always under
+  // the home folder by its English name: Windows moves Desktop and Documents
+  // into OneDrive, and Linux names them in the desktop's language.
+  knownFolders?: Record<KnownFolder, string>;
   // Base dir for uv's isolated cache/python-install/tool dirs. Lives under the
   // app's userData so a sandboxed `HOME=/` never sends uv writing to the host.
   uvDataDir: AbsolutePath;
   webSearch: WebSearchClient;
 }
+export type KnownFolder =
+  | "desktop"
+  | "documents"
+  | "downloads"
+  | "music"
+  | "pictures"
+  | "videos";
 type CdpMethod = keyof ProtocolMapping.Commands;
 type CdpParams<M extends CdpMethod> = ProtocolMapping.Commands[M]["paramsType"];
 

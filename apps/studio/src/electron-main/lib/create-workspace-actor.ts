@@ -148,6 +148,14 @@ export function createWorkspaceActor() {
       // index is derived, and a workspace may sit in a synced folder.
       indexesDir: path.join(app.getPath("userData"), "indexes"),
       isExternalBrowserEnabled: () => isFeatureEnabled("external_browser"),
+      knownFolders: {
+        desktop: app.getPath("desktop"),
+        documents: app.getPath("documents"),
+        downloads: app.getPath("downloads"),
+        music: app.getPath("music"),
+        pictures: app.getPath("pictures"),
+        videos: app.getPath("videos"),
+      },
       modelCache: diskModelCache,
       nodeExecEnv: {
         // Required to allow Electron to operate as a node process

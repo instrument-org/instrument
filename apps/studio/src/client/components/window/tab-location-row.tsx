@@ -571,7 +571,11 @@ function openInAppTargetOf(location: TabLocation): OpenInAppTarget | undefined {
     }
     case "folder": {
       return location.path
-        ? { hostPath: expandHomePath(location.path, window.api.homeDir) }
+        ? {
+            hostPath:
+              location.hostPath ??
+              expandHomePath(location.path, window.api.homeDir),
+          }
         : undefined;
     }
     case "page": {

@@ -26,6 +26,7 @@ type BundledProviderPackage =
   | "@ai-sdk/perplexity"
   | "@ai-sdk/togetherai"
   | "@ai-sdk/xai"
+  | "@ai-sdk/zai"
   | "@openrouter/ai-sdk-provider"
   | "ai-sdk-ollama";
 
@@ -167,6 +168,14 @@ const PROVIDER_TYPE_TO_AI_SDK_INFO: Partial<
     },
     exportName: "createXai",
     package: "@ai-sdk/xai",
+  },
+  "z-ai": {
+    envVars: {
+      apiKey: "ZAI_API_KEY",
+      baseURL: "ZAI_BASE_URL",
+    },
+    exportName: "createZai",
+    package: "@ai-sdk/zai",
   },
 };
 

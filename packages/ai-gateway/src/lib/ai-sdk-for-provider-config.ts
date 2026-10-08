@@ -105,6 +105,10 @@ export async function aiSDKForProviderConfig(
     case "@ai-sdk/xai": {
       return createXAISDK(config, workspaceServerURL);
     }
+    case "@ai-sdk/zai": {
+      const { createZai } = await import("@ai-sdk/zai");
+      return createZai({ apiKey, baseURL });
+    }
     case "@openrouter/ai-sdk-provider": {
       return createOpenRouterLanguageModel({
         chat: await createOpenRouterSDK(config, workspaceServerURL),

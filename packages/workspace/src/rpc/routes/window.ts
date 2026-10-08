@@ -7,14 +7,13 @@ import {
   outputFolderPath,
 } from "../../lib/chat/output-folder";
 import { resolveChat } from "../../lib/record-folders";
-import { ensureWindowDir, updateWindowState } from "../../lib/window-state";
+import { ensureWindowDir } from "../../lib/window-paths";
 import { FolderAttachment } from "../../schemas/folder-attachment";
 import { WINDOW_ID } from "../../schemas/window-id";
 import {
   WindowTabAnswerSchema,
   WindowTabRequestSchema,
 } from "../../schemas/window-tab";
-import { BrowserTargetIdSchema } from "../../types";
 import { base } from "../base";
 import { publisher } from "../publisher";
 
@@ -44,18 +43,6 @@ const ensure = base
   });
 
 /**
- * The tab the window's browser has in front, which is the tab the
- * chat's own `agent-browser` drives; null once no tab is open.
- */
-const setActiveTab = base
-  .input(z.object({ targetId: BrowserTargetIdSchema.nullable() }))
-  .handler(async ({ input }) => {
-    await updateWindowState(() => ({
-      browserTargetId: input.targetId ?? undefined,
-    }));
-  });
-
-/**
  * What the conversation and its tasks ask of the window's tabs, as they ask,
  * each with the chat it belongs to when there is one.
  */
@@ -82,6 +69,5 @@ const tabDone = base.input(WindowTabAnswerSchema).handler(({ input }) => {
 export const window = {
   ensure,
   events: { tab },
-  setActiveTab,
   tabDone,
 };

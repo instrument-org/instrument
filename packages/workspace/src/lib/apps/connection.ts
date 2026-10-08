@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { getWorkspaceConfig } from "../workspace-config";
 import { appChanged } from "./changed";
 
@@ -28,6 +29,14 @@ export const AppConnectionSchema = z.object({
    * was given is not what was agreed to, and the app asks again.
    */
   approvedManifestHash: z.string().optional(),
+  /**
+   * The chat that asked the user to connect the app and is still waiting on
+   * the answer. The answer (a sign-in finished in the browser, a key saved,
+   * a decline) can come from the chat's card or the app's own page, neither
+   * of which is the chat, so the ask is kept with the app and the chat is
+   * woken from here. Gone once the answer has reached it.
+   */
+  askedIn: ChatIdSchema.optional(),
   connectedAt: z.number().optional(),
   /** Why the last test failed, for the card and the page. */
   error: z.string().optional(),

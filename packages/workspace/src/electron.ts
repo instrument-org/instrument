@@ -14,6 +14,10 @@ export {
 } from "./lib/apps/catalog";
 export { type AppEvent, appChanged } from "./lib/apps/changed";
 export {
+  type AccountCheck,
+  checkAccountWithRequest,
+} from "./lib/check-account";
+export {
   type AppConnection,
   AppConnectionSchema,
   type AppConnectionStore,

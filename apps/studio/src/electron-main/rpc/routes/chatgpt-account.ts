@@ -1,5 +1,6 @@
 import { liveRead } from "@instrument-org/workspace/electron";
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
+import { checkChatGPTAccount } from "@/electron-main/lib/account-check";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import {
   cancelChatGPTSignIn,
@@ -89,8 +90,20 @@ const cancelSignIn = base.handler(() => {
   cancelChatGPTSignIn();
 });
 
+/**
+ * Whether the account can run a turn now: ready, signed out, a plan that
+ * can't be used here, or out of usage. Sends one short request on the plan,
+ * so it takes a few seconds; see `checkChatGPTAccount`.
+ */
+const check = base
+  .input(z.object({ accountId: z.string() }))
+  .handler(({ context, input }) =>
+    checkChatGPTAccount(input.accountId, context.workspaceConfig),
+  );
+
 export const chatgptAccount = {
   cancelSignIn,
+  check,
   chooseDefaultModel,
   live,
   signIn,

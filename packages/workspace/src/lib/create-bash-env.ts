@@ -541,6 +541,11 @@ export interface BashEnvOptions {
    * tasks' folders mount read-only (`childTaskMounts`).
    */
   chat?: { childMounts: WorkspaceFsMount[]; id: ChatId };
+  /**
+   * The `bash` call this shell runs, so a fork it starts leaves that call out
+   * of what it inherits.
+   */
+  callPartId?: StoreId.Part;
   remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
   taskId: TaskId;
@@ -683,6 +688,7 @@ export async function createBashEnv(
 
 export async function createLocalBashEnv({
   attachedFolders,
+  callPartId,
   chat,
   // Defaulted so the callers that never wait -- skill validation, tests, the
   // sandbox script -- do not have to describe a yield window they do not have.
@@ -726,6 +732,7 @@ export async function createLocalBashEnv({
     ...(chat
       ? [
           createTaskCommand({
+            callPartId,
             chatId: chat.id,
             remainingYieldMs,
             sessionId,

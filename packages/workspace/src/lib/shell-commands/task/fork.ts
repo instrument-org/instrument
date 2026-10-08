@@ -87,7 +87,7 @@ async function runFork(
     folders: grantsOfChat(await folderReach(context.chatId)),
     handedTabs,
     idFrom: directive,
-    keep: withoutForkingCall,
+    keep: withoutCall(context.callPartId),
     model,
     modelURI,
     name,
@@ -97,37 +97,28 @@ async function runFork(
   return `Started task ${taskId} ("${name}"). It is running now, in this folder with your folders.\n${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`;
 }
 
-/** A shell command that runs `task new`, alone or in a chain. */
-const RUNS_TASK_NEW = new RegExp(
-  `(?:^|[\\s;&|(])${TASK_COMMAND.name}\\s+new\\b`,
-);
-
 /**
- * The chat's messages without the call that is starting this fork, in the
- * step running now (the newest message). Unanswered, it is dropped like any
- * call with no result; but a call that ran past its yield has already been
+ * The chat's messages without the call that is starting this fork (`callPartId`,
+ * the `bash` part `task new` runs in). Unanswered, it is dropped like any call
+ * with no result; but a call that ran past its yield has already been
  * answered "still running in the background", and a fork that inherits that
  * answer reads its own start as the work already under way, and waits on it.
- * Only the newest step changes, which is past the prefix the provider has
- * cached.
+ * The call is in a step newer than the provider has cached, so the prefix is
+ * unchanged.
  */
-export function withoutForkingCall(
-  messages: SessionMessage.WithParts[],
-): SessionMessage.WithParts[] {
-  const last = messages.at(-1);
-  if (last?.role !== "assistant") {
-    return messages;
-  }
-  const parts = last.parts.filter(
-    (part) =>
-      part.type !== "tool-bash" ||
-      !RUNS_TASK_NEW.test(part.input?.command ?? ""),
-  );
-  if (parts.length === last.parts.length) {
-    return messages;
-  }
-  const rest = messages.slice(0, -1);
-  return parts.length === 0 ? rest : [...rest, { ...last, parts }];
+export function withoutCall(
+  callPartId: StoreId.Part | undefined,
+): (messages: SessionMessage.WithParts[]) => SessionMessage.WithParts[] {
+  return (messages) =>
+    messages.flatMap((message) => {
+      const parts = message.parts.filter(
+        (part) => part.metadata.id !== callPartId,
+      );
+      if (parts.length === message.parts.length) {
+        return [message];
+      }
+      return parts.length === 0 ? [] : [{ ...message, parts }];
+    });
 }
 
 /** A folder a fork is granted, in the shape `newMessage` takes. */

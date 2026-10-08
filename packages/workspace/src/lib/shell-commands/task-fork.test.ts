@@ -30,7 +30,7 @@ import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { folderSubcommand } from "./task/folder";
-import { newSubcommand, withoutForkingCall } from "./task/fork";
+import { newSubcommand, withoutCall } from "./task/fork";
 import { type HandOff, withHandOffs } from "./task-hand-off";
 
 const runNew = subcommandRunner(newSubcommand, "task new");
@@ -415,16 +415,23 @@ describe("task new", () => {
   });
 });
 
-describe("withoutForkingCall", () => {
-  // The fork call ran past its yield and was answered "still running in the
-  // background": the fork must not inherit that as work under way.
-  it("leaves out the forking call even once it was answered as backgrounded", () => {
+describe("withoutCall", () => {
+  /**
+   * The conversation with the fork call answered "still running in the
+   * background", as a call that ran past its yield is, and a newer step the
+   * chat wrote after it.
+   */
+  function backgrounded() {
     const messages = conversation(chatSessionId);
     const last = messages.at(-1);
     if (last?.role !== "assistant") {
       throw new Error("the conversation ends on a reply");
     }
-    const backgrounded: SessionMessage.WithParts = {
+    const call = last.parts.find((part) => part.type === "tool-bash");
+    if (!call) {
+      throw new Error("the reply has no fork call");
+    }
+    const answered: SessionMessage.WithParts = {
       ...last,
       parts: last.parts.map(
         (part): SessionMessagePart.Type =>
@@ -454,26 +461,48 @@ describe("withoutForkingCall", () => {
             : part,
       ),
     };
-    const kept = withoutForkingCall([...messages.slice(0, -1), backgrounded]);
+    const newer: SessionMessage.WithParts = {
+      ...answered,
+      id: StoreId.newMessageId(),
+      parts: answered.parts.filter((part) => part.type === "text"),
+    };
+    return {
+      callId: call.metadata.id,
+      messages: [...messages.slice(0, -1), answered, newer],
+      original: messages,
+    };
+  }
+
+  // A fork that inherited the answer read its own start as the work already
+  // under way, and waited on it.
+  it("leaves out the forking call even once it was answered and a newer step followed", () => {
+    const { callId, messages, original } = backgrounded();
+    const kept = withoutCall(callId)(messages);
     expect(kept).toHaveLength(messages.length);
-    expect(kept.at(-1)?.parts.map((part) => part.type)).toEqual(["text"]);
-    // Earlier steps are the cached prefix and stay as they were.
-    expect(kept.slice(0, -1)).toEqual(messages.slice(0, -1));
+    expect(
+      kept.flatMap((message) => message.parts).map((part) => part.metadata.id),
+    ).not.toContain(callId);
+    // Everything before the step that started it stays as it was, which is
+    // the prefix a provider has cached.
+    expect(kept.slice(0, original.length - 1)).toEqual(original.slice(0, -1));
   });
 
-  it("drops the step whole when the forking call was all of it", () => {
+  it("drops a step whole when the forking call was all of it", () => {
     const messages = conversation(chatSessionId);
     const last = messages.at(-1);
-    if (last?.role !== "assistant") {
-      throw new Error("the conversation ends on a reply");
+    const call = last?.parts.find((part) => part.type === "tool-bash");
+    if (!last || !call) {
+      throw new Error("the conversation ends on a fork call");
     }
-    const onlyCall = {
-      ...last,
-      parts: last.parts.filter((part) => part.type === "tool-bash"),
-    };
-    expect(withoutForkingCall([...messages.slice(0, -1), onlyCall])).toEqual(
-      messages.slice(0, -1),
-    );
+    const onlyCall = { ...last, parts: [call] };
+    expect(
+      withoutCall(call.metadata.id)([...messages.slice(0, -1), onlyCall]),
+    ).toEqual(messages.slice(0, -1));
+  });
+
+  it("keeps everything when the call is not known", () => {
+    const { messages } = backgrounded();
+    expect(withoutCall(undefined)(messages)).toEqual(messages);
   });
 });
 

@@ -175,6 +175,7 @@ export const BashTool = setupTool({
       : undefined;
     const bash = await createBashEnv({
       attachedFolders,
+      callPartId: partId,
       chat,
       // `fg` waits inside this call, so what is left of the window is its
       // ceiling. Measured from here rather than from the race below, which only

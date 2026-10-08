@@ -179,7 +179,7 @@ export function ModelPicker({
               <span className="flex min-w-0 items-center gap-2 text-xs leading-4 font-medium">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="shrink-0">
+                    <span className="flex shrink-0">
                       {selectedModel && !isProblem ? (
                         <AIProviderIcon
                           className="size-4"

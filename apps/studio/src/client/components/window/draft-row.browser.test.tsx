@@ -207,6 +207,7 @@ describe("the list of drafts", () => {
             ]}
             emptyLine="No drafts yet."
             isLoading={false}
+            onDelete={vi.fn()}
             onDeleteDraft={onDeleteDraft}
             onNewTopic={vi.fn()}
             onOpen={vi.fn()}

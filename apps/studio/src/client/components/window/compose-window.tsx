@@ -107,8 +107,11 @@ const WORDS_MAX_HEIGHT = 400;
 /** A docked window's height with a few lines of words in it, in layout px; it grows from here with the words. */
 const COMPOSE_HEIGHT = 640;
 
-/** The words' height the docked height already allows for: three lines. Past it the window grows. */
+/** The words' height the docked height already allows for beside an open tab: three lines. Past it the window grows. */
 const WORDS_BASE_HEIGHT = 72;
+
+/** The window's head, over the words. */
+const HEAD_HEIGHT = 48;
 
 const NO_TITLES = new Map<never, never>();
 
@@ -360,26 +363,43 @@ export function ComposeWindow({
   // scroller is around it), so a squeezed window still knows what the words
   // would take. A definite height on the window is also what lets the page
   // and the folder inside the band size themselves against it.
+  // With only the tiles under them, the words have the room the tiles leave
+  // before the window grows: the band's own height and what the box draws
+  // around the editor (its padding, a row of chips) are measured too.
   const wordsWrapRef = useRef<HTMLDivElement>(null);
-  const [wordsHeight, setWordsHeight] = useState(WORDS_BASE_HEIGHT);
+  const bandRef = useRef<HTMLDivElement>(null);
+  const [measured, setMeasured] = useState({
+    band: 0,
+    chrome: 0,
+    words: WORDS_BASE_HEIGHT,
+  });
   useEffect(() => {
     const editor =
       wordsWrapRef.current?.querySelector<HTMLElement>(".prompt-editor");
-    if (!editor) {
+    const frame = wordsWrapRef.current?.querySelector<HTMLElement>(
+      "[data-slot=composer-frame]",
+    );
+    const scroller = editor?.parentElement;
+    const band = bandRef.current;
+    if (!editor || !frame || !scroller || !band) {
       return;
     }
     const measure = () => {
-      setWordsHeight(editor.offsetHeight);
+      setMeasured({
+        band: band.offsetHeight,
+        chrome: frame.offsetHeight - scroller.offsetHeight,
+        words: editor.offsetHeight,
+      });
     };
     measure();
     const observer = new ResizeObserver(measure);
-    observer.observe(editor);
+    for (const element of [editor, frame, band]) {
+      observer.observe(element);
+    }
     return () => {
       observer.disconnect();
     };
   }, []);
-  const dockedHeight =
-    COMPOSE_HEIGHT + Math.max(0, wordsHeight - WORDS_BASE_HEIGHT);
 
   // What the band opens lands in the draft's group and comes up in the band,
   // never on screen behind the window; the caret goes back to the words,
@@ -494,6 +514,14 @@ export function ComposeWindow({
   const isEmpty = up === undefined || upKind === "home";
   const showsStrip =
     tabs.length > 1 || (tabs[0] !== undefined && !isHomeTab(tabs[0]));
+  const wordsFill = isEmpty && !showsStrip;
+  const wordsRoom = wordsFill
+    ? Math.max(
+        WORDS_BASE_HEIGHT,
+        COMPOSE_HEIGHT - HEAD_HEIGHT - measured.band - measured.chrome,
+      )
+    : WORDS_BASE_HEIGHT;
+  const dockedHeight = COMPOSE_HEIGHT + Math.max(0, measured.words - wordsRoom);
 
   const content = (() => {
     if (isEmpty) {
@@ -596,6 +624,10 @@ export function ComposeWindow({
           openScreen: (href, options) => {
             if (options?.newTab) {
               appWindow.openScreen(href, options);
+              // A grown window would cover the tab brought up behind it.
+              if (isExpanded && !options.behind) {
+                onPlacementChange("docked");
+              }
             } else {
               openScreen(href);
             }
@@ -697,7 +729,7 @@ export function ComposeWindow({
               <div
                 className={cn(
                   "flex min-h-24 shrink flex-col select-text [&_.prompt-editor]:min-h-18 [&_.prompt-editor]:text-[15px] [&_.prompt-editor]:leading-6",
-                  isEmpty && !showsStrip && "flex-1",
+                  wordsFill && "flex-1",
                 )}
                 ref={wordsWrapRef}
               >
@@ -710,7 +742,9 @@ export function ComposeWindow({
                     marked.length > 0 ? <AskPills asks={marked} /> : undefined
                   }
                   autoFocus
-                  autoResizeMaxHeight={WORDS_MAX_HEIGHT}
+                  // Over the tiles alone the words take all the room the
+                  // window has, and scroll only past that.
+                  autoResizeMaxHeight={wordsFill ? null : WORDS_MAX_HEIGHT}
                   className="min-h-0 flex-1"
                   draftKey={key}
                   hasAttachmentsLead={marked.length > 0}
@@ -784,8 +818,9 @@ export function ComposeWindow({
               <div
                 className={cn(
                   "mx-2 flex flex-col overflow-hidden rounded-t-xl bg-gray-200 dark:bg-gray-900",
-                  isEmpty && !showsStrip ? "shrink-0" : "min-h-80 flex-1",
+                  wordsFill ? "shrink-0" : "min-h-80 flex-1",
                 )}
+                ref={bandRef}
               >
                 {showsStrip && (
                   // The tab on screen in the card's color, so it reads as

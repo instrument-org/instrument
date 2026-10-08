@@ -2,6 +2,7 @@ import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { TaskChat } from "@/client/components/task/chat";
+import { Alert, AlertDescription } from "@/client/components/ui/alert";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
@@ -21,6 +22,7 @@ import { AskPills } from "./ask-pills";
 import { chatListOptions } from "./chat-list-query";
 import { type OpenOptions, useWindow, WindowContext } from "./context";
 import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
+import { useReadOnView } from "./use-read-on-view";
 import { WorkingRow } from "./working-row";
 
 /**
@@ -130,22 +132,35 @@ function ChatScreenOfRecord({
   const groupAsks = useComposerAsks({ chatId: taskId, kind: "chat" });
   const { remove: removeAsks } = useStagedAskActions();
 
-  // Reading the chat is what clears its count, so it is marked read on
-  // arrival and again as each reply finishes while it is on screen. The pane
-  // beside the tabs does not clear it on its own.
-  const markSeen = useMutation(
-    rpcClient.workspace.chats.seen.mutationOptions(),
-  );
-  const newestSettledMessageId = chat?.newestSettledMessageId;
-  useEffect(() => {
-    if (!isUp) {
-      return;
-    }
-    markSeen.mutate({ id: taskId });
-    // The mutation is stable; re-running on its identity would loop.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-  }, [isUp, taskId, newestSettledMessageId]);
+  // Looking at the chat is what takes its unread mark off. The pane beside
+  // the tabs does not clear it on its own.
+  useReadOnView({ chat, chatId: taskId, isUp });
 
+  const loadError = task.error ?? state.error;
+  if (loadError) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <Alert className="max-w-md" variant="warning">
+          <AlertDescription className="flex flex-col gap-4">
+            <div className="font-semibold">This chat couldn’t open</div>
+            <div className="text-sm">
+              {loadError.message || "Something went wrong reading it."}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  void task.refetch();
+                  void state.refetch();
+                }}
+              >
+                Try again
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
   if (!task.data || !state.data) {
     return (
       <div className="flex h-full items-center justify-center">

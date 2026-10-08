@@ -867,6 +867,14 @@ function WindowShell({
                     appTabs.navigate(INBOX_HREF);
                     setInboxOpen(true);
                   }}
+                  onDeleted={(id) => {
+                    windowTabs.dropGroup(id);
+                    if (id === chatUp) {
+                      inboxPeek.close();
+                      appTabs.navigate(INBOX_HREF, { replace: true });
+                      setInboxOpen(true);
+                    }
+                  }}
                   onDeleteDraft={deleteDraft}
                   onOpenChat={(entry) => {
                     inboxPeek.close();

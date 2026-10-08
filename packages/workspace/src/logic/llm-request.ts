@@ -697,8 +697,15 @@ export const llmRequestLogic = fromPromise<
           }
           const existingPart = toolCalls[part.toolCallId];
           if (existingPart?.state === "input-streaming") {
+            // The part was typed by the name the model streamed, and
+            // `repairToolCall` may have since routed the call to another
+            // tool, which is the one that has to run.
+            const toolNameResult = ToolNameSchema.safeParse(part.toolName);
             const updatedPart: SessionMessagePart.ToolPart = {
               ...existingPart,
+              type: toolNameResult.success
+                ? `tool-${toolNameResult.data}`
+                : "tool-unavailable",
               ...(part.providerMetadata !== undefined && {
                 callProviderMetadata: part.providerMetadata,
               }),

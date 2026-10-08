@@ -111,9 +111,9 @@ function SettingsModalContent({
   return (
     <DialogContent
       aria-describedby={undefined}
-      className="h-180 w-225 gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none"
-      maxHeight="45rem"
-      maxWidth="56.25rem"
+      className="h-full gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none"
+      maxHeight="50rem"
+      maxWidth="70rem"
       onExitComplete={onExitComplete}
       showCloseButton={false}
     >

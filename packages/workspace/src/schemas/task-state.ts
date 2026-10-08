@@ -39,7 +39,10 @@ export const TaskStateSchema = z.object({
    * handed it and tabs it opened itself. `agent-browser` connects to them.
    */
   browserTabs: z.array(HeldTabSchema).default([]),
-  selectedModelURI: AIGatewayModelURI.Schema.optional(),
+  // A stored URI this build cannot parse (a provider since renamed or
+  // removed) answers as no pick, so the chat opens on the default model
+  // rather than failing to open.
+  selectedModelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
 });
 
 export type TaskState = z.output<typeof StoredTaskStateSchema>;

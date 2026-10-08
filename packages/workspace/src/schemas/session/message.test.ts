@@ -1107,3 +1107,42 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 });
+
+// A provider renamed or removed since a turn ran left that turn's model record
+// unparseable, and failing it failed the read of the whole session.
+describe("SessionMessage.Schema", () => {
+  it("reads a past turn whose model names a provider this build does not know", () => {
+    const { messageId, sessionId } = baseMetadata();
+    const model = {
+      author: "openai",
+      canonicalId: "gpt-5.6-sol",
+      features: [],
+      name: "GPT-5.6 Sol",
+      params: { provider: "retired-provider", providerConfigId: "gone" },
+      providerId: "gpt-5.6-sol",
+      providerName: "Retired",
+      tags: [],
+      uri: "openai/gpt-5.6-sol?provider=retired-provider&providerConfigId=gone",
+    };
+
+    const message = SessionMessage.Schema.parse({
+      id: messageId,
+      metadata: {
+        aiGatewayModel: model,
+        aiGatewayModelServed: model,
+        createdAt: mockDate,
+        modelId: "gpt-5.6-sol",
+        providerId: "retired-provider",
+        realRole: "assistant",
+        sessionId,
+      },
+      role: "assistant",
+    });
+
+    expect(message.metadata).toMatchObject({
+      aiGatewayModel: undefined,
+      aiGatewayModelServed: undefined,
+      modelId: "gpt-5.6-sol",
+    });
+  });
+});

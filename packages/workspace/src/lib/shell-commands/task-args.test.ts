@@ -189,7 +189,7 @@ describe("requireFoldersOnDisk", () => {
     { expected: undefined, refusal: undefined, said: "allows" },
     {
       expected:
-        /^macOS did not let Instrument into "Home\/Desktop:rw"|^"Home\/Desktop:rw" cannot be read/,
+        /^macOS has not let Instrument into "Home\/Desktop:rw"\. Call request_folder with folder "\/mnt\/Home\/Desktop"|^"Home\/Desktop:rw" cannot be read/,
       refusal: Object.assign(new Error("not permitted"), { code: "EPERM" }),
       said: "declines",
     },
@@ -322,7 +322,7 @@ describe("awaitAnswers", () => {
     );
     setTimeout(answer, 50);
     await expect(awaitAnswers(looks, 5000)).rejects.toThrow(
-      /^macOS did not let Instrument into "Home\/Desktop:rw"|^"Home\/Desktop:rw" cannot be read/,
+      /^macOS has not let Instrument into "Home\/Desktop:rw"\. Call request_folder with folder "\/mnt\/Home\/Desktop"|^"Home\/Desktop:rw" cannot be read/,
     );
   });
 

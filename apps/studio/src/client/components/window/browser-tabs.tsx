@@ -284,14 +284,7 @@ export function BrowserTabs({
   // The page the group on screen has up, when what it has up is a page.
   const up = windowTabs.active;
   const active = up?.kind === "page" ? up : undefined;
-
-  // The chat's own browser is the tab on screen.
   const activeTarget = active ? targetOf(active) : null;
-  useEffect(() => {
-    void rpcClient.workspace.window.setActiveTab.call({
-      targetId: activeTarget,
-    });
-  }, [activeTarget]);
 
   // The strip as it is at any moment, for the handle below and the listeners,
   // both of which are made once and read it when called.

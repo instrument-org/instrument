@@ -141,8 +141,8 @@ interface PromptInputProps {
   /** What goes with the words besides files, drawn first in the row attached files land in: places marked in a file, say. */
   attachmentsLead?: React.ReactNode;
   autoFocus?: boolean;
-  /** Where the box stops growing and the draft starts scrolling. Defaults by variant. */
-  autoResizeMaxHeight?: number;
+  /** Where the box stops growing and the draft starts scrolling. Defaults by variant; null leaves the cap to the host's layout. */
+  autoResizeMaxHeight?: null | number;
   className?: string;
   disabled?: boolean;
   draftKey: PromptDraftKey;
@@ -639,7 +639,12 @@ export const PromptInput = ({
   // A pill stands beside the work in a column it shares with the conversation
   // it is part of, so it gives way to that conversation sooner than a block on
   // a page of its own does: a handful of lines, then the draft scrolls.
-  const maxHeight = autoResizeMaxHeight ?? (variant === "pill" ? 200 : 400);
+  const maxHeight =
+    autoResizeMaxHeight === undefined
+      ? variant === "pill"
+        ? 200
+        : 400
+      : autoResizeMaxHeight;
 
   const validateSubmission = () => {
     if (modelStatus.kind === "loading") {

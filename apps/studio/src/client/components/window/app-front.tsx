@@ -33,7 +33,6 @@ import { GlyphButton } from "@/client/components/window/glyph-button";
 import { useOnScreen } from "@/client/components/window/on-screen";
 import { PageSection } from "@/client/components/window/page-section";
 import { VisitedPageRows } from "@/client/components/window/visited-page-rows";
-import { zoomMaxSize } from "@/client/hooks/use-app-zoom";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { rpcClient } from "@/client/rpc/client";
@@ -459,9 +458,9 @@ export function AppFront({
             open={isInspecting}
           >
             <DialogContent
-              className="flex flex-col"
+              className="flex h-full flex-col"
+              maxHeight="46rem"
               maxWidth="72rem"
-              style={{ height: zoomMaxSize("height", "46rem") }}
             >
               <DialogHeader>
                 <DialogTitle>Every action in {name}</DialogTitle>

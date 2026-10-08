@@ -18,16 +18,15 @@ import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { recordChanged, recordRemoved } from "../record-changes";
 import { forgetRecord, placeTask, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
-import { getWindowState, updateWindowState } from "../window-state";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type ChatActivity } from "./activity";
 import {
   archiveChat,
   type Chat,
-  chatById,
   listChats,
-  markChatSeen,
-  markChatUnseen,
+  markChatRead,
+  markChatUnread,
+  startChatUnreadOnSettle,
   renameChat,
   setChatStarred,
   setChatTopics,
@@ -99,8 +98,6 @@ const freshTask = async () => {
     rootDir: WorkspaceDirSchema.parse(root),
     tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
   });
-  // The window's state begins with the workspace, before any chat in it.
-  await getWindowState();
   return taskId;
 };
 
@@ -152,9 +149,16 @@ async function agentSays(
   text: string,
   {
     commands = [],
+    failed = false,
     finished = true,
     minute = 0,
-  }: { commands?: string[]; finished?: boolean; minute?: number } = {},
+  }: {
+    commands?: string[];
+    /** Whether the step ended in an error rather than its stop. */
+    failed?: boolean;
+    finished?: boolean;
+    minute?: number;
+  } = {},
 ) {
   const messageId = StoreId.newMessageId();
   const ids = { messageId, sessionId };
@@ -162,7 +166,7 @@ async function agentSays(
     id: messageId,
     metadata: {
       createdAt: at(minute),
-      finishReason: "stop",
+      finishReason: failed ? "error" : "stop",
       ...(finished ? { finishedAt: at(minute) } : {}),
       modelId: "glm-5.3-flash",
       providerId: "openai-compatible",
@@ -278,7 +282,6 @@ describe("listChats", () => {
       chats.map((chat) => ({
         createdAt: chat.createdAt,
         latest: chat.latest,
-        replyCount: chat.replyCount,
         root: chat.root?.parts.find((part) => part.type === "text")?.text,
         state: chat.state,
         title: chat.title,
@@ -292,20 +295,18 @@ describe("listChats", () => {
           kind: "reply",
           text: "Starting the list.",
         },
-        replyCount: 1,
         root: "make me a grocery list",
         state: "idle",
         title: "Groceries for the week",
-        unread: 2,
+        unread: false,
       },
       {
         createdAt: at(4).getTime(),
         latest: undefined,
-        replyCount: 0,
         root: "plan a trip to lisbon",
         state: "idle",
         title: "Trip to Lisbon",
-        unread: 0,
+        unread: false,
       },
     ]);
   });
@@ -382,7 +383,7 @@ describe("listChats", () => {
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     const [asked] = await listChats();
-    expect(asked?.replyCount).toBe(0);
+    expect(asked?.latest).toBeUndefined();
 
     await agentSays(taskId, sessionId, "Here is the list.", { minute: 2 });
     const [replied] = await listChats();
@@ -407,107 +408,75 @@ describe("listChats", () => {
     expect(rewritten?.latest?.text).toBe("Here is the new list.");
   });
 
-  it("does not count a reply that is still being written as new", async () => {
+  it("marks any chat unread and read again, whatever it holds", async () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
-    await agentSays(taskId, sessionId, "Working on it", {
-      finished: false,
-      minute: 2,
-    });
 
-    const [chat] = await listChats();
-    expect(chat?.unread).toBe(0);
+    await markChatUnread(chatFor(sessionId), { byUser: true });
+    const [marked] = await listChats();
+    expect(marked).toMatchObject({ unread: true, unreadByUser: true });
+
+    await markChatRead(chatFor(sessionId));
+    const [read] = await listChats();
+    expect(read).toMatchObject({ unread: false, unreadByUser: false });
   });
 
-  it("puts one reply back among the unread when asked, and clears it again on seeing", async () => {
+  it("marks a chat unread once it settles, and not while something of it still works", async () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
-    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
-    await agentSays(taskId, sessionId, "One more thing.", { minute: 3 });
-    await markChatSeen(chatFor(sessionId));
+    const child = TaskIdSchema.parse(`bake-${Date.now()}`);
+    running.value = [
+      { chat: sessionId, taskId: child, title: "Bake", updatedAt: Date.now() },
+    ];
+    startChatUnreadOnSettle();
 
-    await markChatUnseen(chatFor(sessionId));
-    const [put] = await listChats();
-    expect(put?.unread).toBe(1);
+    publisher.publish("session.done", { id: chatFor(sessionId), sessionId });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const [working] = await listChats();
+    expect(working?.unread).toBe(false);
 
-    await markChatSeen(chatFor(sessionId));
-    const [seen] = await listChats();
-    expect(seen?.unread).toBe(0);
+    running.value = [];
+    publisher.publish("session.done", { id: chatFor(sessionId), sessionId });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const [settled] = await listChats();
+    expect(settled).toMatchObject({ unread: true, unreadByUser: false });
   });
 
-  it("counts a chat with no seen mark as seen up to the window's floor", async () => {
-    const taskId = await freshTask();
-    const before = await session(taskId, "Before the window");
-    await userSays(taskId, before, "make me a grocery list", 1);
-    await agentSays(taskId, before, "Here it is.", { minute: 2 });
-    // A workspace whose window state began after its chats.
-    await updateWindowState(() => ({ seenFloor: StoreId.newMessageId() }));
-    const after = await session(taskId, "After the window");
-    await userSays(taskId, after, "plan a trip", 3);
-    await agentSays(taskId, after, "Here is the plan.", { minute: 4 });
-
-    const chats = await listChats();
-    expect(
-      Object.fromEntries(chats.map((chat) => [chat.title, chat.unread])),
-    ).toEqual({ "After the window": 1, "Before the window": 0 });
-  });
-
-  it("records the floor once, and keeps it", async () => {
-    await freshTask();
-    const { seenFloor } = await getWindowState();
-    expect(seenFloor).toBeDefined();
-    await updateWindowState(() => ({ chatSeen: {} }));
-    expect((await getWindowState()).seenFloor).toBe(seenFloor);
-  });
-
-  it("reads a chat's own mark below the floor over the floor", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    const asked = await userSays(taskId, sessionId, "make me a list", 1);
-    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
-    await updateWindowState(() => ({
-      chatSeen: { [sessionId]: asked },
-      seenFloor: StoreId.newMessageId(),
-    }));
-
-    const [chat] = await listChats();
-    expect(chat?.unread).toBe(1);
-  });
-
-  it("puts a chat's only reply back among the unread when the floor is past it", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
-    await updateWindowState(() => ({ seenFloor: StoreId.newMessageId() }));
-
-    await markChatUnseen(chatFor(sessionId));
-    const [chat] = await listChats();
-    expect(chat?.unread).toBe(1);
-  });
-
-  it("clears the count once seen, and counts again from there", async () => {
+  it("keeps a mark the user set theirs when the chat settles under it", async () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
-    await agentSays(taskId, sessionId, "Done.", { minute: 2 });
 
-    await markChatSeen(chatFor(sessionId));
-    await agentSays(taskId, sessionId, "One more thing.", { minute: 3 });
+    await markChatUnread(chatFor(sessionId), { byUser: true });
+    await markChatUnread(chatFor(sessionId), { byUser: false });
+    const [chat] = await listChats();
+    expect(chat).toMatchObject({ unread: true, unreadByUser: true });
+  });
+
+  it("says a chat failed while its last turn ended in an error, until it answers", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "hru");
+    await userSays(taskId, sessionId, "hru", 1);
+    await agentSays(taskId, sessionId, "", { failed: true, minute: 2 });
+    const [failed] = await listChats();
+    expect(failed?.state).toBe("failed");
+
+    await agentSays(taskId, sessionId, "Doing well!", { minute: 3 });
+    const [answered] = await listChats();
+    expect(answered?.state).toBe("idle");
+  });
+
+  it("leaves a failed turn behind once the user sends again", async () => {
+    const taskId = await freshTask();
+    const sessionId = await session(taskId, "hru");
+    await userSays(taskId, sessionId, "hru", 1);
+    await agentSays(taskId, sessionId, "", { failed: true, minute: 2 });
+    await userSays(taskId, sessionId, "hello?", 3);
 
     const [chat] = await listChats();
-    expect(chat?.unread).toBe(1);
-    // A reply still arriving is not settled, so seeing the chat now records
-    // the reply before it.
-    const streaming = await agentSays(taskId, sessionId, "Working on", {
-      finished: false,
-      minute: 4,
-    });
-    const seen = await chatById(chatFor(sessionId));
-    const settled = seen?.newestSettledMessageId;
-    expect(settled).toBeDefined();
-    expect(settled).not.toBe(streaming);
+    expect(chat?.state).not.toBe("failed");
   });
 
   it("carries the topics a chat is tagged with, dropping ids that are not topics", async () => {
@@ -767,7 +736,6 @@ describe("listChats", () => {
     );
     const [updated] = await listChats();
     expect(updated?.latest?.text).toBe("Wrote 3 files: a.md, b.png, c.html");
-    expect(updated?.replyCount).toBe(2);
   });
 
   it("reads what the chat made and used out of its replies", async () => {

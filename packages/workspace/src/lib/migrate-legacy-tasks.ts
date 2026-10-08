@@ -14,7 +14,7 @@ import {
   TASKS_DIR_NAME,
 } from "../constants";
 import { MOUNT } from "../mount-points";
-import { AbsolutePathSchema, RelativePathSchema } from "../schemas/paths";
+import { RelativePathSchema } from "../schemas/paths";
 import { ProjectIdSchema } from "../schemas/project-id";
 import { type Session } from "../schemas/session";
 import { type SessionMessage } from "../schemas/session/message";
@@ -35,8 +35,6 @@ import {
 } from "./chat/topics";
 import { forgetRecordFolders } from "./record-folders";
 import { isRecord } from "./skills";
-import { windowStatePath } from "./window-paths";
-import { NOTHING_SEEN } from "./window-state";
 import { readJsonRecordSync, updateJsonRecordSync } from "./json-record-file";
 import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
 import { StorageKey } from "./storage-key";
@@ -175,7 +173,6 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
     ),
     ...readDirs(tasksDir),
   ]);
-  const seen = new Map<string, StoreId.Message | undefined>();
   const stagedDirs: string[] = [];
 
   for (const name of legacy) {
@@ -191,7 +188,6 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
         migration.emptyCount += 1;
       } else {
         migration.adoptedCount += 1;
-        seen.set(adopted.chatId, adopted.seen);
         stagedDirs.push(adopted.stagingDir);
       }
     } catch {
@@ -199,14 +195,6 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
     }
   }
 
-  // Where each chat was last read is written before any of them is listed,
-  // so none shows up unread for a moment, or for good if the boot stops here.
-  try {
-    markSeen(rootDir, seen);
-  } catch {
-    // The chats are listed anyway, each read against the window's seen
-    // floor, which the user corrects by opening or marking it.
-  }
   for (const stagingDir of stagedDirs) {
     try {
       finishStagedChat(stagingDir);
@@ -245,8 +233,8 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
 }
 
 /**
- * One task made into a staged chat, which the caller names once every chat's
- * seen mark is written; or set aside, for the tutorial and a task the user
+ * One task made into a staged chat, which the caller names once every task
+ * has been staged; or set aside, for the tutorial and a task the user
  * never said anything in. Throws when anything fails, leaving the task where
  * it was and no chat staged.
  */
@@ -267,7 +255,6 @@ function adoptTask({
       /** The chat's id, the folder it lands in once staged. */
       chatId: string;
       kind: "adopted";
-      seen?: StoreId.Message;
       stagingDir: string;
     }
   | { kind: "empty" } {
@@ -323,10 +310,21 @@ function adoptTask({
         ? topicOf.get(settings.projectId)
         : undefined;
     const pinnedAt = validDate(settings.pinnedAt);
+    // A task left unread is a chat left unread, a mark the user put on it
+    // staying theirs.
+    const unread = isRecord(settings.unreadIndicator)
+      ? settings.unreadIndicator
+      : undefined;
     const session: Session.Type = {
       createdAt,
       id: sessionId,
       ...(pinnedAt ? { starredAt: pinnedAt } : {}),
+      ...(unread
+        ? {
+            unreadAt: lastActivityAt,
+            ...(unread.manual === true ? { unreadByUser: true } : {}),
+          }
+        : {}),
       title,
       titleSettledAt: createdAt,
       ...(topicId ? { topics: [topicId] } : {}),
@@ -380,7 +378,6 @@ function adoptTask({
     chatId: chatName,
     kind: "adopted",
     stagingDir,
-    ...seenMark(conversation.messages, settings.unreadIndicator !== undefined),
   };
 }
 
@@ -518,37 +515,6 @@ function isProjectFolder(folder: string): boolean {
     path.join(folder, TASK_PRIVATE_FOLDER_NAME, TASK_SETTINGS_FILE_NAME),
   );
   return ProjectIdSchema.safeParse(settings?.id).success;
-}
-
-/**
- * Writes where each adopted chat was last read into the window's state, so a
- * chat reads as unread only where its task did. Merged into what the window
- * already holds, and a chat whose task read as unread gets a mark one short
- * of its newest reply, or one below every message when nothing comes before
- * that reply, the way marking a chat unread leaves it.
- */
-function markSeen(
-  rootDir: string,
-  /** By chat id, which is what the window keeps its marks by. */
-  seen: Map<string, StoreId.Message | undefined>,
-) {
-  if (seen.size === 0) {
-    return;
-  }
-  const statePath = windowStatePath(AbsolutePathSchema.parse(rootDir));
-  updateJsonRecordSync(
-    statePath,
-    (state) => {
-      const marks = new Map<string, unknown>(
-        Object.entries(isRecord(state.chatSeen) ? state.chatSeen : {}),
-      );
-      for (const [chatId, messageId] of seen) {
-        marks.set(chatId, messageId ?? NOTHING_SEEN);
-      }
-      return { chatSeen: Object.fromEntries(marks) };
-    },
-    { unreadable: "set-aside" },
-  );
 }
 
 /** Moves a folder into the backup, beside any earlier one of the same name. */
@@ -837,26 +803,6 @@ function readProjects(rootDir: string): LegacyProject[] {
       ];
     }),
   );
-}
-
-/**
- * Where a chat was last read: its newest message for a task the user had
- * seen, or the message before its newest reply for one marked unread, so
- * that reply alone counts. None when nothing comes before that reply.
- */
-function seenMark(
-  messages: ConversationMessage[],
-  unread: boolean,
-): { seen?: StoreId.Message } {
-  const newest = messages.at(-1);
-  if (!unread) {
-    return newest ? { seen: newest.id } : {};
-  }
-  const reply = messages.findLastIndex(
-    (message) => message.role === "assistant",
-  );
-  const before = reply > 0 ? messages[reply - 1] : undefined;
-  return before ? { seen: before.id } : {};
 }
 
 /** The hidden name a chat is written under until its task is inside it. */

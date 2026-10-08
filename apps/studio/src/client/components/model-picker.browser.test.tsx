@@ -231,7 +231,10 @@ describe("ModelPicker in a browser", () => {
     await openPicker(olderSonnet);
 
     await userEvent.hover(
-      page.getByRole("navigation", { name: "Providers" }).getByRole("button").first(),
+      page
+        .getByRole("navigation", { name: "Providers" })
+        .getByRole("button")
+        .first(),
     );
     const tinted = [...document.querySelectorAll("[role=option]")]
       .filter((row) => !row.hasAttribute("data-chosen"))
@@ -254,6 +257,32 @@ describe("ModelPicker in a browser", () => {
     expect(getComputedStyle(button.element()).backgroundColor).not.toBe(
       "rgba(0, 0, 0, 0)",
     );
+  });
+
+  // The mark is an inline box, so a block wrapper sets it on the text baseline
+  // and leaves room for descenders under it, which centering the wrapper on
+  // the name then shows as the mark riding a pixel or two high.
+  it("centers the provider's mark on the model's name", async () => {
+    await renderInBrowser(
+      <ModelPicker
+        models={models}
+        modelURI={sonnet.uri}
+        onValueChange={vi.fn()}
+        selectedModel={sonnet}
+      />,
+    );
+    const trigger = page.getByRole("combobox", { name: "Model" }).element();
+    const mark = trigger.querySelector("svg");
+    const name = page.getByText(sonnet.name).element();
+    if (!mark) throw new TypeError("the trigger has no provider mark");
+
+    const middle = (rect: DOMRect) => rect.top + rect.height / 2;
+    expect(
+      Math.abs(
+        middle(mark.getBoundingClientRect()) -
+          middle(name.getBoundingClientRect()),
+      ),
+    ).toBeLessThan(0.5);
   });
 
   it("will not pick a model the user cannot run", async () => {

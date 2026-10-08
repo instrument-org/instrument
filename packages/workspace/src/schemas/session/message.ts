@@ -146,7 +146,10 @@ export namespace SessionMessage {
   const SystemMetadataSchema = BaseMetadataSchema;
   const UserMetadataSchema = BaseMetadataSchema;
   const AssistantMetadataSchema = BaseMetadataSchema.extend({
-    aiGatewayModel: AIGatewayModel.Schema.optional(),
+    // What a past turn ran on, kept for display. A record this build cannot
+    // parse (a provider since renamed or removed) reads as unknown rather
+    // than failing the read of the whole session.
+    aiGatewayModel: AIGatewayModel.Schema.optional().catch(undefined),
     /**
      * The model record the served id resolves to, snapshotted here for the
      * same reason the requested model is: a name and a provider are only
@@ -158,7 +161,7 @@ export namespace SessionMessage {
      * the catalog has no record of, which is ordinary for one released between
      * two refreshes. The id is still the answer in that case.
      */
-    aiGatewayModelServed: AIGatewayModel.Schema.optional(),
+    aiGatewayModelServed: AIGatewayModel.Schema.optional().catch(undefined),
     completionTokensPerSecond: z.number().optional(),
     endedAt: z.date().optional(),
     error: ErrorSchema.optional(),

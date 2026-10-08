@@ -237,6 +237,15 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
             // An archived chat is put away, so it leaves the side beside
             // the list with it.
             onArchiveOpen={leaveChat}
+            // A chat deleted from its row takes its tabs with it, and the
+            // inbox takes the tab back when it was the one open.
+            onDeleted={(id) => {
+              windowTabs.dropGroup(id);
+              if (id === chat) {
+                appTabs.navigate(INBOX_HREF, { replace: true });
+                setInboxOpen(true);
+              }
+            }}
             onDeleteDraft={shell.deleteDraft}
             onListed={isActive ? shell.onListed : undefined}
             onOpenChat={(entry) => {

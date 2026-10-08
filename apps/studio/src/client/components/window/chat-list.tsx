@@ -36,6 +36,7 @@ const ListedChat = memo(function ListedChat({
   chat: Chat;
   handlers: RefObject<{
     onArchived: (chat: Chat) => void;
+    onDelete: (chat: Chat) => void;
     onNewTopic: (chat: Chat, name?: string) => void;
     onOpen: (chat: Chat) => void;
     onSetTopics: (chat: Chat, topics: string[]) => void;
@@ -43,6 +44,7 @@ const ListedChat = memo(function ListedChat({
   isArriving: boolean;
   isOpen: boolean;
   now: Date;
+  search: string;
   topics: Topic[];
 }) {
   return (
@@ -60,6 +62,9 @@ const ListedChat = memo(function ListedChat({
           : action,
       )}
       chat={chat}
+      onDelete={() => {
+        handlers.current.onDelete(chat);
+      }}
       onNewTopic={(name) => {
         handlers.current.onNewTopic(chat, name);
       }}
@@ -110,6 +115,7 @@ export function ChatList({
   emptyLine,
   isLoading,
   onArchiveOpen,
+  onDelete,
   onDeleteDraft,
   onNewTopic,
   onOpen,
@@ -119,6 +125,7 @@ export function ChatList({
   openId,
   outside = 0,
   scrollSignal,
+  search = "",
   topics,
 }: {
   appsBySlug: AppsBySlug;
@@ -133,6 +140,8 @@ export function ChatList({
   isLoading: boolean;
   /** Told when the open chat's row archives it, so the window can put the chat away with it. */
   onArchiveOpen?: () => void;
+  /** Asks before a chat goes to the trash, through the caller's dialog. */
+  onDelete: (chat: Chat) => void;
   onDeleteDraft: (id: string) => void;
   /** Opens the new-topic dialog for a chat: the topic it makes is filed on that chat. */
   onNewTopic: (chat: Chat, name?: string) => void;
@@ -147,6 +156,8 @@ export function ChatList({
   outside?: number;
   /** Counts up whenever the list should be taken back to its top, whatever the reader was doing. */
   scrollSignal: number;
+  /** The words a row marks where they turn up: the search the chats were found by, when they were found by their words. */
+  search?: string;
   topics: Topic[];
 }) {
   const now = useNow();
@@ -161,9 +172,21 @@ export function ChatList({
       onArchiveOpen?.();
     }
   };
-  const handlers = useRef({ onArchived, onNewTopic, onOpen, onSetTopics });
+  const handlers = useRef({
+    onArchived,
+    onDelete,
+    onNewTopic,
+    onOpen,
+    onSetTopics,
+  });
   useLayoutEffect(() => {
-    handlers.current = { onArchived, onNewTopic, onOpen, onSetTopics };
+    handlers.current = {
+      onArchived,
+      onDelete,
+      onNewTopic,
+      onOpen,
+      onSetTopics,
+    };
   });
   useLayoutEffect(() => {
     ref.current?.scrollTo({ top: 0 });
@@ -196,6 +219,7 @@ export function ChatList({
             isArriving={chat.id === arrivedId}
             isOpen={chat.id === openId}
             now={now}
+            search={search}
             topics={topics}
           />
         ),

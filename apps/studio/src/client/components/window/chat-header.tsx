@@ -399,8 +399,6 @@ export function ChatMenu({
             : item(action),
         )}
         <DropdownMenuSeparator />
-        {/* Only here, where one chat is all there is: a row in the inbox is
-            one of many, and a press there should not be able to end one. */}
         <DropdownMenuItem onSelect={onDelete} variant="destructive">
           <TrashIcon className="size-3.5" />
           Delete chat…

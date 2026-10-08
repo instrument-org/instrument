@@ -102,17 +102,7 @@ export function UsageAndBillingSection() {
 
   return (
     <div className="space-y-4">
-      {/* The plan settles in when a change made in Stripe's portal or
-          Checkout lands as the window takes focus. */}
-      <StateArrival
-        state={[
-          status.plan,
-          status.subscription?.status,
-          subscriptionEndsAt(status)?.toISOString(),
-        ].join(" ")}
-      >
-        <PlanGroup status={status} />
-      </StateArrival>
+      <PlanGroup status={status} />
       <UsageGroup status={status} />
     </div>
   );
@@ -134,35 +124,48 @@ function PlanGroup({ status }: { status: Status }) {
   const now = new Date();
   const plan = subscribedPlan(status, offer);
   const subscription = status.subscription;
+  // The plan settles in when a change made in Stripe's portal or Checkout
+  // lands as the window takes focus.
+  const arrival = [
+    status.plan,
+    subscription?.status,
+    subscriptionEndsAt(status)?.toISOString(),
+  ].join(" ");
 
   if (isAccessRevoked(status)) {
     return (
       <SettingsSection title="Plan">
-        <Card className="gap-0 overflow-hidden p-0">
-          <Row
-            data-billing-row="access-revoked"
-            detail="Get in touch and we'll sort it out."
-            title={`${APP_NAME}'s AI isn't available on this account`}
-          >
-            <Button
-              onClick={() => {
-                openLink(SUPPORT_URL);
-              }}
-              size="sm"
+        <StateArrival state={arrival}>
+          <Card className="gap-0 overflow-hidden p-0">
+            <Row
+              data-billing-row="access-revoked"
+              detail="Get in touch and we'll sort it out."
+              title={`${APP_NAME}'s AI isn't available on this account`}
             >
-              Contact support
-            </Button>
-          </Row>
-          <Row
-            data-billing-row="billing"
-            detail="Your card and invoices, in Stripe"
-            title="Payment method and invoices"
-          >
-            <Button disabled={portal.isPending} onClick={openPortal} size="sm">
-              Manage billing
-            </Button>
-          </Row>
-        </Card>
+              <Button
+                onClick={() => {
+                  openLink(SUPPORT_URL);
+                }}
+                size="sm"
+              >
+                Contact support
+              </Button>
+            </Row>
+            <Row
+              data-billing-row="billing"
+              detail="Your card and invoices, in Stripe"
+              title="Payment method and invoices"
+            >
+              <Button
+                disabled={portal.isPending}
+                onClick={openPortal}
+                size="sm"
+              >
+                Manage billing
+              </Button>
+            </Row>
+          </Card>
+        </StateArrival>
       </SettingsSection>
     );
   }
@@ -176,74 +179,80 @@ function PlanGroup({ status }: { status: Status }) {
     const paymentFailed = hasPaymentFailed(status);
     return (
       <SettingsSection title="Plan">
-        <Card className="gap-0 overflow-hidden p-0">
-          {paymentFailed && (
-            <div
-              className="flex items-center gap-3 border-b border-border px-4 py-3"
-              data-billing-row="payment-failed"
-            >
-              <WarningIcon className="size-4 shrink-0 text-warning-700 dark:text-warning-300" />
-              <p className="min-w-0 flex-1 text-sm">
-                Your payment didn&rsquo;t go through. {APP_NAME}&rsquo;s AI is
-                paused until it does.
-              </p>
-              <Button
-                disabled={portal.isPending}
-                onClick={openPortal}
-                size="sm"
+        <StateArrival state={arrival}>
+          <Card className="gap-0 overflow-hidden p-0">
+            {paymentFailed && (
+              <div
+                className="flex items-center gap-3 border-b border-border px-4 py-3"
+                data-billing-row="payment-failed"
               >
-                Update card
-              </Button>
-            </div>
-          )}
-          <Row
-            data-billing-row="plan"
-            detail={
-              paymentFailed
-                ? "Payment overdue"
-                : endsAt
-                  ? `Ends ${describeDate(endsAt, now)}`
-                  : renewsAt
-                    ? `Renews ${describeDate(renewsAt, now)}`
-                    : undefined
-            }
-            // Status names no plan while a payment is owed, since none is in
-            // effect; the row then says only that there is a subscription.
-            title={
-              plan
-                ? [plan.name, price].filter(Boolean).join(" · ")
-                : "Your subscription"
-            }
-          >
-            {paymentFailed ? null : endsAt ? (
-              <Button
-                disabled={portal.isPending}
-                onClick={openPortal}
-                size="sm"
-              >
-                Keep my plan
-              </Button>
-            ) : (
-              <Button
-                onClick={() => {
-                  openPlanSheet();
-                }}
-                size="sm"
-              >
-                Change plan
-              </Button>
+                <WarningIcon className="size-4 shrink-0 text-warning-700 dark:text-warning-300" />
+                <p className="min-w-0 flex-1 text-sm">
+                  Your payment didn&rsquo;t go through. {APP_NAME}&rsquo;s AI is
+                  paused until it does.
+                </p>
+                <Button
+                  disabled={portal.isPending}
+                  onClick={openPortal}
+                  size="sm"
+                >
+                  Update card
+                </Button>
+              </div>
             )}
-          </Row>
-          <Row
-            data-billing-row="billing"
-            detail="Your card and invoices, in Stripe"
-            title="Payment method and invoices"
-          >
-            <Button disabled={portal.isPending} onClick={openPortal} size="sm">
-              Manage billing
-            </Button>
-          </Row>
-        </Card>
+            <Row
+              data-billing-row="plan"
+              detail={
+                paymentFailed
+                  ? "Payment overdue"
+                  : endsAt
+                    ? `Ends ${describeDate(endsAt, now)}`
+                    : renewsAt
+                      ? `Renews ${describeDate(renewsAt, now)}`
+                      : undefined
+              }
+              // Status names no plan while a payment is owed, since none is in
+              // effect; the row then says only that there is a subscription.
+              title={
+                plan
+                  ? [plan.name, price].filter(Boolean).join(" · ")
+                  : "Your subscription"
+              }
+            >
+              {paymentFailed ? null : endsAt ? (
+                <Button
+                  disabled={portal.isPending}
+                  onClick={openPortal}
+                  size="sm"
+                >
+                  Keep my plan
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    openPlanSheet();
+                  }}
+                  size="sm"
+                >
+                  Change plan
+                </Button>
+              )}
+            </Row>
+            <Row
+              data-billing-row="billing"
+              detail="Your card and invoices, in Stripe"
+              title="Payment method and invoices"
+            >
+              <Button
+                disabled={portal.isPending}
+                onClick={openPortal}
+                size="sm"
+              >
+                Manage billing
+              </Button>
+            </Row>
+          </Card>
+        </StateArrival>
       </SettingsSection>
     );
   }
@@ -255,28 +264,30 @@ function PlanGroup({ status }: { status: Status }) {
   const days = offer?.trial?.days;
   return (
     <SettingsSection title="Plan">
-      <Card className="gap-0 p-0">
-        <Row
-          data-billing-row="plan"
-          detail={
-            isTrial
-              ? trialEndsAt
-                ? `Ends ${describeDay(trialEndsAt)}`
-                : `Starts with your first message to ${APP_NAME}'s AI${days ? ` and runs ${days} days` : ""}.`
-              : `${APP_NAME}'s models need a plan. Your ChatGPT or Claude account, or your own key, works without one.`
-          }
-          title={isTrial ? "Free trial" : "No plan"}
-        >
-          <Button
-            onClick={() => {
-              openPlanSheet();
-            }}
-            size="sm"
+      <StateArrival state={arrival}>
+        <Card className="gap-0 p-0">
+          <Row
+            data-billing-row="plan"
+            detail={
+              isTrial
+                ? trialEndsAt
+                  ? `Ends ${describeDay(trialEndsAt)}`
+                  : `Starts with your first message to ${APP_NAME}'s AI${days ? ` and runs ${days} days` : ""}.`
+                : `${APP_NAME}'s models need a plan. Your ChatGPT or Claude account, or your own key, works without one.`
+            }
+            title={isTrial ? "Free trial" : "No plan"}
           >
-            Choose a plan
-          </Button>
-        </Row>
-      </Card>
+            <Button
+              onClick={() => {
+                openPlanSheet();
+              }}
+              size="sm"
+            >
+              Choose a plan
+            </Button>
+          </Row>
+        </Card>
+      </StateArrival>
     </SettingsSection>
   );
 }

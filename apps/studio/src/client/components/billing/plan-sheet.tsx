@@ -7,6 +7,7 @@ import {
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -15,7 +16,9 @@ import {
 import { Spinner } from "@/client/components/ui/spinner";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useModalBack } from "@/client/hooks/use-modal-back";
 import { rpcClient } from "@/client/rpc/client";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
@@ -31,6 +34,10 @@ export function PlanSheet() {
   const [state, setState] = useAtom(planSheetAtom);
   const isOpen = state !== null;
   useBlockTabNavigation(isOpen);
+  // Over Settings, a back press closes the sheet and leaves Settings open.
+  useModalBack(() => {
+    setState(null);
+  }, isOpen);
 
   return (
     <Dialog
@@ -42,7 +49,20 @@ export function PlanSheet() {
       open={isOpen}
     >
       {isOpen && (
-        <DialogContent maxWidth="40rem">
+        <DialogContent
+          maxWidth="40rem"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+          }}
+          showCloseButton={false}
+        >
+          <div className="absolute top-3 right-3 z-10">
+            <DialogClose asChild>
+              <Button aria-label="Close" type="button" variant="outline">
+                <XIcon className="size-4" />
+              </Button>
+            </DialogClose>
+          </div>
           <PlanSheetBody
             onDone={() => {
               setState(null);

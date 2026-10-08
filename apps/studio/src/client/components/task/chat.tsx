@@ -34,10 +34,12 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-import { ChatBillingNotice } from "../billing/chat-billing-notice";
+import { ChatBillingNoticeView } from "../billing/chat-billing-notice";
+import { useChatBillingNotice } from "../billing/use-chat-billing-notice";
 import { ChatStream, TypingRow } from "../chat-stream";
 import { ComposerDraftContext } from "../composer-draft-context";
 import { ModelChangeNote } from "../model-change-note";
+import { PlanAccountNote, usePlanAccountNote } from "../plan-account-note";
 import { PromptInput, type PromptInputRef } from "../prompt-input";
 import { ReplyContext } from "../reply-context";
 import { ComposerReplyQuote } from "../reply-quote";
@@ -312,6 +314,40 @@ export function TaskChat({
     });
   };
 
+  // One note over the reply box at a time, drawn by the composer. A turn stopped by the person's
+  // ChatGPT or Claude plan, or by ours, outranks everything, since the chat
+  // cannot go on until it is dealt with; the 80% line is quiet and gives way
+  // to a problem with the model (the composer weighs that against it).
+  const planNote = usePlanAccountNote({ isAgentRunning, messages });
+  const billingNote = useChatBillingNotice({
+    isAgentRunning,
+    messages,
+    onContinue: handleRunAgain,
+  });
+  const replyNote = planNote
+    ? {
+        node: (
+          <PlanAccountNote
+            onContinue={handleRunAgain}
+            onKeepGoing={(modelURI) => {
+              setSelectedModelURI(modelURI);
+              if (selectedSessionId) {
+                runTurn.mutate({ id, modelURI, sessionId: selectedSessionId });
+              }
+            }}
+            onWait={planNote.wait}
+            stop={planNote.stop}
+          />
+        ),
+        urgent: true,
+      }
+    : billingNote
+      ? {
+          node: <ChatBillingNoticeView state={billingNote} />,
+          urgent: billingNote.kind === "notice",
+        }
+      : undefined;
+
   const isActiveTab = useIsActiveTab();
   const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
   // A chat coming on screen is a place to reply from, so the caret lands
@@ -360,6 +396,7 @@ export function TaskChat({
       isLoading={createMessage.isPending}
       lead={composerLead}
       modelURI={selectedModelURI}
+      note={replyNote}
       onModelChange={setSelectedModelURI}
       onSubmit={({ files, folders, modelURI, prompt }) => {
         // The composer empties on submit rather than on the reply, so a send the
@@ -534,13 +571,6 @@ export function TaskChat({
 
             {/* isolate: keep the prompt input's z-10 contained to the composer. */}
             <div className="isolate mx-auto w-full max-w-3xl px-3 pb-3">
-              {/* Inside the column rather than above it, so it is exactly as wide
-              as the composer it belongs to. */}
-              <ChatBillingNotice
-                isAgentRunning={isAgentRunning}
-                messages={messages}
-                onContinue={handleRunAgain}
-              />
               {beforeComposer}
               {replyTo && (
                 <ComposerReplyQuote

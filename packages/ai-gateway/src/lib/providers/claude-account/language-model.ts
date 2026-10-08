@@ -715,7 +715,18 @@ function planError(
     isRetryable,
     message: message || kind,
     requestBodyValues: {},
-    responseBody: JSON.stringify({ error: { message, type } }),
+    // A spent plan carries when it comes back (seconds since the epoch), so
+    // the chat can say until when.
+    responseBody: JSON.stringify({
+      error: {
+        message,
+        type,
+        ...(type === "claude_account_usage_limit_exceeded" &&
+          typeof rateLimit?.resetsAt === "number" && {
+            resets_at: rateLimit.resetsAt,
+          }),
+      },
+    }),
     statusCode,
     url: "claude-account://",
   });

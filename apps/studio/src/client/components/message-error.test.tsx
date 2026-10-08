@@ -1,4 +1,3 @@
-import { APP_NAME } from "@instrument-org/shared";
 import { renderWithProviders } from "@/tests/render";
 import { OUR_MODELS } from "@instrument-org/shared";
 import { type SessionMessage } from "@instrument-org/workspace/client";
@@ -211,8 +210,10 @@ describe("MessageError", () => {
     expect(container.textContent).not.toContain("requested model");
   });
 
-  it("names ChatGPT when its plan's limit was reached", () => {
-    renderError({
+  // The way forward is the note over the reply box (`PlanAccountNote`), so
+  // the transcript keeps one plain line naming the plan.
+  it.each([
+    {
       error: {
         classification: "usage-limit",
         kind: "api-call",
@@ -222,15 +223,10 @@ describe("MessageError", () => {
         statusCode: 400,
         url: "http://localhost/ai-gateway/providers/chatgpt-account/responses",
       },
+      line: "I had to stop here. Your ChatGPT plan is out of usage for now.",
       provider: "chatgpt-account",
-    });
-
-    expect(screen.getByText("ChatGPT is out of usage for now")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Manage usage" })).not.toBeNull();
-  });
-
-  it("offers Instrument when the Claude account's limit was reached", async () => {
-    renderError({
+    },
+    {
       error: {
         classification: "usage-limit",
         kind: "api-call",
@@ -239,14 +235,23 @@ describe("MessageError", () => {
         statusCode: 429,
         url: "claude-account://",
       },
+      line: "I had to stop here. Your Claude plan is out of usage for now.",
       provider: "claude-account",
-    });
+    },
+  ] satisfies {
+    error: MessageErrorData;
+    line: string;
+    provider: string;
+  }[])(
+    "ends a turn $provider's plan stopped on one line",
+    ({ error, line, provider }) => {
+      renderError({ error, provider });
 
-    expect(screen.getByText("Claude usage limit reached")).not.toBeNull();
-    expect(
-      await screen.findByRole("button", { name: `Try ${APP_NAME}` }),
-    ).not.toBeNull();
-  });
+      expect(screen.getByText(line)).not.toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.queryByRole("button")).toBeNull();
+    },
+  );
 
   it("says nothing about a throttle the session already got past", () => {
     const { container } = renderError({ isLastMessage: false });
@@ -278,17 +283,23 @@ describe("MessageError", () => {
         line: "Stopped: you've reached your plan's limit for now.",
         statusCode: 429,
       },
-    ])("ends the turn on one line for $body.code", ({ body, line, statusCode }) => {
-      renderError({ error: refusal(body, statusCode) });
+    ])(
+      "ends the turn on one line for $body.code",
+      ({ body, line, statusCode }) => {
+        renderError({ error: refusal(body, statusCode) });
 
-      expect(screen.getByText(line)).not.toBeNull();
-      expect(screen.queryByRole("alert")).toBeNull();
-      expect(screen.queryByRole("button")).toBeNull();
-    });
+        expect(screen.getByText(line)).not.toBeNull();
+        expect(screen.queryByRole("alert")).toBeNull();
+        expect(screen.queryByRole("button")).toBeNull();
+      },
+    );
 
     it("keeps the line once the chat has moved on", () => {
       renderError({
-        error: refusal({ code: "subscription-required", reason: "no-plan" }, 402),
+        error: refusal(
+          { code: "subscription-required", reason: "no-plan" },
+          402,
+        ),
         isLastMessage: false,
       });
 

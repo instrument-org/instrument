@@ -66,7 +66,8 @@ export function ComposerFrame({
   /**
    * One row about the chosen model, over everything else: a newer release on
    * offer, or a problem to fix before sending. The same row in every layout,
-   * so a pill and a draft say it in one place and one way.
+   * so a pill and a draft say it in one place and one way. A pill floats it
+   * just above the box, in the one place a chat's other notes go too.
    */
   notice?: React.ReactNode;
   /** Focus entering and leaving the pill, for what it shows only while open. */
@@ -81,68 +82,75 @@ export function ComposerFrame({
 }) {
   if (layout === "pill") {
     return (
-      <div
-        className={cn(
-          "relative isolate flex w-full flex-col rounded-[22px] px-1.5 py-1.5",
-          "bg-white shadow-sm-soft transition-shadow dark:bg-gray-800",
-          "focus-within:ring-1 focus-within:ring-black/5 dark:focus-within:ring-white/5",
-        )}
-        data-slot="composer-frame"
-        onBlur={onBlur}
-        onFocus={onFocus}
-        ref={ref}
-        style={{ maxHeight }}
-      >
-        {overlay}
+      <>
+        {/* Over the pill rather than in it, 8px above, as wide as the box:
+            the pill stays one row, and the note reads as being about the
+            chat rather than a part of the draft. The side padding keeps the
+            clip off the note's shadow. */}
         <AnimatePresence initial={false}>
           {notice ? (
             <motion.div
               animate={{ height: "auto", opacity: 1 }}
-              className="overflow-hidden"
+              className="-mx-1 overflow-hidden px-1"
               exit={{ height: 0, opacity: 0 }}
               initial={{ height: 0, opacity: 0 }}
               key="notice"
               transition={BLOCK_OPEN}
             >
-              <div className="px-0.5 pb-1.5" data-slot="composer-notice">
+              <div className="pt-0.5 pb-2" data-slot="composer-notice">
                 {notice}
               </div>
             </motion.div>
           ) : null}
-          {extras ? (
-            <motion.div
-              animate={{ height: "auto", opacity: 1 }}
-              className="overflow-hidden"
-              exit={{ height: 0, opacity: 0 }}
-              initial={{ height: 0, opacity: 0 }}
-              key="extras"
-              transition={BLOCK_OPEN}
-            >
-              <div
-                // `empty:hidden`: a row with nothing in it, a screen with no
-                // chip to show, takes no height rather than a blank line.
-                className="flex min-h-7 items-center gap-1 px-1 pb-1 empty:hidden"
-                data-slot="composer-extras"
-              >
-                {extras}
-              </div>
-            </motion.div>
-          ) : null}
         </AnimatePresence>
-        {/* The negative margin makes room inside the scroller for the remove
+        <div
+          className={cn(
+            "relative isolate flex w-full flex-col rounded-[22px] px-1.5 py-1.5",
+            "bg-white shadow-sm-soft transition-shadow dark:bg-gray-800",
+            "focus-within:ring-1 focus-within:ring-black/5 dark:focus-within:ring-white/5",
+          )}
+          data-slot="composer-frame"
+          onBlur={onBlur}
+          onFocus={onFocus}
+          ref={ref}
+          style={{ maxHeight }}
+        >
+          {overlay}
+          <AnimatePresence initial={false}>
+            {extras ? (
+              <motion.div
+                animate={{ height: "auto", opacity: 1 }}
+                className="overflow-hidden"
+                exit={{ height: 0, opacity: 0 }}
+                initial={{ height: 0, opacity: 0 }}
+                key="extras"
+                transition={BLOCK_OPEN}
+              >
+                <div
+                  // `empty:hidden`: a row with nothing in it, a screen with no
+                  // chip to show, takes no height rather than a blank line.
+                  className="flex min-h-7 items-center gap-1 px-1 pb-1 empty:hidden"
+                  data-slot="composer-extras"
+                >
+                  {extras}
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+          {/* The negative margin makes room inside the scroller for the remove
             buttons that sit outside the chips, which its clip would cut. */}
-        {attachments ? (
-          <div
-            className="-mx-1 -mt-1 flex max-h-24 min-h-0 flex-wrap items-start gap-1.5 overflow-y-auto px-2 pt-2 pb-1.5"
-            data-slot="composer-attachments"
-          >
-            {attachments}
-          </div>
-        ) : null}
-        <div className="flex min-h-7 w-full items-end gap-1.5">
-          <div className="flex shrink-0 items-center self-end">{leading}</div>
-          {/* `min-w-0`: a pasted link is one word as wide as a paragraph. */}
-          {/* One 20px line box for the words and the placeholder alike, which
+          {attachments ? (
+            <div
+              className="-mx-1 -mt-1 flex max-h-24 min-h-0 flex-wrap items-start gap-1.5 overflow-y-auto px-2 pt-2 pb-1.5"
+              data-slot="composer-attachments"
+            >
+              {attachments}
+            </div>
+          ) : null}
+          <div className="flex min-h-7 w-full items-end gap-1.5">
+            <div className="flex shrink-0 items-center self-end">{leading}</div>
+            {/* `min-w-0`: a pasted link is one word as wide as a paragraph. */}
+            {/* One 20px line box for the words and the placeholder alike, which
               the 4px above and below center in the row's 28px: the editor's own
               paragraph height is for the block, and would sit this line high by
               a couple of pixels.
@@ -151,17 +159,18 @@ export function ComposerFrame({
               as tall as the room the pill has and scrolls the rest. Sized to
               its own draft it would keep growing past the cap and, centered,
               paint out of both ends of the box. */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col self-stretch py-1 [--prompt-editor-line:1.25rem] [&_.prompt-editor]:min-h-5 [&_.prompt-editor]:text-[13px] [&_.prompt-editor]:leading-5">
-            {children}
-          </div>
-          <div
-            className="flex shrink-0 items-center gap-1 self-end"
-            data-slot="composer-actions"
-          >
-            {trailing}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col self-stretch py-1 [--prompt-editor-line:1.25rem] [&_.prompt-editor]:min-h-5 [&_.prompt-editor]:text-[13px] [&_.prompt-editor]:leading-5">
+              {children}
+            </div>
+            <div
+              className="flex shrink-0 items-center gap-1 self-end"
+              data-slot="composer-actions"
+            >
+              {trailing}
+            </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
   // The row is drawn where the host asked for it, or along the box's foot; a

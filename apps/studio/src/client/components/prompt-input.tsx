@@ -153,6 +153,13 @@ interface PromptInputProps {
   /** A chip at the head of the box, before any attached file: what goes with the prompt besides its words. */
   lead?: React.ReactNode;
   modelURI?: AIGatewayModelURI.Type;
+  /**
+   * The host's note about the chat, drawn where the model's own notice is
+   * so the two never stack. An urgent one (the last turn was stopped) takes
+   * the place over any model notice; otherwise a problem with the model
+   * comes first and the host's note shows when there is none.
+   */
+  note?: { node: React.ReactNode; urgent: boolean };
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onSubmit: (value: {
     files?: FileUpload.Input[];
@@ -187,6 +194,7 @@ export const PromptInput = ({
   isLoading,
   lead,
   modelURI,
+  note,
   onModelChange,
   onSubmit,
   placeholder,
@@ -295,13 +303,17 @@ export const PromptInput = ({
           setDismissedOffers((current) => [...current, modelStatus.offerKey]);
         }
       : undefined;
-  const noticeRow = modelNotice && (
+  const modelNoticeRow = modelNotice && (
     <ModelNoticeRow
       notice={modelNotice}
       onAction={handleModelAction}
       onDismiss={dismissOffer}
     />
   );
+  const noticeRow =
+    note && (note.urgent || !modelNotice || modelNotice.tone === "offer")
+      ? note.node
+      : modelNoticeRow;
 
   useEffect(() => {
     setInputRef(promptEditorRef.current);

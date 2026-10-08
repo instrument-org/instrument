@@ -30,6 +30,7 @@ import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
+import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
@@ -40,6 +41,17 @@ import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
+
+/**
+ * Fills the window less a toolbar band's depth on every side, so the top edge
+ * clears the band (and the macOS traffic lights over it) and the other three
+ * match it. The viewport units are divided by the zoom; the inset is layout px
+ * and scales with the band it mirrors.
+ */
+const WINDOW_FILL = {
+  height: `calc(100vh / var(--content-zoom) - ${2 * TOOLBAR_HEIGHT}px)`,
+  width: `calc(100vw / var(--content-zoom) - ${2 * TOOLBAR_HEIGHT}px)`,
+};
 
 interface NavItem {
   icon: React.ElementType;
@@ -111,9 +123,9 @@ function SettingsModalContent({
   return (
     <DialogContent
       aria-describedby={undefined}
-      className="h-180 w-225 gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none"
-      maxHeight="45rem"
-      maxWidth="56.25rem"
+      className="h-full gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none"
+      maxHeight={WINDOW_FILL.height}
+      maxWidth={WINDOW_FILL.width}
       onExitComplete={onExitComplete}
       showCloseButton={false}
     >

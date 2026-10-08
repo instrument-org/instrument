@@ -236,7 +236,7 @@ describe("a chat's plus", () => {
         "Attach files",
         "Add a folder",
         "Apps",
-        "Skill",
+        "Skills",
       ]
     `);
     await userEvent.click(page.getByRole("menuitem", { name: "Browser" }));

@@ -16,8 +16,8 @@ export const MOUNT = {
    * The workspace's own `apps/` directory: one folder per app the agent has
    * set up, each holding a manifest and a guide and never a secret.
    *
-   * Writable for the chat, which authors apps; a task reaches the
-   * apps it was handed through the `app` command rather than the folder.
+   * Writable for the chat, which authors apps; a task reaches its apps
+   * through the `app` command rather than the folder.
    */
   apps: "/apps",
 
@@ -41,7 +41,8 @@ export const MOUNT = {
   skills: "/skills",
 
   /**
-   * The task itself, and the agent's working directory.
+   * The agent's working folder, and its working directory: a chat's own
+   * folder, which its forks share, or a briefed task's.
    *
    * A named home rather than the filesystem root, so the agent has a clear,
    * stable place to work and is less prone to hallucinating host paths.
@@ -52,11 +53,11 @@ export const MOUNT = {
   task: "/task",
 
   /**
-   * Where a chat sees the tasks it created, one read-only mount per
-   * task at `/tasks/<id>`. Plural, beside the singular `/task` that is the
-   * chat's own scratch, because the two are different things: its own
-   * folder is where it keeps notes, and these are the folders of the work it
-   * delegated, which it reads and never writes.
+   * Where a chat sees the folders of its briefed tasks, one read-only mount
+   * per task at `/tasks/<id>`. Plural, beside the singular `/task` that is
+   * the chat's own folder, because the two are different things: a briefed
+   * task kept its work in a folder of its own, which the chat reads and never
+   * writes. A fork works in the chat's folder and has none here.
    */
   tasks: "/tasks",
 } as const;

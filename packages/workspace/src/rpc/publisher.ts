@@ -75,7 +75,7 @@ export const publisher = new EventPublisher<{
    * Something about one record moved: its transcript, its sessions, its
    * settings or state, its agent, or the record itself is gone. Published
    * where the change is made (the store's write layer, the record writer,
-   * the session actor, the hold registry), so a view that re-reads on it
+   * the session actor), so a view that re-reads on it
    * hears every change without keeping a list of events. Read through
    * `recordChanges` in `lib/record-changes.ts`.
    */

@@ -60,8 +60,8 @@ const status = base
   });
 
 /**
- * The same, again whenever anything about the task moves: its agent, a hold,
- * its transcript (the step), its sessions, its settings (the title). An
+ * The same, again whenever anything about the task moves: its agent, its
+ * transcript (the step), its sessions, its settings (the title). An
  * answer the same as the last is not sent, so a reply streaming in sends
  * nothing until the step changes.
  */

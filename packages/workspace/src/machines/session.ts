@@ -18,7 +18,9 @@ import { createAssignEventError } from "../lib/assign-event-error";
 import { createSession } from "../lib/create-session";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
 import {
+  type CutOffTurn,
   type ForkedTurn,
+  cutOffNote,
   forkInterruptedTurn,
   interruptedNote,
   keepsTheWork,
@@ -133,7 +135,7 @@ export const sessionMachine = setup({
     agentMachine,
 
     forkInterruptedTurn: fromPromise<
-      ForkedTurn | undefined,
+      CutOffTurn | ForkedTurn | undefined,
       {
         exclude: StoreId.Message[];
         sessionId: StoreId.Session;
@@ -577,9 +579,10 @@ export const sessionMachine = setup({
     },
 
     // The turn a newer message superseded goes on in a fork, and the message
-    // that superseded it says so to the agent that answers it. Nothing to
-    // carry on, or a fork of the chat's already running, and the message
-    // simply runs next. A stop here drops the
+    // that superseded it says so to the agent that answers it. With a fork of
+    // the chat's already running, the turn is not forked and the note says
+    // the work stopped; with nothing to carry on, the message simply runs
+    // next. A stop here drops the
     // fork, and one that was made as the stop landed stops with it.
     ForkingInterruptedTurn: {
       exit: assign({ interruptedTurn: undefined }),
@@ -602,7 +605,12 @@ export const sessionMachine = setup({
             }
             return {
               queuedMessages: [
-                withNote(first, interruptedNote(forked)),
+                withNote(
+                  first,
+                  "cutOff" in forked
+                    ? cutOffNote(forked)
+                    : interruptedNote(forked),
+                ),
                 ...rest,
               ],
               // Written again with the note, if the sender wrote it already.

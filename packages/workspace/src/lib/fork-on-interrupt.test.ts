@@ -358,7 +358,7 @@ describe("forkInterruptedTurn", () => {
 
   it("starts a fork of the chat that inherits the turn up to its last finished step", async () => {
     const forked = await fork();
-    if (!forked) {
+    if (!forked || "cutOff" in forked) {
       throw new Error("nothing was forked");
     }
     expect(await getTaskSettings(taskDir(forked.taskId))).toMatchObject({
@@ -393,13 +393,16 @@ describe("forkInterruptedTurn", () => {
     expect(forked.name).toMatch(/feedback notes/);
   });
 
-  it("forks nothing while the chat's last auto-fork still runs", async () => {
+  it("forks nothing while the chat's last auto-fork still runs, and says the turn was cut off", async () => {
     const first = await fork();
-    if (!first) {
+    if (!first || "cutOff" in first) {
       throw new Error("nothing was forked");
     }
     working.ids.add(first.taskId);
-    await expect(fork()).resolves.toBeUndefined();
+    await expect(fork()).resolves.toEqual({
+      cutOff: true,
+      running: first.taskId,
+    });
     working.ids.clear();
     await expect(fork()).resolves.toMatchObject({ taskId: expect.any(String) });
     expect(started()).toHaveLength(2);
@@ -429,7 +432,7 @@ describe("forkInterruptedTurn", () => {
 
   it("lists the chat's running forks for a stop of the chat", async () => {
     const forked = await fork();
-    if (!forked) {
+    if (!forked || "cutOff" in forked) {
       throw new Error("nothing was forked");
     }
     expect(await runningForks(chatId)).toEqual([]);

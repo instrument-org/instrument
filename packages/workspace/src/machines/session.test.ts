@@ -1919,8 +1919,30 @@ describe("sessionMachine", () => {
         expect(shorthand).toContain("I'm done.</text>");
       });
 
-      // Nothing to carry on, or a fork of the chat's already running: the
-      // message runs next as it would without the flag, with no note.
+      // A fork of the chat's already running: nothing is forked, and the
+      // message carries a note saying the work stopped where it was.
+      it("tells the next turn its work was cut off when a fork already runs", async () => {
+        const { result } = await startForking(() =>
+          Promise.resolve({ cutOff: true, running: forked.taskId }),
+        );
+        const message = interruption("unrelated, quick: what's 18% of 240?");
+        await Store.saveMessageWithParts(message, result.taskId);
+        result.actor.send({
+          interrupt: true,
+          model: createMockAIGatewayModel(),
+          saved: true,
+          type: "addMessage",
+          value: message,
+        });
+
+        const session = await runTestMachine(result);
+        expect(sessionToShorthand(session)).toContain(
+          `That work stopped where it was and nothing is carrying it on, since task ${forked.taskId}`,
+        );
+      });
+
+      // Nothing to carry on: the message runs next as it would without the
+      // flag, with no note.
       it("runs the message plainly when nothing was forked", async () => {
         const { inputs, result } = await startForking(() =>
           Promise.resolve(undefined),

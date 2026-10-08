@@ -49,6 +49,16 @@ export interface ForkedTurn {
 }
 
 /**
+ * A turn with work worth carrying on that was not forked, because the chat's
+ * last auto-fork (`running`) still runs. Its finished steps stay in the
+ * chat's history, and nothing else is doing them.
+ */
+export interface CutOffTurn {
+  cutOff: true;
+  running: TaskId;
+}
+
+/**
  * Whether a message the user sent mid-turn leaves the turn's work wanted. A
  * message that calls it off ends the turn the way any interruption did, with
  * nothing forked to stop again.
@@ -123,10 +133,11 @@ function isFinished(message: SessionMessage.WithParts): boolean {
 
 /**
  * Forks an interrupted turn of a chat to the background, or does nothing
- * (undefined) when there is nothing to carry on or the chat's last auto-fork
- * is still running, in which case the interruption only ends the turn. Runs after the turn has stopped, so what it reads is settled. A fork
- * made as `signal` aborts (the user stopped the chat meanwhile) is stopped
- * at once.
+ * (undefined) when there is nothing to carry on. When the chat's last
+ * auto-fork is still running, the interruption only ends the turn, and the
+ * answer says so (`CutOffTurn`) so the agent can be told. Runs after the turn
+ * has stopped, so what it reads is settled. A fork made as `signal` aborts
+ * (the user stopped the chat meanwhile) is stopped at once.
  */
 export async function forkInterruptedTurn({
   chatId,
@@ -142,11 +153,7 @@ export async function forkInterruptedTurn({
   signal?: AbortSignal;
   /** The user's message the interrupted turn answers. */
   turnMessageId: StoreId.Message;
-}): Promise<ForkedTurn | undefined> {
-  const running = autoForks.get(chatId);
-  if (running && isWorking(running)) {
-    return undefined;
-  }
+}): Promise<CutOffTurn | ForkedTurn | undefined> {
   const messages = await Store.getMessagesWithParts({
     sessionId: chatSessionId,
     taskId: chatId,
@@ -164,6 +171,10 @@ export async function forkInterruptedTurn({
   const request = prefix?.find((message) => message.id === turnMessageId);
   if (!prefix || !request) {
     return undefined;
+  }
+  const running = autoForks.get(chatId);
+  if (running && isWorking(running)) {
+    return { cutOff: true, running };
   }
   const keepIds = new Set(prefix.map((message) => message.id));
   const { model, modelURI } = await chatModel("fork", {
@@ -203,6 +214,17 @@ const CARRY_ON =
 export function interruptedNote({ name, taskId }: ForkedTurn): string {
   return systemNote`
     The user sent this while you were still working on their earlier request. That work was not dropped: it carries on in the background as task ${taskId} ("${name}"), a fork of you that picks up from your last finished step, and you will be told when it finishes. Do not redo it or wait on it; answer this message. If this message changes that work, \`${TASK_COMMAND.name} send ${taskId}\` passes the change on; if it calls the work off, \`${TASK_COMMAND.name} stop ${taskId}\`.
+  `.trim();
+}
+
+/**
+ * Said to the chat beside the message that interrupted it when the turn
+ * could not be forked: the work stopped where it was, and nothing carries
+ * it on.
+ */
+export function cutOffNote({ running }: CutOffTurn): string {
+  return systemNote`
+    The user sent this while you were still working on their earlier request. That work stopped where it was and nothing is carrying it on, since task ${running}, from an earlier interruption, is still running. Its finished steps are above. Answer this message; then pick that work up where it stopped, unless this message replaces it.
   `.trim();
 }
 

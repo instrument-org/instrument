@@ -1,0 +1,196 @@
+[
+  {
+    "query": "design tool",
+    "must": ["figma", "canva"],
+    "ok": [
+      "miro",
+      "lucid",
+      "excalidraw",
+      "whimsical",
+      "drawio",
+      "paper",
+      "mermaid-chart",
+      "lovable",
+      "gamma"
+    ]
+  },
+  {
+    "query": "easy design tool",
+    "must": ["canva"],
+    "ok": [
+      "figma",
+      "paper",
+      "lovable",
+      "whimsical",
+      "excalidraw",
+      "gamma",
+      "miro",
+      "lucid",
+      "drawio"
+    ]
+  },
+  {
+    "query": "photo editing",
+    "must": ["canva"],
+    "ok": ["cloudinary", "fal", "replicate", "figma"]
+  },
+  {
+    "query": "make a logo",
+    "must": ["canva"],
+    "ok": ["figma", "fal", "replicate", "paper", "lovable"]
+  },
+  {
+    "query": "make slides",
+    "must": ["gamma"],
+    "ok": ["canva", "google-drive", "onedrive", "figma"]
+  },
+  { "query": "order groceries", "must": ["instacart"], "ok": [] },
+  {
+    "query": "video calls",
+    "must": ["zoom", "teams"],
+    "ok": ["slack", "google-calendar"]
+  },
+  {
+    "query": "accounting",
+    "must": ["quickbooks", "xero"],
+    "ok": ["brex", "ramp", "mercury", "paypal", "stripe", "square", "paddle"]
+  },
+  {
+    "query": "send newsletters",
+    "must": ["klaviyo"],
+    "ok": [
+      "resend",
+      "typefully",
+      "hubspot",
+      "kajabi",
+      "squarespace",
+      "wix",
+      "intercom"
+    ]
+  },
+  {
+    "query": "note taking app",
+    "must": ["apple-notes", "notion"],
+    "ok": ["craft", "mem", "granola", "otter", "padlet", "fireflies", "fathom"]
+  },
+  {
+    "query": "project management",
+    "must": ["asana", "linear", "monday", "clickup", "trello", "atlassian"],
+    "ok": [
+      "shortcut",
+      "todoist",
+      "notion",
+      "airtable",
+      "productboard",
+      "akiflow"
+    ]
+  },
+  { "query": "text my mom", "must": ["apple-messages"], "ok": [] },
+  { "query": "music", "must": ["spotify"], "ok": ["elevenlabs", "audible"] },
+  {
+    "query": "crm",
+    "must": ["hubspot", "attio", "close"],
+    "ok": [
+      "apollo",
+      "clay",
+      "zoominfo",
+      "intercom",
+      "monday",
+      "airtable",
+      "crossbeam"
+    ]
+  },
+  {
+    "query": "customer support inbox",
+    "must": ["intercom", "front"],
+    "ok": ["gmail", "superhuman", "slack", "outlook"]
+  },
+  {
+    "query": "track my runs",
+    "must": ["strava"],
+    "ok": ["peloton", "alltrails"]
+  },
+  {
+    "query": "word documents",
+    "must": ["onedrive"],
+    "ok": ["google-drive", "dropbox", "box", "notion", "craft", "pandadoc"]
+  },
+  {
+    "query": "spreadsheet",
+    "must": ["airtable", "google-drive", "onedrive"],
+    "ok": ["hex", "motherduck", "jotform"]
+  },
+  { "query": "e-signature", "must": ["signnow", "pandadoc"], "ok": [] },
+  {
+    "query": "my calendar",
+    "must": ["apple-calendar", "google-calendar"],
+    "ok": ["outlook", "calendly", "akiflow"]
+  },
+  { "query": "weather", "must": ["openweather"], "ok": [] },
+  {
+    "query": "code hosting",
+    "must": ["github", "gitlab"],
+    "ok": ["vercel", "netlify", "render", "railway", "heroku"]
+  },
+  {
+    "query": "cheap flights",
+    "must": ["kiwi", "skiplagged"],
+    "ok": ["trivago"]
+  },
+  {
+    "query": "book a hotel",
+    "must": ["trivago"],
+    "ok": ["kiwi", "skiplagged"]
+  },
+  { "query": "hire a plumber", "must": ["thumbtack"], "ok": [] },
+  { "query": "audiobooks", "must": ["audible"], "ok": ["spotify"] },
+  { "query": "hiking trails", "must": ["alltrails"], "ok": ["strava"] },
+  {
+    "query": "error monitoring",
+    "must": ["sentry"],
+    "ok": ["posthog", "axiom", "grafana", "pagerduty", "incident-io"]
+  },
+  {
+    "query": "sell things online",
+    "must": ["shopify"],
+    "ok": [
+      "squarespace",
+      "wix",
+      "webflow",
+      "kajabi",
+      "square",
+      "stripe",
+      "paypal",
+      "paddle"
+    ]
+  },
+  {
+    "query": "whiteboard",
+    "must": ["miro", "excalidraw"],
+    "ok": ["whimsical", "figma", "lucid", "padlet", "drawio", "canva"]
+  },
+  {
+    "query": "meeting transcripts",
+    "must": ["otter", "fireflies", "granola", "fathom"],
+    "ok": ["zoom", "teams"]
+  },
+  { "query": "buy stocks", "must": ["interactive-brokers"], "ok": [] },
+  {
+    "query": "take card payments",
+    "must": ["stripe", "square"],
+    "ok": ["paypal", "paddle", "razorpay", "shopify"]
+  },
+  {
+    "query": "automate my workflows",
+    "must": ["zapier", "make", "ifttt"],
+    "ok": []
+  },
+  {
+    "query": "build a website",
+    "must": ["squarespace", "wix", "webflow"],
+    "ok": ["lovable", "shopify", "framer", "vercel", "netlify", "gamma"]
+  },
+  { "query": "text to speech", "must": ["elevenlabs"], "ok": [] },
+  { "query": "hello", "must": [], "ok": [] },
+  { "query": "asdf qwerty", "must": [], "ok": [] }
+]

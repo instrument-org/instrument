@@ -66,6 +66,9 @@ extend-exclude = [
   "registry/",
   # Brand icons copied from their collections, ids and all.
   "packages/workspace/directory-icons/",
+  # Messages as people typed them, typos included: the decision eval asks
+  # about them as they are.
+  "packages/workspace/evals/decision/corpus/",
   # Generated or vendored, and not ours to spell.
   "pnpm-lock.yaml",
   "packages/workspace/src/lib/agent-browser-core-guide.generated.ts",

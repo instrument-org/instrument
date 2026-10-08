@@ -23,6 +23,7 @@
     "check:types": "tsgo --noEmit",
     "eval": "node --disable-warning=ExperimentalWarning --import tsx evals/cli.ts",
     "eval:activity-grouping": "node --disable-warning=ExperimentalWarning --import tsx evals/activity-grouping.ts",
+    "eval:decision": "node --disable-warning=ExperimentalWarning --import tsx evals/decision/cli.ts",
     "fix:lint": "oxlint --type-aware --fix",
     "script:chatgpt-account-token": "tsx scripts/chatgpt-account-token.ts",
     "script:clt-shim-audit": "cross-env NODE_ENV=development node --import tsx scripts/clt-shim-audit.ts",

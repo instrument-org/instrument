@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
+import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
@@ -29,7 +30,7 @@ import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { folderSubcommand } from "./task/folder";
-import { newSubcommand } from "./task/fork";
+import { newSubcommand, withoutForkingCall } from "./task/fork";
 import { type HandOff, withHandOffs } from "./task-hand-off";
 
 const runNew = subcommandRunner(newSubcommand, "task new");
@@ -410,6 +411,68 @@ describe("task new", () => {
     );
     expect(forkFolders.map((folder) => folder.path).toSorted()).toEqual(
       reach.map((folder) => folder.path).toSorted(),
+    );
+  });
+});
+
+describe("withoutForkingCall", () => {
+  // The fork call ran past its yield and was answered "still running in the
+  // background": the fork must not inherit that as work under way.
+  it("leaves out the forking call even once it was answered as backgrounded", () => {
+    const messages = conversation(chatSessionId);
+    const last = messages.at(-1);
+    if (last?.role !== "assistant") {
+      throw new Error("the conversation ends on a reply");
+    }
+    const backgrounded: SessionMessage.WithParts = {
+      ...last,
+      parts: last.parts.map(
+        (part): SessionMessagePart.Type =>
+          part.type === "tool-bash"
+            ? {
+                input: {
+                  command: "task new --name 'Rename photos'",
+                  explanation: "Forking",
+                  yieldMs: 1000,
+                },
+                metadata: {
+                  ...part.metadata,
+                  endedAt: new Date("2026-10-06T10:00:01.000Z"),
+                },
+                output: {
+                  command: "task new --name 'Rename photos'",
+                  commands: ["task new --name 'Rename photos'"],
+                  durationMs: 1000,
+                  omittedBytes: 0,
+                  output: "",
+                  processId: "bg_1",
+                },
+                state: "output-available",
+                toolCallId: part.toolCallId,
+                type: "tool-bash",
+              }
+            : part,
+      ),
+    };
+    const kept = withoutForkingCall([...messages.slice(0, -1), backgrounded]);
+    expect(kept).toHaveLength(messages.length);
+    expect(kept.at(-1)?.parts.map((part) => part.type)).toEqual(["text"]);
+    // Earlier steps are the cached prefix and stay as they were.
+    expect(kept.slice(0, -1)).toEqual(messages.slice(0, -1));
+  });
+
+  it("drops the step whole when the forking call was all of it", () => {
+    const messages = conversation(chatSessionId);
+    const last = messages.at(-1);
+    if (last?.role !== "assistant") {
+      throw new Error("the conversation ends on a reply");
+    }
+    const onlyCall = {
+      ...last,
+      parts: last.parts.filter((part) => part.type === "tool-bash"),
+    };
+    expect(withoutForkingCall([...messages.slice(0, -1), onlyCall])).toEqual(
+      messages.slice(0, -1),
     );
   });
 });

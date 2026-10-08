@@ -87,6 +87,7 @@ async function runFork(
     folders: grantsOfChat(await folderReach(context.chatId)),
     handedTabs,
     idFrom: directive,
+    keep: withoutForkingCall,
     model,
     modelURI,
     name,
@@ -94,6 +95,39 @@ async function runFork(
   });
   recordHandOff({ kind: "created", taskId });
   return `Started task ${taskId} ("${name}"). It is running now, in this folder with your folders.\n${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`;
+}
+
+/** A shell command that runs `task new`, alone or in a chain. */
+const RUNS_TASK_NEW = new RegExp(
+  `(?:^|[\\s;&|(])${TASK_COMMAND.name}\\s+new\\b`,
+);
+
+/**
+ * The chat's messages without the call that is starting this fork, in the
+ * step running now (the newest message). Unanswered, it is dropped like any
+ * call with no result; but a call that ran past its yield has already been
+ * answered "still running in the background", and a fork that inherits that
+ * answer reads its own start as the work already under way, and waits on it.
+ * Only the newest step changes, which is past the prefix the provider has
+ * cached.
+ */
+export function withoutForkingCall(
+  messages: SessionMessage.WithParts[],
+): SessionMessage.WithParts[] {
+  const last = messages.at(-1);
+  if (last?.role !== "assistant") {
+    return messages;
+  }
+  const parts = last.parts.filter(
+    (part) =>
+      part.type !== "tool-bash" ||
+      !RUNS_TASK_NEW.test(part.input?.command ?? ""),
+  );
+  if (parts.length === last.parts.length) {
+    return messages;
+  }
+  const rest = messages.slice(0, -1);
+  return parts.length === 0 ? rest : [...rest, { ...last, parts }];
 }
 
 /** A folder a fork is granted, in the shape `newMessage` takes. */

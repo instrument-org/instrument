@@ -37,9 +37,9 @@ const USER_ACTIONABLE = new Set<WebSearchFailure["errorType"]>([
 ]);
 
 // Our search endpoint answers a burst with a rate limit that clears almost at
-// once. One short retry usually gets the
-// better backend back rather than spending the rest of the task on the weaker
-// one; the provider's own search is the floor, not the target.
+// once. One short retry usually gets the better backend back rather than
+// spending the rest of the task on the weaker one; the provider's own search
+// is the floor, not the target.
 const RETRY_DELAY_MS = 250;
 
 /**

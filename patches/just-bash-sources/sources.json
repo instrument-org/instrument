@@ -70,6 +70,12 @@
       "pulls": [
         { "number": 544, "commit": "da2e87cf2c0428fb0b0989e218ccdec477046dbf" }
       ]
+    },
+    {
+      "name": "find time predicates",
+      "pulls": [
+        { "number": 555, "commit": "500413a98d771fbea4592c4dbb5ae2505f6ed0b3" }
+      ]
     }
   ]
 }

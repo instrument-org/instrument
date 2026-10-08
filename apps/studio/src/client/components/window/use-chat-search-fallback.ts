@@ -1,4 +1,5 @@
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { decisionBar } from "@instrument-org/shared/decision-bars";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -7,7 +8,9 @@ import { useDecisionModelAvailable } from "./use-decision-model-available";
 
 /**
  * Most questions one request carries: the API refuses more than 512, and the
- * question about the search itself rides in the first.
+ * question about the search itself rides in the first. A longer search is
+ * split evenly rather than in 500s, so no request is short enough for the API
+ * to answer it from another model than the rest.
  */
 const PER_REQUEST = 500;
 const MEANINGFUL = "meaningful";
@@ -20,11 +23,12 @@ const MEANINGFUL = "meaningful";
 const MEANINGFUL_AT_LEAST = 0.3;
 /**
  * How sure the model has to be that a chat is related to the search, judged
- * on its own rather than against the best fit: on 34 labeled searches over
- * 376 real chats, clef-flash found 89% of the chats each search meant, and
- * nonsense and searches about nothing there ("asdf", "taxes") top out at 0.4.
+ * on its own rather than against the best fit. On 34 labeled searches over
+ * 376 real chats, Clef-flash at 0.6 finds 86 of the 97 chats meant with 15
+ * wrong, and Clef at 0.45 as many with 14; padded to 1000 chats, Clef offers
+ * 30 wrong where Clef-flash offers 53.
  */
-const FITS_AT_LEAST = 0.6;
+const FITS_AT_LEAST = { clef: 0.45, clefFlash: 0.6, other: 0.6 };
 const MOST = 12;
 /**
  * The most chats one search asks about, the most recently active first: two
@@ -87,10 +91,13 @@ export function useChatSearchFallback({
               ),
             ),
           );
-          return asked.reduce<Answers>(
-            (merged, { answers }) => ({ ...merged, ...answers }),
-            {},
-          );
+          return {
+            answers: asked.reduce<Answers>(
+              (merged, { answers }) => ({ ...merged, ...answers }),
+              {},
+            ),
+            model: asked[0]?.model,
+          };
         }
       : skipToken,
     queryKey: [
@@ -114,7 +121,10 @@ export function useChatSearchFallback({
 type Answers = RPCOutput["workspace"]["decision"]["ask"]["answers"];
 
 /** The chats the answers say the search is after, best fit first, or none when the search names nothing. */
-function fitting(answers: Answers, candidates: Chat[]): Chat[] {
+function fitting(
+  { answers, model }: { answers: Answers; model: string | undefined },
+  candidates: Chat[],
+): Chat[] {
   if ((answers[MEANINGFUL]?.noul ?? 0) < MEANINGFUL_AT_LEAST) {
     return [];
   }
@@ -126,7 +136,7 @@ function fitting(answers: Answers, candidates: Chat[]): Chat[] {
     }))
     .toSorted((a, b) => b.chance - a.chance);
   return fits
-    .filter(({ chance }) => chance >= FITS_AT_LEAST)
+    .filter(({ chance }) => chance >= decisionBar(model, FITS_AT_LEAST))
     .slice(0, MOST)
     .map(({ chat }) => chat);
 }
@@ -157,11 +167,12 @@ function requestsFor(candidates: Chat[]) {
       type: "noul",
     },
   ]);
+  const size = Math.ceil(
+    questions.length / Math.ceil(questions.length / PER_REQUEST),
+  );
   const requests = [];
-  for (let start = 0; start < questions.length; start += PER_REQUEST) {
-    requests.push(
-      Object.fromEntries(questions.slice(start, start + PER_REQUEST)),
-    );
+  for (let start = 0; start < questions.length; start += size) {
+    requests.push(Object.fromEntries(questions.slice(start, start + size)));
   }
   return requests;
 }

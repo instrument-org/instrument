@@ -25,8 +25,6 @@ import {
 import {
   Sidebar,
   SidebarContent,
-  SidebarGroup,
-  SidebarGroupLabel,
   SidebarInput,
   SidebarInset,
   SidebarMenu,
@@ -53,7 +51,6 @@ import { XIcon } from "@phosphor-icons/react/X";
 import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
-import { group } from "radashi";
 import { type RefObject, useEffect, useRef, useState } from "react";
 
 /** How long a jump waits for its row to be drawn before giving up on it. */
@@ -132,18 +129,17 @@ function SettingsModalContent({
     tabs: navItems.map((item) => item.tab),
   });
   // The result last opened, which stays lit in the list, and a count so
-  // opening the same one again lights its row again.
-  const [jump, setJump] = useState<{ id: string; n: number } | null>(null);
+  // opening the same one again lights its row again. A page has no row to
+  // light, so it only opens.
+  const [jump, setJump] = useState<{
+    flash: boolean;
+    id: string;
+    n: number;
+  } | null>(null);
   const contentRef = useRef<HTMLElement>(null);
   useFlashSetting(contentRef, jump);
 
-  // Grouped under each page in the order of its best match, and walked in
-  // that order by the arrow keys, so the highlight moves the way the list
-  // reads.
-  const groups = Object.entries(
-    group(search.matches, (match) => match.entry.tab),
-  ).map(([tab, matches = []]) => ({ matches, tab }));
-  const ordered = groups.flatMap((g) => g.matches.map((match) => match.entry));
+  const ordered = search.matches.map((match) => match.entry);
   // The result the keys are on, which a new search starts back at the top.
   const [cursor, setCursor] = useState({ index: 0, query });
   const highlighted =
@@ -160,7 +156,11 @@ function SettingsModalContent({
 
   const openResult = (entry: SettingsEntry) => {
     onSelectTab(entry.tab, entry.open);
-    setJump((last) => ({ id: entry.id, n: (last?.n ?? 0) + 1 }));
+    setJump((last) => ({
+      flash: !entry.page,
+      id: entry.id,
+      n: (last?.n ?? 0) + 1,
+    }));
   };
 
   return (
@@ -199,7 +199,9 @@ function SettingsModalContent({
                       : undefined
                   }
                   aria-label="Search settings"
-                  className="pr-8 pl-8 [&::-webkit-search-cancel-button]:hidden"
+                  // The ring is drawn inside the field: the sidebar's scroller
+                  // clips anything drawn past its edge.
+                  className="pr-8 pl-8 focus-visible:-outline-offset-3 [&::-webkit-search-cancel-button]:hidden"
                   onChange={(event) => {
                     setQuery(event.target.value);
                   }}
@@ -241,9 +243,9 @@ function SettingsModalContent({
                   <SearchResults
                     activeId={jump?.id}
                     failed={search.failed}
-                    groups={groups}
                     highlightedId={highlighted?.id}
                     isLooking={search.isLooking}
+                    matches={search.matches}
                     navItems={navItems}
                     onHighlight={(entry) => {
                       setCursor({ index: ordered.indexOf(entry), query });
@@ -291,16 +293,17 @@ function SettingsModalContent({
 }
 
 /**
- * The sidebar while there is a search: what matched, under the page each one
- * is on, in the order of each page's best match. Opening one keeps the list
- * up, so the next can be tried without searching again.
+ * The sidebar while there is a search: what matched, best first, each under
+ * its page's icon. A row says its own name with the page it is on beneath; a
+ * page says only its name. Opening one keeps the list up, so the next can be
+ * tried without searching again.
  */
 function SearchResults({
   activeId,
   failed,
-  groups,
   highlightedId,
   isLooking,
+  matches,
   navItems,
   onHighlight,
   onOpen,
@@ -308,16 +311,16 @@ function SearchResults({
 }: {
   activeId: string | undefined;
   failed: boolean;
-  groups: { matches: SettingsMatch[]; tab: string }[];
   /** The result the arrow keys are on, which Enter opens. */
   highlightedId: string | undefined;
   isLooking: boolean;
+  matches: SettingsMatch[];
   navItems: NavItem[];
   onHighlight: (entry: SettingsEntry) => void;
   onOpen: (entry: SettingsEntry) => void;
   query: string;
 }) {
-  if (groups.length === 0) {
+  if (matches.length === 0) {
     return (
       <p className="px-2 py-2 text-sm text-muted-foreground">
         {isLooking
@@ -328,45 +331,55 @@ function SearchResults({
       </p>
     );
   }
-  return groups.map(({ matches, tab }) => {
-    const item = navItems.find((nav) => nav.tab === tab);
-    return (
-      <SidebarGroup className="p-0 pb-2" key={tab}>
-        <SidebarGroupLabel>{item?.title ?? tab}</SidebarGroupLabel>
-        <SidebarMenu>
-          {matches.map(({ entry, titleRanges }) => (
-            <SidebarMenuItem key={entry.id}>
-              <SidebarMenuButton
-                className={cn(
-                  "focus-visible:-outline-offset-2",
-                  entry.id === highlightedId && "bg-black/10 dark:bg-white/10",
-                )}
-                id={resultElementId(entry.id)}
-                isActive={entry.id === activeId}
-                onClick={() => {
-                  onOpen(entry);
-                }}
-                onMouseMove={() => {
-                  onHighlight(entry);
-                }}
-                ref={
-                  entry.id === highlightedId
-                    ? (element: HTMLButtonElement | null) => {
-                        element?.scrollIntoView({ block: "nearest" });
-                      }
-                    : undefined
-                }
-              >
-                <span className="truncate">
-                  <FuzzyHighlight ranges={titleRanges} text={entry.title} />
+  return (
+    <SidebarMenu>
+      {matches.map(({ entry, titleRanges }) => {
+        const page = navItems.find((item) => item.tab === entry.tab);
+        const Icon = page?.icon;
+        return (
+          <SidebarMenuItem key={entry.id}>
+            <SidebarMenuButton
+              className={cn(
+                "h-auto items-start gap-2.5 py-1.5 focus-visible:-outline-offset-2 [&>svg]:mt-0.5",
+                entry.id === highlightedId && "bg-black/10 dark:bg-white/10",
+              )}
+              id={resultElementId(entry.id)}
+              isActive={entry.id === activeId}
+              onClick={() => {
+                onOpen(entry);
+              }}
+              onMouseMove={() => {
+                onHighlight(entry);
+              }}
+              ref={
+                entry.id === highlightedId
+                  ? (element: HTMLButtonElement | null) => {
+                      element?.scrollIntoView({ block: "nearest" });
+                    }
+                  : undefined
+              }
+            >
+              {Icon ? <Icon /> : null}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">
+                  <FuzzyHighlight
+                    matchClassName="rounded-xs bg-brand-500/35 font-semibold text-foreground"
+                    ranges={titleRanges}
+                    text={entry.title}
+                  />
                 </span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarGroup>
-    );
-  });
+                {entry.page ? null : (
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {page?.title ?? entry.tab}
+                  </span>
+                )}
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        );
+      })}
+    </SidebarMenu>
+  );
 }
 
 /** The DOM id of a result's row, which the search field names as the one the keys are on. */
@@ -381,10 +394,10 @@ function resultElementId(id: string) {
  */
 function useFlashSetting(
   contentRef: RefObject<HTMLElement | null>,
-  jump: { id: string; n: number } | null,
+  jump: { flash: boolean; id: string; n: number } | null,
 ) {
   useEffect(() => {
-    if (!jump) {
+    if (!jump?.flash) {
       return;
     }
     const deadline = performance.now() + FLASH_WAIT_MS;

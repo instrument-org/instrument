@@ -20,6 +20,8 @@ export type SettingsEntry = {
   id: string;
   /** What Settings is opened with beyond the page, for a memory. */
   open?: { memory: string };
+  /** A whole page, which opens at its top rather than at a row. */
+  page?: true;
   tab: SettingsTab;
   title: string;
 };
@@ -178,7 +180,9 @@ const fuzzy = new uFuzzy({ intraMode: 1 });
 /**
  * Ranks entries against `query`, best first, with the ranges to highlight in
  * each title. The detail, aliases, and page name are searched too, so "dark"
- * finds Theme and "providers" every provider, but only the title is drawn.
+ * finds Theme and "providers" every provider, but only the title is drawn, so
+ * an entry whose title matches comes first, then one whose detail or aliases
+ * do, and last one found only by the page it is on.
  */
 export function matchSettings(
   entries: SettingsEntry[],
@@ -203,14 +207,21 @@ export function matchSettings(
   }
   const info = fuzzy.info(indexes, haystack, needle);
   const order = fuzzy.sort(info, haystack, needle);
-  return order.flatMap((orderIdx) => {
+  const ranked = order.flatMap((orderIdx) => {
     const index = info.idx[orderIdx] ?? -1;
     const entry = entries[index];
     const field = fields[index];
     if (!entry || !field) {
       return [];
     }
-    const [titleRanges] = field.splitRanges(info.ranges[orderIdx] ?? null);
-    return [{ entry, titleRanges: titleRanges ?? null }];
+    const [titleRanges, detailRanges, aliasRanges] = field.splitRanges(
+      info.ranges[orderIdx] ?? null,
+    );
+    const tier = titleRanges ? 0 : detailRanges || aliasRanges ? 1 : 2;
+    return [{ entry, tier, titleRanges: titleRanges ?? null }];
   });
+  // Stable, so uFuzzy's order holds within each tier.
+  return ranked
+    .toSorted((a, b) => a.tier - b.tier)
+    .map(({ entry, titleRanges }) => ({ entry, titleRanges }));
 }

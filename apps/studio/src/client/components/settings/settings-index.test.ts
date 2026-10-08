@@ -53,6 +53,10 @@ describe("matchSettings", () => {
     expect(titles(query)[0]).toBe(title);
   });
 
+  it("ranks a title match over one in the aliases or page name", () => {
+    expect(titles("pro").slice(0, 1)).toEqual(["Add provider"]);
+  });
+
   it("finds nothing for an empty search", () => {
     expect(titles("  ")).toEqual([]);
   });

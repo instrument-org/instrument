@@ -55,7 +55,11 @@ export function useSettingsSearch({
   const matches = matchSettings(entries, deferredQuery);
   const fallback = useMeaningFallback({
     active: active && matches.length === 0,
-    candidates: entries.filter((entry) => entry.open === undefined),
+    // A page is found by its name, and a memory is the person's own words:
+    // neither is something to ask the model whether a search means.
+    candidates: entries.filter(
+      (entry) => entry.open === undefined && !entry.page,
+    ),
     search: query,
   });
   return {
@@ -93,7 +97,16 @@ function useSettingsEntries({
     return [];
   }
 
+  const pages = tabs.map(
+    (tab): SettingsEntry => ({
+      id: `page:${tab}`,
+      page: true,
+      tab,
+      title: tab,
+    }),
+  );
   const entries: SettingsEntry[] = [
+    ...pages,
     ...SETTINGS_INDEX.filter(
       (entry) =>
         isDeveloperMode || !("developerOnly" in entry && entry.developerOnly),

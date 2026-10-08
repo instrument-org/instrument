@@ -32,6 +32,10 @@ Never commit machine-local paths (`/Users/...`, `~/code/...`, `C:\...`) or names
 
 Sources outside this repo are reachable by name instead: `agent-reference.json` (shared) and `agent-reference.local.json` (gitignored, where machine paths go) declare them, and `agent-reference status` lists them.
 
+## Pricing and plans
+
+What a capability costs us, and how plans and limits are tuned, stays out of this repo: code, comments, docs, and commits. Enforce those choices in the API and keep the reasoning in the private server repo. Here, describe only what the app does.
+
 ## Registry Submodule
 
 **NEVER edit `registry/`.** It is the `instrument-org/skills` git submodule. Read freely; do not create, edit, or delete files there.

@@ -332,7 +332,7 @@ export function ComposerAddMenu({
                   }}
                 >
                   <CubeIcon className="size-4" />
-                  <span className="min-w-0 flex-1">Skill</span>
+                  <span className="min-w-0 flex-1">Skills</span>
                   <CaretRightIcon className="size-3.5 text-muted-foreground" />
                 </DropdownMenuItem>
               )}

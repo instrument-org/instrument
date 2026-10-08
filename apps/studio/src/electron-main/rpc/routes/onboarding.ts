@@ -7,6 +7,11 @@ import {
   closeOnboardingWindow,
   growOnboardingWindow,
 } from "@/electron-main/windows/onboarding";
+import {
+  IN_APP_ONBOARDING_VERSION,
+  isInAppOnboardingPending,
+} from "@/shared/in-app-onboarding";
+import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { screen } from "electron";
 
 const complete = base.handler(() => {
@@ -21,6 +26,27 @@ const complete = base.handler(() => {
   );
 });
 
+/**
+ * Whether the app window should open on onboarding's in-app steps: past the
+ * sign-in window, behind the steps this build has. Never for a run started
+ * with SKIP_ONBOARDING, which wants the window as it is.
+ */
+const inAppStatus = base.handler(() => ({
+  pending: isInAppOnboardingPending({
+    completedVersion: getWorkspaceState().get("onboardingVersion"),
+    hasCompletedProviderSetup: getWorkspaceState().get(
+      "hasCompletedProviderSetup",
+    ),
+    skip: process.env.SKIP_ONBOARDING === "true",
+  }),
+}));
+
+/** Records the in-app steps as done, so they do not show again. */
+const finishInApp = base.handler(() => {
+  getWorkspaceState().set("onboardingVersion", IN_APP_ONBOARDING_VERSION);
+});
+
 export const onboarding = {
   complete,
+  inApp: { finish: finishInApp, status: inAppStatus },
 };

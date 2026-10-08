@@ -1,5 +1,5 @@
 import { keptAtom } from "@/client/lib/kept-state";
-import { openPlanSheet } from "@/client/atoms/plan-sheet";
+import { openPlanSheet, trialPlanAtom } from "@/client/atoms/plan-sheet";
 import { Button } from "@/client/components/ui/button";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
@@ -20,7 +20,7 @@ import { GaugeIcon } from "@phosphor-icons/react/Gauge";
 import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -73,6 +73,7 @@ export function ChatBillingNotice({
       },
     }),
   );
+  const trialPlan = useAtomValue(trialPlanAtom);
   const [dismissedNotice, setDismissedNotice] = useState<null | string>(null);
   const [dismissedWarning, setDismissedWarning] = useAtom(
     dismissedUsageWarningAtom,
@@ -126,7 +127,7 @@ export function ChatBillingNotice({
   const act = (kind: BillingNoticeAction) => {
     switch (kind) {
       case "choose-plan": {
-        openPlanSheet();
+        openPlanSheet({ preselect: trialPlan ?? undefined });
         break;
       }
       case "contact-support": {

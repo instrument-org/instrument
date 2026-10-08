@@ -1,4 +1,5 @@
 import { liveRead } from "@instrument-org/workspace/electron";
+import { checkClaudeAccount } from "@/electron-main/lib/account-check";
 import {
   cancelClaudeSignIn,
   claudeAccountStatus,
@@ -75,7 +76,17 @@ const install = base.handler(() => installClaudeCode());
 /** The subscription's usage by window, read fresh from Claude Code each time. */
 const usage = base.handler(() => claudeAccountUsage());
 
+/**
+ * Whether the Claude account can run a turn now: ready, signed out, a plan
+ * that can't be used here, or out of usage. Reads usage first, then sends one
+ * short request when it must; see `checkClaudeAccount`.
+ */
+const check = base.handler(({ context }) =>
+  checkClaudeAccount(context.workspaceConfig),
+);
+
 export const claudeAccount = {
+  check,
   cancelSignIn,
   connect,
   install,

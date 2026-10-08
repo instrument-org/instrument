@@ -1,3 +1,4 @@
+import { keptAtom } from "@/client/lib/kept-state";
 import { atom, getDefaultStore } from "jotai";
 
 interface PlanSheetState {
@@ -12,6 +13,16 @@ interface PlanSheetState {
  * replacing the modal under it.
  */
 export const planSheetAtom = atom<null | PlanSheetState>(null);
+
+/**
+ * The plan picked when the trial started, which the sheet the trial's end
+ * opens leads with.
+ */
+export const trialPlanAtom = keptAtom<null | string>(
+  "layout",
+  "billing-trial-plan.v1",
+  null,
+);
 
 export function openPlanSheet(state: PlanSheetState = {}) {
   getDefaultStore().set(planSheetAtom, state);

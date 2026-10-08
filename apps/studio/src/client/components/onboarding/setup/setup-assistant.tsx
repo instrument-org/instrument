@@ -2,7 +2,9 @@ import { SetupGround } from "@/client/components/onboarding/setup/chrome";
 import { SetupContext } from "@/client/components/onboarding/setup/context";
 import {
   initialSetupState,
+  type SetupAction,
   setupReducer,
+  type SetupStep,
 } from "@/client/components/onboarding/setup/flow";
 import { SetupStepPage } from "@/client/components/onboarding/setup/screens";
 import {
@@ -14,7 +16,7 @@ import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useReducer, useState } from "react";
+import { type Dispatch, useEffect, useReducer, useState } from "react";
 
 /**
  * Onboarding, drawn over the whole app window while it is pending: on a first
@@ -84,6 +86,7 @@ function SetupFlow({
   );
   // Starts writing the person's tasks as they leave "What fills your week?".
   useTaskWriting(state);
+  useDevStepJump(dispatch);
   const saveDrafts = useSaveSetupDrafts();
   const finish = () => {
     saveDrafts(state.answers);
@@ -96,4 +99,28 @@ function SetupFlow({
       </SetupGround>
     </SetupContext>
   );
+}
+
+/**
+ * Dev builds only: `window.__setupGo("folder")` jumps to a page, so a page
+ * behind a sign-in can be looked at without one.
+ */
+function useDevStepJump(dispatch: Dispatch<SetupAction>) {
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+    window.__setupGo = (step) => {
+      dispatch({ step, type: "go" });
+    };
+    return () => {
+      delete window.__setupGo;
+    };
+  }, [dispatch]);
+}
+
+declare global {
+  interface Window {
+    __setupGo?: (step: SetupStep) => void;
+  }
 }

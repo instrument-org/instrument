@@ -391,7 +391,7 @@ export function OutOfUsagePage() {
       <SetupHead
         illustration={
           <BadgedTile
-            badge={<ClockIcon className="size-4 text-foreground/65" />}
+            badge={<ClockIcon className="size-4 text-stone-600" />}
           >
             <ProductHeadTile provider={trouble?.provider ?? "chatgpt"} />
           </BadgedTile>

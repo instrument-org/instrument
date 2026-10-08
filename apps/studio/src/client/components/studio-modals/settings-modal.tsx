@@ -39,6 +39,7 @@ import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { flashJumpTarget } from "@/client/lib/flash-jump-target";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
@@ -136,6 +137,27 @@ function SettingsModalContent({
   const contentRef = useRef<HTMLElement>(null);
   useFlashSetting(contentRef, jump);
 
+  // Grouped under each page in the order of its best match, and walked in
+  // that order by the arrow keys, so the highlight moves the way the list
+  // reads.
+  const groups = Object.entries(
+    group(search.matches, (match) => match.entry.tab),
+  ).map(([tab, matches = []]) => ({ matches, tab }));
+  const ordered = groups.flatMap((g) => g.matches.map((match) => match.entry));
+  // The result the keys are on, which a new search starts back at the top.
+  const [cursor, setCursor] = useState({ index: 0, query });
+  const highlighted =
+    ordered[
+      cursor.query === query ? Math.min(cursor.index, ordered.length - 1) : 0
+    ];
+  const moveCursor = (by: number) => {
+    const at = highlighted ? ordered.indexOf(highlighted) : 0;
+    setCursor({
+      index: Math.max(0, Math.min(ordered.length - 1, at + by)),
+      query,
+    });
+  };
+
   const openResult = (entry: SettingsEntry) => {
     onSelectTab(entry.tab, entry.open);
     setJump((last) => ({ id: entry.id, n: (last?.n ?? 0) + 1 }));
@@ -168,9 +190,14 @@ function SettingsModalContent({
               className="h-full max-w-[40%] shrink-0 bg-transparent"
               collapsible="none"
             >
-              <div className="relative shrink-0 p-2">
-                <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-4.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <div className="relative shrink-0 pb-2">
+                <MagnifyingGlassIcon className="pointer-events-none absolute top-4 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                 <SidebarInput
+                  aria-activedescendant={
+                    isSearching && highlighted
+                      ? resultElementId(highlighted.id)
+                      : undefined
+                  }
                   aria-label="Search settings"
                   className="pr-8 pl-8 [&::-webkit-search-cancel-button]:hidden"
                   onChange={(event) => {
@@ -182,11 +209,14 @@ function SettingsModalContent({
                       event.preventDefault();
                       event.stopPropagation();
                       setQuery("");
-                    } else if (event.key === "Enter") {
-                      const first = search.matches[0];
-                      if (first) {
-                        openResult(first.entry);
-                      }
+                    } else if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      moveCursor(1);
+                    } else if (event.key === "ArrowUp") {
+                      event.preventDefault();
+                      moveCursor(-1);
+                    } else if (event.key === "Enter" && highlighted) {
+                      openResult(highlighted);
                     }
                   }}
                   placeholder="Search"
@@ -196,7 +226,7 @@ function SettingsModalContent({
                 {query ? (
                   <button
                     aria-label="Clear search"
-                    className="absolute top-1/2 right-3.5 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                    className="absolute top-4 right-1.5 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                     onClick={() => {
                       setQuery("");
                     }}
@@ -211,9 +241,13 @@ function SettingsModalContent({
                   <SearchResults
                     activeId={jump?.id}
                     failed={search.failed}
+                    groups={groups}
+                    highlightedId={highlighted?.id}
                     isLooking={search.isLooking}
-                    matches={search.matches}
                     navItems={navItems}
+                    onHighlight={(entry) => {
+                      setCursor({ index: ordered.indexOf(entry), query });
+                    }}
                     onOpen={openResult}
                     query={query.trim()}
                   />
@@ -264,23 +298,28 @@ function SettingsModalContent({
 function SearchResults({
   activeId,
   failed,
+  groups,
+  highlightedId,
   isLooking,
-  matches,
   navItems,
+  onHighlight,
   onOpen,
   query,
 }: {
   activeId: string | undefined;
   failed: boolean;
+  groups: { matches: SettingsMatch[]; tab: string }[];
+  /** The result the arrow keys are on, which Enter opens. */
+  highlightedId: string | undefined;
   isLooking: boolean;
-  matches: SettingsMatch[];
   navItems: NavItem[];
+  onHighlight: (entry: SettingsEntry) => void;
   onOpen: (entry: SettingsEntry) => void;
   query: string;
 }) {
-  if (matches.length === 0) {
+  if (groups.length === 0) {
     return (
-      <p className="px-4 py-2 text-sm text-muted-foreground">
+      <p className="px-2 py-2 text-sm text-muted-foreground">
         {isLooking
           ? "Looking…"
           : failed
@@ -289,21 +328,34 @@ function SearchResults({
       </p>
     );
   }
-  const groups = Object.entries(group(matches, (match) => match.entry.tab));
-  return groups.map(([tab, tabMatches = []]) => {
+  return groups.map(({ matches, tab }) => {
     const item = navItems.find((nav) => nav.tab === tab);
     return (
-      <SidebarGroup key={tab}>
+      <SidebarGroup className="p-0 pb-2" key={tab}>
         <SidebarGroupLabel>{item?.title ?? tab}</SidebarGroupLabel>
         <SidebarMenu>
-          {tabMatches.map(({ entry, titleRanges }) => (
-            <SidebarMenuItem className="group" key={entry.id}>
+          {matches.map(({ entry, titleRanges }) => (
+            <SidebarMenuItem key={entry.id}>
               <SidebarMenuButton
-                className="group-hover:bg-black/10 focus-visible:-outline-offset-2 dark:group-hover:bg-white/10"
+                className={cn(
+                  "focus-visible:-outline-offset-2",
+                  entry.id === highlightedId && "bg-black/10 dark:bg-white/10",
+                )}
+                id={resultElementId(entry.id)}
                 isActive={entry.id === activeId}
                 onClick={() => {
                   onOpen(entry);
                 }}
+                onMouseMove={() => {
+                  onHighlight(entry);
+                }}
+                ref={
+                  entry.id === highlightedId
+                    ? (element: HTMLButtonElement | null) => {
+                        element?.scrollIntoView({ block: "nearest" });
+                      }
+                    : undefined
+                }
               >
                 <span className="truncate">
                   <FuzzyHighlight ranges={titleRanges} text={entry.title} />
@@ -315,6 +367,11 @@ function SearchResults({
       </SidebarGroup>
     );
   });
+}
+
+/** The DOM id of a result's row, which the search field names as the one the keys are on. */
+function resultElementId(id: string) {
+  return `settings-result-${encodeURIComponent(id)}`;
 }
 
 /**

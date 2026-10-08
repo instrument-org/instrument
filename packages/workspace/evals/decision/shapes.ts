@@ -152,7 +152,7 @@ const realTitles = realChats.map((chat) => chat.title);
 // ---------------------------------------------------------------------------
 
 const SETTINGS_MEANINGFUL_AT_LEAST = 0.3;
-const SETTINGS_FITS_AT_LEAST = { clef: 0.35, clefFlash: 0.3, other: 0.3 };
+const SETTINGS_FITS_AT_LEAST = { clef: 0.3, clefFlash: 0.2, other: 0.3 };
 const MOST_SETTINGS_SHOWN = 8;
 
 function settingsSearchRequest(search: string): Body {
@@ -165,7 +165,7 @@ function settingsSearchRequest(search: string): Body {
   };
   settingsCorpus.entries.forEach((entry, index) => {
     questions[String(index)] = {
-      instructions: `Is "${entry.title}" (${entry.detail.slice(0, 160)}) on the ${entry.tab} page of the app's settings what the search in the state is looking for?`,
+      instructions: `Is "${entry.title}" (${entry.detail}) on the ${entry.tab} page of the app's settings what the search in the state is looking for?`,
       type: "noul",
     };
   });
@@ -175,7 +175,7 @@ function settingsSearchRequest(search: string): Body {
 function settingsSearch(): Shape {
   const ids = settingsCorpus.entries.map((entry) => entry.id);
   return {
-    about: `${settingsCorpus.searches.length} searches over ${ids.length} settings rows and skills, one yes-or-no each`,
+    about: `${settingsCorpus.searches.length} searches over ${ids.length} settings rows, one yes-or-no each`,
     cases: settingsCorpus.searches.map((labeled) =>
       single(
         labeled.query,

@@ -5,7 +5,7 @@ import uFuzzy from "@leeoniya/ufuzzy";
 
 /**
  * One thing Settings search can find: a row of a page, or something a page
- * lists (a provider, a skill, a memory).
+ * lists (a provider, a memory).
  */
 export type SettingsEntry = {
   /** Words someone might search by that the title and detail don't say. */
@@ -15,18 +15,18 @@ export type SettingsEntry = {
   developerOnly?: true;
   /**
    * The row's `data-setting` mark, which a jump scrolls to and lights. A
-   * memory or skill has none: Settings opens to it by name instead.
+   * memory has none: Settings opens to it by name instead.
    */
   id: string;
-  /** What Settings is opened with beyond the page, for a memory or skill. */
-  open?: { memory: string } | { skill: string };
+  /** What Settings is opened with beyond the page, for a memory. */
+  open?: { memory: string };
   tab: SettingsTab;
   title: string;
 };
 
 /**
  * The rows every page draws, in the order they appear. A row a page draws
- * from data (a provider, a skill, a memory, a feature flag) is added where the
+ * from data (a provider, a memory, a feature flag) is added where the
  * search is made, from the same queries the pages read.
  *
  * Each id here is put on its row with {@link settingAnchor}, and a test holds

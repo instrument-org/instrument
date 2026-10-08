@@ -28,20 +28,18 @@ const MEANINGFUL = "meaningful";
 const MEANINGFUL_AT_LEAST = 0.3;
 /**
  * How sure the answering model has to be that an entry fits; each scores on
- * its own scale. On 29 labeled settings searches (`pnpm eval:decision --shape
- * settings-search`), each of the three finds 22 of the 27 rows meant at its
- * bar and offers about four that weren't, where 0.5 found 16 to 21.
+ * its own scale. On 22 labeled settings searches (`pnpm eval:decision --shape
+ * settings-search`), these find 16 to 19 of the 20 rows meant with two to
+ * four offered that weren't.
  */
-const FITS_AT_LEAST = { clef: 0.35, clefFlash: 0.3, other: 0.3 };
-/** A skill's description can run to a paragraph; the model needs its gist. */
-const DETAIL_ASKED_CHARS = 160;
+const FITS_AT_LEAST = { clef: 0.3, clefFlash: 0.2, other: 0.3 };
 
 /**
  * Settings search: what the pages in `tabs` hold that matches `query`, by its
  * words first, and by what it means when the words match nothing and the
  * decision model can be reached.
  *
- * The lists the pages draw from data (providers, skills, memories) are read
+ * The lists the pages draw from data (providers, memories) are read
  * only while there is a search, from the same queries the pages use.
  */
 export function useSettingsSearch({
@@ -57,7 +55,7 @@ export function useSettingsSearch({
   const matches = matchSettings(entries, deferredQuery);
   const fallback = useMeaningFallback({
     active: active && matches.length === 0,
-    candidates: entries.filter((entry) => !("memory" in (entry.open ?? {}))),
+    candidates: entries.filter((entry) => entry.open === undefined),
     search: query,
   });
   return {
@@ -86,9 +84,6 @@ function useSettingsEntries({
       enabled: active,
     }),
   );
-  const { data: skills = [] } = useQuery(
-    rpcClient.workspace.skill.list.queryOptions({ enabled: active }),
-  );
   const { data: memoryList } = useQuery(
     rpcClient.workspace.memory.live.list.experimental_liveOptions({
       enabled: active,
@@ -112,13 +107,6 @@ function useSettingsEntries({
         providerMetadataMap.get(config.type)?.name ||
         config.type,
     })),
-    ...skills.map((skill) => ({
-      detail: skill.description,
-      id: `skill:${skill.id}`,
-      open: { skill: skill.id },
-      tab: "Skills" as const,
-      title: skill.name,
-    })),
     ...(memoryList?.memories ?? []).map((memory) => ({
       id: `memory:${memory.name}`,
       open: { memory: memory.name },
@@ -140,8 +128,8 @@ type Answers = RPCOutput["workspace"]["decision"]["ask"]["answers"];
 /**
  * The entries a search means when none of them contains its words: the
  * decision model reads each one's title and gist and says of each on its own
- * whether it is what the search is after, so "dark mode" can find Theme and
- * "make slides" a skill for presentations. Asked once typing pauses, and only
+ * whether it is what the search is after, so "night mode" can find Theme and
+ * "stop sending data" Usage metrics. Asked once typing pauses, and only
  * while `active`; with no provider that could answer, it finds nothing, which
  * is what the words already said.
  */
@@ -237,9 +225,7 @@ function questionsFor(candidates: SettingsEntry[]) {
     },
   };
   for (const [index, entry] of candidates.entries()) {
-    const gist = entry.detail
-      ? ` (${entry.detail.slice(0, DETAIL_ASKED_CHARS)})`
-      : "";
+    const gist = entry.detail ? ` (${entry.detail})` : "";
     questions[String(index)] = {
       instructions: `Is "${entry.title}"${gist} on the ${entry.tab} page of the app's settings what the search in the state is looking for?`,
       type: "noul",

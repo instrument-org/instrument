@@ -8,7 +8,7 @@ Labeled cases for `pnpm eval:decision`. Indexes in the label files are positions
 - `backfill.json`: the same idea for a new topic over the newest 200 chats (`yes`, `ok`).
 - `apps.json`: app directory searches by slug, against the catalog the product ships.
 - `drafts.json`: opening messages and the topic each should be filed under, as `[text, topic or "none", acceptable alternates?]`, in two sets with their own topic lists.
-- `settings.json`: the rows and skills settings search reads, and searches with the entry ids each should find.
+- `settings.json`: the rows settings search reads, and searches with the entry ids each should find.
 - `emoji.json`: a topic and the emoji that fit it; a hit is any of them among the eight shown.
 - `retitle.json`: invented chats with a fitting title; `drifted` marks the ones whose reply moved off it. Each is also asked against another chat's title, which has moved by construction.
 

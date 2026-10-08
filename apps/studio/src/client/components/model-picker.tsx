@@ -236,7 +236,9 @@ export function ModelPicker({
         // Off where it hangs off the composer, which picks its side instead.
         // See `useComposerMenuPlacement`.
         avoidCollisions={!hangsOff}
-        className="flex flex-col p-0"
+        // The composer's corner, which its menus wear too. What sits inside
+        // is 8px in, so it rounds at 12px and curves alongside it.
+        className="flex flex-col rounded-[20px] p-0"
         maxHeight={PANEL_HEIGHT}
         side={hangsOff ? placement.side : undefined}
         sideOffset={hangsOff ? placement.sideOffset : undefined}
@@ -389,7 +391,7 @@ function PickerPanel({
         <CommandInput
           autoFocus
           className="h-8 py-0"
-          containerClassName="h-8 rounded-lg bg-black/[0.04] px-2.5 dark:bg-white/[0.06]"
+          containerClassName="h-8 rounded-xl bg-black/[0.04] px-2.5 dark:bg-white/[0.06]"
           onValueChange={setQuery}
           placeholder="Search models"
           value={query}
@@ -406,7 +408,7 @@ function PickerPanel({
                 !searching && entry.id === openId ? "true" : undefined
               }
               className={cn(
-                "flex min-h-8 items-center gap-2.5 rounded-md px-2 text-left text-sm hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
+                "flex min-h-8 items-center gap-2.5 rounded-xl px-2 text-left text-sm hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
                 !searching &&
                   entry.id === openId &&
                   "bg-black/[0.06] font-medium dark:bg-white/10",
@@ -450,7 +452,7 @@ function PickerPanel({
           ))}
           <span className="flex-1" />
           <button
-            className="flex min-h-8 items-center gap-2.5 rounded-md px-2 text-left text-sm text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]"
+            className="flex min-h-8 items-center gap-2.5 rounded-xl px-2 text-left text-sm text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]"
             onClick={onAddProvider}
             type="button"
           >
@@ -670,7 +672,7 @@ function VirtualRows({
               />
             ) : row.type === "show-all" || row.type === "show-fewer" ? (
               <CommandItem
-                className="flex min-h-9 items-center gap-2.5 rounded-md px-2.5 text-sm text-muted-foreground"
+                className="flex min-h-9 items-center gap-2.5 rounded-xl px-2.5 text-sm text-muted-foreground"
                 onSelect={() => {
                   onShowAll(row.type === "show-all");
                 }}
@@ -717,7 +719,7 @@ function AutoRow({
     <CommandItem
       data-chosen={chosen || undefined}
       className={cn(
-        "flex min-h-9 items-center gap-2.5 rounded-md px-2.5",
+        "flex min-h-9 items-center gap-2.5 rounded-xl px-2.5",
         chosen && CHOSEN,
       )}
       onSelect={() => {
@@ -836,7 +838,7 @@ function ModelRow({
     <CommandItem
       data-chosen={chosen || undefined}
       className={cn(
-        "flex items-center gap-2.5 rounded-md px-2.5",
+        "flex items-center gap-2.5 rounded-xl px-2.5",
         row.sub ? "py-1.5" : "min-h-9",
         chosen && CHOSEN,
       )}

@@ -219,9 +219,7 @@ export function ComposerAddMenu({
         }}
         side={side}
         sideOffset={sideOffset}
-        // A chat's menu is a list of rows, sized to them rather than to the
-        // box it hangs off, which would stretch a row across a wide window.
-        style={places ? { width: "16rem" } : { width }}
+        style={{ width }}
       >
         <MenuScrollArea>
           {view === "apps" && places ? (

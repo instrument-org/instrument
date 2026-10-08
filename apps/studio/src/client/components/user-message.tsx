@@ -110,9 +110,13 @@ export const UserMessage = memo(function UserMessage({
             open={isExpanded}
           >
             <div className="relative">
+              {/* Opened, a message shows whole up to about eighty lines, so
+                  only a pasted log or file scrolls inside the transcript's own
+                  scroll. A fixed length rather than a share of the viewport,
+                  which the window's zoom would throw off. */}
               <div
                 className={cn(
-                  isExpanded ? "max-h-128 overflow-y-auto" : "overflow-hidden",
+                  isExpanded ? "max-h-400 overflow-y-auto" : "overflow-hidden",
                 )}
                 data-slot="user-message-content"
                 ref={contentRef}

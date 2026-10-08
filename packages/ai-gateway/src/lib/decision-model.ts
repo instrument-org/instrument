@@ -15,13 +15,12 @@ import { internalAPIKey } from "./key-for-provider";
  * An OpenRouter key reaches TypeSafe's Jev: the `~…-latest` alias follows new
  * releases, and the pinned id is the fallback for when the alias is refused.
  * A signed-in request asks our API for `instrument/decision` and leaves which
- * model answers to it; the pinned Jev id is the fallback for an API that does
- * not know that id yet.
+ * model answers to it.
  */
 const DECISION_MODELS = new Map<string, readonly string[]>([
   // Providers that can reach the decision model, best first.
   ["openrouter", ["~typesafe/jev-latest", "typesafe/jev-1.13"]],
-  [OUR_PROVIDER_CONFIG.type, ["instrument/decision", "typesafe/jev-1.13"]],
+  [OUR_PROVIDER_CONFIG.type, ["instrument/decision"]],
 ]);
 const DECISION_PROVIDER_TYPES = [...DECISION_MODELS.keys()];
 

@@ -32,7 +32,7 @@ function chat({
     state: "idle",
     title: "",
     topics: [],
-    unread: 0,
+    unread: false,
     ...overrides,
   };
 }
@@ -110,20 +110,20 @@ describe("matchesFilters", () => {
     [
       "replies not yet seen",
       { place: "unread" },
-      chat({ unread: 2 }),
-      chat({ archived: true, unread: 2 }),
+      chat({ unread: true }),
+      chat({ archived: true, unread: true }),
     ],
     [
       "been put away",
       { place: "archived" },
       chat({ archived: true }),
-      chat({ unread: 2 }),
+      chat({ unread: true }),
     ],
     [
       "a star",
       { place: "starred" },
       chat({ archived: true, starred: true }),
-      chat({ unread: 2 }),
+      chat({ unread: true }),
     ],
     [
       "a topic",
@@ -152,20 +152,20 @@ describe("matchesFilters", () => {
   it("holds no chat in the drafts, since a draft is not a chat yet", () => {
     const filters: ChatFilters = { ...NO_FILTERS, place: "drafts" };
     expect(matchesFilters(chat(), filters)).toBe(false);
-    expect(matchesFilters(chat({ unread: 3 }), filters)).toBe(false);
+    expect(matchesFilters(chat({ unread: true }), filters)).toBe(false);
     expect(matchesFilters(wordyChat(), filters, TOPIC_NAMES)).toBe(false);
   });
 
   it("keeps every chat not put away in the inbox, whatever it holds", () => {
     const filters: ChatFilters = { ...NO_FILTERS, place: undefined };
     expect(matchesFilters(chat(), filters)).toBe(true);
-    expect(matchesFilters(chat({ unread: 3 }), filters)).toBe(true);
+    expect(matchesFilters(chat({ unread: true }), filters)).toBe(true);
     expect(matchesFilters(chat({ state: "waiting" }), filters)).toBe(true);
     expect(matchesFilters(chat({ archived: true }), filters)).toBe(false);
   });
 
   it.each<[string, ChatFilters, Filterable]>([
-    ["Unread", { ...NO_FILTERS, place: "unread" }, chat({ unread: 1 })],
+    ["Unread", { ...NO_FILTERS, place: "unread" }, chat({ unread: true })],
     [
       "an app",
       { ...NO_FILTERS, apps: ["gmail"] },
@@ -193,13 +193,13 @@ describe("matchesFilters", () => {
 
   it("holds every chat in All, put away or not, narrowed by the search", () => {
     const filters: ChatFilters = { ...NO_FILTERS, place: "all" };
-    expect(matchesFilters(chat({ archived: true, unread: 3 }), filters)).toBe(
-      true,
-    );
+    expect(
+      matchesFilters(chat({ archived: true, unread: true }), filters),
+    ).toBe(true);
     expect(
       matchesFilters(chat({ archived: true, state: "waiting" }), filters),
     ).toBe(true);
-    expect(matchesFilters(chat({ unread: 3 }), filters)).toBe(true);
+    expect(matchesFilters(chat({ unread: true }), filters)).toBe(true);
     expect(
       matchesFilters(chat({ archived: true, title: "MLS standings" }), {
         ...filters,

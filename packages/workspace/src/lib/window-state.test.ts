@@ -25,7 +25,6 @@ async function readFile(): Promise<unknown> {
 }
 
 describe("window state", () => {
-  const seen = StoreId.newMessageId();
   const session = StoreId.newSessionId();
   const chatId = ChatIdSchema.parse("2026-10-04-lisbon");
 
@@ -61,33 +60,28 @@ describe("window state", () => {
   it("reads a chat a 2.0 beta named by its session as the chat, and writes it so", async () => {
     const named = chatFor(session);
     const gone = StoreId.newSessionId();
-    const older = StoreId.newMessageId();
-    const newer = StoreId.newMessageId();
     await writeFile(
       JSON.stringify({
         appChats: { gone: gone, linear: session, notion: named },
-        chatSeen: { [gone]: seen, [named]: newer, [session]: older },
       }),
     );
 
     const read = await getWindowState();
-    // A chat no longer there is dropped; the chat's own mark wins.
+    // A chat no longer there is dropped.
     expect(read.appChats).toEqual({ linear: named, notion: named });
-    expect(read.chatSeen).toEqual({ [named]: newer });
 
     await updateWindowState(() => ({ browserTargetId: undefined }));
     expect(await readFile()).toMatchObject({
       appChats: { linear: named, notion: named },
-      chatSeen: { [named]: newer },
     });
   });
 
   it("sets a file that is not JSON aside before starting a fresh one", async () => {
-    await writeFile('{"chatSeen": {"ses_');
+    await writeFile('{"appChats": {"ses_');
 
-    await updateWindowState(() => ({ chatSeen: { [session]: seen } }));
+    await updateWindowState(() => ({ appChats: { linear: chatId } }));
 
-    expect(await readFile()).toMatchObject({ chatSeen: { [session]: seen } });
+    expect(await readFile()).toMatchObject({ appChats: { linear: chatId } });
     const folder = await fs.readdir(path.dirname(windowStatePath()));
     const setAside = folder.filter((name) =>
       name.startsWith("window.json.unreadable-"),
@@ -98,7 +92,7 @@ describe("window state", () => {
         path.join(path.dirname(windowStatePath()), setAside[0] ?? ""),
         "utf8",
       ),
-    ).toBe('{"chatSeen": {"ses_');
+    ).toBe('{"appChats": {"ses_');
   });
 
   it("refuses to write over a file it cannot open", async () => {
@@ -106,7 +100,7 @@ describe("window state", () => {
     // than not-found, the way a permission error does.
     await fs.mkdir(windowStatePath(), { recursive: true });
 
-    await expect(updateWindowState(() => ({ chatSeen: {} }))).rejects.toThrow();
+    await expect(updateWindowState(() => ({ appChats: {} }))).rejects.toThrow();
     expect((await fs.stat(windowStatePath())).isDirectory()).toBe(true);
   });
 });

@@ -32,11 +32,11 @@ const calls = vi.hoisted(() => ({
   archive: vi.fn(),
   rename: vi.fn(),
   retitle: vi.fn(),
-  seen: vi.fn(),
+  read: vi.fn(),
   star: vi.fn(),
   transcript: vi.fn(),
   unarchive: vi.fn(),
-  unseen: vi.fn(),
+  unread: vi.fn(),
 }));
 
 /** `.invalid` sites given an icon partway through a test, as a page opened in a browser tab hands over its own. */
@@ -108,10 +108,10 @@ vi.mock("@/client/rpc/client", () => {
           },
           rename: routeOf(calls.rename),
           retitle: routeOf(calls.retitle),
-          seen: routeOf(calls.seen),
+          read: routeOf(calls.read),
           star: routeOf(calls.star),
           unarchive: routeOf(calls.unarchive),
-          unseen: routeOf(calls.unseen),
+          unread: routeOf(calls.unread),
         },
       },
     },
@@ -155,7 +155,6 @@ function chat(overrides: Partial<Chat> = {}): Chat {
     id: CHAT_ID,
     lastReplyAt: MOVED_AT.getTime(),
     latest: { at: MOVED_AT.getTime(), kind: "reply", text: REPLY },
-    replyCount: 3,
     root: {
       id: messageId,
       metadata: { createdAt: STARTED_AT, sessionId },
@@ -180,7 +179,8 @@ function chat(overrides: Partial<Chat> = {}): Chat {
     title: TITLE,
     titled: true,
     topics: [],
-    unread: 0,
+    unread: false,
+    unreadByUser: false,
     updatedAt: MOVED_AT.getTime(),
     ...overrides,
   };
@@ -411,7 +411,7 @@ describe("ChatRow", () => {
     const { rows } = await renderRows([
       chat({ holds: { apps: [], files: ["/task/out/report.md"], sites: [] } }),
       chat(),
-      chat({ lastReplyAt: undefined, latest: undefined, replyCount: 0 }),
+      chat({ lastReplyAt: undefined, latest: undefined }),
       chat({ state: "working" }),
     ]);
     const heights = new Set(
@@ -432,7 +432,7 @@ describe("ChatRow", () => {
   });
 
   it("carries no reply count, and the time", async () => {
-    const { row } = await renderRow(chat({ replyCount: 3 }));
+    const { row } = await renderRow(chat());
     expect(row.querySelector('[aria-label="3 replies"]')).toBeNull();
     expect(firstLineOf(row).textContent).toBe(TITLE);
     expect(row.textContent).toContain("9:11 AM");
@@ -440,7 +440,7 @@ describe("ChatRow", () => {
 
   it.each<[string, Partial<Chat>]>([
     ["quiet", {}],
-    ["unseen", { unread: 2 }],
+    ["unseen", { unread: true }],
     ["working", { state: "working" }],
     ["waiting", { state: "waiting" }],
   ])(
@@ -452,7 +452,7 @@ describe("ChatRow", () => {
   );
 
   it("sets the title in semibold only while something in it is unseen", async () => {
-    const { rows } = await renderRows([chat({ unread: 1 }), chat()]);
+    const { rows } = await renderRows([chat({ unread: true }), chat()]);
     const [unseen, seen] = rows;
     if (!unseen || !seen) {
       throw new Error("no rows");
@@ -505,7 +505,6 @@ describe("ChatRow", () => {
     const { rows } = await renderRows([
       chat({
         latest: undefined,
-        replyCount: 0,
         runningTasks: [
           {
             id: TaskIdSchema.parse("nest-guard"),
@@ -560,9 +559,14 @@ describe("ChatRow", () => {
     expect(peekOf(row)?.textContent).toBe("Instrument is working");
   });
 
+  it("says a chat stopped on an error in red, in place of its latest line", async () => {
+    const { row } = await renderRow(chat({ state: "failed" }));
+    expect(peekOf(row)?.textContent).toBe("Stopped on an error");
+  });
+
   it("has no latest line for an idle chat with nothing to say", async () => {
     const { row } = await renderRow(
-      chat({ lastReplyAt: undefined, latest: undefined, replyCount: 0 }),
+      chat({ lastReplyAt: undefined, latest: undefined }),
     );
     expect(peekOf(row)).toBeNull();
     expect(row.textContent).toBe(`${TITLE}9:11 AM`);
@@ -952,8 +956,8 @@ describe("the row's actions", () => {
   });
 
   it.each<[string, Partial<Chat>, Mock]>([
-    ["Mark as read", { unread: 2 }, calls.seen],
-    ["Mark as unread", { replyCount: 3, unread: 0 }, calls.unseen],
+    ["Mark as read", { unread: true }, calls.read],
+    ["Mark as unread", { unread: false }, calls.unread],
   ])(
     "offers %s, which asks the route and says nothing",
     async (label, overrides, call) => {
@@ -968,13 +972,17 @@ describe("the row's actions", () => {
     },
   );
 
-  it("offers no read or unread mark on a chat with no replies to have read", async () => {
-    const { row } = await renderRow(chat({ replyCount: 0, unread: 0 }));
-    expect(barOf(row).labels).toEqual(["Archive", "Star"]);
+  it("offers Mark as unread on a chat with nothing said in it yet", async () => {
+    const { row } = await renderRow(
+      chat({ lastReplyAt: undefined, latest: undefined, unread: false }),
+    );
+    expect(barOf(row).labels).toEqual(["Archive", "Mark as unread", "Star"]);
   });
 
   it("raises the row's menu on a right click: the way in, the actions, and the topics", async () => {
-    const { onOpen, onSetTopics, row } = await renderRow(chat({ unread: 1 }));
+    const { onOpen, onSetTopics, row } = await renderRow(
+      chat({ unread: true }),
+    );
     await userEvent.click(titleOf(row), { button: "right" });
     const menu = page.getByRole("menu");
     await expect.element(menu).toBeVisible();

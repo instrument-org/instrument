@@ -42,13 +42,13 @@ function chat({
     state: "idle",
     title: "",
     topics: [],
-    unread: 0,
+    unread: false,
     ...overrides,
   };
 }
 
 const CHATS = [
-  chat({ holds: { apps: ["gmail"] }, topics: ["house"], unread: 2 }),
+  chat({ holds: { apps: ["gmail"] }, topics: ["house"], unread: true }),
   chat({ topics: ["house"] }),
 ];
 
@@ -99,8 +99,8 @@ describe("FilterHead", () => {
   it("lists the views, then the topics, each with how many chats it holds", () => {
     const { head } = renderHead({
       chats: [
-        chat({ starred: true, topics: ["house"], unread: 1 }),
-        chat({ archived: true, topics: ["house"], unread: 3 }),
+        chat({ starred: true, topics: ["house"], unread: true }),
+        chat({ archived: true, topics: ["house"], unread: true }),
         chat({ state: "waiting" }),
       ],
     });

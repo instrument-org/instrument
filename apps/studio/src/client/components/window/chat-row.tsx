@@ -25,6 +25,7 @@ import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useRef, useState } from "react";
 
@@ -136,7 +137,7 @@ export function ChatRow({
       }, PICKER_LEAVE_MS);
     }
   };
-  const isUnseen = chat.unread > 0;
+  const isUnseen = chat.unread;
   const rename = useChatRename(chat);
   // The menu hands focus back to the row as it closes, which would land
   // after the field took it and blur the rename shut.
@@ -538,9 +539,10 @@ function Peek({
   /** The words searched for, marked where they turn up in the line. */
   search?: string;
 }) {
+  const isFailed = chat.state === "failed";
   const isWaiting = chat.state === "waiting";
   const isWorking = chat.state === "working";
-  if (!chat.latest && !isWaiting && !isWorking) {
+  if (!chat.latest && !isFailed && !isWaiting && !isWorking) {
     return null;
   }
   return (
@@ -552,6 +554,18 @@ function Peek({
     >
       {isWorking ? (
         <WorkingPeek chat={chat} />
+      ) : isFailed ? (
+        // The turn never got its reply out, which nothing else on the row
+        // would say: the latest line is whatever came before it.
+        <>
+          <WarningCircleIcon
+            className="size-3.5 shrink-0 text-error-700 dark:text-error-300"
+            weight="bold"
+          />
+          <span className="min-w-0 truncate text-error-700 dark:text-error-300">
+            Stopped on an error
+          </span>
+        </>
       ) : isWaiting ? (
         <>
           <QuestionIcon

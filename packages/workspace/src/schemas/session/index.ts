@@ -13,6 +13,19 @@ export namespace Session {
     /** When the user starred the chat; absent while it is not starred. */
     starredAt: z.date().optional(),
     /**
+     * Since when the chat has had something the user has not looked at: set
+     * as the chat settles (a reply, a question, or a turn that ended in an
+     * error) and by the user marking it unread, and taken off once they have
+     * looked. Absent while the chat is read.
+     */
+    unreadAt: z.date().optional(),
+    /**
+     * Whether the user marked the chat unread themselves. Such a mark holds
+     * while they stay on the chat it was set from, and clears only when they
+     * come back to it; a mark the chat set clears as soon as it is seen.
+     */
+    unreadByUser: z.boolean().optional(),
+    /**
      * The last message of the conversation before its context window was reset.
      *
      * Everything up to and including it stays on disk and stays in the

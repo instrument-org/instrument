@@ -22,6 +22,7 @@ import { AskPills } from "./ask-pills";
 import { chatListOptions } from "./chat-list-query";
 import { type OpenOptions, useWindow, WindowContext } from "./context";
 import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
+import { useReadOnView } from "./use-read-on-view";
 import { WorkingRow } from "./working-row";
 
 /**
@@ -131,21 +132,9 @@ function ChatScreenOfRecord({
   const groupAsks = useComposerAsks({ chatId: taskId, kind: "chat" });
   const { remove: removeAsks } = useStagedAskActions();
 
-  // Reading the chat is what clears its count, so it is marked read on
-  // arrival and again as each reply finishes while it is on screen. The pane
-  // beside the tabs does not clear it on its own.
-  const markSeen = useMutation(
-    rpcClient.workspace.chats.seen.mutationOptions(),
-  );
-  const newestSettledMessageId = chat?.newestSettledMessageId;
-  useEffect(() => {
-    if (!isUp) {
-      return;
-    }
-    markSeen.mutate({ id: taskId });
-    // The mutation is stable; re-running on its identity would loop.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-  }, [isUp, taskId, newestSettledMessageId]);
+  // Looking at the chat is what takes its unread mark off. The pane beside
+  // the tabs does not clear it on its own.
+  useReadOnView({ chat, chatId: taskId, isUp });
 
   const loadError = task.error ?? state.error;
   if (loadError) {

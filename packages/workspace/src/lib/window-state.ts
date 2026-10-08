@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import { encodeTime } from "ulid";
 import { z } from "zod";
 
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
@@ -31,12 +30,6 @@ const StoredWindowStateSchema = z.object({
     .optional()
     .catch(undefined),
   browserTargetId: BrowserTargetIdSchema.optional().catch(undefined),
-  /** By chat id, or by a chat's session id where a 2.0 beta wrote it. */
-  chatSeen: z
-    .record(z.string(), StoreId.MessageSchema)
-    .optional()
-    .catch(undefined),
-  seenFloor: StoreId.MessageSchema.optional().catch(undefined),
 });
 
 export interface WindowState {
@@ -47,43 +40,6 @@ export interface WindowState {
   appChats?: Record<string, ChatId>;
   /** The tab on screen, which a chat's own `agent-browser` drives. */
   browserTargetId?: z.output<typeof BrowserTargetIdSchema>;
-  /**
-   * The newest settled message the user has seen in each chat, by chat id.
-   * Unread is every non-user message after it.
-   */
-  chatSeen?: Record<string, StoreId.Message>;
-  /**
-   * Where unread starts for a chat with no seen mark of its own: a message
-   * id stamped with the time this workspace's window state began, so what
-   * was said before the window kept marks counts as seen and what was said
-   * since counts as new. Written once, by whatever first reads or writes the
-   * window's state with none recorded.
-   */
-  seenFloor?: StoreId.Message;
-}
-
-/**
- * A seen mark below every message: the chat it is recorded for counts every
- * finished reply as unread, floor or not.
- */
-export const NOTHING_SEEN = StoreId.MessageSchema.parse(
-  `msg_${"0".repeat(26)}`,
-);
-
-/**
- * The window's state with its seen floor recorded. The floor's random half
- * is all zeros, so a message made in the same millisecond still counts as
- * new.
- */
-function withSeenFloor(state: WindowState): WindowState {
-  return state.seenFloor
-    ? state
-    : {
-        ...state,
-        seenFloor: StoreId.MessageSchema.parse(
-          `msg_${encodeTime(Date.now())}${"0".repeat(16)}`,
-        ),
-      };
 }
 
 /** Makes the window's folder, which its tabs' store opens inside. */
@@ -92,31 +48,21 @@ export async function ensureWindowDir(): Promise<void> {
 }
 
 /**
- * The window's state, empty but for its seen floor when nothing has been
- * written or the file cannot be read: a seen mark or an app's chat lost
- * costs a dot or a note sent to the newest chat, never anything in a chat.
- * The first read records the floor; one that cannot be written stands for
- * this read alone.
+ * The window's state, empty when nothing has been written or the file cannot
+ * be read: an app's chat lost costs a note sent to the newest chat, never
+ * anything in a chat.
  */
 export async function getWindowState(): Promise<WindowState> {
   const read = await readJsonRecord(windowStatePath());
-  const state = read.kind === "read" ? readState(read.record).state : {};
-  if (state.seenFloor) {
-    return state;
-  }
-  try {
-    return await updateWindowState(() => ({}));
-  } catch {
-    return withSeenFloor(state);
-  }
+  return read.kind === "read" ? readState(read.record).state : {};
 }
 
 /**
  * Applies a change to the window's state, read inside the file's write queue,
- * so the window marking a chat seen and an app ask landing at once cannot
- * each write over the other. A field this build cannot read is carried
+ * so the tab on screen changing and an app ask landing at once cannot each
+ * write over the other. A field this build cannot read is carried
  * forward. A file that is not a JSON object is set aside beside it before a
- * fresh one is started, since what it held costs only dots; one that cannot
+ * fresh one is started, since what it held costs little; one that cannot
  * be opened refuses the write.
  */
 export async function updateWindowState(
@@ -129,11 +75,8 @@ export async function updateWindowState(
       const changes = update(state);
       return {
         // What was read under a session's name is written under the chat's.
-        ...(converted
-          ? { appChats: state.appChats, chatSeen: state.chatSeen }
-          : {}),
+        ...(converted ? { appChats: state.appChats } : {}),
         ...changes,
-        seenFloor: withSeenFloor({ ...state, ...changes }).seenFloor,
       };
     },
     { unreadable: "set-aside" },
@@ -169,18 +112,6 @@ function readState(raw: JsonRecord): {
         return chatId ? [[slug, chatId]] : [];
       }),
     );
-  const chatSeen =
-    stored.chatSeen &&
-    Object.fromEntries(
-      // A mark under the chat's own id wins over one under its session.
-      Object.entries(stored.chatSeen)
-        .flatMap(([ref, seen]) => {
-          const chatId = chatOf(ref);
-          return chatId ? [{ chatId, own: chatId === ref, seen }] : [];
-        })
-        .toSorted((a, b) => Number(a.own) - Number(b.own))
-        .map(({ chatId, seen }) => [chatId, seen]),
-    );
   return {
     converted,
     state: {
@@ -188,8 +119,6 @@ function readState(raw: JsonRecord): {
       ...(stored.browserTargetId
         ? { browserTargetId: stored.browserTargetId }
         : {}),
-      ...(chatSeen ? { chatSeen } : {}),
-      ...(stored.seenFloor ? { seenFloor: stored.seenFloor } : {}),
     },
   };
 }

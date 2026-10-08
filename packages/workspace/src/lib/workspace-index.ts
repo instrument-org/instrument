@@ -17,7 +17,7 @@ import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
  * rebuilt from the stores as it is read: the index is derived, so it is never
  * migrated.
  */
-const INDEX_VERSION = 1;
+const INDEX_VERSION = 2;
 
 /**
  * What the index keeps, one row per chat or task: each a value derived from

@@ -1160,7 +1160,7 @@ describe("SessionMessage.toModelMessages", () => {
 });
 
 // A provider renamed or removed since a turn ran left that turn's model record
-// unparseable, and failing it failed the read of the whole session.
+// unparsable, and failing it failed the read of the whole session.
 describe("SessionMessage.Schema", () => {
   it("reads a past turn whose model names a provider this build does not know", () => {
     const { messageId, sessionId } = baseMetadata();

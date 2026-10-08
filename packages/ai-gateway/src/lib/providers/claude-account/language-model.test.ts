@@ -99,7 +99,9 @@ describe("continuationOf", () => {
             ...message,
             content: message.content.map((part) => ({
               ...part,
-              providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
+              providerOptions: {
+                anthropic: { cacheControl: { type: "ephemeral" } },
+              },
             })),
           }
         : message;

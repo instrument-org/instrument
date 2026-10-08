@@ -5,6 +5,7 @@ priya@example.com, (512) 555-0143, Austin TX, portfolio priya.example.com
 Want: senior product designer roles, mostly B2B SaaS. One page please. Recruiters keep saying my current one is a wall of text.
 
 ## Jobs
+
 - Ledgerline (fintech, Austin) - Senior Product Designer, Mar 2023 to now
   - lead designer on the invoicing product, team of 3 designers, 14 engineers
   - redesigned invoice creation flow: time to first invoice went from 11 min to 4 min (median), activation up 23%
@@ -18,11 +19,14 @@ Want: senior product designer roles, mostly B2B SaaS. One page please. Recruiter
   - websites and brand work for ~25 small business clients, restaurants mostly
 
 ## Education
+
 - BFA Graphic Design, University of Texas at Austin, 2018
 
 ## Skills
+
 Figma, prototyping, design systems, user research (interviews, usability testing), accessibility, HTML/CSS (enough to ship small fixes), workshop facilitation
 
 ## Other
+
 - Speaker, Config 2025: "Design systems for teams of six"
 - Mentor at ADPList, 60+ sessions

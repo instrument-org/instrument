@@ -4,7 +4,6 @@ import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { ExternalLink } from "@/client/components/external-link";
 import { ModelMakerIcon } from "@/client/components/model-maker-icon";
 import {
-  ConnectedChip,
   SetupGroup,
   SetupHead,
   SetupPage,
@@ -52,12 +51,12 @@ export function ProvidersPage() {
   }
 
   return (
-    <SetupPage>
+    <SetupPage align="top">
       <SetupHead
         subtitle="Use a key from an AI company you already pay. They bill you directly."
         title="Add an API provider"
       />
-      <div className="mt-8 grid w-140 grid-cols-3 gap-3">
+      <div className="mt-7 grid w-140 grid-cols-3 gap-3">
         {KEY_PROVIDERS.map((type) => (
           <ProviderTile
             key={type}
@@ -204,7 +203,7 @@ export function PasteKeyPage() {
 
   if (!type || !metadata) {
     return (
-      <SetupPage>
+      <SetupPage align="top">
         <SetupHead title="Pick a provider first" />
       </SetupPage>
     );
@@ -501,25 +500,14 @@ export function ModelPage() {
           saveDefault.mutate({ modelURI: selected }, { onSuccess: moveOn });
         },
       }}
+      align="top"
       skip={!hasModels && isListLate ? { onClick: moveOn } : undefined}
     >
-      <ConnectedChip
-        icon={
-          type ? (
-            <AIProviderIcon className="size-4" colored company type={type} />
-          ) : undefined
-        }
-        label={
-          models.length > 0
-            ? `${name} · ${models.length} ${models.length === 1 ? "model" : "models"} ready`
-            : name
-        }
-      />
       <SetupHead
-        subtitle="We'll use it for new chats. You can change it any time, in Settings or in any chat."
+        subtitle={`${name} is connected${models.length > 0 ? `, with ${models.length} ${models.length === 1 ? "model" : "models"} ready` : ""}. We'll use the one you pick for new chats, and you can change it any time.`}
         title="Pick your main model"
       />
-      <div className="mt-8 flex flex-col items-center gap-4">
+      <div className="mt-7 flex flex-col items-center gap-4">
         <SetupGroup>
           <div aria-label="Main model" role="radiogroup">
             {!hasModels &&

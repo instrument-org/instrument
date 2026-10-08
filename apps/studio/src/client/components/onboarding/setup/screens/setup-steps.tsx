@@ -102,7 +102,7 @@ export function MemoriesPage() {
       />
       <SetupGroup
         caption="Import memories from"
-        className="mt-7"
+        className="mt-8"
         note="For each one you pick, we'll save a prompt in your Instrument drafts. You decide when to start it."
       >
         {MEMORY_APPS.map(({ app, detail, title }) => (
@@ -213,12 +213,12 @@ export function FolderPage() {
         },
       }}
     >
-      <PackedFolderArt />
       <SetupHead
+        illustration={<PackedFolderArt />}
         subtitle="Instrument saves the things it makes in your Instrument folder by default, unless you tell it otherwise."
         title="Where should your Instrument folder live?"
       />
-      <div className="mt-10 w-130">
+      <div className="mt-8 w-130">
         <p className="px-4 pb-1.5 text-xs font-medium text-foreground/45">
           Location
         </p>
@@ -393,6 +393,7 @@ export function WeekPage() {
   const [isOtherOpen, setIsOtherOpen] = useState(workOther.trim() !== "");
   return (
     <SetupPage
+      align="top"
       next={{
         label: "Continue",
         onClick: () => {
@@ -465,7 +466,7 @@ export function LookPage() {
         subtitle="You can change this any time in Settings."
         title="Choose your look"
       />
-      <div className="mt-10 flex gap-8">
+      <div className="mt-8 flex gap-8">
         {LOOKS.map((look) => {
           const isPicked = theme === look.theme;
           return (

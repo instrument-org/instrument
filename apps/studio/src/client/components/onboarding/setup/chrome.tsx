@@ -5,6 +5,7 @@ import {
 } from "@/client/components/onboarding/setup/flow";
 import { Button } from "@/client/components/ui/button";
 import { WindowControls } from "@/client/components/window-controls";
+import { useLiveUser } from "@/client/hooks/use-live-user";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
@@ -12,8 +13,13 @@ import { type ComponentProps, type ReactNode } from "react";
 
 /**
  * One page of the setup assistant, in the rhythm of a setup assistant: one
- * question per page, an illustration on top, Back at the bottom left, the
- * progress dots in the middle, Skip and the next button at the right.
+ * question per page, Back at the bottom left, the progress dots in the
+ * middle, Skip and the next button at the right.
+ *
+ * A page with art is centered in the window (`align="center"`). A page
+ * without art is top-aligned (`align="top"`), its headline the same distance
+ * under the title bar on every such page, so those headlines line up as the
+ * person moves through them.
  *
  * `footer={false}` leaves the bar off, for the pages that stand alone
  * (Welcome, Welcome back). Back shows whenever there is a page behind this
@@ -50,7 +56,11 @@ export function SetupPage({
         <div
           className={cn(
             "flex min-h-full flex-col items-center px-20 pb-6",
-            align === "center" && "justify-center",
+            // A top-aligned page keeps two lines for the line under its
+            // headline, so what follows sits in the same place on each.
+            align === "center"
+              ? "justify-center"
+              : "pt-12 [&_[data-setup-subtitle]]:min-h-12.25",
           )}
         >
           {children}
@@ -157,12 +167,15 @@ export function SetupHead({
 }) {
   return (
     <div className="flex flex-col items-center text-center">
-      {illustration && <div className="mb-5">{illustration}</div>}
+      {illustration && <div className="mb-10">{illustration}</div>}
       <h1 className="font-serif text-[34px] leading-[1.15] font-medium tracking-tight text-foreground">
         {title}
       </h1>
       {subtitle && (
-        <p className="mt-3 max-w-140 text-[15px] leading-relaxed text-balance text-foreground/60">
+        <p
+          className="mt-3 max-w-150 text-[15px] leading-relaxed text-balance text-foreground/60"
+          data-setup-subtitle
+        >
           {subtitle}
         </p>
       )}
@@ -220,35 +233,6 @@ export function SetupRow({
   );
 }
 
-/** A small pill naming the account or provider the person connected. */
-export function ConnectedChip({
-  checked = false,
-  icon,
-  label,
-}: {
-  /** A brand check after the label, for a connection that just worked. */
-  checked?: boolean;
-  icon?: ReactNode;
-  label: string;
-}) {
-  return (
-    <div className="mb-6 flex h-8 items-center gap-2 rounded-full bg-card/80 pr-3 pl-1 text-[13px] text-foreground/70 ring-1 ring-black/[0.06]">
-      {icon && (
-        <span className="flex size-6 items-center justify-center rounded-full bg-card">
-          {icon}
-        </span>
-      )}
-      {label}
-      {checked && (
-        <CheckCircleIcon
-          className="-mr-1 size-3.5 text-brand-600 dark:text-brand-400"
-          weight="fill"
-        />
-      )}
-    </div>
-  );
-}
-
 /** A quiet link under a page's content: another way to go, or a retry. */
 export function SetupQuietLink({
   children,
@@ -276,8 +260,9 @@ export function SetupQuietLink({
 /**
  * The ground every page sits on, with the title bar's drag strip at the top
  * (clear of the macOS traffic lights, and holding the window's own buttons
- * where the app draws them) and the soft glow under it. Someone new has the
- * window at setup's fixed size, so there is no Maximize.
+ * where the app draws them) and the soft glow under it. The strip's corner
+ * shows the Instrument account once there is one. Someone new has the window
+ * at setup's fixed size, so there is no Maximize.
  */
 export function SetupGround({ children }: { children: ReactNode }) {
   const { returning } = useSetup();
@@ -289,13 +274,32 @@ export function SetupGround({ children }: { children: ReactNode }) {
       />
       <div
         className={cn(
-          "relative flex h-12 shrink-0 justify-end [-webkit-app-region:drag]",
-          isMacOS() && "pl-20",
+          "relative flex h-12 shrink-0 items-center justify-end gap-4 [-webkit-app-region:drag]",
+          isMacOS() && "pr-4 pl-20",
         )}
       >
+        <SetupAccountChip />
         <WindowControls maximizable={returning} />
       </div>
       <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
+    </div>
+  );
+}
+
+/** Who is signed in to Instrument, as a quiet chip. Nothing while signed out. */
+function SetupAccountChip() {
+  const { data: user } = useLiveUser();
+  if (!user?.email) {
+    return null;
+  }
+  const initial = (user.name || user.email).trim().charAt(0).toUpperCase();
+  return (
+    <div className="flex h-8 items-center gap-2 rounded-full bg-card/80 pr-3 pl-1 text-xs text-foreground/70 shadow-xs ring-1 ring-black/[0.07] dark:ring-white/10">
+      <span className="grid size-6 place-items-center rounded-full bg-brand-200 text-[11px] font-semibold text-brand-800">
+        {initial}
+      </span>
+      {user.email}
+      <CheckCircleIcon className="size-3.5 text-brand-600" weight="bold" />
     </div>
   );
 }

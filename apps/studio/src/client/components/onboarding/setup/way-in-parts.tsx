@@ -136,7 +136,7 @@ export function GoogleButton({
 }) {
   return (
     <WayInButton
-      className="w-85"
+      className="w-95"
       icon={<FcGoogle className="size-5" />}
       onCancel={onCancel}
       onStart={onStart}
@@ -175,7 +175,7 @@ const PERKS = [
 /** What a free Instrument account adds, whichever AI they connected. */
 export function PerkCards() {
   return (
-    <div className="mt-8 grid w-180 max-w-full grid-cols-3 gap-3">
+    <div className="mt-7 grid w-180 max-w-full grid-cols-3 gap-3">
       {PERKS.map((perk) => (
         <div
           className="flex flex-col gap-3 rounded-2xl bg-card p-4 text-left shadow-xs ring-1 ring-black/[0.07] dark:ring-white/10"

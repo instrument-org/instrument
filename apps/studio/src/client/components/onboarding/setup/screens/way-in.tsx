@@ -1,6 +1,4 @@
-import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import {
-  ConnectedChip,
   SetupGroup,
   SetupHead,
   SetupPage,
@@ -26,7 +24,6 @@ import { describeResetTime } from "@/client/components/onboarding/setup/way-in-r
 import {
   useChatGPTWayIn,
   useClaudeSignInPickup,
-  useClaudeStatus,
   useClaudeWayIn,
   useGoogleWayIn,
   useStartClaudeSignIn,
@@ -39,7 +36,6 @@ import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { KeyIcon } from "@phosphor-icons/react/Key";
 import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -85,83 +81,85 @@ export function WelcomePage() {
   const ownKey = useOwnKeyWayIn();
 
   return (
-    <SetupPage align="top" footer={false}>
-      <SetupHead
-        illustration={<WelcomeHero />}
-        subtitle="Hand it the work you'd give an assistant. It gets it done on your computer and tells you when it's ready."
-        title="Welcome to Instrument"
-      />
-      <div className="mt-8 flex flex-col items-center gap-1.5">
-        <GoogleButton
-          onCancel={google.cancel}
-          onStart={() => {
-            void google.start();
-          }}
-          waiting={google.waiting}
+    <SetupPage footer={false}>
+      <div className="flex w-full flex-1 flex-col items-center justify-center">
+        <SetupHead
+          illustration={
+            // The hero is drawn at its natural size and scaled down from its
+            // foot to the height every page's art stands in. The negative
+            // margin brings the headline closer than on other art pages.
+            <div className="-mb-2 flex h-37.5 items-end justify-center">
+              <div className="origin-bottom scale-[0.765]">
+                <WelcomeHero />
+              </div>
+            </div>
+          }
+          subtitle="Hand it the work you'd give an assistant. It gets it done on your computer and tells you when it's ready."
+          title="Welcome to Instrument"
         />
-        <span className="text-xs text-foreground/50">
-          New here? Your first 7 days are free. No card needed.
-        </span>
-      </div>
-      <div className="mt-4 flex flex-col items-center gap-1.5">
-        <div className="flex w-85 gap-3">
-          <WayInButton
-            className="flex-1"
-            icon={<ChatGPTMark />}
-            onCancel={chatgpt.cancel}
+        <div className="mt-8 flex flex-col items-center gap-1.5">
+          <GoogleButton
+            onCancel={google.cancel}
             onStart={() => {
-              void chatgpt.start();
+              void google.start();
             }}
-            waiting={chatgpt.waiting}
-          >
-            ChatGPT
-          </WayInButton>
-          <WayInButton
-            className="flex-1"
-            icon={<ClaudeMark />}
-            onStart={() => {
-              void claude.start();
-            }}
-            waiting={claude.connecting}
-          >
-            Claude
-          </WayInButton>
+            waiting={google.waiting}
+          />
+          <span className="text-xs text-foreground/50">
+            New here? Your first 7 days are free. No card needed.
+          </span>
         </div>
-        <span className="text-xs text-foreground/50">
-          {chatgpt.checking
-            ? "Checking your ChatGPT account…"
-            : claude.connecting
-              ? "Checking your Claude account…"
-              : "Only works with paid ChatGPT and Claude plans."}
-        </span>
+        <div className="mt-5 w-95 rounded-[20px] bg-[#f3efe7] p-4 ring-1 ring-black/[0.03] dark:bg-white/5 dark:ring-white/5">
+          <p className="text-center text-[13px] font-medium text-foreground/70">
+            {chatgpt.checking
+              ? "Checking your ChatGPT account…"
+              : claude.connecting
+                ? "Checking your Claude account…"
+                : "Already have a paid ChatGPT or Claude plan?"}
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            <WayInButton
+              className="h-11 w-full text-sm"
+              icon={<ChatGPTMark />}
+              onCancel={chatgpt.cancel}
+              onStart={() => {
+                void chatgpt.start();
+              }}
+              waiting={chatgpt.waiting}
+            >
+              Continue with ChatGPT
+            </WayInButton>
+            <WayInButton
+              className="h-11 w-full text-sm"
+              icon={<ClaudeMark />}
+              onStart={() => {
+                void claude.start();
+              }}
+              waiting={claude.connecting}
+            >
+              Continue with Claude
+            </WayInButton>
+          </div>
+        </div>
+        <SetupQuietLink className="mt-4" onClick={ownKey}>
+          Or add an API provider manually
+        </SetupQuietLink>
       </div>
-      <SetupQuietLink className="mt-5" onClick={ownKey}>
-        Or add an API provider manually
-      </SetupQuietLink>
-      <div className="mt-auto pt-6 pb-5">
-        <LegalLine />
-      </div>
+      <LegalLine />
     </SetupPage>
   );
 }
 
 /** F18: the free Instrument account, offered after any way in but Google. */
 export function FreeAccountPage() {
-  const { dispatch, state } = useSetup();
+  const { dispatch } = useSetup();
   const toMemories = () => {
     dispatch({ step: "memories", type: "go" });
   };
   const google = useGoogleWayIn({ onSignedIn: toMemories });
 
   return (
-    <SetupPage skip={{ label: "Not now", onClick: toMemories }}>
-      <div className="pt-1">
-        {state.way === "chatgpt" && <ChatGPTChip />}
-        {state.way === "claude" && <ClaudeChip />}
-        {state.way === "key" && state.answers.providerId && (
-          <OwnKeyChip providerId={state.answers.providerId} />
-        )}
-      </div>
+    <SetupPage align="top" skip={{ label: "Not now", onClick: toMemories }}>
       <SetupHead
         subtitle="Sign in with Google for a few extras that work with any AI. It's free, and it doesn't use your plan or your key."
         title="Add a free Instrument account"
@@ -177,52 +175,6 @@ export function FreeAccountPage() {
         />
       </div>
     </SetupPage>
-  );
-}
-
-function ChatGPTChip() {
-  const { data } = useQuery(
-    rpcClient.chatgptAccount.live.status.experimental_liveOptions(),
-  );
-  // The newest signed-in account is the one this setup just connected.
-  const account = data?.accounts.findLast(
-    (candidate) => candidate.state === "signed-in",
-  );
-  return (
-    <ConnectedChip
-      checked
-      icon={<ChatGPTMark />}
-      label={account?.email ? `ChatGPT · ${account.email}` : "ChatGPT"}
-    />
-  );
-}
-
-function ClaudeChip() {
-  const status = useClaudeStatus();
-  const email = status?.kind === "signed-in" ? status.email : undefined;
-  return (
-    <ConnectedChip
-      checked
-      icon={<ClaudeMark />}
-      label={email ? `Claude · ${email}` : "Claude"}
-    />
-  );
-}
-
-function OwnKeyChip({ providerId }: { providerId: string }) {
-  const { data } = useQuery(
-    rpcClient.providerConfig.live.list.experimental_liveOptions(),
-  );
-  const config = data?.find((candidate) => candidate.id === providerId);
-  if (!config) {
-    return null;
-  }
-  return (
-    <ConnectedChip
-      checked
-      icon={<AIProviderIcon className="size-4" colored type={config.type} />}
-      label={config.displayName ?? "Your provider"}
-    />
   );
 }
 

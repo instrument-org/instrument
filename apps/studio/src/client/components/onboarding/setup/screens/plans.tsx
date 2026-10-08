@@ -17,7 +17,6 @@ import {
   welcomeBackNext,
 } from "@/client/components/onboarding/setup/plans-billing";
 import {
-  SetupAccountChip,
   SetupPlanCard,
   TrialDaysDisc,
 } from "@/client/components/onboarding/setup/plans-parts";
@@ -111,7 +110,7 @@ export function PlansPage() {
 
   if (offerQuery.isError || (isSignedIn && statusQuery.isError)) {
     return (
-      <SetupPage>
+      <SetupPage align="top">
         <SetupHead
           subtitle={`${APP_NAME} can't reach its servers right now. Try again in a moment, or use ChatGPT, Claude or your own key for now.`}
           title="We couldn't load the plans"
@@ -135,7 +134,7 @@ export function PlansPage() {
 
   if (hasToken === false) {
     return (
-      <SetupPage>
+      <SetupPage align="top">
         <SetupHead
           subtitle="Plans belong to an Instrument account, so sign in with Google first. You can also use ChatGPT, Claude or your own key."
           title="Sign in to choose a plan"
@@ -170,20 +169,17 @@ export function PlansPage() {
   const cardRequired = offer.trial?.cardRequired === true;
 
   return (
-    <SetupPage back={false}>
-      <SetupAccountChip />
-      <div className="mt-5">
-        <SetupHead
-          subtitle={
-            isTrial
-              ? `${cardRequired ? "" : "No card needed. "}Your trial includes a set amount of AI usage. If you use it all before the ${days} days are up, the trial ends early.`
-              : "You'll finish in your browser, and you can change or cancel your plan any time in Settings."
-          }
-          title={
-            isTrial ? `Try ${APP_NAME} free for ${days} days` : "Choose a plan"
-          }
-        />
-      </div>
+    <SetupPage align="top" back={false}>
+      <SetupHead
+        subtitle={
+          isTrial
+            ? `${cardRequired ? "" : "No card needed. "}Your trial includes a set amount of AI usage. If you use it all before the ${days} days are up, the trial ends early.`
+            : "You'll finish in your browser, and you can change or cancel your plan any time in Settings."
+        }
+        title={
+          isTrial ? `Try ${APP_NAME} free for ${days} days` : "Choose a plan"
+        }
+      />
       <div
         className="mt-7 flex items-stretch gap-5"
         data-onboarding-plan-step={step}
@@ -281,12 +277,11 @@ export function WelcomeBackPage() {
     <SetupPage footer={false}>
       <SetupHead
         illustration={
-          <BrandMark className="mb-2 size-24 drop-shadow-md" size={96} />
+          <BrandMark className="size-24 drop-shadow-md" size={96} />
         }
         subtitle="Thanks for testing it. Your chats and files are right where you left them. A few things work differently now, so this takes about a minute."
         title={`Welcome to the new ${APP_NAME}`}
       />
-      <SetupAccountChip className="mt-6" />
       <div className="mt-8">
         <SetupPill
           // Waits for the offer, which says whether there is a beta offer
@@ -352,7 +347,7 @@ export function BetaOfferPage() {
   const months = `${beta.months} ${beta.months === 1 ? "month" : "months"}`;
 
   return (
-    <SetupPage back={false}>
+    <SetupPage align="top" back={false}>
       <SetupHead
         subtitle="As a thank you for being an early beta tester, we'd like to give you our premium plan for free. You can also connect your ChatGPT or Claude account below."
         title={`${plan.name} is on us for ${months}`}
@@ -372,7 +367,7 @@ export function BetaOfferPage() {
           }}
           plan={plan}
           price={
-            <div className="mt-1.5 flex items-baseline gap-1">
+            <div className="mt-1 flex items-baseline gap-1">
               {amount && (
                 <>
                   <span className="text-4xl font-semibold tracking-tight text-foreground/30 line-through decoration-2">
@@ -390,10 +385,10 @@ export function BetaOfferPage() {
           tinted
         />
       </div>
-      <p className="mt-5 text-[13px] text-foreground/55">
+      <p className="mt-4 text-[13px] text-foreground/55">
         Already have a paid ChatGPT or Claude plan? Connect those instead.
       </p>
-      <div className="mt-2.5 flex w-75 gap-2.5">
+      <div className="mt-2 flex w-75 gap-2.5">
         <WayInPill
           icon={<AIProviderIcon className="size-4" type="openai" />}
           disabled={chatGPT.waiting}
@@ -448,7 +443,7 @@ function CheckoutWaiting({
   line: string;
 }) {
   return (
-    <SetupPage back={false}>
+    <SetupPage align="top" back={false}>
       <SetupHead subtitle={line} title="Finish in your browser" />
       <div
         className="mt-6 flex items-center gap-2 text-sm text-foreground/55"

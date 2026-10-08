@@ -3,12 +3,10 @@ import {
   isHeavyPlan,
   meterSteps,
 } from "@/client/components/onboarding/setup/plans-billing";
-import { useLiveUser } from "@/client/hooks/use-live-user";
 import { allowanceLabel, formatAmount } from "@/client/lib/billing";
 import { cn } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
-import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { type ReactNode } from "react";
 
 type OfferPlan = RPCOutput["billing"]["offer"]["plans"][number];
@@ -27,29 +25,6 @@ const HEAVY_ITEMS: { strong?: boolean; text: string }[] = [
   { strong: true, text: "4× the AI usage" },
   { text: "Higher limits for busy weeks" },
 ];
-
-/** Who is signed in, so the plan reads as theirs. Nothing while signed out. */
-export function SetupAccountChip({ className }: { className?: string }) {
-  const { data: user } = useLiveUser();
-  if (!user?.email) {
-    return null;
-  }
-  const initial = (user.name || user.email).trim().charAt(0).toUpperCase();
-  return (
-    <div
-      className={cn(
-        "flex h-8 items-center gap-2 rounded-full bg-card/80 pr-3 pl-1 text-xs text-foreground/70 shadow-xs ring-1 ring-black/[0.07] dark:ring-white/10",
-        className,
-      )}
-    >
-      <span className="grid size-6 place-items-center rounded-full bg-brand-200 text-[11px] font-semibold text-brand-800">
-        {initial}
-      </span>
-      {user.email}
-      <CheckCircleIcon className="size-3.5 text-brand-600" weight="bold" />
-    </div>
-  );
-}
 
 /**
  * One plan, drawn the setup assistant's way: name, price, the AI usage as a
@@ -88,7 +63,7 @@ export function SetupPlanCard({
   return (
     <div
       className={cn(
-        "relative flex w-75 flex-col rounded-[22px] p-6 text-left",
+        "relative flex w-75 flex-col rounded-[22px] p-5 text-left",
         heavy
           ? "bg-brand-50 shadow-[0_18px_40px_-18px_rgba(11,96,86,0.45)] ring-2 ring-brand-500/50 dark:bg-brand-950/40"
           : "bg-card shadow-[0_10px_30px_-16px_rgba(28,25,23,0.35)] ring-1 ring-black/[0.07] dark:ring-white/10",
@@ -105,7 +80,7 @@ export function SetupPlanCard({
       </div>
       {price ??
         (amount && (
-          <div className="mt-1.5 flex items-baseline gap-1">
+          <div className="mt-1 flex items-baseline gap-1">
             <span className="text-4xl font-semibold tracking-tight text-foreground">
               {amount}
             </span>
@@ -118,7 +93,7 @@ export function SetupPlanCard({
         ))}
       <div
         className={cn(
-          "mt-4 rounded-xl px-3.5 py-2.5 text-[13px]",
+          "mt-3 rounded-xl px-3.5 py-2.5 text-[13px]",
           heavy ? "bg-card/90" : "bg-foreground/[0.04]",
         )}
       >
@@ -130,7 +105,7 @@ export function SetupPlanCard({
         </div>
         <UsageMeter filled={meterSteps(plan)} />
       </div>
-      <ul className="mt-4 space-y-2 text-[13px] text-foreground/75">
+      <ul className="mt-3.5 space-y-1.5 text-[13px] text-foreground/75">
         {list.map((item) => (
           <li className="flex items-start gap-2" key={item.text}>
             <CheckIcon className="mt-0.5 size-3.75 shrink-0 text-brand-600" />
@@ -142,7 +117,7 @@ export function SetupPlanCard({
           </li>
         ))}
       </ul>
-      <div className="mt-auto pt-5">
+      <div className="mt-auto pt-4">
         <SetupPill className="w-full" disabled={busy} onClick={onChoose}>
           {cta}
         </SetupPill>

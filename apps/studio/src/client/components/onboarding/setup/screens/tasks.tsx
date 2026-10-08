@@ -1,3 +1,4 @@
+import { BrandMark } from "@/client/components/brand-mark";
 import {
   SetupHead,
   SetupPage,
@@ -146,6 +147,7 @@ export function TasksPage() {
 
   return (
     <SetupPage
+      align="top"
       next={{
         disabled: !isOffered,
         label: "Continue",
@@ -168,7 +170,7 @@ export function TasksPage() {
         subtitle="We'll save the ones you check as prompts in your Instrument drafts. You decide when to start them."
         title="We picked a few tasks that might be useful"
       />
-      <div className="mt-8 w-180">
+      <div className="mt-7 w-180">
         <div className="mb-2 flex h-5 items-center gap-2 px-1 text-xs font-medium text-foreground/50">
           {trouble ? null : !isOffered ? (
             <>
@@ -360,6 +362,9 @@ export function AllSetPage() {
   return (
     <SetupPage back={false}>
       <SetupHead
+        illustration={
+          <BrandMark className="size-22 drop-shadow-md" size={88} />
+        }
         title={firstName ? `You're all set, ${firstName}` : "You're all set"}
       />
       <SetupPill className="mt-8" onClick={finish} size="large">

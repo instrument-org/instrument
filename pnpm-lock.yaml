@@ -76,7 +76,7 @@ overrides:
 patchedDependencies:
   '@parcel/watcher@2.6.0': 70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b
   conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
-  just-bash@3.6.0: e8bfd0c1a9c7d3691b6c904e95cda61b750066230e11480459bce6f07339cdbe
+  just-bash@3.6.0: 27281b5c26806d7a47e4e9865caad465d7f390f1fa4a788ca5ce36bc3d89a412
   micromark-extension-gfm-table@2.1.1: df69698554d58e36e0cb8741ec0b37585066f12ddd4396b11511eb2e3d2e9d8e
   sonner@2.0.7: 818c476ad2cc99c02030f98fa6a5bfe80737406b81613aeb90e545efb7e4ecdf
 
@@ -986,7 +986,7 @@ importers:
         version: 6.0.0
       just-bash:
         specifier: ^3.6.0
-        version: 3.6.0(patch_hash=e8bfd0c1a9c7d3691b6c904e95cda61b750066230e11480459bce6f07339cdbe)(supports-color@10.1.0)
+        version: 3.6.0(patch_hash=27281b5c26806d7a47e4e9865caad465d7f390f1fa4a788ca5ce36bc3d89a412)(supports-color@10.1.0)
       lru-cache:
         specifier: ^11.5.2
         version: 11.5.2
@@ -16281,7 +16281,7 @@ snapshots:
 
   jsonrepair@3.15.0: {}
 
-  just-bash@3.6.0(patch_hash=e8bfd0c1a9c7d3691b6c904e95cda61b750066230e11480459bce6f07339cdbe)(supports-color@10.1.0):
+  just-bash@3.6.0(patch_hash=27281b5c26806d7a47e4e9865caad465d7f390f1fa4a788ca5ce36bc3d89a412)(supports-color@10.1.0):
     dependencies:
       diff: 8.0.4
       fast-xml-parser: 5.11.0

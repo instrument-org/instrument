@@ -89,3 +89,24 @@ describe.skipIf(asRoot)("find over an unreadable directory in a mount", () => {
     expect(result.exitCode).toBe(0);
   });
 });
+
+// Guards the patch part pinned to vercel-labs/just-bash#555: `-newermt` and
+// `-mmin` are what a model reaches for first when asked about recent files,
+// and without them `find ... -newermt <date> | head` reads as an empty search.
+describe.skipIf(asRoot)("find's time predicates", () => {
+  it("finds what changed after a date, and in the last minutes", async () => {
+    const notes = path.join(attachedDir, "Documents", "notes.md");
+    const old = path.join(attachedDir, "Documents", "old.md");
+    await fs.writeFile(old, "old\n");
+    await fs.utimes(old, new Date(2026, 0, 1), new Date(2026, 0, 1));
+    await fs.utimes(notes, new Date(), new Date());
+
+    const since = await run(
+      "find /mnt/Home/Documents -name '*.md' -newermt 2026-06-01",
+    );
+    const recent = await run("find /mnt/Home/Documents -name '*.md' -mmin -5");
+
+    expect(since.stdout).toBe("/mnt/Home/Documents/notes.md\n");
+    expect(recent.stdout).toBe("/mnt/Home/Documents/notes.md\n");
+  });
+});

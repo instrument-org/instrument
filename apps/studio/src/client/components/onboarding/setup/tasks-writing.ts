@@ -12,7 +12,7 @@ import { skipToken, useQuery } from "@tanstack/react-query";
  * no model is set yet; the tasks page offers starter tasks then.
  *
  * `status` is "off" when the call will not be made, "writing" while it is
- * out, and "done" or "failed" once it is back.
+ * out, and "done" or "failed" once it is back. `retry` makes it again.
  */
 export function useTaskWriting(state: SetupState) {
   const { isOutOfUsage, useAIDuringSetup, work, workOther } = state.answers;
@@ -39,5 +39,11 @@ export function useTaskWriting(state: SetupState) {
       : query.data
         ? "done"
         : "writing";
-  return { data: query.data, status } as const;
+  return {
+    data: query.data,
+    retry: () => {
+      void query.refetch();
+    },
+    status,
+  } as const;
 }

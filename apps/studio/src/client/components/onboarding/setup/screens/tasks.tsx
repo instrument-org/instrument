@@ -24,6 +24,7 @@ import { CoinsIcon } from "@phosphor-icons/react/Coins";
 import { EnvelopeIcon } from "@phosphor-icons/react/Envelope";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
+import { HourglassMediumIcon } from "@phosphor-icons/react/HourglassMedium";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
@@ -33,13 +34,14 @@ import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { UsersIcon } from "@phosphor-icons/react/Users";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import ms from "ms";
 import { useEffect, useState } from "react";
 
 /** How long the rows load before starter tasks are offered. */
 const OFFER_STARTERS_AFTER = ms("5 seconds");
-/** How long the rows load before starter tasks take their place. */
-const SWITCH_TO_STARTERS_AFTER = ms("10 seconds");
+/** How long the rows load before the page says it is slow and asks. */
+const SLOW_AFTER = ms("10 seconds");
 
 /** Each task glyph, in its well's hue. */
 const TASK_ICONS: Record<string, { icon: Icon; well: string }> = {
@@ -76,11 +78,14 @@ function offered(tasks: OfferedTask[]): SetupAnswers["tasks"] {
 
 /**
  * F13 to F15: the tasks setup offers to save as drafts. The rows load while
- * the tasks written for the person are on their way; after five seconds
- * starter tasks are offered, and at ten, or when writing fails or was never
- * going to happen, the starter tasks take their place with no error shown,
- * since the page works either way. Tasks already offered (coming back to
- * the page) stay as they were, checks and all.
+ * the tasks written for the person are on their way, and starter tasks are
+ * offered after five seconds. Writing is the one place setup spends AI, so
+ * it never holds the person: a failure says so and offers another try,
+ * starter tasks, or skipping the step, and so does a wait past ten seconds,
+ * with keep waiting in place of another try. Skip is there the whole time.
+ * When writing was never going to happen (out of usage, or a key kept out
+ * of setup) the starter tasks are simply there. Tasks already offered
+ * (coming back to the page) stay as they were, checks and all.
  */
 export function TasksPage() {
   const { dispatch, state } = useSetup();
@@ -88,6 +93,8 @@ export function TasksPage() {
   const writing = useTaskWriting(state);
   const starters = starterTasks(work);
   const [waited, setWaited] = useState(0);
+  // Bumped by Keep waiting and Try again, so the wait is timed afresh.
+  const [attempt, setAttempt] = useState(0);
   const [choseStarters, setChoseStarters] = useState(false);
   const isOffered = tasks.length > 0;
   const isWriting = writing.status === "writing";
@@ -99,24 +106,34 @@ export function TasksPage() {
     const offer = setTimeout(() => {
       setWaited(OFFER_STARTERS_AFTER);
     }, OFFER_STARTERS_AFTER);
-    const give = setTimeout(() => {
-      setWaited(SWITCH_TO_STARTERS_AFTER);
-    }, SWITCH_TO_STARTERS_AFTER);
+    const slow = setTimeout(() => {
+      setWaited(SLOW_AFTER);
+    }, SLOW_AFTER);
     return () => {
       clearTimeout(offer);
-      clearTimeout(give);
+      clearTimeout(slow);
     };
-  }, [isOffered, isWriting]);
+  }, [attempt, isOffered, isWriting]);
 
-  // What the page lands on, once: the written tasks when they are back in
-  // time, the starters otherwise.
+  // What the page lands on, once: the written tasks when they are back, the
+  // starters when the person chose them or writing was never going to run.
   const landing = isOffered
     ? undefined
     : writing.data && !choseStarters
       ? writing.data.tasks
-      : !isWriting || choseStarters || waited >= SWITCH_TO_STARTERS_AFTER
+      : writing.status === "off" || choseStarters
         ? starters
         : undefined;
+  const trouble = isOffered
+    ? undefined
+    : writing.status === "failed"
+      ? "failed"
+      : isWriting && waited >= SLOW_AFTER
+        ? "slow"
+        : undefined;
+  const useStarters = () => {
+    setChoseStarters(true);
+  };
   useEffect(() => {
     if (landing) {
       dispatch({ answers: { tasks: offered(landing) }, type: "answer" });
@@ -153,7 +170,7 @@ export function TasksPage() {
       />
       <div className="mt-8 w-180">
         <div className="mb-2 flex h-5 items-center gap-2 px-1 text-xs font-medium text-foreground/50">
-          {!isOffered ? (
+          {trouble ? null : !isOffered ? (
             <>
               <Spinner className="size-3.5 text-brand-600" delay={0} />
               <span className="flex-1">
@@ -162,9 +179,7 @@ export function TasksPage() {
               {waited >= OFFER_STARTERS_AFTER && (
                 <button
                   className="underline underline-offset-2 hover:text-foreground/80"
-                  onClick={() => {
-                    setChoseStarters(true);
-                  }}
+                  onClick={useStarters}
                   type="button"
                 >
                   Use starter tasks
@@ -185,33 +200,47 @@ export function TasksPage() {
             </>
           )}
         </div>
-        <div className="divide-y divide-foreground/[0.07] overflow-hidden rounded-2xl bg-card shadow-xs ring-1 ring-black/[0.07] dark:ring-white/10">
-          {isOffered
-            ? tasks.map((entry, index) => (
-                <TaskRow
-                  checked={entry.checked}
-                  detail={entry.task.detail}
-                  icon={entry.task.icon}
-                  key={entry.task.prompt}
-                  onToggle={() => {
-                    dispatch({
-                      answers: {
-                        tasks: tasks.map((other, at) =>
-                          at === index
-                            ? { ...other, checked: !other.checked }
-                            : other,
-                        ),
-                      },
-                      type: "answer",
-                    });
-                  }}
-                  prompt={entry.task.prompt}
-                />
-              ))
-            : Array.from({ length: 4 }, (_, index) => (
-                <LoadingRow key={index} />
-              ))}
-        </div>
+        {trouble ? (
+          <WritingTrouble
+            kind={trouble}
+            onAgain={() => {
+              if (trouble === "failed") {
+                writing.retry();
+              }
+              setWaited(0);
+              setAttempt((count) => count + 1);
+            }}
+            onStarters={useStarters}
+          />
+        ) : (
+          <div className="divide-y divide-foreground/[0.07] overflow-hidden rounded-2xl bg-card shadow-xs ring-1 ring-black/[0.07] dark:ring-white/10">
+            {isOffered
+              ? tasks.map((entry, index) => (
+                  <TaskRow
+                    checked={entry.checked}
+                    detail={entry.task.detail}
+                    icon={entry.task.icon}
+                    key={entry.task.prompt}
+                    onToggle={() => {
+                      dispatch({
+                        answers: {
+                          tasks: tasks.map((other, at) =>
+                            at === index
+                              ? { ...other, checked: !other.checked }
+                              : other,
+                          ),
+                        },
+                        type: "answer",
+                      });
+                    }}
+                    prompt={entry.task.prompt}
+                  />
+                ))
+              : Array.from({ length: 4 }, (_, index) => (
+                  <LoadingRow key={index} />
+                ))}
+          </div>
+        )}
       </div>
     </SetupPage>
   );
@@ -262,6 +291,52 @@ function TaskRow({
         <span className="text-xs text-foreground/50">{detail}</span>
       </span>
     </button>
+  );
+}
+
+/**
+ * Writing failed, or is taking too long: said plainly, with another try (or
+ * more waiting), starter tasks, and Skip in the footer, so AI never holds
+ * the person on this page.
+ */
+function WritingTrouble({
+  kind,
+  onAgain,
+  onStarters,
+}: {
+  kind: "failed" | "slow";
+  onAgain: () => void;
+  onStarters: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-4 rounded-2xl bg-card px-8 py-10 text-center shadow-xs ring-1 ring-black/[0.07] dark:ring-white/10">
+      <span className="flex size-10 items-center justify-center rounded-full bg-foreground/[0.06] text-foreground/55">
+        {kind === "failed" ? (
+          <WarningCircleIcon className="size-5" />
+        ) : (
+          <HourglassMediumIcon className="size-5" />
+        )}
+      </span>
+      <div className="flex max-w-110 flex-col gap-1">
+        <p className="text-sm font-medium text-foreground">
+          {kind === "failed"
+            ? "We couldn't write tasks for you this time"
+            : "Writing your tasks is taking longer than usual"}
+        </p>
+        <p className="text-[13px] text-foreground/55">
+          You can try again, start from a few tasks we wrote ahead of time, or
+          skip this step and add tasks later.
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <SetupPill kind="light" onClick={onAgain} size="small">
+          {kind === "failed" ? "Try again" : "Keep waiting"}
+        </SetupPill>
+        <SetupPill kind="light" onClick={onStarters} size="small">
+          Use starter tasks
+        </SetupPill>
+      </div>
+    </div>
   );
 }
 

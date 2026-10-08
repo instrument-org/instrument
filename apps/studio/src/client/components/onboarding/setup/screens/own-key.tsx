@@ -36,7 +36,7 @@ import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 /** How long typing pauses before the key is checked. A paste checks at once. */
 const TYPED_KEY_PAUSE_MS = 600;
@@ -346,7 +346,14 @@ export function PasteKeyPage() {
           type="text"
           value={shown}
         />
-        <KeyStatusLine modelCount={modelCount} name={name} status={status} />
+        <KeyStatusLine
+          modelCount={modelCount}
+          name={name}
+          onRetry={() => {
+            void check(key);
+          }}
+          status={status}
+        />
       </div>
     </SetupPage>
   );
@@ -355,10 +362,13 @@ export function PasteKeyPage() {
 function KeyStatusLine({
   modelCount,
   name,
+  onRetry,
   status,
 }: {
   modelCount: number;
   name: string;
+  /** Checks the same key again, for a check that could not reach the provider. */
+  onRetry: () => void;
   status: KeyStatus;
 }) {
   switch (status.kind) {
@@ -386,6 +396,13 @@ function KeyStatusLine({
         <p className="flex items-center gap-2 text-[13px] text-destructive">
           <WarningCircleIcon className="size-4 shrink-0" weight="fill" />
           {status.message}
+          <button
+            className="font-medium text-foreground/70 underline underline-offset-2 hover:text-foreground"
+            onClick={onRetry}
+            type="button"
+          >
+            Try again
+          </button>
         </p>
       );
     case "refused":
@@ -421,6 +438,9 @@ function useProviderModels(
   );
 }
 
+/** How long the model list loads before it is said to be missing. */
+const MODEL_LIST_LATE_AFTER = 10_000;
+
 /** F28: the main model, and whether setup may spend the key. */
 export function ModelPage() {
   const { dispatch, state } = useSetup();
@@ -438,6 +458,25 @@ export function ModelPage() {
 
   const models = useProviderModels(providerId);
   const picks = pickMainModels(models);
+  // A list that has not come in after a while is said to be missing, with a
+  // way on that keeps the model new chats already use.
+  const [isListLate, setIsListLate] = useState(false);
+  const hasModels = picks.length > 0;
+  useEffect(() => {
+    if (hasModels) {
+      return;
+    }
+    const late = setTimeout(() => {
+      setIsListLate(true);
+    }, MODEL_LIST_LATE_AFTER);
+    return () => {
+      clearTimeout(late);
+    };
+  }, [hasModels]);
+  const moveOn = () => {
+    dispatch({ type: "way", way: "key" });
+    dispatch({ step: "free-account", type: "go" });
+  };
   const rest = models
     .filter((model) => !picks.some((pick) => pick.model.uri === model.uri))
     .toSorted((a, b) => a.name.localeCompare(b.name));
@@ -459,17 +498,10 @@ export function ModelPage() {
           if (!selected) {
             return;
           }
-          saveDefault.mutate(
-            { modelURI: selected },
-            {
-              onSuccess: () => {
-                dispatch({ type: "way", way: "key" });
-                dispatch({ step: "free-account", type: "go" });
-              },
-            },
-          );
+          saveDefault.mutate({ modelURI: selected }, { onSuccess: moveOn });
         },
       }}
+      skip={!hasModels && isListLate ? { onClick: moveOn } : undefined}
     >
       <ConnectedChip
         icon={
@@ -490,12 +522,21 @@ export function ModelPage() {
       <div className="mt-8 flex flex-col items-center gap-4">
         <SetupGroup>
           <div aria-label="Main model" role="radiogroup">
-            {picks.length === 0 && (
-              <SetupRow
-                icon={<Spinner className="size-4" />}
-                title="Loading the models…"
-              />
-            )}
+            {!hasModels &&
+              (isListLate ? (
+                <SetupRow
+                  detail="You can skip this and pick a model later, in Settings or in any chat."
+                  icon={
+                    <WarningCircleIcon className="size-4 text-foreground/50" />
+                  }
+                  title={`We couldn't load ${name}'s models`}
+                />
+              ) : (
+                <SetupRow
+                  icon={<Spinner className="size-4" />}
+                  title="Loading the models…"
+                />
+              ))}
             {picks.map((pick) => (
               <ModelRow
                 checked={selected === pick.model.uri}

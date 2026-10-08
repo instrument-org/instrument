@@ -61,8 +61,8 @@ export function ComposerFrame({
   layout?: "bare" | "block" | "pill";
   /** The pill's left end: the add menu. */
   leading?: React.ReactNode;
-  /** Layout px: inside the zoom root, so the cap scales with the rest of the UI. */
-  maxHeight: number;
+  /** Layout px: inside the zoom root, so the cap scales with the rest of the UI. Null for no cap but the host's layout. */
+  maxHeight: null | number;
   /**
    * One row about the chosen model, over everything else: a newer release on
    * offer, or a problem to fix before sending. The same row in every layout,
@@ -91,7 +91,7 @@ export function ComposerFrame({
         onBlur={onBlur}
         onFocus={onFocus}
         ref={ref}
-        style={{ maxHeight }}
+        style={maxHeight === null ? undefined : { maxHeight }}
       >
         {overlay}
         <AnimatePresence initial={false}>
@@ -206,7 +206,7 @@ export function ComposerFrame({
       )}
       data-slot="composer-frame"
       ref={ref}
-      style={{ maxHeight }}
+      style={maxHeight === null ? undefined : { maxHeight }}
     >
       {overlay}
 

@@ -62,6 +62,10 @@ describe("chatRefusal", () => {
     expect(chatRefusal("app tools notion | head -20")).toBeUndefined();
   });
 
+  it("lets the conversation move into a folder to look around it", () => {
+    expect(chatRefusal("cd /mnt/Personal; pwd; ls | head -30")).toBeUndefined();
+  });
+
   it("lets the conversation read its other chats", () => {
     expect(chatRefusal("chat list --topic work")).toBeUndefined();
     expect(

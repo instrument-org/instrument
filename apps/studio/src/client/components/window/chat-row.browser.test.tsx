@@ -30,6 +30,8 @@ import { WindowContext, type WindowContextValue } from "./context";
 /** What each of the row's own routes was asked, by name. */
 const calls = vi.hoisted(() => ({
   archive: vi.fn(),
+  rename: vi.fn(),
+  retitle: vi.fn(),
   seen: vi.fn(),
   star: vi.fn(),
   transcript: vi.fn(),
@@ -104,6 +106,8 @@ vi.mock("@/client/rpc/client", () => {
               experimental_liveOptions: () => ({ queryKey: ["chats"] }),
             },
           },
+          rename: routeOf(calls.rename),
+          retitle: routeOf(calls.retitle),
           seen: routeOf(calls.seen),
           star: routeOf(calls.star),
           unarchive: routeOf(calls.unarchive),
@@ -330,6 +334,7 @@ async function renderRows(
           chat={entry}
           isOpen={false}
           now={NOW}
+          onDelete={vi.fn()}
           onNewTopic={vi.fn()}
           onOpen={onOpen}
           onSetTopics={onSetTopics}
@@ -982,9 +987,11 @@ describe("the row's actions", () => {
       "Open in New Tab",
       "Mark as read",
       "Star",
+      "Rename",
       "Topics",
       getRevealInFolderLabel(),
       "Archive",
+      "Delete chat…",
     ]);
     expect(onOpen).not.toHaveBeenCalled();
 

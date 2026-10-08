@@ -1,5 +1,5 @@
-// The line over the inbox: the view picker (the chats or a topic) and the
-// places beside it, one view at a time.
+// The line over the inbox: one picker over the views and the topics, and the
+// search beside it, one view at a time.
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -59,10 +59,12 @@ function openPicker(picker: HTMLElement) {
 
 function renderHead({
   chats = CHATS,
+  drafts = 0,
   filters = NO_FILTERS,
   topics = [HOUSE, MONEY],
 }: {
   chats?: Filterable[];
+  drafts?: number;
   filters?: ChatFilters;
   topics?: Topic[];
 } = {}) {
@@ -71,6 +73,7 @@ function renderHead({
   renderWithProviders(
     <FilterHead
       chats={chats}
+      drafts={drafts}
       filters={filters}
       onFiltersChange={onFiltersChange}
       onNewTopic={onNewTopic}
@@ -82,75 +85,81 @@ function renderHead({
     head: within(screen.getByRole("group", { name: "Filters" })),
     onFiltersChange,
     onNewTopic,
-    places: within(screen.getByRole("toolbar", { name: "Places" })),
   };
 }
 
-describe("FilterHead", () => {
-  it("heads the line with the chats, their unread counted only in the open picker, and the places beside it", () => {
-    const { head, places } = renderHead();
-    const picker = head.getByRole("button", { name: "View: Chats" });
-    expect(picker.textContent).toBe("Chats");
-    openPicker(picker);
-    expect(
-      screen.getByRole("menuitemradio", { name: "Chats" }).parentElement
-        ?.textContent,
-    ).toBe("Chats1");
-    expect(
-      places
-        .getAllByRole("button")
-        .map((mark) => mark.getAttribute("aria-label")),
-    ).toEqual(["Starred", "Drafts", "All"]);
-  });
+/** Each row of the open picker with what stands at its end, in order. */
+function pickerRows() {
+  return screen
+    .getAllByRole("menuitemradio")
+    .map((row) => row.parentElement?.textContent);
+}
 
-  it("counts nothing on the places, keeps a chat put away out of the chats' count, and offers Needs you only while something waits", () => {
-    const { head, places } = renderHead({
+describe("FilterHead", () => {
+  it("lists the views, then the topics, each with how many chats it holds", () => {
+    const { head } = renderHead({
       chats: [
-        chat({ starred: true, unread: 1 }),
-        chat({ archived: true, unread: 3 }),
+        chat({ starred: true, topics: ["house"], unread: 1 }),
+        chat({ archived: true, topics: ["house"], unread: 3 }),
         chat({ state: "waiting" }),
       ],
     });
-    openPicker(head.getByRole("button", { name: "View: Chats" }));
-    expect(
-      screen.getByRole("menuitemradio", { name: "Chats" }).parentElement
-        ?.textContent,
-    ).toBe("Chats1");
-    expect(places.getByRole("button", { name: "Starred" }).textContent).toBe(
-      "",
-    );
-    expect(places.getByRole("button", { name: "Needs you" })).toBeTruthy();
+    const picker = head.getByRole("button", { name: "View: Chats" });
+    expect(picker.textContent).toBe("Chats");
+    openPicker(picker);
+    expect(pickerRows()).toEqual([
+      "Chats",
+      "Unread1",
+      "Starred1",
+      "Archived",
+      "🏠House2",
+      "💸Money",
+      "New topic",
+    ]);
   });
 
-  it("stands in one place at a time, leaving the topic, and steps back to the chats from it", () => {
-    const { onFiltersChange, places } = renderHead({
+  it("offers Drafts only while there are some", () => {
+    const { head } = renderHead({ drafts: 2 });
+    openPicker(head.getByRole("button", { name: "View: Chats" }));
+    expect(
+      screen.getByRole("menuitemradio", { name: "Drafts" }).parentElement
+        ?.textContent,
+    ).toBe("Drafts2");
+  });
+
+  it("stands in one view at a time, leaving the topic and keeping the search", () => {
+    const { head, onFiltersChange } = renderHead({
       filters: { ...NO_FILTERS, search: "fence", topics: ["house"] },
     });
-    fireEvent.click(places.getByRole("button", { name: "Drafts" }));
+    openPicker(head.getByRole("button", { name: "View: House" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Starred" }));
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,
-      place: "drafts",
+      place: "starred",
       search: "fence",
     });
   });
 
-  it("steps out of a place by choosing it again", () => {
-    const { onFiltersChange, places } = renderHead({
-      filters: { ...NO_FILTERS, place: "starred" },
+  it("names the view on the picker and in the search, and steps back to the chats from it", () => {
+    const { head, onFiltersChange } = renderHead({
+      filters: { ...NO_FILTERS, place: "archived" },
     });
-    fireEvent.click(places.getByRole("button", { name: "Starred" }));
+    expect(head.getByRole("textbox").getAttribute("placeholder")).toBe(
+      "Search Archived",
+    );
+    openPicker(head.getByRole("button", { name: "View: Archived" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Chats" }));
     expect(onFiltersChange).toHaveBeenLastCalledWith(NO_FILTERS);
   });
 
-  it("names the place that is the view, and steps the chats back to a mark that returns to them", () => {
-    const { head, onFiltersChange, places } = renderHead({
-      filters: { ...NO_FILTERS, place: "drafts" },
+  it("draws the picker in to its mark while the search is in use", () => {
+    const { head } = renderHead({
+      filters: { ...NO_FILTERS, place: "starred" },
     });
-    expect(places.getByRole("button", { name: "Drafts" }).textContent).toBe(
-      "Drafts",
-    );
-    fireEvent.click(head.getByRole("button", { name: "Chats" }));
-    expect(onFiltersChange).toHaveBeenLastCalledWith(NO_FILTERS);
+    const picker = head.getByRole("button", { name: "View: Starred" });
+    expect(picker.dataset.compact).toBeUndefined();
+    fireEvent.focus(head.getByRole("textbox"));
+    expect(picker.dataset.compact).toBe("true");
   });
 
   it("picks a topic from the picker, keeping the search", () => {
@@ -164,15 +173,6 @@ describe("FilterHead", () => {
       search: "fence",
       topics: ["money"],
     });
-  });
-
-  it("goes back to the chats from a topic through the picker", () => {
-    const { head, onFiltersChange } = renderHead({
-      filters: { ...NO_FILTERS, topics: ["house"] },
-    });
-    openPicker(head.getByRole("button", { name: "View: House" }));
-    fireEvent.click(screen.getByRole("menuitemradio", { name: "Chats" }));
-    expect(onFiltersChange).toHaveBeenLastCalledWith(NO_FILTERS);
   });
 
   it("makes a topic from the picker's foot, through the caller's dialog", () => {

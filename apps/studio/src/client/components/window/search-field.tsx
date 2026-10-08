@@ -1,54 +1,42 @@
 import { Input } from "@/client/components/ui/input";
-import { cn } from "@/client/lib/utils";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
-import { useState } from "react";
 
 /**
- * The search as a field over the inbox, the way mail puts it: it narrows the
- * list as it is typed into, and an x or Escape empties it. A pill, with its
- * glass and its word centered while it rests empty, the way a search box
- * rests; the caret and the words typed start at the left, behind the glass.
- * Nothing here takes focus on its own unless asked to.
+ * The search as a field beside the view picker, the way mail puts it: it
+ * narrows the list as it is typed into, and an x or Escape empties it. A
+ * pill with its glass at the left and the view it reads named in its
+ * placeholder. Nothing here takes focus on its own unless asked to.
  */
 export function SearchField({
   autoFocus = false,
   onChange,
+  onFocusChange,
+  placeholder,
   value,
 }: {
   autoFocus?: boolean;
   onChange: (value: string) => void;
+  /** Told when the field takes focus and when it lets it go. */
+  onFocusChange?: (isFocused: boolean) => void;
+  placeholder: string;
   value: string;
 }) {
-  const [isFocused, setFocused] = useState(false);
-  const isResting = value === "" && !isFocused;
   return (
-    <div className="relative">
-      {isResting ? (
-        // The resting face, over the field and out of the pointer's way: the
-        // field's own placeholder cannot carry the glass beside the word.
-        <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-          <MagnifyingGlassIcon className="size-3.5" />
-          Search
-        </span>
-      ) : (
-        <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-      )}
+    <div className="relative min-w-0 flex-1">
+      <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
       <Input
         aria-label="Search chats"
         autoFocus={autoFocus}
-        className={cn(
-          "h-7 rounded-full pr-6 pl-8 text-xs",
-          isResting && "text-center",
-        )}
+        className="h-8 rounded-full pr-7 pl-8 text-[13px] md:text-[13px]"
         onBlur={() => {
-          setFocused(false);
+          onFocusChange?.(false);
         }}
         onChange={(event) => {
           onChange(event.target.value);
         }}
         onFocus={() => {
-          setFocused(true);
+          onFocusChange?.(true);
         }}
         onKeyDown={(event) => {
           if (event.key === "Escape" && value !== "") {
@@ -57,7 +45,7 @@ export function SearchField({
             onChange("");
           }
         }}
-        placeholder={isResting ? undefined : "Search"}
+        placeholder={placeholder}
         type="text"
         value={value}
       />

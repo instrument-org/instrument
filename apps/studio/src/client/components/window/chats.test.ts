@@ -15,6 +15,7 @@ import {
   NO_FILTERS,
   outsideFilters,
   widenToSearch,
+  wordRanges,
 } from "./chats";
 
 function chat({
@@ -92,7 +93,7 @@ describe("outsideFilters", () => {
     expect(
       widenToSearch({
         apps: ["gmail"],
-        place: "needsYou",
+        place: "unread",
         search: "protein",
         topics: ["shopping"],
       }),
@@ -107,10 +108,16 @@ describe("matchesFilters", () => {
 
   it.each<[string, Partial<ChatFilters>, Filterable, Filterable]>([
     [
-      "the user to answer",
-      { place: "needsYou" },
-      chat({ state: "waiting" }),
-      chat({ state: "working", unread: 2 }),
+      "replies not yet seen",
+      { place: "unread" },
+      chat({ unread: 2 }),
+      chat({ archived: true, unread: 2 }),
+    ],
+    [
+      "been put away",
+      { place: "archived" },
+      chat({ archived: true }),
+      chat({ unread: 2 }),
     ],
     [
       "a star",
@@ -158,11 +165,7 @@ describe("matchesFilters", () => {
   });
 
   it.each<[string, ChatFilters, Filterable]>([
-    [
-      "Needs you",
-      { ...NO_FILTERS, place: "needsYou" },
-      chat({ state: "waiting" }),
-    ],
+    ["Unread", { ...NO_FILTERS, place: "unread" }, chat({ unread: 1 })],
     [
       "an app",
       { ...NO_FILTERS, apps: ["gmail"] },
@@ -366,7 +369,7 @@ describe("the inbox", () => {
   });
 
   it.each<[string, ChatFilters]>([
-    ["what needs the user", { ...NO_FILTERS, place: "needsYou" }],
+    ["the unread", { ...NO_FILTERS, place: "unread" }],
     ["the starred", { ...NO_FILTERS, place: "starred" }],
     ["the drafts", { ...NO_FILTERS, place: "drafts" }],
     ["all of it", { ...NO_FILTERS, place: "all" }],
@@ -462,5 +465,18 @@ describe("a draft's title", () => {
     ],
   ])("is %s", (_, words, title) => {
     expect(draftTitle(words)).toBe(title);
+  });
+});
+
+describe("wordRanges", () => {
+  it.each<[string, string, null | number[]]>([
+    ["Lisbon fares", "", null],
+    ["Lisbon fares", "porto", null],
+    ["Lisbon fares", "FARES", [7, 12]],
+    ["Lisbon fares", "fares lis", [0, 3, 7, 12]],
+    ["banana", "an", [1, 5]],
+    ["banana", "ana nan", [1, 5]],
+  ])("finds %j searched for %j", (text, search, ranges) => {
+    expect(wordRanges(text, search)).toEqual(ranges);
   });
 });

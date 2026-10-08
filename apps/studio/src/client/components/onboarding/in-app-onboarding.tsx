@@ -61,7 +61,10 @@ function InAppOnboardingSteps({ onFinish }: { onFinish: () => void }) {
     enabled: isSignedIn,
   });
   const { data: chatgpt } = useQuery(
-    rpcClient.chatgptPlan.live.status.experimental_liveOptions(),
+    rpcClient.chatgptAccount.live.status.experimental_liveOptions(),
+  );
+  const { data: claude } = useQuery(
+    rpcClient.claudeAccount.live.status.experimental_liveOptions(),
   );
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
@@ -85,6 +88,7 @@ function InAppOnboardingSteps({ onFinish }: { onFinish: () => void }) {
   const isReady =
     hasToken !== undefined &&
     chatgpt !== undefined &&
+    claude !== undefined &&
     (!isSignedIn || (status !== undefined && offer !== undefined));
   // Settled once, from the account as it was when the steps opened: buying a
   // plan here changes what the step would be, and must not end the steps
@@ -94,7 +98,9 @@ function InAppOnboardingSteps({ onFinish }: { onFinish: () => void }) {
     setStep(
       offer && status
         ? onboardingPlanStep({
-            hasChatGPTPlan: chatgpt.accounts.length > 0,
+            hasSubscriptionAccount:
+              (chatgpt?.accounts.length ?? 0) > 0 ||
+              claude?.kind === "signed-in",
             isSignedIn,
             offer,
             status,

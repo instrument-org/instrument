@@ -90,7 +90,7 @@ describe("onboardingPlanStep", () => {
   ])("$name: $expected", ({ expected, offer: theOffer, status }) => {
     expect(
       onboardingPlanStep({
-        hasChatGPTPlan: false,
+        hasSubscriptionAccount: false,
         isSignedIn: true,
         offer: theOffer,
         status,
@@ -98,10 +98,10 @@ describe("onboardingPlanStep", () => {
     ).toBe(expected);
   });
 
-  it("skips the step for someone on their ChatGPT plan", () => {
+  it("skips the step for someone on their ChatGPT or Claude account", () => {
     expect(
       onboardingPlanStep({
-        hasChatGPTPlan: true,
+        hasSubscriptionAccount: true,
         isSignedIn: true,
         offer: TRIAL_OFFERED,
         status: fresh,
@@ -112,7 +112,7 @@ describe("onboardingPlanStep", () => {
   it("skips the step without an Instrument account", () => {
     expect(
       onboardingPlanStep({
-        hasChatGPTPlan: false,
+        hasSubscriptionAccount: false,
         isSignedIn: false,
         offer: TRIAL_OFFERED,
         status: fresh,

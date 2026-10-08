@@ -317,6 +317,24 @@ describe("rowsForConnection", () => {
     },
   );
 
+  it("leads the recommendations with the provider's default", () => {
+    const models = shortMixed.map((model) =>
+      model.canonicalId === "glm-5.3-flash"
+        ? { ...model, tags: [...model.tags, "default" as const] }
+        : model,
+    );
+    const rows = rowsForConnection({
+      connectionId: "workers-ai",
+      models,
+      showAll: false,
+    });
+    expect(describeRows(rows).slice(0, 3)).toEqual([
+      "# Recommended",
+      "(z-ai) GLM 5.3 Flash",
+      "(deepseek) DeepSeek V4 Flash",
+    ]);
+  });
+
   it("shows the whole of a long catalog when asked", () => {
     const rows = rowsForConnection({
       connectionId: "openrouter-key",

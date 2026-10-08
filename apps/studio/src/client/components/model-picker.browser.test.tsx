@@ -224,6 +224,23 @@ describe("ModelPicker in a browser", () => {
     await expect.poll(tinted).toEqual(["Claude Haiku 4.5"]);
   });
 
+  // Any pointer movement in the panel used to count as using it, so crossing
+  // the provider rail on the way to a row lit the first row beside the chosen
+  // one.
+  it("tints no row while the pointer is on the provider rail", async () => {
+    await openPicker(olderSonnet);
+
+    await userEvent.hover(
+      page.getByRole("navigation", { name: "Providers" }).getByRole("button").first(),
+    );
+    const tinted = [...document.querySelectorAll("[role=option]")]
+      .filter((row) => !row.hasAttribute("data-chosen"))
+      .filter(
+        (row) => getComputedStyle(row).backgroundColor !== "rgba(0, 0, 0, 0)",
+      );
+    expect(tinted).toEqual([]);
+  });
+
   // The rule that keeps cmdk's untouched highlight from showing also took
   // the Use Auto button's own fill, leaving white words on nothing.
   it("draws Use Auto filled before the panel is touched", async () => {

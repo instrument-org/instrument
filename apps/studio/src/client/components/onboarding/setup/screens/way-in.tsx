@@ -128,7 +128,11 @@ export function WelcomePage() {
           </WayInButton>
         </div>
         <span className="text-xs text-foreground/50">
-          Only works with paid ChatGPT and Claude plans.
+          {chatgpt.checking
+            ? "Checking your ChatGPT account…"
+            : claude.connecting
+              ? "Checking your Claude account…"
+              : "Only works with paid ChatGPT and Claude plans."}
         </span>
       </div>
       <SetupQuietLink className="mt-5" onClick={ownKey}>
@@ -281,12 +285,12 @@ export function NoPaidPlanPage() {
         subtitle={
           couldNotConnect
             ? `Something went wrong while you were signing in, and ${name} didn't tell us what. Try again, or choose another way in.`
-            : `Instrument only works with a paid ${name} plan. Upgrade and try again, or choose another way in.`
+            : `Instrument works with a paid ${name} plan. A free plan, one that ended, or a workspace that doesn't allow other apps can't be used. Upgrade and try again, or choose another way in.`
         }
         title={
           couldNotConnect
             ? `We couldn't connect to ${name}`
-            : `Your ${name} account doesn't have a paid plan`
+            : `This ${name} account can't be used here`
         }
       />
       <SetupGroup className="mt-8">
@@ -390,9 +394,7 @@ export function OutOfUsagePage() {
     >
       <SetupHead
         illustration={
-          <BadgedTile
-            badge={<ClockIcon className="size-4 text-stone-600" />}
-          >
+          <BadgedTile badge={<ClockIcon className="size-4 text-gray-600" />}>
             <ProductHeadTile provider={trouble?.provider ?? "chatgpt"} />
           </BadgedTile>
         }
@@ -455,20 +457,18 @@ export function ClaudeSignInPage() {
         {error ? (
           <>
             <span className="max-w-100 text-center">{error}</span>
-            <SetupPill
-              kind="light"
-              onClick={retry}
-              size="small"
-            >
+            <SetupPill kind="light" onClick={retry} size="small">
               Try again
             </SetupPill>
           </>
         ) : (
           <>
             <Spinner className="size-4 text-brand-600" delay={0} />
-            {install
-              ? `Getting Claude ready, ${installPercent(install)}% done`
-              : "Waiting for Claude…"}
+            {pickup.checking
+              ? "Checking your Claude account…"
+              : install
+                ? `Getting Claude ready, ${installPercent(install)}% done`
+                : "Waiting for Claude…"}
             <SetupPill
               kind="light"
               onClick={() => {

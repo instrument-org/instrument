@@ -1,8 +1,7 @@
 import { useSetup } from "@/client/components/onboarding/setup/context";
 import {
-  chatGPTPlanReport,
-  claudePlanReport,
   type PlanReport,
+  reportFromCheck,
   stepAfterConnect,
 } from "@/client/components/onboarding/setup/way-in-routing";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
@@ -109,12 +108,14 @@ async function readFirstName(): Promise<null | string> {
 }
 
 /**
- * Sign in with ChatGPT in the browser, then move on by what the account says
- * about its plan (see `chatGPTPlanReport` for what it can't say yet).
+ * Sign in with ChatGPT in the browser, check the account can be used here
+ * (its plan, and one short request on it), then move on by what the check
+ * says. `checking` is up while the check runs, a few seconds.
  */
 export function useChatGPTWayIn({ move }: { move: Move }) {
   const routeAfterConnect = useRouteAfterConnect();
   const [waiting, setWaiting] = useState(false);
+  const [checking, setChecking] = useState(false);
   const attempts = useRef(0);
   // The account that signed in without allowing plan use, asked again next.
   const [declinedAccountId, setDeclinedAccountId] = useState<string>();
@@ -135,16 +136,29 @@ export function useChatGPTWayIn({ move }: { move: Move }) {
       case "signed-in": {
         // Setup's last step opens a chat, so the plan's model becomes the
         // default before moving on.
-        if (result.account) {
-          await rpcClient.chatgptAccount.chooseDefaultModel
-            .call({ accountId: result.account.id })
-            .catch(() => {});
+        if (!result.account) {
+          setWaiting(false);
+          routeAfterConnect({
+            move,
+            provider: "chatgpt",
+            report: { kind: "could-not-connect" },
+          });
+          return;
         }
-        routeAfterConnect({
-          move,
-          provider: "chatgpt",
-          report: chatGPTPlanReport(),
-        });
+        const accountId = result.account.id;
+        await rpcClient.chatgptAccount.chooseDefaultModel
+          .call({ accountId })
+          .catch(() => {});
+        setChecking(true);
+        const report = await rpcClient.chatgptAccount.check
+          .call({ accountId })
+          .then(reportFromCheck)
+          .catch((): PlanReport => ({ kind: "could-not-connect" }));
+        setChecking(false);
+        if (attempt !== attempts.current) {
+          return;
+        }
+        routeAfterConnect({ move, provider: "chatgpt", report });
         return;
       }
       case "plan-off": {
@@ -175,10 +189,11 @@ export function useChatGPTWayIn({ move }: { move: Move }) {
   const cancel = () => {
     attempts.current++;
     setWaiting(false);
+    setChecking(false);
     void rpcClient.chatgptAccount.cancelSignIn.call();
   };
 
-  return { cancel, start, waiting };
+  return { cancel, checking, start, waiting };
 }
 
 export function useClaudeStatus() {
@@ -189,9 +204,9 @@ export function useClaudeStatus() {
 }
 
 /**
- * Uses the Claude account our copy of Claude Code is signed in to, then reads
- * its plan and usage to say where setup goes. Usage that can't be read in a
- * few seconds counts as usage left.
+ * Uses the Claude account our copy of Claude Code is signed in to, then
+ * checks it can be used here (its plan and usage, and one short request on
+ * it) to say where setup goes. The check can take up to about 15 seconds.
  */
 async function connectClaude(): Promise<PlanReport> {
   const { status } = await rpcClient.claudeAccount.connect.call({});
@@ -201,17 +216,7 @@ async function connectClaude(): Promise<PlanReport> {
   if (status.kind !== "signed-in") {
     return { kind: "could-not-connect" };
   }
-  const usage = await Promise.race([
-    rpcClient.claudeAccount.usage.call({}).catch(() => null),
-    new Promise<null>((resolve) => {
-      setTimeout(resolve, 8000, null);
-    }),
-  ]);
-  return claudePlanReport({
-    plan: status.plan,
-    signedInToPlan: true,
-    usage: usage?.windows ?? null,
-  });
+  return reportFromCheck(await rpcClient.claudeAccount.check.call());
 }
 
 /**
@@ -320,5 +325,7 @@ export function useClaudeSignInPickup() {
     void rpcClient.claudeAccount.cancelSignIn.call({});
   };
 
-  return { status, stop };
+  // Signed in while this page is still up means the account is being checked;
+  // the check moves the page on when it is done.
+  return { checking: status?.kind === "signed-in", status, stop };
 }

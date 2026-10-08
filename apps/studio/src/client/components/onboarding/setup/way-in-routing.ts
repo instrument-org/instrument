@@ -2,6 +2,7 @@ import {
   type SetupAnswers,
   type SetupStep,
 } from "@/client/components/onboarding/setup/flow";
+import { type RPCOutput } from "@/client/rpc/client";
 
 type ConnectTrouble = NonNullable<SetupAnswers["connectTrouble"]>;
 
@@ -15,49 +16,27 @@ export type PlanReport =
   | { kind: "out-of-usage"; resetsAt: string | undefined }
   | { kind: "paid" };
 
-/**
- * Where a ChatGPT sign-in that succeeded goes next.
- *
- * Seam: the ChatGPT account route (`chatgptAccount.signIn`) answers only
- * whether the sign-in worked and whether plan use was allowed. Nothing it
- * reads tells a paid plan from a free one, or says the plan is out of usage
- * and when it comes back; both only show up later, as a refused model
- * request (`subscription_sharing_invalid_user`,
- * `subscription_sharing_usage_limit_exceeded`). Until the route reports a
- * plan, every signed-in account reads as paid.
- */
-export function chatGPTPlanReport(): PlanReport {
-  return { kind: "paid" };
-}
+/** What the account check says about a ChatGPT or Claude account. */
+export type AccountCheck = RPCOutput["claudeAccount"]["check"];
 
 /**
- * What Claude Code says about the account it just signed in to. A sign-in
- * through an API key or a cloud provider is not a plan; Claude Code names a
- * free account's plan "free" (an assumption: the paid ones read "pro" and
- * "max"). Any usage window at 100% means the plan is out of usage until the
- * last full window starts over.
+ * Where an account check sends setup. An account that signed out, or a
+ * check that could not tell (offline, an unexpected answer), reads as a
+ * connection that failed: the page says so and offers another try or
+ * another way in, never a way through on an account nobody checked.
  */
-export function claudePlanReport({
-  plan,
-  signedInToPlan,
-  usage,
-}: {
-  plan: string | undefined;
-  signedInToPlan: boolean;
-  usage: { resetsAt: string | undefined; used: number }[] | null;
-}): PlanReport {
-  if (!signedInToPlan || plan?.toLowerCase() === "free") {
-    return { kind: "no-paid-plan" };
+export function reportFromCheck(check: AccountCheck): PlanReport {
+  switch (check.state) {
+    case "ready":
+      return { kind: "paid" };
+    case "not-eligible":
+      return { kind: "no-paid-plan" };
+    case "out-of-usage":
+      return { kind: "out-of-usage", resetsAt: check.resetsAt };
+    case "signed-out":
+    case "unknown":
+      return { kind: "could-not-connect" };
   }
-  const spent = (usage ?? []).filter((window) => window.used >= 100);
-  if (spent.length === 0) {
-    return { kind: "paid" };
-  }
-  const resets = spent
-    .map((window) => window.resetsAt)
-    .filter((resetsAt) => resetsAt !== undefined)
-    .toSorted();
-  return { kind: "out-of-usage", resetsAt: resets.at(-1) };
 }
 
 /** The page after an account connects, and what setup keeps about it. */

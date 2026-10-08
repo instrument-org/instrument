@@ -1,58 +1,37 @@
 import {
-  claudePlanReport,
+  type AccountCheck,
   describeResetTime,
+  type PlanReport,
+  reportFromCheck,
   stepAfterConnect,
 } from "@/client/components/onboarding/setup/way-in-routing";
 import { describe, expect, it } from "vitest";
 
-describe("claudePlanReport", () => {
+describe("reportFromCheck", () => {
   it.each([
+    { check: { state: "ready" }, expected: { kind: "paid" } },
     {
-      expected: "paid",
-      input: { plan: "max", signedInToPlan: true, usage: null },
-      name: "a paid plan with no usage read",
+      check: { plan: "free", state: "not-eligible" },
+      expected: { kind: "no-paid-plan" },
     },
     {
-      expected: "no-paid-plan",
-      input: { plan: undefined, signedInToPlan: false, usage: null },
-      name: "an API key sign-in",
-    },
-    {
-      expected: "no-paid-plan",
-      input: { plan: "free", signedInToPlan: true, usage: null },
-      name: "a free plan",
-    },
-    {
-      expected: "paid",
-      input: {
-        plan: "pro",
-        signedInToPlan: true,
-        usage: [{ resetsAt: undefined, used: 99 }],
+      check: { resetsAt: "2026-10-08T22:40:00.000Z", state: "out-of-usage" },
+      expected: {
+        kind: "out-of-usage",
+        resetsAt: "2026-10-08T22:40:00.000Z",
       },
-      name: "a plan with usage left",
     },
-  ])("reads $name as $expected", ({ expected, input }) => {
-    expect(claudePlanReport(input).kind).toBe(expected);
-  });
-
-  it("waits for the last spent window to start over", () => {
-    expect(
-      claudePlanReport({
-        plan: "pro",
-        signedInToPlan: true,
-        usage: [
-          { resetsAt: "2026-10-08T22:40:00.000Z", used: 100 },
-          { resetsAt: "2026-10-12T09:00:00.000Z", used: 100 },
-          { resetsAt: "2026-10-30T09:00:00.000Z", used: 40 },
-        ],
-      }),
-    ).toMatchInlineSnapshot(`
-      {
-        "kind": "out-of-usage",
-        "resetsAt": "2026-10-12T09:00:00.000Z",
-      }
-    `);
-  });
+    { check: { state: "signed-out" }, expected: { kind: "could-not-connect" } },
+    {
+      check: { message: "offline", state: "unknown" },
+      expected: { kind: "could-not-connect" },
+    },
+  ] satisfies { check: AccountCheck; expected: PlanReport }[])(
+    "reads $check.state",
+    ({ check, expected }) => {
+      expect(reportFromCheck(check)).toEqual(expected);
+    },
+  );
 });
 
 describe("stepAfterConnect", () => {

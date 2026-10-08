@@ -201,7 +201,13 @@ const shoppingListWithoutNuts: Assertion = {
     const missing = wanted.filter(
       (one) => !body.includes(one.split(" ")[0] ?? one),
     );
-    const nuts = NUTS.filter((nut) => body.includes(nut.slice(0, -1)));
+    // A line saying which nuts were left out names them; only a line that
+    // lists one as something to buy counts.
+    const listed = body
+      .split("\n")
+      .filter((line) => !/omit|left out|exclud|allerg|avoid|without/.test(line))
+      .join("\n");
+    const nuts = NUTS.filter((nut) => listed.includes(nut.slice(0, -1)));
     return missing.length <= 2 && nuts.length === 0
       ? pass(
           text,

@@ -943,6 +943,7 @@ export const PromptInput = ({
               />
               <ModelPicker
                 anchorOnly
+                bounds={composerBounds}
                 className="pointer-events-none absolute inset-0"
                 disabled={disabled || isLoading}
                 errors={modelsErrors}

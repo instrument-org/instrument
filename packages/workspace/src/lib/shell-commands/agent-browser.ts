@@ -34,7 +34,6 @@ import { virtualizeHostPaths } from "../filter-shell-output";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import { liveHeldTabs } from "../chat/window-tab";
 import { isAtOrUnder } from "../path-containment";
-import { resolveChat } from "../record-folders";
 import { taskFsLayout } from "../resolve-workspace-file-path";
 import {
   getDownloadsDir,
@@ -1103,17 +1102,14 @@ async function recordHeldTabHosts({
 }
 
 /**
- * Why a task cannot browse right now, or nothing when it can. A task drives
- * the tabs of its chat it holds: tabs the conversation handed it, which are
- * the user's and outlive the task, and tabs it opened itself, each opened
- * behind whatever the user has up, so every page a task works in is one the
- * user can find in the chat's tabs and none is put in front of them. A chat
- * does not browse; it hands a page to a task.
+ * Why a chat or task cannot browse right now, or nothing when it can. Each
+ * drives the tabs of the chat it holds: tabs the conversation handed it,
+ * which are the user's and outlive the task, and tabs it opened itself, each
+ * opened behind whatever the user has up, so every page the agent works in
+ * is one the user can find in the chat's tabs and none is put in front of
+ * them. A page the user has open is handed to a task (`task new --tab`).
  */
 async function refuseBrowserFor(id: TaskId): Promise<string | undefined> {
-  if (resolveChat(id)) {
-    return "agent-browser: a chat does not browse. Hand the page to a task with `task new --tab <id>`.\n";
-  }
   const state = await getTaskState(taskDir(id));
   const heldTabs = state.browserTabs;
   const live = await liveHeldTabs(id, heldTabs);

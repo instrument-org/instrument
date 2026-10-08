@@ -144,11 +144,11 @@ afterEach(async () => {
 });
 
 describe("a chat", () => {
-  it("does not browse, and is told to hand the page to a task", async () => {
+  it("browses in the tabs it holds, through its own browser", async () => {
     const result = await run(["open", "https://example.com"], CHAT_ID);
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("a chat does not browse");
+    expect(result.exitCode).toBe(0);
+    expect(await spawnedCdpUrl()).toContain(`/devtools/task/${CHAT_ID}`);
     expect(asks).toEqual([]);
   });
 });

@@ -1,12 +1,7 @@
 import { type SetupStep } from "@/client/components/onboarding/setup/flow";
 import { type RPCOutput } from "@/client/rpc/client";
-import { z } from "zod";
 
-/**
- * What the plan pages read off billing, and the seams where they call billing
- * routes that do not exist yet. Each seam is one function here, so wiring the
- * real route is a change to this file alone.
- */
+/** What the plan pages read off billing, and the billing calls they make. */
 
 type Offer = RPCOutput["billing"]["offer"];
 type OfferPlan = Offer["plans"][number];
@@ -14,45 +9,17 @@ type Status = RPCOutput["billing"]["status"];
 
 const DAY_MS = 86_400_000;
 
-const BetaOfferSchema = z.object({ months: z.number(), plan: z.string() });
-
 /** The beta testers' thank-you: `months` of `plan` for free. */
-export type BetaOffer = z.output<typeof BetaOfferSchema>;
+export type BetaOffer = NonNullable<Offer["beta"]>;
 
 /**
- * The beta offer the API makes this account, or null for none. Whether one
- * is made is the API's call alone; this only reads what it says.
- *
- * Seam: the offer does not carry `beta` yet, so this reads null until the
- * billing contract adds the field.
+ * The beta offer the API makes this account, or null for none (an API that
+ * predates the field sends nothing). Whether one is made is the API's call
+ * alone; this only reads what it says.
  */
 export function readBetaOffer(offer: Offer | undefined): BetaOffer | null {
-  if (!offer || !("beta" in offer)) {
-    return null;
-  }
-  const parsed = BetaOfferSchema.safeParse(offer.beta);
-  return parsed.success ? parsed.data : null;
+  return offer?.beta ?? null;
 }
-
-/**
- * Starts the free trial when the person picks it, so its end date is set
- * from now.
- *
- * Seam: there is no `billing.startTrial` route yet, so this does nothing and
- * the trial starts on the first request to Instrument's AI, as it always has.
- */
-export async function startTrial(_plan: string): Promise<void> {
-  // Replaced by `await rpcClient.billing.startTrial.call({ plan })`.
-}
-
-/**
- * Whether Checkout can open on the beta offer's $0 price.
- *
- * Seam: `billing.openCheckout` takes no `offer` yet, and `usePlanCheckout`
- * passes none, so Accept would open Checkout at full price. It stays off
- * until both take `offer: "beta"`.
- */
-export const CAN_CHECKOUT_BETA_OFFER = false;
 
 /**
  * Where Welcome back's Get started goes: the beta offer when the API makes

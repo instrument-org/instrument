@@ -11,10 +11,8 @@ import {
 import { useSetup } from "@/client/components/onboarding/setup/context";
 import { SHARED_SETUP_START } from "@/client/components/onboarding/setup/flow";
 import {
-  CAN_CHECKOUT_BETA_OFFER,
   isHeavyPlan,
   readBetaOffer,
-  startTrial,
   trialEndDate,
   welcomeBackNext,
 } from "@/client/components/onboarding/setup/plans-billing";
@@ -36,10 +34,12 @@ import {
 } from "@/client/lib/onboarding-plan-step";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
+import { isDefinedError, ORPCError } from "@orpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 
 const DEFAULT_TRIAL_DAYS = 7;
 
@@ -210,7 +210,7 @@ export function PlansPage() {
                 return;
               }
               setIsStarting(true);
-              startTrial(plan.key).then(
+              startTrial().then(
                 () => {
                   dispatch({ step: "trial-started", type: "go" });
                 },
@@ -368,14 +368,7 @@ export function BetaOfferPage() {
             { text: "Image generation and dictation" },
           ]}
           onChoose={() => {
-            if (!CAN_CHECKOUT_BETA_OFFER) {
-              toast.error("This offer can't be accepted yet", {
-                description:
-                  "You can connect ChatGPT or Claude for now, or try again after the next update.",
-              });
-              return;
-            }
-            checkout.start(plan.key);
+            checkout.start(beta.plan, { offer: "beta" });
           }}
           plan={plan}
           price={
@@ -485,4 +478,27 @@ function LoadingPage() {
       <Spinner className="size-6 text-foreground/40" />
     </SetupPage>
   );
+}
+
+const RefusalSchema = z.object({ code: z.string() });
+
+/**
+ * Starts the no-card trial when the person picks it, so its end date is set
+ * from now. A day whose trials are all spent says so in words.
+ */
+async function startTrial(): Promise<void> {
+  try {
+    await rpcClient.billing.startTrial.call();
+  } catch (error) {
+    const refusal =
+      error instanceof ORPCError || isDefinedError(error)
+        ? RefusalSchema.safeParse(error.data)
+        : undefined;
+    if (refusal?.success && refusal.data.code === "trial-capacity") {
+      throw new Error(
+        "Today's free trials are all taken. You can subscribe now, or try again tomorrow.",
+      );
+    }
+    throw error;
+  }
 }

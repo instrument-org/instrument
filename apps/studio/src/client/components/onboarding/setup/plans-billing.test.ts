@@ -32,11 +32,6 @@ describe("readBetaOffer", () => {
     { expected: null, name: "no beta field", offer: OFFER },
     { expected: null, name: "beta null", offer: { ...OFFER, beta: null } },
     {
-      expected: null,
-      name: "malformed beta",
-      offer: { ...OFFER, beta: { plan: 4 } },
-    },
-    {
       expected: { months: 3, plan: "plus" },
       name: "beta offered",
       offer: { ...OFFER, beta: { months: 3, plan: "plus" } },

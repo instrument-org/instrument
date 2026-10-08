@@ -35,11 +35,15 @@ const status = authenticated.handler(() =>
   platformApiRpcClient.billing.status.call(),
 );
 
-/** Stripe's hosted Checkout for one plan, in the system browser. */
+/**
+ * Stripe's hosted Checkout for one plan, in the system browser; with
+ * `offer: "beta"`, the beta offer's free months of it.
+ */
 const openCheckout = authenticated
-  .input(z.object({ plan: z.string() }))
+  .input(z.object({ offer: z.literal("beta").optional(), plan: z.string() }))
   .handler(async ({ input }) => {
     const { url } = await platformApiRpcClient.billing.createCheckout.call({
+      ...(input.offer && { offer: input.offer }),
       plan: input.plan,
     });
     await openBillingPage(url);
@@ -70,6 +74,14 @@ const changePlan = authenticated
     }
     return result;
   });
+
+/**
+ * Starts the free trial now, for onboarding to start it when the person
+ * picks it; answers the billing status with the trial's end date.
+ */
+const startTrial = authenticated.handler(() =>
+  platformApiRpcClient.billing.startTrial.call(),
+);
 
 const lastRefusal = base.handler(() => lastPlatformRefusal() ?? null);
 
@@ -159,5 +171,6 @@ export const billing = {
   offer,
   openCheckout,
   openPortal,
+  startTrial,
   status,
 };

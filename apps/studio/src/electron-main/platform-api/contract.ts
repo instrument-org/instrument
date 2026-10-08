@@ -81,6 +81,15 @@ const BillingOfferSchema = z.object({
       days: z.number(),
     })
     .nullable(),
+  /**
+   * Free months of a plan this account can take at Checkout
+   * (`createCheckout` with `offer: "beta"`); null for everyone else, and
+   * absent from an API older than the offer.
+   */
+  beta: z
+    .object({ months: z.number(), plan: z.string() })
+    .nullable()
+    .optional(),
 });
 
 export const contract = {
@@ -99,10 +108,17 @@ export const contract = {
       }),
     ),
     createCheckout: base
-      .input(z.object({ plan: z.string() }))
+      .input(
+        z.object({ offer: z.literal("beta").optional(), plan: z.string() }),
+      )
       .output(z.object({ url: z.string() })),
     createPortal: base.input(z.void()).output(z.object({ url: z.string() })),
     offer: base.input(z.void()).output(BillingOfferSchema),
+    /**
+     * Starts the free trial now rather than on the first message to
+     * Instrument's models; a no-op when there is none to start.
+     */
+    startTrial: base.input(z.void()).output(BillingStatusSchema),
     status: base.input(z.void()).output(BillingStatusSchema),
   },
   root: {

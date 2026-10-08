@@ -26,41 +26,44 @@ const states = [
       body:
         inboxCol({
           drafts: [
-            { title: "Plan a weekend in Porto in November", time: "9:12 AM" },
-            { title: "Compare the three kitchen quotes", time: "Yesterday" },
+            {
+              title: "Draft the email announcing our new plans",
+              time: "9:12 AM",
+            },
+            { title: "Compare the four SOC 2 audit quotes", time: "Yesterday" },
           ],
         }) + noChatOpen(),
     }),
   },
   {
     title: "Chat running",
-    note: "While the Lisbon chat runs, we show its newest step shimmering at the right of the header, and pressing it lists the chat's tasks.",
+    note: "While the pricing chat runs, we show its newest step shimmering at the right of the header, and pressing it lists the chat's tasks.",
     body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
+      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
       body:
         inboxCol({ on: 0 }) +
-        thread({ working: "Checking fares on flytap.com" }),
+        thread({ working: "Reading plans on zendesk.com" }),
     }),
   },
   {
     title: "Chat with pane",
     note: "The chat's tiles sit in a row above the reply box, and we ring the one that's open in the pane. The pane sits right beside the chat, and the × at the end of its location row closes it.",
     body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
+      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
       body:
         inboxCol({ on: 0, w: 280 }) +
         thread({
-          body: lisbon(3),
+          body: pricing(3),
           tiles: chatTiles(
             [
-              { file: "itinerary" },
-              { file: "costs" },
-              { site: "tap", agent: true },
+              { file: "comparison" },
+              { file: "prices" },
+              { site: "zendesk", agent: true },
             ],
             0,
           ),
         }) +
-        paneCard({ tab: { file: "itinerary" } }),
+        paneCard({ tab: { file: "comparison" } }),
     }),
   },
   {
@@ -69,11 +72,11 @@ const states = [
     body: appWindow({
       on: "files",
       bar: winBar({
-        tabs: [{ chats: true }, { file: "itinerary" }],
+        tabs: [{ chats: true }, { file: "comparison" }],
         active: 0,
       }),
       body: placeCard({
-        tab: { file: "itinerary" },
+        tab: { file: "comparison" },
         body: finder({ pick: 4 }),
       }),
     }),
@@ -83,8 +86,8 @@ const states = [
     note: "A website opens as a window tab and fills the card.",
     body: appWindow({
       on: "browser",
-      bar: winBar({ tabs: [{ chats: true }, { site: "booking" }], active: 1 }),
-      body: placeCard({ tab: { site: "booking" } }),
+      bar: winBar({ tabs: [{ chats: true }, { site: "g2" }], active: 1 }),
+      body: placeCard({ tab: { site: "g2" } }),
     }),
   },
   {
@@ -93,13 +96,13 @@ const states = [
     body: appWindow({
       on: "files",
       bar: winBar({
-        tabs: [{ chats: true }, { file: "itinerary" }],
+        tabs: [{ chats: true }, { file: "comparison" }],
         active: 1,
       }),
-      body: placeCard({ tab: { file: "itinerary" } }),
+      body: placeCard({ tab: { file: "comparison" } }),
       over: smallChat({
-        tabs: [{ site: "tap", agent: true }, { file: "itinerary" }],
-        working: "Checking fares on flytap.com",
+        tabs: [{ site: "zendesk", agent: true }, { file: "comparison" }],
+        working: "Reading plans on zendesk.com",
       }),
     }),
   },
@@ -109,12 +112,12 @@ const states = [
     body: appWindow({
       on: "files",
       bar: winBar({
-        tabs: [{ chats: true }, { file: "itinerary" }],
+        tabs: [{ chats: true }, { file: "comparison" }],
         active: 1,
       }),
-      body: placeCard({ tab: { file: "itinerary" } }),
+      body: placeCard({ tab: { file: "comparison" } }),
       over: smallChat({
-        tabs: [{ site: "tap", agent: true }, { file: "itinerary" }],
+        tabs: [{ site: "zendesk", agent: true }, { file: "comparison" }],
         peek: 0,
       }),
     }),
@@ -123,7 +126,7 @@ const states = [
     title: "Draft",
     note: "A new chat opens a compose window docked at the bottom right. The model picker and send button are in its header, and below the text we offer Browser, This Mac and Apps, plus a place to drop files.",
     body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
+      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
       body: inboxCol({ on: 0 }) + thread(),
       over: composeWin(),
     }),
@@ -132,7 +135,7 @@ const states = [
     title: "Reply box with plus menu",
     note: "When the chosen model has a problem, the open reply box leads with a notice about it, and the plus menu is where you pick another model.",
     body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
+      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
       body:
         inboxCol({ on: 0 }) +
         thread({
@@ -147,7 +150,7 @@ const states = [
     title: "Menu and sheet",
     note: "The window uses two kinds of overlay, a popover menu and a sheet over the dimmed window.",
     body: appWindow({
-      bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
+      bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
       body: inboxCol({ on: 0 }) + thread(),
       over:
         menu(
@@ -179,7 +182,7 @@ const states = [
     body: macDesktop({
       windows: placed(
         appWindow({
-          bar: winBar({ tabs: [{ chats: true, title: LISBON_TITLE }] }),
+          bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
           body: inboxCol({ on: 0 }) + thread(),
         }),
         { left: 120, top: 70 },
@@ -226,8 +229,8 @@ const states = [
         scale: 1,
       }),
       over: macNotification({
-        sub: LISBON_TITLE,
-        body: "The itinerary is ready: five days, Alfama base, Sintra on day three.",
+        sub: PRICING_TITLE,
+        body: "The comparison is ready: at 10 agents our Team plan is 18% under Zendesk Suite Team.",
       }),
     }),
   },

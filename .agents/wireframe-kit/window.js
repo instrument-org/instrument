@@ -15,46 +15,46 @@ const brand = (key, cls = "size-4") =>
 const letterMark = (letter, cls, size = "size-4 text-[9px]") =>
   `<span class="grid ${size} shrink-0 place-items-center rounded-[4px] font-bold text-white ${cls}">${letter}</span>`;
 
-// Sites the Lisbon thread's task opens. Invented pages, real hosts.
+// Sites the pricing thread's task opens. Invented pages and prices, real hosts.
 const SITES = {
-  tap: {
-    title: "Lisbon flights · TAP",
-    host: "flytap.com",
-    mark: (s) => letterMark("T", "bg-[#12a14b]", s),
+  zendesk: {
+    title: "Suite plans · Zendesk",
+    host: "zendesk.com",
+    mark: (s) => letterMark("Z", "bg-[#03363d]", s),
   },
-  booking: {
-    title: "Hotels in Alfama · Booking.com",
-    host: "booking.com",
-    mark: (s) => letterMark("B", "bg-[#003580]", s),
+  intercom: {
+    title: "Pricing · Intercom",
+    host: "intercom.com",
+    mark: (s) => letterMark("I", "bg-[#1f1f1f]", s),
   },
-  cp: {
-    title: "Lisboa → Sintra · CP",
-    host: "cp.pt",
-    mark: (s) => letterMark("CP", "bg-[#5a9e2f]", s),
+  freshdesk: {
+    title: "Plans · Freshdesk",
+    host: "freshworks.com",
+    mark: (s) => letterMark("F", "bg-[#25c16f]", s),
   },
-  wiki: {
-    title: "Alfama · Wikipedia",
-    host: "en.wikipedia.org",
-    mark: (s) => brand("wikipedia", s ? s.split(" ")[0] : "size-4"),
+  g2: {
+    title: "Help desk software · G2",
+    host: "g2.com",
+    mark: (s) => letterMark("G2", "bg-[#ff492c]", s),
   },
-  maps: {
-    title: "Belém to Alfama · Maps",
-    host: "maps.google.com",
-    mark: (s) => letterMark("M", "bg-[#34a853]", s),
+  wayback: {
+    title: "zendesk.com/pricing · Wayback Machine",
+    host: "web.archive.org",
+    mark: (s) => letterMark("W", "bg-[#5c5c5c]", s),
   },
   notion: {
-    title: "Trips · Notion",
+    title: "Pricing and packaging · Notion",
     host: "notion.so",
     mark: (s) => brand("notion", s ? s.split(" ")[0] : "size-4"),
   },
 };
 
-// Files the Lisbon thread's task makes, and one from the user's folder.
+// Files the pricing thread's task makes, and two from the user's folder.
 const FILES = {
-  itinerary: { title: "lisbon-itinerary.html", kind: "html" },
-  costs: { title: "lisbon-costs.csv", kind: "csv" },
-  packing: { title: "packing-list.md", kind: "md" },
-  haiku: { title: "snow-haiku.md", kind: "md" },
+  comparison: { title: "pricing-comparison.html", kind: "html" },
+  prices: { title: "competitor-prices.csv", kind: "csv" },
+  faq: { title: "pricing-page-faq.md", kind: "md" },
+  board: { title: "q3-board-update.md", kind: "md" },
 };
 
 /** The colored file-type marks the Finder draws. */
@@ -172,29 +172,29 @@ const noChatOpen = () => `
 
 const ROWS = [
   {
-    title: "Lisbon trip itinerary with ticket prices",
+    title: "Help desk pricing against competitors",
     preview:
-      "It's going well: the task is checking current ticket prices and fares for the cost table.",
+      "It's going well: the task is reading each pricing page and noting what every tier includes.",
     unread: true,
     working: true,
     time: "9:41 AM",
   },
   {
-    title: "Kitchen quotes from Alder St contractors",
+    title: "SOC 2 audit quotes from four firms",
     preview:
-      "Three of the four replied. Harbor Build is the lowest, and the only one that includes permits.",
+      "Three of the four replied. Ridgeline is the lowest, and the only one that includes a readiness review.",
     starred: true,
     time: "Yesterday",
   },
   {
-    title: "Season of the snow haiku in the Instrument",
-    preview: "That was snow-haiku.md, in your Instrument folder.",
+    title: "Q3 board update in the Instrument folder",
+    preview: "That was q3-board-update.md, in your Instrument folder.",
     time: "Mon",
   },
   {
-    title: "Weekly grocery order",
+    title: "Renewal reminders for October accounts",
     preview:
-      "The cart is ready in Instacart; nothing is ordered until you say so.",
+      "The 14 drafts are ready in Gmail; nothing is sent until you say so.",
     time: "Sep 26",
   },
   {
@@ -308,7 +308,7 @@ const pageRow = (site) => `
 
 /** The work in flight, at a chat head's right while its tasks run: a spinner, the newest step in the shimmer's green and how many more (`more`), or with `compact` the spinner and the count. Pressed, it lists the chat's tasks. */
 const workLine = (
-  text = "Checking fares on flytap.com",
+  text = "Reading plans on zendesk.com",
   { more = 0, compact = false } = {},
 ) => `
   <span class="flex h-8 min-w-0 shrink items-center gap-1.5 rounded-md px-2 text-[12px]"><i class="ph ph-circle-notch shrink-0 animate-spin text-[13px] text-brand-600"></i>${compact ? `<span class="text-muted-foreground tabular-nums">${more + 1}</span>` : `<span class="truncate text-brand-600">${text}</span>${more ? `<span class="shrink-0 text-muted-foreground tabular-nums">+${more}</span>` : ""}`}<i class="ph ph-caret-down shrink-0 text-[11px] text-muted-foreground"></i></span>`;
@@ -320,34 +320,34 @@ const replyBox = ({ ph = "Talk to Instrument", text = "" } = {}) => `
     <span class="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600"><i class="ph ph-arrow-up text-[16px] text-white"></i></span>
   </div>`;
 
-const LISBON_TITLE = "Lisbon trip itinerary with ticket prices";
+const PRICING_TITLE = "Help desk pricing against competitors";
 
-/** The Lisbon chat's transcript. `stage` 1: running; 2: pages opened; 3: finished with files. */
-const lisbon = (stage = 1) =>
+/** The pricing chat's transcript. `stage` 1: running; 2: pages opened; 3: finished with files. */
+const pricing = (stage = 1) =>
   [
-    you("Plan a trip to Lisbon"),
+    you("How does our pricing compare with Zendesk, Intercom and Freshdesk?"),
     agent(
-      "I'll put together a Lisbon trip plan, assuming a first visit of about five days; say the word if the dates or length are different.",
+      "I'll line up each one's list prices against our plans, per agent per month and billed annually, for a 10-agent team; say the word if you'd rather compare at a different size.",
     ),
     stage >= 2
       ? agent(
-          "It's going well: the task is checking current ticket prices and fares for the cost table. I'll let you know when the itinerary page is ready.",
+          "It's going well: the task is reading each pricing page and noting what every tier includes. I'll let you know when the comparison is ready.",
         )
       : "",
     stage >= 3
       ? agent(
-          "The itinerary is ready: five days, Alfama base, Sintra on day three. Flights and the hotel come to about €1,140 for two.",
+          "The comparison is ready: at 10 agents our Team plan is 18% under Zendesk Suite Team and 8% under Freshdesk Pro. Intercom looks cheaper per seat, but its AI agent bills per resolution.",
         )
       : "",
-    stage >= 3 ? fileRow("itinerary") + fileRow("costs") : "",
+    stage >= 3 ? fileRow("comparison") + fileRow("prices") : "",
   ]
     .filter(Boolean)
     .join("");
 
 /** A chat column: header (with the work in flight while `working` names a step), the centered transcript, then its tiles (`tiles`, from chatTiles) over the reply box. */
 const thread = ({
-  title = LISBON_TITLE,
-  body = lisbon(2),
+  title = PRICING_TITLE,
+  body = pricing(2),
   working = "",
   tiles = "",
   head = "",
@@ -422,88 +422,111 @@ const bars2 = (...ws) =>
 
 /** Plausible page bodies, drawn small so they survive any width. */
 const PAGES = {
-  tap: () => `
+  zendesk: () => `
     <div class="h-full bg-white">
-      <div class="flex h-10 items-center gap-2 bg-[#12a14b] px-4 text-[12px] font-bold text-white">TAP AIR PORTUGAL<span class="flex-1"></span><span class="font-normal">EN · €</span></div>
+      <div class="flex h-10 items-center gap-2 bg-[#03363d] px-4 text-[13px] font-bold text-white">zendesk<span class="flex-1"></span><span class="font-normal">USD · Billed annually</span></div>
       <div class="p-4">
-        <div class="text-[15px] font-semibold">New York (JFK) → Lisbon (LIS)</div>
-        <div class="mt-1 text-[11px] text-muted-foreground">Thu 15 Oct → Tue 20 Oct · 2 adults · Economy</div>
+        <div class="text-[15px] font-semibold">Zendesk Suite</div>
+        <div class="mt-1 text-[11px] text-muted-foreground">Per agent per month</div>
         ${[
-          ["TP 210", "7:40 PM → 7:25 AM", "€412"],
-          ["TP 202", "10:10 PM → 9:55 AM", "€389"],
-          ["TP 208", "5:55 PM → 5:45 AM", "€455"],
+          ["Suite Team", "Ticketing, messaging, help center", "$55"],
+          ["Suite Growth", "Adds SLAs and multiple brands", "$89"],
+          ["Suite Professional", "Adds skills routing and HIPAA", "$115"],
         ]
           .map(
-            ([n, t, p], i) =>
-              `<div class="mt-2.5 flex items-center gap-3 rounded-lg border ${i === 1 ? "border-[#12a14b]" : "border-border"} p-2.5 text-[12px]"><span class="w-12 font-medium">${n}</span><span class="flex-1">${t}</span><span class="font-semibold">${p}</span></div>`,
+            ([n, d, p], i) =>
+              `<div class="mt-2.5 flex items-center gap-3 rounded-lg border ${i === 0 ? "border-[#03363d]" : "border-border"} p-2.5 text-[12px]"><div class="min-w-0 flex-1"><div class="font-medium">${n}</div><div class="mt-0.5 truncate text-[11px] text-muted-foreground">${d}</div></div><span class="font-semibold">${p}</span></div>`,
           )
           .join("")}
       </div>
     </div>`,
-  booking: () => `
+  intercom: () => `
     <div class="h-full bg-white">
-      <div class="flex h-10 items-center bg-[#003580] px-4 text-[13px] font-bold text-white">Booking.com</div>
+      <div class="flex h-10 items-center border-b border-border px-4 text-[13px] font-bold">intercom</div>
       <div class="p-4">
-        <div class="text-[14px] font-semibold">Alfama, Lisbon: 38 properties</div>
-        ${[
-          ["Memmo Alfama", "9.1", "€212"],
-          ["Palácio Belmonte", "9.4", "€340"],
-          ["Solar do Castelo", "8.9", "€188"],
-        ]
-          .map(
-            ([n, s, p]) =>
-              `<div class="mt-2.5 flex gap-3 rounded-lg border border-border p-2"><div class="size-12 shrink-0 rounded bg-[#d9e4f2]"></div><div class="min-w-0 flex-1 text-[12px]"><div class="font-semibold text-[#006ce4]">${n}</div><div class="mt-1 text-[11px] text-muted-foreground">${s} · per night</div></div><span class="text-[12px] font-semibold">${p}</span></div>`,
-          )
-          .join("")}
+        <div class="text-[15px] font-semibold">Plans for every team</div>
+        <div class="mt-3 grid grid-cols-3 gap-2">
+          ${[
+            ["Essential", "$29"],
+            ["Advanced", "$85"],
+            ["Expert", "$132"],
+          ]
+            .map(
+              ([n, p]) =>
+                `<div class="rounded-lg border border-border p-2.5 text-[12px]"><div class="font-medium">${n}</div><div class="mt-1.5 text-[16px] font-semibold">${p}</div><div class="text-[10px] text-muted-foreground">per seat / mo</div></div>`,
+            )
+            .join("")}
+        </div>
+        <div class="mt-3 rounded-lg bg-[#f4f4f1] px-3 py-2 text-[11px]">Fin AI Agent: $0.99 per resolution, on every plan</div>
       </div>
     </div>`,
-  cp: () => `
+  freshdesk: () => `
     <div class="h-full bg-white">
-      <div class="flex h-10 items-center gap-2 border-b border-border px-4 text-[13px] font-bold text-[#5a9e2f]">CP · Comboios de Portugal</div>
-      <div class="p-4 text-[12px]"><div class="text-[14px] font-semibold">Lisboa Rossio → Sintra</div><div class="mt-3 space-y-2">${["09:11", "09:41", "10:11", "10:41"].map((t) => `<div class="flex justify-between border-b border-border pb-1.5"><span>${t}</span><span class="text-muted-foreground">40 min</span><span>€2.40</span></div>`).join("")}</div></div>
-    </div>`,
-  wiki: () =>
-    `<div class="h-full bg-white p-5"><div class="font-serif text-[20px]">Alfama</div><div class="mt-1 border-b border-border pb-1 text-[10px] text-muted-foreground">From Wikipedia, the free encyclopedia</div><div class="mt-3 space-y-2">${bars2("100%", "96%", "88%", "100%", "62%")}</div><div class="mt-4 space-y-2">${bars2("100%", "91%", "70%")}</div></div>`,
-  maps: () =>
-    `<div class="relative h-full bg-[#e8eef0]"><div class="absolute inset-0 bg-[repeating-linear-gradient(35deg,transparent_0_38px,#fff_38px_42px)]"></div><div class="absolute top-4 left-4 rounded-lg bg-white px-3 py-2 text-[12px] shadow">Belém → Alfama · 28 min by tram</div></div>`,
-  notion: () =>
-    `<div class="h-full bg-white p-6"><div class="text-[22px] font-bold">Trips</div><div class="mt-4 space-y-2">${bars2("60%", "44%", "52%")}</div></div>`,
-  itinerary: () => `
-    <div class="h-full bg-white p-5">
-      <div class="text-[11px] font-medium tracking-wide text-[#e8793a] uppercase">Lisbon · 15–20 Oct</div>
-      <div class="mt-1 text-[18px] font-semibold">Five days in Lisbon</div>
-      ${[
-        "Day 1 · Alfama and the castle",
-        "Day 2 · Belém",
-        "Day 3 · Sintra by train",
-        "Day 4 · LX Factory",
-        "Day 5 · Chiado",
+      <div class="flex h-10 items-center bg-[#25c16f] px-4 text-[13px] font-bold text-white">freshdesk</div>
+      <div class="p-4 text-[12px]"><div class="text-[14px] font-semibold">Support desk plans</div><div class="mt-3 space-y-2">${[
+        ["Growth", "$15"],
+        ["Pro", "$49"],
+        ["Enterprise", "$79"],
       ]
         .map(
-          (d) =>
-            `<div class="mt-3 text-[12px] font-medium">${d}</div><div class="mt-1.5 space-y-1.5">${bars2("92%", "64%")}</div>`,
+          ([n, p]) =>
+            `<div class="flex justify-between border-b border-border pb-1.5"><span>${n}</span><span class="text-muted-foreground">agent / mo, billed annually</span><span class="font-semibold">${p}</span></div>`,
+        )
+        .join("")}</div></div>
+    </div>`,
+  g2: () =>
+    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Best Help Desk Software</div><div class="mt-1 border-b border-border pb-2 text-[10px] text-muted-foreground">Ranked by user reviews</div>${["Zendesk", "Freshdesk", "Intercom", "Help Scout"].map((n) => `<div class="mt-3 flex items-center gap-3"><div class="size-8 shrink-0 rounded bg-[#f3e8e6]"></div><div class="min-w-0 flex-1"><div class="text-[12px] font-medium">${n}</div><div class="mt-1.5 space-y-1.5">${bars2("80%")}</div></div></div>`).join("")}</div>`,
+  wayback: () =>
+    `<div class="h-full bg-white"><div class="flex h-9 items-center gap-2 border-b border-border bg-[#f4f4f4] px-4 text-[11px] text-muted-foreground"><span class="font-semibold text-foreground">INTERNET ARCHIVE</span>zendesk.com/pricing · captured 12 Oct 2025</div><div class="p-4"><div class="text-[14px] font-semibold">Zendesk Suite</div><div class="mt-3 space-y-2 text-[12px]">${[
+      ["Suite Team", "$55"],
+      ["Suite Growth", "$89"],
+      ["Suite Professional", "$115"],
+    ]
+      .map(
+        ([n, p]) =>
+          `<div class="flex justify-between border-b border-border pb-1.5"><span>${n}</span><span>${p}</span></div>`,
+      )
+      .join("")}</div></div></div>`,
+  notion: () =>
+    `<div class="h-full bg-white p-6"><div class="text-[22px] font-bold">Pricing and packaging</div><div class="mt-4 space-y-2">${bars2("60%", "44%", "52%")}</div></div>`,
+  comparison: () => `
+    <div class="h-full bg-white p-5">
+      <div class="text-[11px] font-medium tracking-wide text-[#e8793a] uppercase">Help desk pricing · Oct 2026</div>
+      <div class="mt-1 text-[18px] font-semibold">Our plans against three competitors</div>
+      <div class="mt-1 text-[11px] text-muted-foreground">10 agents, per agent per month, billed annually</div>
+      ${[
+        ["Zendesk Suite Team", "$55", 100],
+        ["Freshdesk Pro", "$49", 89],
+        ["Our Team plan", "$45", 82],
+        ["Intercom Essential", "$29 + AI usage", 53],
+      ]
+        .map(
+          ([n, p, w]) =>
+            `<div class="mt-3 flex items-center justify-between text-[12px] font-medium"><span>${n}</span><span>${p}</span></div><div class="mt-1.5 h-[7px] rounded-full ${n.startsWith("Our") ? "bg-[#e8793a]" : "bg-gray-300"}" style="width:${w}%"></div>`,
         )
         .join("")}
+      <div class="mt-5 text-[12px] font-medium">What each tier includes</div>
+      <div class="mt-1.5 space-y-1.5">${bars2("92%", "64%", "78%")}</div>
     </div>`,
-  costs: () => `
+  prices: () => `
     <div class="h-full bg-white p-3 font-mono text-[11px]">
       ${[
-        ["item", "each", "total"],
-        ["Flights TP 202 ×2", "€389", "€778"],
-        ["Memmo Alfama ×5", "€212", "€1,060"],
-        ["Sintra train ×4", "€2.40", "€9.60"],
-        ["Tram 28 day pass ×2", "€6.80", "€13.60"],
+        ["vendor", "plan", "agent/mo", "10 agents/yr"],
+        ["Zendesk", "Suite Team", "$55", "$6,600"],
+        ["Freshdesk", "Pro", "$49", "$5,880"],
+        ["Intercom", "Essential", "$29", "$3,480+"],
+        ["Ours", "Team", "$45", "$5,400"],
       ]
         .map(
           (r, i) =>
-            `<div class="grid grid-cols-[1fr_60px_70px] border-b border-border py-1.5 ${i ? "" : "font-semibold"}">${r.map((c) => `<span>${c}</span>`).join("")}</div>`,
+            `<div class="grid grid-cols-[1fr_1fr_60px_84px] border-b border-border py-1.5 ${i ? "" : "font-semibold"}">${r.map((c) => `<span>${c}</span>`).join("")}</div>`,
         )
         .join("")}
     </div>`,
-  packing: () =>
-    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Packing list</div><div class="mt-3 space-y-2">${bars2("40%", "52%", "36%", "48%")}</div></div>`,
-  haiku: () =>
-    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Snow haiku</div><div class="mt-3 space-y-2">${bars2("50%", "62%", "44%")}</div></div>`,
+  faq: () =>
+    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Pricing page FAQ</div><div class="mt-3 space-y-2">${bars2("40%", "52%", "36%", "48%")}</div></div>`,
+  board: () =>
+    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Q3 board update</div><div class="mt-3 space-y-2">${bars2("50%", "62%", "44%")}</div></div>`,
   newtab: () => `
     <div class="h-full bg-card p-6">
       <div class="text-[13px] font-medium text-muted-foreground">This Mac</div>
@@ -530,10 +553,10 @@ const FINDER_FILES = [
   ["html", "comparison-index.html"],
   ["md", "claude-usage-report.md"],
   ["folder", "cat-word-doc"],
-  ["html", "lisbon-itinerary.html"],
-  ["csv", "lisbon-costs.csv"],
-  ["md", "packing-list.md"],
-  ["md", "snow-haiku.md"],
+  ["html", "pricing-comparison.html"],
+  ["csv", "competitor-prices.csv"],
+  ["md", "pricing-page-faq.md"],
+  ["md", "q3-board-update.md"],
   ["html", "demo-page.html"],
 ];
 
@@ -557,10 +580,10 @@ const finder = ({ pick = -1 } = {}) => `
 
 /** The small view: a thread floating over whatever place is up (420x560, bottom right), its tiles over its reply box. `peek` is the index of the tile peeked at, drawn in a card over the conversation. */
 const smallChat = ({
-  title = LISBON_TITLE,
+  title = PRICING_TITLE,
   tabs = [],
   peek = -1,
-  body = lisbon(2),
+  body = pricing(2),
   working = "",
   right = 12,
   bottom = 12,
@@ -591,7 +614,7 @@ const chatPeek = (t, { bottom = 180 } = {}) => `
 
 /** A minimized chat: a 300px dark bar on the bottom edge. */
 const miniBar = ({
-  title = LISBON_TITLE,
+  title = PRICING_TITLE,
   working = false,
   right = 12,
 } = {}) => `

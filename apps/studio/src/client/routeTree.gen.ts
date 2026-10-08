@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as DebugRouteRouteImport } from './routes/debug/route'
-import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
 import { Route as AppBrowserRouteImport } from './routes/_app/browser'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
@@ -22,9 +21,6 @@ import { Route as DebugBrowserViewsRouteImport } from './routes/debug/browser-vi
 import { Route as DebugComponentsRouteImport } from './routes/debug/components'
 import { Route as DebugErrorsRouteImport } from './routes/debug/errors'
 import { Route as DebugNotificationsRouteImport } from './routes/debug/notifications'
-import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
-import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
-import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
 import { Route as AppAppsIndexRouteImport } from './routes/_app/apps/index'
 import { Route as AppAppsSlugRouteImport } from './routes/_app/apps/$slug'
 import { Route as AppChatsIndexRouteImport } from './routes/_app/chats/index'
@@ -65,11 +61,6 @@ const AppRouteRoute = AppRouteRouteImport.update({
 const DebugRouteRoute = DebugRouteRouteImport.update({
   id: '/debug',
   path: '/debug',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingRouteRoute = OnboardingRouteRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppBrowserRoute = AppBrowserRouteImport.update({
@@ -116,21 +107,6 @@ const DebugNotificationsRoute = DebugNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
   getParentRoute: () => DebugRouteRoute,
-} as any)
-const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => OnboardingRouteRoute,
-} as any)
-const OnboardingProvidersRoute = OnboardingProvidersRouteImport.update({
-  id: '/providers',
-  path: '/providers',
-  getParentRoute: () => OnboardingRouteRoute,
-} as any)
-const OnboardingThemeRoute = OnboardingThemeRouteImport.update({
-  id: '/theme',
-  path: '/theme',
-  getParentRoute: () => OnboardingRouteRoute,
 } as any)
 const AppAppsIndexRoute = AppAppsIndexRouteImport.update({
   id: '/apps/',
@@ -285,7 +261,6 @@ const DebugComponentsOnboardingThemeRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/debug': typeof DebugRouteRouteWithChildren
-  '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/browser': typeof AppBrowserRoute
   '/files': typeof AppFilesRoute
   '/release-notes': typeof AppReleaseNotesRoute
@@ -294,10 +269,7 @@ export interface FileRoutesByFullPath {
   '/debug/components': typeof DebugComponentsRouteWithChildren
   '/debug/errors': typeof DebugErrorsRoute
   '/debug/notifications': typeof DebugNotificationsRoute
-  '/onboarding/providers': typeof OnboardingProvidersRoute
-  '/onboarding/theme': typeof OnboardingThemeRoute
   '/debug/': typeof DebugIndexRoute
-  '/onboarding/': typeof OnboardingIndexRoute
   '/apps/$slug': typeof AppAppsSlugRoute
   '/chats/$id': typeof AppChatsIdRoute
   '/sites/$id': typeof AppSitesIdRoute
@@ -335,10 +307,7 @@ export interface FileRoutesByTo {
   '/debug/browser-views': typeof DebugBrowserViewsRoute
   '/debug/errors': typeof DebugErrorsRoute
   '/debug/notifications': typeof DebugNotificationsRoute
-  '/onboarding/providers': typeof OnboardingProvidersRoute
-  '/onboarding/theme': typeof OnboardingThemeRoute
   '/debug': typeof DebugIndexRoute
-  '/onboarding': typeof OnboardingIndexRoute
   '/apps/$slug': typeof AppAppsSlugRoute
   '/chats/$id': typeof AppChatsIdRoute
   '/sites/$id': typeof AppSitesIdRoute
@@ -371,7 +340,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteRouteWithChildren
   '/debug': typeof DebugRouteRouteWithChildren
-  '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/_app/browser': typeof AppBrowserRoute
   '/_app/files': typeof AppFilesRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
@@ -380,10 +348,7 @@ export interface FileRoutesById {
   '/debug/components': typeof DebugComponentsRouteWithChildren
   '/debug/errors': typeof DebugErrorsRoute
   '/debug/notifications': typeof DebugNotificationsRoute
-  '/onboarding/providers': typeof OnboardingProvidersRoute
-  '/onboarding/theme': typeof OnboardingThemeRoute
   '/debug/': typeof DebugIndexRoute
-  '/onboarding/': typeof OnboardingIndexRoute
   '/_app/apps/$slug': typeof AppAppsSlugRoute
   '/_app/chats/$id': typeof AppChatsIdRoute
   '/_app/sites/$id': typeof AppSitesIdRoute
@@ -417,7 +382,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/debug'
-    | '/onboarding'
     | '/browser'
     | '/files'
     | '/release-notes'
@@ -426,10 +390,7 @@ export interface FileRouteTypes {
     | '/debug/components'
     | '/debug/errors'
     | '/debug/notifications'
-    | '/onboarding/providers'
-    | '/onboarding/theme'
     | '/debug/'
-    | '/onboarding/'
     | '/apps/$slug'
     | '/chats/$id'
     | '/sites/$id'
@@ -467,10 +428,7 @@ export interface FileRouteTypes {
     | '/debug/browser-views'
     | '/debug/errors'
     | '/debug/notifications'
-    | '/onboarding/providers'
-    | '/onboarding/theme'
     | '/debug'
-    | '/onboarding'
     | '/apps/$slug'
     | '/chats/$id'
     | '/sites/$id'
@@ -502,7 +460,6 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/debug'
-    | '/onboarding'
     | '/_app/browser'
     | '/_app/files'
     | '/_app/release-notes'
@@ -511,10 +468,7 @@ export interface FileRouteTypes {
     | '/debug/components'
     | '/debug/errors'
     | '/debug/notifications'
-    | '/onboarding/providers'
-    | '/onboarding/theme'
     | '/debug/'
-    | '/onboarding/'
     | '/_app/apps/$slug'
     | '/_app/chats/$id'
     | '/_app/sites/$id'
@@ -548,7 +502,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRouteRoute: typeof AppRouteRouteWithChildren
   DebugRouteRoute: typeof DebugRouteRouteWithChildren
-  OnboardingRouteRoute: typeof OnboardingRouteRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -572,13 +525,6 @@ declare module '@tanstack/react-router' {
       path: '/debug'
       fullPath: '/debug'
       preLoaderRoute: typeof DebugRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/browser': {
@@ -643,27 +589,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/debug/notifications'
       preLoaderRoute: typeof DebugNotificationsRouteImport
       parentRoute: typeof DebugRouteRoute
-    }
-    '/onboarding/': {
-      id: '/onboarding/'
-      path: '/'
-      fullPath: '/onboarding/'
-      preLoaderRoute: typeof OnboardingIndexRouteImport
-      parentRoute: typeof OnboardingRouteRoute
-    }
-    '/onboarding/providers': {
-      id: '/onboarding/providers'
-      path: '/providers'
-      fullPath: '/onboarding/providers'
-      preLoaderRoute: typeof OnboardingProvidersRouteImport
-      parentRoute: typeof OnboardingRouteRoute
-    }
-    '/onboarding/theme': {
-      id: '/onboarding/theme'
-      path: '/theme'
-      fullPath: '/onboarding/theme'
-      preLoaderRoute: typeof OnboardingThemeRouteImport
-      parentRoute: typeof OnboardingRouteRoute
     }
     '/_app/apps/': {
       id: '/_app/apps/'
@@ -973,27 +898,10 @@ const DebugRouteRouteWithChildren = DebugRouteRoute._addFileChildren(
   DebugRouteRouteChildren,
 )
 
-interface OnboardingRouteRouteChildren {
-  OnboardingProvidersRoute: typeof OnboardingProvidersRoute
-  OnboardingThemeRoute: typeof OnboardingThemeRoute
-  OnboardingIndexRoute: typeof OnboardingIndexRoute
-}
-
-const OnboardingRouteRouteChildren: OnboardingRouteRouteChildren = {
-  OnboardingProvidersRoute: OnboardingProvidersRoute,
-  OnboardingThemeRoute: OnboardingThemeRoute,
-  OnboardingIndexRoute: OnboardingIndexRoute,
-}
-
-const OnboardingRouteRouteWithChildren = OnboardingRouteRoute._addFileChildren(
-  OnboardingRouteRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRouteRoute: AppRouteRouteWithChildren,
   DebugRouteRoute: DebugRouteRouteWithChildren,
-  OnboardingRouteRoute: OnboardingRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

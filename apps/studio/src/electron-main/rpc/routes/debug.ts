@@ -8,11 +8,11 @@ import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { setRecentVersionBump } from "@/electron-main/stores/machine/state";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
-import { openAppWindow } from "@/electron-main/windows/app-window";
 import {
-  closeOnboardingWindow,
-  openOnboardingWindow,
-} from "@/electron-main/windows/onboarding";
+  finishAppWindowSetup,
+  getAppWindow,
+} from "@/electron-main/windows/app-window";
+import { IN_APP_ONBOARDING_VERSION } from "@/shared/in-app-onboarding";
 import { PORTS } from "@instrument-org/shared";
 import { app, shell } from "electron";
 import fsSync from "node:fs";
@@ -159,8 +159,10 @@ const trigger = {
   }),
 };
 
+/** Onboarding again from the start, over the window as it is. */
 const openOnboarding = devOnly.input(z.void()).handler(() => {
-  openOnboardingWindow();
+  getWorkspaceState().set("onboardingVersion", 0);
+  getAppWindow()?.webContents.reload();
 });
 
 const openAuthTestPage = devOnly.input(z.void()).handler(() => {
@@ -251,11 +253,9 @@ async function openFolder(folderPath: string) {
  * app window with no provider and no account is a state worth seeing too.
  */
 const skipOnboarding = devOnly.input(z.void()).handler(() => {
-  getWorkspaceState().set("hasCompletedProviderSetup", true);
-  // Opened before the onboarding window closes, which quits the app when it
-  // leaves no window behind.
-  openAppWindow();
-  closeOnboardingWindow();
+  getWorkspaceState().set("onboardingVersion", IN_APP_ONBOARDING_VERSION);
+  finishAppWindowSetup();
+  publisher.publish("onboarding.changed", null);
 });
 
 const openUserDataFolder = devOnly.input(z.void()).handler(() => {

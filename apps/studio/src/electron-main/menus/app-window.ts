@@ -1,6 +1,7 @@
 import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
+import { isSetupPending } from "@/electron-main/windows/setup-mode";
 import {
   WINDOW_MENU_SHORTCUTS,
   WINDOW_SHORTCUTS,
@@ -157,7 +158,8 @@ const WINDOW_CHORDS = [
  */
 export function bindAppWindowChords(webContents: WebContents) {
   webContents.on("before-input-event", (event, input) => {
-    if (input.type !== "keyDown") {
+    // Onboarding holds the window, and the app behind it is not reachable.
+    if (input.type !== "keyDown" || isSetupPending()) {
       return;
     }
     const pressed = WINDOW_CHORDS.find(({ accelerator }) =>

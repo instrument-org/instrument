@@ -1,7 +1,10 @@
 import { type RPCOutput } from "@/client/rpc/client";
 import { describe, expect, it } from "vitest";
 
-import { isInAppOnboardingPending } from "@/shared/in-app-onboarding";
+import {
+  IN_APP_ONBOARDING_VERSION,
+  isInAppOnboardingPending,
+} from "@/shared/in-app-onboarding";
 import { onboardingPlanStep } from "./onboarding-plan-step";
 
 type Offer = RPCOutput["billing"]["offer"];
@@ -123,41 +126,22 @@ describe("onboardingPlanStep", () => {
 
 describe("isInAppOnboardingPending", () => {
   it.each([
+    { completedVersion: 0, expected: true, name: "someone new" },
+    { completedVersion: 2, expected: true, name: "a beta user after updating" },
     {
-      completedVersion: 0,
-      expected: true,
-      name: "an existing beta user after updating",
-      setUp: true,
-    },
-    {
-      completedVersion: 0,
-      expected: false,
-      name: "a new user still in the sign-in window",
-      setUp: false,
-    },
-    {
-      completedVersion: 2,
+      completedVersion: IN_APP_ONBOARDING_VERSION,
       expected: false,
       name: "someone who finished it",
-      setUp: true,
     },
-  ])("$name: $expected", ({ completedVersion, expected, setUp }) => {
-    expect(
-      isInAppOnboardingPending({
-        completedVersion,
-        hasCompletedProviderSetup: setUp,
-        skip: false,
-      }),
-    ).toBe(expected);
+  ])("$name: $expected", ({ completedVersion, expected }) => {
+    expect(isInAppOnboardingPending({ completedVersion, skip: false })).toBe(
+      expected,
+    );
   });
 
   it("never shows for a run that skips onboarding", () => {
-    expect(
-      isInAppOnboardingPending({
-        completedVersion: 0,
-        hasCompletedProviderSetup: true,
-        skip: true,
-      }),
-    ).toBe(false);
+    expect(isInAppOnboardingPending({ completedVersion: 0, skip: true })).toBe(
+      false,
+    );
   });
 });

@@ -1,5 +1,6 @@
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getAppWindow } from "@/electron-main/windows/app-window";
+import { isSetupPending } from "@/electron-main/windows/setup-mode";
 import {
   app,
   BrowserWindow,
@@ -32,12 +33,14 @@ export function createApplicationMenu(): void {
 
 /**
  * The app window's menu while it or nothing is focused: with no window
- * focused on macOS, the menu bar still belongs to the app.
+ * focused on macOS, the menu bar still belongs to the app. While onboarding
+ * holds the app window, the plain menu other windows get, so nothing in it
+ * reaches the app behind onboarding.
  */
 function updateApplicationMenu(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   const template: MenuItemConstructorOptions[] = [
-    ...(focusedWindow && focusedWindow !== getAppWindow()
+    ...((focusedWindow && focusedWindow !== getAppWindow()) || isSetupPending()
       ? createOtherWindowMenu()
       : createAppWindowMenu()),
     ...previewMenu(),

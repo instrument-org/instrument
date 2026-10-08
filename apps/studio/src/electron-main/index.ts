@@ -15,21 +15,15 @@ import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
-import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import {
   getAppWindow,
   openAppFile,
   openAppScreen,
   openAppWindow,
   updateAppWindowBackgroundColor,
-  warmAppWindowBehind,
 } from "@/electron-main/windows/app-window";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
-import {
-  openOnboardingWindow,
-  updateOnboardingWindowBackgroundColor,
-} from "@/electron-main/windows/onboarding";
 import { revealTask } from "@/electron-main/windows/reveal-task";
 import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
@@ -272,11 +266,7 @@ async function bootstrapPrimaryInstance() {
     });
   });
 
-  if (shouldShowOnboarding()) {
-    openOnboarding();
-  } else {
-    openAppWindow();
-  }
+  openAppWindow();
 
   // Let the initial window render before running the best-effort cache warmup.
   setTimeout(() => {
@@ -294,11 +284,7 @@ async function bootstrapPrimaryInstance() {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) {
-      if (shouldShowOnboarding()) {
-        openOnboarding();
-      } else {
-        openAppWindow();
-      }
+      openAppWindow();
     }
   });
   app.on("open-url", (event, url) => {
@@ -329,10 +315,6 @@ function focusForegroundWindow() {
   if (!app.isReady()) {
     return;
   }
-  if (shouldShowOnboarding()) {
-    openOnboarding();
-    return;
-  }
   ensureForegroundWindowVisible();
 }
 
@@ -349,18 +331,6 @@ function handleDeepLink(url: string) {
   }
 }
 
-/** Onboarding, with the app window loading off screen behind it. */
-function openOnboarding() {
-  warmAppWindowBehind(openOnboardingWindow());
-}
-
-function shouldShowOnboarding(): boolean {
-  if (process.env.SKIP_ONBOARDING === "true") {
-    return false;
-  }
-  return !getWorkspaceState().get("hasCompletedProviderSetup");
-}
-
 // Closing the last window quits, on macOS too. Staying resident is the macOS
 // convention, but nothing here is meant to outlive its window: agents would
 // keep running with no window to watch or stop them from, which reads as work
@@ -371,6 +341,5 @@ app.on("window-all-closed", () => {
 });
 
 function applyThemeToWindows() {
-  updateOnboardingWindowBackgroundColor();
   updateAppWindowBackgroundColor();
 }

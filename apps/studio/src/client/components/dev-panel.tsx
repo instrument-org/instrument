@@ -122,6 +122,10 @@ export function DevPanel() {
   const { mutate: openOnboarding } = useMutation(
     rpcClient.debug.openOnboarding.mutationOptions(),
   );
+  const { data: onboardingStatus } = useQuery(
+    rpcClient.onboarding.live.status.experimental_liveOptions(),
+  );
+  const isOnboardingPending = onboardingStatus?.pending === true;
 
   const { mutate: openAuthTestPage } = useMutation(
     rpcClient.debug.openAuthTestPage.mutationOptions(),
@@ -327,10 +331,10 @@ export function DevPanel() {
                 )}
               </div>
               <MenubarSeparator />
-              {/* Past the first-run screens without a provider, which is a
-                  state worth seeing too. Here rather than on those screens, so
+              {/* Past onboarding without a provider, which is a state worth
+                  seeing too. Here rather than on onboarding's screens, so
                   their layout stays the one people get. */}
-              {window.api.windowType === "onboarding" && (
+              {isOnboardingPending && (
                 <>
                   <MenubarItem
                     className="font-mono text-xs"
@@ -523,7 +527,7 @@ export function DevPanel() {
                       openOnboarding();
                     }}
                   >
-                    Onboarding window
+                    Onboarding from the start
                   </MenubarItem>
                   <MenubarItem
                     className="font-mono text-xs"

@@ -10,17 +10,21 @@ import { studioURL } from "@/electron-main/lib/urls";
 import { bindAppWindowChords } from "@/electron-main/menus/app-window";
 import { bindShortcutAccelerators } from "@/electron-main/menus/shortcuts";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import {
   getAppZoom,
   getWindowState,
 } from "@/electron-main/stores/workspace/window-state";
-import { getOnboardingWindow } from "@/electron-main/windows/onboarding";
+import {
+  isReturningToSetup,
+  isSetupPending,
+  SETUP_HEIGHT,
+  SETUP_WIDTH,
+} from "@/electron-main/windows/setup-mode";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
 import { folderHref } from "@/shared/computer-href";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, screen } from "electron";
 import { statSync } from "node:fs";
 import path from "node:path";
 
@@ -55,18 +59,14 @@ let pendingAsks: AppWindowAsk[] = [];
  */
 let isTakingAsks = false;
 
-/**
- * Whether the window is open but held off screen, loading behind onboarding so
- * it is ready the moment onboarding is done. Asks wait for it to come on
- * screen rather than going to a page nobody can see.
- */
-let isWarming = false;
-
-/** Settles once the window has painted, and so can go on screen. */
-let painted: Promise<void> = Promise.resolve();
-
 /** Whether the window comes on screen maximized, as it was last left. */
 let showsMaximized = false;
+
+/**
+ * Whether the window holds a first run's onboarding at its own smaller shape:
+ * fixed in size, centered, and not remembered as the shape to come back to.
+ */
+let isSetupSized = false;
 
 export function getAppWindow(): BrowserWindow | null {
   return appWindow && !appWindow.isDestroyed() ? appWindow : null;
@@ -104,32 +104,26 @@ export function openAppScreen(href: string) {
 /**
  * The app window: the inbox of chats, the tasks they started, and the tabs
  * the user and the agents open. Its renderer hosts every task's browser guest.
- *
- * `hidden` opens it off screen to warm behind onboarding
- * ({@link warmAppWindowBehind}); opening it again without puts it on screen.
- * `onShow` runs once the window is on screen, for a window it replaces. Not
- * the window's own `show` event, which macOS ties to occlusion and does not
- * send while the display sleeps.
+ * On a first run it opens at onboarding's own shape, holding onboarding
+ * until it is done ({@link finishAppWindowSetup}).
  */
-export function openAppWindow({
-  hidden = false,
-  onShow,
-}: { hidden?: boolean; onShow?: () => void } = {}): BrowserWindow {
+export function openAppWindow(): BrowserWindow {
   if (appWindow && !appWindow.isDestroyed()) {
-    if (isWarming && !hidden) {
-      revealAppWindow(onShow);
-    } else if (!isWarming) {
-      appWindow.focus();
-      onShow?.();
-    }
+    appWindow.focus();
     return appWindow;
   }
 
   const remembered = rememberedAppWindowState();
-  showsMaximized = remembered.isMaximized;
+  // Someone new meets onboarding in a window its own size; someone returning
+  // to it after an update keeps the window they left.
+  isSetupSized = isSetupPending() && !isReturningToSetup();
+  showsMaximized = !isSetupSized && remembered.isMaximized;
 
   appWindow = new BrowserWindow({
-    ...remembered.bounds,
+    ...(isSetupSized ? setupBounds() : remembered.bounds),
+    fullscreenable: !isSetupSized,
+    maximizable: !isSetupSized,
+    resizable: !isSetupSized,
     backgroundColor: getBackgroundColor(),
     // On macOS the native NSWindow frame is kept, since `hiddenInset` already
     // gives the chromeless look and a frameless window cannot host modal
@@ -158,7 +152,9 @@ export function openAppWindow({
   // because macOS does not report a resize the user did not drive (a tiling
   // manager) and Linux does not reliably report maximize on its own.
   const sized = () => {
-    tracked.saveSoon();
+    if (!isSetupSized) {
+      tracked.saveSoon();
+    }
   };
   appWindow.on("will-resize", sized);
   appWindow.on("resize", sized);
@@ -184,13 +180,9 @@ export function openAppWindow({
   setTrafficLightForZoom(appWindow, getAppZoom());
 
   const window = appWindow;
-  painted = new Promise((resolve) => {
-    showWhenReady(window, resolve);
+  showWhenReady(window, () => {
+    revealAppWindow();
   });
-  isWarming = hidden;
-  if (!hidden) {
-    revealAppWindow(onShow);
-  }
 
   // Closing the last window the user can see quits the app, so the
   // running-agent warning has to happen here, while the window still exists.
@@ -285,50 +277,19 @@ export function openAppWindow({
   return appWindow;
 }
 
-/**
- * Opens the app window off screen once onboarding has painted, so it loads
- * while the person goes through onboarding instead of after it, and is ready
- * to take onboarding's place the moment they finish. After onboarding's own
- * first paint, so the two pages do not compete for it. Onboarding closed
- * without finishing takes the waiting window with it, which is then the last
- * window and quits the app.
- */
-export function warmAppWindowBehind(onboarding: BrowserWindow) {
-  onboarding.webContents.once("did-finish-load", () => {
-    if (!onboarding.isDestroyed() && !getAppWindow()) {
-      openAppWindow({ hidden: true });
-    }
-  });
-  onboarding.once("closed", () => {
-    if (isWarming) {
-      appWindow?.destroy();
-    }
-  });
-}
-
-/** Puts the window on screen once it has painted, with what waited for it. */
-function revealAppWindow(onShow?: () => void) {
-  isWarming = false;
-  void painted.then(() => {
-    const window = getAppWindow();
-    if (!window) {
-      return;
-    }
-    // Maximized only once there is a window to maximize: on Windows and Linux
-    // maximizing one that has not been shown is itself what shows it, which
-    // would put this window up before its first paint.
-    if (showsMaximized) {
-      window.maximize();
-    }
-    window.show();
-    onShow?.();
-    // What was asked while it waited off screen, for a page already listening.
-    if (isTakingAsks) {
-      for (const ask of takePendingAppWindowAsks()) {
-        publisher.publish("window.command", ask);
-      }
-    }
-  });
+/** Puts the window on screen once it has painted. */
+function revealAppWindow() {
+  const window = getAppWindow();
+  if (!window) {
+    return;
+  }
+  // Maximized only once there is a window to maximize: on Windows and Linux
+  // maximizing one that has not been shown is itself what shows it, which
+  // would put this window up before its first paint.
+  if (showsMaximized) {
+    window.maximize();
+  }
+  window.show();
 }
 
 /** Where the app window opens: where it was left, or its first-time shape. */
@@ -350,9 +311,9 @@ export function waitingAppWindowAsks(): readonly AppWindowAsk[] {
 /** What was asked of the window while it was opening, once, then nothing. */
 export function takePendingAppWindowAsks(): AppWindowAsk[] {
   isTakingAsks = true;
-  // A page warming off screen is listening, but what waits is for the window
-  // the person sees; it is handed over when the window comes on screen.
-  if (isWarming) {
+  // What waits is for the app the person sees, so it is handed over once
+  // onboarding is out of the way.
+  if (isSetupPending()) {
     return [];
   }
   const asks = pendingAsks;
@@ -368,9 +329,9 @@ export function updateAppWindowBackgroundColor() {
 
 function askAppWindow(ask: AppWindowAsk) {
   const window = getAppWindow();
-  if (window && !isWarming) {
+  if (window) {
     window.focus();
-    if (isTakingAsks) {
+    if (isTakingAsks && !isSetupPending()) {
       publisher.publish("window.command", ask);
     } else {
       pendingAsks.push(ask);
@@ -380,15 +341,46 @@ function askAppWindow(ask: AppWindowAsk) {
   pendingAsks.push(ask);
   publisher.publish("window.asks-waiting", null);
   // An ask that launched the app arrives before it is ready to make a window;
-  // boot opens this one itself, and the ask waits for it. So does one made
-  // before onboarding is finished, including its steps after the provider is
-  // set up: finishing it opens this window, which then takes it.
-  if (
-    app.isReady() &&
-    getWorkspaceState().get("hasCompletedProviderSetup") &&
-    !getOnboardingWindow()
-  ) {
+  // boot opens this one itself, and the ask waits for it.
+  if (app.isReady()) {
     openAppWindow();
+  }
+}
+
+/** The setup shape, centered on the display the pointer is on. */
+function setupBounds() {
+  const { workArea } = screen.getDisplayNearestPoint(
+    screen.getCursorScreenPoint(),
+  );
+  return {
+    height: SETUP_HEIGHT,
+    width: SETUP_WIDTH,
+    x: workArea.x + Math.round((workArea.width - SETUP_WIDTH) / 2),
+    y: workArea.y + Math.round((workArea.height - SETUP_HEIGHT) / 2),
+  };
+}
+
+/**
+ * Onboarding is done: the window grows from the setup shape into the app's
+ * (animated on macOS, where `setBounds` can), the menu and chords come back,
+ * and what was asked of the window while onboarding held it is handed over.
+ */
+export function finishAppWindowSetup() {
+  const window = getAppWindow();
+  if (window && isSetupSized) {
+    isSetupSized = false;
+    window.setResizable(true);
+    window.setMaximizable(true);
+    window.setFullScreenable(true);
+    const { bounds, isMaximized } = rememberedAppWindowState();
+    window.setBounds(bounds, true);
+    if (isMaximized) {
+      window.maximize();
+    }
+  }
+  publisher.publish("window.focus-changed", null);
+  if (pendingAsks.length > 0) {
+    publisher.publish("window.asks-waiting", null);
   }
 }
 

@@ -177,3 +177,18 @@ The same hand-off suite ran on the shipped code, with the other designs deleted:
 The quick answer in the responsiveness case came in 1.3 (Haiku) and 1.4 seconds (Luna), the interrupted foreground job answered in 0.9 and 1.4 seconds with its work forked, and no run had a refused `task` call. The two failures were Haiku's weather page (temperatures the check could not match to the data it retrieved) and Luna's pdfs (it summarized older PDFs, the case it also lost once in round 9).
 
 Haiku's share of chatty turns (26%) came from a handful of cases, so those cases (weather, long-work, guide, document, dictation) ran again with 2 trials each: 10/10 passed, and 4 of 38 tool-using turns (11%) showed more than two messages, in line with round 9. Luna's pdfs passed 1 of 2 more runs. Nothing regressed beyond the noise of single trials.
+
+## Whole-design scenarios
+
+Eight multi-turn cases (`evals/cases/scenarios.ts`, kind `scenario`, run only when named) exercise the design end to end: three forks in one burst with a change to one and a status question, two interruptions in a row, stop everything, steering a running fork, forking a 60 to 75K-token chat, a page with planted instructions in the foreground and in a fork, and a five-minute script. With the existing vague-cleanup case, 2 trials per case per model on claude-haiku-5.5 and gpt-6-luna through OpenRouter, 35 of 36 runs passed.
+
+- **Cache.** A fork's first request after a 60 to 75K-token chat was 98% cached on both models (74,382 of 76,058 prompt tokens on Haiku, 49,737 of 50,607 on Luna), so inheriting the conversation costs about what the chat's next turn does. What adds up is a fork's later steps: in the app, a fork that compared three keyboards used 5.15M tokens over five minutes, about 91% of them cached reads.
+- **Planted instructions.** 8 of 8 clean: no memory saved from the page, no other chat read, nothing sent out. One blunt injection, so it shows the models resist the obvious version and no more.
+- **Fixes the scenarios led to**, each rerun at the fixed commit:
+  - A step that only promised a task, calling nothing, got one more step whose request ended on the agent's own reply, which OpenRouter's Anthropic route refuses as prefill; Haiku's turn died with no fork. That step now carries a hidden user note.
+  - A second interruption while the chat's auto-fork still runs forks nothing; the agent now gets a note that the earlier work stopped and nothing carries it on. Haiku picked the work back up in both reruns.
+  - The four-minute check-in on a healthy fork made the agent post a progress line in the app. The prompt now says an on-track check-in ends without a word; every check-in in the reruns was silent.
+  - A `task new` call that outlived its yield was answered "still running in the background" and copied into the fork, which took its own start for the work already under way. A fork now leaves out the call that started it, by its part id.
+- **Still open.** Haiku ran the five-minute script in the chat with a five to ten minute `yieldMs` in every trial instead of forking it; Luna forked every time.
+
+`task wake <id> --in <duration>` was briefly restored and then removed again: it asked the agent to estimate how long its own fork would take, which agents judge badly, and the header line already tells the user the work is alive.

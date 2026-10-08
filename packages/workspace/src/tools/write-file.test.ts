@@ -32,7 +32,7 @@ function makeExecuteArgs(
     model,
     signal: AbortSignal.timeout(10_000),
     taskId,
-    taskState: {},
+    taskState: { browserTabs: [] },
   };
 }
 
@@ -141,6 +141,7 @@ describe("WriteFile - path policy", () => {
         filePath: "/mnt/Docs/report.md",
       }),
       taskState: {
+        browserTabs: [],
         attachedFolders: {
           docs: {
             access: "read-only",
@@ -171,6 +172,7 @@ describe("WriteFile - path policy", () => {
         filePath: "/mnt/Docs/report.md",
       }),
       taskState: {
+        browserTabs: [],
         attachedFolders: {
           docs: {
             access: "read-write",

@@ -1,6 +1,5 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
-import { useBrowserAgentActivity } from "@/client/hooks/use-browser-agent-activity";
 import { useTargetAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import {
   type BrowserTargetId,
@@ -75,21 +74,11 @@ export function WindowTabStrip({
     tabs.find((tab) => (tab.stripKey ?? tab.id) === key)?.id ?? key;
   const menuTab = menu && tabs.find((tab) => tab.id === idOf(menu.key));
 
-  // Which tasks are in their browsers right now, one probe per task with a
-  // tab here, since the answer is a subscription and the list is a list.
-  const [working, setWorking] = useState<ReadonlySet<TaskId>>(new Set());
-  const browsingTaskIds = [
-    ...new Set(
-      tabs.flatMap((tab) =>
-        tab.kind === "page" && tab.taskId ? [tab.taskId] : [],
-      ),
-    ),
-  ];
-  // And which of the window's own tabs a task is driving, having been handed
-  // it: those shimmer too, keyed by the tab rather than by a task.
+  // Which of the window's tabs a task is driving, having been handed it or
+  // opened it: those shimmer, keyed by the tab.
   const [driven, setDriven] = useState<ReadonlySet<string>>(new Set());
   const ownPageTabs = tabs.flatMap((tab) =>
-    tab.kind === "page" && !tab.taskId ? [tab.id] : [],
+    tab.kind === "page" ? [tab.id] : [],
   );
   const reportDriven = (id: string, isDriven: boolean) => {
     setDriven((current) => {
@@ -100,21 +89,9 @@ export function WindowTabStrip({
       return next;
     });
   };
-  const reportWorking = (id: TaskId, isWorking: boolean) => {
-    setWorking((current) => {
-      if (current.has(id) === isWorking) return current;
-      const next = new Set(current);
-      if (isWorking) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  };
 
   return (
     <>
-      {browsingTaskIds.map((id) => (
-        <BrowserActivityProbe key={id} onChange={reportWorking} taskId={id} />
-      ))}
       {ownPageTabs.map((id) => (
         <TargetActivityProbe
           key={id}
@@ -154,14 +131,8 @@ export function WindowTabStrip({
           ...(tab.kind === "page"
             ? {
                 icon: <TabIcon favicon={tab.favicon} url={tab.url} />,
-                isWorking: tab.taskId
-                  ? working.has(tab.taskId)
-                  : driven.has(tab.id),
-                title:
-                  tab.title ||
-                  (tab.taskId && childTitles.get(tab.taskId)) ||
-                  pageTabTitle(tab) ||
-                  "New tab",
+                isWorking: driven.has(tab.id),
+                title: tab.title || pageTabTitle(tab) || "New tab",
               }
             : screenPresentation(tab.href, {
                 appsBySlug,
@@ -195,21 +166,6 @@ export function WindowTabStrip({
       )}
     </>
   );
-}
-
-/** Reports whether a task is in its browser, for the strip to shimmer its tab by. */
-function BrowserActivityProbe({
-  onChange,
-  taskId,
-}: {
-  onChange: (taskId: TaskId, isWorking: boolean) => void;
-  taskId: TaskId;
-}) {
-  const isWorking = useBrowserAgentActivity(taskId);
-  useEffect(() => {
-    onChange(taskId, isWorking);
-  }, [isWorking, onChange, taskId]);
-  return null;
 }
 
 /** Reports whether an agent is driving one guest, for the strip to shimmer its tab by. */

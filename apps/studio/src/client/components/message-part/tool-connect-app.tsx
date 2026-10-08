@@ -127,7 +127,8 @@ function ConnectCard({
           </>
         ) : kind === "none" ? (
           <p className="mt-3 text-xs text-muted-foreground">
-            Nothing to sign in to; Instrument is testing it.
+            This app doesn’t need a sign-in. Instrument is testing the
+            connection.
           </p>
         ) : (
           <div className="mt-3">

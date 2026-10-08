@@ -34,7 +34,7 @@ Also in the range, all relevant to surfaces we own:
 - 42.6.0: fixes running under tsx import transpilation, which is how most of our scripts run.
 - 42.6.1: crash when replacing an open application menu.
 
-Risk: low. Validation: boot Studio, run the smoke test, exercise an update install, open a task browser with the debugger attached.
+Risk: low. Validation: boot Studio, run the smoke test, exercise an update install, open the in-app browser with the debugger attached.
 
 ### electron-builder 26.8.2 to 26.15.7
 

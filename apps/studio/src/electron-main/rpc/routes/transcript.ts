@@ -117,7 +117,9 @@ async function renderTranscript({
 const copy = devOnly
   .input(transcriptInput)
   .handler(async ({ context, input, signal }) => {
-    await clipboard.writeText(await renderTranscript({ context, input, signal }));
+    await clipboard.writeText(
+      await renderTranscript({ context, input, signal }),
+    );
   });
 
 const save = devOnly

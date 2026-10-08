@@ -54,7 +54,7 @@ import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { instrumentFolderHref } from "@/shared/computer-href";
+import { outputFolderHref } from "@/shared/computer-href";
 import {
   type ChatId,
   encodeBrowserTargetId,
@@ -144,7 +144,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     chat === undefined
       ? []
       : windowTabs.allTabs.filter((tab) => tab.group === chat);
-  const up = windowTabs.tabUpIn(chat);
+  const up = windowTabs.selectedTabIn(chat);
   const isPaneWanted = chat === undefined || (paneOpenByGroup[chat] ?? true);
   const showsPane = up !== undefined && isPaneWanted;
 
@@ -186,7 +186,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       chosenId={showsPane ? up.id : undefined}
       isChatWorking={chatRecord?.state === "working"}
       onAddComputer={() => {
-        windowTabs.openScreen(instrumentFolderHref(), {
+        windowTabs.openScreen(outputFolderHref(), {
           group: chat,
           select: true,
         });
@@ -209,10 +209,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       }}
       tabs={tabs}
       targetOf={(tab) =>
-        encodeBrowserTargetId(
-          tab.taskId ?? WINDOW_ID,
-          StoreId.SessionSchema.parse(tab.id),
-        )
+        encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(tab.id))
       }
       taskTitles={shell.childTitles}
     />
@@ -237,6 +234,9 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
           <ChatPane
             arrivedId={shell.arrivedId}
             drafts={shell.drafts}
+            // An archived chat is put away, so it leaves the side beside
+            // the list with it.
+            onArchiveOpen={leaveChat}
             onDeleteDraft={shell.deleteDraft}
             onListed={isActive ? shell.onListed : undefined}
             onOpenChat={(entry) => {
@@ -262,6 +262,9 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                         // brought back, so the chat and its tabs can have
                         // the window.
                         leading={<InboxToggle isCollapsible={showsRightArea} />}
+                        // An archived chat is put away, so it leaves the
+                        // side beside the list with it.
+                        onArchived={leaveChat}
                         onDeleted={() => {
                           // The chat and the tabs it had are gone; the inbox
                           // takes the tab back.
@@ -478,7 +481,7 @@ function RouteScreen({ href }: { href: string }) {
 function SiteView({ group }: { group: string }) {
   const shell = useShell();
   const windowTabs = useWindowTabs();
-  const up = windowTabs.tabUpIn(group);
+  const up = windowTabs.selectedTabIn(group);
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
   const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
   usePageSlot(up?.kind === "page" ? pageHost : null, pageChrome, true);

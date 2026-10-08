@@ -18,6 +18,8 @@ export type ListingCommand =
   | { type: "select-all" }
   /** Space, which is Quick Look's: the page holding the browser answers it, and no row does. */
   | { type: "space" }
+  /** ⌘⌫ on the Mac, Delete elsewhere: what is selected, to the Trash. */
+  | { type: "trash" }
   /** A letter or digit, which jumps to the next name starting with what was typed. */
   | { char: string; type: "type-ahead" };
 
@@ -47,6 +49,18 @@ function isSelectAllPress(press: KeyPress, isMac: boolean) {
 }
 
 /**
+ * ⌘⌫, the Finder's Move to Trash; off the Mac, Delete alone, as Explorer and
+ * the Linux file managers have it. Shift+Delete there skips the Recycle Bin
+ * or the Trash, which nothing here does, so it is left alone.
+ */
+function isTrashPress(press: KeyPress, isMac: boolean) {
+  if (press.shiftKey || press.altKey) return false;
+  return isMac
+    ? press.key === "Backspace" && press.metaKey && !press.ctrlKey
+    : press.key === "Delete" && !press.metaKey && !press.ctrlKey;
+}
+
+/**
  * The command a press is, or null for one the listing leaves to whoever else
  * wants it: shortcuts it does not know, and arrows with ⌘ or Ctrl other than
  * ⌘↓, which the Finder keeps for going up and down folders.
@@ -56,6 +70,7 @@ export function listingCommandOf(
   isMac: boolean,
 ): ListingCommand | null {
   if (isSelectAllPress(press, isMac)) return { type: "select-all" };
+  if (isTrashPress(press, isMac)) return { type: "trash" };
   const command = press.metaKey || press.ctrlKey;
   if (command && (press.key === "o" || press.key === "ArrowDown")) {
     return { type: "open" };

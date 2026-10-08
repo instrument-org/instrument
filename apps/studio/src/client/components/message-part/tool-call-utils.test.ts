@@ -85,23 +85,39 @@ const failed: SessionMessagePart.ToolPart = {
   type: "tool-read_file",
 };
 
+function messageOf(...parts: SessionMessagePart.ToolPart[]) {
+  return { parts };
+}
+
+// Each part queued behind a call that has not finished, so the part's own
+// state is the only thing deciding.
+function runningBehindAnother(part: SessionMessagePart.ToolPart) {
+  return isToolPartRunning(part, messageOf(started, part));
+}
+
 describe("isToolPartRunning", () => {
   it("separates a call that has started from one still waiting its turn", () => {
-    expect(isToolPartRunning(started)).toBe(true);
-    expect(isToolPartRunning(queued)).toBe(false);
+    expect(runningBehindAnother(started)).toBe(true);
+    expect(runningBehindAnother(queued)).toBe(false);
+  });
+
+  it("counts a call next in line, which the runtime is about to start", () => {
+    expect(isToolPartRunning(queued, messageOf(queued))).toBe(true);
+    expect(isToolPartRunning(queued, messageOf(finished, queued))).toBe(true);
+    expect(isToolPartRunning(queued, messageOf(failed, queued))).toBe(true);
   });
 
   it("counts input that is still arriving, which is the model writing the call", () => {
-    expect(isToolPartRunning(arriving)).toBe(true);
+    expect(runningBehindAnother(arriving)).toBe(true);
   });
 
   it("counts a preliminary output, which a streaming tool emits mid-run", () => {
-    expect(isToolPartRunning(preliminary)).toBe(true);
-    expect(isToolPartRunning(finished)).toBe(false);
+    expect(runningBehindAnother(preliminary)).toBe(true);
+    expect(runningBehindAnother(finished)).toBe(false);
   });
 
   it("is over once the call failed", () => {
-    expect(isToolPartRunning(failed)).toBe(false);
+    expect(runningBehindAnother(failed)).toBe(false);
   });
 });
 

@@ -366,6 +366,7 @@ function PickerPanel({
             >
               <AIProviderIcon
                 className="size-4 shrink-0"
+                colored
                 type={entry.provider}
               />
               <span className="min-w-0 flex-1 truncate">

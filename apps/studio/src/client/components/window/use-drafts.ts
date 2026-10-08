@@ -138,7 +138,7 @@ export function useDrafts({
     const overGroup = windowTabs.groupOnScreen;
     const over =
       overGroup !== undefined && isGroupShown(overGroup, paneOpenByGroup)
-        ? windowTabs.tabUpIn(overGroup)
+        ? windowTabs.selectedTabIn(overGroup)
         : undefined;
     const inPlace =
       overGroup !== undefined && over !== undefined && isIncludable(over)

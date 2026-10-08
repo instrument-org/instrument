@@ -65,7 +65,7 @@ function assistantPartVisibility(spec: Spec) {
       isDeveloperMode: false,
       isLivePart,
       // What the stream passes for anything that is not a tool call.
-      isStreaming: false,
+      isRunning: false,
       part,
     });
   return { dead: read(false), live: read(true) };

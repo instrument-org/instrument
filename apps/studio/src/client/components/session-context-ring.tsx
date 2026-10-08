@@ -172,8 +172,8 @@ export function SessionContextRing({
           </div>
           {estimated && (
             <div className="max-w-52 opacity-60">
-              This provider does not report its window size, so the limit above
-              is our estimate and the real one may be larger.
+              This provider doesn’t say how much a chat can hold, so the limit
+              shown is an estimate and may be low.
             </div>
           )}
         </div>

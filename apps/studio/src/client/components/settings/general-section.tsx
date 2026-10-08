@@ -24,6 +24,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/client/components/ui/select";
+import { StateArrival } from "@/client/components/state-arrival";
 import {
   Tooltip,
   TooltipContent,
@@ -377,7 +378,8 @@ function InterfaceAndTheme() {
             <div className="space-y-0.5">
               <Label>Zoom</Label>
               <p className="text-xs text-muted-foreground">
-                Scale the interface. Independent of web view zoom.
+                You can make everything in the app larger or smaller. Web pages
+                keep their own zoom.
               </p>
             </div>
             <ZoomStepper />
@@ -426,8 +428,9 @@ function ReleaseChannel() {
           <div className="space-y-1">
             <Label htmlFor="release-channel">Update from</Label>
             <p className="text-xs text-muted-foreground">
-              Beta gets prereleases as soon as they ship. Moving back to Stable
-              keeps this build until a newer stable release passes it.
+              Beta gets new versions as soon as they’re released. If you switch
+              back to Stable, you’ll stay on this version until a newer stable
+              one comes out.
             </p>
           </div>
           <Select
@@ -799,73 +802,88 @@ function Notifications() {
 
   // Until macOS lets the app notify, the setting would read as working when
   // nothing can appear, so the section asks for that first.
-  if (status === "not-asked" || status === "denied" || isQuiet) {
+  const gate =
+    status === "not-asked"
+      ? "not-asked"
+      : status === "denied"
+        ? "off"
+        : isQuiet
+          ? "quiet"
+          : undefined;
+  // Which of the two the section shows, so it settles in when macOS changes
+  // its answer while someone is in System Settings.
+  const arrival = status === undefined ? undefined : (gate ?? "allowed");
+  if (gate !== undefined) {
     return (
       <SettingsSection title="Notifications">
-        <NotificationsPermission
-          isPending={requestPermission.isPending}
-          onAllow={() => {
-            requestPermission.mutate(undefined);
-          }}
-          onOpenSettings={() => {
-            openNotificationSettingsMutation.mutate(undefined);
-          }}
-          state={
-            status === "not-asked" ? "not-asked" : isQuiet ? "quiet" : "off"
-          }
-        />
+        <StateArrival state={arrival}>
+          <NotificationsPermission
+            isPending={requestPermission.isPending}
+            onAllow={() => {
+              requestPermission.mutate(undefined);
+            }}
+            onOpenSettings={() => {
+              openNotificationSettingsMutation.mutate(undefined);
+            }}
+            state={gate}
+          />
+        </StateArrival>
       </SettingsSection>
     );
   }
 
   return (
     <SettingsSection title="Notifications">
-      <Card className="p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <Label htmlFor="agent-completion-notifications">
-              Notify when tasks finish
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Show a desktop notification when a task finishes.
-            </p>
-            <Button
-              className="h-auto p-0 text-xs font-normal text-foreground"
-              disabled={sendTestNotificationMutation.isPending}
-              onClick={handleSendTest}
-              variant="link"
+      <StateArrival state={arrival}>
+        <Card className="p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="agent-completion-notifications">
+                Notify when tasks finish
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Show a desktop notification when a task finishes.
+              </p>
+              <Button
+                className="h-auto p-0 text-xs font-normal text-foreground"
+                disabled={sendTestNotificationMutation.isPending}
+                onClick={handleSendTest}
+                variant="link"
+              >
+                Send a test notification
+              </Button>
+            </div>
+            <Select
+              disabled={setAgentCompletionNotificationsMutation.isPending}
+              onValueChange={(value) => {
+                const option = NOTIFICATION_MODES.find(
+                  (o) => o.value === value,
+                );
+                if (option) {
+                  setAgentCompletionNotificationsMutation.mutate({
+                    mode: option.value,
+                  });
+                }
+              }}
+              value={mode}
             >
-              Send a test notification
-            </Button>
+              <SelectTrigger
+                className="bg-card bg-none dark:bg-gray-700"
+                id="agent-completion-notifications"
+              >
+                {triggerLabel}
+              </SelectTrigger>
+              <SelectContent align="end" position="popper">
+                {NOTIFICATION_MODES.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.menuLabel}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <Select
-            disabled={setAgentCompletionNotificationsMutation.isPending}
-            onValueChange={(value) => {
-              const option = NOTIFICATION_MODES.find((o) => o.value === value);
-              if (option) {
-                setAgentCompletionNotificationsMutation.mutate({
-                  mode: option.value,
-                });
-              }
-            }}
-            value={mode}
-          >
-            <SelectTrigger
-              className="bg-card bg-none dark:bg-gray-700"
-              id="agent-completion-notifications"
-            >
-              {triggerLabel}
-            </SelectTrigger>
-            <SelectContent align="end" position="popper">
-              {NOTIFICATION_MODES.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.menuLabel}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </Card>
+        </Card>
+      </StateArrival>
     </SettingsSection>
   );
 }

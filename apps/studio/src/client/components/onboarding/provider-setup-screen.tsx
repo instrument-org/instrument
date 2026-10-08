@@ -1,6 +1,7 @@
 import { AddProviderForm } from "@/client/components/add-provider/form";
 import { BrandMark } from "@/client/components/brand-mark";
 import { ChatGPTLoginButton } from "@/client/components/chatgpt-login-button";
+import { ClaudeLoginButton } from "@/client/components/claude-login-button";
 import { ExternalLink } from "@/client/components/external-link";
 import { GoogleLoginButton } from "@/client/components/google-login-button";
 import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
@@ -119,7 +120,7 @@ export function ProviderSetupScreen({
               <div className="flex items-center justify-center gap-x-2">
                 <BrandLeafIcon className="size-3" />
                 <p className="text-xs leading-4.5 font-medium text-brand-600 dark:text-brand-400">
-                  Create an account to enjoy free AI usage
+                  Create an account to get free AI usage
                 </p>
               </div>
             }
@@ -129,7 +130,13 @@ export function ProviderSetupScreen({
           />
 
           <ChatGPTLoginButton
-            caption={`${APP_NAME} can run on the ChatGPT Plus or Pro plan you already pay for.`}
+            caption="Pay for ChatGPT Plus or Pro? Use it here."
+            className="w-full justify-center"
+            onSuccess={onLoginSuccess}
+          />
+
+          <ClaudeLoginButton
+            caption="Pay for Claude Pro or Max? Use it here."
             className="w-full justify-center"
             onSuccess={onLoginSuccess}
           />

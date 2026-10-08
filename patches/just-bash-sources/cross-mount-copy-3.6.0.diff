@@ -1,0 +1,315 @@
+diff --git a/packages/just-bash/src/commands/cp/cp.ts b/packages/just-bash/src/commands/cp/cp.ts
+index 06c9872..738b7ac 100644
+--- a/packages/just-bash/src/commands/cp/cp.ts
++++ b/packages/just-bash/src/commands/cp/cp.ts
+@@ -197,7 +197,10 @@ export const cpCommand: RuntimeCommand = {
+           throw error;
+         }
+         const message = getErrorMessage(error);
+-        if (message.includes("ENOENT") || message.includes("no such file")) {
++        // Classify by the errno the message leads with. A cross-mount copy
++        // that failed on some entries quotes their errors inside its own, and
++        // an ENOENT among them does not mean the source operand is missing.
++        if (/^(?:ENOENT\b|no such file)/.test(message)) {
+           stderr += `cp: cannot stat '${src}': No such file or directory\n`;
+         } else {
+           stderr += `cp: cannot copy '${src}': ${message}\n`;
+diff --git a/packages/just-bash/src/commands/mv/mv.ts b/packages/just-bash/src/commands/mv/mv.ts
+index 9c7deb1..6f4a8e6 100644
+--- a/packages/just-bash/src/commands/mv/mv.ts
++++ b/packages/just-bash/src/commands/mv/mv.ts
+@@ -187,7 +187,10 @@ export const mvCommand: RuntimeCommand = {
+           throw error;
+         }
+         const message = getErrorMessage(error);
+-        if (message.includes("ENOENT") || message.includes("no such file")) {
++        // Classify by the errno the message leads with. A cross-mount copy
++        // that failed on some entries quotes their errors inside its own, and
++        // an ENOENT among them does not mean the source operand is missing.
++        if (/^(?:ENOENT\b|no such file)/.test(message)) {
+           stderr += `mv: cannot stat '${src}': No such file or directory\n`;
+         } else {
+           stderr += `mv: cannot move '${src}': ${message}\n`;
+diff --git a/packages/just-bash/src/fs/mountable-fs/mountable-fs.test.ts b/packages/just-bash/src/fs/mountable-fs/mountable-fs.test.ts
+index 25c0bdd..4888b7a 100644
+--- a/packages/just-bash/src/fs/mountable-fs/mountable-fs.test.ts
++++ b/packages/just-bash/src/fs/mountable-fs/mountable-fs.test.ts
+@@ -1,7 +1,19 @@
+ import { describe, expect, it } from "vitest";
++import { Bash } from "../../Bash.js";
++import {
++  ExecutionAbortedError,
++  ExecutionLimitError,
++} from "../../interpreter/errors.js";
+ import { InMemoryFs } from "../in-memory-fs/in-memory-fs.js";
+ import { MountableFs } from "./mountable-fs.js";
+ 
++/** A destination with the symlink policy ReadWriteFs and OverlayFs default to. */
++class NoSymlinkFs extends InMemoryFs {
++  override async symlink(_target: string, linkPath: string): Promise<void> {
++    throw new Error(`EPERM: operation not permitted, symlink '${linkPath}'`);
++  }
++}
++
+ describe("MountableFs", () => {
+   describe("mount/unmount operations", () => {
+     it("should mount a filesystem at a path", () => {
+@@ -344,6 +356,156 @@ describe("MountableFs", () => {
+       const content = await mounted.readFile("/dest.txt");
+       expect(content).toBe("content");
+     });
++
++    // ReadWriteFs and OverlayFs refuse to create a symlink unless allowSymlinks
++    // is set, which is the default; a tree with one link in it must still copy
++    // everything around the link.
++    it("should copy every other entry when the destination refuses one, then report it", async () => {
++      const mount1 = new InMemoryFs();
++      await mount1.mkdir("/dir");
++      await mount1.writeFile("/dir/a.txt", "a");
++      await mount1.symlink("/dir/a.txt", "/dir/link");
++      await mount1.mkdir("/dir/sub");
++      await mount1.writeFile("/dir/sub/b.txt", "b");
++      await mount1.symlink("../a.txt", "/dir/sub/up");
++      await mount1.writeFile("/dir/z.txt", "z");
++
++      const mount2 = new NoSymlinkFs();
++      const fs = new MountableFs();
++      fs.mount("/mnt/a", mount1);
++      fs.mount("/mnt/b", mount2);
++
++      await expect(
++        fs.cp("/mnt/a/dir", "/mnt/b/dir", { recursive: true }),
++      ).rejects.toThrow(
++        "copied all but 2 entries: /mnt/a/dir/link: EPERM: operation not permitted, symlink '/dir/link'; /mnt/a/dir/sub/up: EPERM: operation not permitted, symlink '/dir/sub/up'",
++      );
++
++      expect(await mount2.readFile("/dir/a.txt")).toBe("a");
++      expect(await mount2.readFile("/dir/sub/b.txt")).toBe("b");
++      expect(await mount2.readFile("/dir/z.txt")).toBe("z");
++      expect(await mount2.exists("/dir/link")).toBe(false);
++      expect(await mount2.exists("/dir/sub/up")).toBe(false);
++    });
++
++    it("should name a bounded number of the entries it could not copy", async () => {
++      const mount1 = new InMemoryFs();
++      await mount1.mkdir("/dir");
++      await mount1.writeFile("/dir/a.txt", "a");
++      for (let i = 0; i < 12; i++) {
++        await mount1.symlink(
++          "/dir/a.txt",
++          `/dir/link-${String(i).padStart(2, "0")}`,
++        );
++      }
++
++      const mount2 = new NoSymlinkFs();
++      const fs = new MountableFs();
++      fs.mount("/mnt/a", mount1);
++      fs.mount("/mnt/b", mount2);
++
++      await expect(
++        fs.cp("/mnt/a/dir", "/mnt/b/dir", { recursive: true }),
++      ).rejects.toThrow(
++        /^copied all but 12 entries: (\/mnt\/a\/dir\/link-\d\d: EPERM: operation not permitted, symlink '\/dir\/link-\d\d'; ){9}\/mnt\/a\/dir\/link-09: EPERM: operation not permitted, symlink '\/dir\/link-09'; and 2 more$/,
++      );
++
++      expect(await mount2.readFile("/dir/a.txt")).toBe("a");
++    });
++
++    it("should report a directory it could not enter as one entry with its contents", async () => {
++      const mount1 = new InMemoryFs();
++      await mount1.mkdir("/dir");
++      await mount1.writeFile("/dir/a.txt", "a");
++      await mount1.mkdir("/dir/sub");
++      await mount1.writeFile("/dir/sub/b.txt", "b");
++      await mount1.writeFile("/dir/sub/c.txt", "c");
++
++      // A file already sits where the subdirectory has to go.
++      const mount2 = new InMemoryFs({ "/dir/sub": "in the way" });
++      const fs = new MountableFs();
++      fs.mount("/mnt/a", mount1);
++      fs.mount("/mnt/b", mount2);
++
++      await expect(
++        fs.cp("/mnt/a/dir", "/mnt/b/dir", { recursive: true }),
++      ).rejects.toThrow(
++        /^copied all but 1 entry: \/mnt\/a\/dir\/sub and everything in it: EEXIST/,
++      );
++
++      expect(await mount2.readFile("/dir/a.txt")).toBe("a");
++      expect(await mount2.readFile("/dir/sub")).toBe("in the way");
++    });
++
++    it.each([
++      ["a limit", new ExecutionLimitError("limit", "iterations")],
++      ["an abort", new ExecutionAbortedError()],
++    ])("should stop at %s rather than record it as a failed entry", async (_reason, fatal) => {
++      const mount1 = new InMemoryFs();
++      await mount1.mkdir("/dir");
++      await mount1.writeFile("/dir/a.txt", "a");
++      await mount1.writeFile("/dir/b.txt", "b");
++      await mount1.writeFile("/dir/c.txt", "c");
++
++      class FatalOnB extends InMemoryFs {
++        override async writeFile(
++          ...args: Parameters<InMemoryFs["writeFile"]>
++        ): Promise<void> {
++          const [path] = args;
++          if (path === "/dir/b.txt") throw fatal;
++          return super.writeFile(...args);
++        }
++      }
++      const mount2 = new FatalOnB();
++      const fs = new MountableFs();
++      fs.mount("/mnt/a", mount1);
++      fs.mount("/mnt/b", mount2);
++
++      const error = await fs
++        .cp("/mnt/a/dir", "/mnt/b/dir", { recursive: true })
++        .catch((value: unknown) => value);
++
++      expect(error).toBe(fatal);
++      expect(await mount2.exists("/dir/a.txt")).toBe(true);
++      expect(await mount2.exists("/dir/c.txt")).toBe(false);
++    });
++
++    // OverlayFs and ReadWriteFs raise ENOENT from several gates for a single
++    // entry; one among the failures must not read as the source being missing.
++    it.each([
++      ["cp -r", "cp"],
++      ["mv", "mv"],
++    ])("should not report the source as missing from %s when one failed entry is ENOENT", async (command, name) => {
++      const mount1 = new InMemoryFs();
++      await mount1.mkdir("/dir");
++      await mount1.writeFile("/dir/a.txt", "a");
++      await mount1.writeFile("/dir/gone.txt", "g");
++
++      class MissingOnGone extends InMemoryFs {
++        override async writeFile(
++          ...args: Parameters<InMemoryFs["writeFile"]>
++        ): Promise<void> {
++          const [path] = args;
++          if (path === "/dir/gone.txt") {
++            throw new Error(
++              `ENOENT: no such file or directory, open '${path}'`,
++            );
++          }
++          return super.writeFile(...args);
++        }
++      }
++      const fs = new MountableFs();
++      fs.mount("/mnt/a", mount1);
++      fs.mount("/mnt/b", new MissingOnGone());
++      const bash = new Bash({ fs });
++
++      const result = await bash.exec(`${command} /mnt/a/dir /mnt/b/dir`);
++
++      expect(result.stderr).toBe(
++        `${name}: cannot ${name === "cp" ? "copy" : "move"} '/mnt/a/dir': copied all but 1 entry: /mnt/a/dir/gone.txt: ENOENT: no such file or directory, open '/dir/gone.txt'\n`,
++      );
++      expect(result.exitCode).toBe(1);
++    });
+   });
+ 
+   describe("cross-mount move", () => {
+diff --git a/packages/just-bash/src/fs/mountable-fs/mountable-fs.ts b/packages/just-bash/src/fs/mountable-fs/mountable-fs.ts
+index 16c5437..28a2498 100644
+--- a/packages/just-bash/src/fs/mountable-fs/mountable-fs.ts
++++ b/packages/just-bash/src/fs/mountable-fs/mountable-fs.ts
+@@ -1,4 +1,5 @@
+ import { type ByteString, readBytesFrom } from "../../encoding.js";
++import { rethrowFatalExecutionError } from "../../fatal-execution-error.js";
+ import { ExclusiveCreateUnsupportedError } from "../create-exclusive.js";
+ import { InMemoryFs } from "../in-memory-fs/in-memory-fs.js";
+ import type {
+@@ -23,6 +24,20 @@ import {
+   validatePath,
+ } from "../path-utils.js";
+ 
++/**
++ * How many entries a failed cross-mount copy names in its error. Only these
++ * are kept while the walk runs; the rest are counted, so a tree with thousands
++ * of symlinks the destination refuses (a node_modules) costs one error rather
++ * than one the size of the tree, in memory as well as in the message.
++ */
++const CROSS_MOUNT_COPY_FAILURES_REPORTED = 10;
++
++/** What a cross-mount copy could not copy: how many entries, and the first few. */
++interface CrossMountCopyFailures {
++  count: number;
++  named: string[];
++}
++
+ /**
+  * Configuration for a mount point
+  */
+@@ -676,14 +691,38 @@ export class MountableFs implements IFileSystem {
+ 
+   /**
+    * Perform a cross-mount copy operation.
++   *
++   * A directory is copied entry by entry, and an entry that cannot be copied
++   * (a symlink the destination refuses to create, a file it refuses to write)
++   * does not end the walk: every other entry is still copied, and the failures
++   * are thrown together once the tree is done, the way GNU cp reports each
++   * entry it could not copy and exits 1 at the end. A directory that fails
++   * before its children are reached is one entry whose contents are missing
++   * with it, and is reported as such.
+    */
+   private async crossMountCopy(
+     src: string,
+     dest: string,
+     options?: CpOptions,
+   ): Promise<void> {
++    const failures: CrossMountCopyFailures = { count: 0, named: [] };
+     const srcStat = await this.lstat(src);
++    await this.crossMountCopyEntry(src, dest, srcStat, options, failures);
++    if (failures.count > 0) {
++      const unnamed = failures.count - failures.named.length;
++      throw new Error(
++        `copied all but ${failures.count} ${failures.count === 1 ? "entry" : "entries"}: ${failures.named.join("; ")}${unnamed > 0 ? `; and ${unnamed} more` : ""}`,
++      );
++    }
++  }
+ 
++  private async crossMountCopyEntry(
++    src: string,
++    dest: string,
++    srcStat: FsStat,
++    options: CpOptions | undefined,
++    failures: CrossMountCopyFailures,
++  ): Promise<void> {
+     if (srcStat.isFile) {
+       const content = await this.readFileBuffer(src);
+       await this.writeFile(dest, content);
+@@ -697,7 +736,30 @@ export class MountableFs implements IFileSystem {
+       for (const child of children) {
+         const srcChild = joinPath(src, child);
+         const destChild = joinPath(dest, child);
+-        await this.crossMountCopy(srcChild, destChild, options);
++        let childStat: FsStat | undefined;
++        try {
++          childStat = await this.lstat(srcChild);
++          await this.crossMountCopyEntry(
++            srcChild,
++            destChild,
++            childStat,
++            options,
++            failures,
++          );
++        } catch (error) {
++          // A limit, an abort, or a security violation ends the copy rather
++          // than being recorded as one entry that could not be copied.
++          rethrowFatalExecutionError(error);
++          const message =
++            error instanceof Error ? error.message : String(error);
++          const entry = childStat?.isDirectory
++            ? `${srcChild} and everything in it`
++            : srcChild;
++          failures.count++;
++          if (failures.named.length < CROSS_MOUNT_COPY_FAILURES_REPORTED) {
++            failures.named.push(`${entry}: ${message}`);
++          }
++        }
+       }
+     } else if (srcStat.isSymbolicLink) {
+       const target = await this.readlink(src);

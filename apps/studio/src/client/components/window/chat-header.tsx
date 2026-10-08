@@ -47,6 +47,7 @@ import { type ChatRename, useChatRename } from "./use-chat-rename";
 export function ChatHeader({
   chat,
   leading,
+  onArchived,
   onDeleted,
   onNewTopic,
   onOpenTask,
@@ -59,6 +60,8 @@ export function ChatHeader({
   chat: Chat | undefined;
   /** What sits ahead of the title: the toggle that puts the inbox away. */
   leading?: ReactNode;
+  /** After the chat is archived from its menu, so the window can put it away. */
+  onArchived?: () => void;
   /** Told once the chat has been deleted, so the window can put it away. */
   onDeleted: () => void;
   /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
@@ -90,7 +93,7 @@ export function ChatHeader({
         {chat ? (
           <ChatHeading
             chat={chat}
-            menu={{ onViewTasks }}
+            menu={{ onArchived, onViewTasks }}
             onDelete={() => {
               setDeleting(true);
             }}

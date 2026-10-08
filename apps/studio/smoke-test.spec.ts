@@ -221,8 +221,9 @@ describe("Studio Smoke Test", () => {
   // commands through the archive the shipped app loads, under the shipped
   // runtime: sqlite3 needs its worker, a worker thread to load it, and sql.js
   // to read wasm out of the archive; python3 needs its own worker and the
-  // vendored CPython wasm and stdlib zip; js-exec needs its worker and the one
-  // quickjs-emscripten variant the build keeps.
+  // vendored CPython wasm and stdlib zip; js-exec needs the `run` package and,
+  // with the `typescript` package left out of the build, the runtime's own
+  // `stripTypeScriptTypes` to run TypeScript.
   it("runs bash commands from inside the packaged archive", async () => {
     const executablePath = await resolveExecutablePath(distPath);
     const nodeModules = path.join(asarPath(executablePath), "node_modules");
@@ -246,9 +247,7 @@ describe("Studio Smoke Test", () => {
           "sqlite3 /db 'create table t(a); insert into t values(41); select a+1 from t;'",
         );
         const python = await bash.exec("python3 -c 'import json; print(json.dumps(6 * 7))'");
-        const jsExec = await bash.exec("js-exec -c 'console.log(6 * 7)'");
-        // js-exec keeps its worker for reuse past the end of the script, so
-        // the process has to be told it is finished.
+        const jsExec = await bash.exec("js-exec -c 'const n: number = 6 * 7; console.log(n)'");
         process.stdout.write("SANDBOX_SMOKE " + JSON.stringify({ entry, jsExec, python, result }) + "\\n", () => process.exit(0));
       })().catch((error) => {
         process.stdout.write("SANDBOX_SMOKE_ERROR " + String(error && error.stack ? error.stack : error) + "\\n");

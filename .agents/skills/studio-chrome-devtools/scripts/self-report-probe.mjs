@@ -162,7 +162,7 @@ const probe = () => {
   });
 };
 
-// Read the automation-visible surface of a task browser guest, for comparing
+// Read the automation-visible surface of an in-app browser guest, for comparing
 // against what a real Chrome reports. Pass `--args '{"taskId":"..."}'` to pick a
 // guest when the pool holds more than one; the first mounted guest is the
 // default. Open a page in the guest first -- an `about:blank` guest reports

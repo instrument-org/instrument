@@ -1,6 +1,6 @@
 # A 429 that is not a rate limit
 
-**Status:** fixed in 2cc483a89, checked 2026-10-02. `web_fetch` now reads a failed response's body and says what a refusal without a `Retry-After` most likely is. The durable part is the methodology: the host answers the same request differently seconds apart, so the single-sample comparisons two sessions each built a mechanism on were both unsound, and only the aggregate survives. Companion reading from the browser side is [what the task browser reports about itself](task-browser-self-report.md). Measured 2026-09-02.
+**Status:** fixed in 2cc483a89, checked 2026-10-02. `web_fetch` now reads a failed response's body and says what a refusal without a `Retry-After` most likely is. The durable part is the methodology: the host answers the same request differently seconds apart, so the single-sample comparisons two sessions each built a mechanism on were both unsound, and only the aggregate survives. Companion reading from the browser side is [what the in-app browser reports about itself](in-app-browser-self-report.md). Measured 2026-09-02.
 
 A large retail site refuses most requests from any scripted HTTP client, including the first one, with **HTTP 429** and no `Retry-After`. No prior traffic, nothing to rate-limit. `web_fetch` cancelled the body and reported `Request failed with status 429 Too Many Requests.`, so the model read a rate limit, did what a rate limit calls for, and could not succeed.
 
@@ -33,7 +33,7 @@ Every cell above is one request, and the host does not answer the same request t
 
 So the columns above are not really being compared. Three samples of a process that refuses most of the time will agree three times whatever the headers do, which is how a comparison that controlled the client, the URL, the path class and the moment still could not support the conclusion drawn from it. Both sessions investigating this reached a mechanism claim from single-sample A/B, and both claims were wrong: one that volume decided it, one that headers did.
 
-What the aggregate does support: no scripted HTTP client gets through reliably, a real browser was refused too, and nothing here identifies which layer decides. That is weaker than either session first wrote and it is the part that has held. The [companion finding](task-browser-self-report.md) carries the same conclusion from the browser side.
+What the aggregate does support: no scripted HTTP client gets through reliably, a real browser was refused too, and nothing here identifies which layer decides. That is weaker than either session first wrote and it is the part that has held. The [companion finding](in-app-browser-self-report.md) carries the same conclusion from the browser side.
 
 **Header realism does decide the shape of the refusal**, and this is the one relation here that replicated. The `Sec-Fetch-*` and `sec-ch-ua*` headers make no difference; the `Accept` header alone selects the body, the same way in three runs spread over hours:
 
@@ -46,7 +46,7 @@ The relation is what replicated; the bodies themselves are not constants. This s
 
 Why this survives when three mechanism claims did not: it repeated on every run rather than once, it reproduced from a second session on a different client stack hours later, and it is ordinary content negotiation rather than a scoring decision -- a server choosing a representation by `Accept` is deterministic in a way a bot verdict is not. Note also what it is *not* a claim about. It says nothing about whether a request is refused, only about what the refusal is written in, which is why it survives a host that answers the same request two different ways.
 
-That narrower question was then tested rather than left open, and the door is closed: twelve requests alternating the two `Accept` values within one run, flipping which went first on each pair so neither time nor order could carry it, came out one success in six against zero in six. A difference of one request. `Accept` does not move whether you are served, and the four-row pattern that suggested it might was noise that looked exactly as convincing as the four withdrawn mechanisms did. It is recorded in [the companion finding](task-browser-self-report.md) so the next reader does not reach for it.
+That narrower question was then tested rather than left open, and the door is closed: twelve requests alternating the two `Accept` values within one run, flipping which went first on each pair so neither time nor order could carry it, came out one success in six against zero in six. A difference of one request. `Accept` does not move whether you are served, and the four-row pattern that suggested it might was noise that looked exactly as convincing as the four withdrawn mechanisms did. It is recorded in [the companion finding](in-app-browser-self-report.md) so the next reader does not reach for it.
 
 That run is also the only properly controlled comparison either session managed all day -- twelve paired requests, four minutes -- and it settled a question that several rounds of confident prose could not.
 

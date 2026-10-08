@@ -30,7 +30,7 @@ A toggle therefore takes effect on the next command, which required deciding whe
 
 - `packages/workspace/src/lib/shell-commands/agent-browser.ts` refuses any invocation carrying `--cdp`, `--auto-connect`, `--provider`, `--profile`, `--state`, `--restore*`, or `--executable-path`, and the `profiles` subcommand. Refused, not ignored: dropping the flag and running anyway would answer the command on the managed browser while the agent believed it was acting as the user's signed-in identity.
 - The same file's `agentBrowserCommandDescription()` and `--help` output drop their external sections.
-- `browserTargetingGuidance()` in `packages/workspace/src/agents/main.ts` drops the two targeting paragraphs, keeping the line that says a page needing an account is signed into in the task browser. It does not claim external browsers are absent, for the caching reason above.
+- `browserTargetingGuidance()` in `packages/workspace/src/agents/main.ts` drops the two targeting paragraphs, keeping the line that says a page needing an account is signed into in the in-app browser. It does not claim external browsers are absent, for the caching reason above.
 - `packages/workspace/src/tools/bash.ts` builds its description per call so the command list reflects the current flag state.
 
 Off is the default everywhere except the dev harnesses (`evals/`, `scripts/`), which enable it so the `browser-selection` eval cases and `run-bash` still exercise the real path.

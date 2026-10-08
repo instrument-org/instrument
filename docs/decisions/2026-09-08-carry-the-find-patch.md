@@ -1,5 +1,7 @@
 # Carry the just-bash `find` fix as a local patch until it is released
 
+> #414 shipped in just-bash 3.6.0, so this half of the `find` part is gone; the part carries #451 alone. See [just-bash-upstream.md](../architecture/just-bash-upstream.md).
+
 Date: 2026-09-08
 
 Narrows [2026-08-27-no-local-just-bash-patches.md](2026-08-27-no-local-just-bash-patches.md), which stands for everything else.

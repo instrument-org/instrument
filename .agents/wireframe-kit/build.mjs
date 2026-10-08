@@ -6,6 +6,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import vm from "node:vm";
 
 const [partPath, outPath] = process.argv.slice(2);
@@ -74,6 +75,13 @@ main = main.replace(/<!--(?!\s*Keep type)[\s\S]*?-->\s*/g, "");
 let html = starter
   .replace("<title>TITLE</title>", `<title>${META.title}</title>`)
   .replace('content="TEMPLATE@1"', 'content="wireframe@1"');
+// Name this repository in `instrument:repo` the way the skill's new.mjs does. A skill
+// installed before repo.mjs existed builds the page without it.
+const repoMeta = path.join(SKILL, "repo.mjs");
+if (fs.existsSync(repoMeta)) {
+  const { repoName, tagRepo } = await import(pathToFileURL(repoMeta).href);
+  html = tagRepo(html, repoName(here));
+}
 html = html.replace(
   /<main class="[^"]*">[\s\S]*?<\/main>/,
   () =>

@@ -38,6 +38,7 @@ setWorkspaceConfig({
   appVersion: "0.0.0-test",
   browser: {
     closeTarget: () => Promise.resolve(),
+    hasNoWindow: false,
     createTarget: rejectBrowserTarget,
     contentBlocking: () => ({ task: true, workspace: true }),
     getTargetMeta: () => null,

@@ -88,7 +88,7 @@ async function runShow(input: SubcommandInput, context: TaskCommandContext) {
     `model: ${state.selectedModelURI ?? "(none yet)"}`,
     `folders: ${folders.length > 0 ? folders.join(", ") : "none"}`,
     `apps: ${handedApps.length > 0 ? handedApps.join(", ") : "none"}`,
-    `tabs: ${describeHeldTabs(state.browserTabs ?? [])}`,
+    `tabs: ${describeHeldTabs(state.browserTabs)}`,
     `folder: ${MOUNT.tasks}/${task.id}, holding ${describeHoldings(holds)}`,
     `last said: ${lastSaid ? `\n  ${lastSaid.replaceAll("\n", "\n  ")}` : "nothing yet"}`,
   ];

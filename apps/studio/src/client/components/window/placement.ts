@@ -25,8 +25,6 @@ export interface PlacementContext {
         /** Still its group's own new tab, standing where it opened. */
         isFresh: boolean;
         kind: "page" | "screen";
-        /** A task's page, driven by the task: never given up in place. */
-        isTasks: boolean;
       };
 }
 
@@ -50,8 +48,7 @@ export type PagePlacement =
  * up when no group is on screen; otherwise in the group on screen, where the
  * page up goes there, or a tab of its own is opened (a website again however
  * many tabs are on it, a file's tab brought forward), or the new page takes
- * the place of the tab up. A task's tab is the task's, so it never gives its
- * place up.
+ * the place of the tab up.
  */
 export function pagePlacementOf(
   {
@@ -74,7 +71,7 @@ export function pagePlacementOf(
   if (groupOnScreen === undefined) {
     return { kind: "window-site", replace };
   }
-  if (!ownTab && up?.kind === "page" && !up.isTasks) {
+  if (!ownTab && up?.kind === "page") {
     return { kind: "navigate-up" };
   }
   const isFresh = up?.isFresh ?? false;
@@ -83,7 +80,7 @@ export function pagePlacementOf(
   }
   return {
     kind: "new-page",
-    replacesUp: up !== undefined && !up.isTasks && (!ownTab || isFresh),
+    replacesUp: up !== undefined && (!ownTab || isFresh),
   };
 }
 

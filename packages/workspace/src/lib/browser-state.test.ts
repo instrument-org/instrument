@@ -11,7 +11,6 @@ import { type BrowserTarget, encodeBrowserTargetId } from "../types";
 import {
   BLANK_PAGE_URL,
   getBrowserState,
-  recordBrowserUse,
   recordVisitedHosts,
   restoreLastPage,
 } from "./browser-state";
@@ -38,91 +37,15 @@ afterEach(async () => {
 });
 
 describe("browser state", () => {
-  it("distinguishes unused sessions from recorded browser use", async () => {
-    const before = await getBrowserState(taskId, sessionId);
-    expect(before._unsafeUnwrap()).toBeUndefined();
-
-    await recordBrowserUse({ sessionId, taskId });
-
-    expect(await getBrowserState(taskId, sessionId)).toMatchObject({
-      value: {
-        lastUsedAt: expect.any(Date),
-      },
-    });
-  });
-
-  it("keeps the last real page when a later observation is the blank one", async () => {
-    await recordBrowserUse({
+  it("adds the hosts of a chat task's tabs, once each, newest last", async () => {
+    expect((await getBrowserState(taskId, sessionId))._unsafeUnwrap()).toBe(
+      undefined,
+    );
+    await recordVisitedHosts({
       sessionId,
       taskId,
-      title: "Example",
-      url: "https://example.com",
+      urls: ["https://example.com/a"],
     });
-    // Every command that needs a target but no page reports the blank one. It
-    // is not somewhere anyone was, so it must not become what a reopened tab
-    // restores or what a teardown notice names.
-    await recordBrowserUse({
-      sessionId,
-      taskId,
-      title: "about:blank",
-      url: BLANK_PAGE_URL,
-    });
-
-    expect(await getBrowserState(taskId, sessionId)).toMatchObject({
-      value: { lastTitle: "Example", lastUrl: "https://example.com" },
-    });
-  });
-
-  it("keeps the page's title when a later command names it without one", async () => {
-    await recordBrowserUse({
-      sessionId,
-      taskId,
-      title: "Example",
-      url: "https://example.com",
-    });
-    // `show <url>` carries no title. Pointed at the page the session is already
-    // on, it is asking for that page to be revealed rather than reporting a
-    // different one, so the title it does not carry is still the page's own.
-    await recordBrowserUse({ sessionId, taskId, url: "https://example.com" });
-
-    expect(await getBrowserState(taskId, sessionId)).toMatchObject({
-      value: { lastTitle: "Example", lastUrl: "https://example.com" },
-    });
-  });
-
-  it("drops the title of the page a new one replaced", async () => {
-    await recordBrowserUse({
-      sessionId,
-      taskId,
-      title: "Example",
-      url: "https://example.com",
-    });
-    await recordBrowserUse({ sessionId, taskId, url: "https://example.org" });
-
-    const state = await getBrowserState(taskId, sessionId);
-    expect(state._unsafeUnwrap()?.lastTitle).toBeUndefined();
-    expect(state._unsafeUnwrap()?.lastUrl).toBe("https://example.org");
-  });
-
-  it("remembers each host the browser has been on, once, newest last", async () => {
-    await recordBrowserUse({ sessionId, taskId, url: "https://example.com/a" });
-    await recordBrowserUse({ sessionId, taskId, url: "https://example.org" });
-    // The same page again is not a visit, and a second page on a host the
-    // browser has already been on moves that host to the end rather than
-    // naming it twice.
-    await recordBrowserUse({ sessionId, taskId, url: "https://example.org" });
-    await recordBrowserUse({ sessionId, taskId, url: "https://example.com/b" });
-    await recordBrowserUse({ sessionId, taskId, url: BLANK_PAGE_URL });
-
-    const state = await getBrowserState(taskId, sessionId);
-    expect(state._unsafeUnwrap()?.visitedHosts).toEqual([
-      "example.org",
-      "example.com",
-    ]);
-  });
-
-  it("adds the hosts of a chat task's tabs without taking their page as its own", async () => {
-    await recordBrowserUse({ sessionId, taskId, url: "https://example.com" });
     await recordVisitedHosts({
       sessionId,
       taskId,
@@ -137,26 +60,8 @@ describe("browser state", () => {
 
     expect(await getBrowserState(taskId, sessionId)).toMatchObject({
       value: {
-        lastUrl: "https://example.com",
-        visitedHosts: ["example.com", "example.org"],
-      },
-    });
-  });
-
-  it("preserves the last known page when a later observation has none", async () => {
-    await recordBrowserUse({
-      sessionId,
-      taskId,
-      title: "Example",
-      url: "https://example.com",
-    });
-    await recordBrowserUse({ sessionId, taskId });
-
-    expect(await getBrowserState(taskId, sessionId)).toMatchObject({
-      value: {
-        lastTitle: "Example",
-        lastUrl: "https://example.com",
         lastUsedAt: expect.any(Date),
+        visitedHosts: ["example.com", "example.org"],
       },
     });
   });
@@ -185,47 +90,18 @@ describe("restoring a reopened tab", () => {
     return { id: targetId, title: "", type: "page", url };
   }
 
-  it("navigates a blank tab back to the page the session was on", async () => {
+  it("navigates a blank tab to the page the window remembers", async () => {
     const sendCommand = withTargets([target(BLANK_PAGE_URL)]);
-    await recordBrowserUse({ sessionId, taskId, url: "https://example.com" });
 
-    const result = await restoreLastPage({ sessionId, targetId, taskId });
+    const result = await restoreLastPage({
+      fallbackUrl: "https://example.org/remembered",
+      targetId,
+      taskId,
+    });
 
     expect(result.isOk()).toBe(true);
     expect(sendCommand).toHaveBeenCalledWith(targetId, "Page.navigate", {
-      url: "https://example.com",
-    });
-  });
-
-  it("navigates a blank tab to the page the caller remembers when the session recorded none", async () => {
-    const sendCommand = withTargets([target(BLANK_PAGE_URL)]);
-    const fresh = StoreId.newSessionId();
-
-    await restoreLastPage({
-      fallbackUrl: "https://example.org/remembered",
-      sessionId: fresh,
-      targetId,
-      taskId,
-    });
-
-    expect(sendCommand).toHaveBeenCalledWith(targetId, "Page.navigate", {
       url: "https://example.org/remembered",
-    });
-  });
-
-  it("prefers the page the session recorded to the one the caller remembers", async () => {
-    const sendCommand = withTargets([target(BLANK_PAGE_URL)]);
-    await recordBrowserUse({ sessionId, taskId, url: "https://example.com" });
-
-    await restoreLastPage({
-      fallbackUrl: "https://example.org/remembered",
-      sessionId,
-      targetId,
-      taskId,
-    });
-
-    expect(sendCommand).toHaveBeenCalledWith(targetId, "Page.navigate", {
-      url: "https://example.com",
     });
   });
 
@@ -233,9 +109,12 @@ describe("restoring a reopened tab", () => {
     // The ordinary case: this runs on every panel mount, and most find a
     // browser that was never reaped and is still on the page the user left.
     const sendCommand = withTargets([target("https://example.org")]);
-    await recordBrowserUse({ sessionId, taskId, url: "https://example.com" });
 
-    await restoreLastPage({ sessionId, targetId, taskId });
+    await restoreLastPage({
+      fallbackUrl: "https://example.com",
+      targetId,
+      taskId,
+    });
 
     expect(sendCommand).not.toHaveBeenCalled();
   });
@@ -248,9 +127,12 @@ describe("restoring a reopened tab", () => {
         listTargets: () => Promise.reject(new Error("guest is gone")),
       },
     });
-    await recordBrowserUse({ sessionId, taskId, url: "https://example.com" });
 
-    const result = await restoreLastPage({ sessionId, targetId, taskId });
+    const result = await restoreLastPage({
+      fallbackUrl: "https://example.com",
+      targetId,
+      taskId,
+    });
 
     expect(result._unsafeUnwrapErr().message).toBe("guest is gone");
   });

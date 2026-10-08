@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "neverthrow";
 
-import { type ApiAppManifest, type AppAuth, isLoopbackHost } from "./manifest";
-import { checkPublicUrl } from "./safe-url";
+import { type ApiAppManifest, type AppAuth } from "./manifest";
+import { checkAppUrl } from "./safe-url";
 
 const MAX_REDIRECTS = 5;
 // Cap response bodies read into memory; larger payloads are truncated with a
@@ -123,14 +123,13 @@ export async function performAppRequest({
     return err(urlResult.error);
   }
 
-  const allowLoopback = isLoopbackHost(new URL(manifest.baseUrl).hostname);
   const origin = new URL(manifest.baseUrl).origin;
 
   let url = urlResult.value;
   let authenticated = true;
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const hopValid = await validateHopUrl(url, { allowLoopback });
+    const hopValid = await validateHopUrl(url);
     if (hopValid.isErr()) {
       return err(hopValid.error);
     }
@@ -327,9 +326,8 @@ async function readBodyCapped(response: Response): Promise<{
 /** Per-hop guard, mapping the shared URL check onto this tool's error shape. */
 async function validateHopUrl(
   url: URL,
-  { allowLoopback }: { allowLoopback: boolean },
 ): Promise<Result<undefined, AppRequestError>> {
-  const message = await checkPublicUrl(url, { allowLoopback });
+  const message = await checkAppUrl(url);
   return message === null
     ? ok(undefined)
     : err({ message, reason: "unsafe-url" });

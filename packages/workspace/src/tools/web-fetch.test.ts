@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { clearCachedPages } from "../lib/web-fetch-cache";
+import { getWorkspaceServerPort } from "../logic/server/url";
 import { RelativePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
@@ -128,7 +129,7 @@ describe("WebFetch model output", () => {
       partId: StoreId.newPartId(),
       signal: AbortSignal.timeout(10_000),
       taskId,
-      taskState: {},
+      taskState: { browserTabs: [] },
     });
 
     const output = result._unsafeUnwrap();
@@ -165,7 +166,7 @@ describe("WebFetch model output", () => {
       partId,
       signal: AbortSignal.timeout(10_000),
       taskId,
-      taskState: {},
+      taskState: { browserTabs: [] },
     });
     const output = result._unsafeUnwrap();
     expect(output.state).toBe("success");
@@ -204,7 +205,7 @@ describe("WebFetch failures", () => {
       partId: StoreId.newPartId(),
       signal: AbortSignal.timeout(10_000),
       taskId,
-      taskState: {},
+      taskState: { browserTabs: [] },
     });
     const output = result._unsafeUnwrap();
     if (output.state !== "failure") {
@@ -296,7 +297,7 @@ describe("WebFetch page cache", () => {
         partId: StoreId.newPartId(),
         signal: AbortSignal.timeout(10_000),
         taskId,
-        taskState: {},
+        taskState: { browserTabs: [] },
       });
       return result._unsafeUnwrap();
     };
@@ -387,5 +388,86 @@ describe("WebFetch page cache", () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(second.state).toBe("failure");
+  });
+});
+
+describe("WebFetch addresses", () => {
+  afterEach(() => {
+    clearCachedPages();
+    mockFs.restore();
+    vi.unstubAllGlobals();
+  });
+
+  async function fetchFrom(url: string, fetchSpy: ReturnType<typeof vi.fn>) {
+    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
+    vi.stubGlobal("fetch", fetchSpy);
+    const result = await runTool(WebFetch, {
+      agentName: "main",
+      input: { url },
+      model,
+      partId: StoreId.newPartId(),
+      signal: AbortSignal.timeout(10_000),
+      taskId,
+      taskState: { browserTabs: [] },
+    });
+    return result._unsafeUnwrap();
+  }
+
+  const page = () =>
+    new Response("pool temperature 28C", {
+      headers: { "Content-Type": "text/plain" },
+    });
+
+  it.each([
+    "http://10.110.1.20/status",
+    "http://192.168.1.1/",
+    "http://169.254.10.10/",
+    "http://100.64.0.1/",
+    "http://[fd00::1]/",
+    "http://[fe80::1]/",
+    "http://homeassistant.local:8123/api/",
+    "http://127.0.0.1:3000/",
+  ])("reaches %s on the user's own network", async (url) => {
+    const fetchSpy = vi.fn(page);
+
+    const output = await fetchFrom(url, fetchSpy);
+
+    expect(output.state).toBe("success");
+    expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
+  it.each(["127.0.0.1", "[::ffff:127.0.0.1]", "0.0.0.0", "localhost"])(
+    "refuses the workspace server's port on %s",
+    async (host) => {
+      const fetchSpy = vi.fn(page);
+
+      const output = await fetchFrom(
+        `http://${host}:${getWorkspaceServerPort()}/`,
+        fetchSpy,
+      );
+
+      expect(output.state).toBe("failure");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses a redirect into the workspace server", async () => {
+    const fetchSpy = vi.fn(
+      () =>
+        new Response(null, {
+          headers: {
+            Location: `http://127.0.0.1:${getWorkspaceServerPort()}/_instrument/cdp`,
+          },
+          status: 302,
+        }),
+    );
+
+    const output = await fetchFrom("http://192.168.1.1/", fetchSpy);
+
+    expect(output).toMatchObject({ state: "failure" });
+    expect(output.state === "failure" && output.errorMessage).toContain(
+      "workspace server",
+    );
+    expect(fetchSpy).toHaveBeenCalledOnce();
   });
 });

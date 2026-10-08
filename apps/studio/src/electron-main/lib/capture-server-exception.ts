@@ -1,5 +1,9 @@
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
-import { type CaptureExceptionFunction } from "@instrument-org/shared";
+import { isPlatformApiUnreachable } from "@/electron-main/platform-api/reachability";
+import {
+  type CaptureExceptionFunction,
+  isExpectedNetworkError,
+} from "@instrument-org/shared";
 
 import { describeError } from "./describe-error";
 import { logger } from "./electron-logger";
@@ -13,6 +17,12 @@ export const captureServerException: CaptureExceptionFunction = function (
   error,
   additionalProperties,
 ) {
+  // The window's corner already says the platform API is down, and every
+  // request through it (the gateway, titles, the account) fails the same way
+  // until it is back.
+  if (isPlatformApiUnreachable() && isExpectedNetworkError(error)) {
+    return;
+  }
   const code: unknown =
     error && typeof error === "object" && "code" in error
       ? error.code

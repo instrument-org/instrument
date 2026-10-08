@@ -94,6 +94,12 @@ function findChat(
     return { error: `which chat? ${CHAT_NAME} list lists them.` };
   }
   const start = reference.toLowerCase();
+  // A whole id is that chat, even when a later chat's id begins with it
+  // (`...-page-for` and `...-page-for-2`).
+  const exact = chats.find((chat) => chat.id === start);
+  if (exact) {
+    return { chat: exact };
+  }
   const byId = chats.filter(
     (chat) =>
       chat.id.startsWith(start) ||

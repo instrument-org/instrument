@@ -51,22 +51,16 @@ describe("the group on screen", () => {
 });
 
 describe("opening into a group", () => {
-  it("brings a screen up in the group on screen, and leaves one opened into a group behind waiting", () => {
+  it("brings a screen up in the group on screen, and leaves one opened into a chat behind waiting with nothing up", () => {
     const { result, store } = at(`/chats/${CHAT}`);
     let here: string | undefined;
-    let there: string | undefined;
     act(() => {
       here = result.current.openScreen(BROWSER_HREF);
-      there = result.current.openScreen(BROWSER_HREF, { group: OTHER });
+      result.current.openScreen(BROWSER_HREF, { group: OTHER });
     });
     expect(result.current.active?.id).toBe(here);
     expect(store.get(windowTabsAtom).activeByGroup).toEqual({ [CHAT]: here });
-    expect(result.current.tabUpIn(OTHER)?.id).toBe(there);
-    // A second tab behind does not take the first's place.
-    act(() => {
-      result.current.openScreen("/apps", { group: OTHER });
-    });
-    expect(result.current.tabUpIn(OTHER)?.id).toBe(there);
+    expect(result.current.selectedTabIn(OTHER)).toBeUndefined();
   });
 
   it("sees, within one tick, what the change before it did", () => {

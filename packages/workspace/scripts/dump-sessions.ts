@@ -5,6 +5,7 @@ import readline from "node:readline/promises";
 import { TASKS_DIR_NAME } from "../src/constants";
 import { getTasks } from "../src/lib/get-tasks";
 import { Store } from "../src/lib/store";
+import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 
 const workspaceDir = process.argv[2];
@@ -15,11 +16,14 @@ if (!workspaceDir) {
 
 const absoluteWorkspaceDir = path.resolve(workspaceDir);
 
-const workspaceConfig = createStubWorkspaceConfig({
-  tasksDir: path.join(absoluteWorkspaceDir, TASKS_DIR_NAME),
-});
+setWorkspaceConfig(
+  createStubWorkspaceConfig({
+    rootDir: absoluteWorkspaceDir,
+    tasksDir: path.join(absoluteWorkspaceDir, TASKS_DIR_NAME),
+  }),
+);
 
-const { tasks } = await getTasks(workspaceConfig, {
+const { tasks } = await getTasks({
   direction: "desc",
   sortBy: "updatedAt",
 });

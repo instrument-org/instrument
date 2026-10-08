@@ -3,7 +3,7 @@ import {
   bookmarksAtom,
   visitedPagesAtom,
 } from "@/client/atoms/window";
-import { INSTRUMENT_FOLDER } from "@/shared/computer-href";
+import { OUTPUT_FOLDER } from "@/shared/computer-href";
 import { type Icon } from "@phosphor-icons/react";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
@@ -63,7 +63,7 @@ export function ComposeZeroState({
           icon={DesktopIcon}
           name={computerName()}
           onOpen={() => {
-            onOpenFolder(INSTRUMENT_FOLDER);
+            onOpenFolder(OUTPUT_FOLDER);
           }}
         />
         <Tile icon={SquaresFourIcon} name="Apps" onOpen={onOpenApps} />

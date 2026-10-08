@@ -12,7 +12,7 @@ import {
 import { chatsDir } from "../../lib/record-folders";
 import { base, toORPCError } from "../base";
 
-/** A chat's folder, a task's inside a chat, or a task's no chat owns. */
+/** A chat's folder, a task's inside a chat, or one an earlier version left under `tasks/`. */
 const InvalidFolderKindSchema = z.enum(["chat", "chat-task", "task"]);
 
 const InvalidFolderSchema = z.object({

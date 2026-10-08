@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  chatGPTPlanDefaultModel,
-  chatGPTPlanSearchModel,
+  chatGPTAccountDefaultModel,
+  chatGPTAccountSearchModel,
   spaceBeforeFamily,
 } from "./chatgpt";
 
@@ -17,7 +17,7 @@ describe("spaceBeforeFamily", () => {
   });
 });
 
-describe("chatGPTPlanDefaultModel", () => {
+describe("chatGPTAccountDefaultModel", () => {
   const ids = (...canonicalIds: string[]) =>
     canonicalIds.map((canonicalId) => ({ canonicalId }));
 
@@ -30,11 +30,13 @@ describe("chatGPTPlanDefaultModel", () => {
     [["gpt-6-astra", "gpt-5.6-terra", "gpt-5.6-luna"], "gpt-5.6-luna"],
     [["gpt-6-astra", "gpt-5.6-terra"], "gpt-6-astra"],
   ])("from %j picks %s", (listed, expected) => {
-    expect(chatGPTPlanDefaultModel(ids(...listed))?.canonicalId).toBe(expected);
+    expect(chatGPTAccountDefaultModel(ids(...listed))?.canonicalId).toBe(
+      expected,
+    );
   });
 });
 
-describe("chatGPTPlanSearchModel", () => {
+describe("chatGPTAccountSearchModel", () => {
   const ids = (...canonicalIds: string[]) =>
     canonicalIds.map((canonicalId) => ({ canonicalId }));
 
@@ -43,6 +45,8 @@ describe("chatGPTPlanSearchModel", () => {
     [["gpt-6-astra", "gpt-5.6-sol"], "gpt-5.6-sol"],
     [["gpt-6-astra"], undefined],
   ])("from %j picks %s", (listed, expected) => {
-    expect(chatGPTPlanSearchModel(ids(...listed))?.canonicalId).toBe(expected);
+    expect(chatGPTAccountSearchModel(ids(...listed))?.canonicalId).toBe(
+      expected,
+    );
   });
 });

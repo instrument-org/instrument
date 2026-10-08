@@ -68,9 +68,11 @@
 // `--workspace <fixture>` boots against a disposable workspace built from a
 // committed fixture (fixtures/workspaces/) instead of the shared dev
 // application-data directory, so a run does not depend on what the developer
-// happened to do last. Add `--fresh` to rebuild it first. The flag belongs on
-// every command of that run, not just `boot`: it selects both the port and the
-// instance record, so two workspaces from one checkout never collide.
+// happened to do last. Add `--fresh` to rebuild it first. Each boot starts
+// with no tabs restored; `--keep-tabs` carries the last run's tabs over. The
+// flag belongs on every command of that run, not just `boot`: it selects both
+// the port and the instance record, so two workspaces from one checkout never
+// collide.
 //
 //   node studio-drive.mjs boot --purpose "document viewer" --workspace documents
 //   node studio-drive.mjs shot task.png --workspace documents
@@ -196,7 +198,7 @@ const INSTANCE_FLAG = WORKSPACE
  * fast, so calling it on every boot is cheaper than reasoning about whether the
  * fixture has changed since last time.
  */
-function prepareWorkspace(name, { fresh }) {
+function prepareWorkspace(name, { fresh, keepTabs }) {
   reapStaleWorkspaces();
 
   const userDataDir = path.join(WORKSPACE_CACHE_ROOT, name);
@@ -237,6 +239,22 @@ function prepareWorkspace(name, { fresh }) {
 
   reapWorkArtifacts(path.join(userDataDir, "workspace"));
 
+  // The window's tabs, panes and chat groups live in the workspace's
+  // layout.json, which the seeder never writes, so without this every tab a
+  // run opens comes back on every later boot of the fixture.
+  if (!keepTabs) {
+    rmSync(
+      path.join(
+        userDataDir,
+        "workspace",
+        ".instrument",
+        "settings",
+        "layout.json",
+      ),
+      { force: true },
+    );
+  }
+
   return { tasks: result.tasks, userDataDir };
 }
 
@@ -246,7 +264,7 @@ const CLEAN_ROOMS_ROOT = path.join(WORKSPACE_CACHE_ROOT, "clean-rooms");
 
 // The sign-in stores a clean room can start from, as the app names them in a
 // workspace's settings folder (workspace-management.ts in Studio). Not the
-// ChatGPT plan: its refresh token rotates on every use, so a clean room holding
+// ChatGPT account: its refresh token rotates on every use, so a clean room holding
 // a copy would sign the developer's own instance out the first time either
 // refreshed.
 const SIGN_IN_FILES = ["session-dev.json", "providers.json"];
@@ -420,7 +438,7 @@ function recordDirs(workspaceDir) {
 
 async function cmdBoot(
   explicitPort,
-  { fresh, hot, inspect, purpose: rawPurpose, withSignIns },
+  { fresh, hot, inspect, keepTabs, purpose: rawPurpose, withSignIns },
 ) {
   const purpose = normalizePurpose(rawPurpose);
   if (WORKSPACE && CLEAN_ROOM) {
@@ -473,7 +491,7 @@ async function cmdBoot(
   }
 
   const workspace = WORKSPACE
-    ? prepareWorkspace(WORKSPACE, { fresh })
+    ? prepareWorkspace(WORKSPACE, { fresh, keepTabs })
     : undefined;
   if (CLEAN_ROOM && fresh) {
     rmSync(path.join(CLEAN_ROOMS_ROOT, CLEAN_ROOM), {
@@ -781,6 +799,7 @@ try {
           fresh: argv.includes("--fresh"),
           hot: argv.includes("--hot"),
           inspect: flag(argv, "--inspect"),
+          keepTabs: argv.includes("--keep-tabs"),
           purpose: flag(argv, "--purpose"),
           withSignIns: argv.includes("--with-sign-ins"),
         }),

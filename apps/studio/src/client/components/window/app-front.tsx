@@ -466,7 +466,8 @@ export function AppFront({
               <DialogHeader>
                 <DialogTitle>Every action in {name}</DialogTitle>
                 <DialogDescription>
-                  Press anything that only reads to see what {name} answers.
+                  Try any action that only reads data to see what {name} sends
+                  back.
                 </DialogDescription>
               </DialogHeader>
               <AppInspector

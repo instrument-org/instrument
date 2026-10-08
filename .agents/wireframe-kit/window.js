@@ -205,12 +205,31 @@ const ROWS = [
   },
 ];
 
-/** The view picker chip, the place marks, and search. `waiting` adds the amber needs-you dot. */
-const inboxHead = ({ waiting = false } = {}) => `
+/** The places beside the view picker, as filter-head.tsx draws them: Starred, Drafts, All. */
+const PLACES = [
+  ["starred", "Starred", "ph-star"],
+  ["drafts", "Drafts", "ph-file-dashed"],
+  ["all", "All", "ph-cards-three"],
+];
+
+/**
+ * The view picker chip, the place marks, and search. `waiting` adds the amber needs-you dot.
+ * `place` (starred | drafts | all) stands the list in that place: its mark takes the tint
+ * and its name, and the picker steps back to a plain Chats mark.
+ */
+const inboxHead = ({ waiting = false, place = "" } = {}) => `
   <div class="flex items-center gap-1 px-2 pt-2">
-    <span class="flex h-10 items-center gap-1.5 rounded-xl bg-brand-50 pr-2 pl-2.5 text-[15px] font-semibold text-brand-800"><i class="ph ph-chats-circle text-[28px]"></i>Chats<i class="ph ph-caret-down text-[14px] text-brand-800/50"></i></span>
+    ${
+      place
+        ? `<span class="grid size-10 place-items-center rounded-xl text-muted-foreground"><i class="ph ph-chats text-[28px]"></i></span>`
+        : `<span class="flex h-10 items-center gap-1.5 rounded-xl bg-brand-50 pr-2 pl-2.5 text-[15px] font-semibold text-brand-800"><i class="ph ph-chats-circle text-[28px]"></i>Chats<i class="ph ph-caret-down text-[14px] text-brand-800/50"></i></span>`
+    }
     ${waiting ? `<span class="grid size-10 place-items-center"><span class="size-2.5 rounded-full bg-warning-500"></span></span>` : ""}
-    ${["ph-star", "ph-file-dashed", "ph-cards-three"].map((i) => `<span class="grid size-10 place-items-center rounded-xl text-muted-foreground"><i class="ph ${i} text-[28px]"></i></span>`).join("")}
+    ${PLACES.map(([key, label, icon]) =>
+      key === place
+        ? `<span class="flex h-10 items-center gap-2 rounded-xl bg-brand-50 pr-3 pl-2.5 text-[15px] font-semibold text-brand-800"><i class="ph ${icon} text-[28px]"></i>${label}</span>`
+        : `<span class="grid size-10 place-items-center rounded-xl text-muted-foreground"><i class="ph ${icon} text-[28px]"></i></span>`,
+    ).join("")}
   </div>
   <div class="px-2 pt-2 pb-1"><div class="flex h-7 items-center justify-center gap-1.5 rounded-full border border-border bg-card text-xs text-muted-foreground"><i class="ph ph-magnifying-glass text-[14px]"></i>Search</div></div>`;
 
@@ -227,11 +246,39 @@ const row = (r, { on = false, first = false } = {}) => `
     </div>
   </div>`;
 
-/** The inbox column: head, search, rows. `on` is the open row's index (-1 for none). */
-const inboxCol = ({ on = 0, w = 320, rows = ROWS, waiting = false } = {}) => `
+/**
+ * A draft in the Drafts place, as draft-row.tsx lays it out: a dashed circle in the gutter
+ * where a chat wears its state, the first line of its words as the title, when it was last
+ * touched at the right, and "Draft" where a chat's latest line goes.
+ */
+const draftRow = (d, { first = false } = {}) => `
+  <div class="flex gap-2 px-3 py-2.5 ${first ? "" : "border-t border-border"}">
+    <span class="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground"><i class="ph ph-circle-dashed text-[14px]"></i></span>
+    <div class="min-w-0 flex-1">
+      <div class="flex h-5 items-center gap-1.5"><span class="min-w-0 flex-1 truncate text-[13px] text-foreground/90">${d.title}</span><span class="shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums">${d.time || ""}</span></div>
+      <div class="mt-0.5 text-[12px] leading-5 text-muted-foreground">Draft</div>
+    </div>
+  </div>`;
+
+/**
+ * The inbox column: head, search, rows. `on` is the open row's index (-1 for none).
+ * `drafts` ([{ title, time }]) stands it in the Drafts place and lists those instead.
+ */
+const inboxCol = ({
+  on = 0,
+  w = 320,
+  rows = ROWS,
+  waiting = false,
+  place = "",
+  drafts,
+} = {}) => `
   <div class="flex shrink-0 flex-col border-r border-border bg-background" style="width:${w}px">
-    ${inboxHead({ waiting })}
-    <div class="mt-1 flex flex-col">${rows.map((r, i) => row(r, { on: i === on, first: i === 0 })).join("")}</div>
+    ${inboxHead({ waiting, place: drafts ? "drafts" : place })}
+    <div class="mt-1 flex flex-col">${
+      drafts
+        ? drafts.map((d, i) => draftRow(d, { first: i === 0 })).join("")
+        : rows.map((r, i) => row(r, { on: i === on, first: i === 0 })).join("")
+    }</div>
   </div>`;
 
 // ---- a chat --------------------------------------------------------------------
@@ -679,7 +726,7 @@ const onboardLogin = () => `
     </div>
     <div class="flex w-full max-w-xs flex-col items-center gap-4">
       <p class="text-xs font-medium text-brand-600">Create an account to enjoy free AI usage</p>
-      <div class="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium shadow-sm"><span class="text-[15px] font-bold text-[#4285f4]">G</span>Continue with Google</div>
+      <div class="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium shadow-sm">${brand("google")}Continue with Google</div>
       <div class="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border text-sm font-medium"><i class="ph ph-open-ai-logo text-[16px]"></i>Continue with ChatGPT</div>
       <p class="text-center text-xs text-foreground/60">Instrument can run on the ChatGPT Plus or Pro plan you already pay for.</p>
     </div>

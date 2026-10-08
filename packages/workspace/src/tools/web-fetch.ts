@@ -9,10 +9,13 @@ import { z } from "zod";
 import { TASK_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { boundaryContainmentNote, boundContent } from "../lib/content-boundary";
-import { isPrivateHostname } from "../lib/private-address";
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { SKILL_NAMES } from "../lib/skill-names";
 import { taskDir } from "../lib/task-dir-utils";
+import {
+  isWorkspaceServerUrl,
+  workspaceServerRefusal,
+} from "../lib/workspace-server-address";
 import {
   CACHE_TTL_SECONDS,
   cachePage,
@@ -354,10 +357,10 @@ async function fetchTextual({
   });
 }
 
-// Follows redirects manually so every hop's host is validated against private,
-// loopback, and link-local ranges before it is requested. `fetch`'s built-in
-// `redirect: "follow"` would chase an internal redirect target with no such
-// check, which is the SSRF hole this closes.
+// Follows redirects manually so every hop is checked before it is requested:
+// any address is open, the local network and loopback included, except
+// Instrument's own workspace server, and `fetch`'s built-in `redirect:
+// "follow"` would chase a redirect into it unchecked.
 async function guardedFetch({
   headers,
   signal,
@@ -376,9 +379,9 @@ async function guardedFetch({
         ok: false,
       };
     }
-    if (await isPrivateHostname(parsed.hostname)) {
+    if (await isWorkspaceServerUrl(parsed)) {
       return {
-        error: `Refusing to fetch a private, loopback, or link-local address (${parsed.hostname}).`,
+        error: `Refusing to fetch ${parsed.href}: ${workspaceServerRefusal(parsed)}.`,
         ok: false,
       };
     }

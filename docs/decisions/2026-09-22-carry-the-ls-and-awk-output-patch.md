@@ -1,5 +1,7 @@
 # Carry just-bash's linear `ls` and awk `printf` output as a local patch rather than guard the commands ourselves
 
+> #390 shipped in just-bash 3.6.0 and charges a plain listing to the traversal budget as well; the `ls` part now carries #449 and a local diff that keeps a plain listing uncharged, as the 3.4.1 port did. See [just-bash-upstream.md](../architecture/just-bash-upstream.md).
+
 Date: 2026-09-22
 
 Narrows [2026-08-27-no-local-just-bash-patches.md](2026-08-27-no-local-just-bash-patches.md), which stands for everything else, the same way [2026-09-08-carry-the-find-patch.md](2026-09-08-carry-the-find-patch.md), [2026-09-09-carry-the-stat-patch.md](2026-09-09-carry-the-stat-patch.md), [2026-09-10-carry-the-cross-mount-copy-patch.md](2026-09-10-carry-the-cross-mount-copy-patch.md), [2026-09-10-carry-the-python-worker-patch.md](2026-09-10-carry-the-python-worker-patch.md), and [2026-09-21-carry-the-stdin-connected-patch.md](2026-09-21-carry-the-stdin-connected-patch.md) do.

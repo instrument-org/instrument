@@ -1,10 +1,14 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { verifyFfmpegBinary, verifyVersionBanner } from "./verify-ffmpeg";
+import {
+  verifyFfmpegBinary,
+  verifyFfmpegChecksum,
+  verifyVersionBanner,
+} from "./verify-ffmpeg";
 
 // The binaries live in the workspace package's dependencies, not studio's.
 const workspaceRequire = createRequire(
@@ -53,6 +57,39 @@ describe("verifyFfmpegBinary", () => {
       name: "ffmpeg",
     });
     expect(version).toBeUndefined();
+  });
+});
+
+describe("verifyFfmpegChecksum", () => {
+  const host = { arch: process.arch, platform: process.platform };
+
+  it.each([
+    { binaryPath: binaries.ffmpegPath, name: "ffmpeg" as const },
+    { binaryPath: binaries.ffprobePath, name: "ffprobe" as const },
+  ])("accepts the installed $name for this host", ({ binaryPath, name }) => {
+    expect(() =>
+      verifyFfmpegChecksum(binaryPath, { ...host, name }),
+    ).not.toThrow();
+  });
+
+  it("throws when the bytes differ from the pin", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "ffmpeg-checksum-"));
+    const tampered = path.join(dir, "ffmpeg");
+    copyFileSync(binaries.ffmpegPath, tampered);
+    writeFileSync(tampered, "x", { flag: "a" });
+    expect(() =>
+      verifyFfmpegChecksum(tampered, { ...host, name: "ffmpeg" }),
+    ).toThrow(/is pinned to/);
+  });
+
+  it("throws for a target with no pin", () => {
+    expect(() =>
+      verifyFfmpegChecksum(binaries.ffmpegPath, {
+        arch: "ia32",
+        name: "ffmpeg",
+        platform: "win32",
+      }),
+    ).toThrow(/No pinned SHA-256 for ffmpeg-win32-ia32/);
   });
 });
 

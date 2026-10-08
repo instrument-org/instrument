@@ -86,11 +86,11 @@ const PACKAGED_SECRET_FILES = [
 ];
 
 /**
- * Moved, never copied: the ChatGPT plan's refresh token rotates on every use,
+ * Moved, never copied: the ChatGPT account's refresh token rotates on every use,
  * so two holders of one copy would each spend it and one would be signed out.
  * An older build sharing this userData is the one that has to sign in again.
  */
-const MOVED_FILES = ["chatgpt-plan.json", "chatgpt-plan.json.enc"];
+const MOVED_FILES = ["chatgpt-account.json", "chatgpt-account.json.enc"];
 
 /**
  * Present while the legacy take-in runs, removed once the version is written,

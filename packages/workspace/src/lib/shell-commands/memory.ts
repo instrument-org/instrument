@@ -108,15 +108,16 @@ function origin(memory: Memory): string {
 }
 
 /**
- * Where the chat stands after the agent changed memory itself: the change
- * is in front of it, so the next message's note has nothing to add.
+ * Where the chat stands after the agent changed one memory itself: that
+ * change is in front of it, so the next message's note has nothing to add
+ * about it.
  */
-async function rememberTold({ chatId, sessionId }: MemoryCommandContext) {
-  await recordMemoryReported({
-    memories: await listMemories(memoryDir()),
-    sessionId,
-    taskId: chatId,
-  });
+async function rememberTold(
+  { chatId, sessionId }: MemoryCommandContext,
+  name: string,
+  memory: Memory | undefined,
+) {
+  await recordMemoryReported({ memory, name, sessionId, taskId: chatId });
 }
 
 async function runForget(args: string[], context: MemoryCommandContext) {
@@ -128,7 +129,7 @@ async function runForget(args: string[], context: MemoryCommandContext) {
   if (!memory) {
     throw new Error(`no memory named "${name}". ${NAME} list names them.`);
   }
-  await rememberTold(context);
+  await rememberTold(context, memory.name, undefined);
   return ok(`Forgot "${memory.name}": ${memoryHeadline(memory.text)}`);
 }
 
@@ -173,7 +174,7 @@ async function runSave(
     name: parsedName.data,
     text,
   });
-  await rememberTold(context);
+  await rememberTold(context, memory.name, memory);
   return ok(
     `${replaced ? "Replaced" : "Saved"} "${memory.name}": ${memoryHeadline(memory.text)}`,
   );

@@ -64,7 +64,7 @@ export interface SendContextWindow {
   viewsById: ReturnType<typeof useCompose>["viewsById"];
   windowTabs: Pick<
     ReturnType<typeof useWindowTabs>,
-    "active" | "allTabs" | "groupOnScreen" | "tabUpIn"
+    "active" | "allTabs" | "groupOnScreen" | "selectedTabIn"
   >;
 }
 
@@ -241,7 +241,7 @@ export function contextReaders({
   ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
     const draft = drafts.find((entry) => entry.id === draftId);
     const group = draftGroupOf(draftId);
-    const up = windowTabs.tabUpIn(group);
+    const up = windowTabs.selectedTabIn(group);
     const view = viewsById[group];
     if (!state) {
       return;
@@ -397,7 +397,7 @@ export function contextReaders({
       return;
     }
     const own = windowTabs.allTabs.filter((tab) => tab.group === chatId);
-    const up = windowTabs.tabUpIn(chatId);
+    const up = windowTabs.selectedTabIn(chatId);
     const shown =
       isViewOpen && up ? await tabContext(up) : await windowShown(chatId);
     if (!shown && own.length === 0) {

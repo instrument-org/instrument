@@ -64,6 +64,7 @@ export function ProviderPicker({
               <>
                 <AIProviderIcon
                   className="size-4"
+                  company
                   type={selectedProviderData.type}
                 />
                 {selectedProviderData.name}
@@ -105,6 +106,7 @@ export function ProviderPicker({
                     >
                       <AIProviderIcon
                         className="mr-2 size-5 shrink-0"
+                        company
                         type={provider.type}
                       />
                       <div className="flex min-w-0 flex-1 flex-col gap-y-0.5">

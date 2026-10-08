@@ -105,15 +105,14 @@ Committed cases live in `packages/workspace/evals/cases/` (`pnpm eval list
 behavior is worth guarding permanently. Details in the
 `workspace-evals` skill.
 
-**The browser here is not the app's.** The managed task browser lives in the
+**The browser here is not the app's.** The in-app browser lives in the
 Electron app, so an eval run has no Studio guest: the harness stubs the
 browser targets. `agent-browser` still works, because with no Studio target it
 launches a Chromium of its own, so `open`, clicks, snapshots and our wrapper
 around them all run for real, and an eval is the cheapest real check of how
 the agent uses the browser: the skill, the targeting guidance, what a command
 prints. What it cannot show is anything specific to the guest -- the CDP
-bridge, guest sizing, the panel the user watches -- which has no rung below
-4. Check the tool sequence for a real `open` and its output before believing
+bridge, guest sizing, the panel the user watches -- which has no rung below 4. Check the tool sequence for a real `open` and its output before believing
 a browser eval either way.
 
 ## Rung 4: the running app

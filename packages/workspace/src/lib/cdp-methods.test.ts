@@ -32,16 +32,16 @@ describe("the table of CDP methods", () => {
       .filter(isKnownCdpMethod)
       .filter(
         (method) =>
-          (["main", "page", "task"] as const).some(
+          (["main", "session", "task"] as const).some(
             (side) => cdpHandlingOf(method, side) !== "passthrough",
           ) && !("why" in CDP_METHODS[method]),
       );
     expect(unexplained).toEqual([]);
   });
 
-  it("lets the task endpoint fall back to what the page endpoint does", () => {
+  it("lets the task endpoint fall back to what a session does", () => {
     expect(cdpHandlingOf("Page.navigate", "task")).toBe("wrapped");
-    expect(cdpHandlingOf("Page.bringToFront", "page")).toBe("passthrough");
+    expect(cdpHandlingOf("Page.bringToFront", "session")).toBe("passthrough");
     expect(cdpHandlingOf("Page.bringToFront", "task")).toBe("override");
   });
 

@@ -41,6 +41,7 @@ export function toORPCError(
       return orpcErrors.GATEWAY_FETCH_ERROR(options);
     }
     case "gateway-not-found-error":
+    case "gateway-not-listed-error":
     case "workspace-not-found-error": {
       return orpcErrors.NOT_FOUND(options);
     }

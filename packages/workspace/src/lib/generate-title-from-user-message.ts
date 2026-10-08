@@ -4,7 +4,7 @@ import {
   fetchAISDKModel,
   providerOptionsForModel,
 } from "@instrument-org/ai-gateway";
-import { shortenHomePath } from "@instrument-org/shared";
+import { MAX_TITLE_WORDS, shortenHomePath } from "@instrument-org/shared";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
 import { generateText } from "ai";
 import { ResultAsync } from "neverthrow";
@@ -18,13 +18,6 @@ import { TypedError } from "./errors";
 import { isNonRetryableGatewayError } from "./gateway-response-body";
 import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
 import { textForMessage } from "./text-for-message";
-
-// A ceiling, not a target. Short titles are the failure mode this backs off
-// from: at five words the only way to fit was to drop the distinguishing
-// detail, and a list of "Wikipedia link navigation" and "Documents folder
-// contents" tells the reader nothing about which one theirs was. The sidebar is
-// 250px, so a title much past this truncates on sight rather than in memory.
-export const MAX_TITLE_WORDS = 8;
 
 // The prompt tells the model to answer nothing for a message with no subject,
 // so an empty answer that ran to a natural stop is the design working. It still

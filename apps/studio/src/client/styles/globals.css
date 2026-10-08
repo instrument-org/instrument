@@ -1088,6 +1088,38 @@ a.cursor-pointer {
   }
 }
 
+/* A setting that changed while the person was elsewhere, now on screen; see
+ * `StateArrival`, which puts the class on only after its state changes. The
+ * block settles in from a hair smaller, and a ring of the primary color holds
+ * for a beat and fades, so the change is noticed without staying marked. */
+.state-arrive {
+  animation:
+    state-arrive-in 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both,
+    state-arrive-ring 1.2s ease-out both;
+  border-radius: var(--radius-xl);
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes state-arrive-in {
+  from {
+    opacity: 0;
+    scale: 0.98;
+    translate: 0 4px;
+  }
+}
+
+@keyframes state-arrive-ring {
+  0%,
+  30% {
+    box-shadow: 0 0 0 3px --alpha(var(--primary) / 18%);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+
 /* A pane tab growing into the row it was just opened in; see `tab-strip.tsx`,
  * which puts the class there and only on a tab the task did not have a moment
  * ago. Drawn for the first time is not the same as new.

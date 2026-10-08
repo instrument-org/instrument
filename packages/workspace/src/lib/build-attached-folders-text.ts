@@ -95,7 +95,7 @@ export function buildAttachedFoldersText({
       ? `Writing into a read-only folder fails. It mirrors the user's real files and is not yours to change.`
       : null,
     process.platform === "darwin"
-      ? `\`EPERM\` or "Operation not permitted" on reading or listing one of these means macOS refused ${APP_NAME} the folder when it asked the user. Stop and say so rather than trying again; they can allow ${APP_NAME} under System Settings, Privacy & Security, Files and Folders.`
+      ? `\`EPERM\` or "Operation not permitted" on reading or listing one of these means macOS has not let ${APP_NAME} into that folder. Call \`${TOOL_NAMES.requestFolder}\` with \`folder\` set to its mount path rather than trying again: it opens the system's own panel at that folder, and a pick there lets ${APP_NAME} in for good.`
       : null,
     `\`cp\`, \`mv\`, the file tools, the sandboxed script runtimes (\`python\`, \`js-exec\`), and \`git\` reach a mount directly, one mount to another included, so reading a file, parsing it in a script, or putting one where it belongs takes no copy through the task. A real subprocess (python-native, node, ffmpeg, pnpm) is the exception: it cannot see a mount at all, so copy in first and run it on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
     `A repository in a folder is read in place: \`git -C '<mount path>' log\`, or \`cd\` there first. In a read-only folder git may only read (log, show, diff, blame, status); committing or changing files there needs the folder attached read and write.`,

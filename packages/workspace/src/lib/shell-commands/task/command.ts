@@ -10,6 +10,7 @@ import { logSubcommand } from "./log";
 import { sendSubcommand } from "./send";
 import { showSubcommand } from "./show";
 import { stopSubcommand } from "./stop";
+import { wakeSubcommand } from "./wake";
 
 /**
  * The chat's way of starting, steering and reading its tasks, one module per
@@ -24,6 +25,7 @@ const subcommands = {
   list: listSubcommand,
   show: showSubcommand,
   log: logSubcommand,
+  wake: wakeSubcommand,
   folder: folderSubcommand,
 };
 

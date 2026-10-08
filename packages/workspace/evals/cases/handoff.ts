@@ -36,19 +36,19 @@ import {
 } from "../harness";
 import { sheetHasAChart, sheetRecomputes, wroteADocument } from "./worker";
 
-type Context = Parameters<Assertion["check"]>[0];
+export type Context = Parameters<Assertion["check"]>[0];
 
 /** The sandbox home: `evals/lib/sandbox-home` has set `$HOME` by now. */
-const HOME = os.homedir();
+export const HOME = os.homedir();
 
 /** The folder results go to when nobody said where. */
-const WORKSPACE = outputFolderPath();
+export const WORKSPACE = outputFolderPath();
 
-function fail(text: string, evidence: string): AssertionResult {
+export function fail(text: string, evidence: string): AssertionResult {
   return { evidence, passed: false, text };
 }
 
-function pass(text: string, evidence: string): AssertionResult {
+export function pass(text: string, evidence: string): AssertionResult {
   return { evidence, passed: true, text };
 }
 
@@ -62,7 +62,7 @@ interface Said {
 }
 
 /** The run's own assistant text, oldest first: what the user read. */
-function said(sessions: Session.WithMessagesAndParts[]): Said[] {
+export function said(sessions: Session.WithMessagesAndParts[]): Said[] {
   return sessions
     .flatMap((session) =>
       session.messages
@@ -79,7 +79,7 @@ function said(sessions: Session.WithMessagesAndParts[]): Said[] {
 }
 
 /** When the user sent a message containing `words`, if they did. */
-function sentAt(
+export function sentAt(
   sessions: Session.WithMessagesAndParts[],
   words: string,
 ): number | undefined {
@@ -116,7 +116,7 @@ async function treeDirs({ childSessions, taskId }: Context): Promise<string[]> {
  * everything the run writes comes after, and it is on record, so a run
  * re-scored later from its workspace draws the line in the same place.
  */
-function runStartedAt(sessions: Session.WithMessagesAndParts[]): number {
+export function runStartedAt(sessions: Session.WithMessagesAndParts[]): number {
   const sent = sessions.flatMap((session) =>
     session.messages
       .filter((message) => message.role === "user")
@@ -130,7 +130,7 @@ function runStartedAt(sessions: Session.WithMessagesAndParts[]): number {
  * task's `attachments`, which hold what the user sent rather than anything
  * the run made.
  */
-function recentFilesUnder(dir: string, since: number, depth = 6): string[] {
+export function recentFilesUnder(dir: string, since: number, depth = 6): string[] {
   const found: string[] = [];
   const walk = (at: string, level: number) => {
     if (level > depth) {
@@ -172,7 +172,7 @@ async function writtenFiles(ctx: Context): Promise<string[]> {
   return [...new Set(dirs.flatMap((dir) => recentFilesUnder(dir, since)))];
 }
 
-function readText(file: string): string {
+export function readText(file: string): string {
   try {
     return fs.readFileSync(file, "utf8");
   } catch {
@@ -459,7 +459,7 @@ function seedStepLogs() {
 // ---------------------------------------------------------------------------
 
 /** A file of this name in the workspace folder, with enough in it to read. */
-function inWorkspace(
+export function inWorkspace(
   name: RegExp,
   { minChars, minParagraphs = 1 }: { minChars: number; minParagraphs?: number },
 ): Assertion {
@@ -504,7 +504,7 @@ function inWorkspace(
 }
 
 /** Every session in the run's tree: its own, then each task's. */
-async function treeSessions(ctx: Context) {
+export async function treeSessions(ctx: Context) {
   const children = await ctx.childSessions();
   return [...ctx.sessions, ...children.flatMap((child) => child.sessions)];
 }
@@ -1170,7 +1170,7 @@ function feedbackName(index: number): string {
   return `feedback-${String(index + 1).padStart(3, "0")}.txt`;
 }
 
-function seedFeedback() {
+export function seedFeedback() {
   const dir = path.join(HOME, "Documents", "Feedback");
   fs.rmSync(dir, { force: true, recursive: true });
   fs.mkdirSync(dir, { recursive: true });
@@ -1186,10 +1186,10 @@ function seedFeedback() {
 }
 
 /** 18% of 240, written as the user would accept it: 43.2 or 43.20. */
-const QUICK_ANSWER = /\b43\.20?(?!\d)/;
+export const QUICK_ANSWER = /\b43\.20?(?!\d)/;
 
 /** The quick question, answered within 20 seconds of being asked. */
-const answeredTheQuickQuestion: Assertion = {
+export const answeredTheQuickQuestion: Assertion = {
   check: ({ sessions, taskId }) => {
     const text = "answered 18% of 240 (43.2) within 20 seconds of being asked";
     const waited = marksFor(taskId)["quick answer"];
@@ -2266,7 +2266,7 @@ const SCANS = Array.from({ length: 40 }, (_, index) => {
   };
 });
 
-function seedScans() {
+export function seedScans() {
   const dir = path.join(HOME, "Documents", "Scans");
   fs.rmSync(dir, { force: true, recursive: true });
   fs.mkdirSync(dir, { recursive: true });
@@ -2276,7 +2276,7 @@ function seedScans() {
 }
 
 /** Every scan renamed date first with its kind, contents intact, none lost. */
-const renamedTheScans: Assertion = {
+export const renamedTheScans: Assertion = {
   check: () => {
     const text =
       "renamed all 40 scans date first with their kind, contents intact";
@@ -2475,7 +2475,7 @@ const DATA_FIXTURE = path.resolve(import.meta.dirname, "../fixtures/Data");
 // ---------------------------------------------------------------------------
 
 /** One scenario, run as a chat case. */
-interface Scenario {
+export interface Scenario {
   answers?: EvalCase["answers"];
   assertions: Assertion[];
   beforeFollowUp?: EvalCase["beforeFollowUp"];
@@ -2493,7 +2493,7 @@ interface Scenario {
   topics?: EvalCase["topics"];
 }
 
-function toEval(scenario: Scenario): EvalCase {
+export function toEval(scenario: Scenario): EvalCase {
   const sent = [
     ...(scenario.sent ?? []).map((folder) => ({
       access: "read-write" as const,

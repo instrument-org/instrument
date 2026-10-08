@@ -66,6 +66,15 @@ const CASES: Record<string, string> = {
   "long-work": "context",
   "interrupt-foreground": "background",
   "parallel-scratch": "background",
+  // Whole-design scenarios (`cases/scenarios.ts`): run only when named.
+  fleet: "scenario",
+  "interrupt-chain": "scenario",
+  "stop-all": "scenario",
+  steer: "scenario",
+  "long-context": "scenario",
+  injection: "scenario",
+  "injection-fork": "scenario",
+  "slow-wake": "scenario",
 };
 
 const SLUGS = Object.keys(CASES);
@@ -77,6 +86,8 @@ const SLUGS = Object.keys(CASES);
  */
 const CASE_MAX_RUN_TOKENS: Record<string, number> = {
   "long-work": 2_500_000,
+  fleet: 2_500_000,
+  "long-context": 2_500_000,
 };
 
 /** Cases that need the plan's own web search, which Workers AI runs lack. */
@@ -246,7 +257,9 @@ async function run() {
   if (models.length === 0) {
     throw new Error("--model is required");
   }
-  const slugs = values.cases?.split(",") ?? SLUGS;
+  const slugs =
+    values.cases?.split(",") ??
+    SLUGS.filter((slug) => CASES[slug] !== "scenario");
   const unknown = slugs.filter((slug) => !(slug in CASES));
   if (unknown.length > 0) {
     throw new Error(`Unknown cases: ${unknown.join(", ")}`);

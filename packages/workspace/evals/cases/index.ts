@@ -17,6 +17,7 @@ import { PDF_SKILL_EVALS } from "./pdf-skill";
 import { QUESTIONS_EVALS } from "./questions";
 import { REACH_EVALS } from "./reach";
 import { SANDBOXED_PYTHON_EVALS } from "./sandboxed-python";
+import { SCENARIO_EVALS } from "./scenarios";
 import { SOURCE_LINKS_EVALS } from "./source-links";
 import { TASK_TABS_EVALS } from "./task-tabs";
 import { UNREADABLE_MEDIA_EVALS } from "./unreadable-media";
@@ -44,6 +45,7 @@ export const EVALS = [
   ...QUESTIONS_EVALS,
   ...REACH_EVALS,
   ...SANDBOXED_PYTHON_EVALS,
+  ...SCENARIO_EVALS,
   ...SOURCE_LINKS_EVALS,
   ...TASK_TABS_EVALS,
   ...UNREADABLE_MEDIA_EVALS,

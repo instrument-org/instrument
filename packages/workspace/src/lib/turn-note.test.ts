@@ -122,9 +122,21 @@ describe("continuesOwnReply", () => {
   const asked = message("user", ["text"]);
 
   it.each<[string, SessionMessage.WithParts[], boolean]>([
-    ["a step after one that only wrote", [asked, message("assistant", ["text"])], true],
-    ["a step after one that called a tool", [asked, message("assistant", ["text", "tool"])], false],
-    ["the retry of a step that failed", [asked, message("assistant", ["text"], { error: true })], false],
+    [
+      "a step after one that only wrote",
+      [asked, message("assistant", ["text"])],
+      true,
+    ],
+    [
+      "a step after one that called a tool",
+      [asked, message("assistant", ["text", "tool"])],
+      false,
+    ],
+    [
+      "the retry of a step that failed",
+      [asked, message("assistant", ["text"], { error: true })],
+      false,
+    ],
     ["the first step of a turn", [asked], false],
   ])("%s", (_, messages, expected) => {
     expect(continuesOwnReply(messages)).toBe(expected);

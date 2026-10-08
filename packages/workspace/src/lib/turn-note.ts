@@ -66,7 +66,9 @@ export function continuesOwnReply(
     last?.role === "assistant" &&
     last.metadata.error === undefined &&
     !last.metadata.synthetic &&
-    last.parts.some((part) => part.type === "text" && part.text.trim() !== "") &&
+    last.parts.some(
+      (part) => part.type === "text" && part.text.trim() !== "",
+    ) &&
     !last.parts.some((part) => isToolPart(part))
   );
 }

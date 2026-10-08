@@ -1,6 +1,7 @@
 import { openLogin } from "@/client/atoms/login-modal";
 import { openPlanSheet } from "@/client/atoms/plan-sheet";
 import { SettingsSection } from "@/client/components/settings/general-section";
+import { StateArrival } from "@/client/components/state-arrival";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Progress } from "@/client/components/ui/progress";
@@ -101,7 +102,17 @@ export function UsageAndBillingSection() {
 
   return (
     <div className="space-y-4">
-      <PlanGroup status={status} />
+      {/* The plan settles in when a change made in Stripe's portal or
+          Checkout lands as the window takes focus. */}
+      <StateArrival
+        state={[
+          status.plan,
+          status.subscription?.status,
+          subscriptionEndsAt(status)?.toISOString(),
+        ].join(" ")}
+      >
+        <PlanGroup status={status} />
+      </StateArrival>
       <UsageGroup status={status} />
     </div>
   );

@@ -38,7 +38,13 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type RefObject, useLayoutEffect, useRef, useState } from "react";
+import {
+  type PointerEvent,
+  type RefObject,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { AIProviderIcon } from "./ai-provider-icon";
 import { FuzzyHighlight } from "./fuzzy-highlight";
@@ -304,12 +310,22 @@ function PickerPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   // cmdk always lights an item, the first if nothing else, so a panel that
   // had not been touched opened with one row looking pointed at. The light is
-  // not drawn until a key or the pointer is used in the panel. Holding cmdk's
-  // value empty does not do it: cmdk keeps its own pick of the first item and
-  // shows it at the next update.
+  // not drawn until a key is pressed or the pointer reaches a row, which cmdk
+  // lights as it passes; a pointer crossing the provider rail would otherwise
+  // light the first row while another is chosen. Holding cmdk's value empty
+  // does not do it: cmdk keeps its own pick of the first item and shows it at
+  // the next update.
   const [engaged, setEngaged] = useState(false);
   const engage = () => {
     setEngaged(true);
+  };
+  const engageOnRow = (event: PointerEvent) => {
+    if (
+      event.target instanceof Element &&
+      event.target.closest("[cmdk-item]")
+    ) {
+      setEngaged(true);
+    }
   };
 
   const opened = rail.find((entry) => entry.id === openId);
@@ -333,7 +349,7 @@ function PickerPanel({
       data-engaged={engaged || undefined}
       label="Search models"
       onKeyDownCapture={engage}
-      onPointerMoveCapture={engage}
+      onPointerMoveCapture={engageOnRow}
       shouldFilter={false}
     >
       <div className="shrink-0 border-b p-2">
@@ -678,6 +694,7 @@ function AutoRow({
     >
       <AIProviderIcon
         className="size-4 shrink-0"
+        colored
         type={OUR_MODELS.providerType}
       />
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
@@ -723,7 +740,11 @@ function AutoOnly({
 }) {
   return (
     <div className="flex flex-col items-center gap-3 px-6 pt-16 pb-10 text-center">
-      <AIProviderIcon className="size-9" type={OUR_MODELS.providerType} />
+      <AIProviderIcon
+        className="size-9"
+        colored
+        type={OUR_MODELS.providerType}
+      />
       <div className="flex flex-col items-center gap-1">
         <span className="flex items-center gap-2 text-base font-medium">
           Auto

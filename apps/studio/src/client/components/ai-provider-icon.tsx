@@ -65,9 +65,9 @@ function InstrumentProviderGlyph({ className }: { className?: string }) {
 }
 
 /**
- * Claude's own mark, one color, for Anthropic everywhere but the moment a
- * provider is chosen by its API key, where the company's mark is the one on
- * the key's page.
+ * Claude's own mark, one color, for a Claude account, and for Anthropic
+ * everywhere but the moment a provider is chosen by its API key, where the
+ * company's mark is the one on the key's page.
  */
 function ClaudeMark({ className }: { className?: string }) {
   return <VendorMark className={className} svg={claude} />;
@@ -80,6 +80,7 @@ function ClaudeMark({ className }: { className?: string }) {
 const PROVIDER_COLOR_SVG: Partial<Record<AIProviderType, string>> = {
   anthropic: claudeColor,
   cerebras: cerebrasColor,
+  "claude-account": claudeColor,
   deepinfra: deepinfraColor,
   deepseek: deepseekColor,
   fireworks: fireworksColor,
@@ -102,7 +103,7 @@ const PROVIDER_ICON_MAP: Record<
   anthropic: ClaudeMark,
   cerebras: Cerebras,
   "chatgpt-account": SiOpenai,
-  "claude-account": SiAnthropic,
+  "claude-account": ClaudeMark,
   deepinfra: DeepInfra,
   deepseek: DeepSeek,
   fireworks: Fireworks,

@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
+import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
 import { cn } from "@/client/lib/utils";
 import { type Icon } from "@phosphor-icons/react";
@@ -22,7 +23,6 @@ import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { useRef } from "react";
 
 import { AppIcon } from "./window/app-icon";
@@ -320,7 +320,7 @@ export function ComposerAddMenu({
                   onViewChange("apps");
                 }}
               >
-                <SquaresFourIcon className="size-4" />
+                <PlaceIcon className="size-4" place="apps" />
                 <span className="min-w-0 flex-1">Apps</span>
                 <CaretRightIcon className="size-3.5 text-muted-foreground" />
               </DropdownMenuItem>

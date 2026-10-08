@@ -35,7 +35,7 @@ Every run gets a home directory of its own under `$TMPDIR`, or wherever `INSTRUM
 
 So the choice is yours to make per question, and yours to report: **say which models you ran and why you picked them**, in the same breath as the result. A result that does not name its models is not a result anyone can weigh.
 
-**Workers AI is where to start.** This project has Cloudflare credits sitting unused and pays per token everywhere else, so a run that spends belongs to a question that specifically needs a model only another provider has. A metered model is refused without `--paid`, because the cost of a suite is one case times one model list and lands long after the command that started it. `zai-org/glm-5.3-flash` is the model this project is usually tested against, named in the error a bare `run` produces; it is a hint rather than a default, and nothing runs it unless someone passes it.
+**Workers AI is where to start.** It runs without `--paid` and every other provider is metered, so a run that spends belongs to a question that specifically needs a model only another provider has. A metered model is refused without `--paid`, because the cost of a suite is one case times one model list and lands long after the command that started it. `zai-org/glm-5.3-flash` is the model this project is usually tested against, named in the error a bare `run` produces; it is a hint rather than a default, and nothing runs it unless someone passes it.
 
 The harness prints what each model resolved to and records it as `resolvedModelId` in the run's `eval-case.json`, which matters for a `--paid` run against an OpenRouter `~author/<name>-latest` alias, since "latest" is not a build anyone can identify a month later.
 

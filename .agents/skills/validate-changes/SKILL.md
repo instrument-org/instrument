@@ -76,7 +76,7 @@ pnpm eval run --yes --prompt "<task for the agent>" --model cf:zai-org/glm-5.3-f
   actually asking, and say which models you ran and why when you report the
   result.
 - **Workers AI unless the question needs a model only another provider has.**
-  This project holds Cloudflare credits and pays per token everywhere else, so
+  Workers AI runs unmetered here and everything else is metered, so
   `cf:<id>` is the spelling to reach for, and anything metered is refused until
   `--paid` is passed. "Does a model find this affordance" is answered by the
   cheap models; answering it on a frontier model spends real money on a question

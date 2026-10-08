@@ -78,6 +78,9 @@ extend-exclude = [
   # output and extracted PDF glyph runs, not prose anyone maintains.
   "fixtures/workspaces/**/session.json",
   "fixtures/workspaces/**/files/",
+  # Provider streams replayed as recorded. Their deltas split words mid-token,
+  # and "correcting" a fragment changes what the stream assembles to.
+  "packages/ai-gateway/src/lib/providers/*/fixtures/",
   # An eval whose subject is whether the agent honors a standing instruction to
   # write British English. The spellings in it are the fixture.
   "packages/workspace/evals/cases/project-instructions.ts",

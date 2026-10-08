@@ -1,8 +1,6 @@
 [
   {
-    "builtInTools": [
-      "WebSearch"
-    ],
+    "builtInTools": ["WebSearch"],
     "messages": [
       {
         "rate_limit_info": {

@@ -368,7 +368,7 @@ export function ComposeWindow({
   const latestItems = useRef<AttachedItem[]>([]);
   const keepAttached = (items: AttachedItem[]) => {
     latestItems.current = items;
-    const attached = items.flatMap((item) => {
+    const kept = items.flatMap((item) => {
       if (item.type === "file" && "content" in item) {
         const written = staged.current.get(item.id);
         return written ? [written] : [];
@@ -376,11 +376,11 @@ export function ComposeWindow({
       return attachmentOf(item);
     });
     onChange((current) => {
-      if (isEqual(current.attached ?? [], attached)) {
+      if (isEqual(current.attached ?? [], kept)) {
         return current;
       }
       const { attached: _was, ...rest } = current;
-      return attached.length > 0 ? { ...rest, attached } : rest;
+      return kept.length > 0 ? { ...rest, attached: kept } : rest;
     });
   };
   const keepItems = (items: AttachedItem[]) => {

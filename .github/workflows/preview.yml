@@ -3,10 +3,12 @@ name: Preview Build
 # A build with an identity of its own (bundle id, product name, protocol,
 # install folder, purple icon), so it runs beside Instrument and its first
 # launch is a real first launch: no userData, no keychain item, no privacy
-# grants. Each platform's artifact runs from where it lands or installs beside
+# grants. The identity ends in the run number, so a rebuild of the same branch
+# is a first launch too, rather than opening where the last build left off.
+# Each platform's artifact runs from where it lands or installs beside
 # Instrument, and can be deleted after. Pick the branch in "Use workflow
-# from"; the name labels the build and defaults to the branch. See APP_FLAVOR in
-# packages/shared.
+# from"; the name says what the build is for and defaults to the branch. See
+# APP_FLAVOR in packages/shared.
 on:
   workflow_dispatch:
     inputs:
@@ -37,7 +39,8 @@ jobs:
       PREVIEW_OS: ${{ inputs.os || 'mac' }}
     steps:
       # The same reduction APP_FLAVOR applies, to fail early on a name that
-      # reduces to nothing and to label the summary. Linux builds both
+      # reduces to nothing, then the run number, cut so the whole stays within
+      # APP_FLAVOR's 40 characters. Linux builds both
       # architectures, since a Linux test machine is as likely to be an ARM
       # virtual machine as a PC.
       - name: Resolve name and platforms
@@ -48,6 +51,8 @@ jobs:
             echo "::error::The preview name has no letters or digits in it."
             exit 1
           fi
+          number="${{ github.run_number }}"
+          slug="$(printf '%s' "$slug" | cut -c1-$((39 - ${#number})) | sed -E 's/-+$//')-$number"
           echo "slug=$slug" >> "$GITHUB_OUTPUT"
           mac='{"os":"mac","arch":"arm64","runner":"macos-26"}'
           windows='{"os":"windows","arch":"x64","runner":"windows-latest"}'
@@ -173,7 +178,7 @@ jobs:
         name: Verify the signed app starts
         run: pnpm --filter @instrument-org/studio run verify-packaged-app
 
-      - if: matrix.os == 'mac'
+      - if: always() && matrix.os == 'mac'
         name: Cleanup Signing
         run: rm -f ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
 
@@ -243,5 +248,5 @@ jobs:
             echo "- **Windows:** run the installer. It installs beside Instrument, under its own name."
             echo "- **Linux:** unpack the archive and run the executable inside, or run the AppImage."
             echo
-            echo "It never updates itself, and its developer mode is on. **Reset to first run…** in its dev panel, and **Preview › Reset to First Run…** in the macOS menu bar, erase its data and reopen it as a first launch."
+            echo "It never updates itself, and its developer mode is on. Its first launch is a first launch even on a machine that ran an earlier build of the same branch, since the run number is part of its identity."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -1,6 +1,5 @@
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { pnpmVersion } from "@/electron-main/lib/pnpm";
-import { resetPreviewToFirstRun } from "@/electron-main/lib/preview-reset";
 import {
   isQuitGuardForcedInDev,
   setQuitGuardForcedInDev,
@@ -259,10 +258,6 @@ const skipOnboarding = devOnly.input(z.void()).handler(() => {
   closeOnboardingWindow();
 });
 
-const resetToFirstRun = devOnly.input(z.void()).handler(() => {
-  return resetPreviewToFirstRun();
-});
-
 const openUserDataFolder = devOnly.input(z.void()).handler(() => {
   return openFolder(app.getPath("userData"));
 });
@@ -292,7 +287,6 @@ export const debug = {
   openOnboarding,
   openUserDataFolder,
   openWorkspaceFolder,
-  resetToFirstRun,
   setQuitGuardForced,
   skipOnboarding,
   systemInfo,

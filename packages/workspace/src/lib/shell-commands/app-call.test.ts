@@ -169,12 +169,26 @@ describe("app call --out", () => {
     expect(await fs.exists("/task/out.json")).toBe(false);
   });
 
-  it("prints the bounded result without --out", async () => {
+  it("prints the result as the service sent it without --out", async () => {
     const result = await app("call", slug, "issues");
     expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("BEGIN_APP_RESULT");
-    expect(result.stdout).toContain("2 issues: one, two");
+    expect(result.stdout).toBe("2 issues: one, two\n");
+  });
+});
+
+describe("app call in a pipeline", () => {
+  it("hands jq the service's JSON", async () => {
+    await mkdir(taskDir(taskId), { recursive: true });
+    const bash = await createLocalBashEnv({
+      sessionId: StoreId.newSessionId(),
+      taskId,
+    });
+    const result = await bash.exec(
+      `app call ${slug} json_text | jq 'length'`,
+    );
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toBe("3\n");
   });
 });
 

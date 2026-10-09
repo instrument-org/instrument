@@ -14,8 +14,8 @@ import {
 } from "@/electron-main/stores/workspace/app-oauth";
 import { PORTS } from "@instrument-org/shared";
 import {
+  catalogEntryForApp,
   findAppIcon,
-  findCatalogEntry,
   loadApp,
   appChanged,
   type WorkspaceConfig,
@@ -79,10 +79,7 @@ export async function appMark(
   if (own) {
     return iconDataUri(own.bytes, own.fileName);
   }
-  const entry = findCatalogEntry(
-    slug,
-    manifest.type === "mcp" ? manifest.url : undefined,
-  );
+  const entry = catalogEntryForApp(slug, manifest);
   return entry ? directoryIconDataUri(entry.slug) : undefined;
 }
 

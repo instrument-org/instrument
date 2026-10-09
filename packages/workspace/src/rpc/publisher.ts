@@ -20,6 +20,8 @@ export const publisher = new EventPublisher<{
    * with it.
    */
   "app.event": {
+    /** The account the app is signed in as, when it is named. */
+    account?: string;
     detail?: string;
     event: AppEvent;
     name: string;

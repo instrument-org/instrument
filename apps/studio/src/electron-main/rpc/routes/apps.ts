@@ -26,8 +26,8 @@ import {
   cancelMcpOAuth,
   describeLocalLaunch,
   catalogEntryMacApp,
+  catalogEntryForApp,
   catalogKeyHelp,
-  findCatalogEntry,
   getAppCatalog,
   isConnected,
   isMcpManifest,
@@ -39,6 +39,7 @@ import {
   removeLocalServer,
   setAppAccount,
   setUpFromDirectory,
+  setWebAppAccount,
   requireAppCredential,
   runAppTest,
   searchAppCatalogByMeaning,
@@ -56,6 +57,7 @@ import {
   appOAuthRedirectUrl,
   disconnectApp,
 } from "../../lib/apps";
+import { accountSignedInOn } from "../../lib/web-sign-in-account";
 import {
   expectSignIn,
   settleSignIn,
@@ -84,6 +86,8 @@ const AppListItemSchema = z.object({
    * back with the key, so the user approves the place along with the secret.
    */
   credentialOrigin: z.string(),
+  /** The app's folder on this computer, for showing it in Files or the Finder. */
+  dir: z.string(),
   /** API base URL, MCP server URL, or the package a local server runs from. */
   endpoint: z.string(),
   hasCredential: z.boolean(),
@@ -101,6 +105,8 @@ const AppListItemSchema = z.object({
   runs: z.string().optional(),
   /** For a web app, the page its sign-in opens in the window's browser. */
   signIn: z.string().optional(),
+  /** The directory's slug for the service the app reaches, shared by every app of that service. */
+  service: z.string().optional(),
   /** The service's origin, for its icon. */
   site: z.string().optional(),
   slug: z.string(),
@@ -130,10 +136,7 @@ async function iconFor(app: {
   if (url) {
     return { icon: url };
   }
-  const entry = findCatalogEntry(
-    app.slug,
-    app.manifest.type === "mcp" ? app.manifest.url : undefined,
-  );
+  const entry = catalogEntryForApp(app.slug, app.manifest);
   const directory = entry ? await catalogIconFor(entry) : undefined;
   return directory ? { icon: directory } : {};
 }
@@ -176,6 +179,10 @@ function keyHelpFor(
   return keyHelp ? { keyHelp } : {};
 }
 
+function withService(service: string | undefined): { service?: string } {
+  return service === undefined ? {} : { service };
+}
+
 const AppListSchema = z.object({
   apps: z.array(AppListItemSchema),
   invalid: z.array(z.object({ message: z.string(), slug: z.string() })),
@@ -203,6 +210,7 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
             app.manifest.type === "web" ? "web" : app.manifest.auth.kind,
           connection,
           credentialOrigin: credentialOrigin(app.manifest),
+          dir: app.dir,
           endpoint:
             app.manifest.type === "api"
               ? app.manifest.baseUrl
@@ -221,6 +229,7 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
           ...(app.manifest.type === "web"
             ? { signIn: app.manifest.signIn ?? app.manifest.url }
             : {}),
+          ...withService(catalogEntryForApp(app.slug, app.manifest)?.slug),
           site: appSiteFor(app.slug, app.manifest),
           slug: app.slug,
           standing,
@@ -697,16 +706,47 @@ const markWebSignedIn = base
     if (loaded.isErr()) {
       throw errors.NOT_FOUND({ message: loaded.error.message });
     }
-    const { manifest, manifestHash } = loaded.value;
+    const { manifest } = loaded.value;
     if (manifest.type !== "web") {
       throw errors.NOT_FOUND({
         message: `${input.slug} is not a web app.`,
       });
     }
+    // The account it signed in as, when a page open on its site names one
+    // no other app of the service holds; naming it can move the app to that
+    // account's own address, so the connection pins the manifest after.
+    if (manifest.account === undefined) {
+      const service = catalogEntryForApp(input.slug, manifest)?.slug;
+      const others = (
+        await listApps(context.workspaceConfig.appsDir)
+      ).apps.filter(
+        (app) =>
+          app.slug !== input.slug &&
+          service !== undefined &&
+          catalogEntryForApp(app.slug, app.manifest)?.slug === service,
+      );
+      const claimed = new Set(
+        others.flatMap((app) =>
+          app.manifest.account ? [app.manifest.account.toLowerCase()] : [],
+        ),
+      );
+      const account = accountSignedInOn(manifest.url, claimed);
+      if (account !== undefined) {
+        await setWebAppAccount(
+          context.workspaceConfig.appsDir,
+          input.slug,
+          account,
+        );
+      }
+    }
+    const signedIn = await loadApp(context.workspaceConfig.appsDir, input.slug);
+    if (signedIn.isErr()) {
+      throw errors.NOT_FOUND({ message: signedIn.error.message });
+    }
     await recordConnection(input.slug, {
       connectedAt: Date.now(),
       error: undefined,
-      manifestHash,
+      manifestHash: signedIn.value.manifestHash,
       status: "connected",
     });
     await appChanged(input.slug, { event: "connected" });

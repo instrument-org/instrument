@@ -7,6 +7,7 @@ export {
   catalogEntryMacApp,
   catalogEntryMcpEndpoint,
   catalogEntrySupportsApiKey,
+  catalogEntryForApp,
   catalogKeyHelp,
   findCatalogEntry,
   getAppCatalog,
@@ -64,6 +65,7 @@ export {
   loadApp,
   readAppGuide,
   setAppAccount,
+  setWebAppAccount,
 } from "./lib/apps/store";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
 export {

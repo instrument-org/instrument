@@ -12,6 +12,11 @@ type AppOfSlug = {
   local?: boolean;
   name: string;
   site: string | undefined;
+  /**
+   * What a tab or a list of pages calls it: its name, with the account added
+   * when another app of the same service is here, so two Gmails read apart.
+   */
+  title?: string;
 };
 
 /**
@@ -35,18 +40,24 @@ export function useAppsBySlug(): AppsBySlug {
           },
         ] as const,
     ),
-    ...(apps.data?.apps ?? []).map(
-      (app) =>
-        [
-          app.slug,
-          {
-            home: app.home,
-            icon: app.icon,
-            local: app.type === "mcp-local",
-            name: app.name,
-            site: app.site,
-          },
-        ] as const,
-    ),
+    ...(apps.data?.apps ?? []).map((app, _, all) => {
+      const shared =
+        app.service !== undefined &&
+        all.some(
+          (other) => other.slug !== app.slug && other.service === app.service,
+        );
+      return [
+        app.slug,
+        {
+          home: app.home,
+          icon: app.icon,
+          local: app.type === "mcp-local",
+          name: app.name,
+          site: app.site,
+          title:
+            shared && app.account ? `${app.name} · ${app.account}` : app.name,
+        },
+      ] as const;
+    }),
   ]);
 }

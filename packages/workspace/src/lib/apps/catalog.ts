@@ -59,6 +59,19 @@ const AppCatalogEntrySchema = z.object({
    */
   signIn: z.string().optional(),
   /**
+   * Where signing in a second account on the web starts, for a vendor whose
+   * browser session holds several at once: the vendor's own "add another
+   * account" page, since its sign-in page goes straight to the account
+   * already signed in.
+   */
+  addAccount: z.string().optional(),
+  /**
+   * The web app as one signed-in account sees it, with `{account}` where the
+   * account goes, for a vendor whose session holds several: the address that
+   * keeps a second account's tasks in that account rather than the first.
+   */
+  accountHome: z.string().optional(),
+  /**
    * The ways in, tried in the order `app catalog` describes: a hosted MCP
    * server, one that runs here, an API a key opens, the Mac's own app, and
    * last the web app at `home`.
@@ -207,6 +220,69 @@ export function findCatalogEntry(
       : catalog.find((entry) =>
           entry.interfaces.some((surface) => surface.endpoint === endpoint),
         ))
+  );
+}
+
+/**
+ * The directory's entry for a web address: the one whose signed-in web app
+ * the address is in, the longest such app winning so a page of
+ * docs.google.com/spreadsheets is Sheets and not Docs; failing that, the one
+ * entry on the address's host. A second account of a service lives at its
+ * own address of the same site (mail.google.com/mail/u/1/), which is how it
+ * is still that service.
+ */
+export function catalogEntryAt(address: string): AppCatalogEntry | undefined {
+  const url = URL.parse(address);
+  if (url === null) {
+    return undefined;
+  }
+  const catalog = getAppCatalog();
+  const homeOf = (entry: AppCatalogEntry) =>
+    URL.parse(entry.home ?? `https://${entry.domain}`);
+  const within = catalog
+    .map((entry) => ({ entry, home: homeOf(entry) }))
+    .filter(
+      ({ home }) =>
+        home !== null &&
+        home.host === url.host &&
+        url.pathname.startsWith(home.pathname.replace(/\/+$/, "")),
+    )
+    .sort(
+      (a, b) => (b.home?.pathname.length ?? 0) - (a.home?.pathname.length ?? 0),
+    );
+  if (within[0]) {
+    return within[0].entry;
+  }
+  const onHost = catalog.filter(
+    (entry) => entry.domain === url.host || homeOf(entry)?.host === url.host,
+  );
+  return onHost.length === 1 ? onHost[0] : undefined;
+}
+
+/**
+ * The directory's entry for an app already set up: the service its manifest
+ * names, else the one its slug or address finds. Every app of one service
+ * answers the same entry whatever its slug, so two Gmail accounts are both
+ * Gmail.
+ */
+export function catalogEntryForApp(
+  slug: string,
+  manifest: { service?: string | undefined; type: string; url?: string },
+): AppCatalogEntry | undefined {
+  const catalog = getAppCatalog();
+  const named =
+    manifest.service === undefined
+      ? undefined
+      : catalog.find((entry) => entry.slug === manifest.service);
+  return (
+    named ??
+    findCatalogEntry(
+      slug,
+      manifest.type === "mcp" ? manifest.url : undefined,
+    ) ??
+    (manifest.type === "web" && manifest.url !== undefined
+      ? catalogEntryAt(manifest.url)
+      : undefined)
   );
 }
 

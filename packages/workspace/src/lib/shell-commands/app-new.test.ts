@@ -454,6 +454,7 @@ describe("app new --web", () => {
     );
     expect(await manifestOf("zoom-web")).toEqual({
       name: "Zoom",
+      service: "zoom",
       signIn: "https://zoom.us/signin",
       type: "web",
       url: "https://zoom.us",
@@ -521,6 +522,47 @@ describe("app new refuses what cannot connect", () => {
     );
   });
 
+  it("sets a second account up under the service's name, signing in on its add-account page", async () => {
+    await app(
+      "new",
+      "gmail",
+      "--name",
+      "Gmail",
+      "--web",
+      "https://mail.google.com",
+    );
+    await app("account", "gmail", "jeremy@example.com");
+
+    const result = await app(
+      "new",
+      "gmail-personal",
+      "--name",
+      "Gmail (personal)",
+      "--web",
+      "https://mail.google.com/mail/u/1/",
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(await manifestOf("gmail-personal")).toEqual({
+      name: "Gmail",
+      service: "gmail",
+      signIn:
+        "https://accounts.google.com/AddSession?service=mail&continue=https://mail.google.com/mail/",
+      type: "web",
+      url: "https://mail.google.com/mail/u/1/",
+    });
+    expect(result.stdout).toContain(
+      'It is another Gmail account beside gmail (jeremy@example.com), so it keeps the name Gmail rather than "Gmail (personal)"',
+    );
+    // The next case sets Gmail up as the first of its kind.
+    for (const slug of ["gmail", "gmail-personal"]) {
+      await fs.rm(path.join(getWorkspaceConfig().appsDir, slug), {
+        force: true,
+        recursive: true,
+      });
+    }
+  });
+
   it("starts a listed web app's sign-in on its sign-in page", async () => {
     const result = await app(
       "new",
@@ -539,12 +581,22 @@ describe("app new refuses what cannot connect", () => {
     });
   });
 
-  it("names the sign-in page in a web set-up line", async () => {
-    const result = await app("catalog", "slack");
+  it("starts the web set-up line's sign-in where the directory says", async () => {
+    const line = (await app("catalog", "slack")).stdout;
+    expect(line).toContain("--web https://app.slack.com  (on the web");
 
-    expect(result.stdout).toContain(
-      "--web https://app.slack.com --sign-in 'https://slack.com/signin'",
+    await app(
+      "new",
+      "slack-web",
+      "--name",
+      "Slack",
+      "--web",
+      "https://app.slack.com",
     );
+    expect(await manifestOf("slack-web")).toMatchObject({
+      service: "slack",
+      signIn: "https://slack.com/signin",
+    });
   });
 
   it("refuses a listed server whose sign-in needs a registered client", async () => {

@@ -158,6 +158,7 @@ export async function startFork({
   model,
   modelURI,
   name,
+  onSession,
   prompt,
   settings,
 }: {
@@ -172,6 +173,8 @@ export async function startFork({
   model: Parameters<typeof newMessage>[0]["model"];
   modelURI: Parameters<typeof newMessage>[0]["modelURI"];
   name: string;
+  /** Called with the fork's session before its first turn starts. */
+  onSession?: (sessionId: StoreId.Session, taskId: TaskId) => void;
   /** The fork's first turn, as `forkDirective` writes it. */
   prompt: string;
   /** Recorded on the fork's settings beside what every fork carries. */
@@ -228,6 +231,7 @@ export async function startFork({
   if (message.isErr()) {
     throw message.error;
   }
+  onSession?.(sessionId, taskId);
   getWorkspaceActorRef().send({
     type: "createSession",
     value: {

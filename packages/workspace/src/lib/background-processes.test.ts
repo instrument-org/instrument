@@ -12,6 +12,7 @@ import { TaskIdSchema } from "../schemas/task-id";
 import { createMockTaskConfig } from "../test/helpers/mock-task-config";
 import { absolutePathJoin } from "./absolute-path-join";
 import {
+  handOverBackgroundProcesses,
   killBackgroundProcess,
   killSessionBackgroundProcesses,
   listBackgroundProcesses,
@@ -742,6 +743,35 @@ describe("background processes", () => {
       waitMs: 0,
     });
     expect(ownRead?.output).toBe("from b\n");
+  });
+
+  it("hands a running process to another session under the same id", async () => {
+    const chat = makeOwner("handchat");
+    const fork = makeOwner("handfork");
+    const handed = promote(chat, "node work/export.js");
+    const kept = promote(chat, "node work/server.js");
+    await handed.controllable.emit("half done\n");
+
+    handOverBackgroundProcesses({
+      from: chat.sessionId,
+      ids: [handed.info.id],
+      to: fork.sessionId,
+      toTaskId: fork.taskId,
+    });
+
+    expect(listBackgroundProcesses(chat.sessionId).map(({ id }) => id)).toEqual(
+      [kept.info.id],
+    );
+    expect(
+      listTaskBackgroundProcesses(fork.taskId).map(({ id }) => id),
+    ).toEqual([handed.info.id]);
+    const forkRead = await readBackgroundProcess({
+      id: handed.info.id,
+      sessionId: fork.sessionId,
+      waitMs: 0,
+    });
+    expect(forkRead?.output).toBe("half done\n");
+    expect(handed.controllable.aborted).toBe(false);
   });
 
   it("refuses promotion while session cleanup is in flight", async () => {

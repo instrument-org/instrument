@@ -1,3 +1,7 @@
+import {
+  handOverBackgroundProcesses,
+  listBackgroundProcesses,
+} from "./background-processes";
 import { isWorking } from "./chat/activity";
 import { folderReach } from "./chat/folder-reach";
 import { expectStop } from "./chat/wake";
@@ -183,6 +187,15 @@ export async function forkInterruptedTurn({
     sessionId: chatSessionId,
   });
   const name = defaultTaskName(request);
+  // What this turn started that still runs goes with the work, so the fork
+  // waits on it rather than starting it a second time.
+  const leftRunning = listBackgroundProcesses(chatSessionId)
+    .filter(
+      (process) =>
+        process.status === "running" &&
+        process.startedAt >= request.metadata.createdAt,
+    )
+    .map((process) => process.id);
   const taskId = await startFork({
     chatId,
     chatSessionId,
@@ -192,7 +205,19 @@ export async function forkInterruptedTurn({
     model,
     modelURI,
     name,
-    prompt: forkDirective(CARRY_ON),
+    onSession: (forkSessionId, forkId) => {
+      handOverBackgroundProcesses({
+        from: chatSessionId,
+        ids: leftRunning,
+        to: forkSessionId,
+        toTaskId: forkId,
+      });
+    },
+    prompt: forkDirective(
+      leftRunning.length > 0
+        ? `${CARRY_ON} What that work left running in the background (${leftRunning.join(", ")}) is yours now, under the same ids: wait on it with \`fg\` rather than starting it again.`
+        : CARRY_ON,
+    ),
     settings: { forkedOnInterrupt: true },
   });
   autoForks.set(chatId, taskId);

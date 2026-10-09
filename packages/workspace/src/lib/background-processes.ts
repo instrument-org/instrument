@@ -325,6 +325,46 @@ export async function killTaskBackgroundProcesses(
   );
 }
 
+/**
+ * Moves processes to another session, for a turn forked on interrupt: the
+ * fork carries the work on, so what the turn left running is the fork's to
+ * read, wait on and stop, under the same ids. The fork works in its chat's
+ * folder, so the logs stay where they are.
+ */
+export function handOverBackgroundProcesses({
+  from,
+  ids,
+  to,
+  toTaskId,
+}: {
+  from: StoreId.Session;
+  ids: string[];
+  to: StoreId.Session;
+  toTaskId: TaskId;
+}): void {
+  const source = recordsBySession.get(from);
+  if (!source) {
+    return;
+  }
+  const target =
+    recordsBySession.get(to) ?? new Map<string, BackgroundProcessRecord>();
+  recordsBySession.set(to, target);
+  const changed = new Set<TaskId>([toTaskId]);
+  for (const id of ids) {
+    const record = source.get(id);
+    if (!record) {
+      continue;
+    }
+    source.delete(id);
+    changed.add(record.taskId);
+    record.taskId = toTaskId;
+    target.set(id, record);
+  }
+  for (const taskId of changed) {
+    publishChanged(taskId);
+  }
+}
+
 export function listBackgroundProcesses(
   sessionId: StoreId.Session,
 ): BackgroundProcessInfo[] {

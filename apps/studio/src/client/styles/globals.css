@@ -208,6 +208,12 @@ body {
   --shadow-xl-soft: var(--elevation-xl-soft);
   --shadow-2xl-soft: var(--elevation-2xl-soft);
   --shadow-3xl-soft: var(--elevation-3xl-soft);
+  /* Same ramp for what floats over arbitrary content: menus, popovers,
+   * tooltips. Its hairline is opaque, so nothing passing under it shows
+   * through the ring. */
+  --shadow-float-sm: var(--elevation-float-sm);
+  --shadow-float-md: var(--elevation-float-md);
+  --shadow-float-lg: var(--elevation-float-lg);
 }
 
 /* =========================
@@ -271,6 +277,9 @@ body {
   --elevation-xl: var(--elevation-xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
   --elevation-2xl: var(--elevation-2xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
   --elevation-3xl: var(--elevation-3xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
+  --elevation-float-sm: var(--elevation-sm);
+  --elevation-float-md: var(--elevation-md);
+  --elevation-float-lg: var(--elevation-lg);
 
   /* Status ramps — 6 stops (50/100/300/500/700/900) per Figma. */
   --error-50: #fbeef0;
@@ -406,6 +415,19 @@ body {
   --elevation-xl: 0 0 0 1px rgb(255 255 255 / 0.13), var(--elevation-xl-soft);
   --elevation-2xl: 0 0 0 1px rgb(255 255 255 / 0.14), var(--elevation-2xl-soft);
   --elevation-3xl: 0 0 0 1px rgb(255 255 255 / 0.16), var(--elevation-3xl-soft);
+  /* The ring sits outside the element's edge, so a translucent white would
+   * show whatever passes under a menu or popover through it. Each floating
+   * ring is that white already composited over `--background`: the same pixel
+   * over the window, and a steady edge over anything else. */
+  --elevation-float-sm:
+    0 0 0 1px color-mix(in srgb, #fff 8%, var(--background)),
+    var(--elevation-sm-soft);
+  --elevation-float-md:
+    0 0 0 1px color-mix(in srgb, #fff 10%, var(--background)),
+    var(--elevation-md-soft);
+  --elevation-float-lg:
+    0 0 0 1px color-mix(in srgb, #fff 11%, var(--background)),
+    var(--elevation-lg-soft);
 }
 
 /* Typography gives `.prose` a `max-width: 65ch` measure of its own, and every

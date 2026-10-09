@@ -650,7 +650,7 @@ export function PromptEditor({
         align="start"
         alignOffset={alignOffset}
         avoidCollisions={false}
-        className="overflow-y-auto rounded-[20px] p-1 shadow-lg"
+        className="overflow-y-auto rounded-[20px] p-1 shadow-float-lg"
         maxHeight="18rem"
         onCloseAutoFocus={preventDefault}
         // The popover's layer takes Escape on the document before the editor

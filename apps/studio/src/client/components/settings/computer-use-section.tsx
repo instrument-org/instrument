@@ -1,13 +1,21 @@
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/client/components/ui/dialog";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 type Status = RPCOutput["features"]["computerUse"]["status"];
+
+/** How often a step waiting on a switch in System Settings checks it. */
+const WAITING_POLL_MS = 1000;
 
 /**
  * Walks the person through what Computer Use needs before the agent is
@@ -99,7 +107,27 @@ function AccessibilityStep({
   const openSettings = useMutation(
     rpcClient.features.computerUse.openSettings.mutationOptions(),
   );
+  const focus = useMutation(
+    rpcClient.features.computerUse.focus.mutationOptions(),
+  );
   const pane = accessibilityPaneName(data.macOSMajor);
+  const asked = request.isSuccess || openSettings.isSuccess;
+
+  // macOS applies this grant at once, so while the switch is waited on the
+  // step checks it, and brings the app back over System Settings when it
+  // turns on.
+  useQuery({
+    ...rpcClient.features.computerUse.status.queryOptions(),
+    enabled: asked && !done,
+    refetchInterval: WAITING_POLL_MS,
+  });
+  const focusApp = focus.mutate;
+  useEffect(() => {
+    if (asked && done) {
+      focusApp(undefined);
+      toast.success(`${pane} is on.`);
+    }
+  }, [asked, done, focusApp, pane]);
 
   return (
     <Step
@@ -109,39 +137,40 @@ function AccessibilityStep({
       open={open}
       title={pane}
     >
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="min-w-56 flex-1 space-y-3">
-          <p>
-            Press Allow, then turn on {data.appName} in the list that opens.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              disabled={request.isPending}
-              onClick={() => {
-                request.mutate(undefined);
-              }}
-              size="sm"
-            >
-              Allow
-            </Button>
-            <Button
-              onClick={() => {
-                openSettings.mutate({ permission: "accessibility" });
-              }}
-              size="sm"
-              variant="outline"
-            >
-              Open {pane}
-            </Button>
-          </div>
-        </div>
-        {request.isSuccess && (
-          <PromptHint choose="Open System Settings" other="Deny">
+      <p>Press Allow, then turn on {data.appName} in the list that opens.</p>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          disabled={request.isPending}
+          onClick={() => {
+            request.mutate(undefined);
+          }}
+          size="sm"
+        >
+          Allow
+        </Button>
+        <Button
+          onClick={() => {
+            openSettings.mutate({ permission: "accessibility" });
+          }}
+          size="sm"
+          variant="outline"
+        >
+          Open System Settings
+        </Button>
+      </div>
+      {asked && (
+        <Walkthrough>
+          <PromptMock
+            choose="Open System Settings"
+            label="macOS asks"
+            other="Deny"
+          >
             “{data.appName}” would like to control this computer using
             accessibility features.
-          </PromptHint>
-        )}
-      </div>
+          </PromptMock>
+          <PaneMock appName={data.appName} label="Then" pane={pane} />
+        </Walkthrough>
+      )}
     </Step>
   );
 }
@@ -181,53 +210,69 @@ function ScreenRecordingStep({
       open={open}
       title={pane}
     >
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="min-w-56 flex-1 space-y-3">
-          <p>
-            {asked
-              ? `After you turn on ${data.appName} in the list, relaunch it so macOS applies the change. You'll come right back here.`
-              : `Press Allow, then turn on ${data.appName} in the list that opens.`}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {asked ? (
-              <Button
-                disabled={relaunch.isPending}
-                onClick={() => {
-                  relaunch.mutate(undefined);
-                }}
-                size="sm"
-              >
-                {data.canRelaunch ? `Relaunch ${data.appName}` : "Check again"}
-              </Button>
-            ) : (
-              <Button
-                disabled={request.isPending}
-                onClick={() => {
-                  request.mutate(undefined);
-                }}
-                size="sm"
-              >
-                Allow
-              </Button>
-            )}
-            <Button
-              onClick={() => {
-                openSettings.mutate({ permission: "screen-recording" });
-              }}
-              size="sm"
-              variant="outline"
-            >
-              Open {pane}
-            </Button>
-          </div>
-        </div>
-        {request.isSuccess && (
-          <PromptHint choose="Open System Settings" other="Deny">
-            “{data.appName}” would like to record this computer's screen and
-            audio.
-          </PromptHint>
-        )}
+      <p>
+        Press Allow, turn on {data.appName} in the list, then press Quit &amp;
+        Reopen. You'll come right back here.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          disabled={request.isPending}
+          onClick={() => {
+            request.mutate(undefined);
+          }}
+          size="sm"
+        >
+          Allow
+        </Button>
+        <Button
+          onClick={() => {
+            openSettings.mutate({ permission: "screen-recording" });
+          }}
+          size="sm"
+          variant="outline"
+        >
+          Open System Settings
+        </Button>
       </div>
+      {asked && (
+        <>
+          <Walkthrough>
+            <PromptMock
+              choose="Open System Settings"
+              label="macOS may ask"
+              other="Deny"
+            >
+              “{data.appName}” would like to record this computer's screen and
+              audio.
+            </PromptMock>
+            <PaneMock appName={data.appName} label="Then" pane={pane} />
+            <PromptMock choose="Quit & Reopen" label="Last" other="Later">
+              “{data.appName}” may not be able to record the contents of your
+              screen until it is quit.
+            </PromptMock>
+          </Walkthrough>
+          <p className="text-muted-foreground">
+            {data.canRelaunch ? (
+              <>
+                Pressed Later?{" "}
+                <button
+                  className="underline underline-offset-2"
+                  disabled={relaunch.isPending}
+                  onClick={() => {
+                    relaunch.mutate(undefined);
+                  }}
+                  type="button"
+                >
+                  Relaunch now
+                </button>
+                .
+              </>
+            ) : (
+              `Pressed Later? Quit and reopen ${data.appName} yourself.`
+            )}
+          </p>
+        </>
+      )}
     </Step>
   );
 }
@@ -261,82 +306,175 @@ function TestStep({
       open={open}
       title="Try it"
     >
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="min-w-56 flex-1 space-y-3">
-          {result?.ok === false && (
-            <p className="text-destructive">
-              That didn't work: {result.detail}
-            </p>
-          )}
-          {result?.ok === true && (
-            <figure className="space-y-1.5">
-              <img
-                alt="Your screen, as the agent sees it"
-                className="w-full max-w-80 rounded-md border"
-                src={result.image}
-              />
-              <figcaption className="text-muted-foreground">
-                This is your screen as the agent sees it. The picture isn't
-                saved anywhere.
-              </figcaption>
-            </figure>
-          )}
-          <Button
-            disabled={!ready || verify.isPending}
-            onClick={() => {
-              verify.mutate(undefined);
-            }}
-            size="sm"
-            variant={result?.ok ? "outline" : "default"}
+      {result?.ok === false && (
+        <p className="text-destructive">That didn't work: {result.detail}</p>
+      )}
+      {result?.ok === true && <Capture image={result.image} />}
+      <Button
+        disabled={!ready || verify.isPending}
+        onClick={() => {
+          verify.mutate(undefined);
+        }}
+        size="sm"
+        variant={result?.ok ? "outline" : "default"}
+      >
+        {verify.isPending
+          ? "Watch the cursor…"
+          : result?.ok
+            ? "Run it again"
+            : "Run a test"}
+      </Button>
+      {isMacOS() && verify.isPending && (
+        <Walkthrough>
+          <PromptMock
+            choose="Allow"
+            label="macOS may ask"
+            other="Open System Settings"
           >
-            {verify.isPending
-              ? "Watch the cursor…"
-              : result?.ok
-                ? "Run it again"
-                : "Run a test"}
-          </Button>
-        </div>
-        {isMacOS() && verify.isPending && (
-          <PromptHint choose="Allow" other="Open System Settings">
             “{appName}” is requesting to bypass the system private window picker
             and directly access your screen and audio.
-          </PromptHint>
-        )}
-      </div>
+          </PromptMock>
+        </Walkthrough>
+      )}
     </Step>
   );
 }
 
+/** The window as the agent captured it, which opens larger when pressed. */
+function Capture({ image }: { image: string }) {
+  const [zoomed, setZoomed] = useState(false);
+  return (
+    <figure className="space-y-1.5">
+      <button
+        className="block overflow-hidden rounded-md border"
+        onClick={() => {
+          setZoomed(true);
+        }}
+        type="button"
+      >
+        <img
+          alt="This window, as the agent sees it"
+          className="w-72"
+          src={image}
+        />
+      </button>
+      <figcaption className="text-muted-foreground">
+        This is this window as the agent sees it. The picture isn't saved
+        anywhere.
+      </figcaption>
+      <Dialog onOpenChange={setZoomed} open={zoomed}>
+        <DialogContent maxWidth="60rem">
+          <DialogTitle>What the agent sees</DialogTitle>
+          <img
+            alt="This window, as the agent sees it"
+            className="w-full rounded-md border"
+            src={image}
+          />
+        </DialogContent>
+      </Dialog>
+    </figure>
+  );
+}
+
 /**
- * A small likeness of the system prompt the button just raised, beside the
- * step, with the button to choose marked: the real prompt covers this window,
- * and this says which answer the agent needs. Only after the press, since
- * before it there is nothing on screen to recognize.
+ * Small likenesses of what macOS shows next, in order, with the control to
+ * press marked: the real prompts and panes cover this window, and these say
+ * which answer the agent needs. Shown only after the press that raises them.
  */
-function PromptHint({
+function Walkthrough({ children }: { children: ReactNode }) {
+  return <ol className="flex flex-wrap items-start gap-3">{children}</ol>;
+}
+
+function MockFrame({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) {
+  return (
+    <li className="w-52 space-y-1.5">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="space-y-2 rounded-xl border bg-popover p-3 text-xs text-popover-foreground shadow-sm">
+        {children}
+      </div>
+    </li>
+  );
+}
+
+function PromptMock({
   children,
   choose,
+  label,
   other,
 }: {
   children: ReactNode;
   choose: string;
+  label: string;
   other: string;
 }) {
   return (
-    <aside className="w-48 shrink-0 space-y-2 rounded-xl border bg-muted p-3 text-xs">
-      <p className="text-muted-foreground">
-        macOS asks this. Press the highlighted button.
-      </p>
+    <MockFrame label={label}>
       <p className="leading-snug font-medium">{children}</p>
-      <div className="flex flex-col gap-1">
-        <span className="rounded-full bg-primary py-0.5 text-center text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-muted">
+      <div className="flex flex-col gap-1.5">
+        <span className="rounded-full bg-brand-600 py-0.5 text-center text-white ring-2 ring-brand-500 ring-offset-2 ring-offset-popover">
           {choose}
         </span>
-        <span className="rounded-full bg-background py-0.5 text-center text-muted-foreground">
+        <span className="rounded-full bg-muted py-0.5 text-center text-muted-foreground">
           {other}
         </span>
       </div>
-    </aside>
+    </MockFrame>
+  );
+}
+
+/** A System Settings privacy list, with this app's switch turned on. */
+function PaneMock({
+  appName,
+  label,
+  pane,
+}: {
+  appName: string;
+  label: string;
+  pane: string;
+}) {
+  return (
+    <MockFrame label={label}>
+      <p className="font-medium">{pane}</p>
+      <div className="divide-y rounded-lg bg-muted/60">
+        <PaneRow />
+        <div className="flex items-center gap-2 px-2 py-1.5">
+          <span className="size-3.5 shrink-0 rounded bg-brand-600" />
+          <span className="min-w-0 flex-1 truncate">{appName}</span>
+          <MockSwitch on />
+        </div>
+        <PaneRow />
+      </div>
+    </MockFrame>
+  );
+}
+
+function PaneRow() {
+  return (
+    <div className="flex items-center gap-2 px-2 py-1.5">
+      <span className="size-3.5 shrink-0 rounded bg-muted-foreground/30" />
+      <span className="h-1.5 flex-1 rounded-full bg-muted-foreground/20" />
+      <MockSwitch />
+    </div>
+  );
+}
+
+function MockSwitch({ on = false }: { on?: boolean }) {
+  return (
+    <span
+      className={
+        on
+          ? "flex h-3.5 w-6 shrink-0 items-center justify-end rounded-full bg-brand-600 px-0.5 ring-2 ring-brand-500 ring-offset-2 ring-offset-muted"
+          : "flex h-3.5 w-6 shrink-0 items-center rounded-full bg-muted-foreground/30 px-0.5"
+      }
+    >
+      <span className="size-2.5 rounded-full bg-white" />
+    </span>
   );
 }
 
@@ -373,7 +511,7 @@ function Step({
       >
         {done ? <CheckIcon className="size-3.5" weight="bold" /> : number}
       </span>
-      <div className="flex-1 space-y-3 text-sm">
+      <div className="min-w-0 flex-1 space-y-3 text-sm">
         <div className="pt-0.5">
           <p
             className={

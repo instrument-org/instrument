@@ -10,6 +10,7 @@ import {
 import { canRelaunch, relaunchApp } from "@/electron-main/lib/relaunch";
 import { liveRead } from "@instrument-org/workspace/electron";
 import { getFeaturesStore } from "@/electron-main/stores/workspace/features";
+import { getAppWindow } from "@/electron-main/windows/app-window";
 import { FeatureNameSchema, FeaturesSchema } from "@/shared/features";
 import { eventIterator } from "@orpc/server";
 import { app, shell } from "electron";
@@ -74,6 +75,18 @@ const openFilesAndFoldersSettings = base
  * nothing to grant and every call answers `supported: false`.
  */
 const computerUse = {
+  /**
+   * Brings the app back over System Settings once a switch the setup screen
+   * is waiting on has been turned on there.
+   */
+  focus: base.handler(() => {
+    const window = getAppWindow();
+    if (window?.isMinimized()) {
+      window.restore();
+    }
+    window?.show();
+    app.focus({ steal: true });
+  }),
   openSettings: base
     .input(
       z.object({ permission: z.enum(["accessibility", "screen-recording"]) }),

@@ -112,9 +112,14 @@ export function requestAccessibility(): ComputerPermissionStatus {
  * pane, so the person finds a switch to turn on rather than having to add the
  * app with its plus button. Electron reports a never-asked app as denied, so
  * this runs on every request rather than only the first.
+ *
+ * It also leaves word for the next launch to reopen the setup screen: once the
+ * switch is on, macOS offers to quit and reopen the app itself, and that
+ * relaunch passes through none of this app's code on the way out.
  */
 export async function requestScreenRecording(): Promise<ComputerPermissionStatus> {
   if (process.platform === "darwin") {
+    markComputerUseSetupResume();
     await desktopCapturer
       .getSources({ thumbnailSize: { height: 1, width: 1 }, types: ["screen"] })
       .catch(noop);
@@ -141,16 +146,31 @@ export async function openComputerPermissionSettings(
 }
 
 /**
- * Proof that setup worked, made with the driver the agent uses. The agent's
- * cursor sweeps across this app's own window, which moves only the drawn
- * overlay, never the real pointer, and clicks nothing; then one capture of
- * the screen comes back to show the person. That capture is also what raises
- * macOS's direct-capture consent ("bypass the private window picker"), so it
- * appears here, while the person is reading about it, rather than mid-task.
- * The image is handed to the page and kept nowhere.
+ * Proof that setup worked, made with the driver the agent uses. One capture
+ * of this app's own window comes first: it is what raises macOS's
+ * direct-capture consent ("bypass the private window picker"), so that
+ * appears at the start, while the screen is showing which button to press,
+ * rather than mid-task. Then the agent's cursor sweeps across the window,
+ * which moves only the drawn overlay, never the real pointer, and clicks
+ * nothing. The capture is handed to the page and kept nowhere.
+ *
+ * A tool that fails is tried once more on a restarted driver, since an answer
+ * to that consent can leave the running one unable to capture.
  */
 export async function verifyComputerUse(): Promise<
   { detail: string; ok: false } | { image: string; ok: true }
+> {
+  const first = await verifyOnce();
+  if (first.ok || !first.retry) {
+    return first;
+  }
+  logger.warn("[computer] setup test failed; restarting cua-driver", first);
+  await stopComputerDriver();
+  return verifyOnce();
+}
+
+async function verifyOnce(): Promise<
+  { detail: string; ok: false; retry?: true } | { image: string; ok: true }
 > {
   const access = await connectComputerDriver();
   if (access.status === "needs-permission") {
@@ -170,31 +190,62 @@ export async function verifyComputerUse(): Promise<
   try {
     await call("start_session", { session });
     await call("set_agent_cursor_enabled", { enabled: true, session });
-    await sweepCursorOverOwnWindow(call, session).catch((error: unknown) => {
+    const window = await ownLargestWindow(call);
+    if (!window) {
+      return { detail: "This window was not found on screen.", ok: false };
+    }
+    const captured = await call("get_window_state", {
+      include_accessibility_tree: false,
+      max_image_dimension: 1200,
+      pid: process.pid,
+      session,
+      window_id: window.window_id,
+    });
+    const [image] = captured.images;
+    if (captured.isError || image === undefined) {
+      return {
+        detail: captured.text || "The driver returned no image.",
+        ok: false,
+        retry: true,
+      };
+    }
+    await sweepCursor(call, session, window).catch((error: unknown) => {
       logger.warn("[computer] cursor demo did not run", error);
     });
-    const result = await call("get_desktop_state", {
-      max_image_dimension: 640,
-      session,
-    });
-    const [image] = result.images;
-    return result.isError || image === undefined
-      ? { detail: result.text || "The driver returned no image.", ok: false }
-      : {
-          image: `data:${image.mimeType};base64,${image.dataBase64}`,
-          ok: true,
-        };
-  } catch (error) {
     return {
-      detail: error instanceof Error ? error.message : String(error),
-      ok: false,
+      image: `data:${image.mimeType};base64,${image.dataBase64}`,
+      ok: true,
     };
+  } catch (error) {
+    return { detail: describeDriverError(error), ok: false, retry: true };
   } finally {
     await call("end_session", { session }).catch(noop);
     if (mod.CuaDriver.instanceOf(driver)) {
       driver.uniffiDestroy();
     }
   }
+}
+
+/**
+ * The driver's errors carry their reason in `inner`; the message is only the
+ * variant's name (`DriverError.Tool`).
+ */
+function describeDriverError(error: unknown): string {
+  const parsed = z
+    .object({
+      inner: z.object({
+        errorCode: z.string().optional(),
+        message: z.string().optional(),
+        reason: z.string().optional(),
+        tool: z.string().optional(),
+      }),
+    })
+    .safeParse(error);
+  if (!parsed.success) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  const { errorCode, message, reason, tool } = parsed.data.inner;
+  return [tool, errorCode, message ?? reason].filter(Boolean).join(": ");
 }
 
 const WindowListSchema = z.object({
@@ -206,14 +257,14 @@ const WindowListSchema = z.object({
   ),
 });
 
-/** A few points across the largest window this process has on screen. */
-async function sweepCursorOverOwnWindow(
-  call: (
-    tool: string,
-    input: Record<string, unknown>,
-  ) => Promise<{ structuredJson?: string; text: string }>,
-  session: string,
-) {
+type ToolCall = (
+  tool: string,
+  input: Record<string, unknown>,
+) => Promise<{ structuredJson?: string; text: string }>;
+
+type OwnWindow = z.output<typeof WindowListSchema>["windows"][number];
+
+async function ownLargestWindow(call: ToolCall) {
   const listed = await call("list_windows", {
     on_screen_only: true,
     pid: process.pid,
@@ -221,15 +272,16 @@ async function sweepCursorOverOwnWindow(
   const parsed = WindowListSchema.safeParse(
     JSON.parse(listed.structuredJson ?? listed.text),
   );
-  const window = parsed.success
+  return parsed.success
     ? parsed.data.windows.toSorted(
         (a, b) =>
           b.bounds.width * b.bounds.height - a.bounds.width * a.bounds.height,
       )[0]
     : undefined;
-  if (!window) {
-    return;
-  }
+}
+
+/** A few points across one of this process's windows. */
+async function sweepCursor(call: ToolCall, session: string, window: OwnWindow) {
   const target = {
     kind: "window",
     pid: process.pid,
@@ -257,7 +309,7 @@ const RESUME_MARKER = "computer-use-resume";
 
 /**
  * Leaves word for the next launch to reopen the Computer Use setup screen, so
- * a relaunch made from it lands the person back where they were.
+ * a relaunch made during setup lands the person back where they were.
  */
 export function markComputerUseSetupResume() {
   writeFileSync(path.join(app.getPath("userData"), RESUME_MARKER), "");

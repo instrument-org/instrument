@@ -30,10 +30,10 @@ export const TaskSettingsSchema = z.object({
   // on its mtime moves a task to the top for having been read.
   lastActivityAt: z.coerce.date().optional(),
   name: z.string().default("Untitled task"),
-  // How hard this task's model is asked to think, on every turn it takes. Sits
-  // beside the task rather than on a message because a task runs on one model
-  // for its whole life and the level is part of that choice. Absent leaves the
-  // provider's own default, which is what every task took before this existed.
+  // How hard this task's model is asked to think, on every turn it takes. A
+  // task the conversation starts copies the conversation's level. Absent
+  // leaves the provider's own default, which is what every task took before
+  // this existed.
   reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
 });
 

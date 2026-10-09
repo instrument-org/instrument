@@ -44,6 +44,12 @@ criticals = "criticals"
 ect = "ect"
 # A command line truncated for display in a UI mockup (`-loglevel erro...`).
 erro = "erro"
+# A regex stem matching both AppleScript's `app` and `application`
+# (`app(?:lication)?`); "corrected" to `location`, it stops matching the latter.
+lication = "lication"
+# A misspelled `--name` flag that shell-command tests pass on purpose to check
+# the unknown-flag error; "corrected", the flag is valid and the tests fail.
+nam = "nam"
 # A regex stem that has to match both "truncated" and "truncation".
 truncat = "truncat"
 
@@ -60,14 +66,21 @@ extend-exclude = [
   "registry/",
   # Brand icons copied from their collections, ids and all.
   "packages/workspace/directory-icons/",
+  # Messages as people typed them, typos included: the decision eval asks
+  # about them as they are.
+  "packages/workspace/evals/decision/corpus/",
   # Generated or vendored, and not ours to spell.
   "pnpm-lock.yaml",
+  "packages/workspace/src/lib/agent-browser-core-guide.generated.ts",
   "patches/",
   "apps/studio/resources/tailwind-browser.js",
   # Recorded agent sessions and the documents they produced. The text is model
   # output and extracted PDF glyph runs, not prose anyone maintains.
   "fixtures/workspaces/**/session.json",
   "fixtures/workspaces/**/files/",
+  # Provider streams replayed as recorded. Their deltas split words mid-token,
+  # and "correcting" a fragment changes what the stream assembles to.
+  "packages/ai-gateway/src/lib/providers/*/fixtures/",
   # An eval whose subject is whether the agent honors a standing instruction to
   # write British English. The spellings in it are the fixture.
   "packages/workspace/evals/cases/project-instructions.ts",

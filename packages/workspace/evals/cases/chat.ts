@@ -222,12 +222,9 @@ function saidAtMost(chars: number): Assertion {
 /**
  * A task revised where it stands rather than replaced. `task folder --add` and
  * `task app --add` are the moves being scored, and each tells the task itself;
- * `task tab` and `task model` are the same act on the task's other settings.
+ * `task tab` is the same act on the task's other setting.
  */
-const REVISED_A_TASK = /(?:^|[\n;&|])\s*task (?:app|folder|tab|model)\b/;
-
-/** A `task new` carrying `--model`, or a `task model` moving one. */
-const NAMED_A_MODEL = /(?:^|[\n;&|])\s*task (?:new\b[^\n]*--model|model\b)/;
+const REVISED_A_TASK = /(?:^|[\n;&|])\s*task (?:app|folder|tab)\b/;
 
 /**
  * How many tasks the conversation started, where more than one is the failure:
@@ -251,25 +248,6 @@ function startedExactly(count: number): Assertion {
     text,
   };
 }
-
-/**
- * Every task ran on the conversation's own model: no `task new` named one
- * and no `task model` moved one. The user picks the model for the
- * conversation, and a task that quietly runs on another is the way an
- * unapproved model gets picked without anyone choosing it.
- */
-const ranOnTheConversationsModel: Assertion = {
-  check: ({ sessions }) => {
-    const text = "ran every task on the conversation's own model";
-    const named = bashCommands(sessions).filter((command) =>
-      NAMED_A_MODEL.test(command),
-    );
-    return named.length === 0
-      ? pass(text, `no --model in ${bashCommands(sessions).length} commands`)
-      : fail(text, named.map((command) => command.split("\n")[0]).join(" | "));
-  },
-  text: "ran every task on the conversation's own model",
-};
 
 const revisedATaskInPlace: Assertion = {
   check: ({ sessions }) => {
@@ -370,28 +348,6 @@ function briefAtMost(chars: number): Assertion {
     text,
   };
 }
-
-/**
- * The task inherits the conversation's effort unless there is a reason not
- * to, and a quick question is no reason to raise it: that is minutes the
- * user waits. Lowering it for a lookup is the prompt's own suggestion.
- */
-const didNotRaiseEffort: Assertion = {
-  check: ({ sessions }) => {
-    const text = "did not raise --effort for a quick question";
-    const briefs = briefsOf(sessions);
-    if (briefs.length === 0) {
-      return fail(text, "no task was started");
-    }
-    const raised = briefs.filter(({ flags }) =>
-      /--effort\s+(?:high|max)\b/.test(flags),
-    );
-    return raised.length === 0
-      ? pass(text, "no --effort high or max on any task new")
-      : fail(text, raised.map(({ flags }) => flags.trim()).join(" | "));
-  },
-  text: "did not raise --effort for a quick question",
-};
 
 /** The one skill a brief is meant to name: the kind of thing the user asked for. */
 function briefNamedSkill(name: string): Assertion {
@@ -774,32 +730,22 @@ export const CHAT_EVALS = [
   }),
 
   defineEval({
-    // "one from each of the newest models" is one task per model, which is the
-    // fan-out the conversation gets wrong most often: one task told to compare.
-    assertions: [delegated(2), didNotDoTheWorkItself],
-    kind: "chat",
-    name: "chat-one-task-per-model",
-    prompt:
-      "Write a two-line poem about beans with two different models, one file each in my Instrument folder, named for the model.",
-  }),
-
-  defineEval({
-    // The mirror case: nothing about the ask names a model, so the task runs
-    // on the conversation's. The ask is one whose "strength" a conversation
-    // might reach for a bigger model over, which is the pick nobody made.
-    assertions: [delegated(1), ranOnTheConversationsModel],
-    kind: "chat",
-    name: "chat-runs-on-its-own-model",
-    prompt:
-      "Write a careful, well-researched 600-word explainer on how DNS resolution works, to dns.md in my Instrument folder.",
-  }),
-
-  defineEval({
     // The mirror case. Its folder is mounted, so this is a `ls` and a sentence.
     assertions: [answeredWithoutATask, saidAtMost(400)],
     kind: "chat",
     name: "chat-answers-a-question",
     prompt: "How many files are in my Instrument folder?",
+  }),
+
+  defineEval({
+    // A model the user names is theirs to pick: the conversation cannot put a
+    // task on it, so it says where the picker is rather than starting the work
+    // on a model nobody asked for.
+    assertions: [answeredWithoutATask, saidAtMost(400)],
+    kind: "chat",
+    name: "chat-asked-for-a-model",
+    prompt:
+      "Write a two-line poem about beans with Claude Opus, to beans.md in my Instrument folder.",
   }),
 
   defineEval({
@@ -905,7 +851,6 @@ export const CHAT_EVALS = [
       briefedWhatNotHow,
       briefedWithoutAFile,
       briefAtMost(500),
-      didNotRaiseEffort,
     ],
     kind: "chat",
     name: "chat-quick-question-outage",
@@ -922,7 +867,6 @@ export const CHAT_EVALS = [
       briefedWhatNotHow,
       briefedWithoutAFile,
       briefAtMost(400),
-      didNotRaiseEffort,
     ],
     kind: "chat",
     name: "chat-quick-question-weather",

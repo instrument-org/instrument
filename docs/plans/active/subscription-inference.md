@@ -1,12 +1,10 @@
 # Inference through the user's Claude and ChatGPT subscriptions
 
-Status: **ChatGPT direct route landed (`ca68bb66d`, `8b3b27b53`, first shipped in v2.0.0-beta.37); the Codex and Claude Code harnesses (everything under "Approach" and "Phases") not started** (checked 2026-10-02). Policy snapshot verified 2026-09-26 against the primary sources linked below, and OpenAI's Sign in with ChatGPT docs on 2026-09-29. Those terms have changed several times this year, so re-check them before building anything.
+Status: **ChatGPT direct route landed (`ca68bb66d`, `8b3b27b53`, first shipped in v2.0.0-beta.37). Claude route spiked: works end to end on macOS, not yet shipped** (checked 2026-10-07). Policy snapshot verified 2026-10-07 against the primary sources linked below, and OpenAI's Sign in with ChatGPT docs on 2026-09-29. Those terms have changed several times this year, so re-check them before shipping.
 
 ## Goal
 
-A user who already pays for Claude (Pro or Max) or ChatGPT (Plus or Pro) can run Instrument on that plan instead of our credits. We run the official `claude` or `codex` CLI on their machine, signed in with their own account. We stay the tool host: our prompt, our sandboxed tools, our skills and our transcript, with their subscription supplying the model.
-
-This lowers the barrier to trying the product for people who already pay for a model.
+A user who already pays for Claude (Pro or Max) or ChatGPT (Plus or Pro) can run Instrument on that plan rather than on the models Instrument provides. We run the official `claude` or `codex` CLI on their machine, signed in with their own account. We stay the tool host: our prompt, our sandboxed tools, our skills and our transcript, with their subscription supplying the model.
 
 ## What the terms allow
 
@@ -14,7 +12,7 @@ The line both providers draw is about **who handles the credential** and **wheth
 
 ### Anthropic
 
-Sources: [Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance), [Agent SDK overview](https://code.claude.com/docs/en/agent-sdk/overview), [Agent SDK with your Claude plan](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan).
+Sources: [Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance), [Agent SDK overview](https://code.claude.com/docs/en/agent-sdk/overview), [Agent SDK with your Claude account](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-account).
 
 - **Allowed:** an end user signs in to the unmodified Claude Code binary with their own subscription, including when another product runs that binary.
 - **Forbidden:** offering Claude.ai login in our app, or collecting, storing or intermediating their credentials or session tokens. Sign-in completes through Anthropic's own flow (`claude`, then `/login`).
@@ -29,7 +27,7 @@ Sources: [Codex app-server](https://learn.chatgpt.com/docs/app-server), [Codex a
 
 - The Codex CLI and `@openai/codex-sdk` are Apache-2.0, so bundling is allowed.
 - The app-server is documented as the way to embed Codex in your own product, including ChatGPT sign-in, conversation history, approvals and streamed events. It is marked experimental and not supported for production workloads.
-- OpenAI's welcome for third-party use of ChatGPT plans comes from public posts by the Codex team, not from the terms.
+- OpenAI's welcome for third-party use of ChatGPT accounts comes from public posts by the Codex team, not from the terms.
 
 ### Rules we follow
 
@@ -40,78 +38,38 @@ Sources: [Codex app-server](https://learn.chatgpt.com/docs/app-server), [Codex a
 
 ## ChatGPT: the direct route
 
-OpenAI's [ChatGPT plan usage](https://developers.openai.com/siwc/token-sharing-open-source) for open-source, locally run apps needs no CLI. The app signs the user in with OAuth (a public client registered on first sign-in as `dynamic_agent_client`, PKCE, a `127.0.0.1` loopback callback, and the `chatgpt.tokens.use.direct` scope), then sends the access token as the bearer on the public `POST /v1/responses`. Codex app-server is documented only as one consumer of that token. A paid or remotely hosted app goes through OpenAI's partner interest form instead.
+OpenAI's [ChatGPT account usage](https://developers.openai.com/siwc/token-sharing-open-source) for open-source, locally run apps needs no CLI. The app signs the user in with OAuth (a public client registered on first sign-in as `dynamic_agent_client`, PKCE, a `127.0.0.1` loopback callback, and the `chatgpt.tokens.use.direct` scope), then sends the access token as the bearer on the public `POST /v1/responses`. Codex app-server is documented only as one consumer of that token. A paid or remotely hosted app goes through OpenAI's partner interest form instead.
 
-That keeps our own loop, tools, prompt, and transcript, so none of the harness work below applies to ChatGPT:
+That keeps our own loop, tools, prompt, and transcript, with no CLI between us and the model:
 
-- **Sign-in and tokens** live in the main process ([`chatgpt-plan.ts`](../../../apps/studio/src/electron-main/lib/chatgpt-plan.ts)): a stable `urn:uuid:` host id, ID-token validation against OpenAI's JWKS, an encrypted store of registrations (one per ChatGPT user and workspace, each with the client id OpenAI issued it and its own tokens, as OpenAI's [accounts and sessions](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions) guidance asks), a serialized refresh per registration ahead of the one-hour expiry, and revocation on sign-out. A person can sign in to several accounts; each is labeled by its email, numbered when one email has registered twice, since nothing OpenAI returns names the workspace.
-- **The provider** is a synthesized `chatgpt` config per signed-in account, like our own, whose id is the registration's and whose key is its current access token ([`get-ai-provider-configs.ts`](../../../apps/studio/src/electron-main/lib/get-ai-provider-configs.ts)). A chat runs on the account its model names and never falls over to another: the [Sign in with ChatGPT Terms](https://openai.com/policies/sign-in-with-chatgpt-terms/) forbid rotating accounts to get past usage limits, so `selectProviderConfigs` never picks a second `chatgpt` config as a fallback. Models come from the account's `/v1/models` catalog, which is `{ models: [{ slug, display_name, visibility }] }` rather than the API's list.
-- **The request rewrite** happens in the local gateway ([`chatgpt-plan-request.ts`](../../../packages/ai-gateway/src/lib/providers/chatgpt-plan-request.ts)): `store: false` and `stream: true` always, the refused fields (`max_output_tokens`, `user`, `temperature` and the rest) dropped, system items rewritten as developer items, and a request that asked for JSON collapsed from `response.completed`. The platform gateway is never involved.
+- **Sign-in and tokens** live in the main process ([`chatgpt-account.ts`](../../../apps/studio/src/electron-main/lib/chatgpt-account.ts)): a stable `urn:uuid:` host id, ID-token validation against OpenAI's JWKS, an encrypted store of registrations (one per ChatGPT user and workspace, each with the client id OpenAI issued it and its own tokens, as OpenAI's [accounts and sessions](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions) guidance asks), a serialized refresh per registration ahead of the one-hour expiry, and revocation on sign-out. A person can sign in to several accounts; each is labeled by its email, numbered when one email has registered twice, since nothing OpenAI returns names the workspace.
+- **The provider** is a synthesized `chatgpt-account` config per signed-in account, like our own, whose id is the registration's and whose key is its current access token ([`get-ai-provider-configs.ts`](../../../apps/studio/src/electron-main/lib/get-ai-provider-configs.ts)). A chat runs on the account its model names and never falls over to another: the [Sign in with ChatGPT Terms](https://openai.com/policies/sign-in-with-chatgpt-terms/) forbid rotating accounts to get past usage limits, so `selectProviderConfigs` never picks a second `chatgpt-account` config as a fallback. Models come from the account's `/v1/models` catalog, which is `{ models: [{ slug, display_name, visibility }] }` rather than the API's list.
+- **The request rewrite** happens in the local gateway ([`chatgpt-account-request.ts`](../../../packages/ai-gateway/src/lib/providers/chatgpt-account-request.ts)): `store: false` and `stream: true` always, the refused fields (`max_output_tokens`, `user`, `temperature` and the rest) dropped, system items rewritten as developer items, and a request that asked for JSON collapsed from `response.completed`. The platform gateway is never involved.
 
-Since landed on this route: Continue with ChatGPT on the login screen (`f6d266516`), a settings card (`settings/chatgpt-plan-card.tsx`), and a spent or declined plan reported as a usage-limit error rather than retried (`822768ad7`, `c38549d8f`). Not rechecked here: whether plain top-level function tools are accepted (the docs say to group them in namespaces or send them as `additional_tools`), and image generation and hosted web search needing another provider.
+Since landed on this route: Continue with ChatGPT on the login screen (`f6d266516`), a settings card (`settings/chatgpt-account-card.tsx`), and a spent or declined plan reported as a usage-limit error rather than retried (`822768ad7`, `c38549d8f`). Not rechecked here: whether plain top-level function tools are accepted (the docs say to group them in namespaces or send them as `additional_tools`), and image generation and hosted web search needing another provider.
 
-## Approach
+## Claude: the CLI as a model
 
-Ship Codex first. The terms are friendlier, bundling is allowed, and it answers every architectural question that Claude Code also raises. Claude Code follows as detect-only, meaning a CLI the user installed themselves, until we choose to take on the Commercial Terms for bundling.
+Anthropic offers no OAuth or token-sharing program like OpenAI's (checked 2026-10-07; the feature request is open on `anthropics/claude-code` with no reply). The only allowed route is the user's own `claude` CLI, unmodified and signed in through its own flow, which is how Raycast 2.3 does it.
 
-We drive the CLIs directly rather than through AI SDK v7's `@ai-sdk/harness-*` adapters. Those adapters are experimental, and the Claude Code and Codex ones run the harness as a bridge process inside a network sandbox that the host reaches over a WebSocket. That is a poor fit for a local Electron app that already has its own sandbox.
+What we build keeps our loop, tools, prompt and transcript, as the ChatGPT route does. The CLI is driven as a model, never as an agent that owns the turn:
 
-### 1. Serve our tools over MCP
+- **The model** ([`claude-account/language-model.ts`](../../../packages/ai-gateway/src/lib/providers/claude-account/language-model.ts)) is an AI SDK `LanguageModelV4` over `@anthropic-ai/claude-agent-sdk`. Each `doStream` is one step. The CLI runs with every built-in tool off (`tools: []`), our system prompt, no settings sources, claude.ai connectors off, `strictMcpConfig`, and `persistSession: false`, and our tools are served to it from an in-process MCP server.
+- **A tool call** ends the step with `tool-calls`. Its MCP handler waits, keyed by the `claudecode/toolUseId` the CLI stamps on each call, until our loop's next request arrives carrying the result. Our `runToolCall` stays the only thing that runs a tool.
+- **One process per session and shape** ([`claude-account/session.ts`](../../../packages/ai-gateway/src/lib/providers/claude-account/session.ts)), keyed by the `CLIENT_SESSION_ID_HEADER` our requests already carry plus a hash of the system prompt and tools. A request continues the process when every message it carries that the process has not seen comes after the ones it has (compared by content fingerprint), so the new ones are our tool results or a new user turn. Notices the workspace says for one request only (a context rollover, a budget warning) are marked transient: sent with the turn but never counted as seen, since the next request drops or rewords them. Anything else (an abort, an app restart, a model switch from another provider, a fork) starts a new process primed with a text replay of our transcript, which is lossy: reasoning is dropped and earlier files become names. A tool-less request (a title, a summary) or one that arrives while its session is mid-step runs on a process of its own that ends with it.
+- **Our own Claude Code** ([`claude-code-download.ts`](../../../apps/studio/src/electron-main/lib/claude-code-download.ts)): the Agent SDK ships a manifest of the Claude Code release it was built against, with each platform's binary and sha256. Studio downloads that exact binary from the npm registry, checks npm's integrity hash and Anthropic's checksum, and installs it unmodified under the app's data folder, so the CLI always matches the SDK. Nothing looks for a copy on the system, and there is nothing to choose.
+- **Sign-in** ([`claude-account.ts`](../../../apps/studio/src/electron-main/lib/claude-account.ts)) keeps our copy's Claude sign-in in its own config folder (`<userData>/claude-account`, as `CLAUDE_CONFIG_DIR`), apart from `~/.claude`, so signing in here never switches the person's own Claude Code account. Continue with Claude asks Claude Code, over the SDK's control channel, to start its own claude.ai sign-in (the requests its IDE integrations use) and opens the page it returns; that page's redirect goes back to a port Claude Code listens on, so the code and tokens never pass through Instrument. The app comes to the front when it lands. When the browser cannot reach that port (signing in on another device, or a browser that blocks the redirect), the card offers Claude's manual link, whose page shows a code; the person pastes it into Instrument, which hands it to Claude Code over the same control channel (`claudeOAuthCallback`) without storing it. That code is a one-time authorization code, not a credential, but it does pass through our process, which is the one place this flow touches anything Anthropic's sign-in issues. A terminal running `claude auth login` (Terminal on macOS, `cmd start` on Windows, the first of `x-terminal-emulator`, `gnome-terminal`, `konsole` or `xterm` on Linux) is the last fallback, and the card prints the command when no terminal opens. `claude auth status` (and its text form, which alone says a sign-in has expired) is the only status read; only `authMethod: "claude.ai"` counts.
+- **Usage** comes from the SDK's experimental usage call, by window (5-hour, weekly, model-scoped), behind a Usage button on the settings card, since reading it starts Claude Code. A refused request maps to `claude_account_usage_limit_exceeded`, which `classify-provider-error` reads as `usage-limit`. A plan's limit, ChatGPT's or Claude's, offers Instrument as a button: Switch to Auto when signed in, Try Instrument when not. It is never a silent fallback, which the Sign in with ChatGPT Terms §2 rule out.
+- **Web search** on a Claude account runs Claude Code's own WebSearch inside the agent's step, on the subscription, and our `web_search` tool is left out of that model's tools; its results come back as sources. WebSearch is itself a separate model call inside Claude Code, so it is not instant, but it skips the extra Claude Code process and the search model our tool would put in front of it.
+- **The binary is not shipped in the app.** The SDK's per-platform CLI packages are in `ignoredOptionalDependencies`, and `pathToClaudeCodeExecutable` always names the downloaded copy.
 
-Today we only consume MCP ([`lib/apps/mcp/`](../../../packages/workspace/src/lib/apps/mcp/)). Add a loopback MCP server per agent session that serves that agent's tool set. Each tool's Zod input schema becomes the MCP input schema, and each call goes through the existing [`runToolCall`](../../../packages/workspace/src/lib/run-tool-call.ts), so containment, skills mounts and task context are unchanged.
-
-Both CLIs then see exactly our tools:
-
-- Claude Code: `--mcp-config` with `--strict-mcp-config`.
-- Codex: an `mcp_servers` entry via `-c`, rather than the app-server's experimental `dynamicTools`, so both harnesses share one tool surface.
-
-### 2. Turn the harness into a model plus our tools
-
-Every built-in tool is switched off, so the harness never touches the host filesystem or shell outside our sandbox.
-
-- **Claude Code:** `--tools ""`, `--system-prompt-file` with our composed prompt, `--input-format stream-json --output-format stream-json`, and one long-lived process per session resumed with `--resume`.
-- **Codex:** the app-server over stdio, with `shell_tool` disabled, a `read-only` sandbox policy, and our instructions. Confirm which instructions key actually replaces the base prompt: `base_instructions`, `developer_instructions` or `model_instructions_file`.
-
-Both have to be tested for the prompt really being replaced, and for no built-in tool leaking through, on every CLI version we accept.
-
-### 3. A harness provider type
-
-Add `claude-subscription` and `codex-subscription` beside the existing bring-your-own-key and local provider types ([provider configs](../../../packages/ai-gateway/src/schemas/provider-config.ts), [provider metadata](../../../packages/ai-gateway/src/lib/providers/metadata.ts)).
-
-- The config holds no key. It holds the resolved binary path and version.
-- Detection looks where people actually install these CLIs: `PATH`, Homebrew, npm's global folder, `~/.local/bin`, and the Codex binary inside Codex.app or ChatGPT.app.
-- Set a minimum version, and show how to upgrade when the installed one is older.
-- Signed-out state: show the exact command to run in Terminal, and re-check when the window regains focus.
-- The models a plan offers come from the CLI, not from our model catalog.
-
-### 4. Let a harness own the loop
-
-This is the main change. The [agent machine](../../../packages/workspace/src/machines/agent.ts) runs one `streamText` call per step and executes tools itself ([`llm-request.ts`](../../../packages/workspace/src/logic/llm-request.ts)). A harness runs every step of a turn itself and calls our tools back over MCP.
-
-- Add a harness request mode: one request spans many steps, the machine does not dispatch tool calls, and stop and abort map to interrupting the CLI.
-- Map harness events to our message parts as they stream: text, reasoning, tool call, tool result. Tool parts arrive already executed, and their names are our names because they came through our MCP server. So [`llm-request.ts`](../../../packages/workspace/src/logic/llm-request.ts)'s unknown-tool fallback (`tool-unavailable`) should never fire. If it does, that is a leak to fix, not a case to render.
-- Fill assistant metadata (`modelId`, `providerId`, usage, finish reason) from the harness's result events. Cost is zero to us, and usage counts are informational only.
-
-### 5. History across providers
-
-The harness keeps its own conversation state, keyed by its session id, which we store on the session. Switching a task between a harness and one of our gateway models means the next side has not seen the other's turns:
-
-- Gateway after harness: replay from our persisted parts, which works today.
-- Harness after gateway, or a cold harness session: start a new harness session primed with a transcript of our history. This is lossy, because reasoning and binary tool output become text.
-
-Decide whether to allow switching mid-task at all, or to lock a task to the provider it started on.
-
-## Phases
-
-1. **Spike (Codex):** the loopback MCP server, the app-server over stdio with built-ins off, and one task end to end through the harness mode. Proves steps 1, 2 and 4.
-2. **Codex product slice:** detection, sign-in guidance, the provider entry in the model picker, stop and abort, persistence, revocation handling.
-3. **Claude Code:** the same slice for a user-installed `claude`.
-4. **Evals:** `pnpm eval run` through each harness on the standard cases, compared with the same model through the gateway, to catch prompt-override or tool-surface regressions.
+Checked on a Max plan in a clean room: a multi-step turn with our real tools, a follow-up on the same process, stop mid-stream then a new turn, a chat handing work to a task that ran on its own process, and usage matching what Raycast shows.
 
 ## Open questions
 
-- Does replacing the whole system prompt and every built-in tool still count as "ordinary, individual usage"? The flags are documented, but the terms do not address it. Could this be tolerated at small scale and then targeted later?
-- Plan rate limits are shared with the user's own CLI use. How do we show "your plan's limit is reached" when the CLI reports it?
-- Codex app-server is experimental. How much protocol churn should we expect, and should we pin a CLI version range?
-- Windows: both CLIs ship Windows builds. Detection paths and process-tree kills need their own pass.
-- Monetization: subscription users pay us nothing for inference, so what they pay for has to be the product itself.
+- Does replacing the whole system prompt and every built-in tool still count as "ordinary, individual usage"? The flags are documented, but the terms do not address it, and the SDK overview's "unless previously approved" line can be read against any product that offers this. Raycast ships the same setup unchallenged.
+- The usage call is marked experimental and may change without notice.
+- Windows: download, install, browser sign-in and a chat handing work to a task are checked; process-tree kills on stop are not. Linux: download and verify are checked on aarch64; the app flow is not.
+- Startup: each task starts a fresh Claude Code process, about 2s on its first step. The SDK's warm-spare option should cover it; not tried.
+- Several Claude accounts: possible in principle, one config folder each, but rotating accounts past a usage limit is what the ChatGPT terms forbid and Anthropic's may too. Not offered.
+- Packaging: the SDK must be reachable from the packaged main bundle; unchecked.

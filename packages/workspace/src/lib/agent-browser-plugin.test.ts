@@ -45,7 +45,7 @@ describe("instrument provider plugin", () => {
     expect(response).toEqual({
       manifest: {
         capabilities: ["browser.provider"],
-        description: "Instrument-managed task browser",
+        description: "Instrument's in-app browser",
         name: INSTRUMENT_PROVIDER_NAME,
       },
       protocol: PROTOCOL,

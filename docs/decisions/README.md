@@ -10,6 +10,10 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-07 | [The CDP bridge refuses any `Target.*` command its table does not list](2026-10-07-cdp-bridge-refuses-unlisted-target-commands.md) |
+| 2026-10-06 | [The packaged log keeps cheap lines on by default and gates only what is expensive to gather](2026-10-06-logs-keep-cheap-lines-on-by-default.md) |
+| 2026-10-06 | [`curl` and `web_fetch` reach the local network, except Instrument's own workspace server](2026-10-06-curl-and-web-fetch-reach-the-local-network.md) |
+| 2026-10-06 | ~~[Carry a fix for dynamic `import()` in `js-exec` scripts as a local patch](2026-10-06-carry-the-script-dynamic-import-patch.md)~~ retired with just-bash 3.6.0 |
 | 2026-09-29 | [Tasks report to their chat, not to each other: typed signals up the tree, peer messaging deferred](2026-09-29-tasks-report-to-their-chat-not-to-each-other.md) |
 | 2026-09-22 | [Carry just-bash's linear `ls` and awk `printf` output as a local patch rather than guard the commands ourselves](2026-09-22-carry-the-ls-and-awk-output-patch.md) |
 | 2026-09-21 | [Carry a just-bash `stdinConnected` flag as a local patch so `rg` can tell an empty pipe from no pipe](2026-09-21-carry-the-stdin-connected-patch.md) |
@@ -37,7 +41,7 @@ Newest first. A struck-through entry has been superseded.
 | 2026-07-27 | [Hover and press feedback does not ease](2026-07-27-hover-and-press-feedback-does-not-ease.md) |
 | 2026-07-27 | ~~[Controls activate on press, not release](2026-07-27-controls-activate-on-press.md)~~ superseded by 2026-07-29 |
 | 2026-07-25 | [Quit when the last window closes, on macOS too](2026-07-25-quit-when-the-last-window-closes.md) |
-| 2026-07-24 | [web_fetch blocks private addresses to match the sandbox](2026-07-24-web-fetch-private-address-guard.md) |
+| 2026-07-24 | ~~[web_fetch blocks private addresses to match the sandbox](2026-07-24-web-fetch-private-address-guard.md)~~ superseded by 2026-10-06 |
 | 2026-07-21 | [A bundled skill lives in the registry only if another agent could use it](2026-07-21-where-a-bundled-skill-lives.md) |
 | 2026-07-21 | [Git without the user's credentials](2026-07-21-git-without-user-credentials.md) |
 | 2026-07-20 | [Skills reach the agent through a mount and a budgeted catalog](2026-07-20-skills-as-a-mount-not-a-tool.md) |

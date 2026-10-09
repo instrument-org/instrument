@@ -5,7 +5,7 @@ import {
   type WindowTab,
 } from "@/client/atoms/window";
 import { fileHref } from "@/shared/computer-href";
-import { StoreId } from "@instrument-org/workspace/client";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -27,7 +27,7 @@ import {
   selectTab,
   stepTrail,
   stepVisit,
-  upIn,
+  selectedTabIn,
   visitScreen,
   type WindowTabs,
 } from "./tab-model";
@@ -60,7 +60,7 @@ function shape(state: WindowTabs) {
       state.tabs
         .filter((tab) => (tab.group ?? "-") === group)
         .map((tab) =>
-          upIn(state, group)?.id === tab.id ? `*${tab.id}` : tab.id,
+          selectedTabIn(state, group)?.id === tab.id ? `*${tab.id}` : tab.id,
         )
         .join(" "),
     ]),
@@ -115,6 +115,25 @@ describe("normalizeWindowTabs", () => {
 
   it("reads nothing kept as no tabs", () => {
     expect(normalizeWindowTabs({})).toEqual({ activeByGroup: {}, tabs: [] });
+  });
+});
+
+describe("selectedTabIn", () => {
+  const ROOFER = ChatIdSchema.parse("2026-10-01-roofer");
+
+  it.each([
+    ["a chat with none chosen has nothing up", ROOFER, {}, undefined],
+    ["a chat has the tab chosen in it up", ROOFER, { [ROOFER]: "b" }, "b"],
+    ["a draft with none chosen has its first up", DRAFT, {}, "a"],
+  ])("%s", (_case, group, activeByGroup, expected) => {
+    const state = windowOf(
+      [
+        pageTab("a", "https://example.com/", group),
+        pageTab("b", "https://example.org/", group),
+      ],
+      activeByGroup,
+    );
+    expect(selectedTabIn(state, group)?.id).toBe(expected);
   });
 });
 

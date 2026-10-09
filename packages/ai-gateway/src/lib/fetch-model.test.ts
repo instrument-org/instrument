@@ -112,7 +112,7 @@ describe("fetchModel", () => {
     expect(fetchAndParseAnthropicModels).toHaveBeenCalledOnce();
   });
 
-  it("errors when neither the cache nor the provider has the model", async () => {
+  it("answers not listed when neither the cache nor the provider has the model", async () => {
     fetchAndParseAnthropicModels.mockResolvedValue(FETCHED);
 
     const result = await fetchModel({
@@ -122,6 +122,6 @@ describe("fetchModel", () => {
       modelURI: OTHER_MODEL_URI,
     });
 
-    expect(result.ok).toBe(false);
+    expect(result.error?.type).toBe("gateway-not-listed-error");
   });
 });

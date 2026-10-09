@@ -201,9 +201,19 @@ export function Omnibar({
   // A new tab the user opened should be ready to type in, but this field also
   // appears when a channel with no tabs is switched to, and there the caret
   // belongs in that channel's composer. So it takes the keyboard as it
-  // arrives and only while nothing else is holding it.
+  // arrives and only while nothing else is holding it. A field in the tab
+  // just left still holds focus here, since a tab behind is only made
+  // invisible and focus leaves it at the next style pass, so only a field
+  // still on screen counts.
   useEffect(() => {
-    if (resting === undefined && !isTypingTarget(document.activeElement)) {
+    const held = document.activeElement;
+    if (
+      resting === undefined &&
+      !(
+        isTypingTarget(held) &&
+        held?.checkVisibility({ visibilityProperty: true })
+      )
+    ) {
       input.current?.focus();
     }
     // Once, as the field arrives.

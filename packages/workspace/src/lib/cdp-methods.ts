@@ -3,19 +3,20 @@
  * what with it on the way.
  *
  * agent-browser speaks CDP to a browser it believes it launched. What it
- * reaches is two layers: the workspace's CDP bridge
- * (`logic/server/routes/cdp-bridge.ts` for one page, `cdp-task-bridge.ts`
- * for a task's tabs), then the main process (`dispatch-command.ts` in
- * Studio), which sends the rest to the guest's own debugger. A guest's
+ * reaches is two layers: the workspace's CDP bridge (`cdp-task-bridge.ts`,
+ * over the tabs a task holds, each driven through a session from
+ * `cdp-bridge.ts`), then the main process (`dispatch-command.ts` in Studio),
+ * which sends the rest to the guest's own debugger. A guest's
  * debugger is not a browser's: it has no `Browser` domain, no target tree of
  * its own, and some commands reach the app window that embeds it (a
  * `Page.reload` once reloaded the whole window). So each side answers some
  * commands itself, and this table is the one place that says which.
  *
- * The bridge has two endpoints: `page` pins a connection to one page (a
- * chat's tab on screen, a task no chat owns), and `task` serves the tabs a
- * task holds, answering the `Target` domain over them; the task endpoint
- * does what the page endpoint does unless its own entry says otherwise.
+ * The bridge has two sides: `task` is the task's endpoint, which answers the
+ * `Target` domain over the tabs the task holds on whatever session it
+ * arrives, and `session` is one tab's session, which every other command
+ * attached to a tab goes through. The task endpoint does what a session
+ * does unless its own entry says otherwise.
  *
  * - `passthrough`: sent to the guest's debugger as it came.
  * - `wrapped`: sent to the debugger, with work around it (a gate, a held
@@ -27,18 +28,21 @@
  * agent-browser {@link CDP_METHODS_READ_FROM} sends (read from its source,
  * since its inspect proxy aside it builds no method name at run time), plus
  * the ones the bridge sends on its own (`sender: "bridge"`). Main warns once
- * for any command that reaches it and is not here.
+ * for any command that reaches it and is not here. A `Target.*` command that
+ * is not here never reaches main: the task endpoint refuses it, since it
+ * could name a target other than the agent's tabs (see
+ * docs/decisions/2026-10-07-cdp-bridge-refuses-unlisted-target-commands.md).
  */
 export type CdpHandling = "override" | "passthrough" | "refuse" | "wrapped";
 
 export interface CdpMethodRule {
   /** What the main process does with it. */
   main?: CdpHandling;
-  /** What the bridge's page endpoint does with it. */
-  page?: CdpHandling;
   /** Who sends it, when agent-browser does not: the bridge itself, or nobody now. */
   sender?: "bridge" | "none";
-  /** What the bridge's task endpoint does with it, when not what the page endpoint does. */
+  /** What a tab's session in the bridge does with it. */
+  session?: CdpHandling;
+  /** What the bridge's task endpoint does with it, when not what a session does. */
   task?: CdpHandling;
   /** Why a side does not simply pass it through. */
   why?: string;
@@ -48,7 +52,7 @@ export interface CdpMethodRule {
 export const CDP_METHODS_READ_FROM = "0.38.1";
 
 const TARGET_TREE =
-  "the guest's debugger would answer with every Electron target (the app window, DevTools), so the bridge answers with the tabs this connection holds";
+  "the guest's debugger would answer with every Electron target (the app window, DevTools), so the bridge answers with the tabs the task holds";
 
 export const CDP_METHODS = {
   "Accessibility.enable": {},
@@ -108,14 +112,30 @@ export const CDP_METHODS = {
   "Emulation.setEmulatedMedia": {
     why: "also sent by the bridge when a connection closes, to put the page back",
   },
-  "Emulation.setGeolocationOverride": {},
-  "Emulation.setLocaleOverride": {},
+  "Emulation.clearGeolocationOverride": {
+    sender: "bridge",
+    why: "sent when a connection closes, to take back a location the agent set",
+  },
+  "Emulation.setGeolocationOverride": {
+    session: "wrapped",
+    why: "recorded, and undone when the connection closes, so the person's tab is not left emulating what the agent set",
+  },
+  "Emulation.setLocaleOverride": {
+    session: "wrapped",
+    why: "recorded, and undone when the connection closes, so the person's tab is not left emulating what the agent set",
+  },
   "Emulation.setScriptExecutionDisabled": {
     sender: "bridge",
     why: "sent when a connection closes, to put the page back",
   },
-  "Emulation.setTimezoneOverride": {},
-  "Emulation.setUserAgentOverride": {},
+  "Emulation.setTimezoneOverride": {
+    session: "wrapped",
+    why: "recorded, and undone when the connection closes, so the person's tab is not left emulating what the agent set",
+  },
+  "Emulation.setUserAgentOverride": {
+    session: "wrapped",
+    why: "recorded, and undone when the connection closes, so the person's tab is not left emulating what the agent set",
+  },
   "Fetch.continueRequest": {
     why: "also sent by the bridge to release a request paused on a page the agent may not see",
   },
@@ -173,12 +193,12 @@ export const CDP_METHODS = {
     why: "sent when a connection closes, so an interception does not hold the person's page",
   },
   "Page.addScriptToEvaluateOnNewDocument": {
-    page: "wrapped",
+    session: "wrapped",
     why: "recorded, and taken back when the connection closes, so nothing the agent left runs on the person's later loads in the tab",
   },
   "Page.bringToFront": {
     task: "override",
-    why: "the task endpoint answers it with nothing done, so the agent never pulls the person's window to a tab; the page endpoint passes it on",
+    why: "the task endpoint answers it with nothing done, so the agent never pulls the person's window to a tab",
   },
   "Page.captureScreenshot": {
     main: "override",
@@ -191,7 +211,7 @@ export const CDP_METHODS = {
   "Page.handleJavaScriptDialog": {},
   "Page.navigate": {
     main: "wrapped",
-    page: "wrapped",
+    session: "wrapped",
     why: "the bridge refuses a file the agent's tools cannot read and holds the answer until the main frame loads; main gives it 20s, since Electron answers at commit",
   },
   "Page.printToPDF": {
@@ -208,7 +228,7 @@ export const CDP_METHODS = {
     why: "main drives the screencast itself, so there is nothing to acknowledge; the bridge does not count it as activity",
   },
   "Page.setBypassCSP": {
-    page: "wrapped",
+    session: "wrapped",
     sender: "none",
     why: "agent-browser never sends it, but a command through its inspect proxy can; switched back off when the connection closes",
   },
@@ -222,7 +242,7 @@ export const CDP_METHODS = {
     why: "stops main's own capture interval",
   },
   "Runtime.addBinding": {
-    page: "wrapped",
+    session: "wrapped",
     why: "recorded, and taken back when the connection closes, so nothing the agent left runs on the person's later loads in the tab",
   },
   "Runtime.callFunctionOn": {
@@ -241,55 +261,60 @@ export const CDP_METHODS = {
   },
   "Runtime.runIfWaitingForDebugger": {},
   "Security.setIgnoreCertificateErrors": {
-    page: "wrapped",
+    session: "wrapped",
     why: "switched back on when the connection closes, so the person's later browsing in the tab is checked again",
   },
   "Target.activateTarget": {
-    page: "override",
+    task: "override",
     why: `${TARGET_TREE}; which tab the agent works in changes nothing in the window`,
   },
   "Target.attachToTarget": {
-    page: "override",
+    task: "override",
     why: `${TARGET_TREE}; a session is attached only to a tab this connection holds`,
   },
   "Target.closeTarget": {
-    page: "override",
+    task: "override",
     why: `${TARGET_TREE}; the task endpoint closes a tab the task opened and lets go of a handed one`,
   },
   "Target.createBrowserContext": {
-    page: "override",
+    task: "override",
     why: "Electron has no browser contexts; a synthetic id lets agent-browser's recording go on",
   },
   "Target.createTarget": {
-    page: "override",
-    why: `${TARGET_TREE}; the page endpoint navigates its one page, the task endpoint asks the window for a background tab`,
+    task: "override",
+    why: `${TARGET_TREE}; the task endpoint asks the window for a background tab`,
   },
   "Target.detachFromTarget": {
     task: "refuse",
-    why: "the task endpoint refuses a Target command it does not answer itself; the page endpoint passes it on",
+    why: "the task endpoint refuses a Target command it does not answer itself",
   },
   "Target.disposeBrowserContext": {
-    page: "override",
+    task: "override",
     why: "Electron has no browser contexts",
   },
   "Target.getTargetInfo": {
     task: "refuse",
-    why: "the task endpoint refuses a Target command it does not answer itself; the page endpoint passes it on",
+    why: "the task endpoint refuses a Target command it does not answer itself",
   },
   "Target.getTargets": {
-    page: "override",
+    task: "override",
     why: TARGET_TREE,
   },
   "Target.setAutoAttach": {
-    page: "override",
+    task: "override",
     why: "forwarded, it would announce the page's frames as sessions of their own, whose ids then misroute agent-browser's commands",
   },
   "Target.setDiscoverTargets": {
-    page: "override",
+    task: "override",
     why: TARGET_TREE,
   },
-  "Tracing.end": {},
-  "Tracing.start": {},
+  "Tracing.end": {
+    why: "also sent by the bridge when a connection closes on a trace the agent started",
+  },
+  "Tracing.start": {
+    session: "wrapped",
+    why: "recorded, and ended when the connection closes, so no trace outlives the agent",
+  },
   "WebMCP.cancelInvocation": {},
   "WebMCP.enable": {},
   "WebMCP.invokeTool": {},
@@ -307,17 +332,17 @@ export function isKnownCdpMethod(method: string): method is CdpMethod {
 /** What one side does with a command the table knows. */
 export function cdpHandlingOf(
   method: CdpMethod,
-  side: "main" | "page" | "task",
+  side: "main" | "session" | "task",
 ): CdpHandling {
   const rule = RULES[method] ?? {};
   return side === "task"
-    ? (rule.task ?? rule.page ?? "passthrough")
+    ? (rule.task ?? rule.session ?? "passthrough")
     : (rule[side] ?? "passthrough");
 }
 
 /** The commands one side handles one way, in the table's order. */
 export function cdpMethodsHandled(
-  side: "main" | "page" | "task",
+  side: "main" | "session" | "task",
   handling: CdpHandling,
 ): CdpMethod[] {
   return Object.keys(RULES).filter(

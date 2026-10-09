@@ -36,7 +36,7 @@ const open = base
   .input(
     z.object({
       id: TaskIdSchema,
-      /** Where a tab that comes up blank goes when its session recorded no page: the address the window remembers it at. */
+      /** Where a tab that comes up blank goes: the address the window remembers it at. */
       restoreUrl: z.string().min(1).optional(),
       sessionId: StoreId.SessionSchema,
       url: z.string().min(1).optional(),
@@ -68,7 +68,6 @@ const open = base
       ? await navigateTarget({ targetId: target.targetId, url })
       : await restoreLastPage({
           ...(restoreUrl === undefined ? {} : { fallbackUrl: restoreUrl }),
-          sessionId,
           targetId: target.targetId,
           taskId: id,
         });

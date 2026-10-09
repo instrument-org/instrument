@@ -608,7 +608,8 @@ export function PromptEditor({
 
         The corner is the composer's own rather than the popover radius, for the
         same reason the width is the composer's: this is read against the edge of
-        the box it hangs off.
+        the box it hangs off. A row's is that corner less the 4px it sits in by,
+        so a highlighted first or last row curves alongside it.
       */}
       <PopoverContent
         align="start"
@@ -702,7 +703,7 @@ function MenuEntryButton({
   return (
     <button
       className={cn(
-        "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm text-foreground/60",
+        "flex w-full items-center gap-2 rounded-2xl px-3 py-1.5 text-left text-sm text-foreground/60",
         selected && "bg-accent text-foreground",
       )}
       data-highlighted={selected ? "" : undefined}

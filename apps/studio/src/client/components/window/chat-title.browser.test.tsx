@@ -50,7 +50,6 @@ function chat(): Chat {
     createdAt: at.getTime(),
     holds: { apps: [], files: [], sites: [] },
     id: CHAT_ID,
-    replyCount: 1,
     root: {
       id: messageId,
       metadata: { createdAt: at, sessionId },
@@ -75,7 +74,8 @@ function chat(): Chat {
     title: TITLE,
     titled: true,
     topics: [],
-    unread: 0,
+    unread: false,
+    unreadByUser: false,
     updatedAt: at.getTime(),
   };
 }

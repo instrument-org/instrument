@@ -3,6 +3,7 @@ import { ExternalLink } from "@/client/components/external-link";
 import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
+import { StateArrival } from "@/client/components/state-arrival";
 import { Card } from "@/client/components/ui/card";
 import { Progress } from "@/client/components/ui/progress";
 import { rpcClient } from "@/client/rpc/client";
@@ -74,85 +75,97 @@ export function SubscriptionCard() {
     ? subscription.usagePercent
     : subscription.freeUsagePercent;
 
-  const planLabel = hasSubscription ? subscription.plan : "Free";
+  const planLabel = subscription.plan ?? "Free";
+
+  // The plan and whether it covers usage, so the card settles in when a
+  // change made in the browser lands as the window takes focus.
+  const arrival = `${planLabel} ${String(subscription.hasEnoughCredits)}`;
 
   if (subscription.hasEnoughCredits) {
     return (
-      <Card className="p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="mb-1 flex flex-wrap items-center gap-2">
-              <BrandLeafIcon className="size-3" />
-              <h4 className="text-sm font-medium">Free AI usage enabled</h4>
-              {hasSubscription && <Badge variant="outline">{planLabel}</Badge>}
+      <StateArrival state={arrival}>
+        <Card className="p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <BrandLeafIcon className="size-3" />
+                <h4 className="text-sm font-medium">Free AI usage enabled</h4>
+                {hasSubscription && (
+                  <Badge variant="outline">{planLabel}</Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {APP_NAME} includes free AI usage so you can try the app.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {APP_NAME} includes free AI usage so you can try the app.
-            </p>
+            {hasSubscription && (
+              <Button onClick={handleManageSubscription}>
+                Manage subscription
+              </Button>
+            )}
           </div>
-          {hasSubscription && (
-            <Button onClick={handleManageSubscription}>
-              Manage subscription
-            </Button>
-          )}
-        </div>
-      </Card>
+        </Card>
+      </StateArrival>
     );
   }
 
   return (
-    <Card className="p-4">
-      <div className="space-y-4">
-        <div>
-          <h4 className="text-sm leading-none font-medium">{APP_NAME} Free</h4>
-        </div>
+    <StateArrival state={arrival}>
+      <Card className="p-4">
+        <div className="space-y-4">
+          <div>
+            <h4 className="text-sm leading-none font-medium">
+              {APP_NAME} Free
+            </h4>
+          </div>
 
-        <div className="space-y-1">
-          <p className="text-sm font-semibold">
-            You&apos;ve enjoyed all of your free AI usage
-          </p>
-          <div className="flex items-baseline justify-between gap-4 text-sm text-muted-foreground">
-            <p>
-              <ExternalLink className="underline" href={SUPPORT_URL}>
-                Contact us
-              </ExternalLink>
-              {" or "}
-              <button
-                className="underline"
-                onClick={() => {
-                  openSettings({ tab: "Providers" });
-                }}
-                type="button"
-              >
-                add API keys
-              </button>{" "}
-              to use {APP_NAME} with your AI provider of choice
+          <div className="space-y-1">
+            <p className="text-sm font-semibold">
+              You&apos;ve used all of your free AI usage
             </p>
-            <span className="shrink-0">
-              {displayUsagePercent.toFixed(0)}% used
-            </span>
+            <div className="flex items-baseline justify-between gap-4 text-sm text-muted-foreground">
+              <p>
+                <ExternalLink className="underline" href={SUPPORT_URL}>
+                  Contact us
+                </ExternalLink>
+                {" or "}
+                <button
+                  className="underline"
+                  onClick={() => {
+                    openSettings({ tab: "Providers" });
+                  }}
+                  type="button"
+                >
+                  add API keys
+                </button>{" "}
+                to use {APP_NAME} with your AI provider of choice
+              </p>
+              <span className="shrink-0">
+                {displayUsagePercent.toFixed(0)}% used
+              </span>
+            </div>
+            <Progress
+              className="[&>[data-slot=progress-indicator]]:bg-brand-400"
+              value={displayUsagePercent}
+            />
           </div>
-          <Progress
-            className="[&>[data-slot=progress-indicator]]:bg-brand-400"
-            value={displayUsagePercent}
-          />
+
+          {subscription.nextAllocation && (
+            <p className="text-xs text-muted-foreground">
+              Next credit allocation on{" "}
+              {new Date(subscription.nextAllocation).toLocaleDateString()}
+            </p>
+          )}
+
+          {hasSubscription && (
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button onClick={handleManageSubscription} variant="outline">
+                Manage subscription
+              </Button>
+            </div>
+          )}
         </div>
-
-        {subscription.nextAllocation && (
-          <p className="text-xs text-muted-foreground">
-            Next credit allocation on{" "}
-            {new Date(subscription.nextAllocation).toLocaleDateString()}
-          </p>
-        )}
-
-        {hasSubscription && (
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button onClick={handleManageSubscription} variant="outline">
-              Manage subscription
-            </Button>
-          </div>
-        )}
-      </div>
-    </Card>
+      </Card>
+    </StateArrival>
   );
 }

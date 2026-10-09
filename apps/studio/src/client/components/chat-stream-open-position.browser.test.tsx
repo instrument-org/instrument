@@ -1,5 +1,6 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import {
+  ChatIdSchema,
   type SessionMessage,
   StoreId,
   type Task,
@@ -34,6 +35,7 @@ const sessionId = StoreId.newSessionId();
 const task: Task = {
   createdAt: new Date(0),
   id: TaskIdSchema.parse("quarterly-numbers"),
+  chatId: ChatIdSchema.parse("a-chat"),
   isChat: false,
   title: "Quarterly numbers",
   updatedAt: new Date(0),

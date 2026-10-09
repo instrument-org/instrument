@@ -1,7 +1,7 @@
 import { type SessionMessagePart } from "../../src/schemas/session/message-part";
 import { type Assertion, defineEval } from "../harness";
 
-// Exercises the agent's choice between the Instrument task browser (bare
+// Exercises the agent's choice between the in-app browser (bare
 // agent-browser commands) and external browsers (per-invocation targeting
 // flags: --profile, --auto-connect, --cdp, --provider). Cases stop at the
 // first relevant invocation where possible, so assertions read the command
@@ -64,7 +64,7 @@ const stopOnAgentBrowser =
     return command.includes("agent-browser") && predicate(command);
   };
 
-const usedTaskBrowserOnly: Assertion = {
+const usedInAppBrowserOnly: Assertion = {
   check: ({ sessions }) => {
     const commands = agentBrowserCommands(sessions);
     const external = commands.filter((command) =>
@@ -78,10 +78,10 @@ const usedTaskBrowserOnly: Assertion = {
             ? `External-flagged invocations: ${external.join(" | ")}`
             : `Invocations: ${commands.join(" | ")}`,
       passed: commands.length > 0 && external.length === 0,
-      text: "Drove the task browser with no external targeting flags",
+      text: "Drove the in-app browser with no external targeting flags",
     };
   },
-  text: "Drove the task browser with no external targeting flags",
+  text: "Drove the in-app browser with no external targeting flags",
 };
 
 const usedProfileForLogins: Assertion = {
@@ -111,17 +111,17 @@ const usedProfileForLogins: Assertion = {
             : "Session produced no invocations and no prose"
           : `Profile-flow: ${profileCommands.join(" | ") || "(none)"}; bare opens: ${bareOpens.join(" | ") || "(none)"}`,
       passed,
-      text: "Reached the user's logins via --profile, not the task browser",
+      text: "Reached the user's logins via --profile, not the in-app browser",
     };
   },
-  text: "Reached the user's logins via --profile, not the task browser",
+  text: "Reached the user's logins via --profile, not the in-app browser",
 };
 
 const usedCdpTarget: Assertion = {
   check: ({ sessions }) => {
     const commands = agentBrowserCommands(sessions);
     // --auto-connect reaches the same already-debugging Chromium, so the skill
-    // sanctions either spelling; only the task browser is wrong here.
+    // sanctions either spelling; only the in-app browser is wrong here.
     const cdp = commands.filter(
       (command) =>
         (command.includes("--cdp") && command.includes("9222")) ||
@@ -187,7 +187,7 @@ const externalFlowStayedExternal: Assertion = {
   check: ({ sessions }) => {
     const commands = agentBrowserCommands(sessions);
     const pageDriving = commands.filter((command) => drivesAPage(command));
-    // A bare page command mid-flow silently lands on the task browser, which
+    // A bare page command mid-flow silently lands on the in-app browser, which
     // has none of the external target's state -- the failure mode the
     // per-invocation targeting design is most exposed to.
     const bare = pageDriving.filter(
@@ -229,17 +229,17 @@ const recoveredFromBlockedSubcommand: Assertion = {
 };
 
 export const BROWSER_SELECTION_EVALS = [
-  // Clean research must stay on the managed task browser.
+  // Clean research must stay on the in-app browser.
   defineEval({
-    assertions: [usedTaskBrowserOnly],
+    assertions: [usedInAppBrowserOnly],
     name: "browser-task-research",
     prompt:
       "Open https://example.com in the browser and tell me the exact page title.",
     shouldStop: stopOnAgentBrowser((command) => /\bopen\b/.test(command)),
   }),
-  // Local app work must stay on the managed task browser.
+  // Local app work must stay on the in-app browser.
   defineEval({
-    assertions: [usedTaskBrowserOnly],
+    assertions: [usedInAppBrowserOnly],
     name: "browser-task-localhost",
     prompt:
       "Open http://localhost:5173 in a browser and describe what the page shows.",
@@ -271,7 +271,7 @@ export const BROWSER_SELECTION_EVALS = [
     shouldStop: stopOnAgentBrowser((command) => /\bprofiles\b/.test(command)),
   }),
   // Multi-step external work: targeting is per invocation, so a bare follow-up
-  // silently lands on the task browser. Runs to completion against the debug
+  // silently lands on the in-app browser. Runs to completion against the debug
   // Chromium so every command in the flow is observable.
   defineEval({
     assertions: [externalFlowStayedExternal],
@@ -279,9 +279,9 @@ export const BROWSER_SELECTION_EVALS = [
     prompt:
       "A Chrome is running with remote debugging on port 9222. Using that browser, open https://example.com, then report its page title and the text of its first paragraph.",
   }),
-  // A file the agent produced belongs in the task browser, which serves it.
+  // A file the agent produced belongs in the in-app browser, which serves it.
   defineEval({
-    assertions: [usedTaskBrowserOnly],
+    assertions: [usedInAppBrowserOnly],
     name: "browser-task-local-file",
     prompt:
       "Create an HTML file with a heading that says Hello, then open it in a browser and confirm the heading renders.",

@@ -66,8 +66,9 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 
 | Plan | Status |
 | --- | --- |
+| [One window browser](active/single-window-browser.md) — collapse the browser-per-id model, with tab lifetimes by where the tab is | not started; after the chat/task rework |
 | [External browsers behind a flag](active/external-browser-behind-a-flag.md) — built; the checklist for turning it on | landed, flag off |
-| [Agent browser ad blocking](active/agent-browser-ad-blocking.md) | draft |
+| [Chrome extensions, starting with 1Password](active/browser-extensions-and-1password.md) | on hold, spike done |
 
 ### Platform and product
 
@@ -97,6 +98,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 
 | Plan | Outcome |
 | --- | --- |
+| [Agent browser ad blocking](completed/agent-browser-ad-blocking.md) | landed |
 | [The Instrument 2.0 orchestrator spike](completed/instrument-2-0-prototype.md) | became the 2.0 app |
 | [Apps in the 2.0 prototype](completed/instrument-2-0-apps.md) | landed |
 | [Threads, topics, and activity](completed/orchestrator-threads.md) | landed, then overtaken |

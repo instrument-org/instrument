@@ -14,7 +14,7 @@ import {
   isToolCallVisible,
   isToolPartRunning,
 } from "./message-part/tool-call-utils";
-import { isReasoningPartVisible } from "./reasoning-utils";
+import { isReasoningPartLive, isReasoningPartVisible } from "./reasoning-utils";
 
 // How many calls an unannounced run needs before it is worth folding under a
 // generated heading. "Read a file" says less than the row it would replace,
@@ -254,14 +254,15 @@ export function buildTranscriptLayout({
         open = openPhase(open, part, settle);
       }
 
-      const isStreaming = isToolPart(part)
-        ? isToolStreaming(part, message)
-        : false;
+      const isRunning =
+        isToolPart(part) &&
+        isToolStreaming(part, message) &&
+        isToolPartRunning(part, message);
       if (
         !isRenderableInlinePart({
           isDeveloperMode,
           isLivePart,
-          isStreaming,
+          isRunning,
           part,
         })
       ) {
@@ -332,7 +333,7 @@ export function buildTranscriptLayout({
         // card asking to connect an app is the same kind of thing, though the
         // call itself returned at once: the answer comes from the card.
         if (
-          (isStreaming && isToolPartRunning(part) && opensOnSight(part)) ||
+          (isRunning && opensOnSight(part)) ||
           isAwaitingUser(part) ||
           part.type === "tool-connect_app"
         ) {
@@ -342,7 +343,7 @@ export function buildTranscriptLayout({
       markLive({
         group: open,
         id,
-        isLive: isPartLive({ isLivePart, isStreaming, part }),
+        isLive: isPartLive({ isLivePart, isRunning, part }),
       });
     }
   }
@@ -530,12 +531,12 @@ export function isStepInFlight({
 export function isVisibleAssistantPart({
   isDeveloperMode,
   isLivePart,
-  isStreaming,
+  isRunning,
   part,
 }: {
   isDeveloperMode: boolean;
   isLivePart: boolean;
-  isStreaming: boolean;
+  isRunning: boolean;
   part: SessionMessagePart.Type;
 }) {
   if (part.type === "text") {
@@ -543,7 +544,7 @@ export function isVisibleAssistantPart({
   }
 
   if (isToolPart(part)) {
-    return isToolCallVisible({ isDeveloperMode, isStreaming, part });
+    return isToolCallVisible({ isDeveloperMode, isRunning, part });
   }
 
   if (part.type === "reasoning") {
@@ -639,17 +640,20 @@ function groupFoldsRows(group: TranscriptGroup): boolean {
 // streaming state, long after the run that wrote them died.
 function isPartLive({
   isLivePart,
-  isStreaming,
+  isRunning,
   part,
 }: {
   isLivePart: boolean;
-  isStreaming: boolean;
+  isRunning: boolean;
   part: SessionMessagePart.Type;
 }) {
   if (isToolPart(part)) {
-    return isStreaming && isToolPartRunning(part);
+    return isRunning;
   }
-  return isLivePart && part.type === "reasoning" && part.state === "streaming";
+  return (
+    part.type === "reasoning" &&
+    isReasoningPartLive({ isLive: isLivePart, part })
+  );
 }
 
 // Whether these two rows sit either side of the line between what the agent
@@ -667,12 +671,12 @@ function isProseBoundary(above: TranscriptRow, below: TranscriptRow): boolean {
 function isRenderableInlinePart({
   isDeveloperMode,
   isLivePart,
-  isStreaming,
+  isRunning,
   part,
 }: {
   isDeveloperMode: boolean;
   isLivePart: boolean;
-  isStreaming: boolean;
+  isRunning: boolean;
   part: SessionMessagePart.Type;
 }) {
   if (part.type === "text") {
@@ -704,7 +708,7 @@ function isRenderableInlinePart({
   }
 
   if (isToolPart(part)) {
-    return isToolCallVisible({ isDeveloperMode, isStreaming, part });
+    return isToolCallVisible({ isDeveloperMode, isRunning, part });
   }
 
   // Only reasoning parts remain; visibility depends on their content and on

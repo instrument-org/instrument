@@ -54,7 +54,7 @@ function tabsOf(
     active: tabs[0],
     allTabs,
     groupOnScreen: group,
-    tabUpIn: (key) => allTabs.find((tab) => tab.group === key),
+    selectedTabIn: (key) => allTabs.find((tab) => tab.group === key),
   };
 }
 

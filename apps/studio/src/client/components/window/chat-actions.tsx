@@ -49,8 +49,8 @@ export function useChatActions(chat: Chat): RowAction[] {
 /**
  * What a chat offers that no line of it carries, in the order the row's
  * edge and its menu list them: putting it away, or back in the inbox, with
- * an undo in the toast either way; marking it read while something in it
- * is unseen, or unread again once it has replies to be unread, with no
+ * an undo in the toast either way; marking it read while it carries the
+ * unread mark, or unread while it does not, whatever it holds, with no
  * toast at all, since the row itself says which it is; starring it or
  * taking the star back, last, where a starred row wears its star; and, in
  * the menu alone, showing its folder, and in developer mode saving its
@@ -75,22 +75,26 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
   // mutation object, which is new on every render and would make the
   // function returned below new with it, and every row the list memoizes on
   // it render again.
-  const { mutate: seen } = useMutation(
-    rpcClient.workspace.chats.seen.mutationOptions({
-      onError: repaint,
-      onMutate: (input) => {
-        paint(input.id, (chat) => ({ ...chat, unread: 0 }));
-      },
-    }),
-  );
-  // Unseen again is the newest reply only, which is one to the count.
-  const { mutate: unseen } = useMutation(
-    rpcClient.workspace.chats.unseen.mutationOptions({
+  const { mutate: read } = useMutation(
+    rpcClient.workspace.chats.read.mutationOptions({
       onError: repaint,
       onMutate: (input) => {
         paint(input.id, (chat) => ({
           ...chat,
-          unread: Math.max(chat.unread, 1),
+          unread: false,
+          unreadByUser: false,
+        }));
+      },
+    }),
+  );
+  const { mutate: unread } = useMutation(
+    rpcClient.workspace.chats.unread.mutationOptions({
+      onError: repaint,
+      onMutate: (input) => {
+        paint(input.id, (chat) => ({
+          ...chat,
+          unread: true,
+          unreadByUser: true,
         }));
       },
     }),
@@ -125,30 +129,23 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
             setArchived(queryClient, input, true);
           },
         };
-    const mark: RowAction[] =
-      chat.unread > 0
-        ? [
-            {
-              icon: <EnvelopeSimpleOpenIcon className="size-3.5" />,
-              id: "read",
-              label: "Mark as read",
-              run: () => {
-                seen(input);
-              },
-            },
-          ]
-        : chat.replyCount > 0
-          ? [
-              {
-                icon: <EnvelopeSimpleIcon className="size-3.5" />,
-                id: "unread",
-                label: "Mark as unread",
-                run: () => {
-                  unseen(input);
-                },
-              },
-            ]
-          : [];
+    const mark: RowAction = chat.unread
+      ? {
+          icon: <EnvelopeSimpleOpenIcon className="size-3.5" />,
+          id: "read",
+          label: "Mark as read",
+          run: () => {
+            read(input);
+          },
+        }
+      : {
+          icon: <EnvelopeSimpleIcon className="size-3.5" />,
+          id: "unread",
+          label: "Mark as unread",
+          run: () => {
+            unread(input);
+          },
+        };
     const starred: RowAction = chat.starred
       ? {
           icon: <StarIcon className="size-3.5" weight="fill" />,
@@ -191,7 +188,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
         void showTaskFolder(chat.id);
       },
     };
-    return [put, ...mark, starred, ...(isDeveloperMode ? [save] : []), show];
+    return [put, mark, starred, ...(isDeveloperMode ? [save] : []), show];
   };
 }
 

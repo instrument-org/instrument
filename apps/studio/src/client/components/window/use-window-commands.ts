@@ -4,7 +4,10 @@ import {
 } from "@/client/atoms/command-menu";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
-import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
+import {
+  blockingModalCountAtom,
+  modalBackStackAtom,
+} from "@/client/atoms/tab-navigation-block";
 import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
 import { runPageChord } from "@/client/lib/page-chords";
@@ -101,6 +104,9 @@ export function useWindowCommands(
         return;
       }
       swallow(event);
+      if (heldByModal(event.button === 3 ? "back" : "forward")) {
+        return;
+      }
       if (event.button === 3) {
         latest.current.back();
       } else {
@@ -169,6 +175,12 @@ export function useWindowCommands(
           }
           if (command === "commandMenu") {
             openOrCloseCommandMenu();
+            continue;
+          }
+          if (
+            (command === "back" || command === "forward") &&
+            heldByModal(command)
+          ) {
             continue;
           }
           if (
@@ -344,4 +356,20 @@ function answer(
       break;
     }
   }
+}
+
+/**
+ * Whether a modal holds the window, answering back itself when it does: the
+ * innermost registered back runs, and forward does nothing. Either way the
+ * tab behind stays where it is.
+ */
+function heldByModal(direction: "back" | "forward") {
+  const store = getDefaultStore();
+  if (store.get(blockingModalCountAtom) === 0) {
+    return false;
+  }
+  if (direction === "back") {
+    store.get(modalBackStackAtom).at(-1)?.run();
+  }
+  return true;
 }

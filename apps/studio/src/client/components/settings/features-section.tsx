@@ -1,5 +1,6 @@
 import { featuresAtom } from "@/client/atoms/features";
 import { openSettings as openSettingsTab } from "@/client/atoms/settings-modal";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { Card } from "@/client/components/ui/card";
 import { Label } from "@/client/components/ui/label";
 import { Switch } from "@/client/components/ui/switch";
@@ -53,7 +54,10 @@ export function FeaturesSection() {
             className="flex items-start justify-between gap-4 p-4"
             key={feature}
           >
-            <div className="flex-1 space-y-1">
+            <div
+              className="flex-1 space-y-1"
+              {...settingAnchor(`feature:${feature}`)}
+            >
               <Label className="text-sm font-medium" htmlFor={feature}>
                 {title}
               </Label>

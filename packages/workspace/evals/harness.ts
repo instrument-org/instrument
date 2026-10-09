@@ -19,9 +19,12 @@ import { type z } from "zod";
 import type { Session } from "../src/schemas/session";
 
 import { attachChats, workspaceMachine } from "../src/electron";
+import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
+import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { isWorking } from "../src/lib/chat/activity";
+import { expectStop, wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { Store } from "../src/lib/store";
@@ -30,18 +33,19 @@ import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { session as sessionRoute } from "../src/rpc/routes/session";
-import { task as taskRoute } from "../src/rpc/routes/task";
 import { type FileUpload } from "../src/schemas/file-upload";
 import { type FolderAttachment } from "../src/schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { type StoreId } from "../src/schemas/store-id";
+import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 import { type TaskId } from "../src/schemas/task-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
 import { type Choose } from "../src/tools/choose";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import { createStandInWindow } from "./lib/stand-in-window";
+import { startRun } from "./lib/start-run";
 import {
   buildProviderConfigs,
   c,
@@ -209,7 +213,8 @@ export interface EvalCase {
    * once a service is reachable: handing one to a task, and calling it.
    *
    * One apps directory serves every case in a run, so these are listed in every
-   * case's context, not only this one's. Run an app case on its own.
+   * case's context, not only this one's. Run an app case on its own. A task
+   * case is handed these, as a chat's `task new --app` would.
    */
   apps?: AppFixture[];
   assertions?: Assertion[];
@@ -223,9 +228,23 @@ export interface EvalCase {
    */
   followUps?: string[];
   /**
+   * For a chat case scored on what the conversation does when a task
+   * reports, not on the task's work: every task the conversation starts is
+   * stopped as soon as its first turn settles, and the conversation is woken
+   * through the real wake path as if it had finished, saying `said` and
+   * leaving `leavesOpen` as window tabs it opened. A run's tasks browse in a
+   * Chrome of their own, so this is the only way a finish note names a
+   * window tab, and it saves the minutes and tokens of the work itself.
+   */
+  finishesAs?: {
+    leavesOpen?: { at: string; id: string }[];
+    said: string;
+  };
+  /**
    * Which agent answers the prompt. A chat delegates to tasks it
    * creates inside the same workspace, so a run of that kind produces the
-   * chat's transcript plus one per task it made.
+   * chat's transcript plus one per task it made. A task case runs the task
+   * agent in a task of a chat the run makes for it (`startRun`).
    */
   kind?: "chat" | "task";
   name: string;
@@ -318,6 +337,12 @@ export async function runEvals(
   if (dryRun) {
     return { runs: [], workspaceRootDir };
   }
+
+  // Shells run in the bash worker, as they do in Studio. On this thread,
+  // just-bash's defenses wrap the whole process's environment while a script
+  // runs, which breaks anything else here that writes it, the Claude Agent
+  // SDK among them.
+  setBashWorkerFactory(createTsxBashWorker);
 
   const appsConfig = createMemoryAppsConfig();
   const standInWindow = createStandInWindow();
@@ -435,18 +460,23 @@ export async function runEvals(
           ensureWorkspaceFolder();
         }
         const folders = privateFoldersFor(evalCase, index) ?? [];
-        return call(
-          taskRoute.create,
+        return startRun(
           {
+            // A task case is handed the apps it declares, the way a chat
+            // hands them, so it hears about them in its context.
+            apps:
+              evalCase.kind === "chat"
+                ? undefined
+                : evalCase.apps?.map((app) => app.slug),
             files: evalCase.files,
             folders: folders.length > 0 ? folders : undefined,
-            chat: evalCase.kind === "chat",
+            kind: evalCase.kind ?? "task",
             modelURI: uri,
             name: evalCase.name,
             prompt: evalCase.prompt,
             viewing: evalCase.viewing,
           },
-          { context },
+          context,
         );
       });
       // Chained off the settled result so one failed creation does not strand
@@ -611,6 +641,13 @@ export async function runEvals(
       let outcome = await waitForSessionDone(sessionId, id, {
         timeoutMs: remainingMs(),
       });
+
+      if (evalCase.finishesAs && !stoppedBy && outcome !== "timeout") {
+        await standInForTasks(id, evalCase.finishesAs, {
+          standInWindow,
+          workspaceRef: actor,
+        });
+      }
 
       // Follow-ups run before the teardown below, so the caps timer and the
       // part subscription cover the whole conversation rather than its first
@@ -803,6 +840,54 @@ function privateFoldersFor(evalCase: EvalCase, index: number) {
 
 function sanitizeCanonicalId(canonicalId: string): string {
   return canonicalId.replaceAll(/[^a-z0-9-]/gi, "-");
+}
+
+/**
+ * Stops each task the conversation started and wakes it as though the task
+ * had finished: see `EvalCase.finishesAs`. The stop is one the conversation
+ * expects, so it wakes nothing of its own.
+ */
+async function standInForTasks(
+  chatId: TaskId,
+  { leavesOpen = [], said }: NonNullable<EvalCase["finishesAs"]>,
+  {
+    standInWindow,
+    workspaceRef,
+  }: {
+    standInWindow: ReturnType<typeof createStandInWindow>;
+    workspaceRef: WorkspaceActorRef;
+  },
+) {
+  const resolved = resolveChat(chatId);
+  for (const child of resolved ? await listChildTasks(resolved) : []) {
+    expectStop(child.id);
+    workspaceRef.send({ type: "stopSessions", value: { id: child.id } });
+    while (isWorking(child.id)) {
+      await new Promise((resolve) => setTimeout(resolve, TREE_POLL_MS));
+    }
+    for (const tab of leavesOpen) {
+      standInWindow.openPage(tab);
+    }
+    wakeChatWithTaskEvent(
+      chatId,
+      {
+        status: "done",
+        summary: said,
+        ...(leavesOpen.length > 0
+          ? {
+              tabs: leavesOpen.map(({ at, id }) => ({
+                id,
+                openedBy: "task" as const,
+                url: at,
+              })),
+            }
+          : {}),
+        taskId: child.id,
+        title: child.title,
+      },
+      workspaceRef,
+    );
+  }
 }
 
 /** Every task descended from this one, however deep. */

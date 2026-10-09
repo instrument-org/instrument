@@ -1,6 +1,6 @@
 # Model request controls
 
-Status: **phases 1 and 3 built, and the level lives on the task** (`63170dd53`). A task's `settings.json` carries `reasoningEffort`, which the conversation's agent sets per invocation with `task new --effort` (a child task inherits its parent's when none is passed) and a chat's task list shows as an Effort chip; a task with none asks for the catalog's own default when the model reasons anyway (`catalogEffort`). Title generation asks for low. Nothing a user touches names a level yet: phase 2 (what a direct provider key is still waiting on) and phase 4 (the picker control) have not started.
+Status: **phases 1 and 3 built, and the level lives on the task** (`63170dd53`). A task's `settings.json` carries `reasoningEffort`, which a child task copies from its chat and nothing the conversation's agent runs can set and a chat's task list shows as an Effort chip; a task with none asks for the catalog's own default when the model reasons anyway (`catalogEffort`). Title generation asks for low. Nothing a user touches names a level yet: phase 2 (what a direct provider key is still waiting on) and phase 4 (the picker control) have not started.
 
 ## Problem
 

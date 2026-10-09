@@ -1,6 +1,6 @@
 import { keepOpenForToasts } from "@/client/components/ui/dialog-dismiss";
 import { handleContentExitAnimation } from "@/client/components/ui/dialog-exit";
-import { useAppZoomStyle, zoomMaxSize } from "@/client/hooks/use-app-zoom";
+import { dialogMaxSize, useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { useCoversGuests } from "@/client/hooks/use-covers-guests";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
@@ -64,8 +64,8 @@ function DialogContent({
         }}
         style={useAppZoomStyle({
           ...style,
-          maxHeight: zoomMaxSize("height", maxHeight),
-          maxWidth: zoomMaxSize("width", maxWidth),
+          maxHeight: dialogMaxSize("height", maxHeight),
+          maxWidth: dialogMaxSize("width", maxWidth),
         })}
         {...props}
       >

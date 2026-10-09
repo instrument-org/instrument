@@ -44,7 +44,7 @@ describe("readTaskRecord", () => {
     const record = await readTaskRecord(taskDir(taskId));
 
     expect(record.settings).toBeUndefined();
-    expect(record.state).toEqual({});
+    expect(record.state).toEqual({ browserTabs: [] });
     expect(record.raw).toEqual({});
   });
 
@@ -60,7 +60,7 @@ describe("readTaskRecord", () => {
     const record = await readTaskRecord(taskDir(taskId));
 
     expect(record.settings?.name).toBe("Still named");
-    expect(record.state).toEqual({});
+    expect(record.state).toEqual({ browserTabs: [] });
   });
 
   // And the other direction: a title this build cannot read must not silently
@@ -143,7 +143,11 @@ describe("updateTaskRecord", () => {
 
     expect(written).toEqual({
       name: "Test task",
-      state: { futureNested: "keep me", selectedModelURI: "after" },
+      state: {
+        browserTabs: [],
+        futureNested: "keep me",
+        selectedModelURI: "after",
+      },
     });
   });
 

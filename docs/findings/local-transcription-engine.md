@@ -49,7 +49,7 @@ What it did have was a better workflow contract. It accepted `.wav` only, and sa
 
 ## A hosted path
 
-Worth knowing from here: a hosted transcription endpoint is cheap enough that price is not the deciding factor, its per-request cost is computable from the audio duration we already measure, and no vendor reviewed offers zero data retention on terms as strong as what users are told about the local path today. The provider evaluation, the model choice, and the billing design are planned in the backend repo alongside the endpoint itself, since none of it is app-side.
+Worth knowing from here: a hosted transcription request is measured by the audio duration we already record, and no vendor reviewed offers zero data retention on terms as strong as what users are told about the local path today. The provider evaluation and the model choice live with the endpoint, outside this repo, since neither is app-side.
 
 The constraint that matters on this side: the local path stays the default and stays available. The user who reported this asked in the same thread what leaves their machine, and a hosted route that engages silently answers that question wrongly on their behalf.
 

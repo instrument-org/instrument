@@ -14,7 +14,7 @@ import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config"
 import { initializeTask } from "../initialize-task";
 import { taskDir } from "../task-dir-utils";
 import { holdTask, taskHold } from "../task-hold";
-import { setTaskState } from "../task-record";
+import { getTaskState, setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { sendSubcommand } from "./task/send";
@@ -157,6 +157,20 @@ describe("task send", () => {
     const handOffs: HandOff[] = [];
     await withHandOffs(handOffs, () => send([]));
     expect(handOffs).toEqual([{ kind: "sent", taskId: CHILD_ID }]);
+  });
+
+  it("moves the task to the model the chat's picker is on now", async () => {
+    await setTaskState(taskDir(CHILD_ID), {
+      selectedModelURI:
+        "openai/gpt-6-luna?provider=openrouter&providerConfigId=mock-provider-config-id",
+    });
+    const picked =
+      "anthropic/claude-opus-5.5?provider=openrouter&providerConfigId=mock-provider-config-id";
+    await setTaskState(taskDir(CHAT_ID), { selectedModelURI: picked });
+    await send([]);
+    expect((await getTaskState(taskDir(CHILD_ID))).selectedModelURI).toBe(
+      picked,
+    );
   });
 
   it("starts an idle task either way", async () => {

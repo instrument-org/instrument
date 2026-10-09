@@ -15,11 +15,13 @@ import {
 
 export const OSASCRIPT_COMMAND = {
   description:
-    "Run AppleScript (`osascript -e '...'`, or a script file) or JavaScript for Automation (`-l JavaScript`) to work with the apps on this Mac: Reminders, Calendar, Notes, Contacts, Music, Finder and the rest. " +
+    "Run AppleScript (`osascript -e '...'`, or a script file) or JavaScript for Automation (`-l JavaScript`) against the apps on this Mac that publish a scripting dictionary: Mail, Notes, Music, Photos, Finder, Safari, Keynote and the like. " +
     "For Calendar, Reminders, and Contacts, use the `calendar` and `contacts` commands instead when they are listed: they are faster and read every account. " +
-    "To click, type, or read controls in an app's window, use the `computer` command when it is listed rather than System Events UI scripting, which raises its own permission prompts. " +
+    "An app with no dictionary cannot be scripted this way. " +
+    "To click, type, or read controls in an app's window, use the `computer` command when it is listed. " +
     "macOS asks the user the first time each app is controlled, and the command waits on their answer. " +
-    "Error -1743 means they declined, and only they can change it, under System Settings, Privacy & Security, Automation.",
+    "Error -1743 means they declined, and only they can change it, under System Settings, Privacy & Security, Automation. " +
+    "Working an app's windows through System Events (keystrokes, clicks, reading its buttons and windows) is refused: reach an app through a file it imports, its URL scheme, or its own scripting terms.",
   name: "osascript",
 } as const;
 
@@ -63,6 +65,91 @@ export function addressAppsById(code: string): string {
   return out;
 }
 
+/**
+ * Keys pressed through System Events, which land in whatever app is in front.
+ * Unlike a click, neither needs a process named first.
+ */
+const PRESSES_KEYS = /\b(?:keystroke|key\s*code)\b/i;
+
+/** A process of System Events', AppleScript's `process "X"` or JXA's `processes`. */
+const NAMES_A_PROCESS = /\bprocess(?:es)?\b/i;
+
+/** What GUI scripting reads or works inside a process: its controls and windows. */
+const UI_TERMS =
+  /\b(?:click|perform\s*action|entire\s*contents|ui\s*elements?|menu\s*bars?|menu\s*items?|windows?|buttons?|text\s*fields?|checkbox(?:es)?)\b/i;
+
+/** Accessibility attributes and actions (`"AXPress"`, `"AXFocused"`) by name. */
+const AX_NAME = /\bAX[A-Z][a-z]+/;
+
+/**
+ * Whether a script works an app's windows through System Events: keystrokes,
+ * clicks, or reading the buttons and windows of a process. Telling an app
+ * itself (`tell application "Reminders"`), and asking System Events which
+ * processes are running, are not.
+ */
+export function worksAppWindows(code: string): boolean {
+  if (!/System Events/i.test(code)) {
+    return false;
+  }
+  return (
+    PRESSES_KEYS.test(code) ||
+    (NAMES_A_PROCESS.test(code) && (UI_TERMS.test(code) || AX_NAME.test(code)))
+  );
+}
+
+/**
+ * Measured, it is the slowest way into an app and the least likely to arrive:
+ * asked to recreate a user's Raycast snippets, a task spent three minutes on
+ * 33 such calls and created none, then made Raycast's documented import file
+ * in under forty seconds once told to. It also takes the user's screen while
+ * it runs.
+ */
+const WORKS_APP_WINDOWS_REFUSAL =
+  "osascript: refused: this script works an app's windows through System Events (keystrokes, clicks, or reading its buttons and windows). " +
+  "That is slow, breaks on any change to the app's layout, and takes over the user's screen while it runs. " +
+  "Reach the app another way: an import or config file it documents (search its docs for the format, build the file, and tell the user where to import it), its URL scheme, " +
+  'its own scripting terms (`tell application "<App>"`, with no System Events), or the `calendar`, `contacts`, `shortcuts`, and `computer` commands when they are listed. ' +
+  "If your brief asked for the app's interface, the file is still the answer: make it and say why. " +
+  "If the app has none of these, stop and report that.";
+
+/**
+ * The text of the script file a command runs, when it runs one: with no `-e`,
+ * the first argument that is neither a flag nor a flag's value. A compiled
+ * `.scpt` holds event codes rather than words, so it reads as nothing to
+ * refuse; a script the task wrote out as text is read as written.
+ */
+async function scriptFileSource(
+  args: string[],
+  ctx: {
+    cwd: string;
+    fs: {
+      readFileBuffer(path: string): Promise<Uint8Array>;
+      resolvePath(cwd: string, path: string): string;
+    };
+  },
+): Promise<string[]> {
+  if (args.includes("-e")) {
+    return [];
+  }
+  const file = args.find(
+    (arg, index) =>
+      !arg.startsWith("-") &&
+      args[index - 1] !== "-l" &&
+      args[index - 1] !== "-s",
+  );
+  if (file === undefined) {
+    return [];
+  }
+  try {
+    const bytes = await ctx.fs.readFileBuffer(
+      ctx.fs.resolvePath(ctx.cwd, file),
+    );
+    return [Buffer.from(bytes).toString("latin1")];
+  } catch {
+    return [];
+  }
+}
+
 export function createOsascriptCommand(
   taskId: TaskId,
   layout: WorkspaceFsLayout,
@@ -78,6 +165,15 @@ export function createOsascriptCommand(
     );
     if (unreachable !== undefined) {
       return { exitCode: 1, stderr: unreachable, stdout: "" };
+    }
+    const piped = subprocessStdin(ctx.stdin);
+    const sources = [
+      ...args.filter((_arg, index) => isScript[index]),
+      ...(piped ? [piped.toString("latin1")] : []),
+      ...(await scriptFileSource(args, ctx)),
+    ];
+    if (sources.some(worksAppWindows)) {
+      return { exitCode: 1, stderr: WORKS_APP_WINDOWS_REFUSAL, stdout: "" };
     }
     const bridgedArgs: string[] = [];
     for (const [index, arg] of args.entries()) {
@@ -95,7 +191,6 @@ export function createOsascriptCommand(
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     // A script piped in is ASCII where it names an app, so the rewrite reads
     // it as the latin1 bytes it arrives as and leaves every other byte be.
-    const piped = subprocessStdin(ctx.stdin);
     const stdin = piped
       ? Buffer.from(addressAppsById(piped.toString("latin1")), "latin1")
       : undefined;

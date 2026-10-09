@@ -3060,4 +3060,39 @@ describe("llmRequestLogic", () => {
       });
     });
   });
+
+  it("runs a shell command streamed as a tool name as the bash call it meant", async () => {
+    const { messages } = await createAndRunTestMachine({
+      chunks: [
+        { id: "call-1", toolName: "task new", type: "tool-input-start" },
+        {
+          input: JSON.stringify({ name: "Scan notes" }),
+          toolCallId: "call-1",
+          toolName: "task new",
+          type: "tool-call",
+        },
+        {
+          finishReason: { raw: "tool_use", unified: "tool-calls" },
+          type: "finish",
+          usage: mockUsage,
+        },
+      ],
+    });
+    expect(
+      messages
+        .flatMap((message) => message.parts)
+        .filter((part) => "toolCallId" in part)
+        .map((part) => ({ input: part.input, type: part.type })),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "input": {
+            "command": "task new",
+            "yieldMs": 30000,
+          },
+          "type": "tool-bash",
+        },
+      ]
+    `);
+  });
 });

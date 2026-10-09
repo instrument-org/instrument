@@ -24,7 +24,7 @@ import {
   TOOLBAR_ICON_BUTTON_CLASSNAME,
 } from "@/client/components/extend/file-system";
 import { InstrumentGlyph } from "@/client/components/wordmark";
-import { INSTRUMENT_FOLDER_GLYPH_URL } from "@/client/components/icons/instrument-folder";
+import { OUTPUT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
@@ -69,6 +69,7 @@ import {
 } from "@/client/lib/computer-file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
+import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -195,6 +196,12 @@ export interface FolderOnScreen {
   selected: string[];
   /** What is selected in it, by host path and kind. */
   selectedItems: ChosenItem[];
+  /**
+   * As the person walked to it, which is how the location bar names it.
+   * Differs from `display` where the folder lives somewhere other than
+   * where it is shown: an iCloud Drive app folder.
+   */
+  walked: string;
 }
 
 /**
@@ -456,7 +463,7 @@ export function ComputerPage({
             return {
               ...stamps,
               ...(entry.path === instrumentPath
-                ? { glyphSrc: INSTRUMENT_FOLDER_GLYPH_URL }
+                ? { glyphSrc: OUTPUT_FOLDER_GLYPH_URL }
                 : {}),
               hasChildren: true,
               kind: "folder",
@@ -652,8 +659,8 @@ export function ComputerPage({
         const [only] = hostPaths;
         toast(
           undoable.length === 1 && only
-            ? `Moved “${segmentsOf(only).at(-1) ?? only}” to the Trash`
-            : `Moved ${undoable.length} items to the Trash`,
+            ? `Moved “${segmentsOf(only).at(-1) ?? only}” to the ${getTrashTerminology()}`
+            : `Moved ${undoable.length} items to the ${getTrashTerminology()}`,
           {
             action: {
               label: "Undo",
@@ -873,6 +880,13 @@ export function ComputerPage({
     ? recentFolder && homeRelative(recentFolder, homePath)
     : (currentListing?.display ??
       (refusedHostPath && homeRelative(refusedHostPath, homePath)));
+  // Where the person walked to the folder, which is how the location bar
+  // names it: an iCloud Drive app folder under iCloud Drive, though it lives
+  // in its app's container.
+  const walked =
+    isRecents || display === undefined
+      ? display
+      : homeRelative(hostPathOf(onScreen, rootHostPath ?? root), homePath);
   const hostPath = isRecents
     ? recentFolder
     : (currentListing?.path ?? refusedHostPath);
@@ -920,10 +934,11 @@ export function ComputerPage({
       ...(mount === undefined ? {} : { mount }),
       selected: selectedOnScreen.map(({ name }) => name),
       selectedItems: selectedOnScreen.map(({ item }) => item),
+      walked: walked ?? display,
     });
     // The selection by its key: the rows are rebuilt on every re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [access, display, hostPath, mount, onFolderChange, selectedKey]);
+  }, [access, display, hostPath, mount, onFolderChange, selectedKey, walked]);
 
   const openFile = (file: FileSystemFileItem) => {
     const tab = fileTabOf(file);
@@ -1440,6 +1455,7 @@ export function ComputerPage({
                 }}
                 onShowHiddenFilesChange={setShowHiddenFiles}
                 onSortChange={sortBy}
+                onTrash={(picked) => void trash(picked)}
                 onViewChange={(view) => {
                   setDefaultView(view);
                   keepLook({ sort: shown.sort, view });
@@ -1848,7 +1864,7 @@ function FolderMenuItems({
           <Separator />
           <Item onClick={onTrash} variant="destructive">
             <TrashIcon className="size-4" />
-            <span>Move to Trash</span>
+            <span>Move to {getTrashTerminology()}</span>
           </Item>
           <Separator />
           {onRename ? (

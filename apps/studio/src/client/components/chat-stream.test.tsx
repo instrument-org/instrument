@@ -1,5 +1,6 @@
 import { renderWithProviders } from "@/tests/render";
 import {
+  ChatIdSchema,
   type SessionMessage,
   StoreId,
   type Task,
@@ -60,6 +61,7 @@ const messageId = StoreId.newMessageId();
 const task: Task = {
   createdAt: new Date(0),
   id: TaskIdSchema.parse("quarterly-numbers"),
+  chatId: ChatIdSchema.parse("a-chat"),
   isChat: false,
   title: "Quarterly numbers",
   updatedAt: new Date(0),
@@ -530,9 +532,10 @@ describe("ChatStream groups the agent never named", () => {
     ).not.toContain("brand-shiny-text");
   });
 
-  // Every call in a batch streamed in and waiting its turn, so none of them
-  // draws: the run is still working, and still says so.
-  it("stays on screen while every call it holds waits for the queue", () => {
+  // A batch streamed in and not yet started. The first call is next, and the
+  // runtime marks it started a moment later, so it draws through that moment;
+  // the one behind it waits its turn and draws nothing.
+  it("draws the call next in line and holds the ones queued behind it", () => {
     renderParts(
       [
         blankThinking(),
@@ -543,7 +546,8 @@ describe("ChatStream groups the agent never named", () => {
     );
 
     expect(screen.getByText(/^Working/)).toBeDefined();
-    expect(screen.queryByText("Reading the first quarter")).toBeNull();
+    expect(screen.getByText("Reading the first quarter")).toBeDefined();
+    expect(screen.queryByText("Reading the second quarter")).toBeNull();
   });
 
   it("counts up how long the run has been working", () => {
@@ -1293,5 +1297,85 @@ describe("ChatStream in the conversation, and a reply", () => {
       partId: replied.metadata.id,
       text: "Want me to book the 7:30 or the 8:15?",
     });
+  });
+});
+
+describe("ChatStream and what a message went with", () => {
+  it("draws the chips a message was sent with over its words, and only those", () => {
+    const { container } = renderMessages(
+      [
+        {
+          ...userMessage("Is this a good price?"),
+          parts: [
+            prose("Is this a good price?"),
+            {
+              data: {
+                attached: [
+                  {
+                    kind: "page",
+                    title: "Amazon.com: Kettle",
+                    url: "https://www.amazon.com/dp/B0",
+                  },
+                  {
+                    items: [
+                      { kind: "file", path: "/Users/someone/budget.csv" },
+                    ],
+                    kind: "paths",
+                  },
+                ],
+                page: {
+                  title: "Amazon.com: Kettle",
+                  url: "https://www.amazon.com/dp/B0",
+                },
+                screen: "browser",
+                tabs: [
+                  { at: "https://example.com/", id: "t1", title: "Other" },
+                ],
+                url: "https://www.amazon.com/dp/B0",
+              },
+              metadata: metadata(),
+              type: "data-viewContext",
+            },
+          ],
+        },
+      ],
+      { presentation: "chat" },
+    );
+
+    const chips = [
+      ...container.querySelectorAll('[data-slot="sent-chip"]'),
+    ].map((chip) => chip.textContent);
+    expect(chips).toEqual(["Amazon.com: Kettle", "budget.csv"]);
+    expect(screen.queryByRole("button", { name: /Leave out/ })).toBeNull();
+    const words = screen.getByText("Is this a good price?");
+    expect(
+      screen.getByText("Amazon.com: Kettle").compareDocumentPosition(words) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("draws no chips for a message whose view went without any", () => {
+    const { container } = renderMessages(
+      [
+        {
+          ...userMessage("What is this?"),
+          parts: [
+            prose("What is this?"),
+            {
+              data: {
+                page: { title: "Example", url: "https://example.com/" },
+                screen: "browser",
+                url: "https://example.com/",
+              },
+              metadata: metadata(),
+              type: "data-viewContext",
+            },
+          ],
+        },
+      ],
+      { presentation: "chat" },
+    );
+
+    expect(container.querySelector('[data-slot="sent-chips"]')).toBeNull();
   });
 });

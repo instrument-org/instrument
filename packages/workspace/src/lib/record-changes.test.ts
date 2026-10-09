@@ -5,7 +5,10 @@ import { describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import {
+  createMockTaskConfigForDir,
+  MOCK_CHAT_ID,
+} from "../test/helpers/mock-task-config";
 import { recordChanged, recordChanges, recordRemoved } from "./record-changes";
 import { setTaskState } from "./task-record";
 import { taskDir } from "./task-dir-utils";
@@ -44,12 +47,12 @@ describe("recordChanges", () => {
   it("carries what a removed record was, and hands over only what it is asked to keep", async () => {
     const changes = recordChanges(undefined, (change) => change.id === two);
     recordChanged(one, "messages");
-    recordRemoved({ chatId: undefined, id: two, kind: "task" });
+    recordRemoved({ chatId: MOCK_CHAT_ID, id: two, kind: "task" });
     expect((await changes.next()).value).toEqual([
       {
         id: two,
         kind: "removed",
-        ref: { chatId: undefined, id: two, kind: "task" },
+        ref: { chatId: MOCK_CHAT_ID, id: two, kind: "task" },
       },
     ]);
     await changes.return();

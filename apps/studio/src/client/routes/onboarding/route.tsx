@@ -42,7 +42,13 @@ function OnboardingRoute() {
   return (
     <OnboardingLayout variant={isBrandPage ? "brand" : "subtle"}>
       <Outlet />
-      <Toaster position="top-center" />
+      {/* Below the layout's 40px macOS drag strip: a toast under it would be a
+          window handle and swallow its own clicks. */}
+      <Toaster
+        mobileOffset={{ top: 40 + 16 }}
+        offset={{ top: 40 + 16 }}
+        position="top-center"
+      />
       {/* Top right, where the app window's bar carries it, and out of the
           macOS drag strip so it can be clicked. Absolute so the screens lay
           out exactly as they do without developer mode. */}

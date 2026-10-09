@@ -4,7 +4,7 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { debounce } from "radashi";
 import { useEffect, useRef, useState } from "react";
 
-import { DevModeCard, DevModeCardHeader } from "./dev-mode-card";
+import { ChatDevOnly, DevModeCard, DevModeCardHeader } from "./dev-mode-card";
 
 // Three and a half lines of the note's mono text (`text-xs` sets a 16px line
 // box). Enough to tell one note from another while scanning a turn, short
@@ -64,19 +64,19 @@ export function ModelContextDebugCard({
   if (compact) {
     const firstLine = body.split("\n").find((line) => line.trim()) ?? "";
     return (
-      <button
-        className={cn(
-          // Developer mode's color on a dashed edge, so the line never reads as the agent's words.
-          "block w-full border-l-2 border-dashed border-dev-700/50 pl-2 text-left font-mono text-[10px] leading-4 text-dev-700/70 dark:border-dev-300/40 dark:text-dev-300/60",
-          isExpanded ? "whitespace-pre-wrap" : "truncate",
-          className,
-        )}
-        onClick={toggle}
-        title={isExpanded ? undefined : body}
-        type="button"
-      >
-        {isExpanded ? body : firstLine}
-      </button>
+      <ChatDevOnly className={className}>
+        <button
+          className={cn(
+            "block w-full py-1 text-left font-mono text-[10px] leading-4 text-dev-700/70 dark:text-dev-300/60",
+            isExpanded ? "whitespace-pre-wrap" : "truncate",
+          )}
+          onClick={toggle}
+          title={isExpanded ? undefined : body}
+          type="button"
+        >
+          {isExpanded ? body : firstLine}
+        </button>
+      </ChatDevOnly>
     );
   }
 

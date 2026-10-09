@@ -105,7 +105,7 @@ export function startAgentCompletionNotifications({
       // A task the conversation started reports into its chat, and the
       // chat's reply is the news; a notification for each would say the
       // same thing twice, the first time in words meant for the conversation.
-      if (task.chatId !== undefined) {
+      if (!task.isChat) {
         return;
       }
       isChat = task.isChat;

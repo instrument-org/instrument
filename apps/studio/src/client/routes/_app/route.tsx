@@ -9,6 +9,7 @@ import {
   inboxWidthAtom,
   paneOpenByGroupAtom,
   screenViewsAtom,
+  walkedFoldersAtom,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
 } from "@/client/atoms/window";
@@ -54,7 +55,7 @@ import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { instrumentFolderHref } from "@/shared/computer-href";
+import { outputFolderHref } from "@/shared/computer-href";
 import {
   type ChatId,
   encodeBrowserTargetId,
@@ -144,7 +145,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     chat === undefined
       ? []
       : windowTabs.allTabs.filter((tab) => tab.group === chat);
-  const up = windowTabs.tabUpIn(chat);
+  const up = windowTabs.selectedTabIn(chat);
   const isPaneWanted = chat === undefined || (paneOpenByGroup[chat] ?? true);
   const showsPane = up !== undefined && isPaneWanted;
 
@@ -186,7 +187,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       chosenId={showsPane ? up.id : undefined}
       isChatWorking={chatRecord?.state === "working"}
       onAddComputer={() => {
-        windowTabs.openScreen(instrumentFolderHref(), {
+        windowTabs.openScreen(outputFolderHref(), {
           group: chat,
           select: true,
         });
@@ -209,10 +210,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       }}
       tabs={tabs}
       targetOf={(tab) =>
-        encodeBrowserTargetId(
-          tab.taskId ?? WINDOW_ID,
-          StoreId.SessionSchema.parse(tab.id),
-        )
+        encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(tab.id))
       }
       taskTitles={shell.childTitles}
     />
@@ -237,6 +235,18 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
           <ChatPane
             arrivedId={shell.arrivedId}
             drafts={shell.drafts}
+            // An archived chat is put away, so it leaves the side beside
+            // the list with it.
+            onArchiveOpen={leaveChat}
+            // A chat deleted from its row takes its tabs with it, and the
+            // inbox takes the tab back when it was the one open.
+            onDeleted={(id) => {
+              windowTabs.dropGroup(id);
+              if (id === chat) {
+                appTabs.navigate(INBOX_HREF, { replace: true });
+                setInboxOpen(true);
+              }
+            }}
             onDeleteDraft={shell.deleteDraft}
             onListed={isActive ? shell.onListed : undefined}
             onOpenChat={(entry) => {
@@ -262,6 +272,9 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                         // brought back, so the chat and its tabs can have
                         // the window.
                         leading={<InboxToggle isCollapsible={showsRightArea} />}
+                        // An archived chat is put away, so it leaves the
+                        // side beside the list with it.
+                        onArchived={leaveChat}
                         onDeleted={() => {
                           // The chat and the tabs it had are gone; the inbox
                           // takes the tab back.
@@ -399,7 +412,9 @@ function RouteScreen({ href }: { href: string }) {
   const appWindow = useWindow();
   const shell = useShell();
   const appsBySlug = useAppsBySlug();
-  const screenView = useAtomValue(screenViewsAtom)[useTabId()];
+  const tabId = useTabId();
+  const screenView = useAtomValue(screenViewsAtom)[tabId];
+  const walkedFolder = useAtomValue(walkedFoldersAtom)[tabId];
   usePageSlot(null, undefined, false);
   // The row's head and tail, where a file's viewer puts a toggle for its
   // panel and its actions.
@@ -414,7 +429,12 @@ function RouteScreen({ href }: { href: string }) {
   });
   const location =
     fromHref.kind === "folder" && screenView?.folder
-      ? { ...fromHref, path: screenView.folder.display }
+      ? {
+          ...fromHref,
+          ...(walkedFolder
+            ? { hostPath: walkedFolder.hostPath, path: walkedFolder.walked }
+            : { path: screenView.folder.display }),
+        }
       : fromHref;
   // The apps' catalog is a place you arrive at from the rail, with nothing
   // above it to walk back up to and nothing to type an address for: a row
@@ -478,7 +498,7 @@ function RouteScreen({ href }: { href: string }) {
 function SiteView({ group }: { group: string }) {
   const shell = useShell();
   const windowTabs = useWindowTabs();
-  const up = windowTabs.tabUpIn(group);
+  const up = windowTabs.selectedTabIn(group);
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
   const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
   usePageSlot(up?.kind === "page" ? pageHost : null, pageChrome, true);

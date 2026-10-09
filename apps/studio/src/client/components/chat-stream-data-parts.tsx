@@ -13,6 +13,7 @@ import { type ReactNode } from "react";
 import { FilePathsGrid } from "./agent-files-block";
 import { AppEventNote } from "./app-event-note";
 import { AttachedFolderChangesNote } from "./attached-folder-changes-note";
+import { ChatDevOnly } from "./dev-mode-card";
 import { type RenderPartContext } from "./chat-stream-render-part";
 import { ModelChangeNote } from "./model-change-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
@@ -152,7 +153,11 @@ export function renderDataPart({
     }
     case "data-appEvent": {
       if (ctx.presentation === "chat") {
-        return null;
+        return ctx.isDeveloperMode ? (
+          <ChatDevOnly key={part.metadata.id}>
+            <AppEventNote data={part.data} />
+          </ChatDevOnly>
+        ) : null;
       }
       return <AppEventNote data={part.data} key={part.metadata.id} />;
     }
@@ -352,7 +357,11 @@ export function renderDataPart({
     case "data-taskEvent": {
       // The conversation was woken by it; what it says about it is its reply.
       if (ctx.presentation === "chat") {
-        return null;
+        return ctx.isDeveloperMode ? (
+          <ChatDevOnly key={part.metadata.id}>
+            <TaskEventNote data={part.data} />
+          </ChatDevOnly>
+        ) : null;
       }
       return <TaskEventNote data={part.data} key={part.metadata.id} />;
     }

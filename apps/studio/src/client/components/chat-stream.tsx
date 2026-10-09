@@ -35,7 +35,10 @@ import {
   WorkingGroupHeading,
 } from "./message-part/group-heading";
 import { GroupStandIn } from "./message-part/group-stand-in";
-import { isAwaitingUser } from "./message-part/tool-call-utils";
+import {
+  isAwaitingUser,
+  isToolPartRunning,
+} from "./message-part/tool-call-utils";
 import {
   STEP_RUN,
   TRANSCRIPT_ROW,
@@ -68,6 +71,7 @@ import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { MessageScrollerItem } from "./ui/message-scroller";
+import { SentChips } from "./window/context-chip";
 import { Wordmark } from "./wordmark";
 
 // How far the rows a group holds sit inside its head line: the room a working
@@ -552,17 +556,19 @@ export function ChatStream({
       const fileAttachments: SessionMessagePart.Type[] = [];
       let projectContextPart: SessionMessagePart.DataPart | undefined;
       let replyPart: SessionMessageDataPart.ReplyDataPart | undefined;
+      let sentChips: SessionMessageDataPart.SentChip[] = [];
       const seenSourceIds = new Set<string>();
 
       // The conversation's own replies land whole: while a step is still
       // being composed its words are held back and the dots at the tail stand
       // in, so what the user reads is what was sent, never what is being typed.
-      // A reply that was superseded before it finished is never shown.
+      // A reply that was superseded before it finished is shown only in
+      // developer mode.
       const isComposing =
         presentation === "chat" &&
         message.role === "assistant" &&
         ((isAgentRunning && isLastMessage && !message.metadata.finishedAt) ||
-          message.metadata.error?.kind === "aborted");
+          (!isDeveloperMode && message.metadata.error?.kind === "aborted"));
 
       for (const [partIndex, stored] of message.parts.entries()) {
         // What is drawn for the part: the part itself, or the part with the
@@ -617,6 +623,12 @@ export function ChatStream({
         if (message.role === "user" && part.type === "data-projectContext") {
           projectContextPart = part;
           continue;
+        }
+
+        // Drawn over the message as chips; the note the agent read stays a
+        // developer-mode row of its own.
+        if (message.role === "user" && part.type === "data-viewContext") {
+          sentChips = part.data.attached ?? [];
         }
 
         if (message.role === "user" && part.type === "data-reply") {
@@ -751,6 +763,13 @@ export function ChatStream({
           );
         }
 
+        // Over the files, as the chips stood over the words they went with.
+        if (sentChips.length > 0) {
+          messageElements.unshift(
+            <SentChips chips={sentChips} key={`sent-chips-${message.id}`} />,
+          );
+        }
+
         if (projectData) {
           messageElements.unshift(
             <ProjectContextNote
@@ -781,9 +800,10 @@ export function ChatStream({
       }
 
       // A reply the conversation superseded is not an error to anyone; it
-      // is simply not shown, in developer mode too.
+      // is simply not shown, outside developer mode.
       const superseded =
         presentation === "chat" &&
+        !isDeveloperMode &&
         message.role === "assistant" &&
         message.metadata.error?.kind === "aborted";
       // A run of the same refusal, one per retry, reads as one: only the
@@ -967,7 +987,8 @@ export function ChatStream({
       <WarningIcon />
       <AlertDescription className="flex flex-col gap-3">
         <div className="text-xs">
-          Agent was stopped due to reaching maximum unattended steps.
+          Instrument paused after working on its own for a while. Continue to
+          let it keep going.
         </div>
         <Button onClick={onContinue} size="sm" variant="secondary">
           Resume the agent
@@ -1229,7 +1250,8 @@ function hasVisibleAssistantParts({
           message,
           partIndex,
         }),
-        isStreaming,
+        isRunning:
+          isStreaming && isToolPart(part) && isToolPartRunning(part, message),
         part,
       })
     );

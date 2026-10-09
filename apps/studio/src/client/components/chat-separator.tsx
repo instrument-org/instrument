@@ -16,7 +16,7 @@ export function ChatSeparatorRow({ separator }: { separator: ChatSeparator }) {
   const { at, usage } = separator;
 
   return (
-    <div className="flex min-w-0 items-center justify-center gap-1.5 py-1.5 text-xs text-muted-foreground">
+    <div className="flex min-w-0 items-center justify-center gap-1.5 pt-1.5 pb-3 text-xs text-muted-foreground">
       <span className="shrink-0">
         <span className="font-medium">{separatorDayLabel(at, now)}</span>{" "}
         {separatorTimeLabel(at)}

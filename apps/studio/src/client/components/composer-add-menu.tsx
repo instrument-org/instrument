@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
+import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
 import { cn } from "@/client/lib/utils";
 import { type Icon } from "@phosphor-icons/react";
@@ -22,7 +23,6 @@ import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { useRef } from "react";
 
 import { AppIcon } from "./window/app-icon";
@@ -43,6 +43,8 @@ export interface ComposerAction {
    */
   handsOff?: boolean;
   icon: Icon;
+  /** Drawn in the icon's place, for an entry whose mark is not a Phosphor icon: the chosen model's provider. */
+  iconElement?: React.ReactNode;
   id: string;
   /**
    * For an entry that turns the menu into something else rather than acting and
@@ -192,8 +194,9 @@ export function ComposerAddMenu({
         //
         // The corner is the composer's own rather than the menu radius every
         // other dropdown wears, since this one is read against the edge of the
-        // box it hangs off.
-        className="flex max-h-[min(18rem,calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom)))] flex-col rounded-[20px] p-0"
+        // box it hangs off. A row's is that corner less the 4px it sits in by,
+        // so a highlighted first or last row curves alongside the menu.
+        className="flex max-h-[min(18rem,calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom)))] flex-col rounded-[20px] p-0 [&_[role=menuitem]]:rounded-2xl"
         // Everything on offer here is something the prompt is about to carry,
         // so the caret goes back to the prompt rather than to the button that
         // opened this -- including out of a list, which is a second menu deep
@@ -217,9 +220,7 @@ export function ComposerAddMenu({
         }}
         side={side}
         sideOffset={sideOffset}
-        // A chat's menu is a list of rows, sized to them rather than to the
-        // box it hangs off, which would stretch a row across a wide window.
-        style={places ? { width: "16rem" } : { width }}
+        style={{ width }}
       >
         <MenuScrollArea>
           {view === "apps" && places ? (
@@ -320,7 +321,7 @@ export function ComposerAddMenu({
                   onViewChange("apps");
                 }}
               >
-                <SquaresFourIcon className="size-4" />
+                <PlaceIcon className="size-4" place="apps" />
                 <span className="min-w-0 flex-1">Apps</span>
                 <CaretRightIcon className="size-3.5 text-muted-foreground" />
               </DropdownMenuItem>
@@ -332,7 +333,7 @@ export function ComposerAddMenu({
                   }}
                 >
                   <CubeIcon className="size-4" />
-                  <span className="min-w-0 flex-1">Skill</span>
+                  <span className="min-w-0 flex-1">Skills</span>
                   <CaretRightIcon className="size-3.5 text-muted-foreground" />
                 </DropdownMenuItem>
               )}
@@ -420,8 +421,10 @@ function ActionItem({
 }) {
   return (
     <DropdownMenuItem onSelect={onSelect}>
-      <action.icon className="size-4" />
-      {action.label}
+      {action.iconElement ?? <action.icon className="size-4" />}
+      {/* One line whatever its length: a long model name wrapped the entry
+          onto two. */}
+      <span className="min-w-0 truncate">{action.label}</span>
     </DropdownMenuItem>
   );
 }

@@ -7,8 +7,8 @@ import {
   archiveChat,
   chatById,
   ChatSchema,
-  markChatSeen,
-  markChatUnseen,
+  markChatRead,
+  markChatUnread,
   renameChat,
   setChatStarred,
   setChatTopics,
@@ -30,14 +30,14 @@ import { taskDir } from "../../lib/task-dir-utils";
 import { taskHold } from "../../lib/task-hold";
 import { trashChat } from "../../lib/trash-task";
 import { StoreId } from "../../schemas/store-id";
-import { TaskSchema } from "../../schemas/task";
+import { TaskInChatSchema } from "../../schemas/task";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
 import { distinct, liveRead } from "../live-read";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
 /** A task the window filed, as its tasks screen lists it. */
-const ChildTaskSchema = TaskSchema.extend({
+const ChildTaskSchema = TaskInChatSchema.extend({
   // With each one's folder on disk: what a link into `/tasks/<id>` opens.
   dir: z.string(),
   /** Where it stands and the line the list says about it. */
@@ -134,18 +134,20 @@ const liveListChatsRoute = base
     yield* liveChatList(signal);
   });
 
-/** What the user has seen in a chat, so its count can clear. */
-const seenChatRoute = base
+/** Takes a chat's unread mark off: the user has looked at it, or said so. */
+const readChatRoute = base
   .input(z.object({ id: ChatIdSchema }))
   .handler(async ({ input }) => {
-    await whenChat(input.id, markChatSeen);
+    await whenChat(input.id, markChatRead);
   });
 
-/** A chat the user wants back among the unread: its newest reply unseen again. */
-const unseenChatRoute = base
+/** Marks a chat unread by the user's hand, which holds until they come back to it. */
+const unreadChatRoute = base
   .input(z.object({ id: ChatIdSchema }))
   .handler(async ({ input }) => {
-    await whenChat(input.id, markChatUnseen);
+    await whenChat(input.id, (chatId) =>
+      markChatUnread(chatId, { byUser: true }),
+    );
   });
 
 /** Puts a chat away: out of the inbox, still in the list, marked. */
@@ -272,14 +274,14 @@ export const chats = {
   ensure: ensureChatRoute,
   live: { list: liveListChatsRoute, tasks: liveChildTasksRoute },
   ofSession: chatOfSessionRoute,
+  read: readChatRoute,
   rename: renameChatRoute,
   retitle: retitleChatRoute,
-  seen: seenChatRoute,
   session: chatSessionRoute,
   setTopics: setChatTopicsRoute,
   star: starChatRoute,
   tasks: childTasksRoute,
   trash: trashChatRoute,
   unarchive: unarchiveChatRoute,
-  unseen: unseenChatRoute,
+  unread: unreadChatRoute,
 };

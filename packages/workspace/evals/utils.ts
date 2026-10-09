@@ -6,11 +6,15 @@ import {
   noopModelCache,
 } from "@instrument-org/ai-gateway";
 import {
+  AI_GATEWAY_API_KEY_NOT_NEEDED,
   AIProviderConfigIdSchema,
   APP_NAME_SLUG,
-  CHATGPT_PLAN_PROVIDER_CONFIG,
+  CHATGPT_ACCOUNT_PROVIDER_CONFIG,
+  CLAUDE_ACCOUNT_PROVIDER_CONFIG,
   OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
+import { writeFileSync } from "node:fs";
+import { tmpdir, userInfo } from "node:os";
 import path from "node:path";
 import { z } from "zod";
 
@@ -268,8 +272,8 @@ export function costOfUsage(
 /**
  * Whether running this model spends metered credits.
  *
- * Workers AI is the one provider this project has credits sitting unused on, so
- * it is the free side of the line and everything else is the paid side. The
+ * Workers AI is the one provider evals treat as unmetered, so it is the free
+ * side of the line and everything else is the paid side. The
  * question is asked before a run starts rather than reported after it, since a
  * bill is not a result you can decline once it arrives.
  */
@@ -342,14 +346,25 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
   }
 
   // A plan Studio signs in to with ChatGPT, under the fixed id
-  // `chatgpt-plan`. The app gives each account an id of its own, so a model
+  // `chatgpt-account`. The app gives each account an id of its own, so a model
   // URI copied from a real transcript needs its `providerConfigId` swapped.
-  if (env.APP_CHATGPT_PLAN_TOKEN) {
+  if (env.APP_CHATGPT_ACCOUNT_TOKEN) {
     configs.push({
-      ...CHATGPT_PLAN_PROVIDER_CONFIG,
-      apiKey: env.APP_CHATGPT_PLAN_TOKEN,
-      cacheIdentifier: "chatgpt-plan",
-      id: AIProviderConfigIdSchema.parse("chatgpt-plan"),
+      ...CHATGPT_ACCOUNT_PROVIDER_CONFIG,
+      apiKey: env.APP_CHATGPT_ACCOUNT_TOKEN,
+      cacheIdentifier: "chatgpt-account",
+      id: AIProviderConfigIdSchema.parse("chatgpt-account"),
+    });
+  }
+
+  // A Claude account, run through the Claude Code CLI this path names, as
+  // Studio does once it finds the CLI signed in.
+  if (env.APP_CLAUDE_CODE_PATH) {
+    configs.push({
+      ...CLAUDE_ACCOUNT_PROVIDER_CONFIG,
+      apiKey: AI_GATEWAY_API_KEY_NOT_NEEDED,
+      executablePath: withRealHome(env.APP_CLAUDE_CODE_PATH),
+      id: AIProviderConfigIdSchema.parse(CLAUDE_ACCOUNT_PROVIDER_CONFIG.id),
     });
   }
 
@@ -365,6 +380,23 @@ export function buildProviderConfigs(): AIGatewayProviderConfig.Type[] {
   }
 
   return configs;
+}
+
+/**
+ * The CLI, started with the user's real home rather than the run's sandboxed
+ * one. Claude Code finds its sign-in by `HOME` (and `CLAUDE_CONFIG_DIR` names
+ * a different sign-in altogether), so under the sandbox it reads as signed
+ * out. The CLI runs with every built-in tool off, so it touches nothing there
+ * but its own state.
+ */
+function withRealHome(executablePath: string) {
+  const wrapper = path.join(tmpdir(), "instrument-evals-claude-real-home.sh");
+  writeFileSync(
+    wrapper,
+    `#!/bin/sh\nHOME=${JSON.stringify(userInfo().homedir)} exec ${JSON.stringify(executablePath)} "$@"\n`,
+    { mode: 0o755 },
+  );
+  return wrapper;
 }
 
 /**

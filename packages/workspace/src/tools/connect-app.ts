@@ -12,7 +12,6 @@ import {
   loadApp,
   readAppGuide,
 } from "../lib/apps/store";
-import { recordAppChat } from "../lib/chat/attribution";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { MOUNT } from "../mount-points";
@@ -113,7 +112,12 @@ export const ConnectApp = setupTool({
       });
     }
     if (kind !== "none") {
+      // What the user does on the card or the app's page comes back as an
+      // app event with no chat of its own; the ask kept with the app is
+      // what tells it which chat to wake.
+      const chatId = resolveChat(taskId);
       await recordConnection(slug, {
+        ...(chatId ? { askedIn: chatId } : {}),
         status:
           kind === "key"
             ? "needs-key"
@@ -121,12 +125,6 @@ export const ConnectApp = setupTool({
               ? "needs-approval"
               : "needs-sign-in",
       });
-      // What the user does on the card comes back as an app event with no
-      // chat of its own; this is what tells it which one asked.
-      const chatId = resolveChat(taskId);
-      if (chatId) {
-        await recordAppChat({ chatId, slug });
-      }
     }
     return ok({
       kind,

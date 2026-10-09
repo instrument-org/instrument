@@ -1,4 +1,5 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { AccountInfo } from "@/client/components/account-info";
 import {
   BlockToolbarButton,
@@ -24,6 +25,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/client/components/ui/select";
+import { StateArrival } from "@/client/components/state-arrival";
 import { Switch } from "@/client/components/ui/switch";
 import {
   Tooltip,
@@ -77,6 +79,7 @@ export function GeneralSection() {
       <InterfaceAndTheme />
       <Notifications />
       <About />
+      <ReleaseChannel />
       <SettingsSection title="Advanced">
         <UsageMetrics />
         <DiagnosticLog />
@@ -310,7 +313,10 @@ function About() {
     <SettingsSection title="About">
       <div className="space-y-3">
         <Card className="p-4">
-          <div className="flex items-start justify-between gap-4">
+          <div
+            className="flex items-start justify-between gap-4"
+            {...settingAnchor("version")}
+          >
             <div className="min-w-0 flex-1 space-y-1">
               <div className="text-sm font-medium">
                 Version{" "}
@@ -331,7 +337,7 @@ function About() {
           </div>
         </Card>
         <Card className="bg-muted/30 p-4">
-          <div className="space-y-3">
+          <div className="space-y-3" {...settingAnchor("open-source")}>
             <div className="space-y-1">
               <div className="text-sm font-medium">Open source</div>
               <p className="text-xs text-muted-foreground">
@@ -365,7 +371,10 @@ function InterfaceAndTheme() {
     <SettingsSection title="Interface">
       <Card className="p-4">
         <div className="space-y-5">
-          <div className="flex items-center justify-between">
+          <div
+            className="flex items-center justify-between"
+            {...settingAnchor("theme")}
+          >
             <div className="space-y-0.5">
               <Label htmlFor="theme-toggle">Theme</Label>
               <p className="text-xs text-muted-foreground">
@@ -374,15 +383,97 @@ function InterfaceAndTheme() {
             </div>
             <ThemeToggle />
           </div>
-          <div className="flex items-center justify-between">
+          <div
+            className="flex items-center justify-between"
+            {...settingAnchor("zoom")}
+          >
             <div className="space-y-0.5">
               <Label>Zoom</Label>
               <p className="text-xs text-muted-foreground">
-                Scale the interface. Independent of web view zoom.
+                You can make everything in the app larger or smaller. Web pages
+                keep their own zoom.
               </p>
             </div>
             <ZoomStepper />
           </div>
+        </div>
+      </Card>
+    </SettingsSection>
+  );
+}
+
+const RELEASE_CHANNELS = [
+  { label: "Stable", value: "latest" },
+  { label: "Beta", value: "beta" },
+] as const;
+
+/**
+ * Which builds this computer updates to. Developer mode only: the beta feed is
+ * for the people testing a release before it ships.
+ */
+function ReleaseChannel() {
+  const developerMode = useDeveloperMode();
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setReleaseChannelMutation = useMutation(
+    rpcClient.preferences.setReleaseChannel.mutationOptions({
+      onError: () => {
+        toast.error("Failed to change the release channel");
+      },
+    }),
+  );
+
+  if (!developerMode) {
+    return null;
+  }
+
+  const channel = preferences?.releaseChannel ?? "latest";
+  const triggerLabel =
+    RELEASE_CHANNELS.find((option) => option.value === channel)?.label ??
+    channel;
+
+  return (
+    <SettingsSection title="Release channel">
+      <Card className="p-4">
+        <div
+          className="flex items-start justify-between gap-4"
+          {...settingAnchor("release-channel")}
+        >
+          <div className="space-y-1">
+            <Label htmlFor="release-channel">Update from</Label>
+            <p className="text-xs text-muted-foreground">
+              Beta gets new versions as soon as they’re released. If you switch
+              back to Stable, you’ll stay on this version until a newer stable
+              one comes out.
+            </p>
+          </div>
+          <Select
+            disabled={setReleaseChannelMutation.isPending}
+            onValueChange={(value) => {
+              const option = RELEASE_CHANNELS.find((o) => o.value === value);
+              if (option) {
+                setReleaseChannelMutation.mutate({
+                  channel: option.value === "latest" ? undefined : option.value,
+                });
+              }
+            }}
+            value={channel}
+          >
+            <SelectTrigger
+              className="bg-card bg-none dark:bg-gray-700"
+              id="release-channel"
+            >
+              {triggerLabel}
+            </SelectTrigger>
+            <SelectContent align="end" position="popper">
+              {RELEASE_CHANNELS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </Card>
     </SettingsSection>
@@ -482,7 +573,7 @@ function DiagnosticLog() {
 
   return (
     <Card className="p-4">
-      <div className="space-y-3">
+      <div className="space-y-3" {...settingAnchor("diagnostic-log")}>
         <div className="space-y-1">
           <div className="text-sm font-medium">Diagnostic log</div>
           <p className="text-xs text-muted-foreground">
@@ -726,73 +817,91 @@ function Notifications() {
 
   // Until macOS lets the app notify, the setting would read as working when
   // nothing can appear, so the section asks for that first.
-  if (status === "not-asked" || status === "denied" || isQuiet) {
+  const gate =
+    status === "not-asked"
+      ? "not-asked"
+      : status === "denied"
+        ? "off"
+        : isQuiet
+          ? "quiet"
+          : undefined;
+  // Which of the two the section shows, so it settles in when macOS changes
+  // its answer while someone is in System Settings.
+  const arrival = status === undefined ? undefined : (gate ?? "allowed");
+  if (gate !== undefined) {
     return (
       <SettingsSection title="Notifications">
-        <NotificationsPermission
-          isPending={requestPermission.isPending}
-          onAllow={() => {
-            requestPermission.mutate(undefined);
-          }}
-          onOpenSettings={() => {
-            openNotificationSettingsMutation.mutate(undefined);
-          }}
-          state={
-            status === "not-asked" ? "not-asked" : isQuiet ? "quiet" : "off"
-          }
-        />
+        <StateArrival state={arrival}>
+          <NotificationsPermission
+            isPending={requestPermission.isPending}
+            onAllow={() => {
+              requestPermission.mutate(undefined);
+            }}
+            onOpenSettings={() => {
+              openNotificationSettingsMutation.mutate(undefined);
+            }}
+            state={gate}
+          />
+        </StateArrival>
       </SettingsSection>
     );
   }
 
   return (
     <SettingsSection title="Notifications">
-      <Card className="p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <Label htmlFor="agent-completion-notifications">
-              Notify when tasks finish
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Show a desktop notification when a task finishes.
-            </p>
-            <Button
-              className="h-auto p-0 text-xs font-normal text-foreground"
-              disabled={sendTestNotificationMutation.isPending}
-              onClick={handleSendTest}
-              variant="link"
-            >
-              Send a test notification
-            </Button>
-          </div>
-          <Select
-            disabled={setAgentCompletionNotificationsMutation.isPending}
-            onValueChange={(value) => {
-              const option = NOTIFICATION_MODES.find((o) => o.value === value);
-              if (option) {
-                setAgentCompletionNotificationsMutation.mutate({
-                  mode: option.value,
-                });
-              }
-            }}
-            value={mode}
+      <StateArrival state={arrival}>
+        <Card className="p-4">
+          <div
+            className="flex items-start justify-between gap-4"
+            {...settingAnchor("notifications")}
           >
-            <SelectTrigger
-              className="bg-card bg-none dark:bg-gray-700"
-              id="agent-completion-notifications"
+            <div className="space-y-1">
+              <Label htmlFor="agent-completion-notifications">
+                Notify when tasks finish
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Show a desktop notification when a task finishes.
+              </p>
+              <Button
+                className="h-auto p-0 text-xs font-normal text-foreground"
+                disabled={sendTestNotificationMutation.isPending}
+                onClick={handleSendTest}
+                variant="link"
+              >
+                Send a test notification
+              </Button>
+            </div>
+            <Select
+              disabled={setAgentCompletionNotificationsMutation.isPending}
+              onValueChange={(value) => {
+                const option = NOTIFICATION_MODES.find(
+                  (o) => o.value === value,
+                );
+                if (option) {
+                  setAgentCompletionNotificationsMutation.mutate({
+                    mode: option.value,
+                  });
+                }
+              }}
+              value={mode}
             >
-              {triggerLabel}
-            </SelectTrigger>
-            <SelectContent align="end" position="popper">
-              {NOTIFICATION_MODES.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.menuLabel}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </Card>
+              <SelectTrigger
+                className="bg-card bg-none dark:bg-gray-700"
+                id="agent-completion-notifications"
+              >
+                {triggerLabel}
+              </SelectTrigger>
+              <SelectContent align="end" position="popper">
+                {NOTIFICATION_MODES.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.menuLabel}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </Card>
+      </StateArrival>
     </SettingsSection>
   );
 }
@@ -820,7 +929,10 @@ function NotificationsPermission({
   }[state];
   return (
     <Card className="p-4">
-      <div className="flex items-center gap-3.5">
+      <div
+        className="flex items-center gap-3.5"
+        {...settingAnchor("notifications")}
+      >
         <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-brand-600 text-white">
           <BellSimpleIcon className="size-5" weight="fill" />
         </span>
@@ -887,7 +999,10 @@ function UsageMetrics() {
 
   return (
     <Card className="p-4">
-      <div className="flex items-center space-x-2">
+      <div
+        className="flex items-center space-x-2"
+        {...settingAnchor("usage-metrics")}
+      >
         <Switch
           checked={preferences?.enableUsageMetrics ?? false}
           disabled={setUsageMetricsMutation.isPending}

@@ -3,6 +3,11 @@ import { PlaceIcon } from "@/client/components/window/place-icons";
 import { OpenInAppButton } from "@/client/components/open-in-app";
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/client/components/ui/popover";
 import { AppIcon } from "@/client/components/window/app-icon";
 import {
   lookAtAtom,
@@ -13,7 +18,9 @@ import {
   type OpenInAppTarget,
   openInAppTargetOfUrl,
 } from "@/client/hooks/use-open-in-app";
+import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
+import { pageConnection } from "@/client/lib/page-connection";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type WindowShortcutId } from "@/shared/window-shortcuts";
@@ -24,8 +31,9 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
-import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
+import { InfoIcon } from "@phosphor-icons/react/Info";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
@@ -36,6 +44,7 @@ import {
   type Ref,
   useEffect,
   useRef,
+  useState,
 } from "react";
 
 import { locationCrumbs, type TabLocation } from "./tab-location";
@@ -59,6 +68,7 @@ export function TabLocationRow({
   canGoBack,
   canGoForward,
   field,
+  fieldEnd,
   leading,
   location,
   onBack,
@@ -75,6 +85,8 @@ export function TabLocationRow({
   canGoForward?: boolean;
   /** What stands in for the field: a page's own address bar and controls. */
   field?: ReactNode;
+  /** What the page says about itself inside the field, at its end, ahead of the app that opens it: its zoom while not 100%. */
+  fieldEnd?: ReactNode;
   /** What the page puts ahead of the row's own controls, at its far left: a toggle for a panel along the page's left edge. */
   leading?: ReactNode;
   location: TabLocation;
@@ -111,30 +123,41 @@ export function TabLocationRow({
     <div
       // A container, so what a screen or a page draws into the row can give
       // up its words for its mark when the row is narrow.
-      className="@container/tabrow flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background px-2"
+      //
+      // Three columns: the field in the middle, held to a width a person
+      // types into rather than one that runs the width of the window, and
+      // the controls either side of it in equal columns, so the field sits
+      // centered under a wide window. The middle column takes the room first
+      // and the sides each keep at least what their controls need, so as the
+      // row narrows the field gives up width, and once the sides cannot be
+      // equal it gives up its center rather than cover a control. The cap is
+      // in rem, so it grows with the window's zoom along with the text.
+      className="@container/tabrow grid h-10 shrink-0 grid-cols-[1fr_minmax(0,40rem)_1fr] items-center gap-1 border-b border-border bg-background px-2"
       data-tab-location=""
       ref={ref}
     >
-      {leading}
-      {onBack && onForward && (
-        <>
-          <TabRowControl
-            chord="back"
-            disabled={!canGoBack}
-            icon={<CaretLeftIcon className="size-4" />}
-            label="Back"
-            onClick={onBack}
-          />
-          <TabRowControl
-            chord="forward"
-            disabled={!canGoForward}
-            icon={<CaretRightIcon className="size-4" />}
-            label="Forward"
-            onClick={onForward}
-          />
-        </>
-      )}
-      {reload}
+      <div className="flex items-center gap-1">
+        {leading}
+        {onBack && onForward && (
+          <>
+            <TabRowControl
+              chord="back"
+              disabled={!canGoBack}
+              icon={<CaretLeftIcon className="size-4" />}
+              label="Back"
+              onClick={onBack}
+            />
+            <TabRowControl
+              chord="forward"
+              disabled={!canGoForward}
+              icon={<CaretRightIcon className="size-4" />}
+              label="Forward"
+              onClick={onForward}
+            />
+          </>
+        )}
+        {reload}
+      </div>
       {field ?? (
         // The box is the field everywhere the place itself is not: a press on
         // one of the places you are under goes there, and a press anywhere
@@ -142,7 +165,7 @@ export function TabLocationRow({
         // address bar does.
         <div
           className={cn(
-            "group/field relative flex h-7 min-w-0 flex-1 cursor-text items-center gap-2 rounded-full border border-border bg-card px-3 text-xs shadow-xs-soft focus-within:border-foreground/30",
+            "group/field relative flex h-7 min-w-0 cursor-text items-center gap-2 rounded-full border border-border bg-card px-3 text-xs shadow-xs-soft focus-within:border-foreground/30",
             // The app's icon sits in the field's round end, with room to
             // breathe inside the curve.
             openIn && "pr-2",
@@ -173,34 +196,37 @@ export function TabLocationRow({
               )
             }
           />
+          {fieldEnd}
           {openIn && <OpenInAppButton target={openIn} />}
         </div>
       )}
-      {trailing}
-      {/* The file up at the size Quick Look gives it, over the window,
+      <div className="flex items-center justify-end gap-1">
+        {trailing}
+        {/* The file up at the size Quick Look gives it, over the window,
         unless the row's own Expand grows what is shown instead. */}
-      {(onExpand ?? lookTarget) && (
-        <TabRowControl
-          disabled={false}
-          icon={<ArrowsOutSimpleIcon className="size-4" />}
-          label="Expand"
-          onClick={() => {
-            if (onExpand) {
-              onExpand();
-            } else if (lookTarget) {
-              setLookAt(lookTarget);
-            }
-          }}
-        />
-      )}
-      {onClose && (
-        <TabRowControl
-          disabled={false}
-          icon={<XIcon className="size-4" />}
-          label="Close"
-          onClick={onClose}
-        />
-      )}
+        {(onExpand ?? lookTarget) && (
+          <TabRowControl
+            disabled={false}
+            icon={<ArrowsOutSimpleIcon className="size-4" />}
+            label="Expand"
+            onClick={() => {
+              if (onExpand) {
+                onExpand();
+              } else if (lookTarget) {
+                setLookAt(lookTarget);
+              }
+            }}
+          />
+        )}
+        {onClose && (
+          <TabRowControl
+            disabled={false}
+            icon={<XIcon className="size-4" />}
+            label="Close"
+            onClick={onClose}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -309,7 +335,7 @@ function Field({ location }: { location: TabLocation }) {
     const { host, rest } = splitUrl(location.url);
     return (
       <>
-        {locationMark(location)}
+        <ConnectionBadge url={location.url} />
         <span className="min-w-0 flex-1 truncate select-text">
           <span className="text-muted-foreground">{host}</span>
           {rest}
@@ -387,6 +413,57 @@ function Field({ location }: { location: TabLocation }) {
   );
 }
 
+/**
+ * What a page's address says about its connection, where a browser says it:
+ * nothing for an encrypted page, since a lock is true of a lookalike site
+ * too; Not secure ahead of the address for plain http; and only a mark for
+ * plain http to this computer, which never crosses the network but is no
+ * more encrypted for it. A press on either is the reason, in Chromium's
+ * words.
+ */
+function ConnectionBadge({ url }: { url: string }) {
+  const [isOpen, setOpen] = useState(false);
+  useCloseOnWindowBlur(isOpen, () => {
+    setOpen(false);
+  });
+  const connection = pageConnection(url);
+  if (connection === "secure") {
+    return null;
+  }
+  const isLocal = connection === "local";
+  return (
+    <Popover onOpenChange={setOpen} open={isOpen}>
+      <PopoverTrigger
+        aria-label="Connection is not secure"
+        className={cn(
+          "-ml-1.5 flex h-5 shrink-0 cursor-default items-center gap-1 rounded-full text-muted-foreground hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8",
+          isLocal ? "w-5 justify-center" : "pr-2 pl-1.5",
+        )}
+      >
+        {isLocal ? (
+          <InfoIcon className="size-3.5" />
+        ) : (
+          <>
+            <WarningIcon className="size-3.5" />
+            Not secure
+          </>
+        )}
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-3 text-sm">
+        <p className="flex items-center gap-2 font-medium">
+          <WarningIcon className="size-4 shrink-0 text-warning-700" />
+          Your connection to this site is not secure
+        </p>
+        <p className="mt-1.5 text-muted-foreground">
+          You should not enter any sensitive information on this site (for
+          example, passwords or credit cards), because it could be stolen by
+          attackers.
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /** What the place is drawn with, ahead of its name. */
 function locationMark(location: TabLocation): ReactNode {
   switch (location.kind) {
@@ -428,10 +505,10 @@ function locationMark(location: TabLocation): ReactNode {
         <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
       );
     }
+    // A page says nothing about its connection unless it is bad news; see
+    // ConnectionBadge.
     case "page": {
-      return (
-        <LockSimpleIcon className="size-3.5 shrink-0 text-muted-foreground" />
-      );
+      return null;
     }
     // A task is under the list it was opened from, the way an app page is
     // under Apps: the list wears the mark the chat's menu opens it with, and
@@ -494,7 +571,11 @@ function openInAppTargetOf(location: TabLocation): OpenInAppTarget | undefined {
     }
     case "folder": {
       return location.path
-        ? { hostPath: expandHomePath(location.path, window.api.homeDir) }
+        ? {
+            hostPath:
+              location.hostPath ??
+              expandHomePath(location.path, window.api.homeDir),
+          }
         : undefined;
     }
     case "page": {

@@ -102,11 +102,13 @@ export function ChatTitleButton({
 }: Omit<ComponentProps<"button">, "title"> & { title: string }) {
   // The hover surface is pulled back out by its own padding, so what sits
   // beside the title stays measured from the text rather than from the fill.
+  // Held to the rename field's widest, so a long title truncates there
+  // rather than running the width of a wide head.
   return (
     <button
       {...props}
       className={cn(
-        "-mx-1.5 flex h-8 min-w-0 items-center gap-1 rounded-lg px-1.5 text-left outline-none hover:bg-muted focus-visible:outline-[3px] focus-visible:-outline-offset-3 focus-visible:outline-ring/50 focus-visible:[outline-style:solid] data-[state=open]:bg-muted",
+        "-mx-1.5 flex h-8 max-w-96 min-w-0 items-center gap-1 rounded-lg px-1.5 text-left outline-none hover:bg-muted focus-visible:outline-[3px] focus-visible:-outline-offset-3 focus-visible:outline-ring/50 focus-visible:[outline-style:solid] data-[state=open]:bg-muted",
         className,
       )}
       type="button"

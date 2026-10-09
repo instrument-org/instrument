@@ -21,16 +21,16 @@ import {
   widenToSearch,
 } from "./chats";
 import { FilterHead } from "./filter-head";
+import { DeleteChatDialog } from "./delete-chat-dialog";
 import { EditTopicDialog, NewTopicDialog } from "./new-topic-dialog";
-import { SearchField } from "./search-field";
 import { TopicBanner } from "./topic-banner";
 import { useChatSearchFallback } from "./use-chat-search-fallback";
 import { useSetChatTopics } from "./use-set-chat-topics";
 import { backfillCandidates } from "./use-topic-backfill";
 
 /**
- * The chat pane: the inbox under the line that says where it stands, with
- * the search between them. Nothing is composed here: New in the rail opens
+ * The chat pane: the inbox under the line that says where it stands and
+ * searches it. Nothing is composed here: New in the rail opens
  * a draft, and the chat it starts lands at the top of the list; until it
  * is started it is a row of the Drafts place, which lists the drafts where
  * the chats otherwise go. With one topic chosen in the head, the topic's
@@ -39,6 +39,8 @@ import { backfillCandidates } from "./use-topic-backfill";
 export function ChatPane({
   arrivedId,
   drafts,
+  onArchiveOpen,
+  onDeleted,
   onDeleteDraft,
   onListed,
   onOpenChat,
@@ -49,6 +51,10 @@ export function ChatPane({
   arrivedId?: string;
   /** Every draft not yet started, for the Drafts place and its count. */
   drafts: Draft[];
+  /** Told when the open chat is archived from its row, so the window can put the chat away with it. */
+  onArchiveOpen?: () => void;
+  /** Told once a chat deleted from its row is in the trash, so the window can drop its tabs and put it away if it was open. */
+  onDeleted: (id: ChatId) => void;
   /** Deletes a draft outright; the caller says so and offers it back. */
   onDeleteDraft: (id: string) => void;
   /** Told the chats the list shows, in its order, whenever that changes: what a chord steps through. */
@@ -151,11 +157,16 @@ export function ChatPane({
   // not close the dialog under the user.
   const [editingId, setEditingId] = useState<string>();
   const editingTopic = topics.find((topic) => topic.id === editingId);
+  // The chat whose row asked to delete it, by id, so a re-read of the list
+  // does not close the dialog under the user.
+  const [deletingId, setDeletingId] = useState<string>();
+  const deletingChat = chats.find((chat) => chat.id === deletingId);
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       <FilterHead
         chats={chats}
+        drafts={drafts.length}
         filters={filters}
         onFiltersChange={changeFilters}
         onNewTopic={() => {
@@ -166,25 +177,8 @@ export function ChatPane({
         }}
         topics={topics}
       />
-      {/* Under the line rather than on it, the way mail puts it: the search
-        is about the rows, and it narrows whatever the line has chosen. */}
-      {/* `pb-1` on the list's own 4px: 8px down to the first row, the same
-        as the field keeps from the pane's sides. */}
-      <div className="shrink-0 px-2 pt-2 pb-1">
-        <SearchField
-          onChange={(search) => {
-            changeFilters({ ...filters, search });
-          }}
-          value={filters.search}
-        />
-      </div>
       {chosenTopic && (
         <TopicBanner
-          appsBySlug={appsBySlug}
-          chats={shown}
-          onClear={() => {
-            changeFilters({ ...filters, topics: [] });
-          }}
           onDetails={(topic) => {
             setEditingId(topic.id);
           }}
@@ -209,6 +203,10 @@ export function ChatPane({
         // The drafts are kept on this computer, so they are never on
         // their way.
         isLoading={shownDrafts === undefined && chatsQuery.data === undefined}
+        onArchiveOpen={onArchiveOpen}
+        onDelete={(chat) => {
+          setDeletingId(chat.id);
+        }}
         onDeleteDraft={onDeleteDraft}
         onNewTopic={(chat, name) => {
           setNewTopic({ forChat: chat, ...(name ? { name } : {}) });
@@ -224,8 +222,25 @@ export function ChatPane({
         openId={openChatId}
         outside={outside}
         scrollSignal={scrollSignal}
+        // The decision model's finds are not matches of the words, so
+        // nothing on them is marked.
+        search={isAISearch ? "" : filters.search}
         topics={topics}
       />
+      {deletingChat && (
+        <DeleteChatDialog
+          chat={deletingChat}
+          onDeleted={() => {
+            onDeleted(deletingChat.id);
+          }}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDeletingId(undefined);
+            }
+          }}
+          open
+        />
+      )}
       <NewTopicDialog
         candidates={backfillCandidates(
           chats.filter((chat) => chat.id !== newTopic?.forChat?.id),
@@ -297,11 +312,20 @@ export function ChatPane({
 
 /** What the list says when it has nothing to show, by where the column stands. */
 function emptyLineFor(filters: ChatFilters, total: number): string {
+  if (filters.search.trim() !== "") {
+    return "Nothing matches.";
+  }
   if (filters.place === "drafts") {
     return "No drafts yet.";
   }
-  if (filters.place === "needsYou") {
-    return "Nothing needs you.";
+  if (filters.place === "unread") {
+    return "You've read everything.";
+  }
+  if (filters.place === "starred") {
+    return "Nothing is starred.";
+  }
+  if (filters.place === "archived") {
+    return "Nothing is archived.";
   }
   return total === 0 ? "Press New to start a chat." : "Nothing matches.";
 }

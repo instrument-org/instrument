@@ -1,18 +1,12 @@
-import { glob } from "glob";
 import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { assign, parallel, sort } from "radashi";
 
-import {
-  type AbsolutePath,
-  type TaskDir,
-  TaskDirSchema,
-} from "../schemas/paths";
+import { type TaskDir } from "../schemas/paths";
 import { type Task } from "../schemas/task";
 import { type TaskId, TaskIdSchema } from "../schemas/task-id";
 import { type TaskSettings } from "../schemas/task-settings";
-import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { getTaskDirTimestamps } from "./get-task-dir-timestamps";
 import { isTaskId } from "./is-task-id";
@@ -53,14 +47,12 @@ export async function getTask(
 }
 
 export async function getTasks(
-  workspaceConfig: WorkspaceConfig,
   options: TaskListOptions = {},
 ): Promise<{ tasks: Task[]; total: number }> {
-  // Chats and the tasks inside them, then every task no chat owns.
+  // Chats and the tasks inside them.
   const taskDirs = [
     ...chatIds().map((chatId) => chatDir(chatId)),
     ...chatTaskDirs(),
-    ...(await taskDirsInRootDir(workspaceConfig.tasksDir)),
   ];
   // Read tasks concurrently; each readTask is several independent fs ops and a
   // workspace can hold many tasks, so a serial loop dominates list latency.
@@ -118,22 +110,25 @@ async function readTask({
 
   const id = taskIdResult.data;
   const ref = resolveRecord(id);
+  if (ref.isErr()) {
+    return err(ref.error);
+  }
   const settings = await getTaskSettings(dir);
   if (requireSettings && !settings) {
     return err(new TypedError.NotFound("No readable settings"));
   }
 
-  const task: Task = {
+  const fields = {
     ...(await taskTimestamps(dir, settings)),
     apps: settings?.apps,
     id,
-    ...(ref.isOk() && ref.value.kind === "task" && ref.value.chatId
-      ? { chatId: ref.value.chatId }
-      : {}),
-    isChat: ref.isOk() && ref.value.kind === "chat",
     reasoningEffort: settings?.reasoningEffort,
     title: settings?.name ?? rawFolderName,
   };
+  const task: Task =
+    ref.value.kind === "task"
+      ? { ...fields, chatId: ref.value.chatId, isChat: false }
+      : { ...fields, isChat: true };
   return ok(task);
 }
 
@@ -174,27 +169,6 @@ function sortTasks(
   return { tasks: sortedTasks, total };
 }
 
-async function taskDirsInRootDir(rootDir: AbsolutePath): Promise<TaskDir[]> {
-  // First check if the root dir exists
-  const rootDirExists = await fs
-    .stat(rootDir)
-    .then(() => true)
-    .catch(() => false);
-  if (!rootDirExists) {
-    return [];
-  }
-
-  try {
-    const entries = await glob("*/", {
-      absolute: true,
-      cwd: rootDir,
-    });
-    return entries.map((dir) => TaskDirSchema.parse(dir));
-  } catch (error) {
-    console.error("Error reading apps folder", error);
-    return [];
-  }
-}
 /**
  * When the task was made and when something last happened in it.
  *

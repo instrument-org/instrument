@@ -162,3 +162,51 @@ describe("renderChatPart reasoning", () => {
     ).not.toBeNull();
   });
 });
+
+describe("renderChatPart in the chat", () => {
+  // A command still being written: hidden in the chat for its kind, not its
+  // state, and drawn in developer mode whatever its state.
+  const bashPart: SessionMessagePart.ToolPart = {
+    ...toolPart,
+    type: "tool-bash",
+  };
+  const doneReasoningPart: SessionMessagePart.ReasoningPart = {
+    ...reasoningPart,
+    state: "done",
+  };
+
+  function chatNode(part: SessionMessagePart.Type, isDeveloperMode: boolean) {
+    const message = {
+      id: messageId,
+      metadata: { createdAt: new Date(0), sessionId },
+      parts: [part],
+      role: "assistant",
+    } as SessionMessage.WithParts;
+    return renderChatPart({
+      browserStatusContextAdded: false,
+      ctx: {
+        isAgentRunning: false,
+        isDeveloperMode,
+        isToolStreaming: () => false,
+        lastMessageId: messageId,
+        onRetry: () => {
+          // Nothing to do: these tests assert on whether the row exists.
+        },
+        presentation: "chat",
+        // Handed to the row, never read while building it.
+        task: undefined as never,
+      },
+      message,
+      part,
+      partIndex: 0,
+    });
+  }
+
+  it.each([
+    ["a command", bashPart],
+    ["reasoning", doneReasoningPart],
+  ])("hides %s, and shows it in developer mode", (_case, part) => {
+    expect(chatNode(part, false)).toBeNull();
+    expect(chatNode(part, true)).not.toBeNull();
+  });
+});

@@ -1,4 +1,6 @@
 import { openFilePreviewAtom } from "@/client/atoms/file-preview";
+import { dismissedModelOffersAtom } from "@/client/atoms/dismissed-model-offers";
+import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
 import { openLogin } from "@/client/atoms/login-modal";
 import { type ComposerApp } from "@/client/components/app-mention";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
@@ -11,6 +13,8 @@ import {
 } from "@/client/components/composer-add-menu";
 import { ComposerFrame } from "@/client/components/composer-frame";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
+import { AIProviderIcon } from "@/client/components/ai-provider-icon";
+import { ModelNoticeRow } from "@/client/components/model-notice";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
@@ -19,6 +23,11 @@ import {
   useFileDropRegion,
 } from "@/client/hooks/use-file-drop-region";
 import { appMentionToken } from "@/client/lib/app-mention";
+import {
+  type ModelAction,
+  noticeFor,
+  readModelStatus,
+} from "@/client/lib/model-status";
 import { ITEM_IN } from "@/client/lib/motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { displayPath, folderLabel } from "@/client/lib/path-utils";
@@ -27,12 +36,7 @@ import { captureException } from "@/client/lib/telemetry";
 import { splitTransferItems } from "@/client/lib/transfer-items";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  type AIGatewayModel,
-  type AIGatewayModelURI,
-  modelNameFromURI,
-} from "@instrument-org/ai-gateway/client";
-import { OUR_MODELS } from "@instrument-org/shared";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import {
   type FileUpload,
@@ -46,7 +50,6 @@ import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
-import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { AnimatePresence, motion } from "motion/react";
@@ -138,8 +141,8 @@ interface PromptInputProps {
   /** What goes with the words besides files, drawn first in the row attached files land in: places marked in a file, say. */
   attachmentsLead?: React.ReactNode;
   autoFocus?: boolean;
-  /** Where the box stops growing and the draft starts scrolling. Defaults by variant. */
-  autoResizeMaxHeight?: number;
+  /** Where the box stops growing and the draft starts scrolling. Defaults by variant; null leaves the cap to the host's layout. */
+  autoResizeMaxHeight?: null | number;
   className?: string;
   disabled?: boolean;
   draftKey: PromptDraftKey;
@@ -167,52 +170,6 @@ interface PromptInputProps {
   selectedSessionId?: StoreId.Session;
   /** A pill is one row, the height of a text field, that grows with the draft; bare is the block with no box drawn around it, for a host that draws its own. */
   variant?: "bare" | "block" | "pill";
-}
-
-/**
- * What is wrong with the model a prompt would be sent with, in the few words a
- * chip has room for, or `null` while there is nothing wrong with it.
- *
- * For a composer that keeps the model out of sight: naming a working one in a
- * menu is enough while it works, but a model missing, restricted, or one no
- * connected provider offers has to be visible. The only other sign of it is a
- * send that refuses, which turns a prompt away for a reason it never showed.
- * Nothing while the list is still arriving, since that is a wait rather than a
- * problem, and a chip that flashed on every mount would be noise.
- */
-function describeModelProblem({
-  models,
-  modelsIsError,
-  modelsIsLoading,
-  modelURI,
-  selectedModel,
-}: {
-  models?: AIGatewayModel.Type[];
-  modelsIsError: boolean;
-  modelsIsLoading: boolean;
-  modelURI?: AIGatewayModelURI.Type;
-  selectedModel?: AIGatewayModel.Type;
-}): null | string {
-  if (modelsIsLoading) {
-    return null;
-  }
-  if (selectedModel) {
-    return selectedModel.restricted
-      ? `${selectedModel.name.trim()} is unavailable`
-      : null;
-  }
-  // A list that never arrived outranks anything read off it: the selection is
-  // unresolvable either way, and blaming the model would send the user to pick
-  // another one that is equally beyond reach.
-  if (modelsIsError) {
-    return "Failed to load models";
-  }
-  // A selection the list no longer resolves is still worth naming: the user
-  // picked it, and "choose a model" would read as though they never had.
-  if (modelURI) {
-    return `${modelNameFromURI(modelURI) ?? modelURI} is unavailable`;
-  }
-  return models?.length ? "Choose a model" : "No models available";
 }
 
 export const PromptInput = ({
@@ -290,13 +247,61 @@ export const PromptInput = ({
   }));
 
   const selectedModel = models?.find((model) => model.uri === modelURI);
-  const autoModel = models?.find((m) => m.providerId === OUR_MODELS.text.id);
-
-  const isUnavailableModel = !!modelURI && !selectedModel && !!autoModel;
-  // A selection made before a policy change can turn restricted underneath the
-  // user, so the picked model is re-checked here and not only at pick time.
-  const restrictedModel = selectedModel?.restricted;
-  const isInvalidSelectedModel = isUnavailableModel || !!restrictedModel;
+  const [dismissedOffers, setDismissedOffers] = useAtom(
+    dismissedModelOffersAtom,
+  );
+  // Read on every render rather than at pick time: a selection made before a
+  // policy change, a withdrawn model or a newer release can change underneath
+  // the user without anything here being touched.
+  const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
+  const modelStatus = readModelStatus({
+    dismissedOffers: new Set(dismissedOffers),
+    errors: modelsErrors,
+    isError: modelsIsError,
+    isLoading: modelsIsLoading,
+    models,
+    modelURI,
+    providerNames: new Map(
+      [...providerMetadataMap].map(([type, metadata]) => [type, metadata.name]),
+    ),
+  });
+  const modelNotice = noticeFor(modelStatus);
+  const addProvider = () => {
+    openLogin(hasToken ? { reason: "provider-required" } : undefined);
+  };
+  const handleModelAction = (action: ModelAction) => {
+    switch (action.kind) {
+      case "add-provider": {
+        addProvider();
+        break;
+      }
+      case "choose": {
+        setPickerOpen(true);
+        break;
+      }
+      case "retry": {
+        void modelsRefetch();
+        break;
+      }
+      case "switch": {
+        onModelChange(action.model.uri);
+        break;
+      }
+    }
+  };
+  const dismissOffer =
+    modelStatus.kind === "newer"
+      ? () => {
+          setDismissedOffers((current) => [...current, modelStatus.offerKey]);
+        }
+      : undefined;
+  const noticeRow = modelNotice && (
+    <ModelNoticeRow
+      notice={modelNotice}
+      onAction={handleModelAction}
+      onDismiss={dismissOffer}
+    />
+  );
 
   useEffect(() => {
     setInputRef(promptEditorRef.current);
@@ -411,8 +416,8 @@ export const PromptInput = ({
         {
           description:
             duplicates.length === 1
-              ? "That folder has already been attached. Each folder can only be added once."
-              : `${names} have already been attached. Each folder can only be added once.`,
+              ? "That folder is already attached."
+              : `${names} are already attached.`,
         },
       );
     }
@@ -478,8 +483,7 @@ export const PromptInput = ({
       attachedItems.some((i) => i.type === "folder" && i.path === folderPath)
     ) {
       toast.info(`“${folderLabel(folderPath)}” is already added`, {
-        description:
-          "That folder has already been attached. Each folder can only be added once.",
+        description: "That folder is already attached.",
       });
       return;
     }
@@ -562,9 +566,19 @@ export const PromptInput = ({
             // from there.
             handsOff: true,
             icon: CpuIcon,
+            // Where the chosen model is billed, as the draft's model control
+            // shows it, so the entry says which model before it is read.
+            ...(selectedModel && {
+              iconElement: (
+                <AIProviderIcon
+                  className="size-4 shrink-0"
+                  type={selectedModel.params.provider}
+                />
+              ),
+            }),
             id: "model",
             label: selectedModel
-              ? `Model · ${selectedModel.name}`
+              ? `Model · ${selectedModel.name.trim()}`
               : "Choose a model",
             onSelect: () => {
               setPickerOpen(true);
@@ -625,103 +639,39 @@ export const PromptInput = ({
   // A pill stands beside the work in a column it shares with the conversation
   // it is part of, so it gives way to that conversation sooner than a block on
   // a page of its own does: a handful of lines, then the draft scrolls.
-  const maxHeight = autoResizeMaxHeight ?? (variant === "pill" ? 200 : 400);
-
-  const modelProblem =
-    variant === "pill"
-      ? describeModelProblem({
-          models,
-          modelsIsError,
-          modelsIsLoading,
-          modelURI,
-          selectedModel,
-        })
-      : null;
+  const maxHeight =
+    autoResizeMaxHeight === undefined
+      ? variant === "pill"
+        ? 200
+        : 400
+      : autoResizeMaxHeight;
 
   const validateSubmission = () => {
-    if (isUnavailableModel) {
-      toast.error("Selected model is not available", {
-        action: {
-          label: "Use Auto",
-          onClick: () => {
-            onModelChange(autoModel.uri);
-          },
-        },
-        description: "Switch to Auto to continue.",
-        duration: 7000,
+    if (modelStatus.kind === "loading") {
+      toast.info("Models are still loading", {
+        description: "Try sending again in a moment.",
       });
       return false;
     }
-
-    if (restrictedModel) {
-      toast.error(`${selectedModel.name.trim()} is unavailable`, {
-        ...(autoModel && {
+    // The same sentence and the same fix the notice row shows, so a send that
+    // refuses says nothing the composer was not already saying.
+    if (modelNotice?.tone === "problem") {
+      const { action, detail, text } = modelNotice;
+      toast.error(text, {
+        ...(action && {
           action: {
-            label: "Use Auto",
+            label: action.label,
             onClick: () => {
-              onModelChange(autoModel.uri);
+              handleModelAction(action);
             },
           },
         }),
-        description: restrictedModel.message,
+        ...(detail && { description: detail }),
         duration: 7000,
       });
       return false;
     }
-
-    if (!canSubmit) {
-      if (!modelURI || !selectedModel) {
-        // A model is unresolvable for four different reasons, and only the last
-        // is something the user can act on by picking one. The first three are
-        // what the picker is already showing beside this prompt, so they say the
-        // same thing here.
-        if (modelsIsLoading) {
-          toast.info("Loading models", {
-            description: "Send again in a moment.",
-          });
-        } else if (modelsIsError || modelsErrors?.length) {
-          // A provider that answers with an error contributes nothing to the
-          // list, so an empty one here can mean a reachable provider refusing
-          // rather than no provider at all. Outranks the no-models case below.
-          // Named after the provider that failed, since a provider that
-          // cannot be reached (a local server that is not running, say) is
-          // otherwise indistinguishable from the app failing.
-          const failed = modelsErrors?.map((error) => error.config.displayName);
-          toast.error(
-            failed?.length === 1
-              ? `Couldn't load models from ${failed[0] ?? "a provider"}`
-              : failed?.length
-                ? `Couldn't load models from ${failed.length.toString()} providers`
-                : "Failed to load models",
-            {
-              action: {
-                label: "Retry",
-                onClick: () => {
-                  void modelsRefetch();
-                },
-              },
-              description: modelsErrors?.[0]?.message,
-            },
-          );
-        } else if (models?.length) {
-          toast.error("Select a model");
-        } else {
-          toast.error("No models available", {
-            action: {
-              label: "Add a provider",
-              onClick: () => {
-                openLogin(
-                  hasToken ? { reason: "provider-required" } : undefined,
-                );
-              },
-            },
-          });
-        }
-      }
-      return false;
-    }
-
-    return true;
+    return Boolean(canSubmit);
   };
 
   const handleSubmit = () => {
@@ -861,30 +811,31 @@ export const PromptInput = ({
               )}
 
               <ModelPicker
+                align="end"
                 className="min-w-0"
                 disabled={disabled || isLoading}
                 errors={modelsErrors}
                 isError={modelsIsError}
-                isInvalidOurModel={isInvalidSelectedModel}
                 isLoading={modelsIsLoading}
                 models={models}
                 modelURI={modelURI}
-                onAddProvider={() => {
-                  openLogin(
-                    hasToken ? { reason: "provider-required" } : undefined,
-                  );
-                }}
+                notice={modelNotice}
+                onAction={handleModelAction}
+                onAddProvider={addProvider}
                 onClose={() => {
+                  setPickerOpen(false);
                   if (modelURI) {
                     promptEditorRef.current?.focus();
                   }
                 }}
                 onOpenChange={(open) => {
+                  setPickerOpen(open);
                   if (open && modelsErrors && modelsErrors.length > 0) {
                     void modelsRefetch();
                   }
                 }}
                 onValueChange={onModelChange}
+                open={pickerOpen}
                 selectedModel={selectedModel}
               />
 
@@ -961,30 +912,11 @@ export const PromptInput = ({
             </AnimatePresence>
           )
         }
-        extras={
-          pillOpen ? (
-            <>
-              {modelProblem && (
-                // Leads the row, and is the way to the picker as well as the
-                // notice: what it says is a thing to fix rather than a state to
-                // read, and the plus menu is a poor place to be sent looking.
-                <button
-                  className="flex h-7 min-w-0 items-center gap-1.5 rounded-lg bg-warning-700/10 px-2 text-xs text-warning-700 hover:bg-warning-700/15 dark:bg-warning-300/10 dark:text-warning-300 dark:hover:bg-warning-300/15"
-                  disabled={disabled || isLoading}
-                  onClick={() => {
-                    setPickerOpen(true);
-                  }}
-                  type="button"
-                >
-                  <WarningIcon className="size-3.5 shrink-0" />
-                  <span className="truncate">{modelProblem}</span>
-                </button>
-              )}
-              {lead}
-            </>
-          ) : undefined
-        }
+        extras={pillOpen ? lead : undefined}
         layout={variant}
+        // A pill shows it only while open, with the rest of its second row;
+        // a block or a draft always has room over its words.
+        notice={variant === "pill" && !pillOpen ? undefined : noticeRow}
         leading={
           variant === "pill" ? (
             // The picker has no button of its own here: it hangs off an empty
@@ -1011,19 +943,17 @@ export const PromptInput = ({
               />
               <ModelPicker
                 anchorOnly
+                bounds={composerBounds}
                 className="pointer-events-none absolute inset-0"
                 disabled={disabled || isLoading}
                 errors={modelsErrors}
                 isError={modelsIsError}
-                isInvalidOurModel={isInvalidSelectedModel}
                 isLoading={modelsIsLoading}
                 models={models}
                 modelURI={modelURI}
-                onAddProvider={() => {
-                  openLogin(
-                    hasToken ? { reason: "provider-required" } : undefined,
-                  );
-                }}
+                notice={modelNotice}
+                onAction={handleModelAction}
+                onAddProvider={addProvider}
                 onClose={() => {
                   setPickerOpen(false);
                   if (modelURI) {

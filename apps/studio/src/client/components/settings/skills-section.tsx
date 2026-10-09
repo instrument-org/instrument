@@ -1,4 +1,5 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { SkillDetail } from "@/client/components/skills/skill-detail";
 import { SkillList } from "@/client/components/skills/skill-list";
 import {
@@ -14,6 +15,7 @@ import {
 import { Button } from "@/client/components/ui/button";
 import { WindowContext } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
+import { useModalBack } from "@/client/hooks/use-modal-back";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
@@ -47,6 +49,10 @@ export function SkillsSection() {
     }
   }
   const ask = useAsk();
+  // Back from a skill returns to the list rather than closing Settings.
+  useModalBack(() => {
+    setOpenName(null);
+  }, openName !== null);
 
   if (openName !== null) {
     return (
@@ -89,7 +95,7 @@ export function SkillsSection() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-4" {...settingAnchor("new-skill")}>
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold">Skills</h3>
           <p className="mt-1 text-sm text-muted-foreground">

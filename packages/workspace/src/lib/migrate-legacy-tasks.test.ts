@@ -11,24 +11,9 @@ import { readTopicsSync, writeTopicSync } from "./chat/topics";
 
 let root: string;
 
-// A mark the window already holds for a chat made before the boot.
-const KEPT_CHAT = "2026-06-01-kept";
-
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "migrate-legacy-tasks-"));
-  writeJson(path.join(root, ".instrument", "window.json"), {
-    chatSeen: { [KEPT_CHAT]: "msg_01M3AX9RF3C2E9RTATMB602W0C" },
-  });
 });
-
-/** What the window holds of where each chat was last read. */
-function windowSeen(): Record<string, string> {
-  return (
-    readJson(".instrument", "window.json") as {
-      chatSeen: Record<string, string>;
-    }
-  ).chatSeen;
-}
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -154,26 +139,6 @@ function legacyTask(
   }
   db.close();
   return taskDir;
-}
-
-/** A chat's message ids, oldest first. */
-function messageIds(chat: string): string[] {
-  const db = new DatabaseSync(
-    path.join(root, "chats", chat, ".instrument", "task.db"),
-    {
-      readOnly: true,
-    },
-  );
-  try {
-    return db
-      .prepare(
-        "select key from sessions where key like 'messages:%' order by key",
-      )
-      .all()
-      .map((row) => String(row.key).split(":")[2] ?? "");
-  } finally {
-    db.close();
-  }
 }
 
 function readJson(...segments: string[]): Record<string, unknown> {
@@ -347,69 +312,29 @@ describe("migrateLegacyTasks", () => {
     `);
   });
 
-  it("marks each chat read, but for one reply where 1.x had marked the task unread", () => {
+  it("leaves each chat read, but for one whose task 1.x had marked unread", () => {
     legacyTask("2026-06-23-read", { sessions: ONE_ASK });
     legacyTask("2026-06-24-unread", {
       sessions: ONE_ASK,
       settings: { name: "Unread one", unreadIndicator: { kind: "completed" } },
     });
-
-    migrateLegacyTasks(root);
-
-    const seen = { chatSeen: windowSeen() };
-    const read = "2026-06-23-rotating-red-square";
-    const unread = "2026-06-23-unread-one";
-    // The chat already there keeps its mark.
-    expect(Object.keys(seen.chatSeen)).toHaveLength(3);
-    expect(seen.chatSeen[read]).toBe(
-      messageIds("2026-06-23-rotating-red-square").at(-1),
-    );
-    // One short of the newest reply, so that reply alone counts.
-    expect(seen.chatSeen[unread]).toBe(
-      messageIds("2026-06-23-unread-one").at(-2),
-    );
-  });
-
-  it("marks a chat read up to its newest reply when the task's sessions overlapped", () => {
-    const reply = {
-      metadata: { modelId: "m", providerId: "p" },
-      parts: [{ text: "done", type: "text" }],
-      role: "assistant",
-    } satisfies FixtureMessage;
-    const ask = {
-      parts: [{ text: "go", type: "text" }],
-      role: "user",
-    } satisfies FixtureMessage;
-    legacyTask("2026-06-23-overlap", {
-      sessions: [
-        { messages: [ask, reply, reply] },
-        // Started while the first was still answering, so it finished first.
-        { at: JUNE_23 + 500, messages: [ask, reply] },
-      ],
+    legacyTask("2026-06-25-by-hand", {
+      sessions: ONE_ASK,
+      settings: {
+        name: "By hand",
+        unreadIndicator: { kind: "completed", manual: true },
+      },
     });
 
     migrateLegacyTasks(root);
 
-    const chat = "2026-06-23-rotating-red-square";
-    expect(windowSeen()[chat]).toBe(
-      messageIds(chat).at(-1),
-    );
-  });
-
-  it("writes the window's state when there is none, so the marks have a home", () => {
-    fs.rmSync(path.join(root, ".instrument"), {
-      force: true,
-      recursive: true,
-    });
-    legacyTask("2026-06-23-read", { sessions: ONE_ASK });
-
-    migrateLegacyTasks(root);
-
-    expect(windowSeen()).toEqual({
-      "2026-06-23-rotating-red-square": messageIds(
-        "2026-06-23-rotating-red-square",
-      ).at(-1),
-    });
+    const read = sessionOf("2026-06-23-rotating-red-square");
+    expect(read.unreadAt).toBeUndefined();
+    const unread = sessionOf("2026-06-23-unread-one");
+    expect(unread.unreadAt).toBeInstanceOf(Date);
+    expect(unread.unreadByUser).toBeUndefined();
+    // A mark the user put on the task stays theirs.
+    expect(sessionOf("2026-06-23-by-hand").unreadByUser).toBe(true);
   });
 
   it("gives the chat the task's folders, so a reply's /mnt paths reach the same files", () => {

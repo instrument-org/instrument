@@ -15,46 +15,46 @@ const brand = (key, cls = "size-4") =>
 const letterMark = (letter, cls, size = "size-4 text-[9px]") =>
   `<span class="grid ${size} shrink-0 place-items-center rounded-[4px] font-bold text-white ${cls}">${letter}</span>`;
 
-// Sites the Lisbon thread's task opens. Invented pages, real hosts.
+// Sites the pricing thread's task opens. Invented pages and prices, real hosts.
 const SITES = {
-  tap: {
-    title: "Lisbon flights · TAP",
-    host: "flytap.com",
-    mark: (s) => letterMark("T", "bg-[#12a14b]", s),
+  zendesk: {
+    title: "Suite plans · Zendesk",
+    host: "zendesk.com",
+    mark: (s) => letterMark("Z", "bg-[#03363d]", s),
   },
-  booking: {
-    title: "Hotels in Alfama · Booking.com",
-    host: "booking.com",
-    mark: (s) => letterMark("B", "bg-[#003580]", s),
+  intercom: {
+    title: "Pricing · Intercom",
+    host: "intercom.com",
+    mark: (s) => letterMark("I", "bg-[#1f1f1f]", s),
   },
-  cp: {
-    title: "Lisboa → Sintra · CP",
-    host: "cp.pt",
-    mark: (s) => letterMark("CP", "bg-[#5a9e2f]", s),
+  freshdesk: {
+    title: "Plans · Freshdesk",
+    host: "freshworks.com",
+    mark: (s) => letterMark("F", "bg-[#25c16f]", s),
   },
-  wiki: {
-    title: "Alfama · Wikipedia",
-    host: "en.wikipedia.org",
-    mark: (s) => brand("wikipedia", s ? s.split(" ")[0] : "size-4"),
+  g2: {
+    title: "Help desk software · G2",
+    host: "g2.com",
+    mark: (s) => letterMark("G2", "bg-[#ff492c]", s),
   },
-  maps: {
-    title: "Belém to Alfama · Maps",
-    host: "maps.google.com",
-    mark: (s) => letterMark("M", "bg-[#34a853]", s),
+  wayback: {
+    title: "zendesk.com/pricing · Wayback Machine",
+    host: "web.archive.org",
+    mark: (s) => letterMark("W", "bg-[#5c5c5c]", s),
   },
   notion: {
-    title: "Trips · Notion",
+    title: "Pricing and packaging · Notion",
     host: "notion.so",
     mark: (s) => brand("notion", s ? s.split(" ")[0] : "size-4"),
   },
 };
 
-// Files the Lisbon thread's task makes, and one from the user's folder.
+// Files the pricing thread's task makes, and two from the user's folder.
 const FILES = {
-  itinerary: { title: "lisbon-itinerary.html", kind: "html" },
-  costs: { title: "lisbon-costs.csv", kind: "csv" },
-  packing: { title: "packing-list.md", kind: "md" },
-  haiku: { title: "snow-haiku.md", kind: "md" },
+  comparison: { title: "pricing-comparison.html", kind: "html" },
+  prices: { title: "competitor-prices.csv", kind: "csv" },
+  faq: { title: "pricing-page-faq.md", kind: "md" },
+  board: { title: "q3-board-update.md", kind: "md" },
 };
 
 /** The colored file-type marks the Finder draws. */
@@ -172,29 +172,29 @@ const noChatOpen = () => `
 
 const ROWS = [
   {
-    title: "Lisbon trip itinerary with ticket prices",
+    title: "Help desk pricing against competitors",
     preview:
-      "It's going well: the task is checking current ticket prices and fares for the cost table.",
+      "It's going well: the task is reading each pricing page and noting what every tier includes.",
     unread: true,
     working: true,
     time: "9:41 AM",
   },
   {
-    title: "Kitchen quotes from Alder St contractors",
+    title: "SOC 2 audit quotes from four firms",
     preview:
-      "Three of the four replied. Harbor Build is the lowest, and the only one that includes permits.",
+      "Three of the four replied. Ridgeline is the lowest, and the only one that includes a readiness review.",
     starred: true,
     time: "Yesterday",
   },
   {
-    title: "Season of the snow haiku in the Instrument",
-    preview: "That was snow-haiku.md, in your Instrument folder.",
+    title: "Q3 board update in the Instrument folder",
+    preview: "That was q3-board-update.md, in your Instrument folder.",
     time: "Mon",
   },
   {
-    title: "Weekly grocery order",
+    title: "Renewal reminders for October accounts",
     preview:
-      "The cart is ready in Instacart; nothing is ordered until you say so.",
+      "The 14 drafts are ready in Gmail; nothing is sent until you say so.",
     time: "Sep 26",
   },
   {
@@ -205,12 +205,31 @@ const ROWS = [
   },
 ];
 
-/** The view picker chip, the place marks, and search. `waiting` adds the amber needs-you dot. */
-const inboxHead = ({ waiting = false } = {}) => `
+/** The places beside the view picker, as filter-head.tsx draws them: Starred, Drafts, All. */
+const PLACES = [
+  ["starred", "Starred", "ph-star"],
+  ["drafts", "Drafts", "ph-file-dashed"],
+  ["all", "All", "ph-cards-three"],
+];
+
+/**
+ * The view picker chip, the place marks, and search. `waiting` adds the amber needs-you dot.
+ * `place` (starred | drafts | all) stands the list in that place: its mark takes the tint
+ * and its name, and the picker steps back to a plain Chats mark.
+ */
+const inboxHead = ({ waiting = false, place = "" } = {}) => `
   <div class="flex items-center gap-1 px-2 pt-2">
-    <span class="flex h-10 items-center gap-1.5 rounded-xl bg-brand-50 pr-2 pl-2.5 text-[15px] font-semibold text-brand-800"><i class="ph ph-chats-circle text-[28px]"></i>Chats<i class="ph ph-caret-down text-[14px] text-brand-800/50"></i></span>
+    ${
+      place
+        ? `<span class="grid size-10 place-items-center rounded-xl text-muted-foreground"><i class="ph ph-chats text-[28px]"></i></span>`
+        : `<span class="flex h-10 items-center gap-1.5 rounded-xl bg-brand-50 pr-2 pl-2.5 text-[15px] font-semibold text-brand-800"><i class="ph ph-chats-circle text-[28px]"></i>Chats<i class="ph ph-caret-down text-[14px] text-brand-800/50"></i></span>`
+    }
     ${waiting ? `<span class="grid size-10 place-items-center"><span class="size-2.5 rounded-full bg-warning-500"></span></span>` : ""}
-    ${["ph-star", "ph-file-dashed", "ph-cards-three"].map((i) => `<span class="grid size-10 place-items-center rounded-xl text-muted-foreground"><i class="ph ${i} text-[28px]"></i></span>`).join("")}
+    ${PLACES.map(([key, label, icon]) =>
+      key === place
+        ? `<span class="flex h-10 items-center gap-2 rounded-xl bg-brand-50 pr-3 pl-2.5 text-[15px] font-semibold text-brand-800"><i class="ph ${icon} text-[28px]"></i>${label}</span>`
+        : `<span class="grid size-10 place-items-center rounded-xl text-muted-foreground"><i class="ph ${icon} text-[28px]"></i></span>`,
+    ).join("")}
   </div>
   <div class="px-2 pt-2 pb-1"><div class="flex h-7 items-center justify-center gap-1.5 rounded-full border border-border bg-card text-xs text-muted-foreground"><i class="ph ph-magnifying-glass text-[14px]"></i>Search</div></div>`;
 
@@ -227,11 +246,39 @@ const row = (r, { on = false, first = false } = {}) => `
     </div>
   </div>`;
 
-/** The inbox column: head, search, rows. `on` is the open row's index (-1 for none). */
-const inboxCol = ({ on = 0, w = 320, rows = ROWS, waiting = false } = {}) => `
+/**
+ * A draft in the Drafts place, as draft-row.tsx lays it out: a dashed circle in the gutter
+ * where a chat wears its state, the first line of its words as the title, when it was last
+ * touched at the right, and "Draft" where a chat's latest line goes.
+ */
+const draftRow = (d, { first = false } = {}) => `
+  <div class="flex gap-2 px-3 py-2.5 ${first ? "" : "border-t border-border"}">
+    <span class="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground"><i class="ph ph-circle-dashed text-[14px]"></i></span>
+    <div class="min-w-0 flex-1">
+      <div class="flex h-5 items-center gap-1.5"><span class="min-w-0 flex-1 truncate text-[13px] text-foreground/90">${d.title}</span><span class="shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums">${d.time || ""}</span></div>
+      <div class="mt-0.5 text-[12px] leading-5 text-muted-foreground">Draft</div>
+    </div>
+  </div>`;
+
+/**
+ * The inbox column: head, search, rows. `on` is the open row's index (-1 for none).
+ * `drafts` ([{ title, time }]) stands it in the Drafts place and lists those instead.
+ */
+const inboxCol = ({
+  on = 0,
+  w = 320,
+  rows = ROWS,
+  waiting = false,
+  place = "",
+  drafts,
+} = {}) => `
   <div class="flex shrink-0 flex-col border-r border-border bg-background" style="width:${w}px">
-    ${inboxHead({ waiting })}
-    <div class="mt-1 flex flex-col">${rows.map((r, i) => row(r, { on: i === on, first: i === 0 })).join("")}</div>
+    ${inboxHead({ waiting, place: drafts ? "drafts" : place })}
+    <div class="mt-1 flex flex-col">${
+      drafts
+        ? drafts.map((d, i) => draftRow(d, { first: i === 0 })).join("")
+        : rows.map((r, i) => row(r, { on: i === on, first: i === 0 })).join("")
+    }</div>
   </div>`;
 
 // ---- a chat --------------------------------------------------------------------
@@ -261,7 +308,7 @@ const pageRow = (site) => `
 
 /** The work in flight, at a chat head's right while its tasks run: a spinner, the newest step in the shimmer's green and how many more (`more`), or with `compact` the spinner and the count. Pressed, it lists the chat's tasks. */
 const workLine = (
-  text = "Checking fares on flytap.com",
+  text = "Reading plans on zendesk.com",
   { more = 0, compact = false } = {},
 ) => `
   <span class="flex h-8 min-w-0 shrink items-center gap-1.5 rounded-md px-2 text-[12px]"><i class="ph ph-circle-notch shrink-0 animate-spin text-[13px] text-brand-600"></i>${compact ? `<span class="text-muted-foreground tabular-nums">${more + 1}</span>` : `<span class="truncate text-brand-600">${text}</span>${more ? `<span class="shrink-0 text-muted-foreground tabular-nums">+${more}</span>` : ""}`}<i class="ph ph-caret-down shrink-0 text-[11px] text-muted-foreground"></i></span>`;
@@ -273,34 +320,34 @@ const replyBox = ({ ph = "Talk to Instrument", text = "" } = {}) => `
     <span class="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600"><i class="ph ph-arrow-up text-[16px] text-white"></i></span>
   </div>`;
 
-const LISBON_TITLE = "Lisbon trip itinerary with ticket prices";
+const PRICING_TITLE = "Help desk pricing against competitors";
 
-/** The Lisbon chat's transcript. `stage` 1: running; 2: pages opened; 3: finished with files. */
-const lisbon = (stage = 1) =>
+/** The pricing chat's transcript. `stage` 1: running; 2: pages opened; 3: finished with files. */
+const pricing = (stage = 1) =>
   [
-    you("Plan a trip to Lisbon"),
+    you("How does our pricing compare with Zendesk, Intercom and Freshdesk?"),
     agent(
-      "I'll put together a Lisbon trip plan, assuming a first visit of about five days; say the word if the dates or length are different.",
+      "I'll line up each one's list prices against our plans, per agent per month and billed annually, for a 10-agent team; say the word if you'd rather compare at a different size.",
     ),
     stage >= 2
       ? agent(
-          "It's going well: the task is checking current ticket prices and fares for the cost table. I'll let you know when the itinerary page is ready.",
+          "It's going well: the task is reading each pricing page and noting what every tier includes. I'll let you know when the comparison is ready.",
         )
       : "",
     stage >= 3
       ? agent(
-          "The itinerary is ready: five days, Alfama base, Sintra on day three. Flights and the hotel come to about €1,140 for two.",
+          "The comparison is ready: at 10 agents our Team plan is 18% under Zendesk Suite Team and 8% under Freshdesk Pro. Intercom looks cheaper per seat, but its AI agent bills per resolution.",
         )
       : "",
-    stage >= 3 ? fileRow("itinerary") + fileRow("costs") : "",
+    stage >= 3 ? fileRow("comparison") + fileRow("prices") : "",
   ]
     .filter(Boolean)
     .join("");
 
 /** A chat column: header (with the work in flight while `working` names a step), the centered transcript, then its tiles (`tiles`, from chatTiles) over the reply box. */
 const thread = ({
-  title = LISBON_TITLE,
-  body = lisbon(2),
+  title = PRICING_TITLE,
+  body = pricing(2),
   working = "",
   tiles = "",
   head = "",
@@ -335,18 +382,27 @@ const locRow = (t, { close = false, expand = false } = {}) => `
     ${close ? `<i class="ph ph-x px-1 text-[15px]"></i>` : ""}
   </div>`;
 
-/** One of a chat's tiles: its picture filling a 4:3 box from the top, over its mark and name. `on` rings the one shown large; a page an agent drives has its name in the brand color (the app's shimmer). */
-const chatTile = (t, { on = false } = {}) => `
-  <div class="flex w-24 shrink-0 flex-col gap-1.5">
-    <div class="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-card shadow-xs ${on ? "ring-2 ring-foreground/70" : "ring-1 ring-border/70"}"><div class="absolute top-0 left-0 origin-top-left scale-[0.25]" style="width:400%;height:400%">${page(t)}</div></div>
-    <span class="flex min-w-0 items-center gap-1 px-0.5 text-[11px] leading-4 text-muted-foreground"><span class="grid size-3 shrink-0 place-items-center overflow-hidden text-[9px]">${tabMark(t, "size-3 text-[6px]")}</span><span class="truncate ${t.agent ? "text-brand-600" : ""}">${tabTitle(t)}</span></span>
+/** One of a chat's tiles: its picture at the tile's width, hung from the top, its mark on a badge at the picture's lower left, and its name under it at the tile's whole width. `on` rings the one shown large and sets it, name in the foreground ink, on the rail's lit-place plate; a page an agent drives has its name in the brand color (the app's shimmer). `icon` draws a tile with no picture: that icon large in the box, and no badge. */
+const chatTile = (t, { on = false, icon = "" } = {}) => `
+  <div class="flex w-24 shrink-0 flex-col gap-1.5 ${on ? "-m-1.5 box-content rounded-xl bg-foreground/[0.08] p-1.5" : ""}">
+    <div class="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-card shadow-xs ${on ? "ring-2 ring-foreground/70" : "ring-1 ring-border/70"}">${
+      icon
+        ? `<div class="grid h-full place-items-center">${icon}</div>`
+        : `<div class="absolute top-0 left-0 origin-top-left scale-[0.25]" style="width:400%;height:400%">${page(t)}</div><span class="absolute bottom-1 left-1 grid size-4 place-items-center rounded-sm bg-white/85">${tabMark(t, "size-3 text-[6px]")}</span>`
+    }</div>
+    <span class="truncate px-0.5 text-[11px] leading-4 ${on ? "font-medium text-foreground" : t.agent ? "text-brand-600" : "text-muted-foreground"}">${tabTitle(t)}</span>
   </div>`;
 
-/** A chat's tiles in a row over its reply box (thread's `tiles`): one per thing it holds, oldest first, then New. `active` is the one shown large, -1 for none; past the column's width the row scrolls sideways. */
-const chatTiles = (tabs, active = -1) => `
-  <div class="mb-2 flex items-start gap-2 overflow-hidden p-0.5">
-    ${tabs.map((t, i) => chatTile(t, { on: i === active })).join("")}
-    <div class="flex h-18 w-12 shrink-0 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-medium text-muted-foreground"><i class="ph ph-plus text-[16px]"></i>New</div>
+/** A chat's tiles in a row over its reply box (thread's `tiles`): one per thing it holds, oldest first, then New. `active` is the one shown large, -1 for none. Past the column's width the row pages with a round arrow over a fade at each end it runs past (`more`: \"right\", \"left\" or \"both\"). */
+const rowEnd = (side) =>
+  `<div class="pointer-events-none absolute inset-y-0 ${side === "left" ? "left-0 justify-start bg-gradient-to-r pl-1" : "right-0 justify-end bg-gradient-to-l pr-1"} flex w-16 items-start from-background via-background/80 to-transparent pt-6"><span class="grid size-7 place-items-center rounded-full bg-background text-foreground shadow-md ring-1 ring-border"><i class="ph ph-caret-${side} text-[13px]"></i></span></div>`;
+const chatTiles = (tabs, active = -1, { more = "" } = {}) => `
+  <div class="relative mb-2">
+    <div class="flex items-start gap-2 overflow-hidden p-0.5">
+      ${tabs.map((t, i) => chatTile(t, { on: i === active })).join("")}
+      <div class="flex h-18 w-12 shrink-0 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-medium text-muted-foreground"><i class="ph ph-plus text-[16px]"></i>New</div>
+    </div>
+    ${more === "left" || more === "both" ? rowEnd("left") : ""}${more === "right" || more === "both" ? rowEnd("right") : ""}
   </div>`;
 
 /** The pane beside a chat, flush with a border: its location row, ending in the × that puts it away, and the page. The chat's tiles are over its reply box, not here. */
@@ -366,88 +422,111 @@ const bars2 = (...ws) =>
 
 /** Plausible page bodies, drawn small so they survive any width. */
 const PAGES = {
-  tap: () => `
+  zendesk: () => `
     <div class="h-full bg-white">
-      <div class="flex h-10 items-center gap-2 bg-[#12a14b] px-4 text-[12px] font-bold text-white">TAP AIR PORTUGAL<span class="flex-1"></span><span class="font-normal">EN · €</span></div>
+      <div class="flex h-10 items-center gap-2 bg-[#03363d] px-4 text-[13px] font-bold text-white">zendesk<span class="flex-1"></span><span class="font-normal">USD · Billed annually</span></div>
       <div class="p-4">
-        <div class="text-[15px] font-semibold">New York (JFK) → Lisbon (LIS)</div>
-        <div class="mt-1 text-[11px] text-muted-foreground">Thu 15 Oct → Tue 20 Oct · 2 adults · Economy</div>
+        <div class="text-[15px] font-semibold">Zendesk Suite</div>
+        <div class="mt-1 text-[11px] text-muted-foreground">Per agent per month</div>
         ${[
-          ["TP 210", "7:40 PM → 7:25 AM", "€412"],
-          ["TP 202", "10:10 PM → 9:55 AM", "€389"],
-          ["TP 208", "5:55 PM → 5:45 AM", "€455"],
+          ["Suite Team", "Ticketing, messaging, help center", "$55"],
+          ["Suite Growth", "Adds SLAs and multiple brands", "$89"],
+          ["Suite Professional", "Adds skills routing and HIPAA", "$115"],
         ]
           .map(
-            ([n, t, p], i) =>
-              `<div class="mt-2.5 flex items-center gap-3 rounded-lg border ${i === 1 ? "border-[#12a14b]" : "border-border"} p-2.5 text-[12px]"><span class="w-12 font-medium">${n}</span><span class="flex-1">${t}</span><span class="font-semibold">${p}</span></div>`,
+            ([n, d, p], i) =>
+              `<div class="mt-2.5 flex items-center gap-3 rounded-lg border ${i === 0 ? "border-[#03363d]" : "border-border"} p-2.5 text-[12px]"><div class="min-w-0 flex-1"><div class="font-medium">${n}</div><div class="mt-0.5 truncate text-[11px] text-muted-foreground">${d}</div></div><span class="font-semibold">${p}</span></div>`,
           )
           .join("")}
       </div>
     </div>`,
-  booking: () => `
+  intercom: () => `
     <div class="h-full bg-white">
-      <div class="flex h-10 items-center bg-[#003580] px-4 text-[13px] font-bold text-white">Booking.com</div>
+      <div class="flex h-10 items-center border-b border-border px-4 text-[13px] font-bold">intercom</div>
       <div class="p-4">
-        <div class="text-[14px] font-semibold">Alfama, Lisbon: 38 properties</div>
-        ${[
-          ["Memmo Alfama", "9.1", "€212"],
-          ["Palácio Belmonte", "9.4", "€340"],
-          ["Solar do Castelo", "8.9", "€188"],
-        ]
-          .map(
-            ([n, s, p]) =>
-              `<div class="mt-2.5 flex gap-3 rounded-lg border border-border p-2"><div class="size-12 shrink-0 rounded bg-[#d9e4f2]"></div><div class="min-w-0 flex-1 text-[12px]"><div class="font-semibold text-[#006ce4]">${n}</div><div class="mt-1 text-[11px] text-muted-foreground">${s} · per night</div></div><span class="text-[12px] font-semibold">${p}</span></div>`,
-          )
-          .join("")}
+        <div class="text-[15px] font-semibold">Plans for every team</div>
+        <div class="mt-3 grid grid-cols-3 gap-2">
+          ${[
+            ["Essential", "$29"],
+            ["Advanced", "$85"],
+            ["Expert", "$132"],
+          ]
+            .map(
+              ([n, p]) =>
+                `<div class="rounded-lg border border-border p-2.5 text-[12px]"><div class="font-medium">${n}</div><div class="mt-1.5 text-[16px] font-semibold">${p}</div><div class="text-[10px] text-muted-foreground">per seat / mo</div></div>`,
+            )
+            .join("")}
+        </div>
+        <div class="mt-3 rounded-lg bg-[#f4f4f1] px-3 py-2 text-[11px]">Fin AI Agent: $0.99 per resolution, on every plan</div>
       </div>
     </div>`,
-  cp: () => `
+  freshdesk: () => `
     <div class="h-full bg-white">
-      <div class="flex h-10 items-center gap-2 border-b border-border px-4 text-[13px] font-bold text-[#5a9e2f]">CP · Comboios de Portugal</div>
-      <div class="p-4 text-[12px]"><div class="text-[14px] font-semibold">Lisboa Rossio → Sintra</div><div class="mt-3 space-y-2">${["09:11", "09:41", "10:11", "10:41"].map((t) => `<div class="flex justify-between border-b border-border pb-1.5"><span>${t}</span><span class="text-muted-foreground">40 min</span><span>€2.40</span></div>`).join("")}</div></div>
-    </div>`,
-  wiki: () =>
-    `<div class="h-full bg-white p-5"><div class="font-serif text-[20px]">Alfama</div><div class="mt-1 border-b border-border pb-1 text-[10px] text-muted-foreground">From Wikipedia, the free encyclopedia</div><div class="mt-3 space-y-2">${bars2("100%", "96%", "88%", "100%", "62%")}</div><div class="mt-4 space-y-2">${bars2("100%", "91%", "70%")}</div></div>`,
-  maps: () =>
-    `<div class="relative h-full bg-[#e8eef0]"><div class="absolute inset-0 bg-[repeating-linear-gradient(35deg,transparent_0_38px,#fff_38px_42px)]"></div><div class="absolute top-4 left-4 rounded-lg bg-white px-3 py-2 text-[12px] shadow">Belém → Alfama · 28 min by tram</div></div>`,
-  notion: () =>
-    `<div class="h-full bg-white p-6"><div class="text-[22px] font-bold">Trips</div><div class="mt-4 space-y-2">${bars2("60%", "44%", "52%")}</div></div>`,
-  itinerary: () => `
-    <div class="h-full bg-white p-5">
-      <div class="text-[11px] font-medium tracking-wide text-[#e8793a] uppercase">Lisbon · 15–20 Oct</div>
-      <div class="mt-1 text-[18px] font-semibold">Five days in Lisbon</div>
-      ${[
-        "Day 1 · Alfama and the castle",
-        "Day 2 · Belém",
-        "Day 3 · Sintra by train",
-        "Day 4 · LX Factory",
-        "Day 5 · Chiado",
+      <div class="flex h-10 items-center bg-[#25c16f] px-4 text-[13px] font-bold text-white">freshdesk</div>
+      <div class="p-4 text-[12px]"><div class="text-[14px] font-semibold">Support desk plans</div><div class="mt-3 space-y-2">${[
+        ["Growth", "$15"],
+        ["Pro", "$49"],
+        ["Enterprise", "$79"],
       ]
         .map(
-          (d) =>
-            `<div class="mt-3 text-[12px] font-medium">${d}</div><div class="mt-1.5 space-y-1.5">${bars2("92%", "64%")}</div>`,
+          ([n, p]) =>
+            `<div class="flex justify-between border-b border-border pb-1.5"><span>${n}</span><span class="text-muted-foreground">agent / mo, billed annually</span><span class="font-semibold">${p}</span></div>`,
+        )
+        .join("")}</div></div>
+    </div>`,
+  g2: () =>
+    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Best Help Desk Software</div><div class="mt-1 border-b border-border pb-2 text-[10px] text-muted-foreground">Ranked by user reviews</div>${["Zendesk", "Freshdesk", "Intercom", "Help Scout"].map((n) => `<div class="mt-3 flex items-center gap-3"><div class="size-8 shrink-0 rounded bg-[#f3e8e6]"></div><div class="min-w-0 flex-1"><div class="text-[12px] font-medium">${n}</div><div class="mt-1.5 space-y-1.5">${bars2("80%")}</div></div></div>`).join("")}</div>`,
+  wayback: () =>
+    `<div class="h-full bg-white"><div class="flex h-9 items-center gap-2 border-b border-border bg-[#f4f4f4] px-4 text-[11px] text-muted-foreground"><span class="font-semibold text-foreground">INTERNET ARCHIVE</span>zendesk.com/pricing · captured 12 Oct 2025</div><div class="p-4"><div class="text-[14px] font-semibold">Zendesk Suite</div><div class="mt-3 space-y-2 text-[12px]">${[
+      ["Suite Team", "$55"],
+      ["Suite Growth", "$89"],
+      ["Suite Professional", "$115"],
+    ]
+      .map(
+        ([n, p]) =>
+          `<div class="flex justify-between border-b border-border pb-1.5"><span>${n}</span><span>${p}</span></div>`,
+      )
+      .join("")}</div></div></div>`,
+  notion: () =>
+    `<div class="h-full bg-white p-6"><div class="text-[22px] font-bold">Pricing and packaging</div><div class="mt-4 space-y-2">${bars2("60%", "44%", "52%")}</div></div>`,
+  comparison: () => `
+    <div class="h-full bg-white p-5">
+      <div class="text-[11px] font-medium tracking-wide text-[#e8793a] uppercase">Help desk pricing · Oct 2026</div>
+      <div class="mt-1 text-[18px] font-semibold">Our plans against three competitors</div>
+      <div class="mt-1 text-[11px] text-muted-foreground">10 agents, per agent per month, billed annually</div>
+      ${[
+        ["Zendesk Suite Team", "$55", 100],
+        ["Freshdesk Pro", "$49", 89],
+        ["Our Team plan", "$45", 82],
+        ["Intercom Essential", "$29 + AI usage", 53],
+      ]
+        .map(
+          ([n, p, w]) =>
+            `<div class="mt-3 flex items-center justify-between text-[12px] font-medium"><span>${n}</span><span>${p}</span></div><div class="mt-1.5 h-[7px] rounded-full ${n.startsWith("Our") ? "bg-[#e8793a]" : "bg-gray-300"}" style="width:${w}%"></div>`,
         )
         .join("")}
+      <div class="mt-5 text-[12px] font-medium">What each tier includes</div>
+      <div class="mt-1.5 space-y-1.5">${bars2("92%", "64%", "78%")}</div>
     </div>`,
-  costs: () => `
+  prices: () => `
     <div class="h-full bg-white p-3 font-mono text-[11px]">
       ${[
-        ["item", "each", "total"],
-        ["Flights TP 202 ×2", "€389", "€778"],
-        ["Memmo Alfama ×5", "€212", "€1,060"],
-        ["Sintra train ×4", "€2.40", "€9.60"],
-        ["Tram 28 day pass ×2", "€6.80", "€13.60"],
+        ["vendor", "plan", "agent/mo", "10 agents/yr"],
+        ["Zendesk", "Suite Team", "$55", "$6,600"],
+        ["Freshdesk", "Pro", "$49", "$5,880"],
+        ["Intercom", "Essential", "$29", "$3,480+"],
+        ["Ours", "Team", "$45", "$5,400"],
       ]
         .map(
           (r, i) =>
-            `<div class="grid grid-cols-[1fr_60px_70px] border-b border-border py-1.5 ${i ? "" : "font-semibold"}">${r.map((c) => `<span>${c}</span>`).join("")}</div>`,
+            `<div class="grid grid-cols-[1fr_1fr_60px_84px] border-b border-border py-1.5 ${i ? "" : "font-semibold"}">${r.map((c) => `<span>${c}</span>`).join("")}</div>`,
         )
         .join("")}
     </div>`,
-  packing: () =>
-    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Packing list</div><div class="mt-3 space-y-2">${bars2("40%", "52%", "36%", "48%")}</div></div>`,
-  haiku: () =>
-    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Snow haiku</div><div class="mt-3 space-y-2">${bars2("50%", "62%", "44%")}</div></div>`,
+  faq: () =>
+    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Pricing page FAQ</div><div class="mt-3 space-y-2">${bars2("40%", "52%", "36%", "48%")}</div></div>`,
+  board: () =>
+    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Q3 board update</div><div class="mt-3 space-y-2">${bars2("50%", "62%", "44%")}</div></div>`,
   newtab: () => `
     <div class="h-full bg-card p-6">
       <div class="text-[13px] font-medium text-muted-foreground">This Mac</div>
@@ -474,10 +553,10 @@ const FINDER_FILES = [
   ["html", "comparison-index.html"],
   ["md", "claude-usage-report.md"],
   ["folder", "cat-word-doc"],
-  ["html", "lisbon-itinerary.html"],
-  ["csv", "lisbon-costs.csv"],
-  ["md", "packing-list.md"],
-  ["md", "snow-haiku.md"],
+  ["html", "pricing-comparison.html"],
+  ["csv", "competitor-prices.csv"],
+  ["md", "pricing-page-faq.md"],
+  ["md", "q3-board-update.md"],
   ["html", "demo-page.html"],
 ];
 
@@ -501,10 +580,10 @@ const finder = ({ pick = -1 } = {}) => `
 
 /** The small view: a thread floating over whatever place is up (420x560, bottom right), its tiles over its reply box. `peek` is the index of the tile peeked at, drawn in a card over the conversation. */
 const smallChat = ({
-  title = LISBON_TITLE,
+  title = PRICING_TITLE,
   tabs = [],
   peek = -1,
-  body = lisbon(2),
+  body = pricing(2),
   working = "",
   right = 12,
   bottom = 12,
@@ -535,7 +614,7 @@ const chatPeek = (t, { bottom = 180 } = {}) => `
 
 /** A minimized chat: a 300px dark bar on the bottom edge. */
 const miniBar = ({
-  title = LISBON_TITLE,
+  title = PRICING_TITLE,
   working = false,
   right = 12,
 } = {}) => `
@@ -640,6 +719,93 @@ const plusMenu = ({ left, top, model = "Choose a model" } = {}) =>
     { left, top, w: 256 },
   );
 
+// ---- model picker ----------------------------------------------------------------
+
+/** The picker's size as built: PANEL_WIDTH and PANEL_HEIGHT in model-picker.tsx. */
+const PICKER_W = 680;
+const PICKER_H = 520;
+
+/** The connections in the picker's rail, in the order Settings lists them. */
+const PICKER_CONNS = [
+  { k: "instrument", name: "Instrument", mark: "instrumentglyph" },
+  { k: "chatgpt", name: "ChatGPT plan", mark: "openai" },
+  { k: "anthropic", name: "Anthropic", mark: "anthropic" },
+  { k: "openrouter", name: "OpenRouter", mark: "openrouter" },
+];
+
+/** The chosen row: the pressed tint and a check at its end. */
+const PICKED = "bg-accent text-accent-foreground";
+const pickedCheck = `<i class="ph ph-check text-[16px]"></i>`;
+
+/** The picker's popover placed in a window frame, `left`/`top` in the window's pixels. */
+const pickerPop = (inner, { left = 0, top = 0 } = {}) => `
+  <div class="absolute z-50 flex flex-col overflow-hidden rounded-xl border border-border bg-popover text-foreground shadow-xl" style="left:${left}px;top:${top}px;width:${PICKER_W}px;height:${PICKER_H}px">${inner}</div>`;
+
+/** The picker alone, filling a PICKER_W x PICKER_H frame, for a frame about what is inside it. */
+const pickerCrop = (inner) =>
+  `<div class="flex h-full flex-col bg-popover text-foreground [color-scheme:light]">${inner}</div>`;
+
+const pickerSearch = (q = "") => `
+  <div class="shrink-0 border-b border-border p-2">
+    <div class="flex h-8 items-center gap-2 rounded-lg bg-black/[0.04] px-2.5 text-[14px]">
+      <i class="ph ph-magnifying-glass text-[15px] text-muted-foreground"></i>
+      <span class="${q ? "" : "text-muted-foreground"}">${q || "Search models"}</span>${q ? `<span class="-ml-1.5 h-4 w-px bg-foreground"></span>` : ""}
+    </div>
+  </div>`;
+
+/** The rail: `open` is lit, `held` (the connection with the chosen model) carries a small check, `mark` gets the click. */
+const pickerRail = (open, { held = "", mark = "" } = {}) => `
+  <div class="flex w-50 shrink-0 flex-col gap-0.5 border-r border-border bg-muted/40 p-2">
+    ${PICKER_CONNS.map((c) => {
+      const it = `<div class="flex min-h-8 items-center gap-2.5 rounded-md px-2 text-[14px] ${open === c.k ? "bg-black/[0.06] font-medium" : ""}">${brand(c.mark)}<span class="min-w-0 flex-1 truncate">${c.name}</span>${held === c.k ? `<i class="ph ph-check text-[14px] text-muted-foreground"></i>` : ""}</div>`;
+      return mark === c.k ? clickable(it) : it;
+    }).join("")}
+    <div class="flex-1"></div>
+    <div class="flex min-h-8 items-center gap-2.5 rounded-md px-2 text-[14px] text-muted-foreground"><i class="ph ph-plus text-[16px]"></i>Add a provider</div>
+  </div>`;
+
+/** A group label in the list (a maker under OpenRouter, Older versions). */
+const pickerHead = (t, mark = "") =>
+  `<div class="flex items-center gap-2 px-2.5 pt-2.5 pb-1 text-[12px] font-medium text-muted-foreground">${mark ? brand(mark, "size-3.5") : ""}${t}</div>`;
+
+/** A model row as ModelRow draws it: the maker's mark, the name, an optional line under it, the check when chosen. */
+const pickerRow = (name, { mark = "", sub = "", on = false } = {}) => `
+  <div class="flex items-center gap-2.5 rounded-md px-2.5 ${sub ? "py-1.5" : "min-h-9"} ${on ? PICKED : ""}">
+    ${mark ? brand(mark) : ""}
+    <span class="flex min-w-0 flex-1 flex-col"><span class="truncate text-[14px] ${on ? "font-medium" : ""}">${name}</span>${sub ? `<span class="truncate text-[12px] ${on ? "opacity-80" : "text-muted-foreground"}">${sub}</span>` : ""}</span>
+    ${on ? pickedCheck : ""}
+  </div>`;
+
+/** Auto as AutoRow draws it at the head of a longer Instrument list, with the rule under it. */
+const pickerAutoRow = ({ on = false } = {}) => `
+  <div class="flex min-h-9 items-center gap-2.5 rounded-md px-2.5 ${on ? PICKED : ""}">
+    ${brand("instrumentglyph")}
+    <span class="flex min-w-0 flex-1 items-baseline gap-2"><span class="text-[14px] ${on ? "font-medium" : ""}">Auto</span><span class="text-[12px] font-medium text-brand-700">Recommended</span><span class="truncate text-[12px] ${on ? "opacity-80" : "text-muted-foreground"}">Included with your subscription</span></span>
+    ${on ? pickedCheck : ""}
+  </div>
+  <div class="mx-2.5 my-2 h-px bg-border"></div>`;
+
+/** Auto as AutoOnly draws it when it is all Instrument offers: centered, with its one button. */
+const pickerAutoOnly = ({ on = false } = {}) => `
+  <div class="flex flex-col items-center gap-3 px-6 pt-16 pb-10 text-center">
+    ${brand("instrumentglyph", "size-9")}
+    <div class="flex flex-col items-center gap-1">
+      <span class="flex items-center gap-2 text-[16px] font-medium">Auto<span class="text-[12px] font-medium text-brand-700">Recommended</span></span>
+      <span class="text-[14px] text-muted-foreground">Included with your subscription</span>
+    </div>
+    ${on ? `<span class="mt-1 flex h-8 items-center gap-1.5 px-3 text-[14px] font-medium"><i class="ph ph-check text-[16px]"></i>In use</span>` : `<span class="mt-1 flex h-8 items-center rounded-lg bg-brand-600 px-3 text-[14px] font-medium text-white">Use Auto</span>`}
+  </div>`;
+
+/** The whole panel: search over the rail and the open connection's list. */
+const modelPicker = ({
+  open = "instrument",
+  held = "",
+  list = "",
+  q = "",
+  mark = "",
+} = {}) =>
+  `${pickerSearch(q)}<div class="flex min-h-0 flex-1">${pickerRail(q ? "" : open, { held, mark })}<div class="min-w-0 flex-1 overflow-hidden p-2">${list}</div></div>`;
+
 // ---- onboarding ------------------------------------------------------------------
 
 /** The app mark: the app icon from BRAND_URI, clipped to the macOS rounded square. */
@@ -670,7 +836,7 @@ const onboardLogin = () => `
     </div>
     <div class="flex w-full max-w-xs flex-col items-center gap-4">
       <p class="text-xs font-medium text-brand-600">Create an account to enjoy free AI usage</p>
-      <div class="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium shadow-sm"><span class="text-[15px] font-bold text-[#4285f4]">G</span>Continue with Google</div>
+      <div class="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium shadow-sm">${brand("google")}Continue with Google</div>
       <div class="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border text-sm font-medium"><i class="ph ph-open-ai-logo text-[16px]"></i>Continue with ChatGPT</div>
       <p class="text-center text-xs text-foreground/60">Instrument can run on the ChatGPT Plus or Pro plan you already pay for.</p>
     </div>

@@ -87,7 +87,7 @@ On a free Cloudflare model (GLM 5.3 Flash) with the Instrument folder open on Th
 - The middle cannot be split into columns, and nothing can be dragged out of the sidebar into one; pins are fixtures; Home, Discover and Apps are lines of text.
 - The conversation's width is dragged; the sidebar's is Studio's.
 - The workspace folder is fixed at `~/Documents/Instrument`; the user cannot yet move it.
-- The platform search meters the signed-in user's credits, so a task on a provider without search (the Cloudflare models) has no search until the app is signed in; a research task then crawls pages by hand, or finds its way to a news site in its browser.
+- Platform search needs a signed-in account, so a task on a provider without search (the Cloudflare models) has no search until the app is signed in; a research task then crawls pages by hand, or finds its way to a news site in its browser.
 - The orchestrator drives the tab the user has open for its own lookups as well as for work about that page; it cannot open a tab of its own.
 - The turn rule after `task send` is the same code as after `task new`, and has not yet been seen in a run: the one steer that reached a running task arrived while the orchestrator was still composing.
 - The model list is what the providers publish: a release date but no benchmark, and a price only from OpenRouter-shaped lists, so "the best model for this" is still the orchestrator's guess.

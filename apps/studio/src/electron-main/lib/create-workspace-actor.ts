@@ -1,3 +1,4 @@
+import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
 import {
   connectComputerDriver,
   isComputerUseReady,
@@ -157,6 +158,14 @@ export function createWorkspaceActor() {
       // index is derived, and a workspace may sit in a synced folder.
       indexesDir: path.join(app.getPath("userData"), "indexes"),
       isExternalBrowserEnabled: () => isFeatureEnabled("external_browser"),
+      knownFolders: {
+        desktop: app.getPath("desktop"),
+        documents: app.getPath("documents"),
+        downloads: app.getPath("downloads"),
+        music: app.getPath("music"),
+        pictures: app.getPath("pictures"),
+        videos: app.getPath("videos"),
+      },
       modelCache: diskModelCache,
       nodeExecEnv: {
         // Required to allow Electron to operate as a node process
@@ -168,6 +177,7 @@ export function createWorkspaceActor() {
       // set is prepared per machine, so several workspaces or a workspace the
       // user moves all source from one copy of it.
       preparedSkillsDir: path.join(app.getPath("userData"), "skills"),
+      refreshExpiredCredentials: refreshExpiredTokens,
       registryDir: getRegistryDir(),
       rootDir,
       systemSkillsDir: app.isPackaged

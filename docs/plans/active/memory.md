@@ -50,7 +50,7 @@ Two groups, because the difference decides what happens next. **On this computer
 
 **On the web** is the chat tools, whose memory is on their own servers. The only road that works across all of them is the one they all answer: ask in a chat.
 
-The folder is only ever read. The home folder is attached whole, and a folder holding the workspace is read-only by rule (`effectiveFolderAccess`), so a write into `~/.claude` fails with EROFS: verified in the running app, where `mkdir` there was refused and nothing was created. The prompt says the same thing in words, and says to read it in the conversation rather than hand it to a task, since a task can be granted write access to a folder inside home and this one is another tool's memory.
+The folder is only ever read. The home folder is attached whole, and a folder holding the workspace is read-only by rule (`effectiveFolderAccess`), so a write into `~/.claude` fails with EROFS: verified in the running app, where `mkdir` there was refused and nothing was created. The prompt says the same thing in words: the folder goes to a task handed it read-only and never writable, since a task can be granted write access to a folder inside home and this one is another tool's memory.
 
 Either way the app parses nothing. Pressing a row opens a chat whose first message asks Instrument to do it, and the conversation reads, judges, and saves. A tool that redesigns its screens or moves its file next month costs a sentence rather than a parser. The prompts say plainly that the saving happens back in the chat, because a task has no memory command and a brief that told one to save would end in a task reporting a thing it could not do; and the local one names the folder rather than `~`, which is not a path the agent can open.
 

@@ -17,7 +17,7 @@ import {
 } from "./paths";
 import { pruneForeignBinaries } from "./prune-foreign-binaries";
 import { pruneGitTooling, verifyGitSurvived } from "./prune-git-tooling";
-import { verifyFfmpegBinary } from "./verify-ffmpeg";
+import { verifyFfmpegBinary, verifyFfmpegChecksum } from "./verify-ffmpeg";
 import { verifyRipgrepBinary } from "./verify-ripgrep";
 import { verifyUvBinary } from "./verify-uv";
 
@@ -122,7 +122,12 @@ function verifyPackagedFfmpeg(context: AfterPackContext) {
       execute: canExecuteForTarget({ arch: context.arch, platformName }),
       name,
     });
-    const detail = version ?? "size-only";
+    verifyFfmpegChecksum(binaryPath, {
+      arch: Arch[context.arch],
+      name,
+      platform: platformName,
+    });
+    const detail = `${version ?? "size-only"}, sha256 pinned`;
     console.log(
       `afterPack: verified ${name} at ${binaryPath} (${size} bytes, ${detail})`,
     );

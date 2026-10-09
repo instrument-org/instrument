@@ -374,7 +374,7 @@ export const GenerateImage = setupTool({
     }
   },
   readOnly: false,
-  // Image generation (esp. high-quality gpt-image-2) can run for several
+  // Image generation (esp. high-quality gpt-image-2.5) can run for several
   // minutes; streaming previews keep the user informed while it works.
   timeoutMs: ms("5 minutes"),
   toModelOutput: ({ input, output }) => {

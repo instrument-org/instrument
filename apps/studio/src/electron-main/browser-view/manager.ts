@@ -334,9 +334,14 @@ export function createBrowserViewManager(): BrowserViewManager {
     guest.on(
       "did-fail-load",
       (_event, errorCode, errorDescription, validatedURL) => {
-        log.error(
-          `did-fail-load targetId=${entry.targetId} url=${validatedURL} errorCode=${errorCode} errorDescription=${errorDescription}`,
-        );
+        // Only the host goes in the log: a page's full address can carry
+        // tokens and says what the user was looking at.
+        if (errorCode !== -3) {
+          const url = URL.parse(validatedURL);
+          log.error(
+            `did-fail-load targetId=${entry.targetId} host=${url?.host || url?.protocol || "unknown"} errorCode=${errorCode} errorDescription=${errorDescription}`,
+          );
+        }
         // ERR_ABORTED (-3) is a normal interrupted navigation. Any other failure
         // of the initial load would leave `attach` pending until the 15s timeout;
         // settle it so createTarget resolves against the bound guest (CDP still
@@ -403,7 +408,13 @@ export function createBrowserViewManager(): BrowserViewManager {
     host.on("will-attach-webview", (event, webPreferences, params) => {
       const targetId = targetIdFromPartition(params.partition);
       if (!targetId) {
-        // Not one of ours; leave other webviews alone.
+        // Every `<webview>` the app mounts carries a target partition, so one
+        // without it came from elsewhere and would attach with whatever
+        // webPreferences its attributes asked for. Reject it.
+        log.warn(
+          `rejected webview attach (foreign partition) partition=${params.partition ?? "none"}`,
+        );
+        event.preventDefault();
         return;
       }
       const entry = entries.get(targetId);
@@ -568,6 +579,7 @@ export function createBrowserViewManager(): BrowserViewManager {
   }
 
   const browser: BrowserConfig = {
+    hasNoWindow: false,
     closeTarget: (targetId) =>
       new Promise<void>((resolve) => {
         // Resolve only after the destruction listener fires (which happens as

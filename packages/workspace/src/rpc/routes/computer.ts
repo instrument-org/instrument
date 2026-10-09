@@ -1,9 +1,11 @@
 import { z } from "zod";
 
 import {
-  ComputerFolderSchema,
   computerPlaces,
   ComputerPlacesSchema,
+} from "../../lib/chat/computer-places";
+import {
+  ComputerFolderSchema,
   ComputerRecentSchema,
   listComputerFolder,
   recentComputerFiles,

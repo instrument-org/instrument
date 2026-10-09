@@ -3,13 +3,19 @@
 import "@/electron-main/setup-environment"; // This must be imported first
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
 import {
-  refreshAfterWake as refreshChatGPTPlanAfterWake,
-  scheduleRefresh as scheduleChatGPTPlanRefresh,
-} from "@/electron-main/lib/chatgpt-plan";
+  refreshAfterWake as refreshChatGPTAccountAfterWake,
+  scheduleRefresh as scheduleChatGPTAccountRefresh,
+} from "@/electron-main/lib/chatgpt-account";
+import {
+  keepClaudeCodeCurrent,
+  refreshClaudeAccountStatus,
+} from "@/electron-main/lib/claude-account";
 import { takeComputerUseSetupResume } from "@/electron-main/lib/computer-driver";
+import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
 import { checkRecentVersionBump } from "@/electron-main/stores/machine/state";
+import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import {
   getAppWindow,
@@ -66,8 +72,9 @@ import {
   serveResolvedTheme,
   watchThemePreferenceAndApply,
 } from "./lib/theme-utils";
-import { configurePlatformAuthenticator } from "./lib/web-authn";
 import { servePageEditorBoot } from "./page-editor/sessions";
+import { platformApiQueryClient } from "./platform-api/client";
+import { startPlatformApiReachability } from "./platform-api/reachability";
 import { initializeRPC } from "./rpc/initialize";
 
 // Dev skips the single-instance lock so multiple worktrees can boot side by
@@ -187,10 +194,6 @@ async function bootstrapPrimaryInstance() {
   // default one still makes the main process's own requests.
   configureAppSession(session.defaultSession);
 
-  // Let a site's passkey prompt reach an authenticator, in the task browser and
-  // here. Nothing services one until this runs.
-  configurePlatformAuthenticator();
-
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
   // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
@@ -206,6 +209,13 @@ async function bootstrapPrimaryInstance() {
   serveKeptState();
   servePageEditorBoot();
 
+  // Early, so the first requests to a local API server that is not running
+  // already find it known as down.
+  startPlatformApiReachability({
+    onReachableAgain: () =>
+      void platformApiQueryClient.refetchQueries({ type: "active" }),
+  });
+
   await timeBootStep("setupBinDirectory", setupBinDirectory);
 
   // Detect whether the app was updated since the last launch so the renderer
@@ -218,9 +228,22 @@ async function bootstrapPrimaryInstance() {
     workspaceConfig,
   } = await timeBootStep("createWorkspaceActor", createWorkspaceActor);
 
-  // A signed-in ChatGPT plan's access token lasts an hour.
-  scheduleChatGPTPlanRefresh();
-  powerMonitor.on("resume", refreshChatGPTPlanAfterWake);
+  // A signed-in ChatGPT account's access token lasts an hour.
+  scheduleChatGPTAccountRefresh();
+  powerMonitor.on("resume", refreshChatGPTAccountAfterWake);
+
+  // The Claude account is whatever the CLI says: someone installs it or signs
+  // in from a terminal, then comes back to the app.
+  // A workspace with no model chosen yet runs on the subscription it found.
+  void refreshClaudeAccountStatus().then(async (found) => {
+    if (found.kind === "signed-in" && !getDefaultModelURI()) {
+      await setClaudeAccountDefaultModel();
+    }
+  });
+  void keepClaudeCodeCurrent();
+  app.on("browser-window-focus", () => {
+    void refreshClaudeAccountStatus();
+  });
 
   startAgentCompletionNotifications({
     hasAppWindow: () => getAppWindow() !== null,

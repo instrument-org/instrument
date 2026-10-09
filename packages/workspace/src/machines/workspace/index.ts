@@ -380,6 +380,7 @@ export const workspaceMachine = setup({
       nodeExecEnv: Record<string, string>;
       pnpmBinPath: string;
       preparedSkillsDir: string;
+      refreshExpiredCredentials?: WorkspaceConfig["refreshExpiredCredentials"];
       registryDir: string;
       rootDir: string;
       systemSkillsDir: string;
@@ -387,6 +388,7 @@ export const workspaceMachine = setup({
       uvBinPath: string;
       uvDataDir: string;
       macHelperBinPath?: string;
+      knownFolders?: WorkspaceConfig["knownFolders"];
       webSearch: WebSearchClient;
     },
     output: {},
@@ -411,6 +413,7 @@ export const workspaceMachine = setup({
         : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
+      ...(input.knownFolders ? { knownFolders: input.knownFolders } : {}),
       ...(input.indexesDir && {
         indexesDir: AbsolutePathSchema.parse(input.indexesDir),
       }),
@@ -418,6 +421,9 @@ export const workspaceMachine = setup({
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
       preparedSkillsDir: AbsolutePathSchema.parse(input.preparedSkillsDir),
+      ...(input.refreshExpiredCredentials
+        ? { refreshExpiredCredentials: input.refreshExpiredCredentials }
+        : {}),
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
@@ -474,6 +480,7 @@ export const workspaceMachine = setup({
           const targetRef = findLiveSessionRef(context, event.value);
           targetRef?.send({
             interrupt: event.value.interrupt,
+            model: event.value.model,
             saved: event.value.saved,
             type: "addMessage",
             value: event.value.message,

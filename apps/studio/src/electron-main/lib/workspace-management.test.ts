@@ -72,7 +72,7 @@ describe("createWorkspace", () => {
     for (const file of [
       "session-dev.json",
       "providers.json",
-      "chatgpt-plan.json",
+      "chatgpt-account.json",
       "app-oauth.json",
       "app-connections.json",
       "features.json",
@@ -86,7 +86,7 @@ describe("createWorkspace", () => {
       name: "Second account",
       userDataDir,
     });
-    // Not the ChatGPT plan: two holders of its rotating refresh token sign
+    // Not the ChatGPT account: two holders of its rotating refresh token sign
     // each other out.
     expect(settingsOf(dir)).toEqual([
       "preferences.json",

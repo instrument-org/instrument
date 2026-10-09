@@ -1,8 +1,8 @@
-import { BROWSER_HREF, paneOpenByGroupAtom } from "@/client/atoms/window";
+import { BROWSER_HREF } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
-import { instrumentFolderHref } from "@/shared/computer-href";
+import { outputFolderHref } from "@/shared/computer-href";
 import {
   type ChatId,
   encodeBrowserTargetId,
@@ -15,7 +15,6 @@ import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { XIcon } from "@phosphor-icons/react/X";
-import { useAtomValue } from "jotai";
 import { motion } from "motion/react";
 import {
   useEffect,
@@ -38,16 +37,18 @@ import {
   COMPOSE_MOTION,
   GROWN,
 } from "./compose-layout";
-import { BarMarks, IncludedChip, WindowButton } from "./compose-window";
+import { BarMarks, WindowButton } from "./compose-window";
 import { useWindow, WindowContext } from "./context";
+import { heldChipOf, IncludedChip } from "./context-chip";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { GroupItem } from "./group-item";
-import { isGroupShown, isIncludable } from "./draft-context";
+import { isIncludable } from "./draft-context";
 import { computerTabOf } from "./file-tabs";
 import { LinkSurface } from "./link-surface";
 import { taskHref, tasksHref, tasksOfHref } from "./tab-location";
 import { useTaskTitles } from "./task-titles";
 import { type ComposePeek } from "./use-compose";
+import { useTabInView } from "./use-tab-in-view";
 import { useWindowTabs } from "./window-tabs";
 
 /** A chat's small view's height, in layout px: enough of the conversation to follow a reply arriving. */
@@ -187,7 +188,7 @@ export function ChatWindow({
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
   const tabs = windowTabs.allTabs.filter((tab) => tab.group === chatId);
-  const up = windowTabs.tabUpIn(chatId);
+  const up = windowTabs.selectedTabIn(chatId);
   const isExpanded = placement === "expanded";
   // Whether the thing up is drawn large; only a grown window has the room.
   const [isViewOpen, setViewOpen] = useState(false);
@@ -281,32 +282,48 @@ export function ChatWindow({
   // shown as a pill while the composer has the caret, so the person sees it
   // before sending, and left out of every message after its × is pressed,
   // until something else comes up behind.
-  const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
+  // What is in view is read the way a draft reads it, so a screen of the
+  // window's own (a folder, an app) is behind the chat as a site or another
+  // chat's tab is.
   const [leftOutId, setLeftOutId] = useState<string>();
   const [isComposing, setComposing] = useState(false);
-  const behindTab = windowTabs.active;
+  const inView = useTabInView();
   const behind =
-    behindTab !== undefined &&
+    inView !== undefined &&
     windowTabs.groupOnScreen !== chatId &&
-    isGroupShown(windowTabs.groupOnScreen, paneOpenByGroup) &&
-    isIncludable(behindTab)
-      ? behindTab
+    isIncludable(inView)
+      ? inView
       : undefined;
-  const isBehindLeftOut = behind !== undefined && behind.id === leftOutId;
+  // A screen of the window's own keeps its tab's id wherever it walks, so
+  // it is left out where it stood, and comes back once it is somewhere else.
+  const behindKey =
+    behind?.kind === "screen" ? `${behind.id} ${behind.href}` : behind?.id;
+  const isBehindLeftOut = behindKey !== undefined && behindKey === leftOutId;
+  const behindChip =
+    behind && !isBehindLeftOut
+      ? heldChipOf({ items: undefined, tab: behind }, { appsBySlug })
+      : undefined;
+  const behindChipRef = useRef(behindChip);
   const isBehindLeftOutRef = useRef(isBehindLeftOut);
   const showsItemRef = useRef(false);
   useEffect(() => {
+    behindChipRef.current = behindChip;
     isBehindLeftOutRef.current = isBehindLeftOut;
     showsItemRef.current = showsItem;
   });
   // The chat's own tab while the window shows it; what is behind the window
-  // otherwise, unless that was left out.
-  const contextToSend = () =>
-    showsItemRef.current
-      ? sendContext({ isViewOpen: true })
-      : isBehindLeftOutRef.current
-        ? Promise.resolve(undefined)
-        : sendContext({ isViewOpen: false });
+  // otherwise, unless that was left out, with its chip for the transcript.
+  const contextToSend = async () => {
+    if (showsItemRef.current) {
+      return sendContext({ isViewOpen: true });
+    }
+    if (isBehindLeftOutRef.current) {
+      return;
+    }
+    const chip = behindChipRef.current;
+    const viewing = await sendContext({ isViewOpen: false });
+    return viewing && chip ? { ...viewing, attached: [chip] } : viewing;
+  };
 
   /** Grows the window with what is up in the chat drawn large. */
   const showUp = () => {
@@ -358,7 +375,7 @@ export function ChatWindow({
         chosenId={isExpanded ? (showsItem ? up.id : undefined) : peekTab?.id}
         isChatWorking={isWorking}
         onAddComputer={() => {
-          openHere(instrumentFolderHref());
+          openHere(outputFolderHref());
         }}
         onAddWeb={() => {
           openHere(BROWSER_HREF);
@@ -378,10 +395,7 @@ export function ChatWindow({
         }}
         tabs={tabs}
         targetOf={(tab) =>
-          encodeBrowserTargetId(
-            tab.taskId ?? WINDOW_ID,
-            StoreId.SessionSchema.parse(tab.id),
-          )
+          encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(tab.id))
         }
         taskTitles={taskTitles}
       />
@@ -585,7 +599,7 @@ export function ChatWindow({
                           appsBySlug={appsBySlug}
                           items={undefined}
                           onLeaveOut={() => {
-                            setLeftOutId(behind.id);
+                            setLeftOutId(behindKey);
                           }}
                           said="In view behind the chat, so it goes to Instrument with your message."
                           tab={behind}

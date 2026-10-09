@@ -1,10 +1,12 @@
 import { openLogin } from "@/client/atoms/login-modal";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
 import { AddProviderDialog } from "@/client/components/add-provider/dialog";
 import { AIProviderEditDialog } from "@/client/components/ai-provider-edit-dialog";
 import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
 import { ProviderConfigListItem } from "@/client/components/provider-config-list-item";
-import { ChatGPTPlanCard } from "@/client/components/settings/chatgpt-plan-card";
+import { ChatGPTAccountCard } from "@/client/components/settings/chatgpt-account-card";
+import { ClaudeAccountCard } from "@/client/components/settings/claude-account-card";
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
@@ -33,7 +35,10 @@ export function ProvidersSection({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-6">
-      <div className="flex shrink-0 items-center justify-between">
+      <div
+        className="flex shrink-0 items-center justify-between"
+        {...settingAnchor("add-provider")}
+      >
         <h3 className="text-sm font-medium text-muted-foreground">
           AI providers
         </h3>
@@ -47,7 +52,8 @@ export function ProvidersSection({
         </Button>
       </div>
 
-      <ChatGPTPlanCard />
+      <ChatGPTAccountCard />
+      <ClaudeAccountCard />
 
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         {providerConfigs?.length === 0 ? (

@@ -90,20 +90,6 @@ describe.each([
     expect((await fs.stat(file())).isDirectory()).toBe(true);
   });
 
-  it("sets a file that does not parse aside when asked, then starts fresh", async () => {
-    await writeRaw('{"name": "Lis');
-
-    await update(file(), () => ({ name: "Porto" }), {
-      unreadable: "set-aside",
-    });
-
-    expect(await readRaw()).toEqual({ name: "Porto" });
-    const aside = (await fs.readdir(path.dirname(file()))).filter((name) =>
-      name.startsWith("settings.json.unreadable-"),
-    );
-    expect(aside).toHaveLength(1);
-  });
-
   it("leaves no temporary file behind", async () => {
     await update(file(), () => ({ name: "Lisbon" }));
 

@@ -1,4 +1,8 @@
-import { screenViewsAtom, type WindowTab } from "@/client/atoms/window";
+import {
+  screenViewsAtom,
+  walkedFoldersAtom,
+  type WindowTab,
+} from "@/client/atoms/window";
 import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
@@ -73,18 +77,22 @@ export function GroupItem({
   const taskTitles = useTaskTitles();
   // What the screen up says it shows, which the row reads a folder's place off.
   const filesView = useAtomValue(screenViewsAtom)[up.id];
+  const walkedFolder = useAtomValue(walkedFoldersAtom)[up.id];
 
   // The page's reload and controls go into the address row, the way they do
   // in the pane beside a chat, rather than into a bar of the page's own.
   const [reloadSlot, setReloadSlot] = useState<HTMLDivElement | null>(null);
   const [controlsSlot, setControlsSlot] = useState<HTMLDivElement | null>(null);
+  const [fieldSlot, setFieldSlot] = useState<HTMLDivElement | null>(null);
   const onPageChromeEvent = useEffectEvent(onPageChrome);
   const isPage = up.kind === "page";
   useEffect(() => {
     onPageChromeEvent(
-      isPage ? { into: controlsSlot, reloadInto: reloadSlot } : undefined,
+      isPage
+        ? { fieldInto: fieldSlot, into: controlsSlot, reloadInto: reloadSlot }
+        : undefined,
     );
-  }, [isPage, controlsSlot, reloadSlot]);
+  }, [isPage, controlsSlot, fieldSlot, reloadSlot]);
   useEffect(
     () => () => {
       onPageChromeEvent(undefined);
@@ -93,10 +101,7 @@ export function GroupItem({
   );
   const targetId =
     up.kind === "page"
-      ? encodeBrowserTargetId(
-          up.taskId ?? WINDOW_ID,
-          StoreId.SessionSchema.parse(up.id),
-        )
+      ? encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(up.id))
       : undefined;
   const page = targetId ? getGuest(targetId) : null;
   // Back walks what is up (the page's own history, the screen's trail),
@@ -150,6 +155,12 @@ export function GroupItem({
         }}
         {...(up.kind === "page"
           ? {
+              fieldEnd: (
+                <div
+                  className="flex shrink-0 items-center empty:hidden"
+                  ref={setFieldSlot}
+                />
+              ),
               reload: (
                 <div
                   className="flex shrink-0 items-center empty:hidden"
@@ -227,7 +238,12 @@ export function GroupItem({
   const location = screenLocation(up.href, { appsBySlug, taskTitles });
   const shown =
     location.kind === "folder" && filesView?.folder
-      ? { ...location, path: filesView.folder.display }
+      ? {
+          ...location,
+          ...(walkedFolder
+            ? { hostPath: walkedFolder.hostPath, path: walkedFolder.walked }
+            : { path: filesView.folder.display }),
+        }
       : location;
   return (
     <Frame

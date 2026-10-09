@@ -1,4 +1,5 @@
 import { openLogin } from "@/client/atoms/login-modal";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Skeleton } from "@/client/components/ui/skeleton";
@@ -34,7 +35,7 @@ export function AccountInfo() {
         </>
       ) : (
         <Card className="p-4">
-          <div className="space-y-3">
+          <div className="space-y-3" {...settingAnchor("account")}>
             {hasToken ? (
               <>
                 {isLoading && (

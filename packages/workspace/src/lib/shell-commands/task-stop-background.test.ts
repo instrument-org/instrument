@@ -14,7 +14,7 @@ import {
   promoteBackgroundProcess,
   startBackgroundRun,
 } from "../background-processes";
-import { initializeTask } from "../initialize-task";
+import { initializeChat, initializeTask } from "../initialize-task";
 import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
@@ -79,17 +79,12 @@ beforeEach(async () => {
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
-  const chat = await initializeTask(
-    {
-      initialSettings: {
-        chatSessionId: CHAT_SESSION,
-        name: "Instrument",
-      },
-      taskId: CHAT_ID,
-      workspaceConfig: getWorkspaceConfig(),
-    },
-    {},
-  );
+  const chat = await initializeChat({
+    chatId: CHAT_ID,
+    initialSettings: { name: "Instrument" },
+    sessionId: CHAT_SESSION,
+    workspaceConfig: getWorkspaceConfig(),
+  });
   if (chat.isErr()) {
     throw chat.error;
   }

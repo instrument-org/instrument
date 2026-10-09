@@ -371,7 +371,7 @@ Everything in section A is fixed, and the search tools are gone. What is left, w
 **Closed by other work**
 
 - **C1** (`web_fetch`) -- shipped (`tools/web-fetch.ts`).
-- **E5** (parallel tool execution) -- shipped as the middle path: `ExecutingToolCalls` in `machines/agent.ts` runs a run of consecutive `readOnly` calls at once and every other call alone, in order. Serial execution had turned a task's eight parallel `web_search` calls on a ChatGPT plan into 184 s end to end, where the slowest of them took about 25 s.
+- **E5** (parallel tool execution) -- shipped as the middle path: `ExecutingToolCalls` in `machines/agent.ts` runs a run of consecutive `readOnly` calls at once and every other call alone, in order. Serial execution had turned a task's eight parallel `web_search` calls on a ChatGPT account into 184 s end to end, where the slowest of them took about 25 s.
 - **B6** (bash timeout, backgrounding) -- landed in 6cdae3d3a as a yield-and-promote model managed from the shell with `jobs`, `fg` and `kill` ([background-processes.md](../architecture/background-processes.md)), close to codex's `exec_command`/`write_stdin` design.
 - **B1, B2** -- moot; both tools are gone and `rg` has the full flag set.
 

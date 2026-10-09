@@ -26,10 +26,10 @@ export const StoredTaskStateSchema = z
     // guide over once and then gets out of the way.
     appGuidesRead: z.array(z.string()).optional(),
     attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
-    browserTabs: z.array(HeldTabSchema).optional(),
+    browserTabs: z.array(HeldTabSchema).default([]),
     selectedModelURI: z.string().optional(),
   })
-  .default(() => ({}));
+  .default(() => ({ browserTabs: [] }));
 
 // The RPC-facing shape.
 export const TaskStateSchema = z.object({
@@ -38,8 +38,11 @@ export const TaskStateSchema = z.object({
    * The window's tabs a task drives, first one first: tabs the conversation
    * handed it and tabs it opened itself. `agent-browser` connects to them.
    */
-  browserTabs: z.array(HeldTabSchema).optional(),
-  selectedModelURI: AIGatewayModelURI.Schema.optional(),
+  browserTabs: z.array(HeldTabSchema).default([]),
+  // A stored URI this build cannot parse (a provider since renamed or
+  // removed) answers as no pick, so the chat opens on the default model
+  // rather than failing to open.
+  selectedModelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
 });
 
 export type TaskState = z.output<typeof StoredTaskStateSchema>;

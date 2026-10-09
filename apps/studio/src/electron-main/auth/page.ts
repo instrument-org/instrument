@@ -126,7 +126,7 @@ const serviceMark = (service: AuthService, extra = "") =>
 // Instrument and the service side by side, for a connection between them.
 const pairedMarks = (service: AuthService) =>
   service.mark
-    ? html`<div class="flex items-center gap-3">
+    ? html`<div class="auth-meet flex items-center gap-3">
         ${appMark("size-16")}
         ${glyph(ARROWS_LEFT_RIGHT, "size-5 text-stone-400 dark:text-white/40")}
         ${serviceMark(service)}
@@ -182,6 +182,7 @@ function renderOutcome(outcome: AuthOutcome) {
   switch (outcome.kind) {
     case "signed-in": {
       return {
+        arrive: true,
         body: html`${appMark("size-20")}
         ${group(
           heading("You're signed in"),
@@ -194,6 +195,7 @@ function renderOutcome(outcome: AuthOutcome) {
     case "connected": {
       const { email, service } = outcome;
       return {
+        arrive: true,
         body: html`${pairedMarks(service)}
         ${group(
           heading(`${service.name} is connected`),
@@ -315,10 +317,11 @@ export function renderAuthPage(
   page: AuthOutcome | { index: { href: string; label: string }[] },
 ) {
   const {
+    arrive,
     body,
     reference,
     title,
-  }: { body: unknown; reference?: string; title: string } =
+  }: { arrive?: boolean; body: unknown; reference?: string; title: string } =
     "index" in page ? renderIndex(page.index) : renderOutcome(page);
 
   return html`
@@ -354,6 +357,48 @@ export function renderAuthPage(
               );
             }
           }
+          /* A success page arrives: the mark pops in (two marks slide together and the arrows pop), then the rest rises in. */
+          @media (prefers-reduced-motion: no-preference) {
+            .auth-arrive > * {
+              animation: auth-rise 450ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+            }
+            .auth-arrive > :nth-child(2) {
+              animation-delay: 160ms;
+            }
+            .auth-arrive > :nth-child(n + 3) {
+              animation-delay: 260ms;
+            }
+            .auth-arrive > :first-child {
+              animation: auth-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            }
+            .auth-arrive > .auth-meet {
+              animation: none;
+            }
+            .auth-meet > * {
+              animation: auth-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            }
+            .auth-meet > :first-child {
+              --from: -28px;
+            }
+            .auth-meet > :last-child {
+              --from: 28px;
+            }
+            .auth-meet > :nth-child(2) {
+              animation-delay: 240ms;
+            }
+          }
+          @keyframes auth-pop {
+            from {
+              opacity: 0;
+              transform: translateX(var(--from, 0)) scale(0.6);
+            }
+          }
+          @keyframes auth-rise {
+            from {
+              opacity: 0;
+              transform: translateY(8px);
+            }
+          }
         </style>
         <title>
           ${title} · ${APP_NAME}
@@ -361,7 +406,7 @@ export function renderAuthPage(
       </head>
       <body class="min-h-svh">
         <main
-          class="relative flex min-h-svh flex-col items-center justify-center gap-6 px-6 pt-6 pb-20 text-center"
+          class="${arrive ? "auth-arrive " : ""}relative flex min-h-svh flex-col items-center justify-center gap-6 px-6 pt-6 pb-20 text-center"
         >
           ${body} ${supportFooter(reference)}
         </main>

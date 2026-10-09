@@ -2,7 +2,7 @@ import type { WebContents } from "electron";
 
 import { noop } from "radashi";
 
-// A task browser guest draws only when the Studio window hosting it draws, and
+// An in-app browser guest draws only when the Studio window hosting it draws, and
 // a Studio window covered by another app's window, or minimized, does not. A
 // page the guest navigates to in that state gets a new render widget that never
 // presents a frame, so anything waiting on one waits forever: a capture times

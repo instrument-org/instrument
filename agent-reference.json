@@ -40,9 +40,26 @@
       "source": "github:vercel-labs/agent-browser",
       "description": "Browser-automation CLI for agents, a native Rust binary. Upstream of the agent's browser tool."
     },
-    "vscode": {
-      "source": "github:microsoft/vscode",
-      "description": "Microsoft's editor, and the largest Electron app whose source is readable. The reference for how a desktop app of this shape solves a platform problem: src/vs/platform for the service layer, src/vs/workbench/contrib for features, src/vs/base/browser/dnd.ts and the electron-main/electron-browser folders for native OS integration."
+    "electron-apps": {
+      "description": "Open-source Electron apps whose source shows how a desktop app shaped like Studio solves the same platform and product problems.",
+      "references": {
+        "vscode": {
+          "source": "github:microsoft/vscode",
+          "description": "Microsoft's editor, and the largest Electron app whose source is readable. The reference for how a desktop app of this shape solves a platform problem: src/vs/platform for the service layer, src/vs/workbench/contrib for features, src/vs/base/browser/dnd.ts and the electron-main/electron-browser folders for native OS integration."
+        },
+        "t3code": {
+          "source": "github:pingdotgg/t3code",
+          "description": "T3 Code: a GUI for coding agents (Codex, Claude, and others) on Electron, with web and mobile clients over the same server. apps/desktop is the Electron shell, apps/server the Effect backend and its MCP toolkits, apps/web the renderer. Inline agent-built HTML pages live in packages/shared/src/htmlRender.ts and apps/server/src/htmlRender/, MCP Apps in apps/server/src/mcpApps/ and apps/web/src/components/chat/McpAppFrame.tsx; docs/user/ describes features as users see them."
+        },
+        "bb": {
+          "source": "github:get-bb/bb",
+          "description": "bb: an open-source agent IDE on Electron with a built-in browser, solving many of the desktop and browser problems Studio does."
+        },
+        "craft-agents-oss": {
+          "source": "github:craft-ai-agents/craft-agents-oss",
+          "description": "Craft Agents: craft.do's open-source, document-centric agent desktop app on Electron, built on the Claude Agent SDK and the Pi SDK."
+        }
+      }
     },
     "document-viewers": {
       "description": "The document viewers apps/studio embeds, one package per format. They publish under the @extend-ai npm scope from repositories in the extend-hq GitHub org, so neither name leads to the other.",

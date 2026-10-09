@@ -8,8 +8,8 @@ Studio reaches macOS frameworks Electron does not cover through a bridge in two 
 | --- | --- | --- |
 | Source | `native/mac-helper/addon/addon.m`, Objective-C over Node-API | `native/mac-helper/Sources/main.swift`, Swift |
 | Runs | inside Studio's main process | as a child process, one command per call |
-| For | what macOS keys to the app's own bundle: notification permission | the user's data: Calendar, Reminders, Contacts |
-| Reached by | `mac-native.ts` | `mac-native.ts`, and the agent's `calendar` and `contacts` commands ([`shell-commands/mac-helper.ts`](../../packages/workspace/src/lib/shell-commands/mac-helper.ts)) |
+| For | what macOS keys to the app's own bundle: notification permission | the user's data: Calendar, Reminders, Contacts, and which iCloud Drive app folders the Finder shows |
+| Reached by | `mac-native.ts` | `mac-native.ts`, the agent's `calendar` and `contacts` commands ([`shell-commands/mac-helper.ts`](../../packages/workspace/src/lib/shell-commands/mac-helper.ts)), and the folder browser's iCloud Drive listing ([`chat/icloud-drive.ts`](../../packages/workspace/src/lib/chat/icloud-drive.ts)) |
 
 Which half a capability belongs in is decided by whose identity macOS checks:
 

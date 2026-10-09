@@ -1,4 +1,5 @@
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -145,7 +146,7 @@ function UnrecognizedFolders() {
   const tasks = folders.filter((folder) => folder.kind !== "chat");
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-4" {...settingAnchor("broken-folders")}>
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <FolderIcon className="size-4" />
@@ -222,7 +223,7 @@ function WorkspaceLocation() {
   }
 
   return (
-    <section className="space-y-2">
+    <section className="space-y-2" {...settingAnchor("workspace-location")}>
       <div className="flex items-center justify-between gap-2">
         <h4 className="text-sm font-medium text-muted-foreground">
           Workspace location

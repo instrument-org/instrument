@@ -1,6 +1,7 @@
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 
 import {
+  type AIGatewayEnv,
   type GetProviderConfigs,
   type ModelCache,
 } from "@instrument-org/ai-gateway";
@@ -47,7 +48,7 @@ export interface BrowserConfig {
    * every attempt a task makes to look at what it wrote dies on a protocol
    * error it can do nothing about (docs/findings/a-task-cannot-look-at-what-it-drew.md).
    */
-  hasNoWindow?: boolean;
+  hasNoWindow: boolean;
   listTargets: (id: TaskId) => Promise<BrowserTarget[]>;
   /**
    * Whether ads and trackers are blocked in this task's tabs: off when the
@@ -222,6 +223,15 @@ export interface WorkspaceConfig {
    * then every read derives from the stores.
    */
   indexesDir?: AbsolutePath;
+  /**
+   * Replace a provider config's credential if it has already expired,
+   * resolving once the replacement is in or the wait gave up. The model proxy
+   * awaits it for the config a request names before reading the configs, so
+   * a request made before a refresh timer fires (just after launch or a wake)
+   * carries a credential the provider accepts. Absent where no credential
+   * expires.
+   */
+  refreshExpiredCredentials?: AIGatewayEnv["Variables"]["refreshExpiredCredentials"];
   // Read per invocation rather than captured at boot: the flag is a live store
   // the user can toggle from Settings, and this config is built once.
   isExternalBrowserEnabled: () => boolean;
@@ -241,14 +251,25 @@ export interface WorkspaceConfig {
   trashItem: (path: AbsolutePath) => Promise<void>;
   // Path to the bundled `uv` binary (escape hatch for python/pip/uv commands).
   uvBinPath: AbsolutePath;
-  // The bundled Mac helper behind the `calendar` and `contacts` commands; absent off
-  // macOS and in builds that do not carry it.
+  // The bundled Mac helper behind the `calendar` and `contacts` commands and
+  // iCloud Drive's app folders; absent off macOS and in builds that do not carry it.
   macHelperBinPath?: AbsolutePath;
+  // Where the system keeps the person's own folders, which is not always under
+  // the home folder by its English name: Windows moves Desktop and Documents
+  // into OneDrive, and Linux names them in the desktop's language.
+  knownFolders?: Record<KnownFolder, string>;
   // Base dir for uv's isolated cache/python-install/tool dirs. Lives under the
   // app's userData so a sandboxed `HOME=/` never sends uv writing to the host.
   uvDataDir: AbsolutePath;
   webSearch: WebSearchClient;
 }
+export type KnownFolder =
+  | "desktop"
+  | "documents"
+  | "downloads"
+  | "music"
+  | "pictures"
+  | "videos";
 type CdpMethod = keyof ProtocolMapping.Commands;
 type CdpParams<M extends CdpMethod> = ProtocolMapping.Commands[M]["paramsType"];
 

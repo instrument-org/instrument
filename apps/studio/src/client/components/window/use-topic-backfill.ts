@@ -1,4 +1,5 @@
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { decisionBar } from "@instrument-org/shared/decision-bars";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -14,11 +15,12 @@ export interface BackfillCandidate {
 type Answer = RPCOutput["workspace"]["decision"]["ask"];
 
 /**
- * How sure the decision model has to be that a chat belongs. Measured on
- * both decision models, chats that fit a topic's name land at 0.75 to 0.98
- * and the rest at 0.6 or under, so the bar sits in the gap.
+ * How sure the decision model has to be that a chat belongs. On 10 labeled
+ * topics over 200 real chats, Clef-flash and Jev at 0.7 find 34 and 33 of
+ * the 43 that belong, with 7 and 2 wrong; Clef scores lower and at 0.55 finds
+ * 35 with 1 wrong.
  */
-const BELONGS = 0.7;
+const BELONGS = { clef: 0.55, clefFlash: 0.7, other: 0.7 };
 /** The newest this many are read: one request, a fraction of a cent, well inside the model's context. */
 const MOST_READ = 200;
 const ASK_MAX = 200;
@@ -119,6 +121,8 @@ export function useTopicBackfill({
     return [];
   }
   return candidates.filter(
-    (_, index) => (data.answers[String(index)]?.noul ?? 0) >= BELONGS,
+    (_, index) =>
+      (data.answers[String(index)]?.noul ?? 0) >=
+      decisionBar(data.model, BELONGS),
   );
 }

@@ -4,8 +4,9 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASK_FOLDER_NAMES } from "../constants";
-import { AbsolutePathSchema } from "../schemas/paths";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { TaskIdSchema } from "../schemas/task-id";
+import { chatFor } from "../test/helpers/chat-record";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { initializeTask } from "./initialize-task";
 import { taskDir } from "./task-dir-utils";
@@ -33,6 +34,8 @@ describe("initializeTask", () => {
     });
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
+      // Chats go under a workspace of the test's own, beside its folders.
+      rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
       defaultTaskTemplateDir: AbsolutePathSchema.parse(
         path.resolve(import.meta.dirname, "../../templates/default"),
       ),
@@ -40,6 +43,7 @@ describe("initializeTask", () => {
 
     const result = await initializeTask(
       {
+        chatId: chatFor(),
         initialSettings: { name: "Test task" },
         taskId,
         workspaceConfig: getWorkspaceConfig(),

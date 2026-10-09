@@ -118,7 +118,7 @@ describe("task tab", () => {
 
     expect(result.stdout).toContain("let go of every tab it held");
     const state = await getTaskState(taskDir(CHILD_ID));
-    expect(state.browserTabs).toBeUndefined();
+    expect(state.browserTabs).toEqual([]);
   });
 
   it("says so when there was no tab to let go of", async () => {

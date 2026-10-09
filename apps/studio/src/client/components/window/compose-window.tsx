@@ -2,22 +2,15 @@ import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import {
   APPS_HREF,
   BROWSER_HREF,
-  type ChosenItem,
   type ComposePlacement,
   type Draft,
   draftGroupOf,
   draftSnapshotsAtom,
   findersByTabAtom,
   NEW_TAB_HREF,
-  paneOpenByGroupAtom,
   type ScreenView,
   screenViewsAtom,
-  type WindowTab,
 } from "@/client/atoms/window";
-import {
-  FileSystemFolderGlyph,
-  FileTypeIcon,
-} from "@/client/components/extend/file-system";
 import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
@@ -37,7 +30,10 @@ import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import { type FileUpload } from "@instrument-org/workspace/client";
+import {
+  type FileUpload,
+  type SessionMessageDataPart,
+} from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
@@ -58,11 +54,7 @@ import {
 import { appTabsAtom, hrefOfAppTab } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
 import { AskPills } from "./ask-pills";
-import {
-  type BrowserTabsHandle,
-  type PageChromeSlots,
-  TabIcon,
-} from "./browser-tabs";
+import { type BrowserTabsHandle, type PageChromeSlots } from "./browser-tabs";
 import { draftTitle, type Topic } from "./chats";
 import {
   COMPOSE_BAR_WIDTH,
@@ -73,24 +65,19 @@ import {
 import { ComposeZeroState } from "./compose-zero-state";
 import { useComputerVolumes } from "./computer-volumes";
 import { useWindow, WindowContext } from "./context";
-import {
-  behindTabOf,
-  includedItemsOf,
-  includedTabOf,
-  isGroupShown,
-  tabInView,
-} from "./draft-context";
-import { computerTabOf, pageTabTitle } from "./file-tabs";
+import { ChosenChip, heldChipOf, HeldMark, IncludedChip } from "./context-chip";
+import { behindTabOf, includedItemsOf, includedTabOf } from "./draft-context";
+import { computerTabOf } from "./file-tabs";
 import { GroupItem } from "./group-item";
 import { segmentsOf } from "./host-path";
 import { LinkSurface } from "./link-surface";
-import { screenPresentation } from "./screen-presentation";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
 import { AddTopicChip, TopicPicker } from "./topic-picker";
 import { topicTint } from "./topic-tint";
 import { useDraftTopicSuggestion } from "./use-draft-topic-suggestion";
+import { useTabInView } from "./use-tab-in-view";
 import { WindowTabStrip } from "./window-tab-strip";
 import { isHomeTab } from "./tab-model";
 import { parseHref } from "./window-href";
@@ -98,6 +85,8 @@ import { useWindowTabs } from "./window-tabs";
 
 /** What the composer hands over to start the chat. */
 export interface DraftSend {
+  /** The chips over the words at the press, which the chat's first message is drawn with. */
+  attached: SessionMessageDataPart.SentChip[];
   files?: FileUpload.Input[];
   folders?: { path: string }[];
   modelURI: AIGatewayModelURI.Type;
@@ -118,13 +107,13 @@ const WORDS_MAX_HEIGHT = 400;
 /** A docked window's height with a few lines of words in it, in layout px; it grows from here with the words. */
 const COMPOSE_HEIGHT = 640;
 
-/** The words' height the docked height already allows for: three lines. Past it the window grows. */
+/** The words' height the docked height already allows for beside an open tab: three lines. Past it the window grows. */
 const WORDS_BASE_HEIGHT = 72;
 
-const NO_TITLES = new Map<never, never>();
+/** The window's head, over the words. */
+const HEAD_HEIGHT = 48;
 
-/** What a chip of the draft's is, as its tooltip says it. */
-const SENT_WITH_MESSAGE = "Instrument sees this with your message.";
+const NO_TITLES = new Map<never, never>();
 
 /**
  * The marks of what a group holds, for a window put down to a bar: a site's
@@ -277,7 +266,7 @@ export function ComposeWindow({
   // What was marked in files and moved here, as pills that go with the words.
   const marked = useComposerAsks({ draftId: draft.id, kind: "draft" });
   const { moveTo: moveAsks } = useStagedAskActions();
-  const up = windowTabs.tabUpIn(group);
+  const up = windowTabs.selectedTabIn(group);
   const isExpanded = placement === "expanded";
   // What the window has in view, and the thing the draft was opened over,
   // while it is still there to point at, wherever its tab stands now.
@@ -285,19 +274,7 @@ export function ComposeWindow({
   const activeHref = useRouterState({
     select: (routerState) => routerState.location.href,
   });
-  const paneOpenByGroup = useAtomValue(paneOpenByGroupAtom);
-  const inView =
-    appTabs.selectedId === null
-      ? undefined
-      : tabInView({
-          activeHref,
-          appTabId: appTabs.selectedId,
-          groupTab: windowTabs.active,
-          isGroupTabShown: isGroupShown(
-            windowTabs.groupOnScreen,
-            paneOpenByGroup,
-          ),
-        });
+  const inView = useTabInView();
   const included = includedTabOf(draft, windowTabs.allTabs, (id) =>
     id === appTabs.selectedId ? activeHref : hrefOfAppTab(appTabs, id),
   );
@@ -327,6 +304,23 @@ export function ComposeWindow({
   const showsBehind =
     behind !== undefined &&
     (behindItems === undefined || behindItems.length > 0);
+
+  // The chips as the press finds them, which the chat's first message is
+  // drawn with, so the transcript shows what went the way the draft did.
+  const volumes = useComputerVolumes();
+  const names = { appsBySlug, ...(volumes ? { volumes } : {}) };
+  const attached = [
+    ...chosen.map(({ kind, path }) => ({
+      items: [{ kind, path }],
+      kind: "paths" as const,
+    })),
+    ...(showsIncluded
+      ? [heldChipOf({ items: includedItems, tab: included }, names)]
+      : []),
+    ...(showsBehind
+      ? [heldChipOf({ items: behindItems, tab: behind }, names)]
+      : []),
+  ];
 
   // The words are the draft's own, wherever they are read; what else the
   // box held when it was put away is put back as it comes up.
@@ -369,26 +363,43 @@ export function ComposeWindow({
   // scroller is around it), so a squeezed window still knows what the words
   // would take. A definite height on the window is also what lets the page
   // and the folder inside the band size themselves against it.
+  // With only the tiles under them, the words have the room the tiles leave
+  // before the window grows: the band's own height and what the box draws
+  // around the editor (its padding, a row of chips) are measured too.
   const wordsWrapRef = useRef<HTMLDivElement>(null);
-  const [wordsHeight, setWordsHeight] = useState(WORDS_BASE_HEIGHT);
+  const bandRef = useRef<HTMLDivElement>(null);
+  const [measured, setMeasured] = useState({
+    band: 0,
+    chrome: 0,
+    words: WORDS_BASE_HEIGHT,
+  });
   useEffect(() => {
     const editor =
       wordsWrapRef.current?.querySelector<HTMLElement>(".prompt-editor");
-    if (!editor) {
+    const frame = wordsWrapRef.current?.querySelector<HTMLElement>(
+      "[data-slot=composer-frame]",
+    );
+    const scroller = editor?.parentElement;
+    const band = bandRef.current;
+    if (!editor || !frame || !scroller || !band) {
       return;
     }
     const measure = () => {
-      setWordsHeight(editor.offsetHeight);
+      setMeasured({
+        band: band.offsetHeight,
+        chrome: frame.offsetHeight - scroller.offsetHeight,
+        words: editor.offsetHeight,
+      });
     };
     measure();
     const observer = new ResizeObserver(measure);
-    observer.observe(editor);
+    for (const element of [editor, frame, band]) {
+      observer.observe(element);
+    }
     return () => {
       observer.disconnect();
     };
   }, []);
-  const dockedHeight =
-    COMPOSE_HEIGHT + Math.max(0, wordsHeight - WORDS_BASE_HEIGHT);
 
   // What the band opens lands in the draft's group and comes up in the band,
   // never on screen behind the window; the caret goes back to the words,
@@ -503,6 +514,14 @@ export function ComposeWindow({
   const isEmpty = up === undefined || upKind === "home";
   const showsStrip =
     tabs.length > 1 || (tabs[0] !== undefined && !isHomeTab(tabs[0]));
+  const wordsFill = isEmpty && !showsStrip;
+  const wordsRoom = wordsFill
+    ? Math.max(
+        WORDS_BASE_HEIGHT,
+        COMPOSE_HEIGHT - HEAD_HEIGHT - measured.band - measured.chrome,
+      )
+    : WORDS_BASE_HEIGHT;
+  const dockedHeight = COMPOSE_HEIGHT + Math.max(0, measured.words - wordsRoom);
 
   const content = (() => {
     if (isEmpty) {
@@ -605,6 +624,10 @@ export function ComposeWindow({
           openScreen: (href, options) => {
             if (options?.newTab) {
               appWindow.openScreen(href, options);
+              // A grown window would cover the tab brought up behind it.
+              if (isExpanded && !options.behind) {
+                onPlacementChange("docked");
+              }
             } else {
               openScreen(href);
             }
@@ -706,7 +729,7 @@ export function ComposeWindow({
               <div
                 className={cn(
                   "flex min-h-24 shrink flex-col select-text [&_.prompt-editor]:min-h-18 [&_.prompt-editor]:text-[15px] [&_.prompt-editor]:leading-6",
-                  isEmpty && !showsStrip && "flex-1",
+                  wordsFill && "flex-1",
                 )}
                 ref={wordsWrapRef}
               >
@@ -719,7 +742,9 @@ export function ComposeWindow({
                     marked.length > 0 ? <AskPills asks={marked} /> : undefined
                   }
                   autoFocus
-                  autoResizeMaxHeight={WORDS_MAX_HEIGHT}
+                  // Over the tiles alone the words take all the room the
+                  // window has, and scroll only past that.
+                  autoResizeMaxHeight={wordsFill ? null : WORDS_MAX_HEIGHT}
                   className="min-h-0 flex-1"
                   draftKey={key}
                   hasAttachmentsLead={marked.length > 0}
@@ -780,7 +805,9 @@ export function ComposeWindow({
                   }
                   modelURI={modelURI}
                   onModelChange={onModelChange}
-                  onSubmit={onStart}
+                  onSubmit={(send) => {
+                    onStart({ ...send, attached });
+                  }}
                   placeholder="What do you need?"
                   ref={inputRef}
                   variant="bare"
@@ -791,8 +818,9 @@ export function ComposeWindow({
               <div
                 className={cn(
                   "mx-2 flex flex-col overflow-hidden rounded-t-xl bg-gray-200 dark:bg-gray-900",
-                  isEmpty && !showsStrip ? "shrink-0" : "min-h-80 flex-1",
+                  wordsFill ? "shrink-0" : "min-h-80 flex-1",
                 )}
+                ref={bandRef}
               >
                 {showsStrip && (
                   // The tab on screen in the card's color, so it reads as
@@ -832,64 +860,6 @@ export function ComposeWindow({
   );
 }
 
-/**
- * The chip at the head of the words naming what the screen already gives
- * the draft: the thing it was opened over, in the row an attached file lands
- * in, since it goes with the words as a file does. One quiet line, its mark
- * and name in grey with an x that leaves it out, so it takes no room from
- * the words and does not ask to be read; what it is for is in its tooltip.
- * Nothing of the thing itself is drawn in the draft, which stands over it.
- */
-export function IncludedChip({
-  appsBySlug,
-  items,
-  onLeaveOut,
-  said = SENT_WITH_MESSAGE,
-  tab,
-}: {
-  appsBySlug: Map<
-    string,
-    { icon?: string | undefined; name: string; site: string | undefined }
-  >;
-  /** What the thing points at on this computer, which the chip names in place of the tab. */
-  items: ChosenItem[] | undefined;
-  onLeaveOut: () => void;
-  /** What the chip's tooltip says it is. */
-  said?: string;
-  tab: WindowTab;
-}) {
-  const volumes = useComputerVolumes();
-  const [one] = items ?? [];
-  const name =
-    items !== undefined && items.length > 1
-      ? `${items.length} items`
-      : one === undefined
-        ? tab.kind === "page"
-          ? pageTabTitle(tab) || "Page"
-          : screenPresentation(tab.href, {
-              appsBySlug,
-              ...(volumes ? { volumes } : {}),
-            }).title
-        : nameOfPath(one.path);
-  return (
-    <ContextChip
-      label={
-        <ChipLabel paths={(items ?? []).map((item) => item.path)} said={said} />
-      }
-      mark={
-        items?.length === 1 && one !== undefined ? (
-          <ItemMark item={one} />
-        ) : (
-          <HeldMark appsBySlug={appsBySlug} tab={tab} />
-        )
-      }
-      name={name}
-      onLeaveOut={onLeaveOut}
-      slot="included-chip"
-    />
-  );
-}
-
 /** One of a window's own buttons: minimize, expand, close. */
 export function WindowButton({
   children,
@@ -915,119 +885,10 @@ export function WindowButton({
   );
 }
 
-/** A chip's tooltip: what the chip means, then where the things it names are. */
-function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
-  return (
-    <span className="flex flex-col gap-1">
-      <span>{said}</span>
-      {paths.map((path) => (
-        <span className="break-all opacity-70" key={path}>
-          {path}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-/** A file or folder the draft was opened on by name, held for the chat until it is left out. */
-function ChosenChip({
-  item,
-  onLeaveOut,
-}: {
-  item: ChosenItem;
-  onLeaveOut: () => void;
-}) {
-  return (
-    <ContextChip
-      label={<ChipLabel paths={[item.path]} said={SENT_WITH_MESSAGE} />}
-      mark={<ItemMark item={item} />}
-      name={nameOfPath(item.path)}
-      onLeaveOut={onLeaveOut}
-      slot="chosen-chip"
-    />
-  );
-}
-
 /**
  * The address of the computer screen standing in a folder, as the computer
  * route reads it, for a tab whose folder browser has walked somewhere.
  */
-/**
- * One quiet line at the head of the words: a mark and a name in grey with an
- * x that leaves the thing out, so it takes no room from the words and does
- * not ask to be read; what it is is in its tooltip.
- */
-function ContextChip({
-  label,
-  mark,
-  name,
-  onLeaveOut,
-  slot,
-}: {
-  label: ReactNode;
-  mark: ReactNode;
-  name: string;
-  onLeaveOut: () => void;
-  slot: string;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          className="inline-flex h-6 max-w-44 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pr-0.5 pl-2 text-xs text-muted-foreground ring-1 ring-border/70"
-          data-slot={slot}
-        >
-          <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
-            {mark}
-          </span>
-          <span className="truncate">{name}</span>
-          <button
-            aria-label={`Leave out ${name}`}
-            className="grid size-5 shrink-0 place-items-center rounded-full hover:bg-foreground/8 hover:text-foreground"
-            onClick={onLeaveOut}
-            type="button"
-          >
-            <XIcon className="size-3" />
-          </button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent collisionPadding={10} maxWidth="20rem">
-        {label}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-/** One thing the draft holds, as its mark: a page's icon, or a screen's. */
-function HeldMark({
-  appsBySlug,
-  tab,
-}: {
-  appsBySlug: Map<
-    string,
-    { icon?: string | undefined; name: string; site: string | undefined }
-  >;
-  tab: WindowTab;
-}) {
-  if (tab.kind === "page") {
-    return <TabIcon favicon={tab.favicon} url={tab.url} />;
-  }
-  return screenPresentation(tab.href, { appsBySlug }).icon;
-}
-
-/** A file's type icon, or the folder glyph for a folder. */
-function ItemMark({ item }: { item: ChosenItem }) {
-  return item.kind === "folder" ? (
-    <FileSystemFolderGlyph className="h-3 w-auto" />
-  ) : (
-    <FileTypeIcon fileName={nameOfPath(item.path)} />
-  );
-}
-
-/** The last name in a path, which is what a chip calls the thing. */
-function nameOfPath(path: string) {
-  return segmentsOf(path).at(-1) ?? path;
-}
 
 /**
  * The topic the chat will be filed under, after what the draft is, joined by

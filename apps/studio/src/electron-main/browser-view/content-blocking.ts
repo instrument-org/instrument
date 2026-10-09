@@ -18,7 +18,7 @@ import path from "node:path";
 import { parse } from "tldts";
 
 /**
- * Ad and tracker blocking for the task browser, the way Brave does it out of
+ * Ad and tracker blocking for the in-app browser, the way Brave does it out of
  * the box: EasyList, EasyPrivacy, and uBlock Origin's lists, through
  * Ghostery's engine.
  *
@@ -101,9 +101,6 @@ export function enableContentBlocking(
     ),
     type: "frame",
   });
-  guestSession.webRequest.onHeadersReceived((details, callback) => {
-    callback(cspResponse(details));
-  });
 }
 
 /** What the guest session's request listener answers for a non-file request. */
@@ -128,7 +125,8 @@ export function blockedRequestResponse(
   return match ? { cancel: true } : {};
 }
 
-function cspResponse(
+/** What the guest session's headers listener answers first: the blocking engine's CSP filters for a page or a frame. */
+export function cspResponse(
   details: OnHeadersReceivedListenerDetails,
 ): HeadersReceivedResponse {
   if (

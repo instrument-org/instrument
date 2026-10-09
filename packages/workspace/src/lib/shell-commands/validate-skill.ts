@@ -36,7 +36,9 @@ export function createValidateSkillCommand() {
     const requested = args.filter((arg) => !arg.startsWith("-"));
     const names = requested.map(toSkillName);
     if (names.includes(null)) {
-      return fail(`only skills under ${WORKSPACE_SKILLS_MOUNT}/ can be checked.`);
+      return fail(
+        `only skills under ${WORKSPACE_SKILLS_MOUNT}/ can be checked.`,
+      );
     }
 
     const targets =

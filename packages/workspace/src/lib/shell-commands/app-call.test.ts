@@ -184,9 +184,7 @@ describe("app call in a pipeline", () => {
       sessionId: StoreId.newSessionId(),
       taskId,
     });
-    const result = await bash.exec(
-      `app call ${slug} json_text | jq 'length'`,
-    );
+    const result = await bash.exec(`app call ${slug} json_text | jq 'length'`);
     expect(result.stderr).toBe("");
     expect(result.stdout).toBe("3\n");
   });

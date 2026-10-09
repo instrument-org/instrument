@@ -51,7 +51,7 @@ import {
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
-import { boundedSkillBody } from "./load-skill";
+import { skillInstructions } from "./load-skill";
 import { chatRefusal } from "./chat-shell-policy";
 import { resolveChat } from "../lib/record-folders";
 
@@ -308,7 +308,7 @@ export const BashTool = setupTool({
   },
   readOnly: false,
   timeoutMs: ({ input }) => bashToolCallTimeoutMs(input.yieldMs),
-  toModelOutput: ({ output, toolCallId }) => {
+  toModelOutput: ({ output }) => {
     const { content, omittedLines, totalBytes, totalLines, truncated } =
       truncateMiddle(output.output);
 
@@ -371,7 +371,7 @@ export const BashTool = setupTool({
       ? ["", pageAfterText(output.pageAfter)]
       : [];
     const browserSkillSection = output.browserSkill
-      ? ["", browserSkillText(output.browserSkill, toolCallId)]
+      ? ["", browserSkillText(output.browserSkill)]
       : [];
 
     // Say that the command printed nothing rather than leaving a gap where the
@@ -425,21 +425,20 @@ export const BashTool = setupTool({
  * saying why they are here, so the model reads them as the skill it would
  * otherwise have loaded rather than as something the command printed.
  */
-function browserSkillText(skill: BrowserSkill, toolCallId: string) {
+function browserSkillText(skill: BrowserSkill) {
   const truncation = skill.contentTruncated
-    ? `\n\nOnly the beginning of the guide fits here. Run \`${AGENT_BROWSER_COMMAND.name} skills get core\` for the rest before relying on it.`
+    ? ` Only the beginning of the guide fits here. Run \`${AGENT_BROWSER_COMMAND.name} skills get core\` for the rest before relying on it.`
     : "";
   const references = `\`${AGENT_BROWSER_COMMAND.name} skills get core --full\` prints the references it links to.`;
   return [
     systemNote`
-      This is your first \`${AGENT_BROWSER_COMMAND.name}\` command in this session, so its guide comes with the output below. Follow it for the rest of your browser work; there is no need to load it. ${references}
+      This is your first \`${AGENT_BROWSER_COMMAND.name}\` command in this session, so its guide comes with the output below. Follow it for the rest of your browser work; there is no need to load it. ${references}${truncation}
     `.trim(),
     "",
-    boundedSkillBody({
+    skillInstructions({
       content: skill.content,
       name: skill.name,
       origin: skill.origin,
-      toolCallId,
-    }) + truncation,
+    }),
   ].join("\n");
 }

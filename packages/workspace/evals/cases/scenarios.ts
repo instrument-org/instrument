@@ -764,6 +764,63 @@ const summarizedTheArticle: Assertion = {
 };
 
 // ---------------------------------------------------------------------------
+// carry-facts: the chat reads statuses, then a job writes them into a tracker
+// ---------------------------------------------------------------------------
+
+// Read in the chat's first turn; the user never states a status, so the job
+// that adds these rows has only what the conversation already read.
+const LAUNCH_ISSUES = [
+  ["Security review", "In Progress"],
+  ["Terms of service", "In Review"],
+  ["Pricing page", "Done"],
+  ["Press kit", "In Progress"],
+  ["Status page", "Todo"],
+] as const;
+
+const MILESTONES_HEADER = "Milestone,Status,Owner";
+
+function seedLaunch() {
+  const dir = path.join(HOME, "Documents", "Launch");
+  fs.rmSync(dir, { force: true, recursive: true });
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "tracker-export.md"),
+    `# 2.0 Launch issues\n\n| Issue | Status | Assignee |\n|---|---|---|\n${LAUNCH_ISSUES.map(([name, status]) => `| ${name} | ${status} | Sam |`).join("\n")}\n`,
+  );
+  fs.writeFileSync(
+    path.join(dir, "milestones.csv"),
+    `${MILESTONES_HEADER}\nPricing page,Done,Sam\nStatus page,Not started,Sam\n`,
+  );
+}
+
+const carriedTheStatuses: Assertion = {
+  check: () => {
+    const text =
+      "the missing milestones were added with the statuses the chat read";
+    const rows = readText(
+      path.join(HOME, "Documents", "Launch", "milestones.csv"),
+    )
+      .split("\n")
+      .map((line) => line.toLowerCase());
+    const missing = LAUNCH_ISSUES.slice(0, 2)
+      .concat([LAUNCH_ISSUES[3]])
+      .map(([name, status]) => ({
+        name,
+        row: rows.find((line) => line.includes(name.toLowerCase())),
+        status,
+      }));
+    const wrong = missing.filter(
+      ({ row, status }) => !row?.includes(status.toLowerCase()),
+    );
+    const evidence = missing
+      .map(({ name, row }) => `${name}: ${row ?? "absent"}`)
+      .join("; ");
+    return wrong.length === 0 ? pass(text, evidence) : fail(text, evidence);
+  },
+  text: "the missing milestones were added with the statuses the chat read",
+};
+
+// ---------------------------------------------------------------------------
 // slow-wake: a fork whose job runs past the overdue clock
 // ---------------------------------------------------------------------------
 
@@ -922,6 +979,21 @@ const SCENARIO_CASES: Scenario[] = [
     sent: [path.join(HOME, "Documents", "Export")],
     setup: seedExport,
     slug: "slow-wake",
+  },
+  {
+    assertions: [carriedTheStatuses],
+    followUps: [
+      {
+        prompt:
+          "Yes, add the missing ones to milestones.csv in the background, owner Sam.",
+        settled: true,
+      },
+    ],
+    prompt:
+      "Compare the launch issues in tracker-export.md with milestones.csv in this folder. Which issues have no milestone yet?",
+    sent: [path.join(HOME, "Documents", "Launch")],
+    setup: seedLaunch,
+    slug: "carry-facts",
   },
 ];
 

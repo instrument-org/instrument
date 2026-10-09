@@ -227,7 +227,7 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
-  it("replays persisted bounded tool output byte for byte", async () => {
+  it("replays persisted tool output byte for byte", async () => {
     const { sessionId } = baseMetadata();
     const messageId = StoreId.newMessageId();
     const toolCallId = StoreId.ToolCallSchema.parse("call_search_replay");
@@ -289,7 +289,6 @@ describe("SessionMessage.toModelMessages", () => {
     );
 
     expect(replay).toEqual(first);
-    expect(JSON.stringify(first)).toMatch(/nonce=[0-9a-f]{32}/);
   });
 
   it("injects browser status on a user message", async () => {

@@ -437,7 +437,7 @@ async function withInspectorClient<T>({
     };
   };
   errors: {
-    API_ERROR: (options: { message: string }) => Error;
+    API_ERROR: (options: { cause?: unknown; message: string }) => Error;
     NOT_FOUND: (options: { message: string }) => Error;
   };
   run: Parameters<typeof withAppMcpClient>[0]["run"] extends (
@@ -484,7 +484,14 @@ async function withInspectorClient<T>({
       });
       await appChanged(slug);
     }
-    throw errors.API_ERROR({ message: result.error.message });
+    // Carried as the cause so a server that is not there (a desktop app's
+    // local server while the app is closed, a service that is down) is
+    // known as a network failure: the page offers a retry, and nothing is
+    // captured as a fault.
+    throw errors.API_ERROR({
+      cause: result.error.cause,
+      message: result.error.message,
+    });
   }
   return result.value;
 }

@@ -25,11 +25,20 @@ const variants: {
     description: "Between the click and the answer reaching the agent.",
     props: {
       choices: CHOICES,
-      isSending: true,
       question: QUESTION,
+      sending: { selectedChoice: "Vue" },
       status: "open",
     },
     title: "Sending",
+  },
+  {
+    props: {
+      choices: CHOICES,
+      question: QUESTION,
+      sending: { selectedChoice: "Plain HTML and a little Alpine" },
+      status: "open",
+    },
+    title: "Sending their own words",
   },
   {
     props: {
@@ -103,11 +112,26 @@ function noop() {
   // These questions are already answered or closed, so nothing takes an answer.
 }
 
+/**
+ * How long the playground holds an answer as sending before it lands, standing
+ * in for the round trip to the agent.
+ */
+const SEND_DELAY_MS = 1200;
+
 /** An open question answered here rather than by a session, showing what the answer sends. */
 function Playground() {
   const [output, setOutput] = useState<ChooseOutput>();
+  const [sending, setSending] = useState<ChooseOutput>();
   // Bumped on reset so the card's own typing and note start empty again.
   const [round, setRound] = useState(0);
+
+  const answer = (answered: ChooseOutput) => {
+    setSending(answered);
+    setTimeout(() => {
+      setSending(undefined);
+      setOutput(answered);
+    }, SEND_DELAY_MS);
+  };
 
   return (
     <section className="flex flex-col gap-3">
@@ -115,7 +139,7 @@ function Playground() {
         <div>
           <p className="text-sm font-medium">Open</p>
           <p className="text-xs text-muted-foreground">
-            Answer it to see the card close and the output it sends.
+            Answer it to see the card send, then close, and the output it sends.
           </p>
         </div>
         {output && (
@@ -134,9 +158,10 @@ function Playground() {
       <QuestionCard
         choices={CHOICES}
         key={round}
-        onAnswer={setOutput}
+        onAnswer={answer}
         output={output}
         question={QUESTION}
+        sending={sending}
         status={output ? "closed" : "open"}
       />
       {output && (

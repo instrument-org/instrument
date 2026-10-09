@@ -129,12 +129,41 @@ describe("QuestionCard", () => {
     fireEvent.change(screen.getByLabelText("Note"), {
       target: { value: "Ask design. " },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip with note" }));
     expect(onAnswer).toHaveBeenCalledWith({
       declined: true,
       note: "Ask design.",
     });
   });
+
+  it.each([
+    { name: "Vue", sending: { selectedChoice: "Vue" } },
+    { name: "Your own answer", sending: { selectedChoice: "Svelte" } },
+  ])(
+    "draws $sending.selectedChoice as picked while it is sending",
+    ({ name, sending }) => {
+      renderWithProviders(
+        <QuestionCard
+          choices={["React", "Vue"]}
+          onAnswer={vi.fn()}
+          question="Which one?"
+          sending={sending}
+          status="open"
+        />,
+      );
+      const radios = screen.getAllByRole("radio");
+      expect(radios.map((radio) => radio.getAttribute("aria-checked"))).toEqual(
+        name === "Vue" ? ["false", "true"] : ["false", "false"],
+      );
+      expect(radios.every((radio) => radio.hasAttribute("disabled"))).toBe(
+        true,
+      );
+      expect(screen.getByLabelText("Your own answer")).toHaveProperty(
+        "disabled",
+        true,
+      );
+    },
+  );
 
   it.each([
     { output: { declined: true as const }, text: "You skipped this question." },

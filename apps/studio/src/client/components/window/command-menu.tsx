@@ -20,7 +20,7 @@ import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { byActivity, type Chat } from "@/client/components/window/chats";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { formatAccelerator } from "@/client/lib/format-accelerator";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
@@ -98,7 +98,6 @@ export function CommandMenu({
 }) {
   const [open, setOpen] = useAtom(commandMenuOpenAtom);
   const [search, setSearch] = useState("");
-  useBlockTabNavigation(open);
   const shell = useShell();
   const { setTheme, theme } = useTheme();
   const developerMode = useDeveloperMode();
@@ -129,6 +128,7 @@ export function CommandMenu({
       setSearch("");
     }, 200);
   };
+  useHoldWindow(open, { onClose: close });
   /** A row's action, run once the menu is out of the way. */
   const andClose = (run: () => void) => () => {
     close();

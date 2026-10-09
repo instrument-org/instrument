@@ -6,8 +6,8 @@ import { openSettings } from "@/client/atoms/settings-modal";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import {
-  blockingModalCountAtom,
   modalBackStackAtom,
+  windowHoldsAtom,
 } from "@/client/atoms/tab-navigation-block";
 import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
@@ -172,7 +172,7 @@ export function useWindowCommands(
           if (typeof command === "object") {
             if (command.type === "selectTab") {
               // A tab by its place is a tab chord too, held under a dialog.
-              if (getDefaultStore().get(blockingModalCountAtom) === 0) {
+              if (getDefaultStore().get(windowHoldsAtom).length === 0) {
                 latest.current.selectTab(command.index);
               }
             } else {
@@ -190,10 +190,16 @@ export function useWindowCommands(
           ) {
             continue;
           }
-          if (
-            !MODAL_SAFE_COMMANDS.has(command) &&
-            getDefaultStore().get(blockingModalCountAtom) > 0
-          ) {
+          const holds = getDefaultStore().get(windowHoldsAtom);
+          if (!MODAL_SAFE_COMMANDS.has(command) && holds.length > 0) {
+            // Over a hold, Cmd+T and Cmd+W still mean a chat or draft the
+            // keyboard is in (one grown over the row is a hold), and Cmd+W
+            // otherwise closes the hold itself; the tab behind never moves.
+            if (command === "newTab") {
+              openTabForKeyboard();
+            } else if (command === "closeTab" && !closeTabForKeyboard()) {
+              holds.findLast((hold) => hold.close)?.close?.();
+            }
             continue;
           }
           switch (command) {
@@ -346,7 +352,7 @@ function openOrCloseCommandMenu() {
   const store = getDefaultStore();
   if (
     store.get(commandMenuOpenAtom) ||
-    store.get(blockingModalCountAtom) === 0
+    store.get(windowHoldsAtom).length === 0
   ) {
     toggleCommandMenu();
   }
@@ -368,16 +374,17 @@ function answer(
 }
 
 /**
- * Whether a modal holds the window, answering back itself when it does: the
- * innermost registered back runs, and forward does nothing. Either way the
- * tab behind stays where it is.
+ * Whether something holds the window, answering back and forward itself when
+ * it does: a page holding the keyboard (in a draft grown over the row) steps
+ * first, and otherwise back runs the innermost registered back and forward
+ * does nothing. Either way the tab behind stays where it is.
  */
 function heldByModal(direction: "back" | "forward") {
   const store = getDefaultStore();
-  if (store.get(blockingModalCountAtom) === 0) {
+  if (store.get(windowHoldsAtom).length === 0) {
     return false;
   }
-  if (direction === "back") {
+  if (!runPageChord(direction) && direction === "back") {
     store.get(modalBackStackAtom).at(-1)?.run();
   }
   return true;

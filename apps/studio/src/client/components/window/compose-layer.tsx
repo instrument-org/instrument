@@ -1,3 +1,4 @@
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { composeKeyOf, type Draft, draftGroupOf } from "@/client/atoms/window";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
@@ -106,6 +107,9 @@ export function ComposeLayer({
       compose.setPlacement(composeKeyOf(grown), "docked");
     }
   };
+  // Grown over the row, a window holds the tab behind it like a dialog: back
+  // and Cmd+W shrink it back to the foot, as Escape and the scrim do.
+  useHoldWindow(grown !== undefined, { onClose: shrink });
 
   return (
     <div

@@ -32,8 +32,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/client/components/ui/sidebar";
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
-import { useModalBack } from "@/client/hooks/use-modal-back";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useFindTarget } from "@/client/hooks/use-find-target";
@@ -81,10 +80,11 @@ export function SettingsModal() {
   // the instant the dialog starts closing.
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
-  useBlockTabNavigation(isOpen);
-  useModalBack(() => {
-    setState(null);
-  }, isOpen);
+  useHoldWindow(isOpen, {
+    onClose: () => {
+      setState(null);
+    },
+  });
 
   return (
     <Dialog

@@ -71,7 +71,7 @@ export function ProviderConfigListItem({
                 {isLoadingCredits
                   ? "Loading credits..."
                   : openRouterCredits?.credits
-                    ? `$${formatCredits(openRouterCredits.credits.total_credits - openRouterCredits.credits.total_usage)} remaining`
+                    ? `$${formatCredits(openRouterCredits.credits.remaining)} remaining`
                     : "Unable to load credits"}
               </p>
             )}

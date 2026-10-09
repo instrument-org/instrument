@@ -107,7 +107,11 @@ describe("renderSkillCatalog", () => {
   });
 
   it("keeps a skill the product names whole while the rest share what is left", () => {
-    const named = skill(SKILL_NAMES.createPage, "n".repeat(300), "instrument");
+    const named = skill(
+      SKILL_NAMES.instrumentPage,
+      "n".repeat(300),
+      "instrument",
+    );
     const others = Array.from({ length: 5 }, (_, index) =>
       skill(`other-${index}`, "o".repeat(300), "claude"),
     );
@@ -131,7 +135,11 @@ describe("renderSkillCatalog", () => {
   });
 
   it("gives a named skill the flat cap when it would crowd the rest", () => {
-    const named = skill(SKILL_NAMES.createPage, "n".repeat(5000), "instrument");
+    const named = skill(
+      SKILL_NAMES.instrumentPage,
+      "n".repeat(5000),
+      "instrument",
+    );
     const others = Array.from({ length: 5 }, (_, index) =>
       skill(`other-${index}`, "o".repeat(300), "claude"),
     );
@@ -174,7 +182,11 @@ describe("renderSkillCatalog", () => {
   });
 
   it("keeps only the named skills whole when the app's own would crowd the rest", () => {
-    const named = skill(SKILL_NAMES.createPage, "n".repeat(100), "instrument");
+    const named = skill(
+      SKILL_NAMES.instrumentPage,
+      "n".repeat(100),
+      "instrument",
+    );
     const bundled = skill("zip", "z".repeat(400), "instrument");
     const others = Array.from({ length: 5 }, (_, index) =>
       skill(`other-${index}`, "o".repeat(300), "claude"),
@@ -201,8 +213,8 @@ describe("renderSkillCatalog", () => {
 
   it("does not treat a namesake from another source as the named skill", () => {
     const namesake = {
-      ...skill(SKILL_NAMES.createPage, "n".repeat(300), "cursor"),
-      qualifiedName: `cursor:${SKILL_NAMES.createPage}`,
+      ...skill(SKILL_NAMES.instrumentPage, "n".repeat(300), "cursor"),
+      qualifiedName: `cursor:${SKILL_NAMES.instrumentPage}`,
     };
     const others = Array.from({ length: 5 }, (_, index) =>
       skill(`other-${index}`, "o".repeat(300), "claude"),
@@ -224,7 +236,7 @@ describe("renderSkillCatalog", () => {
     // is that the shortening step fires here, so a pass says the reservation
     // survived it rather than that everything happened to fit.
     const named = [
-      skill(SKILL_NAMES.createPage, "c".repeat(334), "instrument"),
+      skill(SKILL_NAMES.instrumentPage, "c".repeat(334), "instrument"),
       skill(SKILL_NAMES.documentToMarkdown, "d".repeat(343), "instrument"),
       skill(SKILL_NAMES.pdf, "p".repeat(562), "instrument"),
     ];

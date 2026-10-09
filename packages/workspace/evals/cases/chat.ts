@@ -880,7 +880,7 @@ export const CHAT_EVALS = [
       delegated(1),
       didNotDoTheWorkItself,
       saidAtMost(280),
-      briefNamedSkill("create-page"),
+      briefNamedSkill("instrument-page"),
     ],
     kind: "chat",
     name: "chat-asks-for-a-page",

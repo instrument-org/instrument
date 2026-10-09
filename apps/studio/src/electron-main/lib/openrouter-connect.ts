@@ -67,9 +67,12 @@ export function receiveOpenRouterCallback(
  */
 export function connectOpenRouter({
   callbackPort,
+  keyLabel,
   save,
 }: {
   callbackPort: number;
+  /** What the key is called on OpenRouter's keys page, after the app. */
+  keyLabel?: string;
   save: (key: string) => Promise<void>;
 }): Promise<OpenRouterConnectResult> {
   pendingConnect?.supersede();
@@ -114,7 +117,10 @@ export function connectOpenRouter({
     base64url(createHash("sha256").update(verifier).digest()),
   );
   url.searchParams.set("code_challenge_method", "S256");
-  url.searchParams.set("key_label", APP_NAME);
+  url.searchParams.set(
+    "key_label",
+    keyLabel ? `${APP_NAME} (${keyLabel})` : APP_NAME,
+  );
   url.searchParams.set("state", state);
   void shell.openExternal(url.toString());
 

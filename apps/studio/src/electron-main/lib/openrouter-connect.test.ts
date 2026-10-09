@@ -73,7 +73,9 @@ describe("connectOpenRouter", () => {
 
     const [exchangeURL, init] = fetchMock.mock.lastCall ?? [];
     expect(exchangeURL).toBe("https://openrouter.ai/api/v1/auth/keys");
-    const body: unknown = JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+    const body: unknown = JSON.parse(
+      typeof init?.body === "string" ? init.body : "{}",
+    );
     expect(body).toMatchObject({
       code: "code-1",
       code_challenge_method: "S256",
@@ -108,7 +110,9 @@ describe("connectOpenRouter", () => {
   it("ends as declined on a denial, which OpenRouter sends without state", async () => {
     const { result, save } = start();
 
-    void receiveOpenRouterCallback(new URLSearchParams({ error: "access_denied" }));
+    void receiveOpenRouterCallback(
+      new URLSearchParams({ error: "access_denied" }),
+    );
 
     await expect(result).resolves.toEqual({ outcome: "declined" });
     expect(save).not.toHaveBeenCalled();

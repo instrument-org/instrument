@@ -89,7 +89,7 @@ export function ConnectOpenRouter({
         onStart={() => {
           void start();
         }}
-        variant="outline"
+        size="lg"
         waiting={waiting}
       >
         Connect OpenRouter
@@ -99,11 +99,6 @@ export function ConnectOpenRouter({
           ? "Finish connecting OpenRouter in your browser"
           : `OpenRouter will open in your browser so you can create a key for ${APP_NAME}.`}
       </p>
-      <div className="flex items-center gap-3 py-1 text-xs text-muted-foreground">
-        <span className="h-px flex-1 bg-border" />
-        or paste a key you already have
-        <span className="h-px flex-1 bg-border" />
-      </div>
     </div>
   );
 }

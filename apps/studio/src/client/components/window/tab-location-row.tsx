@@ -69,6 +69,7 @@ export function TabLocationRow({
   canGoForward,
   field,
   fieldEnd,
+  fillsTab = false,
   leading,
   location,
   onBack,
@@ -87,6 +88,8 @@ export function TabLocationRow({
   field?: ReactNode;
   /** What the page says about itself inside the field, at its end, ahead of the app that opens it: its zoom while not 100%. */
   fieldEnd?: ReactNode;
+  /** Whether the row is over a screen that has the whole tab, where Quick Look's view of a file would be smaller than the one already up. */
+  fillsTab?: boolean;
   /** What the page puts ahead of the row's own controls, at its far left: a toggle for a panel along the page's left edge. */
   leading?: ReactNode;
   location: TabLocation;
@@ -113,7 +116,7 @@ export function TabLocationRow({
   // A file is drawn larger over the window; a page is already as large as
   // the tab, and a live site does not survive being lifted out of it.
   const lookTarget: LookTarget | undefined =
-    location.kind === "file"
+    location.kind === "file" && !fillsTab
       ? {
           kind: "file",
           tab: { hostPath: location.path, name: location.name },

@@ -465,6 +465,7 @@ function RouteScreen({ href }: { href: string }) {
                 ),
               }
             : {})}
+          fillsTab
           location={location}
         />
       )}

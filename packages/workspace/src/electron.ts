@@ -92,7 +92,7 @@ export { attachChats } from "./lib/chat/attach";
 export { appListChanges, sessionEnds } from "./lib/host-events";
 export { FILES_FENCE } from "./lib/parse-files-block";
 
-export { taskDir } from "./lib/task-dir-utils";
+export { getBrowserSessionDir, taskDir } from "./lib/task-dir-utils";
 export { getTaskSettings } from "./lib/task-settings";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";
 export { serveStaticFile } from "./logic/server/serve-static";

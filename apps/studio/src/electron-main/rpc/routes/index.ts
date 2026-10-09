@@ -4,6 +4,7 @@ import { appCommands } from "./app-commands";
 import { apps } from "./apps";
 import { auth } from "./auth";
 import { browser } from "./browser";
+import { browsingData } from "./browsing-data";
 import { chatgptAccount } from "./chatgpt-account";
 import { claudeAccount } from "./claude-account";
 import { debug } from "./debug";
@@ -33,6 +34,7 @@ export const router = {
   apps,
   auth,
   browser,
+  browsingData,
   chatgptAccount,
   claudeAccount,
   debug,

@@ -3,6 +3,7 @@ import {
   toggleCommandMenu,
 } from "@/client/atoms/command-menu";
 import { openSettings } from "@/client/atoms/settings-modal";
+import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import {
   blockingModalCountAtom,
@@ -27,6 +28,7 @@ const RECONNECT_DELAY_MS = 1000;
  * the user out from under it. Every other chord waits for the dialog to close.
  */
 const MODAL_SAFE_COMMANDS = new Set([
+  "clearBrowsingData",
   "findInPage",
   "openSettings",
   "openShortcutGuide",
@@ -236,6 +238,10 @@ export function useWindowCommands(
             }
             case "openSettings": {
               openSettings({ tab: "General" });
+              break;
+            }
+            case "clearBrowsingData": {
+              openClearBrowsingData();
               break;
             }
             case "openShortcutGuide": {

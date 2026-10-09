@@ -1,5 +1,6 @@
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
 import { openSettings, type SettingsTab } from "@/client/atoms/settings-modal";
+import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import {
   APPS_HREF,
@@ -39,6 +40,7 @@ import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { SHORTCUTS, type ShortcutAccelerator } from "@/shared/shortcuts";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import uFuzzy from "@leeoniya/ufuzzy";
+import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CodeIcon } from "@phosphor-icons/react/Code";
@@ -172,6 +174,12 @@ export function CommandMenu({
       id: "shortcuts",
       label: "Keyboard shortcuts",
       run: openShortcutGuide,
+    },
+    {
+      icon: <BroomIcon />,
+      id: "clear-browsing-data",
+      label: "Clear browsing data",
+      run: openClearBrowsingData,
     },
     ...(
       [

@@ -191,5 +191,5 @@ Absent that work, system-prompt cuts must be safe for the weakest model we ship 
 
 - The `browserTargetingGuidance` split between durable policy (session context) and volatile availability (per-request description).
 - Forced-required `explanation`.
-- The nonce-bounded untrusted-content preambles on `web_search`, `load_skill`, and `agent_browser` page output. These read as repetition but are a security boundary, not guidance -- see [the decision record](../decisions/2026-07-27-nonce-bounded-untrusted-content.md).
+- The lead line on `web_search`, `web_fetch`, and `load_skill` output saying what follows, with our own notes before the outside content and the content last -- see [the decision record](../decisions/2026-10-09-outside-content-arrives-last-and-unmarked.md).
 - `write_file`'s "do not re-emit content, use `cp`" rule.

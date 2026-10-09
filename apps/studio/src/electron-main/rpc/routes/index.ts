@@ -10,6 +10,7 @@ import { debug } from "./debug";
 import { features } from "./features";
 import { files } from "./files";
 import { gateway } from "./gateway";
+import { history } from "./history";
 import { mac } from "./mac";
 import { onboarding } from "./onboarding";
 import { pageEditor } from "./page-editor";
@@ -38,6 +39,7 @@ export const router = {
   features,
   files,
   gateway,
+  history,
   mac,
   onboarding,
   pageEditor,

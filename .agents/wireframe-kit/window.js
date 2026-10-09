@@ -67,26 +67,28 @@ const fileMark = (kind, cls = "text-[13px]") =>
     folder: `<i class="ph ph-folder shrink-0 text-[#4a9ff5] ${cls}"></i>`,
   })[kind];
 
-/** A tab is {site} or {file} or {newtab: true}; `agent` marks one the task is driving. */
+/** A tab is {site}, {file}, {folder: name} (Files open on a folder) or {newtab: true}; `agent` marks one the task is driving. */
 const tabMark = (t, size) =>
   t.site
     ? SITES[t.site].mark(size)
     : t.file
       ? fileMark(FILES[t.file].kind)
-      : `<i class="ph ph-magnifying-glass shrink-0 text-[14px]"></i>`;
+      : t.folder
+        ? fileMark("folder", "text-[15px]")
+        : `<i class="ph ph-magnifying-glass shrink-0 text-[14px]"></i>`;
 const tabTitle = (t) =>
   t.site
     ? SITES[t.site].title
     : t.file
       ? FILES[t.file].title
-      : t.title || "New tab";
+      : t.folder || t.title || "New tab";
 
 // ---- window --------------------------------------------------------------------
 
 const GROUND = "bg-[#e7e5e4]";
 const trafficLights = `<div class="flex w-20 shrink-0 items-center gap-2 pl-3"><span class="size-3 rounded-full bg-[#ff5f57]"></span><span class="size-3 rounded-full bg-[#febc2e]"></span><span class="size-3 rounded-full bg-[#28c840]"></span></div>`;
 
-/** A window tab in the bar. `t` is a tab ({site} | {file} | {newtab}) or {chats: true, title}. */
+/** A window tab in the bar. `t` is a tab ({site} | {file} | {folder} | {newtab}) or {chats: true, title}. */
 const barTab = (t, { on = false } = {}) => `
   <div class="relative flex h-8 max-w-48 min-w-20 shrink-0 items-center gap-2 rounded-xl px-2.5 text-sm font-medium ${on ? "bg-background shadow-xs" : "text-foreground/55"}">
     ${t.chats ? `<i class="ph ph-chat-circle text-[14px]"></i>` : tabMark(t)}
@@ -541,12 +543,18 @@ const page = (t) =>
 
 // ---- places --------------------------------------------------------------------
 
-/** Files, Browser, an app or a skill: the place fills the card, under its location row (none on Apps). Its tabs are the window's, in the bar. */
+/** Browser, an app or a skill (Files has filesPlace): the place fills the card, under its location row (none on Apps). Its tabs are the window's, in the bar. */
 const placeCard = ({ tab, body, loc = true }) => `
   <div class="flex min-w-0 flex-1 flex-col">
     ${loc ? locRow(tab) : ""}
     <div class="relative min-h-0 flex-1 overflow-hidden">${body ?? page(tab)}</div>
   </div>`;
+
+// Files, measured off the documents fixture (2026-10-09) at 1280x800. The card opens on
+// a 40px top row: the sidebar toggle, the omnibar centered across the card (640 wide)
+// ending in the button that shows the folder in the Mac's Finder, and the open file's
+// own controls at the right. Under it a folder gets the 175px sidebar of places and the
+// Finder's 48px header; a file gets the 240px tree of its folder in place of the places.
 
 const FINDER_FILES = [
   ["folder", "ai-spend"],
@@ -560,21 +568,99 @@ const FINDER_FILES = [
   ["html", "demo-page.html"],
 ];
 
-/** The Finder, Files' first tab. */
-const finder = ({ pick = -1 } = {}) => `
-  <div class="flex h-full">
-    <div class="w-[180px] shrink-0 border-r border-border p-2 text-[12px]">
-      <div class="flex items-center gap-2 px-2 py-1.5"><i class="ph ph-clock-counter-clockwise"></i>Recents</div>
-      <div class="px-2 pt-3 pb-1 text-[11px] text-muted-foreground">Favorites</div>
-      ${["Instrument", "Home", "Desktop", "Documents", "Downloads"].map((n, i) => `<div class="flex items-center gap-2 rounded-md px-2 py-1.5 ${i === 0 ? "bg-black/[0.06]" : ""}">${fileMark("folder")}${n}</div>`).join("")}
-      <div class="px-2 pt-3 pb-1 text-[11px] text-muted-foreground">Locations</div>
-      <div class="flex items-center gap-2 px-2 py-1.5"><i class="ph ph-hard-drive"></i>Macintosh HD</div>
+const toolBtn = (inner, cls = "") =>
+  `<span class="flex h-8 min-w-8 shrink-0 items-center justify-center gap-1 rounded-lg bg-card px-2 text-muted-foreground ring-1 ring-border ${cls}">${inner}</span>`;
+
+/** Files' top row. `mark` leads the omnibar (a folder, or the open file's type), `crumbs` are its path, `right` the open file's controls (fileActions). */
+const filesTop = ({ crumbs = ["studio26"], mark = fileMark("folder", "text-[15px]"), right = "", left = "" } = {}) => `
+  <div class="grid h-10 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-border px-2">
+    <div class="flex items-center gap-1"><span class="grid size-8 place-items-center rounded-lg text-muted-foreground"><i class="ph ph-sidebar-simple text-[17px]"></i></span>${left}</div>
+    <div class="flex h-8 w-[640px] min-w-0 items-center gap-2 rounded-full border border-border bg-card px-3 text-[13px] shadow-xs">
+      ${mark}${crumbs.map((c, i) => `<span class="truncate ${i === crumbs.length - 1 ? "text-foreground" : "text-muted-foreground"}">${c}</span>`).join(`<i class="ph ph-caret-right text-[10px] text-muted-foreground"></i>`)}
+      <span class="flex-1"></span><span class="grid size-4 shrink-0 place-items-center rounded-[4px] bg-[#1e88f0] text-white"><i class="ph ph-smiley text-[11px]"></i></span>
     </div>
-    <div class="min-w-0 flex-1">
-      <div class="flex h-10 items-center gap-2 border-b border-border px-3 text-[13px] font-medium">Instrument<span class="flex-1"></span><span class="flex h-7 w-40 items-center gap-1.5 rounded-md border border-border px-2 text-[12px] font-normal text-gray-400"><i class="ph ph-magnifying-glass"></i>Search</span></div>
-      <div class="w-[260px] border-r border-border p-1.5 text-[12px]">${FINDER_FILES.map(([k, n], i) => `<div class="flex items-center gap-2 rounded-md px-2 py-1.5 ${i === pick ? "bg-[#d6e6fb]" : ""}">${fileMark(k)}<span class="truncate">${n}</span></div>`).join("")}</div>
+    <div class="flex items-center justify-end gap-1">${right}</div>
+  </div>`;
+
+/** The open file's controls in the top row: Viewing (or Editing), Ask, its menu, and expand. */
+const fileActions = ({ editing = false, ask = "Ask" } = {}) => `
+  <span class="flex h-8 items-center gap-1.5 rounded-lg px-2 text-[13px] ${editing ? "bg-foreground text-background" : "text-muted-foreground"}"><i class="ph ph-${editing ? "pencil-simple" : "eye"} text-[15px]"></i>${editing ? "Editing" : "Viewing"}<i class="ph ph-caret-down text-[10px]"></i></span>
+  <span class="flex h-8 items-center gap-1.5 rounded-lg px-2 text-[13px] font-medium">${brand("instrumentglyph", "size-4")}${ask}</span>
+  <span class="grid size-8 place-items-center text-muted-foreground"><i class="ph ph-dots-three-vertical text-[16px]"></i></span>
+  <span class="grid size-8 place-items-center text-muted-foreground"><i class="ph ph-arrows-out-simple text-[15px]"></i></span>`;
+
+/** The Finder's sidebar of places. `starred` adds a Starred place over Recents. */
+const finderSidebar = ({ on = "studio26", starred = false, places = ["Instrument", "studio26", "Desktop", "Documents", "Downloads"] } = {}) => {
+  const item = (icon, name) =>
+    `<div class="flex h-7 items-center gap-2 rounded-lg px-2 ${name === on ? "bg-foreground/8" : ""}">${icon}<span class="truncate">${name}</span></div>`;
+  const placeIcon = (n) =>
+    n === "Instrument"
+      ? `<i class="ph ph-folder-simple shrink-0 text-[15px] text-[#3f9d8a]"></i>`
+      : n === "studio26"
+        ? `<i class="ph ph-house shrink-0 text-[15px] text-muted-foreground"></i>`
+        : fileMark("folder", "text-[15px]");
+  return `
+  <div class="w-[175px] shrink-0 border-r border-border px-2 pt-2 text-[13px]">
+    ${starred ? item(`<i class="ph ph-star shrink-0 text-[15px] text-muted-foreground"></i>`, "Starred") : ""}
+    ${item(`<i class="ph ph-clock-counter-clockwise shrink-0 text-[15px] text-muted-foreground"></i>`, "Recents")}
+    <div class="px-2 pt-3 pb-1 text-[12px] text-muted-foreground">Favorites</div>
+    ${places.map((n) => item(placeIcon(n), n)).join("")}
+    <div class="px-2 pt-3 pb-1 text-[12px] text-muted-foreground">Locations</div>
+    ${item(`<i class="ph ph-cloud shrink-0 text-[15px] text-muted-foreground"></i>`, "iCloud Drive")}
+    ${item(`<i class="ph ph-hard-drive shrink-0 text-[15px] text-muted-foreground"></i>`, "Macintosh HD")}
+  </div>`;
+};
+
+/** The view picker: Grid, List, Columns, and any `extra` views a proposal adds as [key, icon]. */
+const finderViews = (view = "columns", extra = []) =>
+  `<span class="flex h-8 items-center rounded-lg bg-foreground/8 p-0.5">${[["icons", "ph-squares-four"], ["list", "ph-rows"], ["columns", "ph-columns"], ...extra].map(([k, i]) => `<span class="grid h-7 w-8 place-items-center rounded-md ${k === view ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"}"><i class="ph ${i} text-[15px]"></i></span>`).join("")}</span>`;
+
+/** The Finder's 48px header: the folder's name, then Ask, the views, sort, filter, more and search. */
+const finderHeader = ({ title = "studio26", views = finderViews(), ask = "Ask" } = {}) => `
+  <div class="flex h-12 shrink-0 items-center gap-1.5 border-b border-border px-3">
+    <span class="min-w-0 flex-1 truncate text-[15px] font-semibold">${title}</span>
+    ${toolBtn(`${brand("instrumentglyph", "size-4")}<span class="text-[13px] font-medium text-foreground">${ask}</span>`, "px-2.5")}
+    ${views}
+    ${toolBtn(`<i class="ph ph-arrows-down-up text-[15px]"></i><i class="ph ph-caret-down text-[9px]"></i>`)}
+    ${toolBtn(`<i class="ph ph-funnel-simple text-[15px]"></i>`)}
+    ${toolBtn(`<i class="ph ph-dots-three text-[15px]"></i>`)}
+    ${toolBtn(`<i class="ph ph-magnifying-glass text-[15px]"></i>`)}
+  </div>`;
+
+/** The Finder's list view: Name, Date Modified, Size and Kind over 24px striped rows. Rows are [kind, name, modified, size, kindText]. */
+const finderListView = (rows, { pick = -1 } = {}) => `
+  <div class="text-[13px]">
+    <div class="grid h-7 items-center border-b border-border px-3 text-[12px] text-muted-foreground" style="grid-template-columns:1fr 170px 70px 110px"><span class="pl-6">Name <i class="ph ph-caret-up text-[9px]"></i></span><span>Date Modified</span><span class="text-right">Size</span><span class="pl-3">Kind</span></div>
+    ${rows.map(([k, n, d, sz, kt], i) => `<div class="grid h-6 items-center px-3 ${i === pick ? "bg-brand-600 text-white" : i % 2 ? "bg-foreground/[0.03]" : ""}" style="grid-template-columns:1fr 170px 70px 110px"><span class="flex min-w-0 items-center gap-2">${fileMark(k)}<span class="truncate">${n}</span></span><span class="${i === pick ? "" : "text-muted-foreground"}">${d}</span><span class="text-right ${i === pick ? "" : "text-muted-foreground"}">${sz}</span><span class="pl-3 ${i === pick ? "" : "text-muted-foreground"}">${kt}</span></div>`).join("")}
+  </div>`;
+
+/** A file's folder as the tree beside it: 240px, 24px rows, the open file in the brand color. Rows are [depth, kind, name]. */
+const fileTree = (rows, { on = "" } = {}) => `
+  <div class="w-[240px] shrink-0 overflow-hidden border-r border-border px-1.5 py-1 text-[13px]">
+    ${rows.map(([d, k, n]) => `<div class="flex h-6 items-center gap-1.5 rounded-md pr-2 ${n === on ? "bg-brand-600 text-white" : ""}" style="padding-left:${8 + d * 16}px">${k === "folder" ? `<i class="ph ph-caret-${d === 0 ? "down" : "right"} text-[10px] ${n === on ? "" : "text-muted-foreground"}"></i>` : `<span class="w-2.5"></span>`}${fileMark(k)}<span class="truncate">${n}</span></div>`).join("")}
+  </div>`;
+
+/** Files filling the card: its top row, then `side` (finderSidebar, fileTree, or nothing), then `head` over `body`. */
+const filesPlace = ({ top = filesTop(), side = finderSidebar(), head = "", body = "" } = {}) => `
+  <div class="flex min-w-0 flex-1 flex-col">
+    ${top}
+    <div class="flex min-h-0 flex-1">
+      ${side}
+      <div class="relative flex min-w-0 flex-1 flex-col">${head}<div class="relative min-h-0 flex-1 overflow-hidden">${body}</div></div>
     </div>
   </div>`;
+
+/** The Finder as Files opens it on the Instrument folder, in list view. */
+const finder = ({ pick = -1 } = {}) =>
+  filesPlace({
+    top: filesTop({ crumbs: ["studio26", "Instrument"] }),
+    side: finderSidebar({ on: "Instrument" }),
+    head: finderHeader({ title: "Instrument", views: finderViews("list") }),
+    body: finderListView(
+      FINDER_FILES.map(([k, n], i) => [k, n, `Oct ${8 - (i % 5)}, 2026 at ${9 + (i % 4)}:${10 + i * 5} AM`, k === "folder" ? "--" : `${12 + i * 7} KB`, { folder: "Folder", html: "text/html", md: "text/markdown", csv: "text/csv" }[k]]),
+      { pick },
+    ),
+  });
 
 // ---- floating ------------------------------------------------------------------
 

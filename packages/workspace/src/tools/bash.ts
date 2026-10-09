@@ -438,7 +438,6 @@ function browserSkillText(skill: BrowserSkill) {
     skillInstructions({
       content: skill.content,
       name: skill.name,
-      origin: skill.origin,
     }),
   ].join("\n");
 }

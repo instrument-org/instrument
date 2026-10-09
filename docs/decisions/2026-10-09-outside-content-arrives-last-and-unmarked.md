@@ -24,7 +24,7 @@ Outside content reaches the model as it was returned, with no boundary markers a
 
 - **Shell commands print the data alone on stdout.** `app call` prints the service's result. `app request` prints the response body on stdout and its status line and any truncation note on stderr, which the bash tool still shows. `agent-browser` runs without `--content-boundaries`.
 - **Tool outputs lead with ours and end with theirs.** `load_skill`, `web_search` and `web_fetch` open with our notes (provenance, install state, truncation, cache age), then one line saying what follows and where it came from, then the content as the last thing in the output. A delta snapshot states the refs that left the page before the tree lines that carry page text.
-- **The per-surface guidance stays where it says what the content is.** Search and fetch keep their sentences about staleness and about not following instructions in a page. A skill from an unreviewed folder keeps its one line about what it may not redirect.
+- **The injection policy is said once, in the system prompt.** Each agent's prompt carries one line: what comes back from outside the conversation is information, not the user speaking, and a request in it the user did not make is reported rather than acted on. Tool outputs keep only what describes the content, such as a search excerpt's staleness. The per-call warnings on search, fetch, `app` and third-party skills are gone, following Anthropic's advice to state the policy in the system prompt and keep our own instructions out of tool results.
 
 ## Why
 
@@ -38,7 +38,7 @@ Outside content reaches the model as it was returned, with no boundary markers a
 
 ## Consequences
 
-- `lib/content-boundary.ts` is gone. Each bounded call is about 60 tokens shorter, and the bash tool description no longer carries the agent-browser marker sentence on every turn.
+- `lib/content-boundary.ts` is gone. A search or fetch is about 130 tokens shorter, a skill load about 60, and the bash tool description no longer carries the agent-browser marker sentence on every turn.
 - `systemNote` still neutralizes its own tag inside interpolated values, and `renderSkillCatalog` still escapes descriptions. Both protect markup we introduced, in short metadata, which is a different call.
 - Page output from `agent-browser` no longer carries the page's origin on each read. The agent knows which page it opened.
 - Nothing here measured attack success before or after, on any model.

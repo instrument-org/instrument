@@ -88,6 +88,7 @@ import { chatListOptions } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
 import { ComposeLayer } from "./compose-layer";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
+import { useSignInLanding } from "./use-sign-in-landing";
 import { InboxPeek } from "./inbox-peek";
 import { WindowLook } from "./look-panel";
 import { NewTopicDialog } from "./new-topic-dialog";
@@ -488,6 +489,7 @@ function WindowShell({
   };
 
   usePageThumbnailHousekeeping();
+  useSignInLanding(openScreen);
 
   const topicsQuery = useQuery(rpcClient.workspace.topics.list.queryOptions());
   const topics = topicsQuery.data ?? [];

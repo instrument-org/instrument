@@ -14,7 +14,6 @@ import {
 } from "@/electron-main/stores/workspace/app-oauth";
 import { PORTS } from "@instrument-org/shared";
 import {
-  appHomeFor,
   findAppIcon,
   findCatalogEntry,
   loadApp,
@@ -52,15 +51,6 @@ export async function announceConnected(slug: string) {
       : { detail: `${connection.toolCount} tools` }),
     event: "connected",
   });
-}
-
-/** The service's signed-in web app, for a sign-in that finished in the window's browser to land on. */
-export async function appHome(
-  appsDir: WorkspaceConfig["appsDir"],
-  slug: string,
-): Promise<string | undefined> {
-  const loaded = await loadApp(appsDir, slug);
-  return loaded.isOk() ? appHomeFor(slug, loaded.value.manifest) : undefined;
 }
 
 /** The app's own name for a note, falling back to the slug when the folder is gone. */

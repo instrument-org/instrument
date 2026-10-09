@@ -57,7 +57,7 @@ It also clears `ELECTRON_RUN_AS_NODE` from the app's environment, so there is no
 
 `modal` takes its names from the running app (`modal` with none prints them), so the list cannot drift from the openers the renderer has.
 
-Route and modal commands go through `window.__studioDrive`, a dev-only handle the renderer attaches (`client/lib/studio-drive.ts`). A packaged build, and any checkout without that file, will not have it.
+Route and modal commands go through `window.__studioDrive`, a handle the renderer attaches (`client/lib/studio-drive.ts`) in a development run and in a preview build. A release build, and any checkout without that file, will not have it.
 
 `boot` returns as soon as that handle exists, which is when the app can be driven — not when the restored route has finished loading. A `shot` fired straight after `boot` can therefore catch a chat still filling in. When a command depends on route content rather than on the chrome, wait for the thing itself:
 

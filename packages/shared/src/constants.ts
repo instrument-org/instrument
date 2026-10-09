@@ -8,29 +8,47 @@ export const APP_UPDATER_CACHE_DIR_NAME = `${APP_NAME_SLUG}-desktop-updater`;
 // item, and macOS privacy grants. Its first launch is a real first launch, on a
 // machine that already runs Instrument. Copy keeps saying APP_NAME, so what the
 // user reads matches what ships.
-export const APP_PREVIEW_NAME =
+const previewName =
   (process.env.INSTRUMENT_PREVIEW_NAME ?? "")
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, "-")
     .replaceAll(/^-+|-+$/g, "")
     .slice(0, 40) || undefined;
+/**
+ * Which kind of build this is, settled when it is built. Everything that tells
+ * a preview or a development run apart from the app people install (its name,
+ * identity, icon, defaults, and what it leaves out) reads this.
+ */
+export type AppFlavor =
+  | { kind: "development" }
+  | { kind: "preview"; name: string }
+  | { kind: "release" };
+export const APP_FLAVOR: AppFlavor =
+  previewName !== undefined
+    ? { kind: "preview", name: previewName }
+    : process.env.NODE_ENV === "development"
+      ? { kind: "development" }
+      : { kind: "release" };
 // What the OS calls the app: the bundle on disk, the userData folder, the
 // keychain's Safe Storage item, and the name on its privacy prompts.
-export const APP_PRODUCT_NAME = APP_PREVIEW_NAME
-  ? `${APP_NAME} Preview (${APP_PREVIEW_NAME})`
-  : APP_NAME;
-export const APP_PROTOCOL = APP_PREVIEW_NAME
-  ? `${APP_NAME_SLUG}-preview-${APP_PREVIEW_NAME}`
-  : process.env.NODE_ENV === "development"
-    ? `${APP_NAME_SLUG}-local`
-    : APP_NAME_SLUG;
+export const APP_PRODUCT_NAME =
+  APP_FLAVOR.kind === "preview"
+    ? `${APP_NAME} Preview (${APP_FLAVOR.name})`
+    : APP_NAME;
+export const APP_PROTOCOL =
+  APP_FLAVOR.kind === "preview"
+    ? `${APP_NAME_SLUG}-preview-${APP_FLAVOR.name}`
+    : APP_FLAVOR.kind === "development"
+      ? `${APP_NAME_SLUG}-local`
+      : APP_NAME_SLUG;
 export const APP_EXECUTABLE = "instrument";
 export const APP_CLIENT_NAME_STUDIO = `${APP_NAME_SLUG}-studio`;
 // macOS/Windows application bundle identifier; the source of truth for
 // electron-builder `appId` and any OS deep links that target the app.
-export const APP_BUNDLE_ID = APP_PREVIEW_NAME
-  ? `com.finalpoint.instrument.preview.${APP_PREVIEW_NAME}`
-  : "com.finalpoint.instrument";
+export const APP_BUNDLE_ID =
+  APP_FLAVOR.kind === "preview"
+    ? `com.finalpoint.instrument.preview.${APP_FLAVOR.name}`
+    : "com.finalpoint.instrument";
 
 export const APP_REPO_NAME = "instrument";
 export const GITHUB_ORG = "instrument-org";

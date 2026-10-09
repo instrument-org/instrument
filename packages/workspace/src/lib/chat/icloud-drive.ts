@@ -46,11 +46,18 @@ export function iCloudAppFolders(): Promise<ICloudAppFolder[]> {
   const folders =
     binPath === undefined
       ? Promise.resolve([])
-      : execFileAsync(binPath, ["icloud-folders"]).then(
-          ({ stdout }) =>
+      : execFileAsync(binPath, ["icloud-folders"])
+          .then(({ stdout }) =>
             ICloudAppFolderSchema.array().parse(JSON.parse(stdout)),
-          () => [],
-        );
+          )
+          .catch((error: unknown) => {
+            // iCloud Drive still lists its own folders; the app folders
+            // are what goes missing, and the reason is only here.
+            getWorkspaceConfig().captureException(
+              error instanceof Error ? error : new Error(String(error)),
+            );
+            return [];
+          });
   appFolders = { at: Date.now(), folders };
   return folders;
 }

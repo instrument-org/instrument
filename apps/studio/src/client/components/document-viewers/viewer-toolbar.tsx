@@ -1,3 +1,4 @@
+import { useFindTarget } from "@/client/hooks/use-find-target";
 import { cn } from "@/client/lib/utils";
 import { MAX_ZOOM, MIN_ZOOM } from "@/client/lib/zoom-levels";
 import { steppedZoom } from "@/shared/zoom";
@@ -46,6 +47,18 @@ export function ViewerFindControl({
 }) {
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // The popover is portalled out of the viewer, so a press with the caret
+  // already in its field is the viewer's too.
+  useFindTarget({
+    anchor: triggerRef,
+    holdsKeyboard: () => document.activeElement === inputRef.current,
+    openFind: () => {
+      setOpen(true);
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    },
+  });
 
   useEffect(() => {
     if (open) {
@@ -61,6 +74,7 @@ export function ViewerFindControl({
           <PopoverTrigger asChild>
             <Button
               aria-label="Find in document"
+              ref={triggerRef}
               className={toolbarClassName({
                 className: cn("size-7", openableClassName),
                 pressed: false,

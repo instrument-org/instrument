@@ -36,6 +36,7 @@ import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useFindTarget } from "@/client/hooks/use-find-target";
 import { flashJumpTarget } from "@/client/lib/flash-jump-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -140,6 +141,15 @@ function SettingsModalContent({
   } | null>(null);
   const contentRef = useRef<HTMLElement>(null);
   useFlashSetting(contentRef, jump);
+  // ⌘F anywhere in Settings is its search, over any list's own inside it.
+  const searchRef = useRef<HTMLInputElement>(null);
+  useFindTarget({
+    anchor: searchRef,
+    openFind: () => {
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    },
+  });
 
   const ordered = search.matches.map((match) => match.entry);
   // The result the keys are on, which a new search starts back at the top.
@@ -171,6 +181,7 @@ function SettingsModalContent({
       className="h-full gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none"
       maxHeight="50rem"
       maxWidth="70rem"
+      data-find-surface
       onExitComplete={onExitComplete}
       showCloseButton={false}
     >
@@ -201,6 +212,7 @@ function SettingsModalContent({
                       : undefined
                   }
                   aria-label="Search settings"
+                  ref={searchRef}
                   // The ring is drawn inside the field: the sidebar's scroller
                   // clips anything drawn past its edge.
                   className="pr-8 pl-8 focus-visible:-outline-offset-3 [&::-webkit-search-cancel-button]:hidden"

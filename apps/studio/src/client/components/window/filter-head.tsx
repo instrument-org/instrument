@@ -5,6 +5,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
+import { useFindTarget } from "@/client/hooks/use-find-target";
 import { cn } from "@/client/lib/utils";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
@@ -14,7 +15,7 @@ import { NotificationIcon } from "@phosphor-icons/react/Notification";
 import { PlusSquareIcon } from "@phosphor-icons/react/PlusSquare";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { ChevronDown } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 
 import {
   type ChatFilters,
@@ -83,6 +84,14 @@ export function FilterHead(props: FilterProps) {
   const model = useFilterModel(props);
   const [isSearchFocused, setSearchFocused] = useState(false);
   const isSearching = isSearchFocused || filters.search !== "";
+  const searchRef = useRef<HTMLInputElement>(null);
+  useFindTarget({
+    anchor: searchRef,
+    openFind: () => {
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    },
+  });
   return (
     <div
       aria-label="Filters"
@@ -94,6 +103,7 @@ export function FilterHead(props: FilterProps) {
     >
       <ViewPicker {...model} isCompact={isSearching} />
       <SearchField
+        inputRef={searchRef}
         onChange={(search) => {
           onFiltersChange({ ...filters, search });
         }}

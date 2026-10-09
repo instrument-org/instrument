@@ -1015,6 +1015,8 @@ export function FileViewer({
   return (
     <div
       className={cn(fileViewerClassName, className)}
+      // The whole viewer is where its toolbar's find answers Cmd+F.
+      data-find-surface
       // Read by a format's toolbar, which sits under the head when there is
       // one and stands alone as the first row when there is not.
       data-headless={isInRow || undefined}

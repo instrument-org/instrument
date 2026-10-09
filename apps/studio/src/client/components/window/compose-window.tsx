@@ -38,6 +38,7 @@ import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useRouterState } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -213,6 +214,7 @@ export function ComposeWindow({
   modelURI,
   onChange,
   onClose,
+  onDiscard,
   onModelChange,
   onNewTopic,
   onPageChrome,
@@ -232,6 +234,8 @@ export function ComposeWindow({
   onChange: (update: (draft: Draft) => Draft) => void;
   /** The window's close, with the words as the box has them that moment: the caller keeps or throws the draft away by them. */
   onClose: (words: string) => void;
+  /** Throws the draft away, from the head's trash, offered while it has words to lose. */
+  onDiscard: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** Makes a topic named for what was typed in the head's topic picker, and files the draft under it. */
   onNewTopic: (name: string) => void;
@@ -635,6 +639,11 @@ export function ComposeWindow({
                   ref={setHeadSlot}
                 />
                 <div className="ml-1 flex shrink-0 items-center gap-0.5 border-l border-border pl-2">
+                  {words.trim() !== "" && (
+                    <WindowButton label="Discard draft" onClick={onDiscard}>
+                      <TrashIcon className="size-4" />
+                    </WindowButton>
+                  )}
                   <WindowButton
                     label="Minimize"
                     onClick={() => {
@@ -804,7 +813,7 @@ export function ComposeWindow({
   );
 }
 
-/** One of a window's own buttons: minimize, expand, close. */
+/** One of a window's own buttons: discard, minimize, expand, close. */
 export function WindowButton({
   children,
   label,

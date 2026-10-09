@@ -246,7 +246,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                 setInboxOpen(true);
               }
             }}
-            onDeleteDraft={shell.deleteDraft}
+            onDeleteDraft={shell.discardDraft}
             onListed={isActive ? shell.onListed : undefined}
             onOpenChat={(entry) => {
               appWindow.openScreen(`${CHATS_HREF}/${entry.id}`);

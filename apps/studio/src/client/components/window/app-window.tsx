@@ -552,7 +552,8 @@ function WindowShell({
   const {
     arrivedId,
     closeDraft,
-    deleteDraft,
+    discardDraft,
+    discardingIds,
     newDraft,
     sentWords,
     showDraft,
@@ -567,6 +568,12 @@ function WindowShell({
     isChat,
     openChat: (chatId) => {
       appTabs.navigate(`${CHATS_HREF}/${chatId}`);
+    },
+    openDrafts: () => {
+      setInboxOpen(true);
+      if (place !== "chat") {
+        appTabs.goToPlace("chat");
+      }
     },
     saveDefaultModelURI,
     topics,
@@ -716,14 +723,17 @@ function WindowShell({
     arrivedId,
     childTitles,
     compose,
-    deleteDraft,
+    discardDraft,
     // Only a draft with words is a draft to come back to; one being written
-    // with none yet is its window's alone, and one being sent is already its
-    // chat.
+    // with none yet is its window's alone, one being sent is already its
+    // chat, and one just discarded is gone unless its Undo brings it back.
     chats: chats.data,
     chatTitles,
     drafts: drafts.filter(
-      (draft) => hasWords(draft) && !startingIds.has(draft.id),
+      (draft) =>
+        hasWords(draft) &&
+        !startingIds.has(draft.id) &&
+        !discardingIds.has(draft.id),
     ),
     newDraft: () => {
       newDraft();
@@ -795,6 +805,7 @@ function WindowShell({
                   compose.remove(chatId);
                 }}
                 onCloseDraft={closeDraft}
+                onDiscardDraft={discardDraft}
                 onCloseTab={requestClose}
                 onModelChange={setDefaultModelURI}
                 onNewChatTopic={(chatId, name) => {
@@ -877,7 +888,7 @@ function WindowShell({
                       setInboxOpen(true);
                     }
                   }}
-                  onDeleteDraft={deleteDraft}
+                  onDeleteDraft={discardDraft}
                   onOpenChat={(entry) => {
                     inboxPeek.close();
                     // Peeked out over another place, the chat pops out over

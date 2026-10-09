@@ -17,8 +17,15 @@ import { counting } from "radashi";
 
 import { type Session } from "../../src/schemas/session";
 import { type AppFixture } from "../lib/connected-app";
-import { TRACKER } from "../lib/mcp-tracker";
+import { createdIssueUrl, TRACKER } from "../lib/mcp-tracker";
 import { type Assertion, defineEval } from "../harness";
+
+// Any issue the case filed, by the address the tracker gave it.
+const CREATED_ISSUE_URL = new RegExp(
+  createdIssueUrl("BCN-0")
+    .replace("BCN-0", String.raw`BCN-\d+`)
+    .replaceAll(".", "\\."),
+);
 
 const BEACON: AppFixture = { kind: "mcp", name: "Beacon", slug: "beacon" };
 
@@ -60,6 +67,19 @@ function replyText(sessions: Session.WithMessagesAndParts[]): string {
 function mentions(text: string, id: string): boolean {
   return new RegExp(`\\b${id}\\b`).test(text);
 }
+
+/** What reached the user names a filed issue by the address Beacon returned. */
+const linksTheFiledIssue: Assertion = {
+  check: ({ sessions }) => {
+    const text = "links the issue it filed by the address Beacon returned";
+    const reply = replyText(sessions);
+    const url = reply.match(CREATED_ISSUE_URL)?.[0];
+    return url
+      ? { evidence: url, passed: true, text }
+      : { evidence: reply.slice(-200), passed: false, text };
+  },
+  text: "links the issue it filed by the address Beacon returned",
+};
 
 const TOOLS_CALL = /\btools(?:\.[a-z]|\[["'])/;
 
@@ -240,5 +260,19 @@ export const APP_SCRIPTING_EVALS = [
     name: "app-scripting-joins-across-tools",
     prompt:
       "In Beacon, how many open urgent issues does each team have assigned to its members?",
+  }),
+  defineEval({
+    apps: [BEACON],
+    assertions: [linksTheFiledIssue],
+    name: "app-links-what-it-changed",
+    prompt:
+      "File a bug in Beacon: the export button does nothing in Safari. Put it on Aiko.",
+  }),
+  defineEval({
+    apps: [BEACON],
+    assertions: [linksTheFiledIssue],
+    name: "app-links-what-a-fork-changed",
+    prompt:
+      "In the background, go through these and file each as a bug in Beacon, on Aiko: the export button does nothing in Safari; dark mode loses the sidebar icons; CSV import drops the last row.",
   }),
 ];

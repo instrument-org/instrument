@@ -15,6 +15,7 @@ import { type SessionMessageDataPart } from "../../src/schemas/session/message-d
 import { StoreId } from "../../src/schemas/store-id";
 import {
   type WindowTabAction,
+  type WindowTabAnswer,
   type WindowTabTarget,
 } from "../../src/schemas/window-tab";
 import {
@@ -49,7 +50,7 @@ export function createStandInWindow() {
     return tab;
   };
 
-  const act = (action: WindowTabAction): { error?: string; tabId?: string } => {
+  const act = (action: WindowTabAction): Omit<WindowTabAnswer, "requestId"> => {
     if (action.kind === "open") {
       return { tabId: add(action.target).id };
     }
@@ -70,6 +71,9 @@ export function createStandInWindow() {
         }
         tabs.delete(tab.id);
         return { tabId: add(target).id };
+      }
+      case "read": {
+        return { error: "the stand-in window has no page to read." };
       }
       case "restore":
       case "show": {

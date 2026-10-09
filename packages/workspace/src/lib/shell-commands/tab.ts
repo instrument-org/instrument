@@ -27,7 +27,7 @@ const TAB_NAME = TAB_COMMAND.name;
 
 const NO_WINDOW = "the window did not answer, so no tab changed.";
 
-const USAGE = `Usage: ${TAB_NAME} open <url or path>... | ${TAB_NAME} replace <id> <url or path> | ${TAB_NAME} close <id>... | ${TAB_NAME} show <id>`;
+const USAGE = `Usage: ${TAB_NAME} open <url or path>... | ${TAB_NAME} replace <id> <url or path> | ${TAB_NAME} close <id>... | ${TAB_NAME} show <id> | ${TAB_NAME} read <id>`;
 
 /**
  * The conversation's hands on the window's tabs. The window keeps the tabs
@@ -67,6 +67,7 @@ export function createTabCommand({
       replace: subcommand({
         run: ({ positional }, _, ctx) => replace(positional, ctx),
       }),
+      read: subcommand({ run: ({ positional }) => read(positional) }),
       show: subcommand({ run: ({ positional }) => show(positional) }),
     },
     usage: USAGE,
@@ -162,6 +163,26 @@ export function createTabCommand({
       exitCode: 0,
       stderr: "",
       stdout: `Tab ${tabId} is on the user's screen.\n`,
+    };
+  }
+
+  async function read(rest: string[]) {
+    const [tabId, ...extra] = rest;
+    if (!tabId || extra.length > 0) {
+      return fail(`read takes one tab id. ${USAGE}`);
+    }
+    const answer = await ask({ kind: "read", tabId });
+    if (!answer) {
+      return fail(NO_WINDOW);
+    }
+    if (answer.error) {
+      return fail(answer.error);
+    }
+    const text = answer.text ?? "";
+    return {
+      exitCode: 0,
+      stderr: "",
+      stdout: text.endsWith("\n") ? text : `${text}\n`,
     };
   }
 

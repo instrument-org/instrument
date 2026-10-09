@@ -6,6 +6,7 @@ import {
   type ChatId,
   isFolderPath,
   WINDOW_ID,
+  type WindowTabAnswer,
   type WindowTabRequest,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
@@ -368,7 +369,7 @@ export function useOpeners({
   const actOnTab = async ({
     action,
     chatId: group,
-  }: WindowTabRequest): Promise<{ error?: string; tabId?: string }> => {
+  }: WindowTabRequest): Promise<Omit<WindowTabAnswer, "requestId">> => {
     if (action.kind === "open") {
       const { target } = action;
       if (target.kind === "page") {
@@ -440,6 +441,19 @@ export function useOpeners({
         });
         windowTabs.replace(tab.id, next);
         return { tabId: next.id };
+      }
+      case "read": {
+        if (tab.kind !== "page") {
+          return {
+            error: `tab ${tab.id} is not a page; read what it shows by its path.`,
+          };
+        }
+        const text = await browser?.readPageText(tab.id);
+        return text === undefined
+          ? {
+              error: `tab ${tab.id} has no page loaded to read; \`tab show ${tab.id}\` loads it.`,
+            }
+          : { tabId: tab.id, text };
       }
       case "restore": {
         return browser?.restore(tab.id)

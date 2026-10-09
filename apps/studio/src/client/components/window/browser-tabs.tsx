@@ -105,6 +105,11 @@ export interface BrowserTabsHandle {
    */
   readPage: (tabId?: string) => Promise<PageContext | undefined>;
   /**
+   * The whole text of the page in a page tab, as the person sees it, or
+   * undefined when the tab has no live page to read.
+   */
+  readPageText: (tabId: string) => Promise<string | undefined>;
+  /**
    * Makes a page tab's guest again, at the page it last showed, without
    * showing the tab: after a launch a guest comes back only when its tab is
    * shown, and a task working in the tab needs it before then.
@@ -162,10 +167,16 @@ interface PageContext {
 /** How much of what is selected goes with a message. */
 const SELECTION_MAX = 2000;
 
+/** The most of a page `tab read` hands back, which bounds what crosses to the sandbox. */
+const PAGE_TEXT_MAX = 200_000;
+
 const PageWordsSchema = z.object({
   focus: z.string(),
   selection: z.string(),
 });
+
+/** Runs in the page: its text as rendered, lines kept. */
+const READ_PAGE_TEXT = `String(document.body?.innerText ?? "")`;
 
 /**
  * Runs in the page: what is selected and where the cursor is. The focused
@@ -641,6 +652,21 @@ export function BrowserTabs({
           ...(focus ? { focus } : {}),
           ...(selection ? { selection } : {}),
         };
+      },
+      readPageText: async (tabId) => {
+        const tab = latest.current.tabs.find((entry) => entry.id === tabId);
+        const guest = tab ? getGuest(targetOf(tab)) : undefined;
+        if (!guest) {
+          return;
+        }
+        try {
+          const raw: unknown = await guest.run(READ_PAGE_TEXT);
+          return typeof raw === "string"
+            ? raw.slice(0, PAGE_TEXT_MAX)
+            : undefined;
+        } catch {
+          return;
+        }
       },
       restore: (tabId) => {
         const tab = latest.current.allTabs.find(

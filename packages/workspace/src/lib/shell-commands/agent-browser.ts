@@ -1085,7 +1085,7 @@ async function recordHeldTabHosts({
  */
 async function refuseBrowserFor(id: TaskId): Promise<string | undefined> {
   if (resolveChat(id)) {
-    return "agent-browser: a chat does not browse. Hand the page to a task with `task new --tab <id>`.\n";
+    return "agent-browser: a chat does not browse. `tab read <id>` prints a page's text; hand work on the page to a task with `task new --tab <id>`.\n";
   }
   const state = await getTaskState(taskDir(id));
   const heldTabs = state.browserTabs;

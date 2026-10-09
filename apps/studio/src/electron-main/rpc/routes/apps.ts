@@ -56,6 +56,10 @@ import {
   appOAuthRedirectUrl,
   disconnectApp,
 } from "../../lib/apps";
+import {
+  expectSignIn,
+  settleSignIn,
+} from "@/electron-main/browser-view/history-intents";
 
 /** Where an app stands, as the Apps screen draws it. */
 const AppStandingSchema = z.enum([
@@ -573,6 +577,11 @@ const startOAuth = base
       await announceConnected(input.slug);
       return { status: "connected" as const };
     }
+    if (input.opensIn === "app") {
+      // The window opens the page in its own browser; the pages the sign-in
+      // goes through there are kept out of history until it lands.
+      expectSignIn(input.slug, result.value.authorizationUrl);
+    }
     return { status: "started" as const, url: result.value.authorizationUrl };
   });
 
@@ -584,6 +593,7 @@ const startOAuth = base
 const cancelOAuth = base
   .input(z.object({ slug: AppSlugSchema }))
   .handler(async ({ input }) => {
+    settleSignIn(input.slug);
     const state = await appOAuthStore.getState(input.slug);
     if (state !== undefined) {
       await cancelMcpOAuth(state);

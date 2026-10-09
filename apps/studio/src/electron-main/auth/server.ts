@@ -47,6 +47,7 @@ import {
 } from "@instrument-org/workspace/electron";
 import { type Context, Hono } from "hono";
 import fs from "node:fs/promises";
+import { settleSignIn } from "../browser-view/history-intents";
 
 const DEFAULT_PORT =
   process.env.NODE_ENV === "development"
@@ -289,6 +290,13 @@ async function start() {
     const state = c.req.query("state");
     const oauthError = c.req.query("error");
     const appsDir = getAppsDir();
+    // The sign-in's pages in the window's browser end with this one: where
+    // the tab goes next is the person's own history again.
+    const settling =
+      state === undefined ? undefined : pendingMcpOAuthSlug(state);
+    if (settling !== undefined) {
+      settleSignIn(settling);
+    }
     if (
       state !== undefined &&
       (oauthError !== undefined || code === undefined)

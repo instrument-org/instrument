@@ -51,6 +51,12 @@ export interface BrowserConfig {
   hasNoWindow: boolean;
   listTargets: (id: TaskId) => Promise<BrowserTarget[]>;
   /**
+   * Told just before a blank guest is navigated back to the page its tab was
+   * last on (`restoreLastPage`), so the browser's history can tell reopening
+   * a page from visiting it.
+   */
+  noteRestore?: (targetId: BrowserTargetId, url: string) => void;
+  /**
    * Whether ads and trackers are blocked in this task's tabs: off when the
    * person turned blocking off for the workspace, or when the task set
    * `blocking: false` for itself. The task's setting lasts until the app quits

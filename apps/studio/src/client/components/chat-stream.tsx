@@ -35,10 +35,7 @@ import {
   WorkingGroupHeading,
 } from "./message-part/group-heading";
 import { GroupStandIn } from "./message-part/group-stand-in";
-import {
-  isAwaitingUser,
-  isToolPartRunning,
-} from "./message-part/tool-call-utils";
+import { isToolPartRunning } from "./message-part/tool-call-utils";
 import {
   STEP_RUN,
   TRANSCRIPT_ROW,
@@ -317,17 +314,8 @@ export function ChatStream({
       ? {
           groups: new Map(),
           rows: new Map(),
-          // A call waiting on the user still opens itself here, and so does
-          // the card asking to connect an app: the answer comes from the
-          // row, and a shut row reads as a stall.
-          selfOpeningRowIds: regularMessages.flatMap((message) =>
-            message.parts.flatMap((part) =>
-              isToolPart(part) &&
-              (isAwaitingUser(part) || part.type === "tool-connect_app")
-                ? [part.metadata.id]
-                : [],
-            ),
-          ),
+          // The cards that ask the user draw without a row to open them.
+          selfOpeningRowIds: [],
         }
       : buildTranscriptLayout({
           isAgentRunning,

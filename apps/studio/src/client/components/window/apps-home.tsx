@@ -1,3 +1,4 @@
+import { useDecisionModelAvailable } from "@/client/hooks/use-decision";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -97,8 +98,14 @@ export function AppsHome({
   // model once the typing settles. Its place at the foot of the results is
   // held from the first key that asks, so what it finds lands where nothing
   // is to be pressed and moves nothing that is.
+  // Read once a search is typed, so a workspace no model can answer for
+  // never holds a "Related" place that only empties.
+  const canAskMeaning = useDecisionModelAvailable(showsConnect && typed !== "");
   const asksMeaning =
-    showsConnect && typed.length >= MEANING_MIN_LENGTH && matches.length === 0;
+    canAskMeaning === true &&
+    showsConnect &&
+    typed.length >= MEANING_MIN_LENGTH &&
+    matches.length === 0;
   const settled = useDebouncedValue(typed, 300);
   const byMeaning = useQuery(
     rpcClient.apps.catalogByMeaning.queryOptions({

@@ -72,12 +72,24 @@ export interface FinderShown {
 export const findersByTabAtom = atom<Readonly<Record<string, FinderShown>>>({});
 
 /**
+ * A file or folder given to a draft's composer, by its path on disk: what of
+ * the composer outlasts the app. Bytes pasted in with no file behind them
+ * are written to the draft's own folder first, and kept by that path.
+ */
+export type DraftAttachment =
+  | { kind: "file"; mimeType: string; name: string; path: string; size: number }
+  | { kind: "folder"; path: string };
+
+/**
  * A chat not yet started: its words and the topic it will be filed under.
  * What it has gathered (sites, files, folders) is its tab group, kept with
  * the window's tabs under the draft's group key; what its composer holds
- * besides the words is kept in memory beside it.
+ * besides the words is kept in memory beside it, and the part of that with
+ * a place on disk in `attached`.
  */
 export interface Draft {
+  /** What the composer was given that has a place on disk, so it comes back after a relaunch. */
+  attached?: DraftAttachment[];
   /**
    * Files and folders the person opened the draft on by name, from a menu or
    * a button over them: held for the chat whatever the window moves on to,

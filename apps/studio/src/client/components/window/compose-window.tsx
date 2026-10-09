@@ -4,6 +4,7 @@ import {
   BROWSER_HREF,
   type ComposePlacement,
   type Draft,
+  type DraftAttachment,
   draftGroupOf,
   draftSnapshotsAtom,
   findersByTabAtom,
@@ -15,6 +16,7 @@ import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import {
+  type AttachedItem,
   PromptInput,
   type PromptInputRef,
 } from "@/client/components/prompt-input";
@@ -28,6 +30,7 @@ import {
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
@@ -43,6 +46,7 @@ import { XIcon } from "@phosphor-icons/react/X";
 import { useRouterState } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
 import { motion } from "motion/react";
+import { isEqual } from "radashi";
 import {
   type ReactNode,
   useEffect,
@@ -51,6 +55,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { ulid } from "ulid";
 
 import { appTabsAtom, hrefOfAppTab } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
@@ -109,6 +114,32 @@ const WORDS_MAX_HEIGHT = 400;
 const COMPOSE_HEIGHT = 640;
 
 const NO_TITLES = new Map<never, never>();
+
+/** What of an item in the composer is kept with the draft: its path, for one that has a place on disk. */
+function attachmentOf(item: AttachedItem): DraftAttachment[] {
+  if (item.type === "folder") {
+    return [{ kind: "folder", path: item.path }];
+  }
+  if (!("path" in item)) {
+    return [];
+  }
+  const { mimeType, name, path, size } = item;
+  return [{ kind: "file", mimeType, name, path, size }];
+}
+
+/** A kept attachment back in the composer, drawn by its icon until it is given again. */
+function itemOf(attachment: DraftAttachment): AttachedItem {
+  return attachment.kind === "folder"
+    ? { id: ulid(), path: attachment.path, type: "folder" }
+    : {
+        id: ulid(),
+        mimeType: attachment.mimeType,
+        name: attachment.name,
+        path: attachment.path,
+        size: attachment.size,
+        type: "file",
+      };
+}
 
 /**
  * The marks of what a group holds, for a window put down to a bar: a site's
@@ -329,13 +360,72 @@ export function ComposeWindow({
   const words = useAtomValue(promptDraftAtom(key));
 
   const inputRef = useRef<PromptInputRef>(null);
+
+  // What the box holds is kept with the draft by path. Bytes with no file
+  // behind them (a pasted image, long pasted words) are written to the
+  // draft's own folder as they arrive and kept by that path once written.
+  const staged = useRef(new Map<string, DraftAttachment | null>());
+  const latestItems = useRef<AttachedItem[]>([]);
+  const keepAttached = (items: AttachedItem[]) => {
+    latestItems.current = items;
+    const attached = items.flatMap((item) => {
+      if (item.type === "file" && "content" in item) {
+        const written = staged.current.get(item.id);
+        return written ? [written] : [];
+      }
+      return attachmentOf(item);
+    });
+    onChange((current) => {
+      if (isEqual(current.attached ?? [], attached)) {
+        return current;
+      }
+      const { attached: _was, ...rest } = current;
+      return attached.length > 0 ? { ...rest, attached } : rest;
+    });
+  };
+  const keepItems = (items: AttachedItem[]) => {
+    for (const item of items) {
+      if (
+        item.type !== "file" ||
+        !("content" in item) ||
+        staged.current.has(item.id)
+      ) {
+        continue;
+      }
+      staged.current.set(item.id, null);
+      void rpcClient.drafts.stage
+        .call({
+          content: item.content,
+          draftId: draft.id,
+          itemId: item.id,
+          name: item.name,
+        })
+        .then(({ path, size }) => {
+          staged.current.set(item.id, {
+            kind: "file",
+            mimeType: item.mimeType,
+            name: item.name,
+            path,
+            size,
+          });
+          keepAttached(latestItems.current);
+        })
+        .catch(() => {
+          staged.current.delete(item.id);
+        });
+    }
+    keepAttached(items);
+  };
   // Layout rather than passive effects: on the way in the box's handle is
   // set by then and on the way out it is still there, which a passive
   // cleanup would find already gone.
+  // Past a relaunch only what has a place on disk is left, from the record.
   useLayoutEffect(() => {
     const input = inputRef.current;
     if (snapshot) {
       input?.restore({ ...snapshot, prompt: words });
+    } else if (draft.attached && draft.attached.length > 0) {
+      input?.restore({ items: draft.attached.map(itemOf), prompt: words });
     }
     return () => {
       const kept = input?.snapshot();
@@ -700,6 +790,7 @@ export function ComposeWindow({
                   className="min-h-0 flex-1"
                   draftKey={key}
                   hasAttachmentsLead={marked.length > 0}
+                  onItemsChange={keepItems}
                   // The window becomes the chat's at the press, so the
                   // box is never left waiting on a send.
                   isLoading={false}

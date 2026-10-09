@@ -219,13 +219,14 @@ export function useDrafts({
       ),
     );
   }, [draftIds, setDraftSnapshots]);
-  /** Throws a draft away: its window, its record, what its composer held, and its tabs. */
+  /** Throws a draft away: its window, its record, what its composer held (on disk too), and its tabs. */
   const deleteDraft = (id: string) => {
     // What was marked for it goes back to its file's Ask, to be sent another way.
     returnAsks({ draftId: id, kind: "draft" });
     compose.remove(draftGroupOf(id));
     setDrafts((current) => current.filter((draft) => draft.id !== id));
     windowTabs.dropGroup(draftGroupOf(id));
+    clearKept(id);
   };
   /**
    * Throws a draft away on the person's say, from its window or from Drafts,
@@ -406,6 +407,8 @@ export function useDrafts({
         setStartingIds((current) => withoutId(current, id));
       }
       setDrafts((current) => current.filter((entry) => entry.id !== id));
+      // The chat has its own copies of what was attached by now.
+      clearKept(id);
       removeAsks(marked.map((ask) => ask.id));
       setArrived({ chatId, draftId: id });
       // What the draft gathered becomes the chat's tabs, the pages and
@@ -437,6 +440,11 @@ export function useDrafts({
     startChat,
     startingIds,
   };
+}
+
+/** Lets go of what a draft kept on disk; one left behind goes at the next launch. */
+function clearKept(draftId: string) {
+  void rpcClient.drafts.clear.call({ draftId }).catch(() => undefined);
 }
 
 function withoutId(ids: ReadonlySet<string>, id: string): ReadonlySet<string> {

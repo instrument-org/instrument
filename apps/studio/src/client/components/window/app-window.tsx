@@ -324,6 +324,11 @@ function WindowShell({
       }
     }
     setDrafts((current) => current.filter(isKept));
+    // What drafts kept on disk goes with them, including any whose clear
+    // never ran.
+    void rpcClient.drafts.prune
+      .call({ keep: drafts.filter(isKept).map((draft) => draft.id) })
+      .catch(() => undefined);
     for (const entry of compose.entries) {
       if (
         entry.kind === "draft" &&
@@ -794,11 +799,15 @@ function WindowShell({
                 modelURI={defaultModelURI}
                 onChangeDraft={(id, update) => {
                   setDrafts((current) =>
-                    current.map((entry) =>
-                      entry.id === id
-                        ? { ...update(entry), updatedAt: Date.now() }
-                        : entry,
-                    ),
+                    current.map((entry) => {
+                      if (entry.id !== id) {
+                        return entry;
+                      }
+                      const next = update(entry);
+                      return next === entry
+                        ? entry
+                        : { ...next, updatedAt: Date.now() };
+                    }),
                   );
                 }}
                 onCloseChat={(chatId) => {

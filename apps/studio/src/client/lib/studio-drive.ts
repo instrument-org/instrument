@@ -54,11 +54,12 @@ type StudioModalName = keyof typeof MODAL_OPENERS;
 
 /**
  * Hands the app window's tabs and modals to `studio-drive`, for as long as
- * the renderer lives. Attached under `import.meta.env.DEV`, so a packaged
- * build ships no remote control.
+ * the renderer lives. Attached in a development run and in a preview, which
+ * an agent downloads to drive. Both conditions are inlined at build time, so
+ * a release folds this to an early return and ships no remote control.
  */
 export function initStudioDrive() {
-  if (!import.meta.env.DEV) {
+  if (!import.meta.env.DEV && !process.env.INSTRUMENT_PREVIEW_NAME) {
     return;
   }
   const store = getDefaultStore();

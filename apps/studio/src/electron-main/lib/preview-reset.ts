@@ -1,4 +1,4 @@
-import { APP_BUNDLE_ID, APP_PREVIEW_NAME } from "@instrument-org/shared";
+import { APP_BUNDLE_ID, APP_FLAVOR } from "@instrument-org/shared";
 import { app, dialog, type MenuItemConstructorOptions } from "electron";
 import { spawn } from "node:child_process";
 
@@ -29,7 +29,7 @@ open -b "$bundle_id"
  * without a terminal, so whoever is trying the build can see onboarding again.
  */
 export function previewMenu(): MenuItemConstructorOptions[] {
-  if (APP_PREVIEW_NAME === undefined || process.platform !== "darwin") {
+  if (APP_FLAVOR.kind !== "preview" || process.platform !== "darwin") {
     return [];
   }
   return [

@@ -33,11 +33,7 @@ import {
 import { revealTask } from "@/electron-main/windows/reveal-task";
 import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
-import {
-  APP_NAME,
-  APP_PREVIEW_NAME,
-  APP_PROTOCOL,
-} from "@instrument-org/shared";
+import { APP_NAME, APP_FLAVOR, APP_PROTOCOL } from "@instrument-org/shared";
 import {
   app,
   BrowserWindow,
@@ -145,11 +141,22 @@ async function bootstrapPrimaryInstance() {
     return;
   }
 
+  // A development run is Electron's own binary, so the Dock would show
+  // Electron's icon. It shows the app's in the development color instead, which
+  // keeps it apart from an installed Instrument running beside it.
+  if (import.meta.env.DEV && process.platform === "darwin") {
+    void import("../../build/flavors/development/icon.png?asset").then(
+      ({ default: icon }) => {
+        app.dock?.setIcon(icon);
+      },
+    );
+  }
+
   // A preview is meant to be tried where it was unzipped and thrown away.
   if (
     process.platform === "darwin" &&
     !is.dev &&
-    APP_PREVIEW_NAME === undefined &&
+    APP_FLAVOR.kind !== "preview" &&
     !app.isInApplicationsFolder() &&
     process.env.SKIP_MOVE_TO_APPLICATIONS !== "true"
   ) {

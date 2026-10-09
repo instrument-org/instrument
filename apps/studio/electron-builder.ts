@@ -2,7 +2,7 @@ import {
   APP_BUNDLE_ID,
   APP_EXECUTABLE,
   APP_NAME,
-  APP_PREVIEW_NAME,
+  APP_FLAVOR,
   APP_PRODUCT_NAME,
   APP_PROTOCOL,
   APP_UPDATER_CACHE_DIR_NAME,
@@ -24,6 +24,13 @@ if (process.env.CI !== "true") {
     path: [".env.build"],
   });
 }
+
+const isPreview = APP_FLAVOR.kind === "preview";
+
+// A preview wears its own color, so it reads as something other than
+// Instrument in the Dock, Finder, and a downloads folder before its name does.
+// Generated beside the shipping icons by `icons:generate`.
+const iconDir = isPreview ? "flavors/preview/" : "";
 
 const publishConfig: PlatformSpecificBuildOptions["publish"] = {
   bucket: "instrument-releases",
@@ -85,7 +92,7 @@ const config: Configuration = {
   dmg: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     // DMG volume icons still use .icns even when the app bundle uses .icon (macOS 26+).
-    icon: "icon.icns",
+    icon: `${iconDir}icon.icns`,
   },
   // Refuses `--inspect` and SIGUSR1 on the packaged binary, so no other
   // process can start Instrument with a debugger on main and read what
@@ -204,7 +211,7 @@ const config: Configuration = {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     category: "Office",
     executableName: APP_EXECUTABLE,
-    icon: "build/icons",
+    icon: `build/${iconDir}icons`,
     target: ["AppImage", "deb", "rpm", "tar.gz"],
   },
   mac: {
@@ -215,7 +222,7 @@ const config: Configuration = {
     // pointing here by default, which put an app-scoped entitlement on all
     // four helpers and produced a build that signed, notarized, and could not
     // launch -- docs/findings/an-entitlement-that-notarizes-and-will-not-launch.md.
-    entitlements: APP_PREVIEW_NAME
+    entitlements: isPreview
       ? "build/entitlements.mac.preview.plist"
       : "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.inherit.plist",
@@ -235,7 +242,7 @@ const config: Configuration = {
     extendInfo: {
       // A preview claims no document types: installing one must not change
       // what opens a file on the machine it is tried on.
-      ...(APP_PREVIEW_NAME ? {} : { CFBundleDocumentTypes: macDocumentTypes }),
+      ...(isPreview ? {} : { CFBundleDocumentTypes: macDocumentTypes }),
       // Must match the Icon Composer bundle name (build/icon.icon).
       CFBundleIconName: "icon",
       // Why the system's own ask names a reason: without these macOS asks for
@@ -259,16 +266,16 @@ const config: Configuration = {
       NSNetworkVolumesUsageDescription: `${APP_NAME} reads and writes files on a network drive when you ask it to work there.`,
       NSRemovableVolumesUsageDescription: `${APP_NAME} reads and writes files on a removable drive when you ask it to work there.`,
     },
-    fileAssociations: APP_PREVIEW_NAME ? [] : macFileAssociations,
+    fileAssociations: isPreview ? [] : macFileAssociations,
     gatekeeperAssess: false,
     hardenedRuntime: true,
     // macOS 26+ uses build/icon.icon (compiled to Assets.car); older macOS uses build/icon.icns.
-    icon: "icon.icon",
+    icon: `${iconDir}icon.icon`,
     notarize: process.env.APPLE_NOTARIZATION_ENABLED === "true",
     // Grants the team-scoped entitlements in entitlements.mac.plist. Without
     // it the system refuses them and the app is killed on exec.
     // A preview goes without: the profile is bound to the shipping bundle id.
-    provisioningProfile: APP_PREVIEW_NAME
+    provisioningProfile: isPreview
       ? undefined
       : "build/Instrument_Developer_ID.provisionprofile",
     publish: {
@@ -303,6 +310,7 @@ const config: Configuration = {
   ],
   publish: publishConfig,
   win: {
+    icon: `${iconDir}icon.ico`,
     signtoolOptions: {
       // Both casings the certificate subject has been issued under. An update is
       // rejected unless the installed build's list contains the incoming

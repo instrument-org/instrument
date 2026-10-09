@@ -113,6 +113,8 @@ async function main() {
 
     checkRegistrySubmodule();
     syncReleaseTags();
+    const branch = currentBranch();
+    syncBranch(branch);
 
     const packageJsonPath = path.join(process.cwd(), "package.json");
 
@@ -141,22 +143,19 @@ async function main() {
 
     await updatePackage(packageJsonPath, { version: newVersion });
 
-    execSync("git add package.json", { stdio: "inherit" });
-
     const tagName = `v${newVersion}`;
     const commitMessage = `release: ${tagName}`;
-    execSync(`git commit -m "${commitMessage}"`, { stdio: "inherit" });
+    // By path, so whatever another agent has staged stays out of the commit.
+    git(["commit", "-m", commitMessage, "--", "package.json"]);
+    createTag(tagName, notesPath);
 
-    // The tag's message is the release notes: the release workflow posts their
-    // summary to Slack and publishes them as the release body. With none, it
-    // falls back to the commits grouped by scope.
-    execFileSync(
-      "git",
-      notesPath
-        ? ["tag", "--cleanup=verbatim", "-F", notesPath, tagName]
-        : ["tag", "-m", "", tagName],
-      { stdio: "inherit" },
-    );
+    if (process.argv.includes("--no-push")) {
+      console.log(
+        `Not pushed. Push both at once: git push --atomic origin HEAD:refs/heads/${branch} refs/tags/${tagName}`,
+      );
+    } else {
+      pushRelease(branch, tagName, notesPath);
+    }
 
     console.log(`Successfully released version ${newVersion}`);
     console.log(`Commit: ${commitMessage}`);
@@ -186,6 +185,125 @@ function releaseNotesPath(): string | undefined {
     throw new Error(`Release notes file is empty: ${resolved}`);
   }
   return resolved;
+}
+
+function git(args: string[]) {
+  execFileSync("git", args, { stdio: "inherit" });
+}
+
+function gitOutput(args: string[]) {
+  return execFileSync("git", args, { encoding: "utf8" }).trim();
+}
+
+function currentBranch() {
+  const branch = gitOutput(["rev-parse", "--abbrev-ref", "HEAD"]);
+  if (branch === "HEAD") {
+    throw new Error("HEAD is detached. Check out the branch to release from.");
+  }
+  return branch;
+}
+
+/**
+ * Rebases the branch onto origin's before anything is committed, so the
+ * release commit sits on top of everything already pushed and the push that
+ * follows is a fast-forward rather than a merge.
+ */
+function syncBranch(branch: string) {
+  console.log(`Fetching ${branch} from origin...`);
+  git(["fetch", "origin", branch]);
+  const behind = gitOutput(["log", "--oneline", `HEAD..origin/${branch}`]);
+  if (!behind) {
+    console.log(`✅ ${branch} has everything on origin`);
+    return;
+  }
+  console.log(
+    `Rebasing onto origin/${branch}, which brings in commits the release will include:`,
+  );
+  console.log(behind);
+  try {
+    rebaseOnto(branch);
+  } catch (error) {
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)} Nothing was committed. Bring ${branch} up to date by hand, then run this again.`,
+    );
+  }
+}
+
+function rebaseOnto(branch: string) {
+  try {
+    git(["pull", "--rebase", "--autostash", "origin", branch]);
+  } catch {
+    try {
+      execFileSync("git", ["rebase", "--abort"], { stdio: "ignore" });
+    } catch {
+      // The pull failed before a rebase started.
+    }
+    throw new Error(`Rebasing onto origin/${branch} failed and was undone.`);
+  }
+}
+
+/**
+ * The tag's message is the release notes: the release workflow posts their
+ * summary to Slack and publishes them as the release body. With none, it falls
+ * back to the commits grouped by scope.
+ */
+function createTag(tagName: string, notesPath: string | undefined) {
+  git(
+    notesPath
+      ? ["tag", "--cleanup=verbatim", "-F", notesPath, tagName]
+      : ["tag", "-m", "", tagName],
+  );
+}
+
+const PUSH_ATTEMPTS = 3;
+
+/**
+ * Pushes the branch and the tag in one atomic push, so the tag never lands
+ * without the branch that contains it. When origin moved since the fetch, the
+ * unpushed tag is deleted, the release commit is rebased onto origin, and the
+ * tag is made again on the rebased commit. Merging origin in instead would
+ * keep the tag but leave a merge commit on the branch.
+ */
+function pushRelease(
+  branch: string,
+  tagName: string,
+  notesPath: string | undefined,
+) {
+  for (let attempt = 1; ; attempt++) {
+    console.log(`Pushing ${branch} and ${tagName}...`);
+    try {
+      git([
+        "push",
+        "--atomic",
+        "origin",
+        `HEAD:refs/heads/${branch}`,
+        `refs/tags/${tagName}`,
+      ]);
+      console.log(
+        `✅ Pushed ${branch} and ${tagName}; the release build starts from the tag`,
+      );
+      return;
+    } catch {
+      if (attempt === PUSH_ATTEMPTS) {
+        throw new Error(
+          `Push was rejected ${PUSH_ATTEMPTS} times. ${tagName} exists locally on HEAD and nothing was pushed.`,
+        );
+      }
+      console.log(
+        `Push rejected. Rebasing onto origin/${branch} and tagging again.`,
+      );
+      git(["tag", "-d", tagName]);
+      git(["fetch", "origin", branch]);
+      try {
+        rebaseOnto(branch);
+      } catch (error) {
+        throw new Error(
+          `${error instanceof Error ? error.message : String(error)} HEAD is the untagged release commit. Rebase it onto origin/${branch} by hand, then tag and push it rather than rerunning this script, which would bump the version again: git tag ${notesPath ? `--cleanup=verbatim -F ${notesPath}` : '-m ""'} ${tagName} && git push --atomic origin HEAD:refs/heads/${branch} refs/tags/${tagName}`,
+        );
+      }
+      createTag(tagName, notesPath);
+    }
+  }
 }
 
 function syncReleaseTags() {

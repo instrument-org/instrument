@@ -111,7 +111,11 @@ export function FilterHead(props: FilterProps) {
   );
 }
 
-/** One row of the picker: large, with its face, its name, and what stands at its end. */
+/**
+ * One row of the picker: large, with its face, its name, and what stands at
+ * its end. It keeps its height in the menu's flex column, where the rows
+ * outside the topics' scroll would otherwise shrink to make room for them.
+ */
 function PickerRow({
   children,
   isOn,
@@ -128,7 +132,7 @@ function PickerRow({
   return (
     <div
       className={cn(
-        "group/row flex h-10 items-center gap-1 rounded-xl pr-2",
+        "group/row flex h-10 shrink-0 items-center gap-1 rounded-xl pr-2",
         isOn ? "bg-foreground/6" : "hover:bg-foreground/5",
       )}
     >

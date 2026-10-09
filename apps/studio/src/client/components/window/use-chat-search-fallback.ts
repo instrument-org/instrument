@@ -1,13 +1,8 @@
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { type DecisionAnswer, useDecision } from "@/client/hooks/use-decision";
 import { decisionBar } from "@instrument-org/shared/decision-bars";
-import { skipToken, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { byActivity, type Chat } from "./chats";
-import {
-  useDecisionModelAvailable,
-  useNoteDecisionModelUnreachable,
-} from "./use-decision-model-available";
 
 /**
  * Most questions one request carries: the API refuses more than 512, and the
@@ -71,67 +66,40 @@ export function useChatSearchFallback({
     };
   }, [search]);
 
-  // Not asked when no provider could answer, so the list says straight away
-  // that nothing matched rather than looking first.
-  const available = useDecisionModelAvailable(active);
-  const noteUnreachable = useNoteDecisionModelUnreachable();
-  const askable =
-    active &&
-    available !== false &&
-    candidates.length > 0 &&
-    search.trim().length > 1;
-  // Asked once typing pauses and the model is known to be there; until then
-  // the list says it is looking, so it does not say "Nothing matches" a
-  // moment before an answer arrives.
-  const asking = askable && available === true && settled === search.trim();
-  const { data, isError, isFetching } = useQuery({
-    queryFn: asking
-      ? async ({ signal }) => {
-          const asked = await Promise.all(
-            requestsFor(candidates).map((questions) =>
-              rpcClient.workspace.decision.ask.call(
-                { questions, state: { search: settled } },
-                { signal },
-              ),
-            ),
-          ).catch((error: unknown) => {
-            if (!signal.aborted) {
-              noteUnreachable();
-            }
-            throw error;
-          });
-          return {
-            answers: asked.reduce<Answers>(
-              (merged, { answers }) => ({ ...merged, ...answers }),
-              {},
-            ),
-            model: asked[0]?.model,
-          };
-        }
-      : skipToken,
-    queryKey: [
+  const settledNow = settled === search.trim();
+  const askable = active && candidates.length > 0 && search.trim().length > 1;
+  const { answer, available, isAsking } = useDecision({
+    ask:
+      askable && settledNow
+        ? requestsFor(candidates).map((questions) => ({
+            questions,
+            state: { search: settled },
+          }))
+        : undefined,
+    checkAvailable: active,
+    key: [
       "chat-search",
       settled,
       candidates.map((chat) => `${chat.id}:${chat.title}`).join("\n"),
     ],
-    retry: false,
-    staleTime: Infinity,
   });
 
   return {
-    chats: asking && data ? fitting(data, candidates) : [],
-    /** Whether the model was asked and could not be reached, which is not the same as finding nothing. */
-    failed: asking && isError,
-    /** Whether the model is being asked, so the list can say it is looking rather than that nothing matched. */
-    isLooking: askable && (!asking || isFetching),
+    chats: answer ? fitting(answer, candidates) : [],
+    /**
+     * Whether an answer is coming: from the first key the words find nothing
+     * for, while it is not yet known that nothing could answer, until the
+     * answer arrives. So the list says it is looking through the pause rather
+     * than "Nothing matches" a moment before the answer, and says nothing
+     * matched straight away when no model could answer.
+     */
+    isLooking: askable && available !== false && (!settledNow || isAsking),
   };
 }
 
-type Answers = RPCOutput["workspace"]["decision"]["ask"]["answers"];
-
 /** The chats the answers say the search is after, best fit first, or none when the search names nothing. */
 function fitting(
-  { answers, model }: { answers: Answers; model: string | undefined },
+  { answers, model }: DecisionAnswer,
   candidates: Chat[],
 ): Chat[] {
   if ((answers[MEANINGFUL]?.noul ?? 0) < MEANINGFUL_AT_LEAST) {

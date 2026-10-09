@@ -498,11 +498,6 @@ export function CommandMenu({
         ) : words !== "" && !(isBang && words.length < 3) ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 text-sm text-muted-foreground">
             Nothing matches “{words}”
-            {chatsByMeaning.failed ? (
-              <span className="text-xs">
-                Instrument couldn’t search your chats by meaning right now.
-              </span>
-            ) : null}
           </div>
         ) : null}
       </CommandList>

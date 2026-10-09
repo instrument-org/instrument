@@ -1,6 +1,5 @@
 import { type Draft } from "@/client/atoms/window";
-import { rpcClient } from "@/client/rpc/client";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { useDecision } from "@/client/hooks/use-decision";
 import { useEffect, useState } from "react";
 
 import { type Topic } from "./chats";
@@ -58,33 +57,27 @@ export function useDraftTopicSuggestion({
   const criteria = Object.fromEntries(
     topics.map((topic) => [topic.name, topic.about ?? null]),
   );
-  const { data } = useQuery({
-    queryFn: asking
-      ? ({ signal }) =>
-          rpcClient.workspace.decision.ask.call(
-            {
-              questions: {
-                topic: {
-                  criteria: { [NONE]: "No topic clearly fits", ...criteria },
-                  // A sentence holding the message rather than the message
-                  // as the state: read as the state, a long pasted message
-                  // drew a fit under the bar and pasted agent prompts were
-                  // filed under unrelated topics.
-                  instructions: `Which of the user's topics should a new chat be filed under when it opens with "${settled.replace(/\s+/g, " ")}"? Pick none unless one clearly fits.`,
-                  type: "choice",
-                },
-              },
-              state: {},
+  const { answer: decision } = useDecision({
+    ask: asking
+      ? {
+          questions: {
+            topic: {
+              criteria: { [NONE]: "No topic clearly fits", ...criteria },
+              // A sentence holding the message rather than the message as
+              // the state: read as the state, a long pasted message drew a
+              // fit under the bar and pasted agent prompts were filed under
+              // unrelated topics.
+              instructions: `Which of the user's topics should a new chat be filed under when it opens with "${settled.replace(/\s+/g, " ")}"? Pick none unless one clearly fits.`,
+              type: "choice",
             },
-            { signal },
-          )
-      : skipToken,
-    queryKey: ["draft-topic", settled, criteria],
-    retry: false,
-    staleTime: Infinity,
+          },
+          state: {},
+        }
+      : undefined,
+    key: ["draft-topic", settled, criteria],
   });
 
-  const answer = data?.answers.topic;
+  const answer = decision?.answers.topic;
   const pick =
     answer?.choice && answer.choice !== NONE
       ? topics.find((topic) => topic.name === answer.choice)

@@ -1,6 +1,5 @@
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { useDecision } from "@/client/hooks/use-decision";
 import { decisionBar } from "@instrument-org/shared/decision-bars";
-import { skipToken, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { askOf, byActivity, type Chat } from "./chats";
@@ -11,8 +10,6 @@ export interface BackfillCandidate {
   id: Chat["id"];
   title: string;
 }
-
-type Answer = RPCOutput["workspace"]["decision"]["ask"];
 
 /**
  * How sure the decision model has to be that a chat belongs. On 10 labeled
@@ -76,53 +73,43 @@ export function useTopicBackfill({
   }, [name]);
 
   const asking = open && candidates.length > 0 && settled.length > 1;
-  const { data } = useQuery<Answer, Error, Answer, string[]>({
+  const { answer } = useDecision({
+    ask: asking
+      ? {
+          questions: Object.fromEntries(
+            candidates.map((chat, index) => [
+              String(index),
+              {
+                // A sentence rather than an object: one decision model reads
+                // a structured question poorly and scores every chat alike.
+                instructions: `Does the chat titled "${chat.title}", which opened with "${chat.asked.replace(/\s+/g, " ")}", belong under the topic in the state?`,
+                type: "noul",
+              },
+            ]),
+          ),
+          state: { topic: { name: settled } },
+        }
+      : undefined,
     // While the name is still being typed, the last answer stays up until the
     // next arrives, so the line under the name changes once per answer
     // rather than blinking out between them.
-    placeholderData: (previous, previousQuery) => {
-      const previousName = previousQuery?.queryKey[1] ?? "";
-      return previousName &&
-        (settled.startsWith(previousName) || previousName.startsWith(settled))
-        ? previous
-        : undefined;
-    },
-    queryFn: asking
-      ? ({ signal }) =>
-          rpcClient.workspace.decision.ask.call(
-            {
-              questions: Object.fromEntries(
-                candidates.map((chat, index) => [
-                  String(index),
-                  {
-                    // A sentence rather than an object: one decision model
-                    // reads a structured question poorly and scores every
-                    // chat alike.
-                    instructions: `Does the chat titled "${chat.title}", which opened with "${chat.asked.replace(/\s+/g, " ")}", belong under the topic in the state?`,
-                    type: "noul",
-                  },
-                ]),
-              ),
-              state: { topic: { name: settled } },
-            },
-            { signal },
-          )
-      : skipToken,
-    queryKey: [
+    keepPrevious: ([, previousName]) =>
+      typeof previousName === "string" &&
+      previousName !== "" &&
+      (settled.startsWith(previousName) || previousName.startsWith(settled)),
+    key: [
       "topic-backfill",
       settled,
       candidates.map((chat) => chat.id).join("\n"),
     ],
-    retry: false,
-    staleTime: Infinity,
   });
 
-  if (!asking || !data) {
+  if (!asking || !answer) {
     return [];
   }
   return candidates.filter(
     (_, index) =>
-      (data.answers[String(index)]?.noul ?? 0) >=
-      decisionBar(data.model, BELONGS),
+      (answer.answers[String(index)]?.noul ?? 0) >=
+      decisionBar(answer.model, BELONGS),
   );
 }

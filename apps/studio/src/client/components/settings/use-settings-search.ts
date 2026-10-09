@@ -6,17 +6,14 @@ import {
   type SettingsEntry,
   type SettingsMatch,
 } from "@/client/components/settings/settings-index";
-import {
-  useDecisionModelAvailable,
-  useNoteDecisionModelUnreachable,
-} from "@/client/components/window/use-decision-model-available";
+import { type DecisionAnswer, useDecision } from "@/client/hooks/use-decision";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { rpcClient } from "@/client/rpc/client";
 import { FEATURE_METADATA } from "@/shared/features";
 import { decisionBar } from "@instrument-org/shared/decision-bars";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { useDeferredValue, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 const DEBOUNCE_MS = 300;
 /** The shortest search worth asking the model about. */
@@ -56,8 +53,10 @@ export function useSettingsSearch({
 }) {
   const active = query.trim().length > 0;
   const entries = useSettingsEntries({ active, tabs });
-  const deferredQuery = useDeferredValue(query);
-  const matches = matchSettings(entries, deferredQuery);
+  // Matched on the text as typed, not a deferred copy: a few dozen titles
+  // match in no time, and a copy a key behind says "No results" for a
+  // moment on the first key.
+  const matches = matchSettings(entries, query);
   const fallback = useMeaningFallback({
     active: matches.length === 0 && query.trim().length >= MEANING_MIN_LENGTH,
     // Read as soon as there is a search, so whether the model can answer is
@@ -134,8 +133,6 @@ function useSettingsEntries({
   return entries.filter((entry) => tabs.includes(entry.tab));
 }
 
-type Answers = RPCOutput["workspace"]["decision"]["ask"]["answers"];
-
 /**
  * The entries a search means when none of them contain its words: the
  * decision model reads each one's title and gist and says of each on its own
@@ -167,55 +164,35 @@ function useMeaningFallback({
     };
   }, [search]);
 
-  const available = useDecisionModelAvailable(checkAvailable);
-  const noteUnreachable = useNoteDecisionModelUnreachable();
-  const askable = active && available === true && candidates.length > 0;
-  const asking = askable && settled === search.trim();
-  const { data, isFetching } = useQuery({
-    queryFn: asking
-      ? async ({ signal }) => {
-          try {
-            const { answers, model } =
-              await rpcClient.workspace.decision.ask.call(
-                {
-                  questions: questionsFor(candidates),
-                  state: { search: settled },
-                },
-                { signal },
-              );
-            return { answers, model };
-          } catch (error) {
-            if (!signal.aborted) {
-              noteUnreachable();
-            }
-            throw error;
-          }
-        }
-      : skipToken,
-    queryKey: [
+  const settledNow = active && settled === search.trim();
+  const { answer, available, isAsking } = useDecision({
+    ask:
+      settledNow && candidates.length > 0
+        ? { questions: questionsFor(candidates), state: { search: settled } }
+        : undefined,
+    checkAvailable,
+    key: [
       "settings-search",
       settled,
       candidates.map((entry) => entry.id).join("\n"),
     ],
-    retry: false,
-    retryOnMount: false,
-    staleTime: Infinity,
   });
+  const askable = active && available === true && candidates.length > 0;
 
   return {
-    entries: asking && data ? fitting(data, candidates) : [],
+    entries: answer ? fitting(answer, candidates) : [],
     /**
      * Whether an answer is coming, from the first key the words find nothing
      * for until it arrives, so the list says it is searching through the
      * pause rather than "No results" and then the results.
      */
-    isLooking: askable && (!asking || isFetching),
+    isLooking: askable && (!settledNow || isAsking),
   };
 }
 
 /** The entries the answers say the search is after, best fit first, or none when the search names nothing. */
 function fitting(
-  { answers, model }: { answers: Answers; model: string },
+  { answers, model }: DecisionAnswer,
   candidates: SettingsEntry[],
 ) {
   if ((answers[MEANINGFUL]?.noul ?? 0) < MEANINGFUL_AT_LEAST) {

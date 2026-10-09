@@ -6,7 +6,10 @@ import {
   type SettingsEntry,
   type SettingsMatch,
 } from "@/client/components/settings/settings-index";
-import { useDecisionModelAvailable } from "@/client/components/window/use-decision-model-available";
+import {
+  useDecisionModelAvailable,
+  useNoteDecisionModelUnreachable,
+} from "@/client/components/window/use-decision-model-available";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { FEATURE_METADATA } from "@/shared/features";
@@ -15,9 +18,9 @@ import { skipToken, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { useDeferredValue, useEffect, useState } from "react";
 
-const DEBOUNCE_MS = 250;
-/** Fewer word matches than this, and the model is asked for more. */
-const FEW = 3;
+const DEBOUNCE_MS = 300;
+/** The shortest search worth asking the model about. */
+const MEANING_MIN_LENGTH = 3;
 /** Most results the model's answer adds, best fit first. */
 const MOST = 8;
 /** Most entries one search asks the model about: one request's worth. */
@@ -38,7 +41,7 @@ const FITS_AT_LEAST = { clef: 0.3, clefFlash: 0.2, other: 0.3 };
 
 /**
  * Settings search: what the pages in `tabs` hold that matches `query`, by its
- * words first, then by what it means when the words find only a few and the
+ * words, and by what it means only when the words find nothing and the
  * decision model can be reached.
  *
  * The providers the Providers page lists are read only while there is a
@@ -56,28 +59,24 @@ export function useSettingsSearch({
   const deferredQuery = useDeferredValue(query);
   const matches = matchSettings(entries, deferredQuery);
   const fallback = useMeaningFallback({
-    active: active && matches.length < FEW,
+    active: matches.length === 0 && query.trim().length >= MEANING_MIN_LENGTH,
     // A page is found by its name, and a label by its row, so the model is
     // asked only about rows.
     candidates: entries.filter((entry) => !entry.page && !entry.mark),
     search: query,
   });
-  const found = new Set(matches.map((match) => match.entry.id));
   return {
-    failed: fallback.failed,
     isLooking: fallback.isLooking,
-    matches: [
-      ...matches,
-      ...fallback.entries
-        .filter((entry) => !found.has(entry.id))
-        .map(
-          (entry): SettingsMatch => ({
-            entry,
-            pageRanges: null,
-            titleRanges: null,
-          }),
-        ),
-    ],
+    matches:
+      matches.length > 0
+        ? matches
+        : fallback.entries.map(
+            (entry): SettingsMatch => ({
+              entry,
+              pageRanges: null,
+              titleRanges: null,
+            }),
+          ),
   };
 }
 
@@ -135,11 +134,13 @@ function useSettingsEntries({
 type Answers = RPCOutput["workspace"]["decision"]["ask"]["answers"];
 
 /**
- * The entries a search means when few or none of them contain its words: the
+ * The entries a search means when none of them contain its words: the
  * decision model reads each one's title and gist and says of each on its own
  * whether it is what the search is after, so "night mode" can find Theme and
  * "stop sending data" Usage metrics. Asked once typing pauses, and only
- * while `active`; with no provider that could answer, it adds nothing.
+ * while `active`. Nothing is sent with no provider that could answer, or for
+ * a while after a request fails; each search is asked once and its answer
+ * kept, so typing back to an earlier search reuses it.
  */
 function useMeaningFallback({
   active,
@@ -162,24 +163,31 @@ function useMeaningFallback({
   }, [search]);
 
   const available = useDecisionModelAvailable(active);
-  const askable =
+  const noteUnreachable = useNoteDecisionModelUnreachable();
+  const asking =
     active &&
-    available !== false &&
+    available === true &&
     candidates.length > 0 &&
-    search.trim().length > 1;
-  const asking = askable && available === true && settled === search.trim();
-  const { data, isError, isFetching } = useQuery({
+    settled === search.trim();
+  const { data, isFetching } = useQuery({
     queryFn: asking
       ? async ({ signal }) => {
-          const { answers, model } =
-            await rpcClient.workspace.decision.ask.call(
-              {
-                questions: questionsFor(candidates),
-                state: { search: settled },
-              },
-              { signal },
-            );
-          return { answers, model };
+          try {
+            const { answers, model } =
+              await rpcClient.workspace.decision.ask.call(
+                {
+                  questions: questionsFor(candidates),
+                  state: { search: settled },
+                },
+                { signal },
+              );
+            return { answers, model };
+          } catch (error) {
+            if (!signal.aborted) {
+              noteUnreachable();
+            }
+            throw error;
+          }
         }
       : skipToken,
     queryKey: [
@@ -188,15 +196,14 @@ function useMeaningFallback({
       candidates.map((entry) => entry.id).join("\n"),
     ],
     retry: false,
+    retryOnMount: false,
     staleTime: Infinity,
   });
 
   return {
     entries: asking && data ? fitting(data, candidates) : [],
-    /** Whether the model was asked and could not be reached, which is not the same as finding nothing. */
-    failed: asking && isError,
-    /** Whether the model is being asked, so the list can say it is looking rather than that nothing matched. */
-    isLooking: askable && (!asking || isFetching),
+    /** Whether a request is out, so the list says it is searching rather than that nothing matched. */
+    isLooking: asking && isFetching,
   };
 }
 

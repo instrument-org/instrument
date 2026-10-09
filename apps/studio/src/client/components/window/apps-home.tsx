@@ -31,10 +31,9 @@ type App = RPCOutput["apps"]["list"]["apps"][number];
 type CatalogEntry = RPCOutput["apps"]["catalog"][number];
 
 /**
- * A search that names this few services by its words, and is this long, is
- * also asked of the decision model for the services it means.
+ * A search this long that names no service by its words is asked of the
+ * decision model for the services it means.
  */
-const MEANING_BELOW_MATCHES = 3;
 const MEANING_MIN_LENGTH = 3;
 
 /** How many tiles hold the directory's place while it is on its way. */
@@ -94,14 +93,12 @@ export function AppsHome({
   // follows under its category, so the whole directory is a scroll away.
   const popular = more.filter((entry) => entry.tier === "featured");
   const rest = more.filter((entry) => entry.tier !== "featured");
-  // A search the words barely answer ("text my mom") also goes to the
-  // decision model, once the typing settles. Its place at the foot of the
-  // results is held from the first key that asks, so what it finds lands
-  // where nothing is to be pressed and moves nothing that is.
+  // A search the words don't answer ("text my mom") goes to the decision
+  // model once the typing settles. Its place at the foot of the results is
+  // held from the first key that asks, so what it finds lands where nothing
+  // is to be pressed and moves nothing that is.
   const asksMeaning =
-    showsConnect &&
-    typed.length >= MEANING_MIN_LENGTH &&
-    matches.length < MEANING_BELOW_MATCHES;
+    showsConnect && typed.length >= MEANING_MIN_LENGTH && matches.length === 0;
   const settled = useDebouncedValue(typed, 300);
   const byMeaning = useQuery(
     rpcClient.apps.catalogByMeaning.queryOptions({

@@ -4,7 +4,10 @@ import { skipToken, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { byActivity, type Chat } from "./chats";
-import { useDecisionModelAvailable } from "./use-decision-model-available";
+import {
+  useDecisionModelAvailable,
+  useNoteDecisionModelUnreachable,
+} from "./use-decision-model-available";
 
 /**
  * Most questions one request carries: the API refuses more than 512, and the
@@ -71,6 +74,7 @@ export function useChatSearchFallback({
   // Not asked when no provider could answer, so the list says straight away
   // that nothing matched rather than looking first.
   const available = useDecisionModelAvailable(active);
+  const noteUnreachable = useNoteDecisionModelUnreachable();
   const askable =
     active &&
     available !== false &&
@@ -90,7 +94,12 @@ export function useChatSearchFallback({
                 { signal },
               ),
             ),
-          );
+          ).catch((error: unknown) => {
+            if (!signal.aborted) {
+              noteUnreachable();
+            }
+            throw error;
+          });
           return {
             answers: asked.reduce<Answers>(
               (merged, { answers }) => ({ ...merged, ...answers }),

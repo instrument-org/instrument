@@ -48,7 +48,6 @@ import { FlagIcon } from "@phosphor-icons/react/Flag";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
-import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { type RefObject, useEffect, useRef, useState } from "react";
@@ -245,7 +244,6 @@ function SettingsModalContent({
                 {isSearching ? (
                   <SearchResults
                     activeId={jump?.id}
-                    failed={search.failed}
                     highlightedId={highlighted?.id}
                     isLooking={search.isLooking}
                     matches={search.matches}
@@ -254,7 +252,6 @@ function SettingsModalContent({
                       setCursor({ index: ordered.indexOf(entry), query });
                     }}
                     onOpen={openResult}
-                    query={query.trim()}
                   />
                 ) : (
                   <SidebarMenu>
@@ -303,17 +300,14 @@ function SettingsModalContent({
  */
 function SearchResults({
   activeId,
-  failed,
   highlightedId,
   isLooking,
   matches,
   navItems,
   onHighlight,
   onOpen,
-  query,
 }: {
   activeId: string | undefined;
-  failed: boolean;
   /** The result the arrow keys are on, which Enter opens. */
   highlightedId: string | undefined;
   isLooking: boolean;
@@ -321,16 +315,11 @@ function SearchResults({
   navItems: NavItem[];
   onHighlight: (entry: SettingsEntry) => void;
   onOpen: (entry: SettingsEntry) => void;
-  query: string;
 }) {
   if (matches.length === 0) {
     return (
       <p className="px-2 py-2 text-sm text-muted-foreground">
-        {isLooking
-          ? "Searching…"
-          : failed
-            ? `Nothing matches “${query}”, and ${APP_NAME} couldn’t look any further right now.`
-            : `Nothing matches “${query}”.`}
+        {isLooking ? "Searching…" : "No results"}
       </p>
     );
   }

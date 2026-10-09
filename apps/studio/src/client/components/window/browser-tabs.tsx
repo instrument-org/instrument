@@ -155,29 +155,23 @@ interface PageContext {
   /** The tab on screen, by the id a task can be handed. */
   tab?: string;
   tabs?: { id: string; title: string; url: string }[];
-  text?: string;
   title: string;
   url: string;
 }
 
-/**
- * How much of the page goes with a message. The lead is enough to say what a
- * page is about; the page itself is for a task, which has a browser.
- */
-const PAGE_TEXT_MAX = 1500;
+/** How much of what is selected goes with a message. */
 const SELECTION_MAX = 2000;
 
 const PageWordsSchema = z.object({
   focus: z.string(),
   selection: z.string(),
-  text: z.string(),
 });
 
 /**
- * Runs in the page: what is selected, its text with the whitespace folded,
- * and where the cursor is. The focused control is described by what any
- * page says about itself (its role or tag, its label or placeholder, and the
- * words around the caret when it holds text), never by knowing the site.
+ * Runs in the page: what is selected and where the cursor is. The focused
+ * control is described by what any page says about itself (its role or tag,
+ * its label or placeholder, and the words around the caret when it holds
+ * text), never by knowing the site.
  */
 const READ_PAGE_WORDS = `(() => {
   const fold = (words) => String(words ?? "").replace(/\\s+/g, " ").trim();
@@ -212,9 +206,6 @@ const READ_PAGE_WORDS = `(() => {
   return {
     focus: describeFocus(),
     selection: String(window.getSelection() ?? ""),
-    text: fold(
-      (document.querySelector("main, article, [role=main]") ?? document.body)?.innerText,
-    ),
   };
 })()`;
 
@@ -644,13 +635,11 @@ export function BrowserTabs({
           return base;
         }
         const selection = words.data.selection.trim().slice(0, SELECTION_MAX);
-        const text = words.data.text.slice(0, PAGE_TEXT_MAX);
         const { focus } = words.data;
         return {
           ...base,
           ...(focus ? { focus } : {}),
           ...(selection ? { selection } : {}),
-          ...(text ? { text } : {}),
         };
       },
       restore: (tabId) => {

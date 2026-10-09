@@ -72,7 +72,7 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
           tabs: [
             { id: "other", title: "Other", url: "https://other.example/" },
           ],
-          text: "Words on the page",
+          selection: "Words on the page",
           title: "Example",
           url: "https://example.com/",
         }),
@@ -103,7 +103,7 @@ describe("sendContext", () => {
     await expect(
       sendContext({ chatId: CHAT, isViewOpen: true }),
     ).resolves.toMatchObject({
-      page: { text: "Words on the page" },
+      page: { selection: "Words on the page" },
       screen: "browser",
       url: "https://example.com/",
     });
@@ -141,7 +141,7 @@ describe("sendContext", () => {
       .toMatchInlineSnapshot(`
       {
         "page": {
-          "text": "Words on the page",
+          "selection": "Words on the page",
           "title": "Example",
           "url": "https://example.com/",
         },
@@ -188,7 +188,7 @@ describe("sendContext", () => {
       .toMatchInlineSnapshot(`
       {
         "page": {
-          "text": "Words on the page",
+          "selection": "Words on the page",
           "title": "Example",
           "url": "https://example.com/",
         },
@@ -374,6 +374,7 @@ describe("draftContext", () => {
     await expect(draftContext(DRAFT.id)).resolves.toMatchInlineSnapshot(`
       {
         "page": {
+          "selection": "Words on the page",
           "tab": "band",
           "tabs": [
             {
@@ -382,7 +383,6 @@ describe("draftContext", () => {
               "url": "https://other.example/",
             },
           ],
-          "text": "Words on the page",
           "title": "Example",
           "url": "https://example.com/",
         },
@@ -466,7 +466,7 @@ describe("draftContext", () => {
       },
       {
         page: {
-          text: "Words on the page",
+          selection: "Words on the page",
           title: "Example",
           url: "https://example.com/",
         },
@@ -690,7 +690,7 @@ describe("draftContext", () => {
       .toMatchInlineSnapshot(`
       {
         "page": {
-          "text": "Words on the page",
+          "selection": "Words on the page",
           "title": "Example",
           "url": "https://example.com/",
         },

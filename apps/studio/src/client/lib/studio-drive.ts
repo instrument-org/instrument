@@ -5,6 +5,7 @@ import { appTabsAtom } from "@/client/components/window/app-tabs";
 import { freshTabId, openTab } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { reopenClosed } from "@/client/lib/tabs-model";
+import { APP_FLAVOR } from "@instrument-org/shared";
 import { getDefaultStore } from "jotai";
 
 declare global {
@@ -59,7 +60,12 @@ type StudioModalName = keyof typeof MODAL_OPENERS;
  * a release folds this to an early return and ships no remote control.
  */
 export function initStudioDrive() {
-  if (!import.meta.env.DEV && !process.env.INSTRUMENT_PREVIEW_NAME) {
+  // The raw name is what folds away in a release; the flavor check keeps a
+  // name that reduces to nothing, which no preview has, from attaching it.
+  if (
+    !import.meta.env.DEV &&
+    (!process.env.INSTRUMENT_PREVIEW_NAME || APP_FLAVOR.kind !== "preview")
+  ) {
     return;
   }
   const store = getDefaultStore();

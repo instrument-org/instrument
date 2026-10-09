@@ -39,8 +39,8 @@ const FITS_AT_LEAST = { clef: 0.3, clefFlash: 0.2, other: 0.3 };
  * words first, and by what it means when the words match nothing and the
  * decision model can be reached.
  *
- * The lists the pages draw from data (providers, memories) are read
- * only while there is a search, from the same queries the pages use.
+ * The providers the Providers page lists are read only while there is a
+ * search, from the same query the page uses.
  */
 export function useSettingsSearch({
   query,
@@ -55,11 +55,8 @@ export function useSettingsSearch({
   const matches = matchSettings(entries, deferredQuery);
   const fallback = useMeaningFallback({
     active: active && matches.length === 0,
-    // A page is found by its name, and a memory is the person's own words:
-    // neither is something to ask the model whether a search means.
-    candidates: entries.filter(
-      (entry) => entry.open === undefined && !entry.page,
-    ),
+    // A page is found by its name, so the model is asked only about rows.
+    candidates: entries.filter((entry) => !entry.page),
     search: query,
   });
   return {
@@ -85,11 +82,6 @@ function useSettingsEntries({
   const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
   const { data: providers = [] } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions({
-      enabled: active,
-    }),
-  );
-  const { data: memoryList } = useQuery(
-    rpcClient.workspace.memory.live.list.experimental_liveOptions({
       enabled: active,
     }),
   );
@@ -119,12 +111,6 @@ function useSettingsEntries({
         config.displayName ||
         providerMetadataMap.get(config.type)?.name ||
         config.type,
-    })),
-    ...(memoryList?.memories ?? []).map((memory) => ({
-      id: `memory:${memory.name}`,
-      open: { memory: memory.name },
-      tab: "Memory" as const,
-      title: memory.text,
     })),
     ...Object.entries(FEATURE_METADATA).map(([name, feature]) => ({
       detail: feature.description,

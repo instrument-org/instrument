@@ -45,38 +45,46 @@ describe("matchSettings", () => {
 
   it.each([
     ["theme", "Theme"],
-    ["dark", "Theme"],
-    ["beta", "Update from"],
-    ["logs", "Diagnostic log"],
-    ["api key", "Add provider"],
+    ["diag log", "Diagnostic log"],
+    ["usage", "Usage metrics"],
+    ["claude", "Claude account"],
   ])("finds %s", (query, title) => {
     expect(titles(query)[0]).toBe(title);
   });
 
-  it("ranks a title match over one in the aliases or page name", () => {
-    expect(titles("pro").slice(0, 1)).toEqual(["Add provider"]);
+  it("matches only words the title shows, as written", () => {
+    expect({
+      dark: titles("dark"),
+      pro: titles("pro"),
+    }).toMatchInlineSnapshot(`
+      {
+        "dark": [],
+        "pro": [
+          "Add provider",
+        ],
+      }
+    `);
   });
 
   it("finds nothing for an empty search", () => {
     expect(titles("  ")).toEqual([]);
   });
 
-  it("highlights only the title", () => {
+  it("highlights the letters it matched", () => {
     expect(matchSettings([...SETTINGS_INDEX], "zoom")[0])
       .toMatchInlineSnapshot(`
-      {
-        "entry": {
-          "aliases": "text size bigger smaller scale font",
-          "detail": "Make everything in the app larger or smaller.",
-          "id": "zoom",
-          "tab": "General",
-          "title": "Zoom",
-        },
-        "titleRanges": [
-          0,
-          4,
-        ],
-      }
-    `);
+        {
+          "entry": {
+            "detail": "Make everything in the app larger or smaller.",
+            "id": "zoom",
+            "tab": "General",
+            "title": "Zoom",
+          },
+          "titleRanges": [
+            0,
+            4,
+          ],
+        }
+      `);
   });
 });

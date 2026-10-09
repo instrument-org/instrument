@@ -101,8 +101,8 @@ export function SettingsModal() {
           autoAddProvider={content.showNewProviderDialog ?? false}
           key={openKey}
           onExitComplete={onExitComplete}
-          onSelectTab={(tab, open) => {
-            setState({ tab, ...open });
+          onSelectTab={(tab) => {
+            setState({ tab });
           }}
         />
       )}
@@ -119,7 +119,7 @@ function SettingsModalContent({
   activeTab: SettingsTab;
   autoAddProvider: boolean;
   onExitComplete: () => void;
-  onSelectTab: (tab: SettingsTab, open?: SettingsEntry["open"]) => void;
+  onSelectTab: (tab: SettingsTab) => void;
 }) {
   const navItems = useNavItems();
   const [query, setQuery] = useState("");
@@ -155,7 +155,7 @@ function SettingsModalContent({
   };
 
   const openResult = (entry: SettingsEntry) => {
-    onSelectTab(entry.tab, entry.open);
+    onSelectTab(entry.tab);
     setJump((last) => ({
       flash: !entry.page,
       id: entry.id,
@@ -324,7 +324,7 @@ function SearchResults({
     return (
       <p className="px-2 py-2 text-sm text-muted-foreground">
         {isLooking
-          ? "Looking…"
+          ? "Searching…"
           : failed
             ? `Nothing matches “${query}”, and ${APP_NAME} couldn’t look any further right now.`
             : `Nothing matches “${query}”.`}

@@ -13,6 +13,10 @@ import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
 import { openFindForKeyboard } from "@/client/lib/find-targets";
 import { runPageChord } from "@/client/lib/page-chords";
+import {
+  closeTabForKeyboard,
+  openTabForKeyboard,
+} from "@/client/lib/tab-surfaces";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
@@ -200,7 +204,10 @@ export function useWindowCommands(
               break;
             }
             case "closeTab": {
-              latest.current.closeTab();
+              // The tab up in the tabs the keyboard is in, else the window's.
+              if (!closeTabForKeyboard()) {
+                latest.current.closeTab();
+              }
               break;
             }
             case "editPage": {
@@ -226,7 +233,11 @@ export function useWindowCommands(
               break;
             }
             case "newTab": {
-              latest.current.newTab();
+              // A tab of the chat or draft the keyboard is in, else the
+              // window's.
+              if (!openTabForKeyboard()) {
+                latest.current.newTab();
+              }
               break;
             }
             case "nextChat": {

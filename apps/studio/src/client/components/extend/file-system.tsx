@@ -361,6 +361,8 @@ type FileSystemFolderItem = {
   /** Set when children exist but are not in `items` yet; enables `loadChildren`. */
   hasChildren?: boolean;
   kind: "folder";
+  /** What the Kind column says in place of "Folder", for a folder that is something more particular. */
+  kindLabel?: string;
   metadata?: Record<string, string>;
   name?: string;
   parentPath?: string;
@@ -504,7 +506,9 @@ const FILE_KIND_LABELS: Record<string, string> = {
 // Folders sort under the "Folder" kind alphabetically among the file kinds,
 // like Finder's Kind sort.
 function entryKindLabel(entry: FileSystemEntry) {
-  return entry.kind === "folder" ? "Folder" : fileKindLabel(entry);
+  return entry.kind === "folder"
+    ? (entry.kindLabel ?? "Folder")
+    : fileKindLabel(entry);
 }
 function fileKindLabel(file: FileEntry) {
   const byExtension = FILE_KIND_LABELS[fileExtension(file.name)];

@@ -131,7 +131,7 @@ describe("listComputerFolder", () => {
       const helper = path.join(folder, "instrument-mac");
       await fs.writeFile(
         helper,
-        `#!/bin/sh\necho '${JSON.stringify([{ name: "Obsidian", path: vault }])}'\n`,
+        `#!/bin/sh\necho '${JSON.stringify({ access: "granted", folders: [{ name: "Obsidian", path: vault }] })}'\n`,
         { mode: 0o755 },
       );
       setWorkspaceConfig({
@@ -162,6 +162,56 @@ describe("listComputerFolder", () => {
           ],
         });
       } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
+
+  it.runIf(process.platform === "darwin")(
+    "lists the app folders locked when macOS refuses them, and opening one is a refusal",
+    async () => {
+      folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-icloud-"));
+      vi.stubEnv("HOME", folder);
+      const containers = path.join(folder, "Library", "Mobile Documents");
+      const drive = path.join(containers, "com~apple~CloudDocs");
+      const shortcuts = path.join(
+        containers,
+        "iCloud~is~workflow~my~workflows",
+        "Documents",
+      );
+      await fs.mkdir(path.join(drive, "Books"), { recursive: true });
+      await fs.mkdir(shortcuts, { recursive: true });
+      await fs.chmod(shortcuts, 0o000);
+      const helper = path.join(folder, "instrument-mac-refused");
+      await fs.writeFile(
+        helper,
+        `#!/bin/sh\necho '${JSON.stringify({ access: "refused", folders: [{ name: "Shortcuts", path: shortcuts }] })}'\n`,
+        { mode: 0o755 },
+      );
+      setWorkspaceConfig({
+        ...getWorkspaceConfig(),
+        macHelperBinPath: AbsolutePathSchema.parse(helper),
+      });
+
+      try {
+        const top = await listComputerFolder({ path: drive, taskId });
+        const inside = await listComputerFolder({
+          path: path.join(drive, "Shortcuts"),
+          taskId,
+        });
+        expect({ inside, top }).toMatchObject({
+          inside: { kind: "refused", path: shortcuts },
+          top: {
+            appFoldersLocked: true,
+            entries: [
+              { name: "Books" },
+              { locked: true, name: "Shortcuts", path: shortcuts },
+            ],
+            kind: "listing",
+          },
+        });
+      } finally {
+        await fs.chmod(shortcuts, 0o700);
         vi.unstubAllEnvs();
       }
     },

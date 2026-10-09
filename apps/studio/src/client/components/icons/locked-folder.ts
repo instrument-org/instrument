@@ -1,0 +1,6 @@
+// The file browser's folder glyph, faded, with a padlock on a white badge at
+// its lower right: a folder that is there and cannot be opened yet.
+const LOCKED_FOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 50" width="64" height="50"><defs><linearGradient id="back" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3dabf5"/><stop offset="1" stop-color="#1d84dd"/></linearGradient><linearGradient id="front" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#7accfb"/><stop offset="1" stop-color="#37a0ef"/></linearGradient></defs><g opacity="0.55"><path d="M5 10c0-3.31 2.69-6 6-6h10.9c1.6 0 3.13.7 4.18 1.9l1.5 1.73a3.5 3.5 0 0 0 2.64 1.22H54c2.76 0 5 2.24 5 5V40c0 3.87-3.13 7-7 7H12c-3.87 0-7-3.13-7-7V10Z" fill="url(#back)"/><path d="M5 15.5h54V40c0 3.87-3.13 7-7 7H12c-3.87 0-7-3.13-7-7V15.5Z" fill="url(#front)"/></g><circle cx="49" cy="36" r="13" fill="#ffffff"/><path d="M44.5 33.5v-3a4.5 4.5 0 0 1 9 0v3" fill="none" stroke="#5f6368" stroke-width="2.6" stroke-linecap="round"/><rect x="41.5" y="33" width="15" height="11" rx="2.5" fill="#5f6368"/></svg>`;
+
+/** A folder the browser lists and cannot open yet, as the file browser draws it. */
+export const LOCKED_FOLDER_GLYPH_URL = `data:image/svg+xml,${encodeURIComponent(LOCKED_FOLDER_SVG)}`;

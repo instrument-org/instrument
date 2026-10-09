@@ -21,6 +21,7 @@ import { childTaskMounts } from "./children";
 import { folderReach } from "./folder-reach";
 import { hiddenEntryNames } from "./hidden-entries";
 import {
+  type ICloudAppFolders,
   iCloudAppFolders,
   iCloudDrivePath,
   resolveICloudPath,
@@ -47,6 +48,11 @@ const ComputerEntrySchema = z.object({
    */
   hidden: z.boolean().optional(),
   kind: z.enum(["file", "folder"]),
+  /**
+   * An iCloud Drive app folder macOS will not let this app open until the
+   * person gives it the iCloud Drive permission. Named, never read.
+   */
+  locked: z.literal(true).optional(),
   mimeType: z.string().optional(),
   modifiedAt: z.number().optional(),
   name: z.string(),
@@ -88,6 +94,12 @@ export type ComputerRecent = z.output<typeof ComputerRecentSchema>;
 
 const ComputerListingSchema = z.object({
   access: ComputerAccessSchema.optional(),
+  /**
+   * At the top of iCloud Drive, that the app folders shown there (Pages,
+   * Shortcuts) are locked: iCloud Drive's own folders open without it, and
+   * the apps' take the iCloud Drive permission.
+   */
+  appFoldersLocked: z.literal(true).optional(),
   /** The path as a person writes it, the home folder as `~`. */
   display: z.string(),
   entries: ComputerEntrySchema.array(),
@@ -218,15 +230,23 @@ export async function listComputerFolder({
         describeEntry(hostPath, entry.name, hiddenNames.has(entry.name)),
       ),
   );
-  if (process.platform === "darwin" && hostPath === iCloudDrivePath()) {
+  const appFolders =
+    process.platform === "darwin" && hostPath === iCloudDrivePath()
+      ? await iCloudAppFolders()
+      : undefined;
+  if (appFolders) {
     entries.push(
-      ...(await iCloudAppEntries(new Set(dirents.map((d) => d.name)))),
+      ...(await iCloudAppEntries(
+        appFolders,
+        new Set(dirents.map((d) => d.name)),
+      )),
     );
   }
   entries.sort(compareEntries);
 
   return {
     access: await computerAccess(taskId, hostPath),
+    ...(appFolders?.access === "refused" ? { appFoldersLocked: true } : {}),
     display: displayHostPath(hostPath),
     entries,
     kind: "listing",
@@ -241,20 +261,21 @@ export async function listComputerFolder({
  * where it lives. A name iCloud Drive itself holds keeps that name.
  */
 async function iCloudAppEntries(
+  { access, folders }: ICloudAppFolders,
   taken: ReadonlySet<string>,
 ): Promise<ComputerEntry[]> {
-  const folders = (await iCloudAppFolders()).filter(
-    (folder) => !taken.has(folder.name),
-  );
   return Promise.all(
-    folders.map(async (folder) => ({
-      ...(await describeEntry(
-        path.dirname(folder.path),
-        path.basename(folder.path),
-        false,
-      )),
-      name: folder.name,
-    })),
+    folders
+      .filter((folder) => !taken.has(folder.name))
+      .map(async (folder) => ({
+        ...(await describeEntry(
+          path.dirname(folder.path),
+          path.basename(folder.path),
+          false,
+        )),
+        name: folder.name,
+        ...(access === "refused" ? { locked: true as const } : {}),
+      })),
   );
 }
 

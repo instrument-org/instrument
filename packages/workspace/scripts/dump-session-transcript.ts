@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
+import { CHATS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { getTaskSettings } from "../src/lib/task-settings";
@@ -35,12 +36,25 @@ if (!inputPath) {
 }
 
 const dir = TaskDirSchema.parse(path.resolve(inputPath));
-const tasksDir = path.dirname(dir);
+
+// The workspace root is above `chats/<chat>/tasks/<id>`, `chats/<chat>`, or
+// a 1.x `tasks/<id>`, and records are found by scanning its `chats/`.
+const parts = dir.split(path.sep);
+const chatsAt = parts.lastIndexOf(CHATS_DIR_NAME);
+const rootDir =
+  chatsAt > 0
+    ? parts.slice(0, chatsAt).join(path.sep)
+    : path.dirname(path.dirname(dir));
 
 const settings = await getTaskSettings(dir);
 const folderName = path.basename(dir);
 const id = TaskIdSchema.parse(folderName);
-setWorkspaceConfig(createStubWorkspaceConfig({ tasksDir }));
+setWorkspaceConfig(
+  createStubWorkspaceConfig({
+    rootDir,
+    tasksDir: path.join(rootDir, TASKS_DIR_NAME),
+  }),
+);
 const taskId = id;
 
 const sessionsResult = await Store.getSessions(taskId, {

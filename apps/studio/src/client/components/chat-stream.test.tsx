@@ -11,6 +11,7 @@ import { noop } from "radashi";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChatStream } from "./chat-stream";
+import { FileOpenContext } from "./file-open-context";
 import { ReplyContext } from "./reply-context";
 import { TranscriptScrollContext } from "./transcript-scroll-context";
 import {
@@ -20,6 +21,7 @@ import {
   MessageScrollerViewport,
 } from "./ui/message-scroller";
 import { TooltipProvider } from "./ui/tooltip";
+import { type OpenOptions } from "./window/context";
 
 // An opened file card highlights what it is showing, and asks the app which
 // theme to highlight against; the real provider answers through `matchMedia`
@@ -1352,6 +1354,72 @@ describe("ChatStream and what a message went with", () => {
       screen.getByText("Amazon.com: Kettle").compareDocumentPosition(words) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("opens a sent chip's file where the surface opens files, and a modified click in a tab of its own", () => {
+    const openFile = vi.fn<(path: string, options?: OpenOptions) => void>();
+    renderWithProviders(
+      <FileOpenContext value={openFile}>
+        {chatStream(
+          [
+            {
+              ...userMessage("Sum these"),
+              parts: [
+                prose("Sum these"),
+                {
+                  data: {
+                    attached: [
+                      {
+                        items: [
+                          { kind: "file", path: "/Users/someone/budget.csv" },
+                          { kind: "folder", path: "/Users/someone/Receipts" },
+                        ],
+                        kind: "paths",
+                      },
+                    ],
+                    screen: "files",
+                    url: "/computer",
+                  },
+                  metadata: metadata(),
+                  type: "data-viewContext",
+                },
+              ],
+            },
+          ],
+          { presentation: "chat" },
+        )}
+      </FileOpenContext>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "2 items" }));
+    fireEvent.click(screen.getByRole("button", { name: "2 items" }), {
+      metaKey: true,
+    });
+
+    expect(openFile.mock.calls).toMatchInlineSnapshot(`
+      [
+        [
+          "/Users/someone/budget.csv",
+          {},
+        ],
+        [
+          "/Users/someone/Receipts/",
+          {},
+        ],
+        [
+          "/Users/someone/budget.csv",
+          {
+            "newTab": true,
+          },
+        ],
+        [
+          "/Users/someone/Receipts/",
+          {
+            "newTab": true,
+          },
+        ],
+      ]
+    `);
   });
 
   it("draws no chips for a message whose view went without any", () => {

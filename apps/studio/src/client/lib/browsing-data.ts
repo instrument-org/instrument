@@ -32,7 +32,7 @@ export const TIME_RANGES = [
 
 export type TimeRangeId = (typeof TIME_RANGES)[number]["id"];
 
-export function timeRangeOf(id: TimeRangeId) {
+function timeRangeOf(id: TimeRangeId) {
   return TIME_RANGES.find((range) => range.id === id) ?? TIME_RANGES[0];
 }
 
@@ -83,7 +83,7 @@ export function cookiesDetail(cookieSites: string[]): string {
 }
 
 /** "12 MB", "1.4 GB", or "less than 1 MB". */
-export function formatCacheSize(bytes: number): string {
+function formatCacheSize(bytes: number): string {
   const mb = bytes / 1024 / 1024;
   if (mb < 1) {
     return "less than 1 MB";

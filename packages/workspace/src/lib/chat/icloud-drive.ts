@@ -29,7 +29,6 @@ const ICloudAppFoldersSchema = z.object({
   folders: z.object({ name: z.string(), path: z.string() }).array(),
 });
 export type ICloudAppFolders = z.output<typeof ICloudAppFoldersSchema>;
-export type ICloudAppFolder = ICloudAppFolders["folders"][number];
 
 /**
  * How long one answer about the app folders stands. A listing of iCloud

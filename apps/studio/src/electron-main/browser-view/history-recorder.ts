@@ -40,9 +40,9 @@ export interface NavigationSnapshot {
 export type CommitKind = "history-step" | "new" | "reload" | "replace";
 
 /** How long after a page finishes loading its title still counts as the page's, Chromium's rule. */
-export const TITLE_WINDOW_MS = 5000;
+const TITLE_WINDOW_MS = 5000;
 /** How many titles one navigation may set, Chromium's rule, so a page cycling its title cannot keep rewriting history. */
-export const TITLE_CHANGES_MAX = 10;
+const TITLE_CHANGES_MAX = 10;
 
 /** See the module comment. */
 export function classifyCommit(
@@ -67,7 +67,7 @@ export function classifyCommit(
  * where Chromium's own `CanAddURL` also leaves out the browser's internal
  * schemes. A local file has its own place in Files and Recents.
  */
-export function isRecordable(url: string): boolean {
+function isRecordable(url: string): boolean {
   const protocol = URL.parse(url)?.protocol;
   return protocol === "http:" || protocol === "https:";
 }

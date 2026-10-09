@@ -46,6 +46,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "General: Search or Ask  ⌘L",
         "General: Settings...  ⌘,",
         "Chats: Next Chat  ⌥⌘↓",
+        "Chats: Paste as Text  ⇧⌘V",
         "Chats: Previous Chat  ⌥⌘↑",
         "Chats: Toggle Inbox  ⌘B",
         "Tabs: Close Tab  ⌘W",

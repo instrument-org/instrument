@@ -245,10 +245,12 @@ export function PromptEditor({
   const onPasteEvent = useEffectEvent(onPaste);
   // Words put in at the caret the way a paste puts them: a skill's markup
   // becomes its chip, and the step undoes as one paste.
-  const pasteInto = (view: EditorView, text: string) => {
-    const slice = Slice.maxOpen(
-      promptDocFromPastedText(text, currentSkills()).content,
-    );
+  const pasteInto = (
+    view: EditorView,
+    text: string,
+    known: ComposerSkill[],
+  ) => {
+    const slice = Slice.maxOpen(promptDocFromPastedText(text, known).content);
     view.dispatch(
       view.state.tr
         .replaceSelection(slice)
@@ -352,7 +354,7 @@ export function PromptEditor({
             .readText()
             .then((text) => {
               if (text) {
-                pasteInto(view, text);
+                pasteInto(view, text, currentSkills());
               }
             })
             .catch(() => undefined);
@@ -404,7 +406,7 @@ export function PromptEditor({
         if (!text) {
           return false;
         }
-        pasteInto(editorView, text);
+        pasteInto(editorView, text, currentSkills());
         return true;
       },
       // A token in the draft is the same token the sent message will show, so
@@ -581,7 +583,7 @@ export function PromptEditor({
     pasteText: (text) => {
       const view = viewRef.current;
       if (view) {
-        pasteInto(view, text);
+        pasteInto(view, text, skills);
       }
     },
     moveCaretToEnd: () => {

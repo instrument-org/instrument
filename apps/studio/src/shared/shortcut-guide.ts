@@ -84,7 +84,7 @@ const WINDOW_CHORDS: Record<
  * they are, however long, where a long paste would otherwise become an
  * attachment. Answered by the prompt editor, not a menu or the window.
  */
-export const PASTE_AS_TEXT = {
+const PASTE_AS_TEXT = {
   accelerator: "CmdOrCtrl+Shift+V",
   label: "Paste as Text",
 } as const;

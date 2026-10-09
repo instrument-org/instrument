@@ -112,14 +112,19 @@ export function windowsFileAssociationsScript(extensions: string[]) {
  * hooks. electron-builder takes the include as a path, and the hooks are
  * derived from the viewer tables rather than kept beside them.
  */
-export function writeWindowsInstallerScript() {
+export function writeWindowsInstallerScript({
+  fileAssociations,
+}: {
+  fileAssociations: boolean;
+}) {
   const file = path.join(tmpdir(), `${APP_NAME}-installer.nsh`);
   writeFileSync(
     file,
     [
       "ManifestDPIAware true",
-      "",
-      windowsFileAssociationsScript(WINDOWS_EXTENSIONS),
+      ...(fileAssociations
+        ? ["", windowsFileAssociationsScript(WINDOWS_EXTENSIONS)]
+        : []),
     ].join("\n"),
   );
   return file;

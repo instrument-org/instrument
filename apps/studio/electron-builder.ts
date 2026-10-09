@@ -1,8 +1,9 @@
 import {
   APP_BUNDLE_ID,
   APP_EXECUTABLE,
-  APP_NAME,
   APP_FLAVOR,
+  APP_NAME,
+  APP_NAME_SLUG,
   APP_PRODUCT_NAME,
   APP_PROTOCOL,
   APP_UPDATER_CACHE_DIR_NAME,
@@ -31,6 +32,14 @@ const isPreview = APP_FLAVOR.kind === "preview";
 // Instrument in the Dock, Finder, and a downloads folder before its name does.
 // Generated beside the shipping icons by `icons:generate`.
 const iconDir = isPreview ? "flavors/preview/" : "";
+
+// What an installer or package manager knows a preview by, so installing one
+// puts nothing where Instrument's own files go: the Windows install folder,
+// which NSIS takes from `name`, and the Linux executable and package.
+const previewPackageName =
+  APP_FLAVOR.kind === "preview"
+    ? `${APP_NAME_SLUG}-preview-${APP_FLAVOR.name}`
+    : undefined;
 
 const publishConfig: PlatformSpecificBuildOptions["publish"] = {
   bucket: "instrument-releases",
@@ -121,7 +130,7 @@ const config: Configuration = {
   // app that fails to boot.
   electronLanguages: ["en-US"],
   extraMetadata: {
-    name: APP_NAME,
+    name: previewPackageName ?? APP_NAME,
     // Electron names the userData folder and the keychain's Safe Storage item
     // after this, which is what keeps a preview's state apart from the app's.
     productName: APP_PRODUCT_NAME,
@@ -210,9 +219,12 @@ const config: Configuration = {
   linux: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     category: "Office",
-    executableName: APP_EXECUTABLE,
+    executableName: previewPackageName ?? APP_EXECUTABLE,
     icon: `build/${iconDir}icons`,
-    target: ["AppImage", "deb", "rpm", "tar.gz"],
+    // A preview runs from where it was unpacked, never installed system-wide.
+    target: isPreview
+      ? ["AppImage", "tar.gz"]
+      : ["AppImage", "deb", "rpm", "tar.gz"],
   },
   mac: {
     category: "public.app-category.productivity",
@@ -295,8 +307,8 @@ const config: Configuration = {
     differentialPackage: "store-asar",
     // The installer drawn at the display's scale, and Open With for the
     // types Instrument shows. Not `win.fileAssociations`, whose macro makes
-    // the app each extension's default.
-    include: writeWindowsInstallerScript(),
+    // the app each extension's default. A preview claims no types, as on macOS.
+    include: writeWindowsInstallerScript({ fileAssociations: !isPreview }),
     shortcutName: "${productName}",
     uninstallDisplayName: "${productName}",
   },
@@ -316,7 +328,12 @@ const config: Configuration = {
       // rejected unless the installed build's list contains the incoming
       // installer's CN verbatim, and the comparison is case sensitive.
       publisherName: ["Finalpoint, LLC", "FINALPOINT, LLC"],
-      sign: "electron-builder/win-cloud-hsm-sign.js",
+      // A preview built without the signing key goes unsigned rather than
+      // failing; a release always signs.
+      sign:
+        isPreview && !process.env.WIN_GCP_KMS_KEY_VERSION
+          ? undefined
+          : "electron-builder/win-cloud-hsm-sign.js",
     },
     target: ["nsis"],
   },

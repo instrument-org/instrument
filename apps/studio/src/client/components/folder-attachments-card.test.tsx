@@ -3,10 +3,12 @@ import {
   type FolderAttachment,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
-import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
+import { FileOpenContext } from "./file-open-context";
 import { FolderAttachmentsCard } from "./folder-attachments-card";
+import { type OpenOptions } from "./window/context";
 
 // Paths shorten against the home directory the dom setup pins on the preload
 // bridge, `/Users/sam`.
@@ -73,5 +75,25 @@ describe("FolderAttachmentsCard", () => {
 
     expect(screen.queryByText("Read-only")).toBeNull();
     expect(screen.queryByText("Full access")).toBeNull();
+  });
+
+  it("opens the folder where the surface opens files", () => {
+    const openFile = vi.fn<(path: string, options?: OpenOptions) => void>();
+    renderWithProviders(
+      <FileOpenContext value={openFile}>
+        <FolderAttachmentsCard folders={[folder("/Users/sam/Downloads")]} />
+      </FileOpenContext>,
+    );
+
+    fireEvent.click(screen.getByRole("button"));
+
+    expect(openFile.mock.calls).toMatchInlineSnapshot(`
+      [
+        [
+          "/Users/sam/Downloads/",
+          {},
+        ],
+      ]
+    `);
   });
 });

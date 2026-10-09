@@ -104,14 +104,8 @@ const BAR_MARKS = 4;
 /** The most the words take before they scroll, whatever the window could give them. */
 const WORDS_MAX_HEIGHT = 400;
 
-/** A docked window's height with a few lines of words in it, in layout px; it grows from here with the words. */
+/** A docked window's height, in layout px, however long the words run: they scroll inside it, and Expand is there for more room. */
 const COMPOSE_HEIGHT = 640;
-
-/** The words' height the docked height already allows for beside an open tab: three lines. Past it the window grows. */
-const WORDS_BASE_HEIGHT = 72;
-
-/** The window's head, over the words. */
-const HEAD_HEIGHT = 48;
 
 const NO_TITLES = new Map<never, never>();
 
@@ -358,49 +352,6 @@ export function ComposeWindow({
   // The head's slot the composer's button row is drawn into. State rather
   // than a ref: the row is a portal, which needs the element to exist.
   const [headSlot, setHeadSlot] = useState<HTMLDivElement | null>(null);
-  // How tall the words are on their own, which is what a docked window grows
-  // with: measured off the editor, whose own box is never clipped (its
-  // scroller is around it), so a squeezed window still knows what the words
-  // would take. A definite height on the window is also what lets the page
-  // and the folder inside the band size themselves against it.
-  // With only the tiles under them, the words have the room the tiles leave
-  // before the window grows: the band's own height and what the box draws
-  // around the editor (its padding, a row of chips) are measured too.
-  const wordsWrapRef = useRef<HTMLDivElement>(null);
-  const bandRef = useRef<HTMLDivElement>(null);
-  const [measured, setMeasured] = useState({
-    band: 0,
-    chrome: 0,
-    words: WORDS_BASE_HEIGHT,
-  });
-  useEffect(() => {
-    const editor =
-      wordsWrapRef.current?.querySelector<HTMLElement>(".prompt-editor");
-    const frame = wordsWrapRef.current?.querySelector<HTMLElement>(
-      "[data-slot=composer-frame]",
-    );
-    const scroller = editor?.parentElement;
-    const band = bandRef.current;
-    if (!editor || !frame || !scroller || !band) {
-      return;
-    }
-    const measure = () => {
-      setMeasured({
-        band: band.offsetHeight,
-        chrome: frame.offsetHeight - scroller.offsetHeight,
-        words: editor.offsetHeight,
-      });
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    for (const element of [editor, frame, band]) {
-      observer.observe(element);
-    }
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
-
   // What the band opens lands in the draft's group and comes up in the band,
   // never on screen behind the window; the caret goes back to the words,
   // which are what the window is for.
@@ -515,13 +466,6 @@ export function ComposeWindow({
   const showsStrip =
     tabs.length > 1 || (tabs[0] !== undefined && !isHomeTab(tabs[0]));
   const wordsFill = isEmpty && !showsStrip;
-  const wordsRoom = wordsFill
-    ? Math.max(
-        WORDS_BASE_HEIGHT,
-        COMPOSE_HEIGHT - HEAD_HEIGHT - measured.band - measured.chrome,
-      )
-    : WORDS_BASE_HEIGHT;
-  const dockedHeight = COMPOSE_HEIGHT + Math.max(0, measured.words - wordsRoom);
 
   const content = (() => {
     if (isEmpty) {
@@ -592,7 +536,7 @@ export function ComposeWindow({
       data-slot="compose-window"
       exit={{ opacity: 0, y: 24 }}
       initial={{ opacity: 0, right: isExpanded ? 0 : right, y: 24 }}
-      style={isExpanded ? GROWN : { height: dockedHeight, width }}
+      style={isExpanded ? GROWN : { height: COMPOSE_HEIGHT, width }}
       transition={COMPOSE_MOTION}
     >
       <WindowContext
@@ -721,17 +665,16 @@ export function ComposeWindow({
                   </WindowButton>
                 </div>
               </div>
-              {/* The words give way to the band only once the window can
-                  grow no further: the band keeps a floor, and the words
-                  scroll past what is left. The editor keeps three lines of
-                  its own whatever is attached over it, so a chip or a row of
-                  pasted files takes its room from the band, not the words. */}
+              {/* The words give way to the band: the band keeps a floor,
+                  and the words scroll past what is left. The editor keeps
+                  three lines of its own whatever is attached over it, so a
+                  chip or a row of pasted files takes its room from the band,
+                  not the words. */}
               <div
                 className={cn(
                   "flex min-h-24 shrink flex-col select-text [&_.prompt-editor]:min-h-18 [&_.prompt-editor]:text-[15px] [&_.prompt-editor]:leading-6",
                   wordsFill && "flex-1",
                 )}
-                ref={wordsWrapRef}
               >
                 <PromptInput
                   actionsInto={headSlot}
@@ -820,12 +763,13 @@ export function ComposeWindow({
                   "mx-2 flex flex-col overflow-hidden rounded-t-xl bg-gray-200 dark:bg-gray-900",
                   wordsFill ? "shrink-0" : "min-h-80 flex-1",
                 )}
-                ref={bandRef}
               >
                 {showsStrip && (
                   // The tab on screen in the card's color, so it reads as
-                  // the top of the card under it rather than as the floor.
-                  <div className="flex h-9 shrink-0 items-center pr-1 pl-1 [--topic-tint-raised:var(--card)]">
+                  // the top of the card under it rather than as the floor. In
+                  // dark the floor is the page's own color, so the tab is
+                  // lifted to the card's.
+                  <div className="flex h-9 shrink-0 items-center pr-1 pl-1 [--topic-tint-raised:var(--card)] dark:[--background:var(--card)]">
                     <WindowTabStrip
                       chatTitles={NO_TITLES}
                       childTitles={NO_TITLES}

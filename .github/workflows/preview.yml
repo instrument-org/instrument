@@ -237,7 +237,7 @@ jobs:
           {
             echo "### Instrument Preview (${{ needs.plan.outputs.slug }})"
             echo
-            echo "Built from \`${{ github.ref_name }}\` at \`${GITHUB_SHA:0:9}\`. Download a file under Artifacts below, or \`gh run download ${{ github.run_id }}\`."
+            echo "Built from \`${{ github.ref_name }}\` at \`${GITHUB_SHA:0:9}\`. Download a file under Artifacts below. From a terminal, \`gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts\` lists them, and \`gh api repos/${{ github.repository }}/actions/artifacts/<id>/zip > <file>\` fetches one as the file itself; \`gh run download\` expects every artifact to be a zip and fails on the others."
             echo
             echo "- **macOS:** unzip and open the app wherever it landed."
             echo "- **Windows:** run the installer. It installs beside Instrument, under its own name."

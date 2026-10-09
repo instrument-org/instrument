@@ -48,11 +48,6 @@ const ComputerEntrySchema = z.object({
    */
   hidden: z.boolean().optional(),
   kind: z.enum(["file", "folder"]),
-  /**
-   * An iCloud Drive app folder macOS will not let this app open until the
-   * person gives it the iCloud Drive permission. Named, never read.
-   */
-  locked: z.literal(true).optional(),
   mimeType: z.string().optional(),
   modifiedAt: z.number().optional(),
   name: z.string(),
@@ -95,9 +90,9 @@ export type ComputerRecent = z.output<typeof ComputerRecentSchema>;
 const ComputerListingSchema = z.object({
   access: ComputerAccessSchema.optional(),
   /**
-   * At the top of iCloud Drive, that the app folders shown there (Pages,
-   * Shortcuts) are locked: iCloud Drive's own folders open without it, and
-   * the apps' take the iCloud Drive permission.
+   * At the top of iCloud Drive, that macOS kept this app from the app folders
+   * shown there (Pages, Shortcuts): iCloud Drive's own folders open without
+   * it, and the apps' take the iCloud Drive permission.
    */
   appFoldersLocked: z.literal(true).optional(),
   /** The path as a person writes it, the home folder as `~`. */
@@ -261,7 +256,7 @@ export async function listComputerFolder({
  * where it lives. A name iCloud Drive itself holds keeps that name.
  */
 async function iCloudAppEntries(
-  { access, folders }: ICloudAppFolders,
+  { folders }: ICloudAppFolders,
   taken: ReadonlySet<string>,
 ): Promise<ComputerEntry[]> {
   return Promise.all(
@@ -274,7 +269,6 @@ async function iCloudAppEntries(
           false,
         )),
         name: folder.name,
-        ...(access === "refused" ? { locked: true as const } : {}),
       })),
   );
 }

@@ -404,8 +404,6 @@ case "contacts":
 // container the system has not flagged hidden, by the app's own name, at its
 // Documents folder, which is what the Finder opens. Reading the containers
 // takes the iCloud Drive permission, and the first try is what asks for it.
-// Refused, the answer is the folders the installed apps declare and that
-// exist, which naming takes no permission for, so they can be shown locked.
 case "icloud-folders":
   let containers = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(
     "Library/Mobile Documents")
@@ -431,47 +429,7 @@ case "icloud-folders":
       },
     ])
   } else {
-    let home = URL(fileURLWithPath: NSHomeDirectory())
-    let appFolders = [
-      URL(fileURLWithPath: "/Applications"), URL(fileURLWithPath: "/System/Applications"),
-      home.appendingPathComponent("Applications"),
-    ]
-    let apps = appFolders.flatMap { folder -> [URL] in
-      let inside =
-        (try? FileManager.default.contentsOfDirectory(
-          at: folder, includingPropertiesForKeys: nil)) ?? []
-      // One level down too, where Utilities and an app's own folder are.
-      return inside.flatMap { item -> [URL] in
-        item.pathExtension == "app"
-          ? [item]
-          : ((try? FileManager.default.contentsOfDirectory(
-            at: item, includingPropertiesForKeys: nil)) ?? []).filter {
-              $0.pathExtension == "app"
-            }
-      }
-    }
-    var seen = Set<String>()
-    let declared = apps.flatMap { app -> [[String: Any]] in
-      guard let info = Bundle(url: app)?.infoDictionary,
-        let declared = info["NSUbiquitousContainers"] as? [String: [String: Any]]
-      else { return [] }
-      let appName = FileManager.default.displayName(atPath: app.path)
-        .replacingOccurrences(of: ".app", with: "")
-      return declared.compactMap { id, container -> [String: Any]? in
-        guard container["NSUbiquitousContainerIsDocumentScopePublic"] as? Bool == true,
-          !seen.contains(id)
-        else { return nil }
-        seen.insert(id)
-        let folder = containers.appendingPathComponent(
-          id.replacingOccurrences(of: ".", with: "~"))
-        guard FileManager.default.fileExists(atPath: folder.path) else { return nil }
-        return [
-          "name": container["NSUbiquitousContainerName"] as? String ?? appName,
-          "path": folder.appendingPathComponent("Documents").path,
-        ]
-      }
-    }
-    emit(["access": "refused", "folders": declared])
+    emit(["access": "refused", "folders": [] as [Any]])
   }
 
 default:

@@ -10,7 +10,6 @@ import {
   listComputerFolder,
   recentComputerFiles,
 } from "../../lib/chat/computer";
-import { askICloudAccess as askICloudAccessOnDisk } from "../../lib/chat/icloud-drive";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base } from "../base";
 
@@ -72,18 +71,7 @@ const recents = base
   .output(ComputerRecentSchema.array())
   .handler(() => recentComputerFiles());
 
-/**
- * Reads iCloud Drive's app folders again for a person who pressed Allow
- * access, which brings up the macOS prompt where it has not been answered.
- * `prompted` false with nothing granted means it was turned down before, so
- * the switch in System Settings is the only way left.
- */
-const askICloudAccess = base
-  .output(z.object({ granted: z.boolean(), prompted: z.boolean() }))
-  .handler(() => askICloudAccessOnDisk());
-
 export const computer = {
-  askICloudAccess,
   list,
   places,
   recents,

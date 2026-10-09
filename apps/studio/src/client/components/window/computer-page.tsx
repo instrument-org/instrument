@@ -24,7 +24,6 @@ import {
   TOOLBAR_ICON_BUTTON_CLASSNAME,
 } from "@/client/components/extend/file-system";
 import { InstrumentGlyph } from "@/client/components/wordmark";
-import { LOCKED_FOLDER_GLYPH_URL } from "@/client/components/icons/locked-folder";
 import { OUTPUT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
@@ -466,12 +465,6 @@ export function ComputerPage({
               ...(entry.path === instrumentPath
                 ? { glyphSrc: OUTPUT_FOLDER_GLYPH_URL }
                 : {}),
-              ...(entry.locked
-                ? {
-                    glyphSrc: LOCKED_FOLDER_GLYPH_URL,
-                    kindLabel: "Needs permission",
-                  }
-                : {}),
               hasChildren: true,
               kind: "folder",
               metadata: { hostPath: entry.path },
@@ -516,16 +509,6 @@ export function ComputerPage({
     void queryClient.invalidateQueries({
       queryKey: rpcClient.workspace.computer.recents.key(),
     });
-  };
-  const iCloudAccess = useICloudAccess(reread);
-  // An app's own container beside iCloud Drive, which the iCloud Drive
-  // permission opens.
-  const isICloudAppFolder = (hostPath: string) => {
-    const containers = `${homePath}/Library/Mobile Documents/`;
-    return (
-      hostPath.startsWith(containers) &&
-      !hostPath.startsWith(`${containers}com~apple~CloudDocs`)
-    );
   };
 
   const browserRef = useRef<HTMLDivElement>(null);
@@ -1596,15 +1579,6 @@ export function ComputerPage({
                   if (place === "inline") {
                     return refusalLine(refusal.reason);
                   }
-                  if (isICloudAppFolder(refusal.path)) {
-                    return (
-                      <ICloudFolderLocked
-                        access={iCloudAccess}
-                        key={refusal.path}
-                        name={segmentsOf(prefix).at(-1) ?? refusal.path}
-                      />
-                    );
-                  }
                   return (
                     <NotPermitted
                       key={refusal.path}
@@ -1646,98 +1620,38 @@ export function ComputerPage({
             sort={shown.sort}
           />
         </ContextMenu>
-        {currentListing?.appFoldersLocked && (
-          <ICloudAccessBanner access={iCloudAccess} />
-        )}
+        {currentListing?.appFoldersLocked && <ICloudAccessBanner />}
       </div>
     </div>
   );
 }
 
-type ICloudAccess = ReturnType<typeof useICloudAccess>;
-
 /**
- * Asking for the iCloud Drive permission that opens iCloud Drive's app
- * folders. The first ask brings up the macOS prompt; macOS never asks twice,
- * so once it was turned down the switch in System Settings is the only way,
- * and asking opens it there.
+ * Under the top of iCloud Drive while macOS keeps its app folders from
+ * Instrument. The first read asks for the iCloud Drive permission, and macOS
+ * never asks twice, so after that the switch in System Settings is the only
+ * way in.
  */
-function useICloudAccess(onGranted: () => void) {
-  const [isOff, setIsOff] = useState(false);
+function ICloudAccessBanner() {
   const openSettings = useMutation(
     rpcClient.features.openFilesAndFoldersSettings.mutationOptions(),
   );
-  const ask = useMutation({
-    mutationFn: () => rpcClient.workspace.computer.askICloudAccess.call(),
-    onSuccess: ({ granted, prompted }) => {
-      if (granted) {
-        setIsOff(false);
-        onGranted();
-        return;
-      }
-      setIsOff(true);
-      if (!prompted) {
-        openSettings.mutate(undefined);
-      }
-    },
-  });
-  return {
-    isOff,
-    request: () => {
-      if (isOff) {
-        openSettings.mutate(undefined);
-      } else {
-        ask.mutate();
-      }
-    },
-  };
-}
-
-/** Under the top of iCloud Drive while its app folders are locked. */
-function ICloudAccessBanner({ access }: { access: ICloudAccess }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-4 py-3 text-xs text-muted-foreground">
       <p className="min-w-0 flex-1 leading-5">
-        {access.isOff
-          ? "Instrument can’t open your apps’ folders in iCloud Drive because iCloud Drive is turned off for it in System Settings."
-          : "Instrument can’t open your apps’ folders in iCloud Drive, like Shortcuts and Pages, until you give it permission."}
+        Some folders in iCloud Drive need your permission before Instrument can
+        show them. You can turn on iCloud Drive for Instrument in System
+        Settings.
       </p>
-      <Button onClick={access.request} size="sm" variant="outline">
-        {access.isOff ? "Open System Settings" : "Allow access"}
+      <Button
+        onClick={() => {
+          openSettings.mutate(undefined);
+        }}
+        size="sm"
+        variant="outline"
+      >
+        Open System Settings
       </Button>
-    </div>
-  );
-}
-
-/** Where a locked iCloud Drive app folder's contents would be. */
-function ICloudFolderLocked({
-  access,
-  name,
-}: {
-  access: ICloudAccess;
-  name: string;
-}) {
-  return (
-    <div className="flex size-full items-center justify-center p-8">
-      <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-        <FileSystemFolderGlyph
-          className="h-10 w-auto"
-          src={LOCKED_FOLDER_GLYPH_URL}
-        />
-        <div>
-          <p className="text-sm font-medium">
-            {`Instrument can’t open “${name}” yet`}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            {access.isOff
-              ? "iCloud Drive is turned off for Instrument in System Settings. Turn it on there to open your apps’ folders."
-              : "Your apps’ folders in iCloud Drive open once you give Instrument permission."}
-          </p>
-        </div>
-        <Button onClick={access.request} size="sm">
-          {access.isOff ? "Open System Settings" : "Allow access"}
-        </Button>
-      </div>
     </div>
   );
 }

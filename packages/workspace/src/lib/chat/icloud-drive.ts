@@ -22,8 +22,7 @@ export function iCloudDrivePath(): string {
 const ICloudAppFoldersSchema = z.object({
   /**
    * Whether macOS let this app read the apps' containers, which takes the
-   * iCloud Drive permission. Refused, `folders` are the ones the installed
-   * apps declare, which can be named but not opened.
+   * iCloud Drive permission. Refused, there are no folders to show.
    */
   access: z.enum(["granted", "refused"]),
   folders: z.object({ name: z.string(), path: z.string() }).array(),
@@ -31,8 +30,10 @@ const ICloudAppFoldersSchema = z.object({
 export type ICloudAppFolders = z.output<typeof ICloudAppFoldersSchema>;
 
 /**
- * How long one answer about the app folders stands. A listing of iCloud
- * Drive is asked for again on the clock, and an app's folder arrives rarely.
+ * How long a granted answer about the app folders stands. A listing of
+ * iCloud Drive is asked for again on the clock, and an app's folder arrives
+ * rarely. A refusal is never kept: it comes back at once, and the next read
+ * after the person allows access is the one that has to show the folders.
  */
 const APP_FOLDERS_TTL_MS = 30_000;
 let appFolders:
@@ -40,35 +41,18 @@ let appFolders:
   | undefined;
 
 /**
- * Longer than macOS takes to refuse outright, and shorter than anyone takes
- * to read its prompt and answer it.
- */
-const PROMPT_SHOWN_AFTER_MS = 1500;
-
-function helperBinPath() {
-  return process.platform === "darwin"
-    ? getWorkspaceConfig().macHelperBinPath
-    : undefined;
-}
-
-/** Asks the Mac helper, which on the first read of a container is what brings up the macOS prompt. */
-function askHelper(binPath: string | undefined): Promise<ICloudAppFolders> {
-  return binPath === undefined
-    ? Promise.resolve({ access: "granted", folders: [] })
-    : execFileAsync(binPath, ["icloud-folders"]).then(
-        ({ stdout }) => ICloudAppFoldersSchema.parse(JSON.parse(stdout)),
-        (): ICloudAppFolders => ({ access: "granted", folders: [] }),
-      );
-}
-
-/**
  * The app folders the Finder shows at the top of iCloud Drive (Pages,
  * Obsidian, Shortcuts), each at the Documents folder in the app's own
  * container. Only the Mac helper can say which containers are shown and what
- * the app is called; without it there are none.
+ * the app is called; without it there are none. Where the iCloud Drive
+ * permission has not been answered, the helper's read is what brings up the
+ * macOS prompt, and it is refused while the prompt is up.
  */
 export function iCloudAppFolders(): Promise<ICloudAppFolders> {
-  const binPath = helperBinPath();
+  const binPath =
+    process.platform === "darwin"
+      ? getWorkspaceConfig().macHelperBinPath
+      : undefined;
   if (
     appFolders &&
     appFolders.binPath === binPath &&
@@ -76,39 +60,24 @@ export function iCloudAppFolders(): Promise<ICloudAppFolders> {
   ) {
     return appFolders.answer;
   }
-  const answer = askHelper(binPath);
+  const answer: Promise<ICloudAppFolders> =
+    binPath === undefined
+      ? Promise.resolve({ access: "granted", folders: [] })
+      : execFileAsync(binPath, ["icloud-folders"]).then(
+          ({ stdout }) => ICloudAppFoldersSchema.parse(JSON.parse(stdout)),
+          (): ICloudAppFolders => ({ access: "granted", folders: [] }),
+        );
   appFolders = {
     answer,
     at: Date.now(),
     ...(binPath === undefined ? {} : { binPath }),
   };
+  void answer.then(({ access }) => {
+    if (access === "refused" && appFolders?.answer === answer) {
+      appFolders = undefined;
+    }
+  });
   return answer;
-}
-
-/**
- * Reads the apps' containers again, now, for a person who pressed Allow
- * access. Where the permission has not been decided, macOS asks, and the
- * read waits on the answer; where it was turned down, macOS refuses at once
- * and never asks again, which is how a refusal that comes back quickly says
- * the switch in System Settings is the only way left.
- */
-export async function askICloudAccess(): Promise<{
-  granted: boolean;
-  prompted: boolean;
-}> {
-  const binPath = helperBinPath();
-  const started = Date.now();
-  const answer = askHelper(binPath);
-  appFolders = {
-    answer,
-    at: started,
-    ...(binPath === undefined ? {} : { binPath }),
-  };
-  const { access } = await answer;
-  return {
-    granted: access === "granted",
-    prompted: Date.now() - started > PROMPT_SHOWN_AFTER_MS,
-  };
 }
 
 /**

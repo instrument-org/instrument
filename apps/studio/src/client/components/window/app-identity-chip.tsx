@@ -27,7 +27,9 @@ export const WORKSPACE_COLOR_HEX: Record<WorkspaceColor, string> = {
  * preview build by its name, in the purple its icon wears, and a workspace
  * other than the default by its own name and color. Shown whether or not
  * developer mode is on, so a screenshot or a glance always says what is
- * running. Nothing at all for the shipping app on its default workspace.
+ * running. Nothing at all for the shipping app on its default workspace. A
+ * long name is cut short, with the whole of it in the tooltip, so the chip
+ * never crowds the window's own buttons out of the bar.
  */
 export function AppIdentityChip() {
   const { data: workspace } = useQuery(
@@ -73,14 +75,14 @@ function Segment({
 }) {
   return (
     <span
-      className="flex h-4 items-center rounded-full px-1.5 font-mono text-[9px] leading-none whitespace-nowrap"
+      className="flex h-4 max-w-40 items-center rounded-full px-1.5 font-mono text-[9px] leading-none whitespace-nowrap"
       style={{
         backgroundColor: `color-mix(in oklab, ${color} 16%, transparent)`,
         color,
       }}
       title={title}
     >
-      {children}
+      <span className="truncate">{children}</span>
     </span>
   );
 }

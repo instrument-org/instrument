@@ -34,7 +34,9 @@ describe("SETTINGS_INDEX", () => {
       ),
     );
     expect(
-      SETTINGS_INDEX.map((entry) => entry.id).filter((id) => !marked.has(id)),
+      SETTINGS_INDEX.map((entry) =>
+        "mark" in entry ? entry.mark : entry.id,
+      ).filter((id) => !marked.has(id)),
     ).toEqual([]);
   });
 });
@@ -52,7 +54,15 @@ describe("matchSettings", () => {
     expect(titles(query)[0]).toBe(title);
   });
 
-  it("matches only words the title shows, as written", () => {
+  it("finds a button by its label", () => {
+    expect(titles("release")).toEqual(["Release notes"]);
+  });
+
+  it("finds the rows on a page by the page name under them, after title matches", () => {
+    expect(titles("memory")).toEqual(["Import from another AI"]);
+  });
+
+  it("matches only words the result shows, as written", () => {
     expect({
       dark: titles("dark"),
       pro: titles("pro"),
@@ -61,6 +71,8 @@ describe("matchSettings", () => {
         "dark": [],
         "pro": [
           "Add provider",
+          "Claude account",
+          "ChatGPT account",
         ],
       }
     `);
@@ -80,6 +92,7 @@ describe("matchSettings", () => {
             "tab": "General",
             "title": "Zoom",
           },
+          "pageRanges": null,
           "titleRanges": [
             0,
             4,

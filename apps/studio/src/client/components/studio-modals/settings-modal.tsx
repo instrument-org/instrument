@@ -53,6 +53,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { type RefObject, useEffect, useRef, useState } from "react";
 
+/** The letters of a result a search matched, tinted so they read at a glance. */
+const MATCH_CLASS = "rounded-xs bg-brand-500/35 font-semibold text-foreground";
+
 /** How long a jump waits for its row to be drawn before giving up on it. */
 const FLASH_WAIT_MS = 2000;
 
@@ -128,12 +131,12 @@ function SettingsModalContent({
     query,
     tabs: navItems.map((item) => item.tab),
   });
-  // The result last opened, which stays lit in the list, and a count so
-  // opening the same one again lights its row again. A page has no row to
-  // light, so it only opens.
+  // The result last opened, which stays lit in the list; the row it lights,
+  // which a page has none of; and a count so opening the same one again
+  // lights its row again.
   const [jump, setJump] = useState<{
-    flash: boolean;
     id: string;
+    mark: string | undefined;
     n: number;
   } | null>(null);
   const contentRef = useRef<HTMLElement>(null);
@@ -157,8 +160,8 @@ function SettingsModalContent({
   const openResult = (entry: SettingsEntry) => {
     onSelectTab(entry.tab);
     setJump((last) => ({
-      flash: !entry.page,
       id: entry.id,
+      mark: entry.page ? undefined : (entry.mark ?? entry.id),
       n: (last?.n ?? 0) + 1,
     }));
   };
@@ -333,7 +336,7 @@ function SearchResults({
   }
   return (
     <SidebarMenu>
-      {matches.map(({ entry, titleRanges }) => {
+      {matches.map(({ entry, pageRanges, titleRanges }) => {
         const page = navItems.find((item) => item.tab === entry.tab);
         const Icon = page?.icon;
         return (
@@ -363,14 +366,18 @@ function SearchResults({
               <span className="min-w-0 flex-1">
                 <span className="block truncate">
                   <FuzzyHighlight
-                    matchClassName="rounded-xs bg-brand-500/35 font-semibold text-foreground"
+                    matchClassName={MATCH_CLASS}
                     ranges={titleRanges}
                     text={entry.title}
                   />
                 </span>
                 {entry.page ? null : (
                   <span className="block truncate text-xs text-muted-foreground">
-                    {page?.title ?? entry.tab}
+                    <FuzzyHighlight
+                      matchClassName={MATCH_CLASS}
+                      ranges={pageRanges}
+                      text={entry.tab}
+                    />
                   </span>
                 )}
               </span>
@@ -378,6 +385,11 @@ function SearchResults({
           </SidebarMenuItem>
         );
       })}
+      {isLooking ? (
+        <li className="px-2 py-1.5 text-xs text-muted-foreground">
+          Searching…
+        </li>
+      ) : null}
     </SidebarMenu>
   );
 }
@@ -394,17 +406,18 @@ function resultElementId(id: string) {
  */
 function useFlashSetting(
   contentRef: RefObject<HTMLElement | null>,
-  jump: { flash: boolean; id: string; n: number } | null,
+  jump: { mark: string | undefined; n: number } | null,
 ) {
   useEffect(() => {
-    if (!jump?.flash) {
+    const mark = jump?.mark;
+    if (mark === undefined) {
       return;
     }
     const deadline = performance.now() + FLASH_WAIT_MS;
     let frame = 0;
     const find = () => {
       const row = contentRef.current?.querySelector(
-        `[data-setting="${CSS.escape(jump.id)}"]`,
+        `[data-setting="${CSS.escape(mark)}"]`,
       );
       if (row) {
         row.scrollIntoView({ behavior: "smooth", block: "center" });

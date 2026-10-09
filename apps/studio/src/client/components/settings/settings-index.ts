@@ -1,4 +1,5 @@
 import { type SettingsTab } from "@/client/atoms/settings-modal";
+import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { APP_NAME } from "@instrument-org/shared";
 import uFuzzy from "@leeoniya/ufuzzy";
 
@@ -17,6 +18,11 @@ export type SettingsEntry = {
   developerOnly?: true;
   /** The row's `data-setting` mark, which a jump scrolls to and lights. */
   id: string;
+  /**
+   * For a button or link on a row, found by its own label: the row's mark,
+   * which a jump lights in place of one of its own.
+   */
+  mark?: string;
   /** A whole page, which opens at its top rather than at a row. */
   page?: true;
   tab: SettingsTab;
@@ -28,8 +34,9 @@ export type SettingsEntry = {
  * from data (a provider, a feature flag) is added where the search is made,
  * from the same queries the pages read.
  *
- * Each id here is put on its row with {@link settingAnchor}, and a test holds
- * the two in step, so a row that is moved or removed takes its entry with it.
+ * Each row's id here is put on it with {@link settingAnchor}, and a label
+ * names its row's in `mark`. A test holds the two in step, so a row that is
+ * moved or removed takes its entries with it.
  */
 export const SETTINGS_INDEX = [
   {
@@ -135,9 +142,45 @@ export const SETTINGS_INDEX = [
     tab: "Debug",
     title: "Secure storage",
   },
+  {
+    id: "release-notes",
+    mark: "version",
+    tab: "General",
+    title: "Release notes",
+  },
+  {
+    id: "check-for-updates",
+    mark: "version",
+    tab: "General",
+    title: "Check for updates",
+  },
+  {
+    id: "view-source",
+    mark: "open-source",
+    tab: "General",
+    title: "View source on GitHub",
+  },
+  {
+    id: "report-bug",
+    mark: "open-source",
+    tab: "General",
+    title: "Report a bug",
+  },
+  {
+    id: "test-notification",
+    mark: "notifications",
+    tab: "General",
+    title: "Send a test notification",
+  },
+  { id: "view-log", mark: "diagnostic-log", tab: "General", title: "View log" },
+  { id: "log-out", mark: "account", tab: "General", title: "Log out" },
 ] as const satisfies readonly SettingsEntry[];
 
-export type SettingId = (typeof SETTINGS_INDEX)[number]["id"];
+/** A row's mark: the id of an entry that isn't a label on another row. */
+export type SettingId = Exclude<
+  (typeof SETTINGS_INDEX)[number],
+  { mark: string }
+>["id"];
 
 /**
  * The mark a jump finds a row by. Put it on the row's own content rather than
@@ -152,17 +195,23 @@ export function settingAnchor(
 
 export type SettingsMatch = {
   entry: SettingsEntry;
+  /** Ranges to highlight in the page name drawn under a row's title. */
+  pageRanges: null | number[];
   titleRanges: null | number[];
 };
 
 /**
- * Each word of a search has to appear as written, starting a word of the
- * title: "pro" finds "Add provider" but not "Import", and nothing is found
- * by a word the result doesn't show.
+ * Each word of a search has to appear as written, starting a word of what the
+ * result shows: "pro" finds "Add provider" but not "Import".
  */
 const fuzzy = new uFuzzy({ interLft: 1, intraIns: 0 });
 
-/** Ranks entries whose titles hold `query`, best first, with the ranges to highlight. */
+/**
+ * Ranks entries against `query` by the text each result shows, its title and,
+ * for a row, the page name under it, with the ranges to highlight in each. A
+ * title match comes first, so "memory" opens with the Memory page and then
+ * the rows on it.
+ */
 export function matchSettings(
   entries: SettingsEntry[],
   query: string,
@@ -171,14 +220,29 @@ export function matchSettings(
   if (!needle) {
     return [];
   }
-  const titles = entries.map((entry) => entry.title);
-  const indexes = fuzzy.filter(titles, needle);
+  const fields = entries.map((entry) =>
+    joinFuzzyFields([entry.title, entry.page ? "" : entry.tab]),
+  );
+  const haystack = fields.map((field) => field.haystack);
+  const indexes = fuzzy.filter(haystack, needle);
   if (!indexes || indexes.length === 0) {
     return [];
   }
-  const info = fuzzy.info(indexes, titles, needle);
-  return fuzzy.sort(info, titles, needle).flatMap((orderIdx) => {
-    const entry = entries[info.idx[orderIdx] ?? -1];
-    return entry ? [{ entry, titleRanges: info.ranges[orderIdx] ?? null }] : [];
+  const info = fuzzy.info(indexes, haystack, needle);
+  const ranked = fuzzy.sort(info, haystack, needle).flatMap((orderIdx) => {
+    const index = info.idx[orderIdx] ?? -1;
+    const entry = entries[index];
+    const field = fields[index];
+    if (!entry || !field) {
+      return [];
+    }
+    const [titleRanges = null, pageRanges = null] = field.splitRanges(
+      info.ranges[orderIdx] ?? null,
+    );
+    return [{ entry, pageRanges, titleRanges }];
   });
+  // Stable, so uFuzzy's order holds among title matches and among the rest.
+  return ranked.toSorted(
+    (a, b) => Number(a.titleRanges === null) - Number(b.titleRanges === null),
+  );
 }

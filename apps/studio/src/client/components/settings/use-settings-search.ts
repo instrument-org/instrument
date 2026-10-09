@@ -16,6 +16,8 @@ import { useAtomValue } from "jotai";
 import { useDeferredValue, useEffect, useState } from "react";
 
 const DEBOUNCE_MS = 250;
+/** Fewer word matches than this, and the model is asked for more. */
+const FEW = 3;
 /** Most results the model's answer adds, best fit first. */
 const MOST = 8;
 /** Most entries one search asks the model about: one request's worth. */
@@ -36,7 +38,7 @@ const FITS_AT_LEAST = { clef: 0.3, clefFlash: 0.2, other: 0.3 };
 
 /**
  * Settings search: what the pages in `tabs` hold that matches `query`, by its
- * words first, and by what it means when the words match nothing and the
+ * words first, then by what it means when the words find only a few and the
  * decision model can be reached.
  *
  * The providers the Providers page lists are read only while there is a
@@ -54,20 +56,28 @@ export function useSettingsSearch({
   const deferredQuery = useDeferredValue(query);
   const matches = matchSettings(entries, deferredQuery);
   const fallback = useMeaningFallback({
-    active: active && matches.length === 0,
-    // A page is found by its name, so the model is asked only about rows.
-    candidates: entries.filter((entry) => !entry.page),
+    active: active && matches.length < FEW,
+    // A page is found by its name, and a label by its row, so the model is
+    // asked only about rows.
+    candidates: entries.filter((entry) => !entry.page && !entry.mark),
     search: query,
   });
+  const found = new Set(matches.map((match) => match.entry.id));
   return {
     failed: fallback.failed,
     isLooking: fallback.isLooking,
-    matches:
-      matches.length > 0
-        ? matches
-        : fallback.entries.map(
-            (entry): SettingsMatch => ({ entry, titleRanges: null }),
-          ),
+    matches: [
+      ...matches,
+      ...fallback.entries
+        .filter((entry) => !found.has(entry.id))
+        .map(
+          (entry): SettingsMatch => ({
+            entry,
+            pageRanges: null,
+            titleRanges: null,
+          }),
+        ),
+    ],
   };
 }
 
@@ -125,12 +135,11 @@ function useSettingsEntries({
 type Answers = RPCOutput["workspace"]["decision"]["ask"]["answers"];
 
 /**
- * The entries a search means when none of them contains its words: the
+ * The entries a search means when few or none of them contain its words: the
  * decision model reads each one's title and gist and says of each on its own
  * whether it is what the search is after, so "night mode" can find Theme and
  * "stop sending data" Usage metrics. Asked once typing pauses, and only
- * while `active`; with no provider that could answer, it finds nothing, which
- * is what the words already said.
+ * while `active`; with no provider that could answer, it adds nothing.
  */
 function useMeaningFallback({
   active,

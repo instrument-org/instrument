@@ -11,5 +11,17 @@
   "build/icons/64x64.png": "cd587803b786e45667a0c57cce777b4d0268ed993032d3f38bd97ca1253f2c74",
   "build/icons/128x128.png": "f04e80d04983f211c1e1d58be4f07f3f945abe63edad89fe63e0b76bb1a7812a",
   "build/icons/256x256.png": "93ad8d9d10e9a6dc4065251bfa464e2051107b0810eddebfe5681ff4ad21d47b",
-  "build/icons/512x512.png": "407bc067c7faac89a041a02d4ab4acde13922390cf68d30818cb06a85d145362"
+  "build/icons/512x512.png": "407bc067c7faac89a041a02d4ab4acde13922390cf68d30818cb06a85d145362",
+  "build/flavors/development/icon.png": "b4fccdfbfaca37341962a87907515bd75957c72e04b5e6153a2f0a05948bb007",
+  "build/flavors/preview/icon.icns": "4553aba700d2a2e50d9f6293c0e283cebea3165bf0b6eb5eb4443317dc240ddf",
+  "build/flavors/preview/icon.ico": "77ba87417902ab8f63846e4bd29b292f48843cdff7b7890c0137bf3c872baeb6",
+  "build/flavors/preview/icon.icon/Assets/icon.png": "66f8a79a08ef9cdbea5e61b11f746f8c471515975b30cebbab1ff81ce8f96ae3",
+  "build/flavors/preview/icon.icon/icon.json": "2a72d4bcf92b3971701965d8bf2cc55263b1295985d9c79b252d7f906ef29af0",
+  "build/flavors/preview/icons/128x128.png": "7ac837ee3f423182f241d50d75277fe075e120f218d9d120dd5550dc6d9a4b26",
+  "build/flavors/preview/icons/16x16.png": "c94c404e0ed1590c36c1cc4e0cb4d439813f8f64c59572fcfc60ce3c698a69eb",
+  "build/flavors/preview/icons/256x256.png": "266e56d6388a06551551f79409033d60a0391cc82f2068715f299ec243fdc87f",
+  "build/flavors/preview/icons/32x32.png": "570419e39835969ec411ac4010e91b6b52f8d2cd4ea16296ced65db4fb61e586",
+  "build/flavors/preview/icons/48x48.png": "5b8f495e6acb060ad427ed6f7aa9ad123c9df3204fa8ebcae0c16c21d23d46c5",
+  "build/flavors/preview/icons/512x512.png": "f386992c172c71734218b19413c963f485bc09823702b28d03e8ccf3b065e60a",
+  "build/flavors/preview/icons/64x64.png": "b87fb23f4453b0499545ed95fd79af22ca2949445a5619b1740fe056566191c5"
 }

@@ -39,7 +39,7 @@ export function ChatTitleField({
   /** The title's width in layout px, measured as renaming began; a plain medium field without one. */
   width: number | undefined;
 }) {
-  // select-text because the head turns selection off, which would leave a
+  // select-text because the window turns selection off, which would leave a
   // name you can't drag a selection through.
   return (
     <div

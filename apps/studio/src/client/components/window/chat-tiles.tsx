@@ -193,7 +193,7 @@ export function ChatTiles({
       // Pulled out by the row's padding, which leaves the chosen tile's
       // plate room inside the scroll's clip while the tiles stay in line
       // with the composer.
-      className="relative -mx-1 -mt-1 mb-1 select-none"
+      className="relative -mx-1 -mt-1 mb-1"
     >
       <motion.div
         className="relative flex [scrollbar-width:none] items-start gap-2 overflow-x-auto p-1.5"

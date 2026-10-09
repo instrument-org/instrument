@@ -253,7 +253,7 @@ export function ViewerRailToggle({
  */
 export function ViewerToolbar({ children }: { children: ReactNode }) {
   return (
-    <div className="@container/viewer-toolbar flex h-10 shrink-0 items-center gap-3 px-2 pb-3 viewer-chrome-stroke in-data-headless:pb-0">
+    <div className="@container/viewer-toolbar flex h-10 shrink-0 items-center gap-3 px-2 pb-3 viewer-chrome-stroke select-none in-data-headless:pb-0">
       {children}
     </div>
   );

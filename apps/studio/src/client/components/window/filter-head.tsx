@@ -89,7 +89,7 @@ export function FilterHead(props: FilterProps) {
       // 8px in from the card's side and 12px down from its top, and 16px
       // with the list's own 4px down to the first row: a heading over the
       // rows, set apart from them as well as larger than their titles.
-      className="flex shrink-0 items-center gap-2 px-2 pt-3 pb-3 select-none"
+      className="flex shrink-0 items-center gap-2 px-2 pt-3 pb-3"
       role="group"
     >
       <ViewPicker {...model} isCompact={isSearching} />

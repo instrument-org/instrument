@@ -127,7 +127,7 @@ export function FileTree({
       <ContextMenuTrigger asChild>
         <div
           aria-label="Files beside the document"
-          className="flex h-full min-h-0 flex-col overflow-y-auto px-1.5 py-1.5 text-sm select-none"
+          className="flex h-full min-h-0 flex-col overflow-y-auto px-1.5 py-1.5 text-sm"
           // Only a row has a menu; the space around the rows has nothing to
           // act on.
           onContextMenu={(event) => {

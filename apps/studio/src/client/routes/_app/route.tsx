@@ -228,8 +228,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
           setInboxOpen(false);
         }}
       >
-        {/* `select-text`: the window's shell is chrome and turns selection off; the chat is text. */}
-        <div className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
+        <div className="flex min-h-0 w-full flex-1 flex-col [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
           {/* A plain click on a row opens in this tab, and a middle or
             modified click asks for a tab of its own. */}
           <ChatPane

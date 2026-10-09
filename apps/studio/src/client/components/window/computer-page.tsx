@@ -1334,7 +1334,7 @@ export function ComputerPage({
       {isNarrow ? (
         <nav
           className={cn(
-            "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft select-none",
+            "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft",
             !isPlacesOpen && "hidden",
           )}
           onKeyDown={onPlacesKeyDown}

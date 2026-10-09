@@ -53,7 +53,7 @@ export function AppRail({
   return (
     <nav
       aria-label="Places"
-      className="flex h-full w-19 shrink-0 flex-col items-center gap-3 pt-1 pb-2 select-none"
+      className="flex h-full w-19 shrink-0 flex-col items-center gap-3 pt-1 pb-2"
     >
       {/* The way to a new chat, in the brand's own green: round, since the
         word under it is the label and the tile needs none of its own. */}

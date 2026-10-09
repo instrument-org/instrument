@@ -886,8 +886,25 @@ body {
   * {
     @apply border-border outline-ring/50 scrollbar-thin scrollbar-color;
   }
+  /* The window is chrome, and a click that strays across a label, a row, or a
+   * tab must not leave a highlight behind, so selection is off for all of it.
+   * What a person reads or copies turns it back on: anything editable, a
+   * conversation, an error's message, and any region that says `select-text`.
+   * `:where` keeps these at no specificity, so a component's own rule (a
+   * widget inside an editor, a gutter) still wins. */
   body {
-    @apply text-foreground font-sans antialiased;
+    @apply text-foreground font-sans antialiased select-none;
+  }
+  :where(
+    input,
+    textarea,
+    [contenteditable]:not([contenteditable="false"]),
+    [data-transcript],
+    [data-slot="alert-description"],
+    [data-slot="dialog-description"],
+    [data-slot="alert-dialog-description"]
+  ) {
+    user-select: text;
   }
 }
 

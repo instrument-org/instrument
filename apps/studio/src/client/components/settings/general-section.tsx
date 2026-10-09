@@ -318,7 +318,7 @@ function About() {
             {...settingAnchor("version")}
           >
             <div className="min-w-0 flex-1 space-y-1">
-              <div className="text-sm font-medium">
+              <div className="text-sm font-medium select-text">
                 Version{" "}
                 {isLoadingVersion
                   ? "Loading..."

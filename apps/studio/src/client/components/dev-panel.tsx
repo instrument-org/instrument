@@ -45,7 +45,7 @@ import {
 } from "@/shared/features";
 import { SHORTCUTS } from "@/shared/shortcuts";
 import { steppedZoom } from "@/shared/zoom";
-import { PORTS } from "@instrument-org/shared";
+import { APP_FLAVOR, PORTS } from "@instrument-org/shared";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { ChartBarIcon } from "@phosphor-icons/react/ChartBar";
@@ -188,6 +188,10 @@ export function DevPanel() {
     rpcClient.debug.skipOnboarding.mutationOptions(),
   );
 
+  const { mutate: resetToFirstRun } = useMutation(
+    rpcClient.debug.resetToFirstRun.mutationOptions(),
+  );
+
   const { data: currentWorkspace } = useQuery(
     rpcClient.workspaces.current.queryOptions(),
   );
@@ -322,6 +326,21 @@ export function DevPanel() {
                     }}
                   >
                     Skip onboarding
+                  </MenubarItem>
+                  <MenubarSeparator />
+                </>
+              )}
+              {/* The macOS menu bar has it too; this is where every other
+                  platform reaches it. */}
+              {APP_FLAVOR.kind === "preview" && (
+                <>
+                  <MenubarItem
+                    className="font-mono text-xs"
+                    onSelect={() => {
+                      resetToFirstRun();
+                    }}
+                  >
+                    Reset to first run…
                   </MenubarItem>
                   <MenubarSeparator />
                 </>

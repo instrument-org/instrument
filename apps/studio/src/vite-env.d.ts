@@ -23,6 +23,8 @@ declare namespace NodeJS {
     /** Ensures we don't accidentally use process.env for other variables */
     env: {
       ANALYZE_BUILD: string | undefined;
+      /** Linux only: the AppImage file this process was started from, set by its runtime. */
+      APPIMAGE: string | undefined;
       APPLE_NOTARIZATION_ENABLED: string | undefined;
       ARCH: string | undefined;
       BUILDER_PUBLISH_S3_ENDPOINT: string | undefined;

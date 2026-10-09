@@ -1,10 +1,12 @@
 name: Preview Build
 
-# A signed, notarized macOS build with an identity of its own (bundle id,
-# product name, protocol), so it runs beside Instrument and its first launch is
-# a real first launch: no userData, no keychain item, no privacy grants. Shipped
-# as a zip, so it can be unzipped, tried, and deleted without installing. Pick the branch in "Use workflow from"; the name labels the build and
-# defaults to the branch. See APP_PREVIEW_NAME in packages/shared.
+# A build with an identity of its own (bundle id, product name, protocol,
+# install folder, purple icon), so it runs beside Instrument and its first
+# launch is a real first launch: no userData, no keychain item, no privacy
+# grants. Each platform's artifact runs from where it lands or installs beside
+# Instrument, and can be deleted after. Pick the branch in "Use workflow
+# from"; the name labels the build and defaults to the branch. See APP_FLAVOR in
+# packages/shared.
 on:
   workflow_dispatch:
     inputs:
@@ -12,17 +14,70 @@ on:
         description: Preview name (letters, digits, dashes); defaults to the branch name
         required: false
         type: string
+      os:
+        description: Which platforms to build
+        required: false
+        type: choice
+        default: mac
+        options:
+          - mac
+          - windows
+          - linux
+          - all
 
 jobs:
-  build:
-    name: Preview (${{ inputs.name || github.ref_name }})
-    runs-on: macos-26
-    permissions:
-      contents: read
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      slug: ${{ steps.plan.outputs.slug }}
     env:
       INSTRUMENT_PREVIEW_NAME: ${{ inputs.name || github.ref_name }}
+      PREVIEW_OS: ${{ inputs.os || 'mac' }}
+    steps:
+      # The same reduction APP_FLAVOR applies, to fail early on a name that
+      # reduces to nothing and to label the summary. Linux builds both
+      # architectures, since a Linux test machine is as likely to be an ARM
+      # virtual machine as a PC.
+      - name: Resolve name and platforms
+        id: plan
+        run: |
+          slug=$(printf '%s' "$INSTRUMENT_PREVIEW_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-40)
+          if [ -z "$slug" ]; then
+            echo "::error::The preview name has no letters or digits in it."
+            exit 1
+          fi
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+          mac='{"os":"mac","arch":"arm64","runner":"macos-26"}'
+          windows='{"os":"windows","arch":"x64","runner":"windows-latest"}'
+          linux='{"os":"linux","arch":"x64","runner":"ubuntu-latest"},{"os":"linux","arch":"arm64","runner":"ubuntu-24.04-arm"}'
+          case "$PREVIEW_OS" in
+            mac) legs="$mac" ;;
+            windows) legs="$windows" ;;
+            linux) legs="$linux" ;;
+            all) legs="$mac,$windows,$linux" ;;
+          esac
+          echo "matrix={\"include\":[$legs]}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Preview (${{ needs.plan.outputs.slug }}, ${{ matrix.os }} ${{ matrix.arch }})
+    needs: plan
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      INSTRUMENT_PREVIEW_NAME: ${{ needs.plan.outputs.slug }}
 
     steps:
+      # See release.yml: keeps the packaged bytes identical on every platform.
+      - if: runner.os == 'Windows'
+        name: Keep line endings as committed
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
@@ -31,22 +86,55 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # The same reduction APP_PREVIEW_NAME applies, to fail early on a name
-      # that reduces to nothing and to label the summary.
-      - name: Resolve preview name
-        id: preview
-        run: |
-          slug=$(printf '%s' "$INSTRUMENT_PREVIEW_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-40)
-          if [ -z "$slug" ]; then
-            echo "::error::The preview name has no letters or digits in it."
-            exit 1
-          fi
-          echo "slug=$slug" >> "$GITHUB_OUTPUT"
-
-      - name: setup-signing
+      - if: matrix.os == 'mac'
+        name: setup-signing
         run: |
           mkdir -p ~/.private_keys
           echo '${{ secrets.APPLE_API_KEY_DATA }}' > ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+
+      # Signed the way a release is, so SmartScreen treats the installer the
+      # way it treats Instrument's. The same steps as release.yml.
+      - if: matrix.os == 'windows'
+        name: Add signtool to PATH
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -like '*\x64\*' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe not found in the Windows SDK." }
+          Add-Content -Path $env:GITHUB_PATH -Value $signtool.DirectoryName
+      - if: matrix.os == 'windows'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          create_credentials_file: true
+      - if: matrix.os == 'windows'
+        name: Install GCP KMS CNG Provider
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = 'cng-v1.2'
+          $zipUrl  = "https://github.com/GoogleCloudPlatform/kms-integrations/releases/download/$version/kmscng-1.2-windows-amd64.zip"
+          $zipPath = Join-Path $env:RUNNER_TEMP "kmscng-$version.zip"
+          $outDir  = Join-Path $env:RUNNER_TEMP "kmscng-$version"
+          Invoke-WebRequest $zipUrl -OutFile $zipPath
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          Expand-Archive -Path $zipPath -DestinationPath $outDir -Force
+          $msi = Get-ChildItem -Path $outDir -Recurse -Filter "kmscng.msi" | Select-Object -First 1
+          if (-not $msi) { throw "kmscng.msi not found in archive." }
+          Start-Process msiexec.exe -Wait -ArgumentList "/i `"$($msi.FullName)`" /qn"
+          certutil -csp "Google Cloud KMS Provider" -csptest
+      - if: matrix.os == 'windows'
+        name: Write EV Cert Chain File
+        shell: pwsh
+        run: |
+          Set-Content -Path "${{ env.WIN_CERT_PATH }}" -Value '${{ env.WIN_EV_CERT_PEM }}' -Encoding ascii
+        env:
+          WIN_CERT_PATH: ${{ runner.temp }}\ev-chain.pem
+          WIN_EV_CERT_PEM: ${{ secrets.WIN_EV_CERT_PEM }}
 
       - name: Build (vite)
         run: pnpm turbo run build:vite --filter=@instrument-org/studio
@@ -59,7 +147,8 @@ jobs:
 
       # Retried for the same reason as the release job's Package Mac step: the
       # notary service drops the connection now and then.
-      - name: Package
+      - if: matrix.os == 'mac'
+        name: Package Mac
         run: |
           for attempt in 1 2 3; do
             if pnpm --filter @instrument-org/studio exec electron-builder --mac zip --arm64 --publish never; then
@@ -80,29 +169,79 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           ARCH: arm64
 
-      - name: Verify the signed app starts
+      - if: matrix.os == 'mac'
+        name: Verify the signed app starts
         run: pnpm --filter @instrument-org/studio run verify-packaged-app
 
-      - name: Cleanup Signing
-        if: always()
+      - if: matrix.os == 'mac'
+        name: Cleanup Signing
         run: rm -f ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
 
-      # Uploaded as the zip itself rather than wrapped in another one, so a
-      # download is one unzip away from the app. The file names the artifact.
-      - name: Upload preview
+      - if: matrix.os == 'windows'
+        name: Package Windows
+        run: pnpm --filter @instrument-org/studio exec electron-builder --win --x64 --publish never
+        env:
+          WIN_GCP_KMS_KEY_VERSION: ${{ secrets.WIN_GCP_KMS_KEY_VERSION }}
+          WIN_CERT_PATH: ${{ runner.temp }}\ev-chain.pem
+
+      - if: matrix.os == 'linux'
+        name: Package Linux
+        run: pnpm --filter @instrument-org/studio exec electron-builder --linux --${{ matrix.arch }} --publish never
+
+      # Each file is uploaded as itself rather than wrapped in another zip, so
+      # a download is the app, its installer, or its archive. The file names
+      # the artifact.
+      - if: matrix.os == 'mac'
+        name: Upload Mac preview
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           archive: false
           path: apps/studio/dist/*.zip
           retention-days: 30
           if-no-files-found: error
+      - if: matrix.os == 'windows'
+        name: Upload Windows preview
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          archive: false
+          path: apps/studio/dist/*.exe
+          retention-days: 30
+          if-no-files-found: error
+      # The archive runs anywhere; the AppImage needs FUSE, which a fresh
+      # Ubuntu does not have.
+      - if: matrix.os == 'linux'
+        name: Upload Linux archive
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          archive: false
+          path: apps/studio/dist/*.tar.gz
+          retention-days: 30
+          if-no-files-found: error
+      - if: matrix.os == 'linux'
+        name: Upload Linux AppImage
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          archive: false
+          path: apps/studio/dist/*.AppImage
+          retention-days: 30
+          if-no-files-found: error
 
+  summarize:
+    name: Summarize
+    needs: [plan, build]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
       - name: Summarize
         run: |
           {
-            echo "### Instrument Preview (${{ steps.preview.outputs.slug }})"
+            echo "### Instrument Preview (${{ needs.plan.outputs.slug }})"
             echo
-            echo "Built from \`${{ github.ref_name }}\` at \`${GITHUB_SHA:0:9}\`. Download the zip under Artifacts below, unzip it, and open the app wherever it landed."
+            echo "Built from \`${{ github.ref_name }}\` at \`${GITHUB_SHA:0:9}\`. Download a file under Artifacts below, or \`gh run download ${{ github.run_id }}\`."
             echo
-            echo "It runs beside Instrument and never updates itself. **Preview › Reset to First Run…** in its menu bar erases its data, keychain item, and macOS permissions and reopens it as a first launch."
+            echo "- **macOS:** unzip and open the app wherever it landed."
+            echo "- **Windows:** run the installer. It installs beside Instrument, under its own name."
+            echo "- **Linux:** unpack the archive and run the executable inside, or run the AppImage."
+            echo
+            echo "It never updates itself, and its developer mode is on. **Reset to first run…** in its dev panel, and **Preview › Reset to First Run…** in the macOS menu bar, erase its data and reopen it as a first launch."
           } >> "$GITHUB_STEP_SUMMARY"

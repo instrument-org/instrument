@@ -138,9 +138,18 @@ function generate() {
 
   generatePreview();
   mkdirSync(flavor("development"), { recursive: true });
+  // The Dock draws a set icon edge to edge, so the margin Apple's icon grid
+  // keeps around the shape (824 of 1024) is part of the image. The rounded
+  // artwork has almost none of its own.
   run("magick", [
     ROUNDED,
     "-resize",
+    "412x412",
+    "-background",
+    "none",
+    "-gravity",
+    "center",
+    "-extent",
     "512x512",
     "-modulate",
     DEVELOPMENT_TINT,

@@ -1,4 +1,7 @@
 name: Preview Build
+# The title a run has in the Actions list: what the build is for and which
+# platforms, beside the run number that also ends its name.
+run-name: ${{ inputs.name || github.ref_name }} (${{ inputs.os || 'mac' }})
 
 # A build with an identity of its own (bundle id, product name, protocol,
 # install folder, purple icon), so it runs beside Instrument and its first

@@ -57,15 +57,17 @@ const FILES = {
   board: { title: "q3-board-update.md", kind: "md" },
 };
 
-/** The colored file-type marks the Finder draws. */
+/** The colored file-type marks the Finder draws, each in the same box (1.15em, from `cls`'s size) so names line up whatever the kind. */
 const fileMark = (kind, cls = "text-[13px]") =>
-  ({
-    html: `<span class="shrink-0 font-bold text-[#e8793a] ${cls}">#</span>`,
-    md: `<span class="shrink-0 font-bold tracking-tighter text-[#3f9d52] ${cls}">M↓</span>`,
-    csv: `<i class="ph ph-table shrink-0 text-[#2f8f5b] ${cls}"></i>`,
-    pdf: `<i class="ph ph-file-pdf shrink-0 text-[#d14b3f] ${cls}"></i>`,
-    folder: `<i class="ph ph-folder shrink-0 text-[#4a9ff5] ${cls}"></i>`,
-  })[kind];
+  `<span class="inline-flex w-[1.15em] shrink-0 items-center justify-center ${cls}">${
+    {
+      html: `<span class="font-bold text-[#e8793a]">#</span>`,
+      md: `<span class="text-[0.72em] font-bold tracking-tighter text-[#3f9d52]">M↓</span>`,
+      csv: `<i class="ph ph-table text-[#2f8f5b]"></i>`,
+      pdf: `<i class="ph ph-file-pdf text-[#d14b3f]"></i>`,
+      folder: `<i class="ph ph-folder text-[#4a9ff5]"></i>`,
+    }[kind]
+  }</span>`;
 
 /** A tab is {site}, {file}, {folder: name} (Files open on a folder) or {newtab: true}; `agent` marks one the task is driving. */
 const tabMark = (t, size) =>

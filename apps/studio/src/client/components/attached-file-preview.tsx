@@ -12,6 +12,7 @@ export function AttachedFilePreview({
   filename,
   mimeType,
   onClick,
+  onPutInMessage,
   onRemove,
   size,
   url,
@@ -19,6 +20,8 @@ export function AttachedFilePreview({
   filename: string;
   mimeType?: string;
   onClick?: () => void;
+  /** For words pasted in as a file: takes the file away and puts the words in the message. */
+  onPutInMessage?: () => void;
   onRemove?: () => void;
   size?: number;
   url?: string;
@@ -77,6 +80,7 @@ export function AttachedFilePreview({
       }
       label={filename}
       onClick={onClick}
+      onPutInMessage={onPutInMessage}
       onRemove={onRemove}
       tooltip={tooltipContent}
     />

@@ -83,6 +83,8 @@ export type AttachedItem =
       id: string;
       mimeType: string;
       name: string;
+      /** The words, for a long paste made an attachment, so it can be put back in the message. */
+      pastedText?: string;
       size: number;
       type: "file";
       url?: string;
@@ -726,6 +728,20 @@ export const PromptInput = ({
     });
   };
 
+  // A long paste made an attachment goes back to being words in the
+  // message, at the caret, the way the paste would have put it.
+  const putInMessage = (item: AttachedItem) => {
+    const pastedText = "pastedText" in item ? item.pastedText : undefined;
+    if (pastedText === undefined) {
+      return undefined;
+    }
+    return () => {
+      removeAttachedItem(item.id);
+      promptEditorRef.current?.focus();
+      promptEditorRef.current?.pasteText(pastedText);
+    };
+  };
+
   const handlePaste = (e: ClipboardEvent) => {
     const clipboardData = e.clipboardData;
     if (!clipboardData) {
@@ -775,6 +791,7 @@ export const PromptInput = ({
             id: ulid(),
             mimeType: "text/plain",
             name: filename,
+            pastedText: text,
             size: blob.size,
             type: "file",
           },
@@ -916,6 +933,7 @@ export const PromptInput = ({
                           });
                         }
                       }}
+                      onPutInMessage={putInMessage(item)}
                       onRemove={() => {
                         removeAttachedItem(item.id);
                       }}

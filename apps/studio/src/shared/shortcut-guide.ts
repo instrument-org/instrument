@@ -80,6 +80,16 @@ const WINDOW_CHORDS: Record<
 > = { ...WINDOW_SHORTCUTS, ...WINDOW_MENU_SHORTCUTS };
 
 /**
+ * The composer's own chord: pastes the clipboard's text into the words as
+ * they are, however long, where a long paste would otherwise become an
+ * attachment. Answered by the prompt editor, not a menu or the window.
+ */
+export const PASTE_AS_TEXT = {
+  accelerator: "CmdOrCtrl+Shift+V",
+  label: "Paste as Text",
+} as const;
+
+/**
  * Every chord the app window answers to, read off the tables the menus and
  * key binders are built from, so the guide cannot list a chord the window
  * lacks or miss one it has. Key order carries no meaning; the guide orders
@@ -87,6 +97,7 @@ const WINDOW_CHORDS: Record<
  */
 export const SHORTCUT_GUIDE_ENTRIES: ShortcutGuideEntry[] = [
   { ...SHORTCUT_GUIDE, group: "General", id: "shortcutGuide" },
+  { ...PASTE_AS_TEXT, group: "Chats", id: "pasteAsText" },
   ...Object.entries(WINDOW_CHORDS).map(([id, { accelerator, label }]) => ({
     accelerator,
     // `Object.entries` widens the keys to `string`; they are the tables' ids.

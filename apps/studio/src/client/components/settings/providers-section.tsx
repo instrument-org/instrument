@@ -1,15 +1,13 @@
-import { openLogin } from "@/client/atoms/login-modal";
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
 import { AddProviderDialog } from "@/client/components/add-provider/dialog";
 import { AIProviderEditDialog } from "@/client/components/ai-provider-edit-dialog";
-import { BrandLeafIcon } from "@/client/components/icons/brand-leaf";
 import { ProviderConfigListItem } from "@/client/components/provider-config-list-item";
 import { ChatGPTAccountCard } from "@/client/components/settings/chatgpt-account-card";
 import { ClaudeAccountCard } from "@/client/components/settings/claude-account-card";
+import { InstrumentAccountCard } from "@/client/components/settings/instrument-account-card";
 import { Button } from "@/client/components/ui/button";
 import { rpcClient } from "@/client/rpc/client";
 import { type ClientAIProviderConfig } from "@/shared/schemas/provider";
-import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
@@ -22,9 +20,6 @@ export function ProvidersSection({
 }) {
   const { data: providerConfigs } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
-  );
-  const { data: hasToken } = useQuery(
-    rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
   const { providerMetadataMap } = useAtomValue(providerMetadataAtom);
 
@@ -48,61 +43,21 @@ export function ProvidersSection({
         </Button>
       </div>
 
+      <InstrumentAccountCard />
       <ChatGPTAccountCard />
       <ClaudeAccountCard />
 
       <div className="flex min-h-0 flex-1 flex-col gap-3">
-        {providerConfigs?.length === 0 ? (
-          <div
-            className="relative flex flex-1 flex-col items-center justify-center
-              overflow-hidden rounded-xl border border-black/5 dark:border-white/5"
-          >
-            <div className="flex flex-col items-center gap-4">
-              <div className="rounded-xl bg-black/5 p-2 dark:bg-white/5">
-                <CpuIcon className="size-4 text-muted-foreground" />
-              </div>
-              <p className="text-sm text-muted-foreground">
-                No providers configured yet
-              </p>
-            </div>
-
-            {!hasToken && (
-              <div
-                className="pointer-events-none absolute inset-x-0 bottom-0 flex h-48
-                  items-end justify-center bg-linear-to-t from-brand-500/5
-                  to-transparent dark:from-brand-500/5"
-              >
-                <div className="pointer-events-auto flex items-center gap-4 pb-4">
-                  <div className="flex items-center gap-2">
-                    <BrandLeafIcon className="size-3" />
-                    <span className="text-xs font-medium text-brand-600 dark:text-brand-400">
-                      Log in to enjoy free AI usage without a provider
-                    </span>
-                  </div>
-                  <Button
-                    onClick={() => {
-                      openLogin({ hideManualProvider: true });
-                    }}
-                    size="sm"
-                  >
-                    Log in
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          providerConfigs?.map((config) => (
-            <ProviderConfigListItem
-              config={config}
-              key={config.id}
-              metadata={providerMetadataMap.get(config.type)}
-              onConfigure={() => {
-                setSelectedConfig(config);
-              }}
-            />
-          ))
-        )}
+        {providerConfigs?.map((config) => (
+          <ProviderConfigListItem
+            config={config}
+            key={config.id}
+            metadata={providerMetadataMap.get(config.type)}
+            onConfigure={() => {
+              setSelectedConfig(config);
+            }}
+          />
+        ))}
       </div>
 
       {selectedConfig && (

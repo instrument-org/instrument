@@ -239,7 +239,7 @@ function WorkspaceLocation() {
           {showInFolderLabel("folder")}
         </Button>
       </div>
-      <div className="rounded-lg border bg-muted/40 px-3 py-2">
+      <div className="rounded-lg border bg-muted/40 px-3 py-2 select-text">
         <code className="font-mono text-xs break-all text-foreground">
           {location.rootDir}
         </code>

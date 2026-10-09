@@ -944,7 +944,7 @@ function EmptyMessage({
     <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
       <p className="text-sm text-muted-foreground">{text}</p>
       {detail && (
-        <p className="line-clamp-3 max-w-80 text-xs text-muted-foreground">
+        <p className="line-clamp-3 max-w-80 text-xs text-muted-foreground select-text">
           {detail}
         </p>
       )}

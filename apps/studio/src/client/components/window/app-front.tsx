@@ -497,7 +497,7 @@ export function AppFront({
                   ) : null}
                 </div>
                 {app?.standing === "failed" && app.connection?.error ? (
-                  <div className="group/detail relative rounded-lg bg-muted/60 px-3 py-2">
+                  <div className="group/detail relative rounded-lg bg-muted/60 px-3 py-2 select-text">
                     <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
                       {app.connection.error}
                     </pre>

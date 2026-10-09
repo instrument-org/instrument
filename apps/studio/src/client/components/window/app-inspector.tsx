@@ -318,7 +318,7 @@ function Detail({
         }}
         title={title}
       />
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 select-text">
         {drill && detail.isPending ? (
           <SkeletonFields />
         ) : detail.data && fuller === undefined ? (
@@ -531,7 +531,7 @@ function Records({
           onRefresh={() => void answer.refetch()}
           title={labelOf(tool)}
         />
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 select-text">
           <WholeAnswer
             answer={answer.isError ? undefined : answer.data}
             error={answer.isError ? answer.error.message : undefined}
@@ -662,7 +662,7 @@ function ToolSheet({ appName, tool }: { appName: string; tool: Tool }) {
             : `Changes things in ${appName}. Runs only when you ask in a chat.`}
         </p>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 select-text">
         <div className="flex flex-col gap-5">
           {tool.description ? <Markdown markdown={tool.description} /> : null}
           {tool.params.length > 0 ? (

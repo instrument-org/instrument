@@ -663,7 +663,7 @@ function DiagnosticLog() {
             </div>
             <div
               className={cn(
-                "h-full overflow-auto rounded-md border border-border bg-muted/40 p-3",
+                "h-full overflow-auto rounded-md border border-border bg-muted/40 p-3 select-text",
                 wrapLines && wrapLinesClassName,
               )}
             >

@@ -445,7 +445,7 @@ function PasteImport({ onStart }: { onStart: (answer: string) => void }) {
                 it, so it matches whatever the box is drawn on, and it says
                 there is more below, since a scrollbar on macOS shows only
                 while scrolling. */}
-            <pre className="max-h-28 overflow-y-auto scroll-fade-y px-3 py-2 pr-20 font-sans text-xs whitespace-pre-wrap text-muted-foreground">
+            <pre className="max-h-28 overflow-y-auto scroll-fade-y px-3 py-2 pr-20 font-sans text-xs whitespace-pre-wrap text-muted-foreground select-text">
               {EXPORT_PROMPT}
             </pre>
             <Button

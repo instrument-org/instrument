@@ -29,8 +29,6 @@ const TASK = TaskIdSchema.parse("page-chords");
 const TYPED_IN = encodeBrowserTargetId(TASK, StoreId.newSessionId());
 const LOOKED_AT = encodeBrowserTargetId(TASK, StoreId.newSessionId());
 
-const openFind = vi.fn();
-
 function where({
   keyboard,
   looking,
@@ -40,7 +38,7 @@ function where({
 }) {
   pageHoldingKeyboard.mockReturnValue(keyboard);
   foregroundBrowser.mockReturnValue(
-    looking ? { openFind, targetId: looking } : null,
+    looking ? { targetId: looking } : null,
   );
 }
 
@@ -57,7 +55,6 @@ describe("pageForChord", () => {
     ["zoomOut", TYPED_IN, null],
     ["zoomReset", TYPED_IN, null],
     ["reloadPage", TYPED_IN, LOOKED_AT],
-    ["findInPage", LOOKED_AT, LOOKED_AT],
   ])(
     "%s means %s, and %s with the caret in the window",
     (chord, typing, caretInWindow) => {
@@ -73,7 +70,6 @@ describe("pageForChord", () => {
     for (const chord of [
       "back",
       "reloadPage",
-      "findInPage",
       "zoomIn",
     ] as const) {
       expect(pageForChord(chord)).toBeNull();
@@ -106,12 +102,6 @@ describe("runPageChord", () => {
     expect(runPageChord("reloadPage")).toBe(true);
     expect(getGuest).toHaveBeenCalledWith(LOOKED_AT);
     expect(reload).toHaveBeenCalledOnce();
-  });
-
-  it("opens the find bar of the page looked at", () => {
-    where({ keyboard: TYPED_IN, looking: LOOKED_AT });
-    expect(runPageChord("findInPage")).toBe(true);
-    expect(openFind).toHaveBeenCalledOnce();
   });
 
   it("leaves a chord to the window when it means no page, or one not ready", () => {

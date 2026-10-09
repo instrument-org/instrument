@@ -214,7 +214,14 @@ export function BrowserPanel({
   // own host claims the single find-opener slot, clears it on unmount, and this
   // panel never re-registers.
   const covered = useIsGuestCovered({ insideOverlay });
-  const find = useBrowserFind({ active, covered, isVisible, targetId });
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const find = useBrowserFind({
+    active,
+    covered,
+    isVisible,
+    surfaceRef,
+    targetId,
+  });
   const slotRef = useBrowserSlot({
     active,
     covered,
@@ -427,6 +434,8 @@ export function BrowserPanel({
         "flex h-full flex-col overflow-hidden rounded-xl bg-card shadow-sm",
         className,
       )}
+      data-find-surface
+      ref={surfaceRef}
     >
       {(() => {
         // The page's menu, the same in either shape of the bar.

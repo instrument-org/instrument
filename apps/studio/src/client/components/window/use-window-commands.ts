@@ -11,6 +11,7 @@ import {
 } from "@/client/atoms/tab-navigation-block";
 import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
+import { openFindForKeyboard } from "@/client/lib/find-targets";
 import { runPageChord } from "@/client/lib/page-chords";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -209,9 +210,9 @@ export function useWindowCommands(
               break;
             }
             case "findInPage": {
-              // The page on screen registers itself as the foreground
-              // browser; with none up there is nothing to search.
-              runPageChord("findInPage");
+              // The search of the surface the keyboard is in; with none on
+              // screen there is nothing to search.
+              openFindForKeyboard();
               break;
             }
             case "forward": {

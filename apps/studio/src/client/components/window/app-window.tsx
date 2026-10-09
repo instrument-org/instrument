@@ -90,6 +90,7 @@ import { ComposeLayer } from "./compose-layer";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { InboxPeek } from "./inbox-peek";
+import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
 import { NewTopicDialog } from "./new-topic-dialog";
 import { contextReaders } from "./send-context";
@@ -267,6 +268,7 @@ function WindowShell({
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
+  const setInboxLandsAtOnce = useSetAtom(inboxLandsAtOnceAtom);
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
     Promise.resolve(undefined),
   );
@@ -838,8 +840,13 @@ function WindowShell({
               <AppRail
                 onChoose={(next, { newTab }) => {
                   // Chat asked for is the inbox asked for too, even where the
-                  // row is narrow enough that it stepped aside.
+                  // row is narrow enough that it stepped aside. Peeked out
+                  // already, the list stays where it is drawn rather than
+                  // sliding in again under it.
                   if (next === "chat") {
+                    if (inboxPeek.isOpen) {
+                      setInboxLandsAtOnce(true);
+                    }
                     setInboxOpen(true);
                   }
                   if (next === place && !newTab) {
@@ -874,6 +881,7 @@ function WindowShell({
               </div>
               <InboxPeek
                 isOpen={inboxPeek.isOpen}
+                leavesAtOnce={inboxPeek.leavesAtOnce}
                 onPointerEnter={inboxPeek.onPointerEnter}
                 onPointerLeave={inboxPeek.onPointerLeave}
                 panelRef={inboxPeek.panelRef}

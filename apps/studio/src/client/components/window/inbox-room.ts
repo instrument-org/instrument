@@ -4,6 +4,8 @@ import { useEffect } from "react";
 
 /** Whether the inbox was put away for a row too narrow for it, rather than by hand. */
 const inboxSteppedAsideAtom = atom(false);
+/** Whether the inbox next shown comes at once, pinned from a peek already drawn where it stands. */
+export const inboxLandsAtOnceAtom = atom(false);
 /** Whether the row was too narrow for the inbox when the tab up last answered to it, so a crossing is told from a row that stayed put. */
 const inboxAnsweredCrowdedAtom = atom(false);
 
@@ -42,6 +44,7 @@ export function useInboxRoom({
   const [answeredCrowded, setAnsweredCrowded] = useAtom(
     inboxAnsweredCrowdedAtom,
   );
+  const [landsAtOnce, setLandsAtOnce] = useAtom(inboxLandsAtOnceAtom);
   const isCrowded =
     room !== undefined && room < needs + (isSteppedAside ? margin : 0);
   const isCrossing = isActive && isCrowded !== answeredCrowded;
@@ -77,5 +80,18 @@ export function useInboxRoom({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInboxOpen]);
 
-  return { isCrossing, isShown, isSteppedAside };
+  // Read by the render that shows the inbox, then spent.
+  useEffect(() => {
+    if (landsAtOnce) {
+      setLandsAtOnce(false);
+    }
+  }, [landsAtOnce, setLandsAtOnce]);
+
+  return {
+    /** Whether it comes or goes at once rather than sliding: the row crossing, or the inbox pinned from its peek. */
+    isAtOnce: isCrossing || landsAtOnce,
+    isCrossing,
+    isShown,
+    isSteppedAside,
+  };
 }

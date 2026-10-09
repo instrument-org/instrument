@@ -126,6 +126,9 @@ function RailEntry({
   return (
     <button
       aria-current={isOn ? "page" : undefined}
+      // What the inbox peeks out from, so a press on it is no press outside
+      // the peek.
+      data-peeks-inbox={onHover ? "" : undefined}
       className={cn(
         "flex w-15 flex-col items-center gap-0.5 rounded-xl py-1.5",
         isOn

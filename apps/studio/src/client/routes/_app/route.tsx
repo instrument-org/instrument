@@ -155,7 +155,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
   // brings them back in the other order, each a margin past the width it
   // left at.
   const needs = CONVERSATION_WIDTH_MIN + (showsPane ? PANE_WIDTH_MIN : 0);
-  const { isCrossing, isShown } = useInboxRoom({
+  const { isAtOnce, isShown } = useInboxRoom({
     isActive,
     margin: ROOM_MARGIN,
     needs,
@@ -220,7 +220,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     <div className="flex min-h-0 min-w-0 flex-1">
       <ChatColumn
         bounds={bounds}
-        isAtOnce={isCrossing}
+        isAtOnce={isAtOnce}
         // With no chat open there is no toggle to bring it back by, so it
         // stays.
         isOpen={isShown || !showsRightArea}

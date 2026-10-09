@@ -124,7 +124,7 @@ describe("renderSkillCatalog", () => {
     expect(catalog.shortened).toBe(5);
     expect(catalog.entries[0]).toEqual({
       description: "n".repeat(300),
-      name: "instrument:create-page",
+      name: "instrument:instrument-page",
     });
     expect(
       catalog.entries
@@ -205,7 +205,7 @@ describe("renderSkillCatalog", () => {
     expect(
       catalog.entries.map((entry) => [entry.name, entry.description.length]),
     ).toEqual([
-      ["instrument:create-page", 100],
+      ["instrument:instrument-page", 100],
       ["instrument:zip", 100],
       ...others.map((entry) => [entry.id, 100]),
     ]);
@@ -251,7 +251,7 @@ describe("renderSkillCatalog", () => {
       catalog.entries
         .filter((entry) => entry.name.startsWith("instrument:"))
         .map((entry) => entry.description.length),
-    ).toEqual([334, 343, 562]);
+    ).toEqual([343, 334, 562]);
     expect(catalog.xml.length).toBeLessThanOrEqual(8000);
   });
 

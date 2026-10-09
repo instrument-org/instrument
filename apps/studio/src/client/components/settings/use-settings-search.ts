@@ -20,7 +20,7 @@ import { useDeferredValue, useEffect, useState } from "react";
 
 const DEBOUNCE_MS = 300;
 /** The shortest search worth asking the model about. */
-const MEANING_MIN_LENGTH = 3;
+const MEANING_MIN_LENGTH = 2;
 /** Most results the model's answer adds, best fit first. */
 const MOST = 8;
 /** Most entries one search asks the model about: one request's worth. */
@@ -60,6 +60,9 @@ export function useSettingsSearch({
   const matches = matchSettings(entries, deferredQuery);
   const fallback = useMeaningFallback({
     active: matches.length === 0 && query.trim().length >= MEANING_MIN_LENGTH,
+    // Read as soon as there is a search, so whether the model can answer is
+    // known before the words run out rather than found out then.
+    checkAvailable: active,
     // A page is found by its name, and a label by its row, so the model is
     // asked only about rows.
     candidates: entries.filter((entry) => !entry.page && !entry.mark),
@@ -144,10 +147,12 @@ type Answers = RPCOutput["workspace"]["decision"]["ask"]["answers"];
  */
 function useMeaningFallback({
   active,
+  checkAvailable,
   candidates: all,
   search,
 }: {
   active: boolean;
+  checkAvailable: boolean;
   candidates: SettingsEntry[];
   search: string;
 }) {
@@ -162,13 +167,10 @@ function useMeaningFallback({
     };
   }, [search]);
 
-  const available = useDecisionModelAvailable(active);
+  const available = useDecisionModelAvailable(checkAvailable);
   const noteUnreachable = useNoteDecisionModelUnreachable();
-  const asking =
-    active &&
-    available === true &&
-    candidates.length > 0 &&
-    settled === search.trim();
+  const askable = active && available === true && candidates.length > 0;
+  const asking = askable && settled === search.trim();
   const { data, isFetching } = useQuery({
     queryFn: asking
       ? async ({ signal }) => {
@@ -202,8 +204,12 @@ function useMeaningFallback({
 
   return {
     entries: asking && data ? fitting(data, candidates) : [],
-    /** Whether a request is out, so the list says it is searching rather than that nothing matched. */
-    isLooking: asking && isFetching,
+    /**
+     * Whether an answer is coming, from the first key the words find nothing
+     * for until it arrives, so the list says it is searching through the
+     * pause rather than "No results" and then the results.
+     */
+    isLooking: askable && (!asking || isFetching),
   };
 }
 

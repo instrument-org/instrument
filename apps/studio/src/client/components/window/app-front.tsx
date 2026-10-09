@@ -1,4 +1,3 @@
-import { visitedPagesAtom } from "@/client/atoms/window";
 import { blockToolbarButtonClassName } from "@/client/components/code-block";
 import { CopyButton } from "@/client/components/copy-button";
 import {
@@ -34,11 +33,11 @@ import { useOnScreen } from "@/client/components/window/on-screen";
 import { PageSection } from "@/client/components/window/page-section";
 import { VisitedPageRows } from "@/client/components/window/visited-page-rows";
 import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useRecentPages } from "@/client/hooks/use-browser-history";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { rpcClient } from "@/client/rpc/client";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useAtomValue } from "jotai";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -142,7 +141,7 @@ export function AppFront({
   useOnScreen(reportsScreen ? screen : null);
   // The pages the window has shown on the app's site, newest first: the
   // best place to start in an app is where you already were in it.
-  const visited = useAtomValue(visitedPagesAtom);
+  const visited = useRecentPages();
   const visits = visitsWithin(visited, [{ name, site }]).slice(0, VISITS_SHOWN);
 
   const disconnect = useMutation(

@@ -1,8 +1,6 @@
 import {
   type BrowserTab,
   originOf,
-  VISITED_MAX,
-  visitedPagesAtom,
   type WindowTab,
 } from "@/client/atoms/window";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
@@ -264,7 +262,6 @@ export function BrowserTabs({
   const change = useWindowTabsChange();
   const everyTabId = useAtomValue(everyTabIdAtom);
   const tabs = allTabs.filter((tab): tab is PageTab => tab.kind === "page");
-  const setVisited = useSetAtom(visitedPagesAtom);
   const attached = useBrowserTargets();
   // Holds every tab's guest for as long as the window is open, the way the
   // task page holds its browser: subscribing is the hold.
@@ -390,15 +387,6 @@ export function BrowserTabs({
               ? {}
               : { favicon: undefined }),
           });
-          if (hostPathOfFileUrl(url) === undefined) {
-            // The new-tab page lists where the browser has been.
-            setVisited((current) =>
-              [
-                { at: Date.now(), title: title ?? "", url },
-                ...current.filter((page) => page.url !== url),
-              ].slice(0, VISITED_MAX),
-            );
-          }
         }
       };
       // A local page's own `history.pushState` moves its address without
@@ -414,14 +402,6 @@ export function BrowserTabs({
       const onTitle = ({ title }: { title: string }) => {
         if (title) {
           patch(id, { title });
-          const url = latest.current.tabs.find((tab) => tab.id === id)?.url;
-          if (url) {
-            setVisited((current) =>
-              current.map((page) =>
-                page.url === url ? { ...page, title } : page,
-              ),
-            );
-          }
         }
       };
       const onFavicon = ({ favicons }: { favicons: string[] }) => {
@@ -437,11 +417,6 @@ export function BrowserTabs({
           guest.url() ||
           latest.current.tabs.find((entry) => entry.id === id)?.url;
         if (originOf(url)) {
-          setVisited((current) =>
-            current.map((page) =>
-              page.url === url ? { ...page, favicon } : page,
-            ),
-          );
           // The site's own icon, kept for it where the favicon proxy has
           // none; only for a page opened here, never one merely named.
           const pageUrl = url;
@@ -475,7 +450,7 @@ export function BrowserTabs({
         cleanup?.();
       }
     };
-  }, [attached, change, setVisited, tabIds]);
+  }, [attached, change, tabIds]);
 
   const activePage: BrowserPage | undefined = active?.url
     ? {
@@ -689,7 +664,9 @@ export function BrowserTabs({
         void rpcClient.workspace.browser.open.call({
           id: WINDOW_ID,
           sessionId: StoreId.SessionSchema.parse(tab.id),
-          ...(tab.url && tab.url !== "about:blank" ? { url: tab.url } : {}),
+          ...(tab.url && tab.url !== "about:blank"
+            ? { restoreUrl: tab.url }
+            : {}),
         });
         return true;
       },

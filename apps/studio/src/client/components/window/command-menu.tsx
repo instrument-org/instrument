@@ -2,13 +2,9 @@ import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
 import { openSettings, type SettingsTab } from "@/client/atoms/settings-modal";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
-import {
-  APPS_HREF,
-  bookmarksAtom,
-  CHATS_HREF,
-  visitedPagesAtom,
-} from "@/client/atoms/window";
+import { APPS_HREF, bookmarksAtom, CHATS_HREF } from "@/client/atoms/window";
 import { PageFavicon } from "@/client/components/favicon";
+import { useRecentPages } from "@/client/hooks/use-browser-history";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { useTheme } from "@/client/components/theme-provider";
 import {
@@ -107,7 +103,7 @@ export function CommandMenu({
   const { setTheme, theme } = useTheme();
   const developerMode = useDeveloperMode();
   const appsBySlug = useAppsBySlug();
-  const visited = useAtomValue(visitedPagesAtom);
+  const visited = useRecentPages();
   const bookmarks = useAtomValue(bookmarksAtom);
 
   const preferences = useQuery(

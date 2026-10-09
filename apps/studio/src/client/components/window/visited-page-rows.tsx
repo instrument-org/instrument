@@ -1,7 +1,9 @@
-import { type VisitedPage, visitedPagesAtom } from "@/client/atoms/window";
+import {
+  type HistoryPage,
+  removeFromHistory,
+} from "@/client/hooks/use-browser-history";
 import { PageFavicon } from "@/client/components/favicon";
 import { cn } from "@/client/lib/utils";
-import { useSetAtom } from "jotai";
 
 import { PageContextMenu, usePageClicks } from "./page-menu";
 import { PageTooltip } from "./page-tooltip";
@@ -29,14 +31,13 @@ export function VisitedPageRows({
   /** Only as many as fit on one row, for a strip under a page's head. */
   isOneRow?: boolean;
   onOpen: (url: string) => void;
-  visits: { page: VisitedPage }[];
+  visits: { page: HistoryPage }[];
 }) {
   const clicksFor = usePageClicks();
-  const setVisited = useSetAtom(visitedPagesAtom);
   const menuFor = (url: string) => ({
     onOpen,
     onRemove: () => {
-      setVisited((current) => current.filter((page) => page.url !== url));
+      removeFromHistory(url);
     },
     removeLabel: "Remove from Recent Pages",
     url,

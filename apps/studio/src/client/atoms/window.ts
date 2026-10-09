@@ -264,23 +264,6 @@ export interface BrowserTab {
   url?: string;
 }
 
-/** A page the browser showed, for the new-tab page and the address field's completions: newest first, one per address. */
-export interface VisitedPage {
-  at: number;
-  favicon?: string;
-  title: string;
-  url: string;
-}
-
-/** Enough history for the address field to finish the sites a person goes back to, which a page's handful of rows never needed. */
-export const VISITED_MAX = 500;
-
-export const visitedPagesAtom = keptAtom<VisitedPage[]>(
-  "history",
-  "visited-pages.v1",
-  [],
-);
-
 /** A file the window can open in a tab: where it is on the computer, which is the tab's identity. */
 export interface FileTab {
   hostPath: string;

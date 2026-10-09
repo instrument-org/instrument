@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /** How long the pointer rests on Chat in the rail before the inbox peeks out, so a pass over the rail on the way somewhere else shows nothing. */
-const PEEK_OPEN_MS = 150;
+const PEEK_OPEN_MS = 300;
 /** How long the pointer may be off both Chat and the peek before it goes, room to cross from one to the other. */
 const PEEK_CLOSE_MS = 250;
 

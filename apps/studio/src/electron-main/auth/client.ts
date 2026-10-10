@@ -1,12 +1,13 @@
 import { getAuthServerPort } from "@/electron-main/auth/state";
 import { openExternal } from "@/electron-main/lib/open-external";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
+import { getAnonymousPlatformApiHeaders } from "@/electron-main/platform-api/headers";
 import { getToken } from "@/electron-main/platform-api/utils";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getSessionStore } from "@/electron-main/stores/workspace/session";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
-import * as arctic from "arctic";
 import { createAuthClient } from "better-auth/client";
+import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 
 import { captureServerException } from "../lib/capture-server-exception";
@@ -23,42 +24,45 @@ export const store: {
   state: null,
 };
 
-// Reaches us back through the provider's redirect, so it is parsed rather than
-// asserted even though the caller has already matched it against the value we
-// stored before the redirect.
-const OAuthStateSchema = z.object({
-  state: z.string(),
+const DesktopSignInSchema = z.object({
+  token: z.string().min(1),
+  user: z.object({ email: z.string() }),
 });
 
-type OAuthState = z.output<typeof OAuthStateSchema>;
-
-export function createGoogleProvider({ port }: { port: number }) {
-  return new arctic.Google(
-    import.meta.env.MAIN_VITE_GOOGLE_CLIENT_ID ?? "invalid-client-id",
-    import.meta.env.MAIN_VITE_GOOGLE_CLIENT_SECRET ?? "invalid-client-secret",
-    `http://localhost:${port}/auth/callback/google`,
+/**
+ * Trade the single-use token the API handed the loopback for a session, with
+ * the PKCE verifier that proves this app started the sign-in.
+ */
+export async function exchangeDesktopSignIn({
+  codeVerifier,
+  token,
+}: {
+  codeVerifier: string;
+  token: string;
+}) {
+  const response = await fetch(
+    `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/auth-desktop/exchange`,
+    {
+      body: JSON.stringify({ token, verifier: codeVerifier }),
+      headers: {
+        ...getAnonymousPlatformApiHeaders(),
+        "content-type": "application/json",
+      },
+      method: "POST",
+    },
   );
-}
-
-export function decodeOAuthState(encodedState: string): null | OAuthState {
-  try {
-    const decoded = Buffer.from(encodedState, "base64").toString("utf8");
-    const parsed = OAuthStateSchema.safeParse(JSON.parse(decoded));
-    return parsed.success ? parsed.data : null;
-  } catch (error) {
-    captureServerException(
-      new Error("Failed to decode OAuth state", { cause: error }),
-      { scopes: ["rpc", "auth"] },
-    );
-    return null;
+  if (!response.ok) {
+    throw new Error(`Sign-in exchange failed with ${response.status}`);
   }
+  return DesktopSignInSchema.parse(await response.json());
 }
 
 /** Ends the Google sign-in waiting on the browser, as canceled. */
 let cancelPendingSignIn: (() => void) | undefined;
 
 /**
- * Open Google's sign-in in the user's browser and wait for it to come back.
+ * Open the API's Google sign-in in the user's browser and wait for it to come
+ * back to the loopback server.
  * Starting again while one waits cancels that one, so only the newest tab can
  * land. Resolves "canceled" when the user gives up from the app.
  */
@@ -71,21 +75,19 @@ export async function signInSocial(): Promise<
     throw new Error("Auth server port is not set");
   }
 
-  const google = createGoogleProvider({ port: authServerPort });
+  const state = randomBytes(32).toString("base64url");
+  const codeVerifier = randomBytes(32).toString("base64url");
+  store.state = state;
+  store.codeVerifier = codeVerifier;
 
-  const baseState = arctic.generateState();
-  const encodedState = Buffer.from(
-    JSON.stringify({ state: baseState }),
-  ).toString("base64");
-
-  store.state = encodedState;
-  store.codeVerifier = arctic.generateCodeVerifier();
-
-  const scopes = ["email", "profile", "openid"];
-  const url = google.createAuthorizationURL(
-    encodedState,
-    store.codeVerifier,
-    scopes,
+  const url = new URL(
+    `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/auth-desktop/start`,
+  );
+  url.searchParams.set("port", String(authServerPort));
+  url.searchParams.set("state", state);
+  url.searchParams.set(
+    "code_challenge",
+    createHash("sha256").update(codeVerifier).digest("base64url"),
   );
 
   const controller = new AbortController();

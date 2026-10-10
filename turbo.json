@@ -63,8 +63,6 @@
         "CI",
         "INSTRUMENT_PREVIEW_NAME",
         "MAIN_VITE_APP_API_BASE_URL",
-        "MAIN_VITE_GOOGLE_CLIENT_ID",
-        "MAIN_VITE_GOOGLE_CLIENT_SECRET",
         "VITE_POSTHOG_API_HOST",
         "VITE_POSTHOG_API_KEY"
       ],
@@ -101,8 +99,6 @@
     "smoke-test": {
       "passThroughEnv": [
         "MAIN_VITE_APP_API_BASE_URL",
-        "MAIN_VITE_GOOGLE_CLIENT_ID",
-        "MAIN_VITE_GOOGLE_CLIENT_SECRET",
         "VITE_POSTHOG_API_HOST",
         "VITE_POSTHOG_API_KEY"
       ],

@@ -239,7 +239,7 @@ function createValidateProductionEnv(
 ): Plugin {
   // Map of required environment variables by context
   const requiredVarsByContext = {
-    main: ["MAIN_VITE_GOOGLE_CLIENT_ID", "MAIN_VITE_GOOGLE_CLIENT_SECRET"],
+    main: [] as string[],
     preload: [] as string[],
     renderer: [] as string[],
   };

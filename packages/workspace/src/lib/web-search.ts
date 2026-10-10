@@ -13,7 +13,7 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { type WebSearchResult } from "../schemas/web-search";
 import { type WorkspaceConfig } from "../types";
 import { aiUsageTelemetry, recordAIUsage } from "./ai-usage/record";
@@ -93,7 +93,7 @@ export async function* webSearch({
   prompt,
   sessionId,
   signal,
-  taskId,
+  chatId,
   workspaceConfig,
   workspaceServerURL,
 }: {
@@ -102,8 +102,8 @@ export async function* webSearch({
   prompt: string;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  /** The chat or task searching, which its record of model requests files the search under. */
-  taskId?: TaskId;
+  /** The chat searching, which its record of model requests files the search under. */
+  chatId?: ChatId;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 }): AsyncGenerator<Result<WebSearchResults, WebSearchFailure>> {
@@ -113,8 +113,9 @@ export async function* webSearch({
   if (callingModel.params.provider === OUR_MODELS.providerType) {
     const platformResult = await searchWithPlatform({
       prompt,
+      sessionId,
       signal,
-      taskId,
+      chatId,
       workspaceConfig,
     });
     if (
@@ -136,7 +137,7 @@ export async function* webSearch({
     prompt,
     sessionId,
     signal,
-    taskId,
+    chatId,
     workspaceConfig,
     workspaceServerURL,
   })) {
@@ -150,8 +151,9 @@ export async function* webSearch({
     ) {
       yield await searchWithPlatform({
         prompt,
+        sessionId,
         signal,
-        taskId,
+        chatId,
         workspaceConfig,
       });
       return;
@@ -204,13 +206,15 @@ const PLATFORM_SEARCH_MODEL = "instrument/search";
 
 async function requestPlatformSearch({
   prompt,
+  sessionId,
   signal,
-  taskId,
+  chatId,
   workspaceConfig,
 }: {
   prompt: string;
+  sessionId: StoreId.Session;
   signal: AbortSignal;
-  taskId?: TaskId;
+  chatId?: ChatId;
   workspaceConfig: WorkspaceConfig;
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
   const startedAt = Date.now();
@@ -228,7 +232,8 @@ async function requestPlatformSearch({
       },
       kind: "search",
       purpose: "web-search",
-      taskId,
+      chatId,
+      sessionId,
     },
     {
       durationMs: Date.now() - startedAt,
@@ -282,8 +287,9 @@ function searchSystemPrompt() {
 
 async function searchWithPlatform(args: {
   prompt: string;
+  sessionId: StoreId.Session;
   signal: AbortSignal;
-  taskId?: TaskId;
+  chatId?: ChatId;
   workspaceConfig: WorkspaceConfig;
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
   const first = await requestPlatformSearch(args);
@@ -302,7 +308,7 @@ async function* searchWithProviderModel({
   prompt,
   sessionId,
   signal,
-  taskId,
+  chatId,
   workspaceConfig,
   workspaceServerURL,
 }: {
@@ -311,7 +317,7 @@ async function* searchWithProviderModel({
   prompt: string;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  taskId?: TaskId;
+  chatId?: ChatId;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 }): AsyncGenerator<Result<WebSearchResults, WebSearchFailure>> {
@@ -368,7 +374,8 @@ async function* searchWithProviderModel({
         connection: config,
         kind: "search",
         purpose: "web-search",
-        taskId,
+        chatId,
+        sessionId,
       }),
       tools,
     });

@@ -16,7 +16,7 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
-import { toast } from "@/client/lib/toast";
+import { toast } from "sonner";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCInput, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME, AIProviderTypeSchema } from "@instrument-org/shared";

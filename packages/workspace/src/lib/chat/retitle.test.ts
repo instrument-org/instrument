@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { type askDecisionModel } from "../decision-model";
 import { titleStillFits } from "./retitle";
 
@@ -21,7 +21,7 @@ const chat = {
   currentTitle: "Find flights to Lisbon",
   opening: "find me cheap flights to lisbon",
   reply: "I found three options under $600.",
-  taskId: TaskIdSchema.parse("2026-10-10-find-flights"),
+  chatId: ChatIdSchema.parse("2026-10-10-find-flights"),
 };
 
 describe("titleStillFits", () => {

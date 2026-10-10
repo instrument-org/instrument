@@ -99,7 +99,7 @@ function setupTest(
       generateTitleFromUserMessage({
         message,
         model,
-        taskId: TaskIdSchema.parse("mock"),
+        chatId: ChatIdSchema.parse("mock"),
         workspaceConfig,
       }),
     mockLanguageModel,
@@ -128,7 +128,7 @@ function setupTestWithModel(
       generateTitleFromUserMessage({
         message,
         model,
-        taskId: TaskIdSchema.parse("mock"),
+        chatId: ChatIdSchema.parse("mock"),
         workspaceConfig,
       }),
   };
@@ -452,7 +452,7 @@ describe("generateTitleFromUserMessage with a current title", () => {
       message: createMockMessage("what should I make for dinner"),
       model,
       reply: "Here is a lentil soup recipe.",
-      taskId: TaskIdSchema.parse("mock"),
+      chatId: ChatIdSchema.parse("mock"),
       workspaceConfig: getWorkspaceConfig(),
     });
     const prompt = mockLanguageModel.doGenerateCalls[0]?.prompt ?? [];

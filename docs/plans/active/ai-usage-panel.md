@@ -6,13 +6,13 @@ Status: spiked. Capture, store, RPC and the Settings section are built and check
 
 The app makes model requests the person never asked for by name: naming a chat, picking its emoji, suggesting a topic, searching chats and settings by meaning, finding an app, web search, image generation. On top of the chat replies themselves, those go to whichever connection the person set up, and the model can change between requests. Nothing in the product shows that traffic. For an open-source product this is the place to be fully transparent: every request the app made on the person's behalf, which connection and model answered it, why it was made, how many tokens it used, and how long it took.
 
-Chat replies already store their usage (`metadata.usage` on the assistant message in each `task.db`), but nothing else does, and none of it is gathered in one place.
+Chat replies already store their usage (`metadata.usage` on the assistant message in each `chat.db`), but nothing else does, and none of it is gathered in one place.
 
 ## Decisions already made
 
-- **Metadata only.** No request or response bodies: what was said already lives in each chat's and task's own store, and leaving it out keeps the record safe to export or attach to a bug report.
+- **Metadata only.** No request or response bodies: what was said already lives in each chat's own store, and leaving it out keeps the record safe to export or attach to a bug report.
 - **No money figures** in the first version. Rows carry tokens and duration; cost can join later as an optional field.
-- **No backfill.** The record starts empty on upgrade. Backfilling only chat replies from `task.db` would make the purpose breakdown misrepresent the past.
+- **No backfill.** The record starts empty on upgrade. Backfilling only chat replies from `chat.db` would make the purpose breakdown misrepresent the past.
 - **The panel is a request log**: one row per request (a step of the agent loop, not a whole reply), newest first, with the date and time leading each row. Not grouped by chat. The Settings tab is named "AI usage".
 - **Filtering is generic.** One Filter control adds a removable chip per condition (type, purpose, origin, connection, model, result, date), the chips combine, every column header sorts, and a totals line follows the filters.
 - **Type uses model-kind terms**: Language model, Decision model, Web search, Image model, so a decision model's choice never reads like a language model's reply.
@@ -31,8 +31,8 @@ Chat replies already store their usage (`metadata.usage` on the assistant messag
 | status | finished, failed (with the HTTP status or error kind), stopped |
 | finish reason | as the model reported it: ended its turn, called a tool, hit the length limit |
 | type | language model, decision model, web search, image model |
-| purpose | chat (a step of the chat's own turn), task (a step of a task's), chat title, title check, web search, image, emoji suggestion, topic suggestion, topic backfill, chat search, settings search, app search, other |
-| chat id, task id | absent for requests that belong to no chat; origin is shown from these, or from the surface (Settings, Apps, Chats) when there is none |
+| purpose | chat (a step in the chat's own session), task (a step in one of its tasks, a session whose parent is the chat's), chat title, title check, web search, image, emoji suggestion, topic suggestion, topic backfill, chat search, settings search, app search, other |
+| chat id, session id | the chat and the session in it that asked; absent for requests that belong to no chat; origin is shown from these, or from the surface (Settings, Apps, Chats) when there is none |
 | connection | its id, type and display name; never its key |
 | model requested | the model ID the request named |
 | model served | only when the response named one; absent means no evidence |
@@ -43,7 +43,7 @@ Chat replies already store their usage (`metadata.usage` on the assistant messag
 
 Four kinds of call, each recorded where it already has the facts:
 
-- **Language models, through AI SDK telemetry** (`lib/ai-usage/record.ts`). Each call site passes `telemetry: aiUsageTelemetry({ purpose, taskId, connection })`, a per-call integration that carries what the call site knows; the SDK lets a per-call integration replace the global ones, so nothing is counted twice. One more integration, registered globally with `registerTelemetry` when the workspace starts, records every call that passes none as "Other", so a forgotten tag shows up as a gap rather than a missing request. A row is written per model call: `onLanguageModelCallStart` stamps the start, `onStepEnd` gives usage, the served model, the response id and the finish reason, and `onAbort` and `onError` give stopped and failed requests. The integration reads none of the prompt or output. This covers chat and task steps, titles and the provider-model web search on every connection, the Claude account included, since `createClaudeAccountLanguageModel` is an AI SDK language model like the rest.
+- **Language models, through AI SDK telemetry** (`lib/ai-usage/record.ts`). Each call site passes `telemetry: aiUsageTelemetry({ purpose, chatId, sessionId, connection })`, a per-call integration that carries what the call site knows; the SDK lets a per-call integration replace the global ones, so nothing is counted twice. One more integration, registered globally with `registerTelemetry` when the workspace starts, records every call that passes none as "Other", so a forgotten tag shows up as a gap rather than a missing request. A row is written per model call: `onLanguageModelCallStart` stamps the start, `onStepEnd` gives usage, the served model, the response id and the finish reason, and `onAbort` and `onError` give stopped and failed requests. The integration reads none of the prompt or output. This covers chat and task steps, titles and the provider-model web search on every connection, the Claude account included, since `createClaudeAccountLanguageModel` is an AI SDK language model like the rest.
 - **Decision requests** record in `askDecisionModel` (`workspace/src/lib/decision-model.ts`), once per provider attempt. Every caller names its purpose: `decision.ask` takes a `usage` field, which Studio's `useDecision` fills from its own `usage` argument.
 - **Image generation** records once per `generateImageStream`, whichever path made the image, since neither `generateImage` nor `streamOpenRouterImage` emits telemetry. The language-model path turns the SDK's own recording off so it is not counted twice.
 - **Instrument web search** records in `requestPlatformSearch` (`lib/web-search.ts`), since the request itself is a `fetch` from the Electron main process that never reaches the gateway. The keyless fallback is not a model request and is not recorded.
@@ -64,7 +64,7 @@ Indexes on `started_at` and on each filterable column paired with `started_at` k
 | `ai-gateway` | `lib/providers/claude-account/language-model.ts` passes `thinking_tokens` through as reasoning | |
 | `studio` | `atoms/settings-modal.ts` gains `"AI usage"` in `SettingsTab`; the modal's nav and the settings search index gain the entry; decision callers pass their purpose | The section: virtualized table, filter chips, detail page |
 
-Untouched: the provider proxy, `task.db` and its schema, how messages are saved, the agent machines, model list fetches (not model requests).
+Untouched: the provider proxy, `chat.db` and its schema, how messages are saved, the agent machines, model list fetches (not model requests).
 
 ## What each connection can report
 
@@ -89,7 +89,7 @@ Untouched: the provider proxy, `task.db` and its schema, how messages are saved,
 ## Out of scope
 
 - Request and response bodies.
-- Backfill from `task.db`.
+- Backfill from `chat.db`.
 - Money figures.
 - Retention and pruning.
 - A per-chat grouping view; the origin filter covers "what did this chat use".

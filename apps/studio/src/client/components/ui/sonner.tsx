@@ -46,10 +46,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
       // overlay, dismissing the dialog. Keep toasts interactive.
       toastOptions={{
         classNames: {
+          // The secondary Button: a subtle control beside the words.
           actionButton:
-            "shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-brand-600 hover:bg-accent",
+            "shrink-0 rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground shadow-xs hover:bg-muted dark:bg-gray-800 dark:text-foreground dark:hover:bg-gray-700",
           cancelButton:
-            "shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-accent",
+            "shrink-0 rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground shadow-xs hover:bg-muted dark:bg-gray-800 dark:text-foreground dark:hover:bg-gray-700",
           closeButton:
             "order-last grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground in-[[data-sonner-toast]:has([data-description])]:-mt-0.5 in-[[data-sonner-toast]:has([data-description])]:self-start",
           content: "min-w-0 flex-1",
@@ -58,7 +59,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           icon: "flex shrink-0 in-[[data-sonner-toast]:has([data-description])]:mt-px in-[[data-sonner-toast]:has([data-description])]:self-start",
           title: "leading-5",
           toast:
-            "flex w-fit max-w-(--width) items-center gap-2 overflow-hidden rounded-2xl bg-popover py-1.5 pr-1.5 pl-3 text-[13px] text-popover-foreground shadow-float-md has-[[data-description]]:w-(--width) has-[[data-description]]:items-start has-[[data-description]]:rounded-xl has-[[data-description]]:py-2.5 data-[expanded=false]:data-[front=false]:*:opacity-0",
+            "flex w-fit max-w-(--width) items-center gap-2 rounded-2xl bg-popover py-1.5 pr-1.5 pl-3 text-[13px] text-popover-foreground shadow-float-md has-[[data-description]]:w-(--width) has-[[data-description]]:items-start has-[[data-description]]:rounded-xl has-[[data-description]]:py-2.5 data-[expanded=false]:data-[front=false]:*:opacity-0",
         },
         style: { pointerEvents: "auto" },
         unstyled: true,

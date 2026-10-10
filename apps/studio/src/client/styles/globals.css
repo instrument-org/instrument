@@ -1619,6 +1619,20 @@ a.cursor-pointer {
     grid-column: 2;
     grid-row: 2;
     justify-self: start;
-    margin-left: -6px;
+  }
+}
+
+/* Sonner's dark theme paints its close button on any toast, styled or not.
+   Ours is a bare glyph in both themes. [data-sonner-toaster] lifts this past
+   Sonner's own rule, which is injected at runtime after this stylesheet. */
+.toaster[data-sonner-toaster][data-sonner-theme="dark"]
+  [data-sonner-toast]
+  [data-close-button] {
+  background: transparent;
+  color: var(--muted-foreground);
+
+  &:hover {
+    background: var(--accent);
+    color: var(--foreground);
   }
 }

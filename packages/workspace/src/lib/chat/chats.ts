@@ -28,6 +28,7 @@ import { indexedByStore, kept, unkept } from "../workspace-index";
 import { askIn, type ChatActivity, chatActivity } from "./activity";
 import { listChatIds } from "./chat-records";
 import { latestSessionId } from "./latest-session";
+import { joinedMidTurn } from "./mid-turn";
 import { latestStepIn } from "./step-label";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
@@ -416,7 +417,8 @@ interface ChatDigest {
   session: Session.Type;
   /** The last reply with words: when it finished and its first line. */
   spoken?: { at: number; text: string };
-  stepInMessages?: string;
+  /** The step the chat's current turn is on, from its own calls since the user's newest message. */
+  stepInTurn?: string;
 }
 
 /**
@@ -523,9 +525,11 @@ async function chatFor(
   // something else in the chat is moving. The chat's own agent stopped
   // on an ask of its own is the same: alive to the machine, waiting to the
   // user.
-  const working =
+  const ownWorking =
     (chatIsAlive(taskId) && digest.ownAsk === undefined) ||
-    turnIsStarting(digest) ||
+    turnIsStarting(digest);
+  const working =
+    ownWorking ||
     filed.some((task) => !task.waiting) ||
     filedTasks.some((filedTask) => hasPendingWake(taskId, filedTask));
   const ask = working ? undefined : askOf(digest, filed);
@@ -537,10 +541,14 @@ async function chatFor(
         ? "failed"
         : "idle";
 
+  const lead = runningTasks.find((task) => !task.waiting);
   const latest = latestFor({
     ask,
     digest,
-    runningStep: runningTasks.find((task) => task.step && !task.waiting)?.step,
+    // The chat's own turn names its step first, as the line under its title
+    // does; a task at work, its step or else its name.
+    step:
+      (ownWorking ? digest.stepInTurn : undefined) ?? lead?.step ?? lead?.title,
     state,
   });
 
@@ -647,7 +655,12 @@ function digestOf(
   );
   const commands = bashCommandsIn(messages);
   const ownAsk = askIn(messages);
-  const stepInMessages = latestStepIn(messages);
+  // Only this turn's calls, so a new turn never names the last one's step;
+  // a message that joined the turn under way does not start one.
+  const turnStart = messages.findLastIndex(
+    (message) => message.role === "user" && !joinedMidTurn(message),
+  );
+  const stepInTurn = latestStepIn(messages.slice(turnStart + 1));
   const lastMessageAt = messages.at(-1)?.metadata.createdAt.getTime();
   const lastReplyAt = replies.at(-1)?.metadata.finishedAt?.getTime();
   // The last thing the agent did ended in an error, after the user's
@@ -686,7 +699,7 @@ function digestOf(
         text: firstLine(textOf(spoken)),
       },
     }),
-    ...(stepInMessages !== undefined && { stepInMessages }),
+    ...(stepInTurn !== undefined && { stepInTurn }),
   };
 }
 
@@ -764,16 +777,16 @@ async function knownAppSlugs(): Promise<Set<string>> {
 function latestFor({
   ask,
   digest,
-  runningStep,
   state,
+  step,
 }: {
   ask: undefined | { at: number; text: string };
   digest: ChatDigest;
-  runningStep: string | undefined;
   state: Chat["state"];
+  /** What a working chat is on: the step its own turn or a task at work names. */
+  step: string | undefined;
 }): Chat["latest"] {
   if (state === "working") {
-    const step = runningStep ?? digest.stepInMessages;
     if (step && digest.lastMessageAt !== undefined) {
       return { at: digest.lastMessageAt, kind: "step", text: step };
     }

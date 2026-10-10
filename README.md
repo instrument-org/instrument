@@ -37,10 +37,11 @@ The [issue tracker](https://github.com/instrument-org/instrument/issues) holds w
 Prerequisites: [.agents/setup.md](.agents/setup.md). Environment variables: [.agents/env.md](.agents/env.md).
 
 ```bash
-pnpm install
-./scripts/setup.sh
-pnpm run dev:studio
+pnpm studio   # run Studio
+pnpm sync     # pull the latest main
 ```
+
+Both get the checkout ready before anything else (dependencies, the `registry/` submodule, the Mac bridge, `apps/studio/.env.local`), so they are safe to run at any time, on a fresh clone or after a pull. The account and billing API that Studio signs in through runs from the `internal` repository, with `pnpm api` at its root.
 
 ## Dependencies
 

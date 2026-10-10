@@ -65,7 +65,7 @@ Route and modal commands go through `window.__studioDrive`, a handle the rendere
 node $DRIVE wait 'document.querySelectorAll("[data-slot]").length > 40'
 ```
 
-An instance this boots holds its main process and preload scripts at the bytes it started with, so another agent's edit under `electron-main/` or `packages/` no longer relaunches the app underneath a run. The cost is that a change you make there does not reach it: stop and boot again, or add `--hot` to the boot for a run that is iterating on main or testing reload behavior. A hand-started instance (`pnpm dev:studio`, the VS Code launch configs, port 48160) is unaffected and hot reloads everything.
+An instance this boots holds its main process and preload scripts at the bytes it started with, so another agent's edit under `electron-main/` or `packages/` no longer relaunches the app underneath a run. The cost is that a change you make there does not reach it: stop and boot again, or add `--hot` to the boot for a run that is iterating on main or testing reload behavior. A hand-started instance (`pnpm studio`, the VS Code launch configs, port 48160) is unaffected and hot reloads everything.
 
 Renderer HMR stays on, so any write under `src/client` — another agent's edit, a commit, a formatter — still rebuilds component state, and a change HMR cannot apply reloads the page and takes the state a run navigated to with it. When that has happened since the previous command, the next one says so on stderr:
 

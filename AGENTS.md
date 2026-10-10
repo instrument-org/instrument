@@ -130,7 +130,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `REVIEW.md` — Repo-specific code review calibration.
 - `.agents/skills/validate-changes/SKILL.md` — **How to check your work.** The ways to run this product (sandbox shell, real agent across models, the app), what each one can and cannot tell you, and which to reach for. Read this before concluding a change works.
 - `.agents/skills/instrument-commit-message/SKILL.md` — This repo's commit scopes and real examples from the history.
-- `.agents/setup.md` — Prerequisites before first `pnpm install` / `./scripts/setup.sh`.
+- `.agents/setup.md` — Prerequisites before the first `pnpm studio`.
 - `.agents/env.md` — Environment variables for Studio and workspace.
 - `docs/architecture/system-overview.md` — Top-level map: packages/layering, main-vs-renderer runtime topology, on-disk layout, and how an agent turn flows. Start here.
 - `docs/architecture/ai-gateway.md` — Model access: the mounted provider-proxy Hono app plus the model-discovery/identity library consumed by workspace and studio.

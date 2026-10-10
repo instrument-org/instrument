@@ -57,7 +57,7 @@
 // it is the half that pays for itself when the change is the run's own. Pass
 // `--hot` to boot an instance that reloads all three, for a run that is testing
 // reload behavior or iterating on main. A hand-started instance -- `pnpm dev`,
-// `pnpm dev:studio`, the VS Code launch configs, all of which sit on the
+// `pnpm studio`, the VS Code launch configs, all of which sit on the
 // conventional 48160 -- is untouched by this and hot reloads everything.
 //
 //   node studio-drive.mjs boot --hot --purpose "main process"

@@ -612,7 +612,7 @@ export function ComputerPage({
     try {
       await rpcClient.files.rename.call({ name, path: hostPath });
     } catch (error) {
-      fileActionFailed(`Couldn't rename “${item.name}”`, error);
+      fileActionFailed(`Couldn't rename “${item.name ?? item.path}”`, error);
       throw error;
     }
     // The thing renamed stays selected under its new name, so the column it

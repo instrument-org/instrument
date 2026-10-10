@@ -1,68 +1,32 @@
 import { getPlatformApiHeaders } from "@/electron-main/platform-api/headers";
-import { publisher } from "@/electron-main/rpc/publisher";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
+import {
+  getNoticesStore,
+  type NoticesStore,
+} from "@/electron-main/stores/machine/notices";
 import {
   type BellNotice,
   NoticeSchema,
   NoticesResponseSchema,
 } from "@/shared/notices";
 import { app } from "electron";
-import fs from "node:fs";
-import path from "node:path";
-import { z } from "zod";
 
 import { createScopedLogger } from "./electron-logger";
 
 const log = createScopedLogger("Notices");
 
-/** How often to ask when the service doesn't say. */
-const DEFAULT_POLL_SECONDS = 6 * 60 * 60;
-
 /** The least time between asks, whatever the service says. */
 const MIN_POLL_SECONDS = 15 * 60;
 
-/** How long dismissed and seen ids are kept, past which a notice is long gone. */
+/** How long a notice's marks are kept, past which it is long gone. */
 const FORGET_AFTER_MS = 180 * 24 * 60 * 60 * 1000;
 
-const StateSchema = z.object({
-  dismissed: z.record(z.string(), z.number()).default({}),
-  etag: z.string().optional(),
-  fetchedAt: z.number().default(0),
-  notices: z.array(NoticeSchema).default([]),
-  pollAfter: z.number().default(DEFAULT_POLL_SECONDS),
-  seen: z.record(z.string(), z.number()).default({}),
-  toasted: z.record(z.string(), z.number()).default({}),
-});
-
-type State = z.output<typeof StateSchema>;
+type Marks = NoticesStore["marks"][string];
 
 let pollTimer: NodeJS.Timeout | undefined;
 let inFlight: Promise<void> | undefined;
 // At most one toast per launch, whatever arrives.
 let toastedThisLaunch = false;
-
-function getStatePath() {
-  return path.join(app.getPath("userData"), "notices.json");
-}
-
-function readState(): State {
-  try {
-    return StateSchema.parse(
-      JSON.parse(fs.readFileSync(getStatePath(), "utf8")),
-    );
-  } catch {
-    return StateSchema.parse({});
-  }
-}
-
-function writeState(state: State) {
-  try {
-    fs.writeFileSync(getStatePath(), JSON.stringify(state, null, 2));
-  } catch (error) {
-    log.warn(new Error("Could not save the notices", { cause: error }));
-  }
-  publisher.publish("notices.updated", null);
-}
 
 /**
  * Which builds this one updates from: the release channel set on this Mac,
@@ -88,7 +52,7 @@ export function fetchNotices(): Promise<void> {
     if (!base) {
       return;
     }
-    const state = readState();
+    const store = getNoticesStore();
     const url = new URL("/notices", base);
     url.searchParams.set("version", app.getVersion());
     url.searchParams.set("platform", process.platform);
@@ -98,11 +62,11 @@ export function fetchNotices(): Promise<void> {
       const response = await fetch(url, {
         headers: {
           ...getPlatformApiHeaders(),
-          ...(state.etag ? { "if-none-match": state.etag } : {}),
+          ...(store.store.etag ? { "if-none-match": store.store.etag } : {}),
         },
       });
       if (response.status === 304) {
-        writeState({ ...state, fetchedAt: Date.now() });
+        store.set("fetchedAt", Date.now());
         return;
       }
       if (!response.ok) {
@@ -115,13 +79,16 @@ export function fetchNotices(): Promise<void> {
         const parsed = NoticeSchema.safeParse(raw);
         return parsed.success ? [parsed.data] : [];
       });
-      writeState({
-        ...state,
-        etag: response.headers.get("etag") ?? undefined,
+      const etag = response.headers.get("etag");
+      store.set({
+        ...(etag ? { etag } : {}),
         fetchedAt: Date.now(),
         notices,
         pollAfter: body.pollAfter,
       });
+      if (!etag) {
+        store.delete("etag");
+      }
     } catch (error) {
       log.warn(new Error("Could not fetch notices", { cause: error }));
     }
@@ -138,16 +105,19 @@ export function fetchNotices(): Promise<void> {
 export function startNotices() {
   const schedule = () => {
     clearTimeout(pollTimer);
-    const seconds = Math.max(MIN_POLL_SECONDS, readState().pollAfter);
+    const seconds = Math.max(
+      MIN_POLL_SECONDS,
+      getNoticesStore().get("pollAfter"),
+    );
     pollTimer = setTimeout(() => {
       void fetchNotices().then(schedule);
     }, seconds * 1000);
   };
   void fetchNotices().then(schedule);
   app.on("browser-window-focus", () => {
-    const state = readState();
-    const staleAfter = Math.max(MIN_POLL_SECONDS, state.pollAfter) * 1000;
-    if (Date.now() - state.fetchedAt > staleAfter) {
+    const { fetchedAt, pollAfter } = getNoticesStore().store;
+    const staleAfter = Math.max(MIN_POLL_SECONDS, pollAfter) * 1000;
+    if (Date.now() - fetchedAt > staleAfter) {
       void fetchNotices().then(schedule);
     }
   });
@@ -155,78 +125,66 @@ export function startNotices() {
 
 /** The notices the bell shows: not dismissed and not past their end. */
 export function listNotices(now = Date.now()): BellNotice[] {
-  const state = readState();
-  return state.notices
+  const { marks, notices } = getNoticesStore().store;
+  return notices
     .filter(
       (notice) =>
-        !(notice.id in state.dismissed) &&
+        !marks[notice.id]?.dismissedAt &&
         !(notice.endsAt && Date.parse(notice.endsAt) <= now),
     )
-    .map((notice) => ({ ...notice, seen: notice.id in state.seen }))
+    .map((notice) => ({ ...notice, seen: !!marks[notice.id]?.seenAt }))
     .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
 }
 
 export function dismissNotice(id: string) {
-  const state = readState();
-  writeState(
-    forgetOld({
-      ...state,
-      dismissed: { ...state.dismissed, [id]: Date.now() },
-    }),
-  );
+  mark([id], "dismissedAt");
 }
 
 /** Opening the bell has shown these, so their dot goes. */
 export function markNoticesSeen(ids: string[]) {
-  const state = readState();
-  const unseen = ids.filter((id) => !(id in state.seen));
-  if (unseen.length === 0) {
-    return;
+  const { marks } = getNoticesStore().store;
+  const unseen = ids.filter((id) => !marks[id]?.seenAt);
+  if (unseen.length > 0) {
+    mark(unseen, "seenAt");
   }
-  const now = Date.now();
-  writeState(
-    forgetOld({
-      ...state,
-      seen: {
-        ...state.seen,
-        ...Object.fromEntries(unseen.map((id) => [id, now])),
-      },
-    }),
-  );
 }
 
 /**
  * Whether the window may toast this notice now: it is loud enough, has never
- * been toasted, and nothing else has been toasted this launch. Saying yes
- * records it, so each notice toasts once, ever.
+ * been toasted or dismissed, and nothing else has been toasted this launch.
+ * Saying yes records it, so each notice toasts once, ever.
  */
 export function claimNoticeToast(id: string): boolean {
-  const state = readState();
-  const notice = state.notices.find((n) => n.id === id);
+  const { marks, notices } = getNoticesStore().store;
+  const notice = notices.find((n) => n.id === id);
   if (
     toastedThisLaunch ||
     !notice ||
     notice.severity === "info" ||
-    id in state.toasted ||
-    id in state.dismissed
+    marks[id]?.toastedAt ||
+    marks[id]?.dismissedAt
   ) {
     return false;
   }
   toastedThisLaunch = true;
-  writeState(
-    forgetOld({ ...state, toasted: { ...state.toasted, [id]: Date.now() } }),
-  );
+  mark([id], "toastedAt");
   return true;
 }
 
-function forgetOld(state: State): State {
-  const cutoff = Date.now() - FORGET_AFTER_MS;
-  const keep = (marks: Record<string, number>) =>
-    Object.fromEntries(Object.entries(marks).filter(([, at]) => at > cutoff));
-  return {
-    ...state,
-    dismissed: keep(state.dismissed),
-    seen: keep(state.seen),
-    toasted: keep(state.toasted),
-  };
+/**
+ * Stamps `key` now on each of these notices' marks, and drops the marks of
+ * any notice untouched for six months, which is long gone.
+ */
+function mark(ids: string[], key: keyof Marks) {
+  const store = getNoticesStore();
+  const now = Date.now();
+  const cutoff = now - FORGET_AFTER_MS;
+  const kept = Object.entries(store.get("marks")).filter(([, marks]) =>
+    Object.values(marks).some((at) => at > cutoff),
+  );
+  const marks: Record<string, Marks> = Object.fromEntries(kept);
+  for (const id of ids) {
+    marks[id] = { ...marks[id], [key]: now };
+  }
+  store.set("marks", marks);
 }

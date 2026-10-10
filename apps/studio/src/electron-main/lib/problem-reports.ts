@@ -1,16 +1,14 @@
 import { getPlatformApiHeaders } from "@/electron-main/platform-api/headers";
-import { publisher } from "@/electron-main/rpc/publisher";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
+import { getProblemsStore } from "@/electron-main/stores/machine/problems";
 import {
   type PendingProblem,
-  PendingProblemSchema,
   type ReportInput,
 } from "@/shared/problem-reports";
 import { app } from "electron";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
-import path from "node:path";
 import { z } from "zod";
 
 import { createScopedLogger, getMainLogFilePath } from "./electron-logger";
@@ -23,37 +21,13 @@ const LOG_TAIL_LINES = 30;
 /** How much of the log's end is read to find those lines. */
 const LOG_TAIL_BYTES = 16 * 1024;
 
-const PendingFileSchema = z.array(PendingProblemSchema);
-
-function getPendingPath() {
-  return path.join(app.getPath("userData"), "pending-problems.json");
-}
-
-/**
- * The problems from earlier sessions still waiting on the person: sent,
- * dismissed, or neither yet. Kept in a file of their own, so they outlive a
- * quit before anyone looked at the bell.
- */
+/** The problems from earlier sessions still waiting on the person. */
 export function listPendingProblems(): PendingProblem[] {
-  try {
-    const parsed = PendingFileSchema.safeParse(
-      JSON.parse(fs.readFileSync(getPendingPath(), "utf8")),
-    );
-    return parsed.success ? parsed.data : [];
-  } catch {
-    return [];
-  }
+  return getProblemsStore().get("pending");
 }
 
 function writePendingProblems(problems: PendingProblem[]) {
-  try {
-    fs.writeFileSync(getPendingPath(), JSON.stringify(problems, null, 2));
-  } catch (error) {
-    log.warn(
-      new Error("Could not save the pending problems", { cause: error }),
-    );
-  }
-  publisher.publish("problems.updated", null);
+  getProblemsStore().set("pending", problems);
 }
 
 /** Takes a problem off the list, sent or dismissed. */

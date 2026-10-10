@@ -3,14 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  clearPendingProblem,
-  describeProblem,
-  fingerprintOf,
-  listPendingProblems,
-  recordEndedSession,
-  stackSignature,
-} from "./problem-reports";
+import { type EndedSession } from "./problem-reports";
+
+// Loaded fresh for each test, so its store opens in that test's folder.
+let reports: typeof import("./problem-reports");
 
 const { publish, userData } = vi.hoisted(() => ({
   publish: vi.fn(),
@@ -42,8 +38,8 @@ const THROW = [
   "    at send (/Applications/Instrument.app/Contents/Resources/app.asar/out/main/mac-native-Bq3k9xZa.js:1:18234)",
 ].join("\n");
 
-const ended = (overrides: Partial<Parameters<typeof recordEndedSession>[0]>) =>
-  recordEndedSession({
+const ended = (overrides: Partial<EndedSession>) =>
+  reports.recordEndedSession({
     crashRecord: undefined,
     dumps: 0,
     endedAt: 1_000,
@@ -53,8 +49,10 @@ const ended = (overrides: Partial<Parameters<typeof recordEndedSession>[0]>) =>
   });
 
 describe("problem reports", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     userData.dir = fs.mkdtempSync(path.join(os.tmpdir(), "problem-reports-"));
+    vi.resetModules();
+    reports = await import("./problem-reports");
     return () => {
       fs.rmSync(userData.dir, { force: true, recursive: true });
     };
@@ -63,13 +61,13 @@ describe("problem reports", () => {
   it("leaves a session that exited normally out of the bell, whatever it survived", () => {
     ended({ crashRecord: THROW, dumps: 2, unclean: false });
 
-    expect(listPendingProblems()).toEqual([]);
+    expect(reports.listPendingProblems()).toEqual([]);
   });
 
   it("calls a session that never exited with a throw on record a crash, titled by the throw", () => {
     ended({ crashRecord: THROW });
 
-    const [problem] = listPendingProblems();
+    const [problem] = reports.listPendingProblems();
     expect(problem).toMatchObject({
       count: 1,
       kind: "crash",
@@ -84,7 +82,7 @@ describe("problem reports", () => {
   it("calls a session that never exited with only a crash dump a crash", () => {
     ended({ dumps: 1 });
 
-    expect(listPendingProblems()[0]).toMatchObject({
+    expect(reports.listPendingProblems()[0]).toMatchObject({
       kind: "crash",
       title: "Instrument quit unexpectedly",
     });
@@ -93,7 +91,7 @@ describe("problem reports", () => {
   it("calls a session that never exited with nothing on record a hang", () => {
     ended({});
 
-    expect(listPendingProblems()[0]).toMatchObject({
+    expect(reports.listPendingProblems()[0]).toMatchObject({
       kind: "hang",
       title: "Instrument didn't close properly",
     });
@@ -109,18 +107,18 @@ describe("problem reports", () => {
       endedAt: 2_000,
     });
 
-    expect(listPendingProblems()).toMatchObject([
+    expect(reports.listPendingProblems()).toMatchObject([
       { count: 2, firstAt: 1_000, lastAt: 2_000 },
     ]);
   });
 
   it("takes a problem off the list once it's sent or dismissed", () => {
     ended({});
-    const [problem] = listPendingProblems();
+    const [problem] = reports.listPendingProblems();
 
-    clearPendingProblem(problem?.fingerprint ?? "");
+    reports.clearPendingProblem(problem?.fingerprint ?? "");
 
-    expect(listPendingProblems()).toEqual([]);
+    expect(reports.listPendingProblems()).toEqual([]);
     expect(publish).toHaveBeenCalledWith("problems.updated", null);
   });
 
@@ -129,13 +127,13 @@ describe("problem reports", () => {
       .replace("Bq3k9xZa", "Lm22pQrT")
       .replace("2026-10-09T16:12:04.000Z", "2026-10-11T08:00:00.000Z");
 
-    expect(fingerprintOf(stackSignature(later), "crash")).toBe(
-      fingerprintOf(stackSignature(THROW), "crash"),
+    expect(reports.fingerprintOf(reports.stackSignature(later), "crash")).toBe(
+      reports.fingerprintOf(reports.stackSignature(THROW), "crash"),
     );
   });
 
   it("writes the home folder as ~ in what it sends", () => {
-    const details = describeProblem({
+    const details = reports.describeProblem({
       error: `Error: ENOENT: open '${os.homedir()}/Documents/notes.md'`,
       surface: "route-error",
     });

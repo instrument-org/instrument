@@ -15,6 +15,7 @@ import { Route as DebugRouteRouteImport } from './routes/debug/route'
 import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
 import { Route as AppBrowserRouteImport } from './routes/_app/browser'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
+import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as DebugIndexRouteImport } from './routes/debug/index'
 import { Route as DebugBrowserViewsRouteImport } from './routes/debug/browser-views'
@@ -79,6 +80,11 @@ const AppBrowserRoute = AppBrowserRouteImport.update({
 const AppFilesRoute = AppFilesRouteImport.update({
   id: '/files',
   path: '/files',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppNewTabRoute = AppNewTabRouteImport.update({
+  id: '/new-tab',
+  path: '/new-tab',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
@@ -282,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/browser': typeof AppBrowserRoute
   '/files': typeof AppFilesRoute
+  '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/debug/browser-views': typeof DebugBrowserViewsRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
@@ -323,6 +330,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/browser': typeof AppBrowserRoute
   '/files': typeof AppFilesRoute
+  '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/debug/browser-views': typeof DebugBrowserViewsRoute
   '/debug/errors': typeof DebugErrorsRoute
@@ -366,6 +374,7 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/_app/browser': typeof AppBrowserRoute
   '/_app/files': typeof AppFilesRoute
+  '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
   '/debug/browser-views': typeof DebugBrowserViewsRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
@@ -411,6 +420,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/browser'
     | '/files'
+    | '/new-tab'
     | '/release-notes'
     | '/debug/browser-views'
     | '/debug/components'
@@ -452,6 +462,7 @@ export interface FileRouteTypes {
     | '/'
     | '/browser'
     | '/files'
+    | '/new-tab'
     | '/release-notes'
     | '/debug/browser-views'
     | '/debug/errors'
@@ -494,6 +505,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/_app/browser'
     | '/_app/files'
+    | '/_app/new-tab'
     | '/_app/release-notes'
     | '/debug/browser-views'
     | '/debug/components'
@@ -581,6 +593,13 @@ declare module '@tanstack/react-router' {
       path: '/files'
       fullPath: '/files'
       preLoaderRoute: typeof AppFilesRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/new-tab': {
+      id: '/_app/new-tab'
+      path: '/new-tab'
+      fullPath: '/new-tab'
+      preLoaderRoute: typeof AppNewTabRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/release-notes': {
@@ -841,6 +860,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteRouteChildren {
   AppBrowserRoute: typeof AppBrowserRoute
   AppFilesRoute: typeof AppFilesRoute
+  AppNewTabRoute: typeof AppNewTabRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppAppsSlugRoute: typeof AppAppsSlugRoute
   AppChatsIdRoute: typeof AppChatsIdRoute
@@ -854,6 +874,7 @@ interface AppRouteRouteChildren {
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppBrowserRoute: AppBrowserRoute,
   AppFilesRoute: AppFilesRoute,
+  AppNewTabRoute: AppNewTabRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppAppsSlugRoute: AppAppsSlugRoute,
   AppChatsIdRoute: AppChatsIdRoute,

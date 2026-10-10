@@ -5,6 +5,7 @@ import {
   BROWSER_HREF,
   chatGroupAtom,
   CHATS_HREF,
+  NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
 import { freshTabId } from "@/client/lib/tab-actions";
@@ -29,7 +30,7 @@ import { atom, useAtom, useAtomValue } from "jotai";
 
 import { chatOfGroup, chatOfHref, parseHref } from "./window-href";
 
-/** The chat with no chat open: the inbox, and where every new tab opens. */
+/** The chat with no chat open: the inbox, and where a tab opens when the last one closes. */
 export const INBOX_HREF = "/chats";
 
 /** The route of the sites opened at the window's own level, each followed by the id its page group is kept under. */
@@ -218,13 +219,21 @@ export function useAppTabs() {
     goToPlace: (place: AppPlace, { behind = false, newTab = false } = {}) => {
       go(placeHrefOf(place, lastChat), { behind, newTab });
     },
-    /** A new tab of the place the tab up stands in, or of the chat outside any place. */
     model,
     navigate,
     open,
+    /** A new tab, its menu ready to go back to the place the tab up stands in, or the chat outside any place. */
     openNewTab: () => {
       const href = hrefOfSelected();
-      open(placeHrefOf(placeOfHref(href) ?? "chat", null));
+      const { pathname, search } = parseHref(href);
+      // From a new tab, the next one goes back where that one would.
+      open(
+        newTabHrefFrom(
+          pathname === NEW_TAB_HREF
+            ? newTabOrigin(search)
+            : (placeOfHref(href) ?? "chat"),
+        ),
+      );
     },
     reopen: () => {
       setModel((current) => reopenClosed(current, { id: freshTabId() }));
@@ -247,6 +256,24 @@ export function useAppTabs() {
       setModel((current) => selectAdjacent(current, { delta }));
     },
   };
+}
+
+/** The new tab's address, carrying the place it was opened from. */
+function newTabHrefFrom(place: AppPlace): string {
+  return `${NEW_TAB_HREF}?${new URLSearchParams({ from: place })}`;
+}
+
+/** The place a new tab was opened from, which its menu goes back to on Return; the chat when it says none. */
+export function newTabOrigin(search: URLSearchParams): AppPlace {
+  const from = search.get("from");
+  return from === "apps" || from === "browser" || from === "files"
+    ? from
+    : "chat";
+}
+
+/** Where a new tab goes for a place: as the rail would take it, with the chat at the inbox. */
+export function placeStartHref(place: AppPlace): string {
+  return placeHrefOf(place, null);
 }
 
 /**

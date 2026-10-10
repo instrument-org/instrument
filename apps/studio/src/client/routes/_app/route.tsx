@@ -7,6 +7,7 @@ import {
   CHATS_HREF,
   inboxOpenAtom,
   inboxWidthAtom,
+  NEW_TAB_HREF,
   paneOpenByGroupAtom,
   screenViewsAtom,
   walkedFoldersAtom,
@@ -51,6 +52,7 @@ import { TabLocationRow } from "@/client/components/window/tab-location-row";
 import {
   chatOfHref,
   chatSessionOfHref,
+  parseHref,
 } from "@/client/components/window/window-href";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
@@ -452,8 +454,10 @@ function RouteScreen({ href }: { href: string }) {
       : fromHref;
   // The apps' catalog is a place you arrive at from the rail, with nothing
   // above it to walk back up to and nothing to type an address for: a row
-  // there would only offer to leave for the web.
-  const hasLocationRow = location.kind !== "apps";
+  // there would only offer to leave for the web. A new tab's own menu takes
+  // addresses, so a row over it would be a second field.
+  const hasLocationRow =
+    location.kind !== "apps" && parseHref(href).pathname !== NEW_TAB_HREF;
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {hasLocationRow && (

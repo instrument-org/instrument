@@ -7,7 +7,6 @@ import { TASK_FOLDER_NAMES } from "../constants";
 import { FileUpload } from "../schemas/file-upload";
 import { type ChatDir, ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { getChatState } from "./chat-record";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
 const CONTENT = "a photo, as far as the copy is concerned";
@@ -38,24 +37,6 @@ async function attach(files: FileUpload.Type[]) {
     throw result.error;
   }
   return result.value.part.data.files;
-}
-
-async function attachFolder(folderPath: string) {
-  const result = await writeUploadedAttachments({
-    dir,
-    folders: [{ path: folderPath }],
-    messageId: StoreId.newMessageId(),
-    sessionId: StoreId.newSessionId(),
-  });
-  if (result.isErr()) {
-    throw result.error;
-  }
-  return result.value.part.data.folders ?? [];
-}
-
-async function folderState() {
-  const state = await getChatState(dir);
-  return Object.values(state.attachedFolders ?? {});
 }
 
 // Writes `content` at `filePath` and describes it the way the composer does.
@@ -129,34 +110,5 @@ describe("writeUploadedAttachments", () => {
     expect(attached?.filePath).toBe(
       `${TASK_FOLDER_NAMES.attachments}/photo-1.jpg`,
     );
-  });
-
-  describe("attached folders", () => {
-    // The user sends a folder to work in; what a task may do there is the
-    // conversation's to decide when it hands the folder over.
-    it("attaches a sent folder read and write", async () => {
-      const notes = path.join(root, "Notes");
-      await fs.mkdir(notes);
-
-      await attachFolder(notes);
-      const attached = await folderState();
-
-      expect(attached.map((folder) => folder.access)).toEqual(["read-write"]);
-    });
-
-    // A second mount over one directory would give the agent two names for
-    // one folder.
-    it("keeps one attachment for a folder sent twice", async () => {
-      const notes = path.join(root, "Notes");
-      await fs.mkdir(notes);
-
-      await attachFolder(notes);
-      const first = await folderState();
-      const announced = await attachFolder(notes);
-      const second = await folderState();
-
-      expect(second).toEqual(first);
-      expect(announced).toEqual([]);
-    });
   });
 });

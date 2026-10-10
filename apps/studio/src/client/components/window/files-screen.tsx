@@ -342,7 +342,7 @@ export function FilesScreen({
   // How the agent reaches the file, when a granted folder covers it: the one
   // thing the conversation is told about the file that the person is not.
   const activeMount = activeFile
-    ? mountOfHostPath(activeFile.hostPath, reach.data?.attachedFolders ?? {})
+    ? mountOfHostPath(activeFile.hostPath, reach.data?.folders ?? {})
     : undefined;
 
   useWalkedFolder(

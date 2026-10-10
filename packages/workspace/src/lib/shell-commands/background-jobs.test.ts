@@ -52,7 +52,6 @@ describe("background job commands", () => {
       sessionId,
       signal: new AbortController().signal,
       chatId,
-      taskState: { browserTabs: [] },
     });
     return result._unsafeUnwrap();
   }

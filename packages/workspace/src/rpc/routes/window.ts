@@ -25,7 +25,7 @@ import { publisher } from "../publisher";
 const ensure = base
   .output(
     z.object({
-      attachedFolders: z.record(z.string(), FolderAttachment.Schema),
+      folders: z.record(z.string(), FolderAttachment.Schema),
     }),
   )
   .handler(async ({ context }) => {
@@ -39,7 +39,7 @@ const ensure = base
           error instanceof Error ? error : new Error(String(error)),
         );
       });
-    return { attachedFolders: await folderReach(WINDOW_ID) };
+    return { folders: await folderReach(WINDOW_ID) };
   });
 
 /**

@@ -3,16 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
-import {
-  AbsolutePathSchema,
-  ChatDirSchema,
-  WorkspaceFilePathSchema,
-} from "../schemas/paths";
+import { WorkspaceFilePathSchema } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { getCurrentFileInfo } from "./get-file-info";
-import { setChatState } from "./chat-record";
+import { grantFolder } from "./chat/grants";
 
 describe("getCurrentFileInfo", () => {
   let mountedModifiedAt: number;
@@ -35,18 +30,7 @@ describe("getCurrentFileInfo", () => {
     taskModifiedAt = taskStats.mtimeMs;
     mountedModifiedAt = mountedStats.mtimeMs;
 
-    await setChatState(ChatDirSchema.parse(taskRoot), {
-      attachedFolders: {
-        photos: {
-          access: "read-only",
-          createdAt: 0,
-          id: FolderAttachment.IdSchema.parse("photos-id"),
-          mountName: "Photos",
-          path: AbsolutePathSchema.parse(photosRoot),
-          source: "user",
-        },
-      },
-    });
+    await grantFolder({ chatId, path: photosRoot, source: "attached" });
   });
 
   afterEach(async () => {

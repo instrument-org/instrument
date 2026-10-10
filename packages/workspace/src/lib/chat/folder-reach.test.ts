@@ -3,17 +3,15 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { FolderAttachment } from "../../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { WINDOW_ID } from "../../schemas/window-id";
-import { type ChatState } from "../../schemas/chat-state";
+import { type ChatGrant } from "../../schemas/chat-settings";
 import { folderReach } from "./folder-reach";
 import { type Topic } from "./topics";
 
 const world = vi.hoisted(() => ({
-  isChat: true,
   missing: new Set<string>(),
   tagged: [] as string[],
   topics: [] as Topic[],
@@ -21,8 +19,6 @@ const world = vi.hoisted(() => ({
 
 vi.mock(import("../record-folders"), async (importOriginal) => ({
   ...(await importOriginal()),
-  resolveChat: (id: string) =>
-    world.isChat ? ChatIdSchema.parse(id) : undefined,
   sessionOfChat: () => StoreId.newSessionId(),
 }));
 vi.mock(import("../store"), () => ({
@@ -43,38 +39,17 @@ const home = os.homedir();
 const workspace = path.join(home, "Documents", "Instrument");
 const elsewhere = path.resolve(path.sep, "Volumes", "Archive");
 
-function held(
-  ...folders: {
-    access?: FolderAttachment.Access;
-    createdAt: number;
-    mountName?: string;
-    path: string;
-  }[]
-): ChatState {
-  return {
-    browserTabs: [],
-    attachedFolders: Object.fromEntries(
-      folders.map((folder) => {
-        const mountName = folder.mountName ?? path.basename(folder.path);
-        return [
-          mountName,
-          {
-            access: folder.access ?? "read-write",
-            createdAt: folder.createdAt,
-            id: FolderAttachment.IdSchema.parse(`held-${mountName}`),
-            mountName,
-            path: AbsolutePathSchema.parse(folder.path),
-            source: "user",
-          },
-        ];
-      }),
-    ),
-  };
+function granted(...grants: { at: number; path: string }[]): ChatGrant[] {
+  return grants.map((grant) => ({
+    grantedAt: new Date(grant.at),
+    path: AbsolutePathSchema.parse(grant.path),
+    source: "attached",
+  }));
 }
 
 /** Each mount the agent sees, by name, with the folder behind it. */
-async function reach(state: ChatState) {
-  const folders = await folderReach(chatId, state);
+async function reach(grants: ChatGrant[]) {
+  const folders = await folderReach(chatId, grants);
   return Object.entries(folders).map(
     ([mountName, folder]) => `${mountName} ${folder.path}`,
   );
@@ -90,23 +65,13 @@ function topic(name: string, folders: string[]): Topic {
 }
 
 beforeEach(() => {
-  world.isChat = true;
   world.missing = new Set();
   world.topics = [];
   world.tagged = [];
 });
 
 describe("folderReach", () => {
-  it("is what a task was handed, and nothing more", async () => {
-    world.isChat = false;
-
-    expect(await reach(held({ createdAt: 1, path: elsewhere }))).toEqual([
-      `Archive ${elsewhere}`,
-    ]);
-  });
-
   it("gives the window the home and workspace folders alone", async () => {
-    world.isChat = false;
     world.tagged = ["top_Trips"];
     world.topics = [topic("Trips", [elsewhere])];
 
@@ -116,7 +81,7 @@ describe("folderReach", () => {
   });
 
   it("gives a chat that holds nothing the home and workspace folders", async () => {
-    const folders = await folderReach(chatId, { browserTabs: [] });
+    const folders = await folderReach(chatId, []);
 
     expect(
       Object.values(folders).map(({ access, path: folderPath }) => ({
@@ -136,7 +101,7 @@ describe("folderReach", () => {
     world.tagged = ["top_Cooking"];
     world.missing = new Set([gone]);
 
-    const mounts = await reach(held({ createdAt: 1, path: elsewhere }));
+    const mounts = await reach(granted({ at: 1, path: elsewhere }));
 
     // The sent folder and the topic's copy of it are one mount.
     expect(mounts.slice(2)).toEqual([
@@ -152,7 +117,7 @@ describe("folderReach", () => {
     world.topics = [topic("History", [otherArchive])];
     world.tagged = ["top_History"];
 
-    const mounts = await reach(held({ createdAt: 1, path: elsewhere }));
+    const mounts = await reach(granted({ at: 1, path: elsewhere }));
 
     expect(mounts.slice(2)).toEqual([
       `Archive ${elsewhere}`,
@@ -160,39 +125,40 @@ describe("folderReach", () => {
     ]);
   });
 
-  // The chat's messages name a sent folder by the name it arrived under.
-  it("keeps the name a sent folder was given", async () => {
-    const mounts = await reach(
-      held({ createdAt: 1, mountName: "My archive", path: elsewhere }),
+  // A path the chat already used never moves: whichever was granted first
+  // keeps the plain name, in whatever order the grants are listed, and only
+  // the later namesake is qualified.
+  it("qualifies only the later of two grants that share a name", async () => {
+    const otherArchive = path.resolve(path.sep, "Volumes", "Old", "Archive");
+
+    const before = await reach(granted({ at: 1, path: elsewhere }));
+    const after = await reach(
+      granted({ at: 2, path: otherArchive }, { at: 1, path: elsewhere }),
     );
 
-    expect(mounts.slice(2)).toEqual([`My archive ${elsewhere}`]);
+    expect(before.slice(2)).toEqual([`Archive ${elsewhere}`]);
+    expect(after.slice(2)).toEqual([
+      `Archive ${elsewhere}`,
+      `Old-Archive ${otherArchive}`,
+    ]);
   });
 
-  // An older chat may hold another folder under a standing folder's name;
-  // its messages mean that folder by it.
-  it("lets a folder on the record keep a name a standing folder would take", async () => {
-    const mounts = await reach(
-      held({ createdAt: 1, mountName: "Instrument", path: elsewhere }),
-    );
+  it("leaves a grant's name to a standing folder that holds it", async () => {
+    const other = path.resolve(path.sep, "Volumes", "Work", "Instrument");
 
-    expect(mounts).toContain(`Instrument ${elsewhere}`);
-    expect(mounts).toContain(`Instrument-2 ${workspace}`);
-  });
+    const mounts = await reach(granted({ at: 1, path: other }));
 
-  it("reaches a folder sent read-only to read and write", async () => {
-    const folders = await folderReach(
-      chatId,
-      held({ access: "read-only", createdAt: 1, path: elsewhere }),
-    );
-
-    expect(folders.Archive?.access).toBe("read-write");
+    expect(mounts).toEqual([
+      expect.stringContaining(home),
+      `Instrument ${workspace}`,
+      `Work-Instrument ${other}`,
+    ]);
   });
 
   it("drops a topic's folders once the chat is no longer filed under it", async () => {
     world.topics = [topic("Cooking", [elsewhere])];
     world.tagged = [];
 
-    expect(await reach({ browserTabs: [] })).toHaveLength(2);
+    expect(await reach([])).toHaveLength(2);
   });
 });

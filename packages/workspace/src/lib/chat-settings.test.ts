@@ -60,14 +60,14 @@ describe("updateChatSettings", () => {
 
   // The two views share one file, so each has to leave the other's half alone.
   it("leaves the state alone", async () => {
-    await setChatState(chatDir(chatId), { selectedModelURI: "half typed" });
+    await setChatState(chatDir(chatId), { appGuidesRead: ["half typed"] });
 
     await updateChatSettings(chatId, { name: "Renamed" });
 
     const state = await getChatState(chatDir(chatId));
     const settings = await getChatSettings(chatDir(chatId));
 
-    expect(state.selectedModelURI).toBe("half typed");
+    expect(state.appGuidesRead).toEqual(["half typed"]);
     expect(settings?.name).toBe("Renamed");
   });
 

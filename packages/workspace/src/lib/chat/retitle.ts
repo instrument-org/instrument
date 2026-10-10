@@ -1,4 +1,4 @@
-import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
+import { fetchModel } from "@instrument-org/ai-gateway";
 import { alphabetical } from "radashi";
 
 import { publisher } from "../../rpc/publisher";
@@ -12,8 +12,7 @@ import {
 } from "../generate-title-from-user-message";
 import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { Store } from "../store";
-import { chatDir } from "../record-folders";
-import { getChatState } from "../chat-record";
+import { chatModelURI } from "../chat-settings";
 import { chatConversation } from "./children";
 import { updateSessionTitle } from "../update-session-title";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -87,15 +86,15 @@ export async function retitleChat({
   ) {
     return currentTitle;
   }
-  const state = await getChatState(chatDir(id));
-  if (!state.selectedModelURI) {
+  const modelURI = await chatModelURI(id);
+  if (!modelURI) {
     return undefined;
   }
   const model = await fetchModel({
     captureException: workspaceConfig.captureException,
     configs: workspaceConfig.getAIProviderConfigs(),
     modelCache: workspaceConfig.modelCache,
-    modelURI: AIGatewayModelURI.Schema.parse(state.selectedModelURI),
+    modelURI,
   });
   if (!model.ok) {
     return undefined;

@@ -42,74 +42,23 @@ async function writeStateFile(state: unknown): Promise<void> {
 }
 
 describe("getChatState", () => {
-  // A task attached before the rename has `name` on disk. This read swallows
-  // every parse failure and answers with empty state, so getting it wrong would
-  // not raise anything: the folders would simply stop being mounted, in a task
-  // whose sidebar still lists them.
-  it("keeps the folders of a task written before the rename", async () => {
-    await writeStateFile({
-      attachedFolders: {
-        "Home-Downloads": {
-          access: "read-write",
-          createdAt: 1_718_198_400_000,
-          id: "01KZ9NPNZZPQF80Z7A7DG4Z5BN",
-          name: "Home-Downloads",
-          path: "/Users/sam/Downloads",
-          source: "user",
-        },
-      },
-      selectedModelURI: "instrument/auto",
-    });
-
-    const state = await getChatState(chatDir(chatId));
-
-    expect(state.attachedFolders?.["Home-Downloads"]).toMatchObject({
-      access: "read-write",
-      mountName: "Home-Downloads",
-      path: "/Users/sam/Downloads",
-    });
-  });
-
   it("reads back what it writes", async () => {
-    await setChatState(chatDir(chatId), {
-      attachedFolders: {
-        Downloads: {
-          access: "read-only",
-          createdAt: 1_718_198_400_000,
-          id: "01KZ9NPNZZPQF80Z7A7DG4Z5BN" as never,
-          mountName: "Downloads",
-          path: "/Users/sam/Downloads" as never,
-          source: "user",
-        },
-      },
-    });
+    await setChatState(chatDir(chatId), { appGuidesRead: ["github"] });
 
     const state = await getChatState(chatDir(chatId));
 
-    expect(state.attachedFolders?.Downloads?.mountName).toBe("Downloads");
+    expect(state.appGuidesRead).toEqual(["github"]);
   });
 
-  // Reading tolerates the old field; writing must not carry it back out, or the
-  // record would keep both names alive indefinitely.
-  it("writes only the current field name back to disk", async () => {
-    await writeStateFile({
-      attachedFolders: {
-        "Home-Downloads": {
-          access: "read-write",
-          createdAt: 1_718_198_400_000,
-          id: "01KZ9NPNZZPQF80Z7A7DG4Z5BN",
-          name: "Home-Downloads",
-          path: "/Users/sam/Downloads",
-          source: "user",
-        },
-      },
-    });
+  // A field this build cannot read is carried forward by the next write
+  // rather than dropped by it.
+  it("keeps a state field it does not know", async () => {
+    await writeStateFile({ fromANewerBuild: true });
 
-    await setChatState(chatDir(chatId), { selectedModelURI: "anything" });
+    await setChatState(chatDir(chatId), { appGuidesRead: ["github"] });
 
     const written = await fs.readFile(recordFilePath(), "utf8");
-    expect(written).toContain('"mountName": "Home-Downloads"');
-    expect(written).not.toContain('"name": "Home-Downloads"');
+    expect(written).toContain('"fromANewerBuild": true');
   });
 });
 
@@ -124,13 +73,13 @@ describe("the state beside the settings", () => {
 
     await Promise.all([
       updateChatSettings(chatId, { name: "Generated title" }),
-      setChatState(chatDir(chatId), { selectedModelURI: "half a thought" }),
+      setChatState(chatDir(chatId), { appGuidesRead: ["half a thought"] }),
     ]);
 
     const settings = await getChatSettings(chatDir(chatId));
     const state = await getChatState(chatDir(chatId));
 
     expect(settings?.name).toBe("Generated title");
-    expect(state.selectedModelURI).toBe("half a thought");
+    expect(state.appGuidesRead).toEqual(["half a thought"]);
   });
 });

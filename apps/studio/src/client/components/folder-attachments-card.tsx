@@ -22,7 +22,7 @@ import { Button } from "./ui/button";
 export function FolderAttachmentsCard({
   folders,
 }: {
-  folders: SessionMessageDataPart.FolderAttachmentDataPart[];
+  folders: SessionMessageDataPart.SentFolderDataPart[];
 }) {
   return (
     <div className="flex w-full justify-end">
@@ -31,7 +31,7 @@ export function FolderAttachmentsCard({
           is one list, not a card each. */}
       <div className="flex w-fit max-w-[80%] min-w-64 flex-col divide-y divide-black/5 overflow-hidden rounded-lg bg-background shadow-xs dark:divide-white/6">
         {folders.map((folder) => (
-          <FolderAttachmentPreview folder={folder} key={folder.id} />
+          <FolderAttachmentPreview folder={folder} key={folder.path} />
         ))}
       </div>
     </div>
@@ -41,7 +41,7 @@ export function FolderAttachmentsCard({
 function FolderAttachmentPreview({
   folder,
 }: {
-  folder: SessionMessageDataPart.FolderAttachmentDataPart;
+  folder: SessionMessageDataPart.SentFolderDataPart;
 }) {
   // Opened where the surface opens files, which in a chat is the chat's own
   // tabs; a surface with nowhere to open it shows the folder in Finder.

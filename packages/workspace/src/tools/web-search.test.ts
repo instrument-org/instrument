@@ -326,7 +326,6 @@ describe("WebSearch execution", () => {
         model,
         signal: new AbortController().signal,
         chatId,
-        taskState: { browserTabs: [] },
       });
 
       expect(result._unsafeUnwrap()).toEqual({

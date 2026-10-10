@@ -5,8 +5,8 @@ import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 
 export function ModelPreview({ id }: { id: ChatId }) {
-  const { data: taskState } = useQuery(
-    rpcClient.workspace.chats.state.get.queryOptions({
+  const { data: chatInfo } = useQuery(
+    rpcClient.workspace.chats.live.info.experimental_liveOptions({
       input: { id },
     }),
   );
@@ -15,11 +15,11 @@ export function ModelPreview({ id }: { id: ChatId }) {
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
 
-  if (!taskState?.selectedModelURI) {
+  if (!chatInfo?.modelURI) {
     return <span className="text-xs text-muted-foreground">No model</span>;
   }
 
-  const selectedModelURI = taskState.selectedModelURI;
+  const selectedModelURI = chatInfo.modelURI;
   const models = modelsResponse?.models ?? [];
 
   const matchedModel = models.find((model) => model.uri === selectedModelURI);

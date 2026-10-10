@@ -112,7 +112,6 @@ describe("WebFetch model output", () => {
       partId: StoreId.newPartId(),
       signal: AbortSignal.timeout(10_000),
       chatId,
-      taskState: { browserTabs: [] },
     });
 
     const output = result._unsafeUnwrap();
@@ -148,7 +147,6 @@ describe("WebFetch model output", () => {
       partId,
       signal: AbortSignal.timeout(10_000),
       chatId,
-      taskState: { browserTabs: [] },
     });
     const output = result._unsafeUnwrap();
     expect(output.state).toBe("success");
@@ -187,7 +185,6 @@ describe("WebFetch failures", () => {
       partId: StoreId.newPartId(),
       signal: AbortSignal.timeout(10_000),
       chatId,
-      taskState: { browserTabs: [] },
     });
     const output = result._unsafeUnwrap();
     if (output.state !== "failure") {
@@ -278,7 +275,6 @@ describe("WebFetch page cache", () => {
         partId: StoreId.newPartId(),
         signal: AbortSignal.timeout(10_000),
         chatId,
-        taskState: { browserTabs: [] },
       });
       return result._unsafeUnwrap();
     };
@@ -388,7 +384,6 @@ describe("WebFetch addresses", () => {
       partId: StoreId.newPartId(),
       signal: AbortSignal.timeout(10_000),
       chatId,
-      taskState: { browserTabs: [] },
     });
     return result._unsafeUnwrap();
   }

@@ -145,9 +145,9 @@ export const GenerateImage = setupTool({
       configs: getWorkspaceConfig().getAIProviderConfigs(),
     })}
   `,
-  async *execute({ input, model, sessionId, signal, chatId, taskState }) {
+  async *execute({ input, model, sessionId, signal, chatId }) {
     const layout = buildWorkspaceFsLayout({
-      attachedFolders: await folderReach(chatId, taskState),
+      attachedFolders: await folderReach(chatId),
       taskHostRoot: workDir(chatId),
     });
     const filePathResult = resolveWritableToolPath({

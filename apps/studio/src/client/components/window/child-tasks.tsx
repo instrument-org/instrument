@@ -181,13 +181,8 @@ function EffortChip({ chatInfo }: { chatInfo: ChatInfo }) {
   const models = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
-  const state = useQuery(
-    rpcClient.workspace.chats.state.get.queryOptions({
-      input: { id: chatInfo.id },
-    }),
-  );
   const model = models.data?.models.find(
-    (entry) => entry.uri === state.data?.selectedModelURI,
+    (entry) => entry.uri === chatInfo.modelURI,
   );
   const fromModel = model ? catalogEffort(model) : undefined;
   const effort = chatInfo.reasoningEffort ?? fromModel;
@@ -252,18 +247,23 @@ function TaskBrief({
   taskSession: StoreId.Session;
 }) {
   const chatId = chatInfo.id;
+  const reach = useQuery(
+    rpcClient.workspace.chats.folders.get.queryOptions({
+      input: { id: chatId },
+    }),
+  );
   const state = useQuery(
-    rpcClient.workspace.chats.state.get.queryOptions({ input: { id: chatId } }),
+    rpcClient.workspace.chats.state.queryOptions({ input: { id: chatId } }),
   );
   // The workspace folder is every task's, so only the ones its chat was
   // handed besides are worth a chip.
-  const folders = Object.values(state.data?.attachedFolders ?? {}).filter(
+  const folders = Object.values(reach.data ?? {}).filter(
     (folder) => !isOutputFolder(folder.path),
   );
   // The chat's tabs this task drives.
   const heldTabs = (state.data?.browserTabs ?? []).flatMap((held) => {
     const decoded = decodeBrowserTargetId(held.id);
-    return decoded && held.sessionId === taskSession ? [decoded.sessionId] : [];
+    return decoded && held.driver === taskSession ? [decoded.sessionId] : [];
   });
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-4 py-2 text-xs">

@@ -290,11 +290,8 @@ describe("migrateLegacyTasks", () => {
       lastActivityAt: "2026-06-23T21:48:33.119Z",
       name: "Rotating red square video",
     });
-    // The task held no folders, so neither does the chat.
-    expect(
-      (settings.state as { attachedFolders: Record<string, unknown> })
-        .attachedFolders,
-    ).toEqual({});
+    // The task held no folders, so the chat holds no grants.
+    expect(settings.grants).toEqual([]);
     const session = sessionOf(chat);
     expect(settings.chatSessionId).toBe(session.id);
     expect(session).toMatchObject({
@@ -349,7 +346,7 @@ describe("migrateLegacyTasks", () => {
     expect(sessionOf("2026-06-23-by-hand").unreadByUser).toBe(true);
   });
 
-  it("gives the chat the task's folders, so a reply's /mnt paths reach the same files", () => {
+  it("grants the chat the task's folders", () => {
     legacyTask("2026-06-23-make-me-a-bike", {
       sessions: [
         {
@@ -397,22 +394,20 @@ describe("migrateLegacyTasks", () => {
     migrateLegacyTasks(root);
 
     const chat = "2026-06-23-bike";
-    const folders = (
-      readJson("chats", chat, ".instrument", "settings.json").state as {
-        attachedFolders: Record<string, { path: string; source: string }>;
-      }
-    ).attachedFolders;
     expect(
-      Object.fromEntries(
-        Object.entries(folders).map(([mount, folder]) => [
-          folder.path,
-          `${mount} (${folder.source})`,
-        ]),
-      ),
-    ).toEqual({
-      "/Users/someone": "Me (user)",
-      "/Users/someone/Documents/bikes": "My bikes (user)",
-    });
+      readJson("chats", chat, ".instrument", "settings.json").grants,
+    ).toEqual([
+      {
+        grantedAt: new Date(2).toISOString(),
+        path: "/Users/someone/Documents/bikes",
+        source: "attached",
+      },
+      {
+        grantedAt: new Date(3).toISOString(),
+        path: "/Users/someone",
+        source: "attached",
+      },
+    ]);
     expect(conversationIn(chat).at(-1)).toBe(
       "assistant text: Saved.\n\n```files\n/mnt/My bikes/bike.png\n/mnt/Me/notes.md\n```",
     );

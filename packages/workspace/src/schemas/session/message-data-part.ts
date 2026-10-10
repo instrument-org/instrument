@@ -115,11 +115,16 @@ export namespace SessionMessageDataPart {
     typeof FileAttachmentDataPartSchema
   >;
 
-  export type FolderAttachmentDataPart = FolderAttachment.Type;
+  // A folder the user sent with the message, shown with it. Each is granted
+  // to the chat as it is sent, and the agent is told of it by the folder
+  // changes note, so the model reads nothing from this.
+  const SentFolderDataPartSchema = z.object({ path: z.string() });
+
+  export type SentFolderDataPart = z.output<typeof SentFolderDataPartSchema>;
 
   export const FileAttachmentsDataPartSchema = z.object({
     files: z.array(FileAttachmentDataPartSchema),
-    folders: z.array(FolderAttachment.Schema).optional(),
+    folders: z.array(SentFolderDataPartSchema).optional(),
   });
 
   export type FileAttachmentsDataPart = z.output<

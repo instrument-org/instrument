@@ -26,8 +26,9 @@ import { listTopics, type TopicFolder } from "./chat/topics";
 import { tabHolders } from "./chat/window-tab";
 import { Store } from "./store";
 import { detectTaskAppChanges } from "./task-app-changes";
-import { chatDir, resolveChat } from "./record-folders";
-import { setChatState } from "./chat-record";
+import { resolveChat } from "./record-folders";
+import { updateChatSettings } from "./chat-settings";
+import { grantFolder } from "./chat/grants";
 import { chatConversation } from "./chat/children";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
@@ -53,16 +54,8 @@ export async function newMessage({
   /** The user's other chats, on the message that opens a new one; see the chat-context part. */
   chatContext?: SessionMessageDataPart.ChatContextDataPart;
   files?: FileUpload.Type[];
-  /**
-   * Folders to grant the task, each at the access and under the mount name
-   * given, where given; see grant-folders.ts.
-   */
-  folders?: {
-    access?: FolderAttachment.Access;
-    mountName?: string;
-    path: string;
-    source?: FolderAttachment.Source;
-  }[];
+  /** Folders the user sent with the message, each granted to the chat. */
+  folders?: { path: string }[];
   /**
    * Words the chat wrote to this task, in place of a prompt; see the
    * from-chat part.
@@ -174,12 +167,14 @@ export async function newMessage({
     });
   }
 
+  for (const folder of folders ?? []) {
+    await grantFolder({ chatId, path: folder.path, source: "attached" });
+  }
+
   if ((files && files.length > 0) || (folders && folders.length > 0)) {
     const uploadResult = await writeUploadedAttachments({
-      dir: chatDir(chatId),
-      filesDir: workDir(chatId),
+      dir: workDir(chatId),
       files,
-      folders,
       messageId,
       sessionId,
     });
@@ -188,7 +183,18 @@ export async function newMessage({
       return uploadResult;
     }
 
-    parts.push(await namedByReach(chatId, uploadResult.value.part));
+    const { part } = uploadResult.value;
+    parts.push(
+      part.type === "data-attachments" && folders && folders.length > 0
+        ? {
+            ...part,
+            data: {
+              ...part.data,
+              folders: folders.map((folder) => ({ path: folder.path })),
+            },
+          }
+        : part,
+    );
   }
 
   if (chatContext) {
@@ -319,12 +325,9 @@ export async function newMessage({
   }
 
   // Notify agent of folders added, removed, or renamed since last turn
-  // (per-session baseline diff). Runs after writeUploadedAttachments above so a
-  // rename it triggers is read as part of "current" and reported now instead of
-  // lagging a turn behind, and so the folders this message attaches can be
-  // named here as already announced.
+  // (per-session baseline diff). Runs after the grants above, so a folder
+  // sent with this message is told here, under the name it mounts at.
   const folderChanges = await detectAttachedFolderChanges({
-    announced: folders?.map((folder) => folder.path) ?? [],
     messageId,
     sessionId,
     chatId,
@@ -343,7 +346,14 @@ export async function newMessage({
     role: "user",
   };
 
-  await setChatState(chatDir(chatId), { selectedModelURI: modelURI });
+  // The composer sending is what picks the chat's model; a task's message
+  // runs on the chat's and picks nothing.
+  if (isChat) {
+    const picked = await updateChatSettings(chatId, { modelURI });
+    if (picked.isErr()) {
+      return picked;
+    }
+  }
 
   getWorkspaceConfig().captureEvent("message.created", {
     files_count: files?.length ?? 0,
@@ -407,33 +417,6 @@ async function createChatTopicsPart({
     data: { topics },
     metadata: { createdAt, id: StoreId.newPartId(), messageId, sessionId },
     type: "data-chatTopics",
-  };
-}
-
-/**
- * The attachments part with each folder named the way the agent reaches it. A
- * chat mounts its sent folders beside the ones it reaches without holding
- * (folder-reach.ts), and a namesake there can move one to a qualified name.
- */
-async function namedByReach(
-  chatId: ChatId,
-  part: SessionMessagePart.Type,
-): Promise<SessionMessagePart.Type> {
-  if (part.type !== "data-attachments" || !part.data.folders) {
-    return part;
-  }
-  const reach = Object.values(await folderReach(chatId));
-  return {
-    ...part,
-    data: {
-      ...part.data,
-      folders: part.data.folders.map((folder) => ({
-        ...folder,
-        mountName:
-          reach.find((entry) => entry.path === folder.path)?.mountName ??
-          folder.mountName,
-      })),
-    },
   };
 }
 

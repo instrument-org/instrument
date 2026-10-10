@@ -72,6 +72,7 @@ async function readChatInfo({ dir }: { dir: ChatDir }) {
     ...(await chatTimestamps(dir, settings)),
     apps: settings?.apps,
     id: parsed.data,
+    ...(settings?.modelURI ? { modelURI: settings.modelURI } : {}),
     reasoningEffort: settings?.reasoningEffort,
     title: settings?.name ?? rawFolderName,
   };

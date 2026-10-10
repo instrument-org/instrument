@@ -337,19 +337,17 @@ function adoptTask({
         ...(typeof settings.createdWithAppVersion === "string"
           ? { createdWithAppVersion: settings.createdWithAppVersion }
           : {}),
+        grants: chatGrantsOf(
+          isRecord(settings.state) ? settings.state.attachedFolders : undefined,
+          createdAt,
+        ),
         lastActivityAt: lastActivityAt.toISOString(),
+        ...(isRecord(settings.state) &&
+        typeof settings.state.selectedModelURI === "string"
+          ? { modelURI: settings.state.selectedModelURI }
+          : {}),
         name: title,
-        state: {
-          attachedFolders: chatFoldersOf(
-            isRecord(settings.state)
-              ? settings.state.attachedFolders
-              : undefined,
-          ),
-          ...(isRecord(settings.state) &&
-          typeof settings.state.selectedModelURI === "string"
-            ? { selectedModelURI: settings.state.selectedModelURI }
-            : {}),
-        },
+        state: {},
       }),
     );
     fs.mkdirSync(path.join(chatDir, TASK_FOLDER_NAMES.attachments), {
@@ -839,23 +837,27 @@ function validDate(value: unknown): Date | undefined {
 }
 
 /**
- * The task's folders as the chat holds them, under the names the task knew
- * them by, so a reply naming `/mnt/<folder>/…` reaches the same file from the
- * chat that it did from the task. A folder a project lent the task is the
- * chat's own from here, since the project it came from is gone.
+ * A 1.x task's attached folders as the chat's grants: each a folder the user
+ * sent, granted when it was attached.
  */
-function chatFoldersOf(taskFolders: unknown): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(isRecord(taskFolders) ? taskFolders : {}).flatMap(
-      ([key, folder]) => {
-        if (!isRecord(folder) || typeof folder.path !== "string") {
-          return [];
-        }
-        const mountName =
-          typeof folder.mountName === "string" ? folder.mountName : key;
-        return [[mountName, { ...folder, mountName, source: "user" }]];
-      },
-    ),
+function chatGrantsOf(taskFolders: unknown, createdAt: Date): unknown[] {
+  return Object.values(isRecord(taskFolders) ? taskFolders : {}).flatMap(
+    (folder) => {
+      if (!isRecord(folder) || typeof folder.path !== "string") {
+        return [];
+      }
+      const grantedAt =
+        typeof folder.createdAt === "number"
+          ? new Date(folder.createdAt)
+          : createdAt;
+      return [
+        {
+          grantedAt: grantedAt.toISOString(),
+          path: folder.path,
+          source: "attached",
+        },
+      ];
+    },
   );
 }
 

@@ -5,12 +5,11 @@ import { cpSync, mkdtempSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { FFMPEG_PATH } from "../lib/ffmpeg";
 import { measureImage } from "../lib/render-image";
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
+import { grantFolder } from "../lib/chat/grants";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
@@ -68,18 +67,17 @@ cpSync(
 
 const chatId = createMockChatConfigForDir(fixturesPath, { model });
 
-const attachedFolders: Record<string, FolderAttachment.Type> = {
-  "test-folder": {
-    access: "read-only",
-    createdAt: Date.now(),
-    id: FolderAttachment.IdSchema.parse("test-folder-id"),
-    mountName: "Test Folder",
-    path: ChatDirSchema.parse(fixturesPath),
-    source: "user",
-  },
-};
+// A folder granted to the chat, mounted at /mnt/Test Folder: another copy,
+// outside the home folder, which a chat reaches too and which would own a path
+// in the repository's fixtures first.
+const testFolder = path.join(path.dirname(fixturesPath), "Test Folder");
+cpSync(fixturesPath, testFolder, { recursive: true });
 
 describe("ReadFile", () => {
+  beforeAll(async () => {
+    await grantFolder({ chatId, path: testFolder, source: "attached" });
+  });
+
   describe("main agent", () => {
     const baseInput = {
       model,
@@ -91,7 +89,6 @@ describe("ReadFile", () => {
         return AbortSignal.timeout(30_000);
       },
       chatId,
-      taskState: { browserTabs: [] },
     };
 
     it("should list files when given a directory path", async () => {
@@ -898,7 +895,7 @@ describe("ReadFile", () => {
       `);
     }, 60_000);
 
-    it("reads a file from a read-only attached folder by its mount path", async () => {
+    it("reads a file from a granted folder by its mount path", async () => {
       const value = (
         await runTool(TOOLS.ReadFile, {
           ...baseInput,
@@ -906,7 +903,6 @@ describe("ReadFile", () => {
             explanation: "read",
             filePath: "/mnt/Test Folder/grep-test.txt",
           },
-          taskState: { attachedFolders, browserTabs: [] },
         })
       )._unsafeUnwrap();
 
@@ -967,33 +963,16 @@ describe("ReadFile", () => {
       }
     });
 
-    it("steers a host path inside an attached folder to its mount path", async () => {
-      // Outside the home folder, which a chat reaches too and which would
-      // own a path in the repository's fixtures first.
-      const outside = await fs.mkdtemp(path.join(os.tmpdir(), "attached-"));
+    it("steers a host path inside a granted folder to its mount path", async () => {
       const error = (
         await runTool(TOOLS.ReadFile, {
           ...baseInput,
           input: {
             explanation: "read",
-            filePath: path.join(outside, "grep-test.txt"),
-          },
-          taskState: {
-            attachedFolders: {
-              "test-folder": {
-                access: "read-only",
-                createdAt: Date.now(),
-                id: FolderAttachment.IdSchema.parse("test-folder-id"),
-                mountName: "Test Folder",
-                path: AbsolutePathSchema.parse(outside),
-                source: "user",
-              },
-            },
-            browserTabs: [],
+            filePath: path.join(testFolder, "grep-test.txt"),
           },
         })
       )._unsafeUnwrapErr();
-      await fs.rm(outside, { force: true, recursive: true });
 
       expect(error.message).toContain("Test Folder");
       expect(error.message).toContain("mount path");
@@ -1031,7 +1010,6 @@ describe("ReadFile Unicode path fallbacks", () => {
         model,
         signal: AbortSignal.timeout(10_000),
         chatId: tmpTaskConfig,
-        taskState: { browserTabs: [] },
       })
     )._unsafeUnwrap();
 

@@ -9,7 +9,6 @@ import type { ToolNameSchema } from "./name";
 import { type ExecuteError } from "../lib/execute-error";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { type ChatState } from "../schemas/chat-state";
 
 export interface AgentTool<
   TName extends ToolName,
@@ -34,7 +33,6 @@ export interface AgentTool<
     sessionId: StoreId.Session;
     signal: AbortSignal;
     chatId: ChatId;
-    taskState: ChatState;
   }) =>
     | AsyncGenerator<ExecuteResult<z.output<TOutputSchema>>>
     | Promise<ExecuteResult<z.output<TOutputSchema>>>;

@@ -103,7 +103,7 @@ async function holdTabs(
   tabs: { id: BrowserTargetId; openedBy: "handed" | "task" }[],
 ) {
   await setChatState(chatDir(CHAT_ID), {
-    browserTabs: tabs.map((tab) => ({ ...tab, sessionId: TASK_SESSION })),
+    browserTabs: tabs.map((tab) => ({ ...tab, driver: TASK_SESSION })),
   });
 }
 

@@ -1,9 +1,9 @@
 import { APP_NAME } from "@instrument-org/shared";
 import path from "node:path";
 
-import { attachFolder } from "../../attach-folder";
 import { attachedFolderMountPoint } from "../../attached-folder-mounts";
 import { folderReach } from "../../chat/folder-reach";
+import { grantFolder } from "../../chat/grants";
 import { folderLabel } from "../../folder-parent-label";
 import { effectiveFolderAccess } from "../../workspace-fs-layout";
 import { type SubcommandInput, subcommand } from "../subcommands";
@@ -28,11 +28,11 @@ export const folderSubcommand = subcommand<TaskCommandContext>({
 });
 
 /**
- * Gives the chat a folder inside one it reaches: the home folder is
- * read-only whole, since the workspace is inside it, and a folder in it is
- * not. The chat's tasks reach exactly its folders, read as they stand, so
- * every task of the chat's has the folder at the same path, running ones
- * included.
+ * Grants the chat a folder inside one it reaches, as an allow from a card
+ * would: the home folder is read-only whole, since the workspace is inside
+ * it, and a folder in it is not. The chat's tasks reach exactly its folders,
+ * read as they stand, so every task of the chat's has the folder at the same
+ * path, running ones included.
  *
  * The system's own ask for a protected folder (Desktop, Documents,
  * Downloads) comes first.
@@ -56,10 +56,10 @@ async function runFolder(input: SubcommandInput, context: TaskCommandContext) {
   }
   const lines: string[] = [];
   for (const folder of adds) {
-    await attachFolder({
-      access: folder.access,
-      path: folder.path,
+    await grantFolder({
       chatId: context.chatId,
+      path: folder.path,
+      source: "card",
     });
     const reach = await folderReach(context.chatId);
     const mounted = Object.values(reach).find(
@@ -69,7 +69,7 @@ async function runFolder(input: SubcommandInput, context: TaskCommandContext) {
       ? attachedFolderMountPoint(mounted.mountName)
       : folder.path;
     lines.push(
-      `You now have ${folderLabel(folder.path)} at ${mountPoint} (${mounted ? effectiveFolderAccess(mounted) : folder.access}). Work in it there.`,
+      `You now have ${folderLabel(folder.path)} at ${mountPoint} (${mounted ? effectiveFolderAccess(mounted) : "read-write"}). Work in it there.`,
     );
   }
   return `${lines.join("\n")}\n`;

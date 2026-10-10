@@ -19,10 +19,8 @@ import { z } from "zod";
 import { appEventModelNote } from "../../lib/app-event-model-text";
 import { asksModelNote } from "../../lib/asks-model-text";
 import { attachedFolderChangesModelNote } from "../../lib/attached-folder-changes-model-text";
-import { attachedFolderMountPoint } from "../../lib/attached-folder-mounts";
 import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
-import { buildAttachedFoldersText } from "../../lib/build-attached-folders-text";
 import { chatContextModelNote } from "../../lib/chat-context-model-text";
 import { chatTopicsModelNote } from "../../lib/chat-topics-model-text";
 import { dateChangeModelNote } from "../../lib/date-change-model-text";
@@ -318,15 +316,6 @@ export namespace SessionMessage {
       created: new Set<string>(),
       updated: new Set<string>(),
     };
-    // A folder attached with the session's first message is mounted before the
-    // session's baseline is written, so that baseline already lists it with the
-    // rules for reading and writing it. The note on the message repeats the
-    // list; a folder attached on a later message carries the rules, since the
-    // baseline may never have had a folder to explain.
-    const firstUserMessageId = messages.find(
-      (message) => message.role === "user",
-    )?.id;
-
     return messages.map((message) => {
       const maxStepsPart = message.parts.find(
         (
@@ -417,26 +406,6 @@ export namespace SessionMessage {
                 `;
 
             injectedParts.push({ text: attachmentText, type: "text" });
-          }
-
-          // Project folders ride along in the attachments part but are
-          // standing project context, so exclude them here to avoid
-          // re-announcing them as folders the user attached with this message.
-          const userAttachedFolders = (
-            attachmentsPart.data.folders ?? []
-          ).filter((folder) => folder.source !== "project");
-          if (userAttachedFolders.length > 0) {
-            const folderAttachmentText = buildAttachedFoldersText({
-              folders: userAttachedFolders.map((folder) => ({
-                access: folder.access,
-                mountPoint: attachedFolderMountPoint(folder.mountName),
-                path: folder.path,
-              })),
-              guidance: message.id !== firstUserMessageId,
-              intro: `The user attached these external folders with this message. They are mounted in the task and reachable with the bash tool. Assume they are directly relevant to the user's request.`,
-            });
-
-            injectedParts.push({ text: folderAttachmentText, type: "text" });
           }
         }
 

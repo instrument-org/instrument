@@ -21,7 +21,6 @@ import {
 import { ok, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { ulid } from "ulid";
 
 import { TASKS_DIR_NAME } from "../../src/constants";
 import { copyTask } from "../../src/lib/copy-task";
@@ -31,11 +30,10 @@ import { resolvePathWithinTaskDir } from "../../src/lib/resolve-path-within-task
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
 import { Store } from "../../src/lib/store";
 import { chatDir, placeChat } from "../../src/lib/record-folders";
-import { setChatState } from "../../src/lib/chat-record";
 import { updateChatSettings } from "../../src/lib/chat-settings";
 import { addChildTask } from "../../src/lib/chat/children";
+import { grantFolder } from "../../src/lib/chat/grants";
 import { setWorkspaceConfig } from "../../src/lib/workspace-config";
-import { FolderAttachment } from "../../src/schemas/folder-attachment";
 import {
   AbsolutePathSchema,
   RelativePathSchema,
@@ -140,8 +138,9 @@ export async function seedWorkspace({
         workspaceConfig,
       }),
     );
-    const granted = await makeFolders({ folders, now, userDataDir });
-    await setChatState(chatDir(chatId), { attachedFolders: granted });
+    for (const folderPath of await makeFolders({ folders, userDataDir })) {
+      await grantFolder({ chatId, path: folderPath, source: "attached" });
+    }
     seeded.push({ id: chatId, key: chat.key, kind: "chat", name: chat.name });
     for (const { files, session: taskSession, task } of tasks) {
       const id = await seedChatTask({
@@ -212,14 +211,12 @@ function datesIn(metadata: Record<string, unknown>): Date[] {
  */
 async function makeFolders({
   folders,
-  now,
   userDataDir,
 }: {
   folders: { files: FixtureFile[]; mount: string }[];
-  now: Date;
   userDataDir: string;
-}): Promise<Record<string, FolderAttachment.Type>> {
-  const granted: Record<string, FolderAttachment.Type> = {};
+}): Promise<string[]> {
+  const made: string[] = [];
   for (const folder of folders) {
     const dir = path.join(userDataDir, FOLDERS_DIR_NAME, folder.mount);
     await fs.mkdir(dir, { recursive: true });
@@ -231,16 +228,9 @@ async function makeFolders({
       await fs.mkdir(path.dirname(destination), { recursive: true });
       await fs.copyFile(file.from, destination);
     }
-    granted[folder.mount] = {
-      access: "read-write",
-      createdAt: now.getTime(),
-      id: FolderAttachment.IdSchema.parse(ulid()),
-      mountName: folder.mount,
-      path: AbsolutePathSchema.parse(dir),
-      source: "user",
-    };
+    made.push(dir);
   }
-  return granted;
+  return made;
 }
 
 /**

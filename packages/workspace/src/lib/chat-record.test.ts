@@ -69,13 +69,13 @@ describe("readChatRecord", () => {
   it("keeps the state when the settings cannot be read", async () => {
     await writeRecordFile({
       name: { not: "a string" },
-      state: { selectedModelURI: "half a sentence" },
+      state: { appGuidesRead: ["half a sentence"] },
     });
 
     const record = await readChatRecord(chatDir(chatId));
 
     expect(record.settings).toBeUndefined();
-    expect(record.state.selectedModelURI).toBe("half a sentence");
+    expect(record.state.appGuidesRead).toEqual(["half a sentence"]);
   });
 
   it("answers empty for a file that is not JSON, rather than throwing", async () => {
@@ -133,10 +133,10 @@ describe("updateChatRecord", () => {
   it("carries forward an unreadable field inside the state too", async () => {
     await writeRecordFile({
       name: "Test task",
-      state: { futureNested: "keep me", selectedModelURI: "before" },
+      state: { futureNested: "keep me", appGuidesRead: ["before"] },
     });
 
-    await setChatState(chatDir(chatId), { selectedModelURI: "after" });
+    await setChatState(chatDir(chatId), { appGuidesRead: ["after"] });
 
     const written: unknown = JSON.parse(
       await fs.readFile(recordPath(), "utf8"),
@@ -147,7 +147,7 @@ describe("updateChatRecord", () => {
       state: {
         browserTabs: [],
         futureNested: "keep me",
-        selectedModelURI: "after",
+        appGuidesRead: ["after"],
       },
     });
   });
@@ -160,7 +160,7 @@ describe("updateChatRecord", () => {
     await fs.writeFile(recordPath(), '{ "name": "Test task", "state', "utf8");
 
     await expect(
-      setChatState(chatDir(chatId), { selectedModelURI: "new draft" }),
+      setChatState(chatDir(chatId), { appGuidesRead: ["new draft"] }),
     ).rejects.toThrow(/unreadable/);
 
     expect(await fs.readFile(recordPath(), "utf8")).toBe(
@@ -171,27 +171,27 @@ describe("updateChatRecord", () => {
   // The other half of the same rule: nothing to lose is not the same as
   // something we cannot read, and a task's first write has to land.
   it("creates the record for a task that has no file yet", async () => {
-    await setChatState(chatDir(chatId), { selectedModelURI: "first draft" });
+    await setChatState(chatDir(chatId), { appGuidesRead: ["first draft"] });
 
     const record = await readChatRecord(chatDir(chatId));
 
-    expect(record.state.selectedModelURI).toBe("first draft");
+    expect(record.state.appGuidesRead).toEqual(["first draft"]);
   });
 
   it("takes writes again once the unreadable record is repaired", async () => {
     await fs.mkdir(getTaskPrivateDir(chatDir(chatId)), { recursive: true });
     await fs.writeFile(recordPath(), "{ truncated", "utf8");
     await expect(
-      setChatState(chatDir(chatId), { selectedModelURI: "refused" }),
+      setChatState(chatDir(chatId), { appGuidesRead: ["refused"] }),
     ).rejects.toThrow();
 
     await writeRecordFile({ name: "Repaired" });
-    await setChatState(chatDir(chatId), { selectedModelURI: "accepted" });
+    await setChatState(chatDir(chatId), { appGuidesRead: ["accepted"] });
 
     const record = await readChatRecord(chatDir(chatId));
 
     expect(record.settings?.name).toBe("Repaired");
-    expect(record.state.selectedModelURI).toBe("accepted");
+    expect(record.state.appGuidesRead).toEqual(["accepted"]);
   });
 
   it("leaves no temporary file behind", async () => {
@@ -214,7 +214,7 @@ describe("updateChatRecord", () => {
 
     const write = updateChatRecord(chatDir(chatId), "settings", (record) => ({
       ...record.raw,
-      state: { selectedModelURI: long },
+      state: { appGuidesRead: [long] },
     }));
     for (let index = 0; index < 20; index++) {
       reads.push(fs.readFile(recordPath(), "utf8"));
@@ -243,11 +243,11 @@ describe("updateChatRecord", () => {
       await rename(from, to);
     });
 
-    await setChatState(chatDir(chatId), { selectedModelURI: "landed" });
+    await setChatState(chatDir(chatId), { appGuidesRead: ["landed"] });
 
     const record = await readChatRecord(chatDir(chatId));
 
-    expect(record.state.selectedModelURI).toBe("landed");
+    expect(record.state.appGuidesRead).toEqual(["landed"]);
   });
 
   it("reports a failure that waiting cannot clear, without waiting", async () => {
@@ -256,7 +256,7 @@ describe("updateChatRecord", () => {
       .mockRejectedValue(heldFileError("EXDEV"));
 
     await expect(
-      setChatState(chatDir(chatId), { selectedModelURI: "lost" }),
+      setChatState(chatDir(chatId), { appGuidesRead: ["lost"] }),
     ).rejects.toThrow(/EXDEV/);
 
     expect(rename).toHaveBeenCalledTimes(1);
@@ -270,13 +270,13 @@ describe("updateChatRecord", () => {
       })),
       updateChatRecord(chatDir(chatId), "settings", (record) => ({
         ...record.raw,
-        state: { selectedModelURI: "drafted" },
+        state: { appGuidesRead: ["drafted"] },
       })),
     ]);
 
     const record = await readChatRecord(chatDir(chatId));
 
     expect(record.settings?.name).toBe("Named");
-    expect(record.state.selectedModelURI).toBe("drafted");
+    expect(record.state.appGuidesRead).toEqual(["drafted"]);
   });
 });

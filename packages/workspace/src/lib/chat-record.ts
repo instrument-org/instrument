@@ -7,11 +7,7 @@ import {
   type ChatSettings,
   ChatSettingsSchema,
 } from "../schemas/chat-settings";
-import {
-  migrateChatState,
-  StoredChatStateSchema,
-  type ChatState,
-} from "../schemas/chat-state";
+import { StoredChatStateSchema, type ChatState } from "../schemas/chat-state";
 import { absolutePathJoin } from "./absolute-path-join";
 import { readJsonRecord, updateJsonRecord } from "./json-record-file";
 import { recordChanged } from "./record-changes";
@@ -166,7 +162,7 @@ function recordFrom(parsed: unknown): ChatRecord {
   }
 
   const settings = ChatSettingsSchema.safeParse(parsed);
-  const state = StoredChatStateSchema.safeParse(migrateChatState(parsed.state));
+  const state = StoredChatStateSchema.safeParse(parsed.state);
 
   return {
     raw: parsed,
@@ -190,16 +186,12 @@ function recordPath(dir: ChatDir): AbsolutePath {
  * `raw`, and this is the same protection one level down -- which is where it
  * matters more, since the top level is a closed set and `state` is the half
  * that keeps growing.
- *
- * The raw state goes through `migrateChatState` too, so a key it renamed is
- * written under its new name only rather than kept beside it, and the parsed
- * view still wins over raw.
  */
 function recordWithState(
   record: ChatRecord,
   changes: Partial<ChatState>,
 ): Record<string, unknown> {
-  const raw = migrateChatState(record.raw.state);
+  const raw = record.raw.state;
   return {
     ...record.raw,
     state: {

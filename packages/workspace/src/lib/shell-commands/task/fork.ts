@@ -28,7 +28,11 @@ import { subprocessStdin } from "../utils";
 import { type TaskCommandContext } from "./context";
 import { promptFrom } from "./delivery";
 import { chatModel } from "./model-choice";
-import { handedTabsLine, resolveTabs, tabsHeldElsewhere } from "./tab-choice";
+import {
+  handedTabsLine,
+  refuseTabsDrivenElsewhere,
+  resolveTabs,
+} from "./tab-choice";
 
 const NEW_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--tab <id>]... [--job <id>]... <<'EOF'
   <what to do now>
@@ -77,7 +81,7 @@ async function runFork(
   const jobs = handedJobs(input.all("job"), chatSessionId);
   const { model, modelURI } = await chatModel("new", context);
   const handedTabs = await resolveTabs(input.all("tab"));
-  const sharedTabs = await tabsHeldElsewhere(handedTabs, context.chatId);
+  await refuseTabsDrivenElsewhere(handedTabs, context.chatId);
   const name = input.value("name")?.trim() || defaultTaskName(directive);
 
   const task = await startFork({
@@ -102,7 +106,7 @@ async function runFork(
         : directive,
   });
   recordHandOff({ kind: "created", sessionId: task.id });
-  return `Started task ${task.handle} ("${name}"). It is running now, in this folder with your folders.\n${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`;
+  return `Started task ${task.handle} ("${name}"). It is running now, in this folder with your folders.\n${handedTabsLine(handedTabs)}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`;
 }
 
 /**

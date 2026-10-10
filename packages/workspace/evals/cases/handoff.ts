@@ -25,7 +25,7 @@ import { outputFolderPath } from "../../src/lib/chat/output-folder";
 import { memoryDir, saveMemory } from "../../src/lib/memory/store";
 import { isToolPart } from "../../src/lib/is-tool-part";
 import { chatDir } from "../../src/lib/record-folders";
-import { getChatState } from "../../src/lib/chat-record";
+import { chatGrants } from "../../src/lib/chat/grants";
 import { type Session } from "../../src/schemas/session";
 import { type ChatId } from "../../src/schemas/chat-id";
 import {
@@ -177,14 +177,13 @@ export function readText(file: string): string {
   }
 }
 
-/** Where a folder the case sent was attached for this run. */
+/** Where a folder the case sent was granted for this run. */
 async function attachedFolder(
   chatId: ChatId,
   name: string,
 ): Promise<string | undefined> {
-  const state = await getChatState(chatDir(chatId));
-  return Object.values(state.attachedFolders ?? {}).find(
-    (folder) => path.basename(folder.path) === name,
+  return (await chatGrants(chatId)).find(
+    (grant) => path.basename(grant.path) === name,
   )?.path;
 }
 

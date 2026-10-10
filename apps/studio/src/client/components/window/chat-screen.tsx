@@ -102,8 +102,8 @@ function ChatScreenOfRecord({
       input: { id: chatId },
     }),
   );
-  const state = useQuery(
-    rpcClient.workspace.chats.state.get.queryOptions({
+  const folders = useQuery(
+    rpcClient.workspace.chats.folders.get.queryOptions({
       input: { id: chatId },
     }),
   );
@@ -123,7 +123,7 @@ function ChatScreenOfRecord({
   // the tabs does not clear it on its own.
   useReadOnView({ chat, chatId, isUp });
 
-  const loadError = info.error ?? state.error;
+  const loadError = info.error ?? folders.error;
   if (loadError) {
     return (
       <div className="flex h-full items-center justify-center p-6">
@@ -137,7 +137,7 @@ function ChatScreenOfRecord({
               <Button
                 onClick={() => {
                   void info.refetch();
-                  void state.refetch();
+                  void folders.refetch();
                 }}
               >
                 Try again
@@ -148,15 +148,15 @@ function ChatScreenOfRecord({
       </div>
     );
   }
-  if (!info.data || !state.data) {
+  if (!info.data || !folders.data) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-5" />
       </div>
     );
   }
-  const modelURI = state.data.selectedModelURI ?? defaultModelURI;
-  const attachedFolders = state.data.attachedFolders ?? {};
+  const modelURI = info.data.modelURI ?? defaultModelURI;
+  const reach = folders.data;
   // Into this chat's own group, shown: an open from a chat's transcript is the
   // chat's whatever the window has up at that moment, and never a silent
   // nothing because the group on screen was another's.
@@ -213,7 +213,7 @@ function ChatScreenOfRecord({
                       : {
                           pills: <AskPills asks={groupAsks} />,
                           take: () => {
-                            const part = asksPart(groupAsks, attachedFolders);
+                            const part = asksPart(groupAsks, reach);
                             const ids = groupAsks.map((ask) => ask.id);
                             return part
                               ? {

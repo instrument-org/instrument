@@ -83,7 +83,7 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
     hrefOfAppTab: vi.fn(),
     paneOpenByGroup: {},
     screenView: null,
-    state: { attachedFolders: { home: HOME } },
+    state: { folders: { home: HOME } },
     viewsById: {},
     windowTabs: tabsOf([]),
     ...over,

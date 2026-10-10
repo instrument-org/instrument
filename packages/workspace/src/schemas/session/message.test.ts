@@ -720,13 +720,12 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
-  // Assembling a turn reads a folder's mount name to build its /mnt path, and
-  // a part that reached here without one crashed the whole turn rather than
-  // losing a line. Store migrations are what guarantee the field is there; this
-  // is the reader holding up its end.
-  it("builds an attached folder's mount path when replaying a turn", async () => {
+  // A folder sent with a message is granted to the chat and told to the
+  // agent by the folder changes note; the message itself prints nothing about
+  // it, whatever an older build stored on the part.
+  it("prints nothing for a folder sent with a message", async () => {
     const { messageMetadata, partMetadata } = baseMetadata();
-    const legacyStoredPart = SessionMessagePart.coerce({
+    const storedPart = SessionMessagePart.coerce({
       data: {
         files: [],
         folders: [
@@ -750,7 +749,7 @@ describe("SessionMessage.toModelMessages", () => {
           id: StoreId.newMessageId(),
           metadata: messageMetadata,
           parts: [
-            legacyStoredPart,
+            storedPart,
             { metadata: partMetadata, text: "what is in here", type: "text" },
           ],
           role: "user",
@@ -760,87 +759,8 @@ describe("SessionMessage.toModelMessages", () => {
     );
 
     const text = JSON.stringify(result);
-    expect(text).toContain("/mnt/Home-Downloads");
-    expect(text).not.toContain("/mnt/undefined");
-  });
-
-  function attachedFoldersPart(
-    partMetadata: ReturnType<typeof baseMetadata>["partMetadata"],
-  ) {
-    return SessionMessagePart.coerce({
-      data: {
-        files: [],
-        folders: [
-          {
-            access: "read-write",
-            createdAt: 1_718_198_400_000,
-            id: "01KZ9NPNZZPQF80Z7A7DG4Z5BN",
-            mountName: "Reports",
-            path: "/Users/sam/Reports",
-            source: "user",
-          },
-        ],
-      },
-      metadata: partMetadata,
-      type: "data-attachments",
-    });
-  }
-
-  // A folder attached with the first message is mounted before the session's
-  // baseline is written, so the baseline already carries it with the rules for
-  // using it. The note on the message lists the folder and stops there.
-  it("lists a folder attached with the first message without repeating the rules", async () => {
-    const { messageMetadata, partMetadata } = baseMetadata();
-
-    const result = await SessionMessage.toModelMessages(
-      [
-        {
-          id: StoreId.newMessageId(),
-          metadata: messageMetadata,
-          parts: [
-            attachedFoldersPart(partMetadata),
-            { metadata: partMetadata, text: "summarize these", type: "text" },
-          ],
-          role: "user",
-        },
-      ],
-      TOOLS_FOR_MODEL_OUTPUT,
-    );
-
-    const text = JSON.stringify(result);
-    expect(text).toContain("-> `/mnt/Reports` (read and write)");
-    expect(text).not.toContain("Read, list, and search by mount path");
-  });
-
-  // A folder attached later may be the first the session has heard of, so
-  // the rules ride with it.
-  it("carries the folder rules on a folder attached after the first message", async () => {
-    const { messageMetadata, partMetadata } = baseMetadata();
-
-    const result = await SessionMessage.toModelMessages(
-      [
-        {
-          id: StoreId.newMessageId(),
-          metadata: messageMetadata,
-          parts: [{ metadata: partMetadata, text: "hello", type: "text" }],
-          role: "user",
-        },
-        {
-          id: StoreId.newMessageId(),
-          metadata: messageMetadata,
-          parts: [
-            attachedFoldersPart(partMetadata),
-            { metadata: partMetadata, text: "summarize these", type: "text" },
-          ],
-          role: "user",
-        },
-      ],
-      TOOLS_FOR_MODEL_OUTPUT,
-    );
-
-    const text = JSON.stringify(result);
-    expect(text).toContain("Read, list, and search by mount path");
-    expect(text).toContain("write_file");
+    expect(text).not.toContain("attached_folders");
+    expect(text).not.toContain("/mnt/");
   });
 
   it("lists a sent file at the path the agent reads it by", async () => {

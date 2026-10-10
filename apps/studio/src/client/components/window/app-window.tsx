@@ -568,7 +568,7 @@ function WindowShell({
     startingIds,
   } = useDrafts({
     activeHref,
-    attachedFolders: opened?.attachedFolders ?? {},
+    attachedFolders: opened?.folders ?? {},
     compose,
     draftContext,
     isOpen: opened !== undefined,

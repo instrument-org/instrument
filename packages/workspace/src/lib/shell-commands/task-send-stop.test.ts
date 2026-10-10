@@ -1,3 +1,4 @@
+import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { encodeUtf8ToBytes } from "just-bash";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -12,8 +13,7 @@ import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { Store } from "../store";
-import { chatDir } from "../record-folders";
-import { setChatState } from "../chat-record";
+import { updateChatSettings } from "../chat-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { sendSubcommand } from "./task/send";
@@ -87,9 +87,10 @@ beforeEach(async () => {
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   chatFor(StoreId.newSessionId(), CHAT_ID);
-  await setChatState(chatDir(CHAT_ID), {
-    selectedModelURI:
+  await updateChatSettings(CHAT_ID, {
+    modelURI: AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
+    ),
   });
   CHILD_ID = await chatTaskFor(CHAT_ID, { title: "Write the story" });
 });
@@ -175,7 +176,9 @@ describe("task send", () => {
   it("runs the task on the model the chat's picker is on now", async () => {
     const picked =
       "anthropic/claude-opus-5.5?provider=openrouter&providerConfigId=mock-provider-config-id";
-    await setChatState(chatDir(CHAT_ID), { selectedModelURI: picked });
+    await updateChatSettings(CHAT_ID, {
+      modelURI: AIGatewayModelURI.Schema.parse(picked),
+    });
     await send([]);
     expect(
       sent.events.find(

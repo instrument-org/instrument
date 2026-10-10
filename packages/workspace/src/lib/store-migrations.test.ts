@@ -14,7 +14,6 @@ import {
   getSessionsStoreStorage,
 } from "./session-store-storage";
 import { StorageKey } from "./storage-key";
-import { Store } from "./store";
 import { chatDir } from "./record-folders";
 
 const id = ChatIdSchema.parse("store-migrations-test");
@@ -95,25 +94,6 @@ function unwrap<T, E>(result: Result<T, E>): T {
 }
 
 describe("store migrations", () => {
-  it("renames a folder stored before the mount name said what it was", async () => {
-    await seedStoredPart(
-      legacyFolderPart({
-        access: "read-write",
-        createdAt: 1_718_198_400_000,
-        id: "01KZ9NPNZZPQF80Z7A7DG4Z5BN",
-        name: "Home-Downloads",
-        path: "/Users/sam/Downloads",
-        source: "user",
-      }),
-    );
-
-    const parts = unwrap(await Store.getParts(sessionId, messageId, chatId));
-
-    expect(parts[0]).toMatchObject({
-      data: { folders: [{ mountName: "Home-Downloads" }] },
-    });
-  });
-
   // The point of migrating rather than translating on read: the stored data is
   // what changed, so nothing downstream has to know the old shape existed.
   it("writes the rename back to the database", async () => {

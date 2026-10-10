@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { AbsolutePathSchema, RelativePathSchema } from "../schemas/paths";
+import { RelativePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { textForMessage } from "./text-for-message";
@@ -23,16 +22,7 @@ function messageWith(text: string): SessionMessage.WithParts {
               size: 1,
             },
           ],
-          folders: [
-            {
-              access: "read-write",
-              createdAt: 0,
-              id: FolderAttachment.IdSchema.parse("Home-Downloads"),
-              mountName: "Home-Downloads",
-              path: AbsolutePathSchema.parse("/Users/sam/Downloads"),
-              source: "user",
-            },
-          ],
+          folders: [{ path: "/Users/sam/Downloads" }],
         },
         metadata: partMetadata(),
         type: "data-attachments",

@@ -1025,17 +1025,6 @@ function renderProjectContext(
         }
         break;
       }
-      case "data-attachments": {
-        for (const folder of part.data.folders ?? []) {
-          if (folder.source === "project") {
-            projectFoldersByPath.set(folder.path, {
-              access: folder.access,
-              name: folder.mountName,
-            });
-          }
-        }
-        break;
-      }
       case "data-projectChanges": {
         for (const folder of part.data.foldersRemoved) {
           projectFoldersByPath.delete(folder.path);

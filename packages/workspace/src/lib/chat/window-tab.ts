@@ -163,7 +163,7 @@ export async function tabHolders(
   for (const task of working) {
     for (const held of browserTabs) {
       const decoded = decodeBrowserTargetId(held.id);
-      if (decoded && held.sessionId === task.id) {
+      if (decoded && held.driver === task.id) {
         // By its handle, which is what the conversation steers it by.
         holders.set(decoded.sessionId, { id: task.handle, title: task.title });
       }

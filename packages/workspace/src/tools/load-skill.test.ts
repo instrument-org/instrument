@@ -55,7 +55,6 @@ function baseExecuteArgs() {
     model,
     signal: AbortSignal.timeout(10_000),
     chatId: createTaskConfigWithDirs(),
-    taskState: { browserTabs: [] },
   };
 }
 

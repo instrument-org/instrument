@@ -7,8 +7,6 @@ import { getToolByType } from "../tools/all";
 import { getCurrentDate } from "./get-current-date";
 import { Store } from "./store";
 import { streamTool } from "./stream-tool";
-import { chatDir } from "./record-folders";
-import { getChatState } from "./chat-record";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function runToolCall({
@@ -46,8 +44,6 @@ export async function runToolCall({
       { signal },
     );
 
-    const taskState = await getChatState(chatDir(chatId));
-
     for await (const { output, type } of streamTool({
       execute: tool.execute,
       options: {
@@ -58,7 +54,6 @@ export async function runToolCall({
         sessionId,
         signal,
         chatId,
-        taskState,
       },
     })) {
       if (signal.aborted) {

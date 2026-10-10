@@ -1,103 +1,74 @@
 import os from "node:os";
 
+import { type ChatGrant } from "../../schemas/chat-settings";
 import { FolderAttachment } from "../../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { type ChatState } from "../../schemas/chat-state";
 import { assignMountNames } from "../assign-mount-names";
 import { pathExists } from "../path-exists";
 import { WINDOW_ID } from "../../schemas/window-id";
-import { resolveChat, sessionOfChat, chatDir } from "../record-folders";
+import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
-import { getChatState } from "../chat-record";
+import { chatGrants } from "./grants";
 import { outputFolderPath } from "./output-folder";
 import { listTopics } from "./topics";
 import { type ChatId } from "../../schemas/chat-id";
 
 /**
- * The folders a task reaches, by the name each is mounted under.
- *
- * A task reaches what it was handed, which is on its record. A chat reaches
- * more than it holds: the home folder and the workspace folder always, and the
- * folders of the topics it is filed under while it is, none of which is ever
- * written to the chat. Only the folders the user sent it are on its record,
- * and they are added beside those. Worked out on every read, so a topic's
- * folder comes and goes with the topic and a folder sent in one chat stays in
- * that chat.
+ * The folders a chat reaches, by the name each is mounted under: the home
+ * folder and the workspace folder always, the folders granted in the chat,
+ * and the folders of the topics it is filed under while it is. Only the
+ * grants are written to the chat. Worked out on every read, so a topic's
+ * folder comes and goes with the topic and a folder granted in one chat
+ * stays in that chat. Every session of the chat reaches the same folders.
  *
  * The window, which no chat is, reaches the two standing folders alone.
  *
- * Names are assigned in a fixed order (the two standing folders, then the
- * sent ones by when they were sent, then the topics' folders), so a folder
- * keeps its name while a later one comes and goes.
+ * Names are derived, never stored, and assigned in a fixed order: the two
+ * standing folders, then the grants by when each was granted, then the
+ * topics' folders. A folder takes its plain name where it is free, so an
+ * earlier grant keeps its name and only a later one that collides with it is
+ * qualified, and a path the chat already used never moves when a folder is
+ * granted after it.
  */
 export async function folderReach(
   chatId: ChatId,
-  state?: ChatState,
+  grants?: ChatGrant[],
 ): Promise<Record<string, FolderAttachment.Type>> {
   const isWindow = chatId === WINDOW_ID;
-  const held = isWindow
-    ? undefined
-    : (state ?? (await getChatState(chatDir(chatId)))).attachedFolders;
-  const chat = isWindow ? undefined : resolveChat(chatId);
-  if (!isWindow && !chat) {
-    return held ?? {};
-  }
-
-  // A folder on the record keeps the name it arrived under, which is the one
-  // the chat's messages already use for it, including a standing folder an
-  // older chat holds on its record.
-  const onRecord = new Map(
-    Object.values(held ?? {}).map((folder) => [folder.path, folder]),
-  );
   const folders: FolderAttachment.Type[] = [];
   const add = (folder: FolderAttachment.Type) => {
     if (!folders.some((known) => known.path === folder.path)) {
-      folders.push(onRecord.get(folder.path) ?? folder);
+      folders.push(folder);
     }
   };
   add(standingFolder(os.homedir()));
   add(standingFolder(outputFolderPath()));
-  for (const folder of [...onRecord.values()].toSorted(
-    (a, b) => a.createdAt - b.createdAt,
-  )) {
-    add(folder);
-  }
-  for (const folderPath of chat ? await topicFolderPaths(chat) : []) {
-    add(standingFolder(folderPath));
+  if (!isWindow) {
+    const granted = (grants ?? (await chatGrants(chatId))).toSorted(
+      (a, b) => a.grantedAt.getTime() - b.grantedAt.getTime(),
+    );
+    for (const grant of granted) {
+      add({
+        access: "read-write",
+        createdAt: grant.grantedAt.getTime(),
+        id: FolderAttachment.IdSchema.parse(`grant:${grant.path}`),
+        mountName: "",
+        path: grant.path,
+        source: "user",
+      });
+    }
+    for (const folderPath of await topicFolderPaths(chatId)) {
+      add(standingFolder(folderPath));
+    }
   }
 
-  // Names on the record first, so one is never taken by a folder that came
-  // later; the rest by today's rule around them.
-  const assigned = assignMountNames(folders);
-  const names = new Map<FolderAttachment.Type, string>();
-  const used = new Set<string>();
-  for (const folder of folders) {
-    if (folder.mountName && !used.has(folder.mountName)) {
-      names.set(folder, folder.mountName);
-      used.add(folder.mountName);
-    }
-  }
-  for (const folder of folders) {
-    if (names.has(folder)) {
-      continue;
-    }
-    const preferred = assigned.get(folder.id) ?? folder.id;
-    let mountName = preferred;
-    for (let suffix = 2; used.has(mountName); suffix += 1) {
-      mountName = `${preferred}-${suffix}`;
-    }
-    names.set(folder, mountName);
-    used.add(mountName);
-  }
-  // Every folder a chat reaches is its to read and write: what a task it
-  // starts may do there is the chat's to say when it hands the folder over.
+  const names = assignMountNames(folders);
+  // Every folder a chat reaches is its to read and write, short of what
+  // effectiveFolderAccess keeps read-only: anything holding the workspace.
   return Object.fromEntries(
     folders.map((folder) => {
-      const mountName = names.get(folder) ?? folder.mountName;
-      return [
-        mountName,
-        { ...folder, access: "read-write" as const, mountName },
-      ];
+      const mountName = names.get(folder.id) ?? folder.id;
+      return [mountName, { ...folder, mountName }];
     }),
   );
 }

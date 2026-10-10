@@ -1,3 +1,4 @@
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { err, ok, ResultAsync, safeTry } from "neverthrow";
 
 import { type ChatDir } from "../schemas/paths";
@@ -93,4 +94,14 @@ async function writeMergedSettings(
 
     return merged;
   });
+}
+
+/**
+ * The model a chat's sessions run on, or undefined for a chat nobody has
+ * sent a message in yet.
+ */
+export async function chatModelURI(
+  chatId: ChatId,
+): Promise<AIGatewayModelURI.Type | undefined> {
+  return (await getChatSettings(chatDir(chatId)))?.modelURI;
 }

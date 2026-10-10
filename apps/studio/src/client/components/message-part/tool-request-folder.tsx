@@ -44,10 +44,10 @@ export function ToolRequestFolder({
       },
     }),
   );
-  const attach = useMutation(
-    rpcClient.workspace.chats.state.attachFolder.mutationOptions({
+  const grant = useMutation(
+    rpcClient.workspace.chats.folders.grant.mutationOptions({
       onError: (error) => {
-        toast.error("Could not attach the folder", {
+        toast.error("Could not allow the folder", {
           description: error.message,
         });
       },
@@ -81,7 +81,7 @@ export function ToolRequestFolder({
       refused && refusedFolder && picked.path === refused
         ? refusedFolder
         : `${MOUNT.attachedFolders}/${
-            (await attach.mutateAsync({ id: chatId, path: picked.path }))
+            (await grant.mutateAsync({ id: chatId, path: picked.path }))
               .mountName
           }`;
     answer.mutate({
@@ -111,7 +111,7 @@ export function ToolRequestFolder({
         {isPending ? (
           <div className="mt-3 flex gap-2">
             <Button
-              disabled={attach.isPending || answer.isPending}
+              disabled={grant.isPending || answer.isPending}
               onClick={() => {
                 void choose();
               }}
@@ -120,7 +120,7 @@ export function ToolRequestFolder({
               Choose folder…
             </Button>
             <Button
-              disabled={attach.isPending || answer.isPending}
+              disabled={grant.isPending || answer.isPending}
               onClick={decline}
               size="sm"
               variant="secondary"
@@ -159,10 +159,10 @@ async function refusedHostPath(
     return undefined;
   }
   const inside = mountPath.slice(prefix.length).replace(/\/+$/, "");
-  const { attachedFolders } = await rpcClient.workspace.chats.state.get.call({
+  const folders = await rpcClient.workspace.chats.folders.get.call({
     id: chatId,
   });
-  const mount = Object.values(attachedFolders ?? {})
+  const mount = Object.values(folders)
     .filter(
       ({ mountName }) =>
         inside === mountName || inside.startsWith(`${mountName}/`),

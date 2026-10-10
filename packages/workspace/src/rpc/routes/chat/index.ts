@@ -4,6 +4,8 @@ import { z } from "zod";
 import { recordChanges } from "../../../lib/record-changes";
 import { changedMessageBatches } from "../../../lib/changed-message-batches";
 import { getChatInfo } from "../../../lib/chat-info";
+import { getChatState } from "../../../lib/chat-record";
+import { chatDir } from "../../../lib/record-folders";
 import {
   getUsageSummary,
   UsageSummarySchema,
@@ -11,13 +13,23 @@ import {
 import { StoreId } from "../../../schemas/store-id";
 import { ChatInfoSchema } from "../../../schemas/chat-info";
 import { ChatIdSchema } from "../../../schemas/chat-id";
+import { StoredChatStateSchema } from "../../../schemas/chat-state";
 import { base, toORPCError } from "../../base";
 import { liveRead } from "../../live-read";
 import { liveChatActivity } from "./activity";
 import { agentStatus } from "./agent-status";
 import { chatBackgroundProcesses } from "./background-processes";
 import { chatFiles } from "./files";
-import { chatState } from "./state";
+import { chatFolders } from "./folders";
+
+/**
+ * Where the user left off in a chat: the tabs its sessions drive, each with
+ * its driver.
+ */
+const state = base
+  .input(z.object({ id: ChatIdSchema }))
+  .output(StoredChatStateSchema)
+  .handler(({ input }) => getChatState(chatDir(input.id)));
 
 const info = base
   .input(z.object({ id: ChatIdSchema }))
@@ -85,18 +97,19 @@ const liveUsageSummary = base
 
 /**
  * What is read of one chat beside its list row: its settings (`info`), its
- * state, the files its agents name, its background processes and its spend,
+ * state, the folders it reaches and grants, the files its agents name, its background processes and its spend,
  * plus the agents alive across chats. Spread into `chats`.
  */
 export const chatRoutes = {
   agentStatus,
   backgroundProcesses: chatBackgroundProcesses,
   files: chatFiles,
+  folders: chatFolders,
   info,
   live: {
     ...live,
     activity: liveChatActivity,
     usageSummary: liveUsageSummary,
   },
-  state: chatState,
+  state,
 };

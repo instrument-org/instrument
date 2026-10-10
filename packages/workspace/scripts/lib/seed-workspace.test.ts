@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
 import { Store } from "../../src/lib/store";
 import { chatDir, sessionOfChat } from "../../src/lib/record-folders";
-import { getChatState } from "../../src/lib/chat-record";
+import { folderReach } from "../../src/lib/chat/folder-reach";
 import { getChatSettings } from "../../src/lib/chat-settings";
 import { ChatIdSchema, type ChatId } from "../../src/schemas/chat-id";
 import { StoreId } from "../../src/schemas/store-id";
@@ -173,14 +173,8 @@ describe("seedWorkspace", () => {
       );
     }
 
-    const chatState = await getChatState(
-      chatDir(ChatIdSchema.parse(at(seeded, 0).id)),
-    );
-    expect(chatState.attachedFolders?.[folder.mount]).toMatchObject({
-      access: "read-write",
-      mountName: folder.mount,
-      path: made,
-    });
+    const reach = await folderReach(ChatIdSchema.parse(at(seeded, 0).id));
+    expect(Object.values(reach).map((mounted) => mounted.path)).toContain(made);
   });
 
   it("seeds a task no chat owns as 1.x left it, with a pin as a raw settings key", async () => {

@@ -7,12 +7,12 @@ import {
   getAttachedFoldersBaseline,
   setAttachedFoldersBaseline,
 } from "./attached-folders-baseline";
-import { chatDir } from "./record-folders";
-import { getChatState } from "./chat-record";
+import { chatGrants } from "./chat/grants";
+import { folderReach } from "./chat/folder-reach";
 import { effectiveFolderAccess } from "./workspace-fs-layout";
 
 /**
- * Diffs the task's current attached folders against the session's persisted
+ * Diffs the folders granted in the chat, as the agent reaches them, against the session's persisted
  * baseline to find folders removed, renamed, or re-permissioned since the
  * baseline was last set, then advances the baseline to the current set.
  * Access rides here rather than with whatever changed it, so a change reaches
@@ -23,24 +23,15 @@ import { effectiveFolderAccess } from "./workspace-fs-layout";
  * session so an idle chat only learns about changes once it next sends a
  * message.
  *
- * Must run after any folder attach for this message (writeUploadedAttachments),
- * so a rename it triggers is read here as part of "current" and reported the
- * same turn instead of lagging behind.
+ * Must run after any grant for this message, so a folder sent with it is told
+ * here the same turn instead of lagging behind.
  */
 export function detectAttachedFolderChanges({
-  announced,
   messageId,
   sessionId,
   signal,
   chatId,
 }: {
-  /**
-   * Folders this same message already introduces in full, by host path: the
-   * ones arriving with it, which the attachment part lists with their mounts
-   * and their access. Announcing them again here would say the same thing
-   * twice on the path folders ordinarily arrive by.
-   */
-  announced?: string[];
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
   signal?: AbortSignal;
@@ -48,17 +39,18 @@ export function detectAttachedFolderChanges({
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
-      const taskState = await getChatState(chatDir(chatId));
-      const current = Object.values(taskState.attachedFolders ?? {}).map(
-        (folder) => ({
+      const grants = await chatGrants(chatId);
+      const granted = new Set<string>(grants.map((grant) => grant.path));
+      const current = Object.values(await folderReach(chatId, grants))
+        .filter((folder) => granted.has(folder.path))
+        .map((folder) => ({
           // The access the mount ended up with, not the grant on record, so a
           // folder the workspace-overlap guard downgrades is never announced as
           // writable while the filesystem refuses the writes.
           access: effectiveFolderAccess(folder),
           name: folder.mountName,
           path: folder.path,
-        }),
-      );
+        }));
 
       const baseline = yield* getAttachedFoldersBaseline(chatId, sessionId, {
         signal,
@@ -76,16 +68,12 @@ export function detectAttachedFolderChanges({
         current.map((folder) => [folder.path, folder]),
       );
       const baselinePaths = new Set(baseline.map((folder) => folder.path));
-      const introduced = new Set(announced ?? []);
-      // A folder attached between turns, which on this side of the app is one
-      // the conversation handed the task with `task folder --add`. The mount is
-      // already live -- the sandbox is built from task state every turn -- so
-      // what this carries is the telling, without which the model has a folder
-      // it was never told it had and a standing list that contradicts it.
-      const added = current.filter(
-        (folder) =>
-          !baselinePaths.has(folder.path) && !introduced.has(folder.path),
-      );
+      // A folder granted since: sent with a message, allowed from a card, or
+      // added with `task folder --add`. The mount is already live -- the
+      // sandbox is built from the chat's grants every turn -- so what this
+      // carries is the telling, without which the model has a folder it was
+      // never told it had and a standing list that contradicts it.
+      const added = current.filter((folder) => !baselinePaths.has(folder.path));
       const removed = baseline.filter(
         (folder) => !currentByPath.has(folder.path),
       );

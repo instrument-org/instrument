@@ -248,13 +248,8 @@ async function recordChat({
       path.join(chatDir, TASK_PRIVATE_FOLDER_NAME, TASK_SETTINGS_FILE_NAME),
       "utf8",
     ),
-  ) as {
-    chatSessionId?: string;
-    state?: { attachedFolders?: Record<string, { path: string }> };
-  };
-  const folderPaths = Object.values(settings.state?.attachedFolders ?? {}).map(
-    (folder) => folder.path,
-  );
+  ) as { chatSessionId?: string; grants?: { path: string }[] };
+  const folderPaths = (settings.grants ?? []).map((grant) => grant.path);
 
   const taskKeys = new Map<string, string>();
   for (const pair of values["task-key"] ?? []) {
@@ -302,7 +297,7 @@ async function recordChat({
 }
 
 /**
- * The folders a chat or task was handed ride on its first message, by their
+ * The folders a chat was sent ride on the message they came with, by their
  * paths on the recording machine. The manifest declares a chat's folders and
  * the seeder makes them, so the recorded grants are dropped rather than
  * committed: a part left with no files goes whole.

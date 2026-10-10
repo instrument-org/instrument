@@ -3,17 +3,12 @@ import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 
 export function ProjectContextNote({
   data,
-  folders,
 }: {
   data: SessionMessageDataPart.ProjectContextDataPart;
-  folders: SessionMessageDataPart.FolderAttachmentDataPart[];
 }) {
   const added: string[] = [];
   if (data.instructions?.trim()) {
     added.push("instructions");
-  }
-  if (folders.length > 0) {
-    added.push(`${folders.length} folder${folders.length === 1 ? "" : "s"}`);
   }
 
   if (added.length === 0) {

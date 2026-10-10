@@ -189,12 +189,7 @@ export function titleSourceText(message: SessionMessage.UserWithParts): string {
   const fileNames = attachments.data.files
     .map((file) => file.filename)
     .join(", ");
-  // A project's folders ride along on the first message of every task in that
-  // project, so a title drawn from one names the neighbors it has to be told
-  // apart from. Only what the user attached to this message is evidence about
-  // this task, and only that is what the line below claims to be.
   const folderPaths = (attachments.data.folders ?? [])
-    .filter((folder) => folder.source !== "project")
     .map((folder) => shortenHomePath(folder.path, os.homedir()))
     .join(", ");
 

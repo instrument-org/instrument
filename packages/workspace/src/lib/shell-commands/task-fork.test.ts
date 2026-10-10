@@ -1,3 +1,4 @@
+import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { encodeUtf8ToBytes } from "just-bash";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -22,8 +23,9 @@ import {
 } from "../prepare-model-messages";
 import { Store } from "../store";
 import { chatDir } from "../record-folders";
+import { updateChatSettings } from "../chat-settings";
+import { chatGrants } from "../chat/grants";
 import { effectiveFolderAccess } from "../workspace-fs-layout";
-import { getChatState, setChatState } from "../chat-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { folderSubcommand } from "./task/folder";
@@ -109,9 +111,10 @@ beforeEach(async () => {
     remainingYieldMs: () => Number.POSITIVE_INFINITY,
     sessionId: chatSessionId,
   };
-  await setChatState(chatDir(chatId), {
-    selectedModelURI:
+  await updateChatSettings(chatId, {
+    modelURI: AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
+    ),
   });
   const session = await createSession({
     sessionId: chatSessionId,
@@ -540,12 +543,9 @@ describe("task new", () => {
   });
 
   it("leaves the chat's folders alone, reaching them as they stand", async () => {
-    const before = (await getChatState(chatDir(context.chatId)))
-      .attachedFolders;
+    const before = await chatGrants(context.chatId);
     await fork();
-    expect(
-      (await getChatState(chatDir(context.chatId))).attachedFolders,
-    ).toEqual(before);
+    expect(await chatGrants(context.chatId)).toEqual(before);
   });
 });
 
@@ -570,5 +570,8 @@ describe("task folder", () => {
         (folder) => folder.path,
       ),
     ).toContain(inside);
+    expect(await chatGrants(context.chatId)).toEqual([
+      { grantedAt: expect.any(Date), path: inside, source: "card" },
+    ]);
   });
 });

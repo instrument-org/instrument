@@ -7,6 +7,7 @@ import {
   encodeBrowserTargetId,
 } from "../../../types";
 import { tabHolders } from "../../chat/window-tab";
+import { TASK_COMMAND } from "../task-command";
 import { isLocalAddress } from "../../local-page-address";
 import { getWorkspaceConfig } from "../../workspace-config";
 
@@ -74,28 +75,27 @@ function tabIdOf(targetId: BrowserTargetId): string {
 }
 
 /**
- * A line for each tab just handed over that another working task holds too:
- * both will act on the same page, which is sometimes the point and otherwise
- * a mistake worth seeing.
+ * Refuses tabs another working task drives: one driver per tab, so two
+ * agents never act in one page at once. A tab the chat drives, or one a
+ * finished task left, is the new task's to take.
  */
-export async function tabsHeldElsewhere(
+export async function refuseTabsDrivenElsewhere(
   tabs: BrowserTargetId[],
   chatId: ChatId,
-): Promise<string> {
+): Promise<void> {
   if (tabs.length === 0) {
-    return "";
+    return;
   }
   const holders = await tabHolders(chatId);
-  return tabs
-    .flatMap((id) => {
-      const holder = holders.get(tabIdOf(id));
-      return holder
-        ? [
-            `Tab ${tabIdOf(id)} is also held by ${holder.id} ("${holder.title}"), which is working in it now; both will act on the same page.\n`,
-          ]
-        : [];
-    })
-    .join("");
+  const driven = tabs.flatMap((id) => {
+    const holder = holders.get(tabIdOf(id));
+    return holder ? [`${tabIdOf(id)} (${holder.id}, "${holder.title}")`] : [];
+  });
+  if (driven.length > 0) {
+    throw new Error(
+      `--tab ${driven.join(", ")}: another task is working in ${driven.length === 1 ? "that tab" : "those tabs"}, and a tab has one driver at a time. Ask that task with \`${TASK_COMMAND.name} send\` instead, or wait for it to finish: its tabs come back to you then.`,
+    );
+  }
 }
 
 /** What a hand-over prints about the tabs it made, or nothing. */

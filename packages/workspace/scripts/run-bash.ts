@@ -35,10 +35,10 @@ import { TASK_FOLDER_NAMES } from "../src/constants";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { createBashEnv } from "../src/lib/create-bash-env";
-import { grantFolders } from "../src/lib/grant-folders";
+import { assignMountNames } from "../src/lib/assign-mount-names";
 import { placeChat, resolveChat } from "../src/lib/record-folders";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
-import { type FolderAttachment } from "../src/schemas/folder-attachment";
+import { FolderAttachment } from "../src/schemas/folder-attachment";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { StoreId } from "../src/schemas/store-id";
 import { ChatIdSchema } from "../src/schemas/chat-id";
@@ -194,16 +194,27 @@ if (resolveChat(chatId) === undefined) {
   placeChat(chatId, sessionId);
 }
 
-const attachedFolders = grantFolders(
-  [],
-  args.attach.map((folder) => ({
-    access: folder.access,
-    ...(folder.mountName ? { mountName: folder.mountName } : {}),
-    path: AbsolutePathSchema.parse(folder.path),
-    source: "user" as const,
-  })),
-  Date.now(),
-).folders;
+const attached = args.attach.map((folder, index) => ({
+  ...folder,
+  id: FolderAttachment.IdSchema.parse(`attach-${index}`),
+}));
+const names = assignMountNames(attached);
+const attachedFolders = Object.fromEntries(
+  attached.map((folder): [string, FolderAttachment.Type] => {
+    const mountName = folder.mountName ?? names.get(folder.id) ?? folder.id;
+    return [
+      mountName,
+      {
+        access: folder.access,
+        createdAt: 0,
+        id: folder.id,
+        mountName,
+        path: AbsolutePathSchema.parse(folder.path),
+        source: "user",
+      },
+    ];
+  }),
+);
 
 const bash = await createBashEnv({
   attachedFolders,

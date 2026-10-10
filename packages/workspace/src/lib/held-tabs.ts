@@ -6,9 +6,9 @@ import { chatDir } from "./record-folders";
 import { getChatState, updateChatState } from "./chat-record";
 
 /**
- * The tabs a session of a record drives, first one first: a chat's
- * conversation drives the record's tabs that name no session, and each task
- * of the chat those that name its own.
+ * The tabs a session of a chat drives, first one first: the chat's
+ * conversation drives the tabs that name no driver, and each task of the
+ * chat those that name its session.
  */
 export async function heldTabs(
   chatId: ChatId,
@@ -16,13 +16,14 @@ export async function heldTabs(
 ): Promise<HeldTab[]> {
   const driver = driverOf(chatId, sessionId);
   return (await getChatState(chatDir(chatId))).browserTabs.filter(
-    (tab) => tab.sessionId === driver,
+    (tab) => tab.driver === driver,
   );
 }
 
 /**
  * Replaces the tabs a session drives with `change` of them, leaving every
- * other session's where they are.
+ * other session's where they are. A tab is driven by one session at a time,
+ * so one `change` adds is taken from whichever session drove it.
  */
 export async function updateHeldTabs(
   chatId: ChatId,
@@ -30,14 +31,35 @@ export async function updateHeldTabs(
   change: (tabs: HeldTab[]) => HeldTab[],
 ): Promise<void> {
   const driver = driverOf(chatId, sessionId);
+  await updateChatState(chatDir(chatId), ({ browserTabs }) => {
+    const mine = change(browserTabs.filter((tab) => tab.driver === driver)).map(
+      ({ driver: _driver, ...tab }) =>
+        driver === undefined ? tab : { ...tab, driver },
+    );
+    const taken = new Set(mine.map((tab) => tab.id));
+    return {
+      browserTabs: [
+        ...browserTabs.filter(
+          (tab) => tab.driver !== driver && !taken.has(tab.id),
+        ),
+        ...mine,
+      ],
+    };
+  });
+}
+
+/**
+ * Gives the tabs a task drove back to the chat, as the task finishes: still
+ * open in the window, now the conversation's to work in.
+ */
+export async function returnTabsToChat(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<void> {
   await updateChatState(chatDir(chatId), ({ browserTabs }) => ({
-    browserTabs: [
-      ...browserTabs.filter((tab) => tab.sessionId !== driver),
-      ...change(browserTabs.filter((tab) => tab.sessionId === driver)).map(
-        ({ sessionId: _driver, ...tab }) =>
-          driver === undefined ? tab : { ...tab, sessionId: driver },
-      ),
-    ],
+    browserTabs: browserTabs.map(({ driver, ...tab }) =>
+      driver === sessionId ? tab : { ...tab, ...(driver ? { driver } : {}) },
+    ),
   }));
 }
 

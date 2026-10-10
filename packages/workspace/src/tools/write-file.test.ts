@@ -6,8 +6,7 @@ import {
   beginSkillChangeTracking,
   consumeSkillChanges,
 } from "../lib/workspace-skill-index";
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { AbsolutePathSchema } from "../schemas/paths";
+import { grantFolder } from "../lib/chat/grants";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
@@ -31,7 +30,6 @@ function makeExecuteArgs(
     model,
     signal: AbortSignal.timeout(10_000),
     chatId,
-    taskState: { browserTabs: [] },
   };
 }
 
@@ -135,6 +133,7 @@ describe("WriteFile - path policy", () => {
       "/ext/Docs": {},
       [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} },
     });
+    await grantFolder({ chatId, path: "/ext/Docs", source: "attached" });
 
     const result = await runTool(WriteFile, {
       ...makeExecuteArgs({
@@ -142,19 +141,6 @@ describe("WriteFile - path policy", () => {
         explanation: "test",
         filePath: "/mnt/Docs/report.md",
       }),
-      taskState: {
-        browserTabs: [],
-        attachedFolders: {
-          docs: {
-            access: "read-write",
-            createdAt: 0,
-            id: FolderAttachment.IdSchema.parse("docs-id"),
-            mountName: "Docs",
-            path: AbsolutePathSchema.parse("/ext/Docs"),
-            source: "user",
-          },
-        },
-      },
     });
 
     expect(result.isOk()).toBe(true);

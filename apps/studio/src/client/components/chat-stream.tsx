@@ -718,20 +718,11 @@ export function ChatStream({
             ? fileAttachmentsPart.data
             : undefined;
 
-        // Folders auto-included from the project are split out by their source
-        // and shown in a slim "from project" note instead of the hand-attached
-        // card.
         const projectData =
           projectContextPart?.type === "data-projectContext"
             ? projectContextPart.data
             : undefined;
-        const allFolders = attachmentsData?.folders ?? [];
-        const userFolders = allFolders.filter(
-          (folder) => folder.source !== "project",
-        );
-        const projectFolders = allFolders.filter(
-          (folder) => folder.source === "project",
-        );
+        const userFolders = attachmentsData?.folders ?? [];
         const files = attachmentsData?.files ?? [];
 
         if (files.length > 0) {
@@ -766,7 +757,6 @@ export function ChatStream({
           messageElements.unshift(
             <ProjectContextNote
               data={projectData}
-              folders={projectFolders}
               key={`project-context-${message.id}`}
             />,
           );

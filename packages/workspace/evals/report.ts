@@ -6,7 +6,7 @@ import { listChildTasks } from "../src/lib/chat/children";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { chatDir, resolveChat, sessionOfChat } from "../src/lib/record-folders";
-import { getChatState } from "../src/lib/chat-record";
+import { chatModelURI } from "../src/lib/chat-settings";
 import { getUsageSummary } from "../src/lib/usage-summary";
 import {
   hasWorkspaceConfig,
@@ -148,10 +148,7 @@ export async function generateReport({
   const tasks = (
     await Promise.all(
       listed.chats.map(async (task) =>
-        resolveChat(task.id) &&
-        !(await getChatState(chatDir(task.id))).selectedModelURI
-          ? []
-          : [task],
+        resolveChat(task.id) && !(await chatModelURI(task.id)) ? [] : [task],
       ),
     )
   ).flat();
@@ -195,8 +192,7 @@ export async function generateReport({
     const chatId = task.id;
     const run = runsByChatId.get(chatId);
 
-    const taskState = await getChatState(chatDir(chatId));
-    const taskModelURI = run?.modelURI ?? taskState.selectedModelURI;
+    const taskModelURI = run?.modelURI ?? (await chatModelURI(chatId));
     if (taskModelURI) {
       rollupModelURIs.add(taskModelURI);
     }

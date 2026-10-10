@@ -7,7 +7,7 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { attachFolder, detachFolder } from "./attach-folder";
+import { grantFolder, revokeGrant } from "./chat/grants";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { setAttachedFoldersBaseline } from "./attached-folders-baseline";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
@@ -29,14 +29,12 @@ async function changesSince(
     name: string;
     path: string;
   }[],
-  announced?: string[],
 ) {
   const set = await setAttachedFoldersBaseline(TASK_ID, sessionId, baseline);
   if (set.isErr()) {
     throw set.error;
   }
   const result = await detectAttachedFolderChanges({
-    ...(announced ? { announced } : {}),
     messageId: StoreId.newMessageId(),
     sessionId,
     chatId: TASK_ID,
@@ -80,12 +78,8 @@ afterEach(async () => {
 });
 
 describe("detectAttachedFolderChanges", () => {
-  it("reports a folder handed to the task between turns", async () => {
-    await attachFolder({
-      access: "read-write",
-      path: downloads,
-      chatId: TASK_ID,
-    });
+  it("reports a folder granted between turns", async () => {
+    await grantFolder({ chatId: TASK_ID, path: downloads, source: "card" });
 
     const changes = await changesSince([]);
 
@@ -94,47 +88,27 @@ describe("detectAttachedFolderChanges", () => {
     ]);
   });
 
-  it("says nothing about a folder arriving with this same message", async () => {
-    await attachFolder({
-      access: "read-write",
-      path: downloads,
-      chatId: TASK_ID,
-    });
-
-    // What the attachment part on the message already lists in full.
-    const changes = await changesSince([], [downloads]);
-
-    expect(changes).toBeUndefined();
-  });
-
-  it("still reports a removal on a message that brings a folder of its own", async () => {
+  it("reports a removal beside a folder granted since", async () => {
     const gone = path.join(rootDir, "Old");
     await fs.mkdir(gone);
-    await attachFolder({ access: "read-only", path: gone, chatId: TASK_ID });
-    await attachFolder({
-      access: "read-write",
-      path: downloads,
-      chatId: TASK_ID,
-    });
-    await detachFolder({ path: gone, chatId: TASK_ID });
+    await grantFolder({ chatId: TASK_ID, path: gone, source: "card" });
+    await grantFolder({ chatId: TASK_ID, path: downloads, source: "card" });
+    await revokeGrant({ chatId: TASK_ID, path: gone });
 
-    const changes = await changesSince(
-      [{ access: "read-only", name: "Old", path: gone }],
-      [downloads],
-    );
+    const changes = await changesSince([
+      { access: "read-write", name: "Old", path: gone },
+    ]);
 
-    expect(changes?.added).toEqual([]);
+    expect(changes?.added).toEqual([
+      { access: "read-write", name: "Downloads", path: downloads },
+    ]);
     expect(changes?.removed).toEqual([
-      { access: "read-only", name: "Old", path: gone },
+      { access: "read-write", name: "Old", path: gone },
     ]);
   });
 
   it("reports nothing when the folders are as the model last saw them", async () => {
-    await attachFolder({
-      access: "read-write",
-      path: downloads,
-      chatId: TASK_ID,
-    });
+    await grantFolder({ chatId: TASK_ID, path: downloads, source: "card" });
 
     const changes = await changesSince([
       { access: "read-write", name: "Downloads", path: downloads },

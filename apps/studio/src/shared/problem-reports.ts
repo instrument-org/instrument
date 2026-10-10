@@ -6,7 +6,7 @@ import { z } from "zod";
  * where the person could see (`error`), or the person told us about a chat
  * (`feedback`).
  */
-export const ReportKindSchema = z.enum(["crash", "hang", "error", "feedback"]);
+const ReportKindSchema = z.enum(["crash", "hang", "error", "feedback"]);
 
 export type ReportKind = z.output<typeof ReportKindSchema>;
 

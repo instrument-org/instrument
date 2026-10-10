@@ -719,20 +719,10 @@ function filedHostsOf(taskId: TaskId): Promise<string[]> {
   });
 }
 
-/**
- * The paths the replies handed over, deduped, the newest mention last. A chat
- * made from an earlier version's task holds that task's files first.
- */
+/** The paths the replies handed over, deduped, the newest mention last. */
 function filesHeld(messages: SessionMessage.WithParts[]): string[] {
   const files = new Set<string>();
   for (const message of messages) {
-    for (const part of message.parts) {
-      if (part.type === "data-adoptedTask") {
-        for (const path of part.data.files) {
-          files.add(path);
-        }
-      }
-    }
     if (message.role !== "assistant") {
       continue;
     }

@@ -53,7 +53,6 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [Conversation storage](active/conversation-storage.md) — conversation data the agent can read across | index and search landed, storage not started |
 | [Agent-requested folder access](active/agent-requested-folder-access.md) | phase 1 landed, reduced phase 2 |
 | [Legacy data migration](active/legacy-data-migration.md): bringing 1.x tasks and projects into chats | built, backfill and eval left |
-| [A 1.x task becomes the chat](active/1x-task-becomes-the-chat.md): migration makes the old task's session and folder the chat | proposed, not approved |
 | [Skills mount instead of copy](active/skills-mount-instead-of-copy.md) | step 3 copy removal left |
 | [Skills from attached folders](active/skills-from-attached-folders.md) | proposed, waits on skills mount |
 

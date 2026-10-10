@@ -13,7 +13,6 @@ import {
   TASK_FOLDER_NAMES,
   TASKS_DIR_NAME,
 } from "../constants";
-import { MOUNT } from "../mount-points";
 import { RelativePathSchema } from "../schemas/paths";
 import { ProjectIdSchema } from "../schemas/project-id";
 import { type Session } from "../schemas/session";
@@ -23,7 +22,6 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
 import { chatFolderName } from "./generate-task-folder-name";
-import { translateTaskFolderPaths } from "./chat/mount-paths";
 import {
   newTopicId,
   readTopicsSync,
@@ -35,38 +33,38 @@ import {
 } from "./chat/topics";
 import { forgetRecordFolders } from "./record-folders";
 import { isRecord } from "./skills";
-import { readJsonRecordSync, updateJsonRecordSync } from "./json-record-file";
 import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
 import { StorageKey } from "./storage-key";
 
 // Where what the move leaves behind is kept, so a migration that went wrong
-// can be undone by hand: the projects, once their topics are written, and the
-// tasks with nothing the user said in them.
+// can be undone by hand: the projects, once their topics are written, the
+// tasks with nothing the user said in them, and each chat's 1.x settings and
+// database as the task had them.
 const BACKUP_DIR_NAME = ".pre-chats";
 const LEGACY_PROJECTS_DIR_NAME = "projects";
 const PROJECT_INSTRUCTIONS_FILE_NAME = "AGENTS.md";
 const EMPTY_TASKS_DIR_NAME = "empty-tasks";
+const TASK_RECORDS_DIR_NAME = "task-records";
+
+// What a task carries while it is staged as a chat: the chat's database and
+// settings, written beside the task's own and put in their place once the
+// folder is among the chats.
+const CHAT_DB_FILE_NAME = ".chat.db";
+const CHAT_SETTINGS_FILE_NAME = ".chat-settings.json";
+
+// SQLite keeps sidecar files next to a database; they travel with it.
+const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 
 // The model the tutorial's replay ran on, which marks a task as the tutorial.
 const TUTORIAL_MODEL = "tutorial-task-replay";
-
-// A Markdown link or image whose target is a path relative to the task, which
-// in a chat has to name the task's folder: not a URL, an anchor, or a path
-// from the root.
-const RELATIVE_LINK = /(\]\(\s*<?)(?![a-z][\w+.-]*:|[/#?])([^)\s>]+)/gi;
 
 // A leading emoji in a project's folder name, with the space after it: the
 // mark 1.x users gave their projects, which a topic keeps as its own mark.
 const LEADING_EMOJI =
   /^((?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:\p{Emoji_Modifier}|\uFE0F|\u200D(?:\p{Extended_Pictographic}|\p{Regional_Indicator}))*)\s*/u;
 
-// A task's files the chat's row lists: what it wrote to hand back, not the
-// copies of skills it read, its scratch, or what it installed.
-const HELD_FILE_ROOTS = [`${TASK_FOLDER_NAMES.work}/`, "output/"];
-const UNHELD_FILE_SEGMENTS = /(?:^|\/)(?:\.[^/]*|node_modules|skills|tmp)\//;
-
 export interface LegacyTasksMigration {
-  /** Tasks now inside a chat made for each. */
+  /** Tasks made into chats. */
   adoptedCount: number;
   /**
    * Tasks set aside rather than made into a chat: ones with nothing the user
@@ -108,14 +106,13 @@ interface StoreRow {
 }
 
 /**
- * Makes every task an earlier version ran on its own into a chat that owns
- * it, and every project into a topic. The chat holds the conversation as the
- * user saw it, their words and the replies, and a note on its first message
- * saying which task did the work; the task moves inside the chat untouched but
- * for naming it as its parent, so a follow-up in the chat reaches the task
- * with its whole history. A project becomes a topic of the same name, or
- * joins the topic already called that, and its instructions become the
- * topic's; the chats of its tasks carry that topic.
+ * Makes every task an earlier version ran on its own into a chat, and every
+ * project into a topic. The task's folder becomes the chat's, files and all,
+ * so a path its replies named is the same path in the chat; its database is
+ * rewritten as the chat's one conversation, holding what the user saw (their
+ * words and files, and the replies) under the ids they had. A project becomes
+ * a topic of the same name, or joins the topic already called that, and its
+ * instructions become the topic's; the chats of its tasks carry that topic.
  *
  * Runs with the layout sweep in `migrateWorkspaceLayout`, once per layout
  * version, and decides from the data: a task under `tasks/` that no chat
@@ -123,10 +120,11 @@ interface StoreRow {
  * into a topic.
  * Synchronous and file-level, with no store open and no workspace config.
  *
- * A chat is written under a hidden name inside `chats/`, the task moved into
- * it and pointed at it, and only then given its real name, so no chat is ever
- * listed without its task, and a boot cut short part way finishes or discards
- * the chat it left.
+ * The chat's database and settings are written beside the task's own, the
+ * folder moved among the chats under a hidden name, the task's files set
+ * aside for the chat's, and only then the folder given its real name, so no
+ * chat is listed half made, and a boot cut short part way finishes the chat
+ * it left.
  */
 export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
   const migration: LegacyTasksMigration = {
@@ -137,7 +135,7 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
   };
   const tasksDir = path.join(rootDir, TASKS_DIR_NAME);
   const chatsDir = path.join(rootDir, CHATS_DIR_NAME);
-  const staged = finishStagedChats(chatsDir);
+  const staged = finishStagedChats(chatsDir, rootDir);
   const legacy = readDirs(tasksDir).filter((name) =>
     isLegacyTask(path.join(tasksDir, name)),
   );
@@ -197,7 +195,7 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
 
   for (const stagingDir of stagedDirs) {
     try {
-      finishStagedChat(stagingDir);
+      finishStagedChat(stagingDir, rootDir);
     } catch {
       // Left staged, and finished by the next boot.
       migration.leftOver += 1;
@@ -259,15 +257,11 @@ function adoptTask({
     }
   | { kind: "empty" } {
   const taskName = path.basename(taskDir);
-  const taskId = TaskIdSchema.parse(taskName);
-  const settingsPath = path.join(
-    taskDir,
-    TASK_PRIVATE_FOLDER_NAME,
-    TASK_SETTINGS_FILE_NAME,
-  );
-  const settings = readJson(settingsPath) ?? {};
+  const privateDir = path.join(taskDir, TASK_PRIVATE_FOLDER_NAME);
+  const settings =
+    readJson(path.join(privateDir, TASK_SETTINGS_FILE_NAME)) ?? {};
   const conversation = readConversation(
-    path.join(taskDir, TASK_PRIVATE_FOLDER_NAME, TASK_DB_FILE_NAME),
+    path.join(privateDir, TASK_DB_FILE_NAME),
   );
   if (
     conversation.tutorial ||
@@ -302,42 +296,42 @@ function adoptTask({
   const sessionId = StoreId.SessionSchema.parse(
     `ses_${ulid(createdAt.getTime())}`,
   );
+  const topicId =
+    typeof settings.projectId === "string"
+      ? topicOf.get(settings.projectId)
+      : undefined;
+  const pinnedAt = validDate(settings.pinnedAt);
+  // A task left unread is a chat left unread, a mark the user put on it
+  // staying theirs.
+  const unread = isRecord(settings.unreadIndicator)
+    ? settings.unreadIndicator
+    : undefined;
+  const session: Session.Type = {
+    createdAt,
+    id: sessionId,
+    ...(pinnedAt ? { starredAt: pinnedAt } : {}),
+    ...(unread
+      ? {
+          unreadAt: lastActivityAt,
+          ...(unread.manual === true ? { unreadByUser: true } : {}),
+        }
+      : {}),
+    title,
+    titleSettledAt: createdAt,
+    ...(topicId ? { topics: [topicId] } : {}),
+    updatedAt: lastActivityAt,
+  };
+
+  const chatDb = path.join(privateDir, CHAT_DB_FILE_NAME);
+  const chatSettings = path.join(privateDir, CHAT_SETTINGS_FILE_NAME);
   const stagingDir = path.join(chatsDir, stagingName(chatName));
   fs.rmSync(stagingDir, { force: true, recursive: true });
   try {
-    const topicId =
-      typeof settings.projectId === "string"
-        ? topicOf.get(settings.projectId)
-        : undefined;
-    const pinnedAt = validDate(settings.pinnedAt);
-    // A task left unread is a chat left unread, a mark the user put on it
-    // staying theirs.
-    const unread = isRecord(settings.unreadIndicator)
-      ? settings.unreadIndicator
-      : undefined;
-    const session: Session.Type = {
-      createdAt,
-      id: sessionId,
-      ...(pinnedAt ? { starredAt: pinnedAt } : {}),
-      ...(unread
-        ? {
-            unreadAt: lastActivityAt,
-            ...(unread.manual === true ? { unreadByUser: true } : {}),
-          }
-        : {}),
-      title,
-      titleSettledAt: createdAt,
-      ...(topicId ? { topics: [topicId] } : {}),
-      updatedAt: lastActivityAt,
-    };
-    const privateDir = path.join(stagingDir, TASK_PRIVATE_FOLDER_NAME);
-    fs.mkdirSync(privateDir, { recursive: true });
-    fs.mkdirSync(path.join(stagingDir, TASK_FOLDER_NAMES.attachments), {
-      recursive: true,
-    });
-    updateJsonRecordSync(
-      path.join(privateDir, TASK_SETTINGS_FILE_NAME),
-      () => ({
+    removeDb(chatDb);
+    writeChatRows({ dbPath: chatDb, messages: conversation.messages, session });
+    fs.writeFileSync(
+      chatSettings,
+      JSON.stringify({
         chatSessionId: sessionId,
         createdAt: createdAt.toISOString(),
         ...(typeof settings.createdWithAppVersion === "string"
@@ -358,20 +352,14 @@ function adoptTask({
         },
       }),
     );
-    copyAttachments(taskDir, stagingDir, conversation.attachments);
-    writeChatRows({
-      dbPath: path.join(privateDir, TASK_DB_FILE_NAME),
-      files: heldFiles(taskDir, taskId, conversation.changedFiles),
-      messages: conversation.messages,
-      session,
-      taskId,
+    fs.mkdirSync(path.join(taskDir, TASK_FOLDER_NAMES.attachments), {
+      recursive: true,
     });
-
-    const inside = path.join(stagingDir, TASKS_DIR_NAME, taskName);
-    fs.mkdirSync(path.dirname(inside), { recursive: true });
-    fs.renameSync(taskDir, inside);
+    fs.mkdirSync(chatsDir, { recursive: true });
+    fs.renameSync(taskDir, stagingDir);
   } catch (error) {
-    fs.rmSync(stagingDir, { force: true, recursive: true });
+    removeDb(chatDb);
+    fs.rmSync(chatSettings, { force: true });
     throw error;
   }
   return {
@@ -381,64 +369,50 @@ function adoptTask({
   };
 }
 
-/** Clones the files the user sent from the task into the chat, at the same path. */
-function copyAttachments(from: string, to: string, attachments: string[]) {
-  for (const relative of attachments) {
-    const source = path.join(from, relative);
-    const target = path.join(to, relative);
-    if (
-      !relative.startsWith(`${TASK_FOLDER_NAMES.attachments}/`) ||
-      !present(source) ||
-      present(target)
-    ) {
-      continue;
-    }
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-    // A clone where the disk can make one, so a chat of photos costs nothing.
-    fs.cpSync(source, target, {
-      mode: fs.constants.COPYFILE_FICLONE,
-      recursive: true,
-      verbatimSymlinks: true,
-    });
-  }
-}
-
 /**
- * Gives a staged chat its name once the task is inside it, taking the task's
- * project off it first, since the project is a topic on the chat now; one cut
- * short before its task moved in is discarded, since the task is still under
- * `tasks/` and is adopted again.
+ * Gives a staged chat its name once its database and settings are in place:
+ * the task's own set aside under `.pre-chats/task-records/<chat>`, and the
+ * chat's written in that staging put where they were. Each step is skipped
+ * once done, so a boot cut short part way picks up where it stopped.
  */
-function finishStagedChat(stagingDir: string) {
+function finishStagedChat(stagingDir: string, rootDir: string) {
   const chatName = path.basename(stagingDir).slice(1, -".partial".length);
-  const inside = path.join(stagingDir, TASKS_DIR_NAME);
-  const [taskName] = readDirs(inside);
-  if (taskName === undefined) {
-    fs.rmSync(stagingDir, { force: true, recursive: true });
-    return;
-  }
-  const taskSettingsPath = path.join(
-    inside,
-    taskName,
-    TASK_PRIVATE_FOLDER_NAME,
-    TASK_SETTINGS_FILE_NAME,
+  const privateDir = path.join(stagingDir, TASK_PRIVATE_FOLDER_NAME);
+  const backup = path.join(
+    rootDir,
+    BACKUP_DIR_NAME,
+    TASK_RECORDS_DIR_NAME,
+    chatName,
   );
-  // Settings that cannot be read are left for Settings > Storage to show
-  // rather than replaced.
-  if (readJsonRecordSync(taskSettingsPath).kind !== "unreadable") {
-    updateJsonRecordSync(taskSettingsPath, () => ({ projectId: undefined }));
+  const chatDb = path.join(privateDir, CHAT_DB_FILE_NAME);
+  if (present(chatDb)) {
+    for (const suffix of DB_FILE_SUFFIXES) {
+      setAside(
+        path.join(privateDir, `${TASK_DB_FILE_NAME}${suffix}`),
+        path.join(backup, `${TASK_DB_FILE_NAME}${suffix}`),
+      );
+    }
+    fs.renameSync(chatDb, path.join(privateDir, TASK_DB_FILE_NAME));
+  }
+  const chatSettings = path.join(privateDir, CHAT_SETTINGS_FILE_NAME);
+  if (present(chatSettings)) {
+    setAside(
+      path.join(privateDir, TASK_SETTINGS_FILE_NAME),
+      path.join(backup, TASK_SETTINGS_FILE_NAME),
+    );
+    fs.renameSync(chatSettings, path.join(privateDir, TASK_SETTINGS_FILE_NAME));
   }
   fs.renameSync(stagingDir, path.join(path.dirname(stagingDir), chatName));
 }
 
 /** Finishes the chats an earlier boot staged. Returns whether there were any. */
-function finishStagedChats(chatsDir: string): boolean {
+function finishStagedChats(chatsDir: string, rootDir: string): boolean {
   const staged = readDirs(chatsDir).filter(
     (name) => name.startsWith(".") && name.endsWith(".partial"),
   );
   for (const name of staged) {
     try {
-      finishStagedChat(path.join(chatsDir, name));
+      finishStagedChat(path.join(chatsDir, name), rootDir);
     } catch {
       // Left staged, and tried again on the next boot.
     }
@@ -454,33 +428,6 @@ function firstLine(text: string): string {
       .find(Boolean)
       ?.slice(0, 80) ?? ""
   );
-}
-
-/**
- * The files the task made that are still there, as the chat reaches them:
- * what its turns recorded writing, newest last, less what they deleted, the
- * skills they copied in, and scratch.
- */
-function heldFiles(
-  taskDir: string,
-  taskId: string,
-  changed: { filePath: string; status: string }[],
-): string[] {
-  const kept = new Set<string>();
-  for (const { filePath, status } of changed) {
-    kept.delete(filePath);
-    if (status !== "deleted") {
-      kept.add(filePath);
-    }
-  }
-  return [...kept]
-    .filter(
-      (filePath) =>
-        HELD_FILE_ROOTS.some((root) => filePath.startsWith(root)) &&
-        !UNHELD_FILE_SEGMENTS.test(filePath) &&
-        present(path.join(taskDir, filePath)),
-    )
-    .map((filePath) => `${MOUNT.tasks}/${taskId}/${filePath}`);
 }
 
 /**
@@ -527,6 +474,22 @@ function moveAside(source: string, to: string) {
   fs.renameSync(source, target);
 }
 
+/** A database and its sidecar files, gone. */
+function removeDb(dbPath: string) {
+  for (const suffix of DB_FILE_SUFFIXES) {
+    fs.rmSync(`${dbPath}${suffix}`, { force: true });
+  }
+}
+
+/** Moves a file into the backup, unless it is already there or was never made. */
+function setAside(source: string, to: string) {
+  if (!present(source) || present(to)) {
+    return;
+  }
+  fs.mkdirSync(path.dirname(to), { recursive: true });
+  fs.renameSync(source, to);
+}
+
 /** A name without its leading emoji, as a topic's name is compared. */
 function nameKey(name: string): string {
   return topicName(name.replace(LEADING_EMOJI, "")).toLowerCase();
@@ -561,22 +524,17 @@ function projectFolders(raw: unknown): TopicFolder[] {
 /**
  * What the user saw of a task: every top-level session in the order they
  * began, each message in order, the user's words and files and the replies'
- * words, and nothing else. Also which files the user sent, and which its
- * turns recorded changing.
+ * words, and nothing else.
  */
 function readConversation(dbPath: string): {
-  attachments: string[];
-  changedFiles: { filePath: string; status: string }[];
   messages: ConversationMessage[];
   title?: string;
   /** Whether it is the tutorial's replay, which a chat is not made for. */
   tutorial: boolean;
 } {
-  const attachments: string[] = [];
-  const changedFiles: { filePath: string; status: string }[] = [];
   const messages: ConversationMessage[] = [];
   if (!fs.existsSync(dbPath)) {
-    return { attachments, changedFiles, messages, tutorial: false };
+    return { messages, tutorial: false };
   }
   const db = new DatabaseSync(dbPath, { readOnly: true });
   let rows: StoreRow[];
@@ -634,21 +592,6 @@ function readConversation(dbPath: string): {
         String(isRecord(b.metadata) ? b.metadata.id : ""),
       ),
     );
-    for (const part of parts) {
-      if (part.type === "data-fileChanges" && isRecord(part.data)) {
-        for (const file of Array.isArray(part.data.files)
-          ? part.data.files
-          : []) {
-          if (
-            isRecord(file) &&
-            typeof file.filePath === "string" &&
-            typeof file.status === "string"
-          ) {
-            changedFiles.push({ filePath: file.filePath, status: file.status });
-          }
-        }
-      }
-    }
     const role = message.role;
     const id = StoreId.MessageSchema.safeParse(messageId);
     const metadata = isRecord(message.metadata) ? message.metadata : {};
@@ -709,7 +652,6 @@ function readConversation(dbPath: string): {
               : [];
           })
         : [];
-    attachments.push(...sentFiles.map((file) => file.filePath));
     messages.push({
       createdAt,
       files: sentFiles,
@@ -728,8 +670,6 @@ function readConversation(dbPath: string): {
     (session) => session.id === sessionOrder[0],
   )?.title;
   return {
-    attachments,
-    changedFiles,
     messages,
     ...(title ? { title } : {}),
     tutorial,
@@ -805,7 +745,7 @@ function readProjects(rootDir: string): LegacyProject[] {
   );
 }
 
-/** The hidden name a chat is written under until its task is inside it. */
+/** The hidden name a chat is moved in under until it is finished. */
 function stagingName(chatName: string): string {
   return `.${chatName}.partial`;
 }
@@ -921,24 +861,18 @@ function chatFoldersOf(taskFolders: unknown): Record<string, unknown> {
 
 /**
  * The chat's database: its session, then each message and its parts, in one
- * transaction. The replies' task paths are rewritten to where the chat reaches
- * the task's folder, and the first message carries the note on the task.
+ * transaction.
  */
 function writeChatRows({
   dbPath,
-  files,
   messages,
   session,
-  taskId,
 }: {
   dbPath: string;
-  files: string[];
   messages: ConversationMessage[];
   session: Session.Type;
-  taskId: ReturnType<typeof TaskIdSchema.parse>;
 }) {
   const rows: [string, unknown][] = [[StorageKey.session(session.id), session]];
-  let adopted = false;
   for (const message of messages) {
     const stored: SessionMessage.Type =
       message.role === "user"
@@ -975,14 +909,7 @@ function writeChatRows({
     const parts: SessionMessagePart.Type[] = message.texts.map((part) => ({
       metadata: { ...metadata(), endedAt: message.createdAt, id: part.id },
       state: "done",
-      text:
-        message.role === "assistant"
-          ? translateTaskFolderPaths(part.text, taskId).replaceAll(
-              RELATIVE_LINK,
-              (_match, open: string, target: string) =>
-                `${open}${MOUNT.tasks}/${taskId}/${target.replace(/^\.\//, "")}`,
-            )
-          : part.text,
+      text: part.text,
       type: "text",
     }));
     if (message.files.length > 0) {
@@ -990,14 +917,6 @@ function writeChatRows({
         data: { files: message.files },
         metadata: metadata(),
         type: "data-attachments",
-      });
-    }
-    if (message.role === "user" && !adopted) {
-      adopted = true;
-      parts.push({
-        data: { files, taskId },
-        metadata: metadata(),
-        type: "data-adoptedTask",
       });
     }
     for (const part of parts) {

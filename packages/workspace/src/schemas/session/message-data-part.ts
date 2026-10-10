@@ -14,7 +14,7 @@ export namespace SessionMessageDataPart {
    * - **Event**: something that happened on this turn -- `asks`,
    *   `attachments`, `contextRollover`, `fromChat`, `intent`, `maxSteps`, `reply`,
    *   `skillChanges`, `skillMentions`, and `projectContext` and
-   *   `chatContext` and `adoptedTask`, which are written once at creation. A repeat is
+   *   `chatContext`, which is written once at creation. A repeat is
    *   impossible by construction; nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
    *   `attachedFolderChanges`, `modelChange`. Self-limiting: no change, no
@@ -34,7 +34,6 @@ export namespace SessionMessageDataPart {
    * `fileChanges`.
    */
   export const NameSchema = z.enum([
-    "adoptedTask",
     "appEvent",
     "asks",
     "attachedFolderChanges",
@@ -803,19 +802,6 @@ export namespace SessionMessageDataPart {
   export type ChatContextDataPart = z.output<typeof ChatContextDataPartSchema>;
 
   /**
-   * The task an earlier version of the app ran as the whole conversation,
-   * on the first message of the chat its words were copied into: which task
-   * it was, now one of the chat's own, and the files it made, as paths the
-   * chat reaches them by. Written once, when the chat is made.
-   */
-  const AdoptedTaskDataPartSchema = z.object({
-    files: z.array(z.string()).default([]),
-    taskId: TaskIdSchema,
-  });
-
-  export type AdoptedTaskDataPart = z.output<typeof AdoptedTaskDataPartSchema>;
-
-  /**
    * What the conversation's agent remembers about the user, on a chat's
    * user message when memory changed since the chat was last told: the
    * whole of it the first time, and after that only what was saved,
@@ -962,7 +948,6 @@ export namespace SessionMessageDataPart {
   export type UnknownDataPart = z.output<typeof UnknownDataPartSchema>;
 
   const DataPartsSchema = z.object({
-    [NameSchema.enum.adoptedTask]: AdoptedTaskDataPartSchema,
     [NameSchema.enum.appEvent]: AppEventDataPartSchema,
     [NameSchema.enum.asks]: AsksDataPartSchema,
     [NameSchema.enum.attachedFolderChanges]:

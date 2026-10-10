@@ -1,6 +1,6 @@
 description: >-
-  A task a 1.x build made, with no chat, for the boot migration that adopts it
-  into a chat of its own. Seeded as 1.x left it; the app moves it on boot.
+  A task a 1.x build made, with no chat, for the boot migration that makes it
+  into a chat. Seeded as 1.x left it; the app moves it on boot.
 
 settings:
   preferences:

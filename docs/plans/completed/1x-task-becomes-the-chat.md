@@ -1,6 +1,6 @@
 # Plan: a 1.x task becomes the chat
 
-Status: proposed, not approved.
+Status: built. The task folder is the chat; the chat's conversation is a text-only rewrite of the task's session rather than the session itself (see "As built").
 
 A 1.x task was one agent talking with the user in its own folder, which is what a chat is now. The migration still treats it the way the delegating chat needed: a new chat that holds a text-only copy of the conversation, with the real task, its tools and its files, filed under it as a briefed task. This plan makes the 1.x task's session and folder become the chat itself.
 
@@ -34,3 +34,9 @@ What that leaves: the task has no `workdir`, so it is a briefed task. Its folder
 - **Already-migrated workspaces.** Every beta workspace has been through today's adoption. A second sweep at a new layout version could collapse a chat whose only child is the adopted task and whose messages are all migration copies (the `data-adoptedTask` part marks it). Whether that is worth doing, or the old shape is left as it is, is undecided; until then `adoptedTaskModelNote` and `childTaskMounts` stay for those chats.
 - **Rendering 1.x tool parts.** A 1.x session carries tool parts from tools that no longer exist or have changed shape. The chat hides tool calls outside developer mode, but model-message conversion has to accept them; check against a real 1.x database before relying on it.
 - **Session size.** The text-only copy keeps the chat small; the full 1.x session may be large enough that context compaction matters on the first follow-up.
+
+## As built
+
+- **Folder:** as planned. The task folder is staged at `chats/.<name>.partial` and renamed once the chat's database and settings are in place.
+- **Session:** not the task's own. The chat's `task.db` is rewritten to one session holding the user's words and files and the replies' words, under their original ids, with no path rewrite. Keeping the 1.x session with its tool calls was the plan, but those tool parts were never checked against today's model conversion, and the text-only copy was already what the delegating chat ran on; the agent reaches the task's files in its own folder either way. The task's `task.db` and `settings.json` move to `.pre-chats/task-records/<chat>/`, so the full session can be recovered.
+- **Gone:** `heldFiles`, `copyAttachments`, the path rewrite, the `data-adoptedTask` part and its model note, and the row's reading of it. A wrapper chat an earlier build made keeps its child task; its old part now reads as `data-unknown`, which renders nothing.

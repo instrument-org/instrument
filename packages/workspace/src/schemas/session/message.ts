@@ -16,7 +16,6 @@ import {
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { adoptedTaskModelNote } from "../../lib/adopted-task-model-text";
 import { appEventModelNote } from "../../lib/app-event-model-text";
 import { asksModelNote } from "../../lib/asks-model-text";
 import { attachedFolderChangesModelNote } from "../../lib/attached-folder-changes-model-text";
@@ -645,20 +644,6 @@ export namespace SessionMessage {
         if (replyPart) {
           injectedParts.push({
             text: replyModelNote(replyPart.data),
-            type: "text",
-          });
-        }
-
-        const adoptedTaskPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-adoptedTask";
-          } => part.type === "data-adoptedTask",
-        );
-        if (adoptedTaskPart) {
-          injectedParts.push({
-            text: adoptedTaskModelNote(adoptedTaskPart.data),
             type: "text",
           });
         }

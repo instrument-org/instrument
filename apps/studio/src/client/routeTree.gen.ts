@@ -34,6 +34,7 @@ import { Route as DebugComponentsIndexRouteImport } from './routes/debug/compone
 import { Route as DebugComponentsAlertsRouteImport } from './routes/debug/components/alerts'
 import { Route as DebugComponentsAppIconsRouteImport } from './routes/debug/components/app-icons'
 import { Route as DebugComponentsColorsRouteImport } from './routes/debug/components/colors'
+import { Route as DebugComponentsElevationRouteImport } from './routes/debug/components/elevation'
 import { Route as DebugComponentsErrorCardRouteImport } from './routes/debug/components/error-card'
 import { Route as DebugComponentsFileIconsRouteImport } from './routes/debug/components/file-icons'
 import { Route as DebugComponentsFormElementsRouteImport } from './routes/debug/components/form-elements'
@@ -174,6 +175,12 @@ const DebugComponentsColorsRoute = DebugComponentsColorsRouteImport.update({
   path: '/colors',
   getParentRoute: () => DebugComponentsRoute,
 } as any)
+const DebugComponentsElevationRoute =
+  DebugComponentsElevationRouteImport.update({
+    id: '/elevation',
+    path: '/elevation',
+    getParentRoute: () => DebugComponentsRoute,
+  } as any)
 const DebugComponentsErrorCardRoute =
   DebugComponentsErrorCardRouteImport.update({
     id: '/error-card',
@@ -284,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
+  '/debug/components/elevation': typeof DebugComponentsElevationRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
   '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
@@ -322,6 +330,7 @@ export interface FileRoutesByTo {
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
+  '/debug/components/elevation': typeof DebugComponentsElevationRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
   '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
@@ -364,6 +373,7 @@ export interface FileRoutesById {
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
+  '/debug/components/elevation': typeof DebugComponentsElevationRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
   '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
@@ -407,6 +417,7 @@ export interface FileRouteTypes {
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
     | '/debug/components/colors'
+    | '/debug/components/elevation'
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
     | '/debug/components/form-elements'
@@ -445,6 +456,7 @@ export interface FileRouteTypes {
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
     | '/debug/components/colors'
+    | '/debug/components/elevation'
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
     | '/debug/components/form-elements'
@@ -486,6 +498,7 @@ export interface FileRouteTypes {
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
     | '/debug/components/colors'
+    | '/debug/components/elevation'
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
     | '/debug/components/form-elements'
@@ -691,6 +704,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugComponentsColorsRouteImport
       parentRoute: typeof DebugComponentsRoute
     }
+    '/debug/components/elevation': {
+      id: '/debug/components/elevation'
+      path: '/elevation'
+      fullPath: '/debug/components/elevation'
+      preLoaderRoute: typeof DebugComponentsElevationRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
     '/debug/components/error-card': {
       id: '/debug/components/error-card'
       path: '/error-card'
@@ -859,6 +879,7 @@ interface DebugComponentsRouteChildren {
   DebugComponentsAlertsRoute: typeof DebugComponentsAlertsRoute
   DebugComponentsAppIconsRoute: typeof DebugComponentsAppIconsRoute
   DebugComponentsColorsRoute: typeof DebugComponentsColorsRoute
+  DebugComponentsElevationRoute: typeof DebugComponentsElevationRoute
   DebugComponentsErrorCardRoute: typeof DebugComponentsErrorCardRoute
   DebugComponentsFileIconsRoute: typeof DebugComponentsFileIconsRoute
   DebugComponentsFormElementsRoute: typeof DebugComponentsFormElementsRoute
@@ -876,6 +897,7 @@ const DebugComponentsRouteChildren: DebugComponentsRouteChildren = {
   DebugComponentsAlertsRoute: DebugComponentsAlertsRoute,
   DebugComponentsAppIconsRoute: DebugComponentsAppIconsRoute,
   DebugComponentsColorsRoute: DebugComponentsColorsRoute,
+  DebugComponentsElevationRoute: DebugComponentsElevationRoute,
   DebugComponentsErrorCardRoute: DebugComponentsErrorCardRoute,
   DebugComponentsFileIconsRoute: DebugComponentsFileIconsRoute,
   DebugComponentsFormElementsRoute: DebugComponentsFormElementsRoute,

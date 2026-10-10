@@ -45,6 +45,11 @@ export const componentPages = [
     to: "/debug/components/colors",
   },
   {
+    id: "elevation",
+    label: "Elevation",
+    to: "/debug/components/elevation",
+  },
+  {
     id: "provider-icons",
     label: "Provider icons",
     to: "/debug/components/provider-icons",

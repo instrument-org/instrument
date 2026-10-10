@@ -1,7 +1,7 @@
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
-import { isWorking } from "../../lib/chat/activity";
+import { isWorking, latestStep } from "../../lib/chat/activity";
 import { ensureChat } from "../../lib/chat/chat-records";
 import {
   archiveChat,
@@ -44,6 +44,8 @@ const ChildTaskSchema = TaskInChatSchema.extend({
     kind: z.enum(["done", "failed", "running", "waiting"]),
     line: z.string(),
   }),
+  /** The label of its newest step of its own, when it gave one. */
+  step: z.string().optional(),
   /** Whether a stop has something to end: an agent at work. */
   stoppable: z.boolean(),
 });
@@ -56,10 +58,12 @@ async function childTasks(id: ChatId) {
   return await Promise.all(
     tasks.map(async (task) => {
       const running = isWorking(task.id);
+      const step = await latestStep(task.id);
       return {
         ...task,
         dir: taskDir(task.id),
         standing: await taskStanding({ isRunning: running, taskId: task.id }),
+        ...(step ? { step } : {}),
         stoppable: running,
       };
     }),

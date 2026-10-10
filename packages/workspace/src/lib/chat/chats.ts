@@ -25,14 +25,10 @@ import { getTaskSettings } from "../task-settings";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
 import { indexedByStore, kept, unkept } from "../workspace-index";
-import {
-  askIn,
-  latestStepIn,
-  type ChatActivity,
-  chatActivity,
-} from "./activity";
+import { askIn, type ChatActivity, chatActivity } from "./activity";
 import { listChatIds } from "./chat-records";
 import { latestSessionId } from "./latest-session";
+import { latestStepIn } from "./step-label";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
 import { hasPendingWake } from "./wake";

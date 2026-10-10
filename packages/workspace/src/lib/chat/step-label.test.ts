@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { type SessionMessage } from "../../schemas/session/message";
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
-import { latestStepIn } from "./activity";
+import { latestStepIn } from "./step-label";
 
 const sessionId = StoreId.newSessionId();
 

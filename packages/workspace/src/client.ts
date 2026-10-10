@@ -26,6 +26,8 @@ export type {
   ComputerListing,
   ComputerRefusal,
 } from "./lib/chat/computer";
+export { joinedMidTurn } from "./lib/chat/mid-turn";
+export { latestStepIn } from "./lib/chat/step-label";
 export type { Memory } from "./lib/memory/store";
 export { FILES_FENCE, parseFilesBlock } from "./lib/parse-files-block";
 export {

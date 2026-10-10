@@ -37,22 +37,26 @@ import { TopicPicker } from "./topic-picker";
 import { type ChatRename, useChatRename } from "./use-chat-rename";
 
 /**
- * The head over a chat's conversation: its title in the middle, which opens
- * the chat's menu, with the topics it is filed under after it, and under the
- * title the one line saying where its work stands (`ChatStatusLine`), which
- * is the chat's loading state. At the right, the mark that lists the chat's
- * tasks, then the glyph that pops the conversation out into its small view
- * in the corner (lit while it is out, when pressing it brings the
- * conversation back), then the pane toggle while the pane is closed. No way
- * out of the chat here: the chat stays beside the inbox until the inbox is
- * dragged over it.
+ * The head over a chat's conversation, wherever the chat is shown: beside
+ * the inbox and popped out into its small window alike. Its title in the
+ * middle, which opens the chat's menu, with the topics it is filed under
+ * after it, and under the title the one line saying where its work stands
+ * (`ChatStatusLine`), which is the chat's loading state. At the right, the
+ * mark that lists the chat's tasks, then whatever the place it is shown in
+ * adds: beside the inbox the glyph that pops the conversation out (lit while
+ * it is out, when pressing it brings the conversation back) and the pane
+ * toggle while the pane is closed; popped out, the window's own buttons. The
+ * two sides keep one width, so the title stands in the middle however narrow
+ * the head is, and gives way first, truncating.
  */
 export function ChatHeader({
   chat,
+  fallbackTitle = "Chat",
   leading,
   onArchived,
   onDeleted,
   onNewTopic,
+  onOpenInChats,
   onOpenTask,
   onSetTopics,
   onViewTasks,
@@ -61,7 +65,9 @@ export function ChatHeader({
   trailing,
 }: {
   chat: Chat | undefined;
-  /** What sits ahead of the title: the toggle that puts the inbox away. */
+  /** The title while there is no chat yet: the words just sent, once there are any. */
+  fallbackTitle?: string;
+  /** What sits ahead of the title: the toggle that puts the inbox away, or the popped-out window's mark. */
   leading?: ReactNode;
   /** After the chat is archived from its menu, so the window can put it away. */
   onArchived?: () => void;
@@ -69,6 +75,8 @@ export function ChatHeader({
   onDeleted: () => void;
   /** Makes a topic, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewTopic: (name?: string) => void;
+  /** Opens the chat among the chats, from its menu, where the head is not already there. */
+  onOpenInChats?: () => void;
   /** Opens one of the chat's tasks beside it, from the work in flight at the head's right. */
   onOpenTask: (taskId: TaskId) => void;
   onSetTopics: (topics: string[]) => void;
@@ -77,7 +85,7 @@ export function ChatHeader({
   /** Whether the conversation is in its small view, and the press that sends it there or brings it back. */
   popOut?: { isOut: boolean; onToggle: () => void };
   topics: Topic[];
-  /** What sits at the head's right: the pane toggle while the pane is closed. */
+  /** What sits at the head's right: the pane toggle while the pane is closed, or the popped-out window's buttons. */
   trailing?: ReactNode;
 }) {
   const [isDeleting, setDeleting] = useState(false);
@@ -103,7 +111,7 @@ export function ChatHeader({
               <ChatHeading
                 centered
                 chat={chat}
-                menu={{ onArchived, onViewTasks }}
+                menu={{ onArchived, onOpenInChats, onViewTasks }}
                 onDelete={() => {
                   setDeleting(true);
                 }}
@@ -113,7 +121,9 @@ export function ChatHeader({
                 topics={topics}
               />
             ) : (
-              <h2 className="min-w-0 truncate text-sm font-medium">Chat</h2>
+              <h2 className="mx-auto min-w-0 truncate text-sm font-medium">
+                {fallbackTitle}
+              </h2>
             )}
           </div>
           {chat && (

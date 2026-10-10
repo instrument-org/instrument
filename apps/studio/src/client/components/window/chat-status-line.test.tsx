@@ -61,11 +61,22 @@ function step(activity: string): SessionMessage.WithParts {
   };
 }
 
-const idle = { runningTasks: [], state: "idle" as const };
-const done = (at: number) => ({
-  standing: { kind: "done" },
-  title: "Lisbon fares and hotels",
-  updatedAt: new Date(at),
+const title = "Lisbon trip";
+const idle = { runningTasks: [], state: "idle" as const, title };
+const at = (state: "failed" | "waiting" | "working") => ({
+  runningTasks: [],
+  state,
+  title,
+});
+const done = (
+  when: number,
+  name = "Lisbon fares and hotels",
+  last?: string,
+) => ({
+  standing: { kind: "done", line: "Here are the fares I found" },
+  ...(last ? { step: last } : {}),
+  title: name,
+  updatedAt: new Date(when),
 });
 
 describe("statusLine", () => {
@@ -83,7 +94,7 @@ describe("statusLine", () => {
     [
       "the plain line before a turn names a step",
       {
-        chat: { runningTasks: [], state: "working" },
+        chat: at("working"),
         isAgentRunning: false,
         listed: [],
         messages: [user(1)],
@@ -91,7 +102,7 @@ describe("statusLine", () => {
       { text: "Instrument is working", tone: "run" },
     ],
     [
-      "nothing for a message nothing went on to answer",
+      "nothing in a chat that has only talked",
       { chat: idle, isAgentRunning: false, listed: [], messages: [user(1)] },
       undefined,
     ],
@@ -113,12 +124,27 @@ describe("statusLine", () => {
             { id: taskId, step: "Writing day three", title: "Itinerary" },
           ],
           state: "working",
+          title,
         },
         isAgentRunning: false,
         listed: [],
         messages: [user(1), step("Starting a task")],
       },
       { text: "Writing day three", tone: "run" },
+    ],
+    [
+      "a running task's name before it names a step",
+      {
+        chat: {
+          runningTasks: [{ id: taskId, title: "Itinerary" }],
+          state: "working",
+          title,
+        },
+        isAgentRunning: false,
+        listed: [],
+        messages: [user(1), step("Starting a task")],
+      },
+      { text: "Itinerary", tone: "run" },
     ],
     [
       "what a stalled task needs",
@@ -128,6 +154,7 @@ describe("statusLine", () => {
             { id: taskId, title: "Itinerary", waiting: "Needs your dates" },
           ],
           state: "waiting",
+          title,
         },
         isAgentRunning: false,
         listed: [],
@@ -136,24 +163,54 @@ describe("statusLine", () => {
       { text: "Needs your dates", tone: "wait" },
     ],
     [
-      "a task finished since the user last wrote",
+      "the chat's own last step with a check once it is done",
+      {
+        chat: idle,
+        isAgentRunning: false,
+        listed: [],
+        messages: [user(1), step("Checking fares on flytap.com"), user(6)],
+      },
+      { text: "Checking fares on flytap.com", tone: "done" },
+    ],
+    [
+      "the task that finished last, after the chat's own step",
       {
         chat: idle,
         isAgentRunning: false,
         listed: [done(5)],
-        messages: [user(1), step("Starting a task")],
+        messages: [user(1), step("Starting a task"), user(6)],
       },
       { text: "Lisbon fares and hotels", tone: "done" },
     ],
     [
-      "nothing once the user has written since it finished",
+      "a task's last step when its name is the chat's",
       {
         chat: idle,
         isAgentRunning: false,
-        listed: [done(5)],
-        messages: [user(1), step("Starting a task"), user(6), step("Done")],
+        listed: [done(5, title, "Comparing hotel prices")],
+        messages: [user(1), step("Starting a task")],
+      },
+      { text: "Comparing hotel prices", tone: "done" },
+    ],
+    [
+      "nothing when all there is to say is the chat's title",
+      {
+        chat: idle,
+        isAgentRunning: false,
+        listed: [done(5, title)],
+        messages: [user(1), step("Starting a task")],
       },
       undefined,
+    ],
+    [
+      "a chat stopped on an error",
+      {
+        chat: at("failed"),
+        isAgentRunning: false,
+        listed: [],
+        messages: [user(1), step("Starting a task")],
+      },
+      { text: "Stopped on an error", tone: "failed" },
     ],
   ])("says %s", (_, input, expected) => {
     expect(statusLine(input)).toEqual(expected);

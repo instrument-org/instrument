@@ -27,9 +27,7 @@ import {
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
-import { ChatActivity } from "./chat-activity";
-import { ChatStatusLine } from "./chat-status-line";
-import { ChatHeading } from "./chat-header";
+import { ChatHeader } from "./chat-header";
 import { ChatScreen } from "./chat-screen";
 import { ChatTiles } from "./chat-tiles";
 import { type Chat, draftTitle, type Topic } from "./chats";
@@ -42,7 +40,6 @@ import {
 import { BarMarks, WindowButton } from "./compose-window";
 import { useWindow, WindowContext } from "./context";
 import { heldChipOf, IncludedChip } from "./context-chip";
-import { DeleteChatDialog } from "./delete-chat-dialog";
 import { GroupItem } from "./group-item";
 import { isIncludable } from "./draft-context";
 import { computerTabOf } from "./file-tabs";
@@ -197,7 +194,6 @@ export function ChatWindow({
   const showsItem = isExpanded && isViewOpen && up !== undefined;
   const isWorking =
     chat === undefined ? sentWords !== undefined : chat.state === "working";
-  const [isDeleting, setDeleting] = useState(false);
   const taskTitles = useTaskTitles();
 
   // The tab peeked at in the small window: a look, kept here and nowhere
@@ -462,83 +458,50 @@ export function ChatWindow({
       }
       transition={COMPOSE_MOTION}
     >
-      {chat && (
-        <DeleteChatDialog
-          chat={chat}
-          onDeleted={onClose}
-          onOpenChange={setDeleting}
-          open={isDeleting}
-        />
-      )}
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
-        <ChatsCircleIcon className="size-4 shrink-0 text-muted-foreground" />
-        {chat ? (
-          // The title, and under it the line saying where the chat's work
-          // stands, as the chat's own head has them.
-          <div className="flex min-w-0 flex-1 flex-col">
-            <ChatHeading
-              chat={chat}
-              menu={{
-                // An archived chat is put away, so its window goes with it.
-                onArchived: onClose,
-                onOpenInChats,
-                onViewTasks: () => {
-                  openTasksHere(tasksHref(chatId));
-                },
+      <ChatHeader
+        chat={chat}
+        fallbackTitle={
+          sentWords === undefined ? undefined : draftTitle(sentWords)
+        }
+        leading={
+          <ChatsCircleIcon className="size-4 shrink-0 text-muted-foreground" />
+        }
+        // An archived chat is put away, so its window goes with it.
+        onArchived={onClose}
+        onDeleted={onClose}
+        onNewTopic={onNewTopic}
+        onOpenInChats={onOpenInChats}
+        onOpenTask={(id) => {
+          openTasksHere(taskHref(id, chatId));
+        }}
+        onSetTopics={onSetTopics}
+        onViewTasks={() => {
+          openTasksHere(tasksHref(chatId));
+        }}
+        topics={topics}
+        trailing={
+          <div className="flex shrink-0 items-center gap-0.5">
+            <WindowButton label="Minimize" onClick={onMinimize}>
+              <MinusIcon className="size-4" />
+            </WindowButton>
+            <WindowButton
+              label={isExpanded ? "Shrink" : "Expand"}
+              onClick={() => {
+                onPlacementChange(isExpanded ? "docked" : "expanded");
               }}
-              onDelete={() => {
-                setDeleting(true);
-              }}
-              onNewTopic={onNewTopic}
-              onSetTopics={onSetTopics}
-              titleClassName="text-[13px] font-semibold"
-              topics={topics}
-            />
-            <div className="-mt-0.5 flex min-w-0 empty:hidden">
-              <ChatStatusLine
-                chat={chat}
-                onOpenTask={(id) => {
-                  openTasksHere(taskHref(id, chatId));
-                }}
-              />
-            </div>
+            >
+              {isExpanded ? (
+                <ArrowsInSimpleIcon className="size-4" />
+              ) : (
+                <ArrowsOutSimpleIcon className="size-4" />
+              )}
+            </WindowButton>
+            <WindowButton label="Close" onClick={onClose}>
+              <XIcon className="size-4" />
+            </WindowButton>
           </div>
-        ) : (
-          <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-            {sentWords === undefined ? "Chat" : draftTitle(sentWords)}
-          </h2>
-        )}
-        {chat && (
-          <ChatActivity
-            chatId={chat.id}
-            isCompact
-            onOpen={(id) => {
-              openTasksHere(taskHref(id, chatId));
-            }}
-            tasks={chat.runningTasks}
-          />
-        )}
-        <div className="flex shrink-0 items-center gap-0.5">
-          <WindowButton label="Minimize" onClick={onMinimize}>
-            <MinusIcon className="size-4" />
-          </WindowButton>
-          <WindowButton
-            label={isExpanded ? "Shrink" : "Expand"}
-            onClick={() => {
-              onPlacementChange(isExpanded ? "docked" : "expanded");
-            }}
-          >
-            {isExpanded ? (
-              <ArrowsInSimpleIcon className="size-4" />
-            ) : (
-              <ArrowsOutSimpleIcon className="size-4" />
-            )}
-          </WindowButton>
-          <WindowButton label="Close" onClick={onClose}>
-            <XIcon className="size-4" />
-          </WindowButton>
-        </div>
-      </div>
+        }
+      />
       <div className="relative flex min-h-0 flex-1" ref={setBody}>
         {/* The sizes are the chat column's. */}
         <div

@@ -79,7 +79,8 @@ import { FileTypeIcon } from "./extend/file-system";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FrontMatter } from "./front-matter";
 import {
-  INLINE_CHIP_CLASS_NAME,
+  ChipBody,
+  ChipButton,
   INLINE_CHIP_ICON_CLASS_NAME,
   InlineLink,
 } from "./inline-link";
@@ -435,27 +436,31 @@ const TaskFileLink = ({
   }
 
   const chip = (
-    <button
-      className={cn(INLINE_CHIP_CLASS_NAME, className)}
+    <ChipButton
+      className={className}
+      onActivate={(event) => {
+        showTaskFile(filePath, { newTab: hasTabs && wantsNewTab(event) });
+      }}
       onAuxClick={(event) => {
         if (event.button === 1) {
           event.preventDefault();
           showTaskFile(filePath, { newTab: hasTabs });
         }
       }}
-      onClick={(event) => {
-        showTaskFile(filePath, { newTab: hasTabs && wantsNewTab(event) });
-      }}
       title={filePath}
-      type="button"
       {...dragProps}
     >
-      <FileTypeIcon
-        className={INLINE_CHIP_ICON_CLASS_NAME}
-        fileName={filename}
-      />
-      <span className="truncate">{children}</span>
-    </button>
+      <ChipBody
+        icon={
+          <FileTypeIcon
+            className={INLINE_CHIP_ICON_CLASS_NAME}
+            fileName={filename}
+          />
+        }
+      >
+        {children}
+      </ChipBody>
+    </ChipButton>
   );
 
   // The file-action menu needs the task and where the file is; without the

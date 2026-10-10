@@ -2,6 +2,7 @@ import { AppMention, AppMenuRow } from "@/client/components/app-mention";
 import { FaviconFallback } from "@/client/components/favicon";
 import {
   AppChipIcon,
+  ChipBody,
   INLINE_CHIP_CLASS_NAME,
 } from "@/client/components/inline-link";
 import {
@@ -164,8 +165,9 @@ function RouteComponent() {
                 <span key={app.slug}>
                   Look in{" "}
                   <span className={INLINE_CHIP_CLASS_NAME}>
-                    <AppChipIcon slug={app.slug} />
-                    <span className="truncate">{app.name}</span>
+                    <ChipBody icon={<AppChipIcon slug={app.slug} />}>
+                      {app.name}
+                    </ChipBody>
                   </span>{" "}
                   for it.{" "}
                 </span>

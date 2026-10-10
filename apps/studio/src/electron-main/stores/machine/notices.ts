@@ -21,7 +21,8 @@ const NoticeMarksSchema = z.object({
 /**
  * The notices from us on this computer, whichever workspace is open: the
  * reports service's last answer, kept so a failed ask never empties the
- * bell, the ETag and wait it came with, and what was done with each notice.
+ * bell, the ETag and wait it came with, the last update this computer installed,
+ * and what was done with each notice.
  */
 const NoticesStoreSchema = z.object({
   etag: z.string().optional(),
@@ -29,6 +30,13 @@ const NoticesStoreSchema = z.object({
   marks: z.record(z.string(), NoticeMarksSchema).default({}),
   notices: z.array(NoticeSchema).default([]),
   pollAfter: z.number().default(DEFAULT_POLL_SECONDS),
+  /**
+   * The last update this computer launched into. One slot, so a newer update
+   * takes the place of one whose notice was never read.
+   */
+  updated: z
+    .object({ at: z.number(), from: z.string(), to: z.string() })
+    .optional(),
 });
 
 export type NoticesStore = z.output<typeof NoticesStoreSchema>;

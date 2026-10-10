@@ -1,4 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
+import { noteUpdate } from "@/electron-main/lib/notices";
 import { MACHINE_STATE_NAME } from "@/electron-main/lib/settings-migration";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { app } from "electron";
@@ -48,24 +49,14 @@ export const getMachineState = (): Store<MachineState> => {
   return STORE;
 };
 
-interface VersionBump {
-  from: string;
-  to: string;
-}
-
 export function setLastUpdateCheck(): void {
   getMachineState().set("lastUpdateCheck", Date.now());
 }
 
-// Computed once at startup and consumed exactly once, so the "updated" toast
-// fires for the launch that followed the update and not again on a later
-// renderer reload.
-let recentVersionBump: null | VersionBump = null;
-let versionBumpChecked = false;
-
 // Compares the version we last launched with the version running now. A
 // strictly-newer running version means the app was updated since the last
-// launch. Persists the current version so the next launch has a baseline.
+// launch, which the bell's notices say. Persists the current version so the
+// next launch has a baseline.
 //
 // Only packaged builds can be updated, and only there does the version track
 // installs: unpackaged builds read it from the checked-out package.json, so
@@ -75,11 +66,6 @@ let versionBumpChecked = false;
 // FORCE_DEV_AUTO_UPDATE, which already puts the updater itself in its packaged
 // behavior, is the way to exercise this in dev.
 export function checkRecentVersionBump(): void {
-  if (versionBumpChecked) {
-    return;
-  }
-  versionBumpChecked = true;
-
   if (!app.isPackaged && process.env.FORCE_DEV_AUTO_UPDATE !== "true") {
     return;
   }
@@ -95,26 +81,8 @@ export function checkRecentVersionBump(): void {
     semver.valid(current) &&
     semver.gt(current, previous)
   ) {
-    recentVersionBump = { from: previous, to: current };
+    noteUpdate({ from: previous, to: current });
   }
 
   store.set("lastLaunchedVersion", current);
-}
-
-// Returns the pending version bump and clears it, so only the first caller sees
-// it however many times the renderer asks.
-export function consumeRecentVersionBump(): null | VersionBump {
-  const bump = recentVersionBump;
-  recentVersionBump = null;
-  return bump;
-}
-
-/**
- * Queues a bump for the next reader, for the dev panel's simulation. The real
- * one is computed once at startup from a version the developer cannot move
- * without editing their own config, so this is the only way to see the toast
- * outside an actual update. Consumed the same way, by whoever asks first.
- */
-export function setRecentVersionBump(bump: VersionBump): void {
-  recentVersionBump = bump;
 }

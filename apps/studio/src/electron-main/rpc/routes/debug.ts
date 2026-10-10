@@ -6,7 +6,7 @@ import {
 } from "@/electron-main/lib/quit";
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { setRecentVersionBump } from "@/electron-main/stores/machine/state";
+import { noteUpdate } from "@/electron-main/lib/notices";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { openAppWindow } from "@/electron-main/windows/app-window";
 import {
@@ -123,11 +123,10 @@ const trigger = {
       },
     });
   }),
-  // Queues the bump only. The toast fires once per renderer lifetime, off a
-  // query that runs on mount, so the caller reloads afterwards to see it --
-  // which is also the path a real update takes.
-  testUpdatedToast: devOnly.handler(() => {
-    setRecentVersionBump({ from: "0.0.0-simulated", to: app.getVersion() });
+  // Records an update into the running build, which the bell lists as soon
+  // as it's recorded.
+  testUpdatedNotice: devOnly.handler(() => {
+    noteUpdate({ from: "0.0.0-simulated", to: app.getVersion() });
   }),
 };
 

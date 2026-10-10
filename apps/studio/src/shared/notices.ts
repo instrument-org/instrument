@@ -29,5 +29,11 @@ export const NoticesResponseSchema = z.object({
   pollAfter: z.number().positive(),
 });
 
-/** A notice as the bell shows it: whether the person has seen it yet. */
-export type BellNotice = Notice & { seen: boolean };
+/**
+ * A notice as the bell shows it: whether the person has seen it yet, and, for
+ * one the app makes itself, an action that opens a page in the app.
+ */
+export type BellNotice = Omit<Notice, "action"> & {
+  action?: { href: string; label: string } | Notice["action"];
+  seen: boolean;
+};

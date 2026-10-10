@@ -5,6 +5,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
+import { useAppTabs } from "@/client/components/window/app-tabs";
 import { pendingProblemReport } from "@/client/lib/problem-reports";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
@@ -39,11 +40,20 @@ export function NotificationsBell() {
   );
   const [open, setOpen] = useState(false);
   const markSeen = useMutation(rpcClient.notices.markSeen.mutationOptions());
+  const appTabs = useAppTabs();
+  const openAction = (notice: BellNotice) => {
+    if (notice.action && "href" in notice.action) {
+      setOpen(false);
+      appTabs.open(notice.action.href);
+      return;
+    }
+    void openNoticeLink(notice);
+  };
   const hasProblems = problems.length > 0;
   const unseen = notices.filter((notice) => !notice.seen);
   const empty = problems.length === 0 && notices.length === 0;
 
-  useToastLoudNotices(notices);
+  useToastLoudNotices(notices, openAction);
 
   return (
     <Popover
@@ -98,7 +108,13 @@ export function NotificationsBell() {
               />
             ))}
             {notices.map((notice) => (
-              <NoticeItem key={notice.id} notice={notice} />
+              <NoticeItem
+                key={notice.id}
+                notice={notice}
+                onAction={() => {
+                  openAction(notice);
+                }}
+              />
             ))}
           </div>
         )}
@@ -112,7 +128,10 @@ export function NotificationsBell() {
  * whether this one may go (never toasted, nothing else toasted this launch)
  * and remembers that it did. A critical one stays until it's closed.
  */
-function useToastLoudNotices(notices: BellNotice[]) {
+function useToastLoudNotices(
+  notices: BellNotice[],
+  onAction: (notice: BellNotice) => void,
+) {
   const asked = useRef(new Set<string>());
   useEffect(() => {
     for (const notice of notices) {
@@ -130,7 +149,7 @@ function useToastLoudNotices(notices: BellNotice[]) {
             action: notice.action && {
               label: notice.action.label,
               onClick: () => {
-                void openNoticeAction(notice);
+                onAction(notice);
               },
             },
             description: notice.body,
@@ -141,11 +160,11 @@ function useToastLoudNotices(notices: BellNotice[]) {
           // A toast that couldn't be claimed waits in the bell like the rest.
         });
     }
-  }, [notices]);
+  }, [notices, onAction]);
 }
 
-function openNoticeAction(notice: BellNotice) {
-  if (!notice.action) {
+function openNoticeLink(notice: BellNotice) {
+  if (!notice.action || !("url" in notice.action)) {
     return Promise.resolve();
   }
   return rpcClient.utils.openExternalLink
@@ -163,7 +182,13 @@ const NOTICE_ICON = {
   "whats-new": NewspaperClippingIcon,
 } satisfies Record<BellNotice["kind"], unknown>;
 
-function NoticeItem({ notice }: { notice: BellNotice }) {
+function NoticeItem({
+  notice,
+  onAction,
+}: {
+  notice: BellNotice;
+  onAction: () => void;
+}) {
   const dismiss = useMutation({
     mutationFn: () => rpcClient.notices.dismiss.call({ id: notice.id }),
     onError: (error) => {
@@ -195,9 +220,7 @@ function NoticeItem({ notice }: { notice: BellNotice }) {
         <div className="mt-2 flex gap-1.5">
           {notice.action && (
             <Button
-              onClick={() => {
-                void openNoticeAction(notice);
-              }}
+              onClick={onAction}
               size="xs"
               variant="outline"
             >

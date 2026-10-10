@@ -9,6 +9,7 @@ import {
   NoticeSchema,
   NoticesResponseSchema,
 } from "@/shared/notices";
+import { APP_NAME } from "@instrument-org/shared";
 import { app } from "electron";
 
 import { createScopedLogger } from "./electron-logger";
@@ -125,8 +126,14 @@ export function startNotices() {
 
 /** The notices the bell shows: not dismissed and not past their end. */
 export function listNotices(now = Date.now()): BellNotice[] {
-  const { marks, notices } = getNoticesStore().store;
-  return notices
+  const { marks, notices, updated } = getNoticesStore().store;
+  const all: Omit<BellNotice, "seen">[] = [...notices];
+  // Only while it's still the build running, so a later downgrade or a
+  // simulated bump in development doesn't leave it behind.
+  if (updated && updated.to === app.getVersion()) {
+    all.push(updatedNotice(updated));
+  }
+  return all
     .filter(
       (notice) =>
         !marks[notice.id]?.dismissedAt &&
@@ -134,6 +141,35 @@ export function listNotices(now = Date.now()): BellNotice[] {
     )
     .map((notice) => ({ ...notice, seen: !!marks[notice.id]?.seenAt }))
     .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
+}
+
+/**
+ * The notice for an update this computer launched into, which the app makes
+ * itself. Its id carries when, so the same version installed again after a
+ * downgrade is new rather than already dismissed.
+ */
+function updatedNotice({
+  at,
+  from,
+  to,
+}: NonNullable<NoticesStore["updated"]>): Omit<BellNotice, "seen"> {
+  return {
+    action: { href: "/release-notes", label: "What's new" },
+    body: `See what's changed since version ${from}.`,
+    id: `updated-${to}-${at}`,
+    kind: "update",
+    publishedAt: new Date(at).toISOString(),
+    severity: "info",
+    title: `${APP_NAME} updated to ${to}`,
+  };
+}
+
+/**
+ * Records that this computer launched into a newer build, replacing whatever
+ * update it recorded before, read or not, so the bell holds one at most.
+ */
+export function noteUpdate({ from, to }: { from: string; to: string }) {
+  getNoticesStore().set("updated", { at: Date.now(), from, to });
 }
 
 export function dismissNotice(id: string) {

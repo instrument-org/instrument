@@ -185,4 +185,36 @@ describe("notices", () => {
     expect(notices.claimNoticeToast("loud")).toBe(false);
     expect(notices.claimNoticeToast("louder")).toBe(true);
   });
+  it("lists only the last update this computer launched into", async () => {
+    const notices = await load();
+    env.version = "2.0.0-beta.60";
+    notices.noteUpdate({ from: "2.0.0-beta.58", to: "2.0.0-beta.60" });
+    env.version = "2.0.0-beta.61";
+    notices.noteUpdate({ from: "2.0.0-beta.60", to: "2.0.0-beta.61" });
+
+    expect(notices.listNotices()).toMatchObject([
+      {
+        action: { href: "/release-notes", label: "What's new" },
+        body: "See what's changed since version 2.0.0-beta.60.",
+        kind: "update",
+        seen: false,
+        title: "Instrument updated to 2.0.0-beta.61",
+      },
+    ]);
+
+    // Running another build, the update no longer describes this one.
+    env.version = "2.0.0-beta.60";
+    expect(notices.listNotices()).toEqual([]);
+  });
+
+  it("keeps an update dismissed, and never toasts it", async () => {
+    const notices = await load();
+    notices.noteUpdate({ from: "2.0.0-beta.57", to: "2.0.0-beta.58" });
+    const [updated] = notices.listNotices();
+
+    expect(notices.claimNoticeToast(updated?.id ?? "")).toBe(false);
+    notices.dismissNotice(updated?.id ?? "");
+
+    expect(notices.listNotices()).toEqual([]);
+  });
 });

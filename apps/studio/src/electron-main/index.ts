@@ -242,8 +242,8 @@ async function bootstrapPrimaryInstance() {
 
   await timeBootStep("setupBinDirectory", setupBinDirectory);
 
-  // Detect whether the app was updated since the last launch so the renderer
-  // can surface a one-time "updated" notification.
+  // Detect whether the app was updated since the last launch so the bell can
+  // say so.
   await timeBootStep("checkRecentVersionBump", checkRecentVersionBump);
 
   const { actor: workspaceRef, workspaceConfig } = await timeBootStep(

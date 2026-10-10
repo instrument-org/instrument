@@ -7,7 +7,6 @@ import {
   MachinePreferencesSchema,
 } from "@/electron-main/stores/machine/preferences";
 import {
-  consumeRecentVersionBump,
   getMachineState,
   setLastUpdateCheck,
 } from "@/electron-main/stores/machine/state";
@@ -162,14 +161,6 @@ const getAppVersion = base.handler(() => {
   return { version: app.getVersion() };
 });
 
-// Returns the version jump if the app was updated since the previous launch,
-// otherwise null. Reading it consumes it, so a reload does not replay the toast.
-const getRecentUpdate = base
-  .output(z.object({ from: z.string(), to: z.string() }).nullable())
-  .handler(() => {
-    return consumeRecentVersionBump();
-  });
-
 const setDefaultModelURI = base
   .input(z.object({ modelURI: AIGatewayModelURI.Schema }))
   .handler(({ input }) => {
@@ -202,7 +193,6 @@ export const preferences = {
   checkForUpdates,
   get,
   getAppVersion,
-  getRecentUpdate,
   live,
   openNotificationSettings,
   pinSidebarPlace,

@@ -117,13 +117,8 @@ export function DevPanel() {
     rpcClient.debug.trigger.testSilentNoUpdate.mutationOptions(),
   );
 
-  const { mutate: simulateUpdatedToast } = useMutation(
-    rpcClient.debug.trigger.testUpdatedToast.mutationOptions({
-      // The toast reads its bump once, on mount. Reload so it mounts again.
-      onSuccess: () => {
-        window.location.reload();
-      },
-    }),
+  const { mutate: simulateUpdatedNotice } = useMutation(
+    rpcClient.debug.trigger.testUpdatedNotice.mutationOptions(),
   );
 
   const { data: quitGuardForced, refetch: refetchQuitGuardForced } = useQuery(
@@ -409,14 +404,11 @@ export function DevPanel() {
                   <MenubarItem
                     className={itemClassName}
                     onSelect={() => {
-                      simulateUpdatedToast(undefined);
+                      simulateUpdatedNotice(undefined);
                     }}
                   >
                     <SparkleIcon className="size-3" />
                     Just updated
-                    <span className="ml-auto pl-4 text-[9px] text-dev-500/70 dark:text-dev-400/60">
-                      reloads
-                    </span>
                   </MenubarItem>
                   <MenubarItem
                     className={itemClassName}

@@ -1,13 +1,11 @@
 import { filePreviewAtom } from "@/client/atoms/file-preview";
 import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import { Toaster } from "@/client/components/ui/sonner";
-import { UpdatedToast } from "@/client/components/updated-toast";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { useAtomValue } from "jotai";
 import { lazy, type ReactNode, type Ref, Suspense } from "react";
 
-import { useAppTabs } from "./app-tabs";
 import { LinkSurface } from "./link-surface";
 
 // A pasted file opened from a composer, at its full size: loaded the first
@@ -39,7 +37,6 @@ export function WindowFrame({
   rowRef?: Ref<HTMLDivElement>;
 }) {
   const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
-  const appTabs = useAppTabs();
   return (
     // The band across the top is the window's, so every menu, popover and
     // tooltip is held below it: on macOS the traffic lights are drawn over that
@@ -94,11 +91,6 @@ export function WindowFrame({
         {/* Bottom left, over the rail's foot: clear of the drafts and the
           floating chat, which dock at the bottom right. */}
         <Toaster />
-        <UpdatedToast
-          onWhatsNew={() => {
-            appTabs.open("/release-notes");
-          }}
-        />
       </div>
     </ChromeInsetProvider>
   );

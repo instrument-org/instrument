@@ -14,6 +14,7 @@ import { files } from "./files";
 import { gateway } from "./gateway";
 import { history } from "./history";
 import { mac } from "./mac";
+import { notices } from "./notices";
 import { onboarding } from "./onboarding";
 import { pageEditor } from "./page-editor";
 import { plans } from "./plans";
@@ -45,6 +46,7 @@ export const router = {
   gateway,
   history,
   mac,
+  notices,
   onboarding,
   pageEditor,
   plans,

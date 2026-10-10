@@ -18,6 +18,9 @@ interface PublisherEvents {
         outcome: Extract<SignInOutcome, "failed">;
       }
     | { outcome: Extract<SignInOutcome, "declined" | "signed-in"> };
+  // The notices from us changed: a fetch brought new ones, or one was seen,
+  // dismissed or toasted.
+  "notices.updated": null;
   // The problems from earlier sessions waiting in the bell changed: one was
   // found at start, sent, or dismissed.
   "problems.updated": null;

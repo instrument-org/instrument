@@ -1,7 +1,10 @@
 import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
-import { macHelperBinPath } from "@/electron-main/lib/mac-native";
+import {
+  finderEntries,
+  macHelperBinPath,
+} from "@/electron-main/lib/mac-native";
 import {
   isQuitGuardForcedInDev,
   requestQuit,
@@ -141,6 +144,7 @@ export function createWorkspaceActor() {
         ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
         : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
       ensureOutputFolderIcon,
+      finderEntries,
       macHelperBinPath: macHelperBinPath(),
       getAIProviderConfigs,
       getUser: getSignedInUser,

@@ -1,13 +1,16 @@
 // The in-process half of the Mac bridge, loaded by Instrument's main process
 // as instrument-mac.node. It answers what macOS keys to the app itself, where
 // a helper process would be asked about the wrong app: notification
-// permission belongs to the bundle that shows the notification.
+// permission belongs to the bundle that shows the notification. It also
+// answers what the file browser asks of every folder it lists, which comes
+// too often to start a process for.
 //
 // Every function returns a Promise of JSON text, built by `answer`. Adding one
 // is a block in `FUNCTIONS` that calls `done` with a dictionary (or an
 // `error` string); main parses it in mac-native.ts, which is where its type
 // lives. Node-API is ABI-stable, so one build serves every Electron version.
 
+#import <AppKit/AppKit.h>
 #import <Foundation/Foundation.h>
 #import <UserNotifications/UserNotifications.h>
 #include <node_api.h>
@@ -112,10 +115,143 @@ static napi_value requestNotifications(napi_env env, napi_callback_info info) {
   });
 }
 
+/// The call's string arguments, in order; nil for one that is not a string.
+static NSArray *stringArguments(napi_env env, napi_callback_info info, size_t count) {
+  napi_value argv[4];
+  size_t argc = count < 4 ? count : 4;
+  napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
+  NSMutableArray *strings = [NSMutableArray array];
+  for (size_t i = 0; i < argc; i++) {
+    size_t length = 0;
+    if (napi_get_value_string_utf8(env, argv[i], NULL, 0, &length) != napi_ok) {
+      [strings addObject:NSNull.null];
+      continue;
+    }
+    char *buffer = malloc(length + 1);
+    napi_get_value_string_utf8(env, argv[i], buffer, length + 1, &length);
+    [strings addObject:[NSString stringWithUTF8String:buffer] ?: (id)NSNull.null];
+    free(buffer);
+  }
+  return strings;
+}
+
+/// What the Finder knows about each entry of a folder beyond what `stat`
+/// says: whether it is a package (an app, a Photos library) that the Finder
+/// shows as one item, whether its extension is hidden, whether it is hidden,
+/// and whether it is an alias. Only entries with something to say are named,
+/// and a package carries its kind as the Finder writes it.
+///
+/// Off the JS thread, which is AppKit's main thread in Electron: a folder of
+/// thousands is a few milliseconds, but not ones to take from the window.
+static napi_value finderEntries(napi_env env, napi_callback_info info) {
+  NSArray *args = stringArguments(env, info, 1);
+  NSString *folder = args.count > 0 && args[0] != NSNull.null ? args[0] : nil;
+  return answer(env, ^(Done done) {
+    if (folder == nil) {
+      done(@{@"error" : @"a folder path is required"});
+      return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      NSArray<NSURLResourceKey> *keys = @[
+        NSURLIsPackageKey, NSURLHasHiddenExtensionKey, NSURLIsHiddenKey,
+        NSURLIsAliasFileKey, NSURLIsSymbolicLinkKey, NSURLLocalizedTypeDescriptionKey
+      ];
+      NSError *error = nil;
+      NSArray<NSURL *> *urls = [NSFileManager.defaultManager
+            contentsOfDirectoryAtURL:[NSURL fileURLWithPath:folder isDirectory:YES]
+          includingPropertiesForKeys:keys
+                             options:0
+                               error:&error];
+      if (urls == nil) {
+        done(@{@"error" : error.localizedDescription ?: @"could not read the folder"});
+        return;
+      }
+      NSMutableArray *entries = [NSMutableArray array];
+      for (NSURL *url in urls) {
+        NSDictionary<NSURLResourceKey, id> *values = [url resourceValuesForKeys:keys error:nil];
+        BOOL isPackage = [values[NSURLIsPackageKey] boolValue];
+        BOOL hidesExtension = [values[NSURLHasHiddenExtensionKey] boolValue];
+        BOOL isHidden = [values[NSURLIsHiddenKey] boolValue];
+        // A symbolic link answers as an alias too; the browser already
+        // follows those itself.
+        BOOL isAlias = [values[NSURLIsAliasFileKey] boolValue] &&
+                       ![values[NSURLIsSymbolicLinkKey] boolValue];
+        if (!isPackage && !hidesExtension && !isHidden && !isAlias) {
+          continue;
+        }
+        NSMutableDictionary *entry = [@{@"name" : url.lastPathComponent} mutableCopy];
+        if (isPackage) {
+          entry[@"package"] = @YES;
+          NSString *kind = values[NSURLLocalizedTypeDescriptionKey];
+          if (kind != nil) {
+            entry[@"kind"] = kind;
+          }
+        }
+        if (hidesExtension) entry[@"hidesExtension"] = @YES;
+        if (isHidden) entry[@"hidden"] = @YES;
+        if (isAlias) entry[@"alias"] = @YES;
+        [entries addObject:entry];
+      }
+      done(@{@"entries" : entries});
+    });
+  });
+}
+
+/// The icon the Finder draws for a file, folder or app, as a PNG of the size
+/// asked for in pixels, in base64. An app's own icon, not a folder's.
+static napi_value fileIcon(napi_env env, napi_callback_info info) {
+  NSArray *args = stringArguments(env, info, 2);
+  NSString *path = args.count > 0 && args[0] != NSNull.null ? args[0] : nil;
+  NSInteger pixels = args.count > 1 && args[1] != NSNull.null ? [args[1] integerValue] : 0;
+  return answer(env, ^(Done done) {
+    if (path == nil || pixels <= 0) {
+      done(@{@"error" : @"a path and a size are required"});
+      return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
+        done(@{@"error" : @"nothing is at that path"});
+        return;
+      }
+      NSImage *icon = [NSWorkspace.sharedWorkspace iconForFile:path];
+      // Drawn into a bitmap of exactly the pixels asked for: asked for an
+      // image alone, the icon hands back whichever stored size is nearest.
+      NSBitmapImageRep *bitmap =
+          [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
+                                                  pixelsWide:pixels
+                                                  pixelsHigh:pixels
+                                               bitsPerSample:8
+                                             samplesPerPixel:4
+                                                    hasAlpha:YES
+                                                    isPlanar:NO
+                                              colorSpaceName:NSDeviceRGBColorSpace
+                                                 bytesPerRow:0
+                                                bitsPerPixel:0];
+      NSGraphicsContext *context = [NSGraphicsContext graphicsContextWithBitmapImageRep:bitmap];
+      [NSGraphicsContext saveGraphicsState];
+      NSGraphicsContext.currentContext = context;
+      context.imageInterpolation = NSImageInterpolationHigh;
+      [icon drawInRect:NSMakeRect(0, 0, pixels, pixels)
+              fromRect:NSZeroRect
+             operation:NSCompositingOperationCopy
+              fraction:1];
+      [NSGraphicsContext restoreGraphicsState];
+      NSData *png = [bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+      if (png == nil) {
+        done(@{@"error" : @"the icon could not be drawn"});
+        return;
+      }
+      done(@{@"png" : [png base64EncodedStringWithOptions:0]});
+    });
+  });
+}
+
 static const struct {
   const char *name;
   napi_callback fn;
 } FUNCTIONS[] = {
+    {"fileIcon", fileIcon},
+    {"finderEntries", finderEntries},
     {"notificationStatus", notificationStatus},
     {"requestNotifications", requestNotifications},
 };

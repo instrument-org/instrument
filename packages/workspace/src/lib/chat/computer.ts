@@ -18,6 +18,7 @@ import {
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import { childTaskMounts } from "./children";
+import { type FinderEntry, finderEntriesOf } from "./finder-entries";
 import { folderReach } from "./folder-reach";
 import { hiddenEntryNames } from "./hidden-entries";
 import {
@@ -42,18 +43,35 @@ const RECENTS_MAX = 20;
 const ComputerEntrySchema = z.object({
   createdAt: z.number().optional(),
   /**
-   * Whether the system hides this entry. Absent means it does not, and on the
-   * platforms where hidden-ness is a leading dot it is always absent: the name
-   * says it, and the browser is the one holding the switch.
+   * The name as the system's file manager shows it, where that differs from
+   * `name`: the Finder leaves `.app` off an app, and any extension a person
+   * chose to hide.
+   */
+  displayName: z.string().optional(),
+  /**
+   * Whether the system hides this entry. Absent means it does not, and for a
+   * name with a leading dot it is always absent: the name says it, and the
+   * browser is the one holding the switch.
    */
   hidden: z.boolean().optional(),
+  /**
+   * A file, or a folder the system shows and opens as one item (a package:
+   * an app, a Photos library), which is listed as a file with `package` set.
+   */
   kind: z.enum(["file", "folder"]),
   mimeType: z.string().optional(),
   modifiedAt: z.number().optional(),
   name: z.string(),
+  /**
+   * A folder the system treats as one item. Listed as a file, since that is
+   * how it is opened, and drawn by the system's icon for it.
+   */
+  package: z.literal(true).optional(),
   /** The host path. */
   path: z.string(),
   size: z.number().optional(),
+  /** What the system calls this kind of item, where the name cannot say: "Application". */
+  typeName: z.string().optional(),
 });
 type ComputerEntry = z.output<typeof ComputerEntrySchema>;
 
@@ -190,10 +208,12 @@ export async function listComputerFolder({
   const hostPath = await resolveICloudPath(expandHomePath(input), exists);
   let dirents: Dirent[];
   let hiddenNames: ReadonlySet<string>;
+  let finder: ReadonlyMap<string, FinderEntry>;
   try {
-    [dirents, hiddenNames] = await Promise.all([
+    [dirents, hiddenNames, finder] = await Promise.all([
       fs.readdir(hostPath, { withFileTypes: true }),
       hiddenEntryNames(hostPath),
+      finderEntriesOf(hostPath),
     ]);
   } catch (error) {
     const reason = readRefusalOf(error);
@@ -222,7 +242,12 @@ export async function listComputerFolder({
     dirents
       .slice(0, MAX_ENTRIES)
       .map((entry) =>
-        describeEntry(hostPath, entry.name, hiddenNames.has(entry.name)),
+        describeEntry(
+          hostPath,
+          entry.name,
+          hiddenNames.has(entry.name),
+          finder.get(entry.name.normalize("NFC")),
+        ),
       ),
   );
   const appFolders =
@@ -267,6 +292,7 @@ async function iCloudAppEntries(
           path.dirname(folder.path),
           path.basename(folder.path),
           false,
+          undefined,
         )),
         name: folder.name,
       })),
@@ -362,20 +388,42 @@ async function computerAccess(
 
 /**
  * One entry of a folder, with what the Finder shows about it. A symlink is
- * what it points at; one that leads nowhere is left as a bare name.
+ * what it points at; one that leads nowhere is left as a bare name. A package
+ * is a file, by the Finder's name and kind for it.
  */
 async function describeEntry(
   folder: string,
   name: string,
   hidden: boolean,
+  finder: FinderEntry | undefined,
 ): Promise<ComputerEntry> {
   const entryPath = path.join(folder, name);
-  const isHidden = hidden ? { hidden: true } : {};
+  const isHidden =
+    hidden || (finder?.hidden && !name.startsWith(".")) ? { hidden: true } : {};
+  const extensionAt = name.lastIndexOf(".");
+  const displayName =
+    finder?.hidesExtension && extensionAt > 0
+      ? { displayName: name.slice(0, extensionAt) }
+      : {};
   let stats;
   try {
     stats = await fs.stat(entryPath);
   } catch {
     return { ...isHidden, kind: "file", name, path: entryPath };
+  }
+  if (stats.isDirectory() && finder?.package) {
+    // No size: a package's is its folder's, which says nothing of what is in it.
+    return {
+      ...isHidden,
+      ...displayName,
+      createdAt: stats.birthtimeMs,
+      kind: "file",
+      modifiedAt: stats.mtimeMs,
+      name,
+      package: true,
+      path: entryPath,
+      ...(finder.kind === undefined ? {} : { typeName: finder.kind }),
+    };
   }
   if (stats.isDirectory()) {
     return {
@@ -389,6 +437,7 @@ async function describeEntry(
   }
   return {
     ...isHidden,
+    ...displayName,
     createdAt: stats.birthtimeMs,
     kind: "file",
     mimeType: getMimeType(name),

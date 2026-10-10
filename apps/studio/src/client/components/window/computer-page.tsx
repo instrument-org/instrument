@@ -476,16 +476,31 @@ export function ComputerPage({
           return {
             ...stamps,
             contentType: entry.mimeType,
+            ...(entry.displayName === undefined
+              ? {}
+              : { displayName: entry.displayName }),
             kind: "file",
             metadata: { hostPath: entry.path },
             path: `${prefix}${entry.name}`,
             ...previewOf(entry, resolvedTheme),
             size: entry.size,
+            ...(entry.typeName === undefined
+              ? {}
+              : { typeName: entry.typeName }),
           };
         })
     );
   });
   const items = isRecents ? recentItems : folderItems;
+  // Listed as files and opened as one, but folders inside, which the menu's
+  // Show Package Contents goes into.
+  const packagePaths = new Set(
+    listings.flatMap(({ data }) =>
+      (data?.entries ?? []).flatMap((entry) =>
+        entry.package ? [entry.path] : [],
+      ),
+    ),
+  );
   const itemsByPath = new Map(items.map((item) => [item.path, item]));
   const selectedItem =
     selectedPath === null ? undefined : itemsByPath.get(selectedPath);
@@ -1224,6 +1239,14 @@ export function ComputerPage({
           onQuickLook(tab);
         }
       }),
+    onShowPackageContents: (() => {
+      const packagePath = hostPathOfItem(item);
+      return packagePath && packagePaths.has(packagePath)
+        ? () => {
+            rootTo(packagePath);
+          }
+        : undefined;
+    })(),
     onRename: () => {
       const renaming = item?.path;
       if (renaming === undefined) {
@@ -1491,6 +1514,17 @@ export function ComputerPage({
                       <StagePicture fallbackAspect={4 / 3} src={file.url} />
                     );
                   }
+                  // An app's icon at the size the grid already holds, which
+                  // is more than the pane draws it at, and bare.
+                  if (tab && file.previewImageUrl && file.previewIsIcon) {
+                    return (
+                      <StagePicture
+                        bare
+                        fallbackAspect={1}
+                        src={file.previewImageUrl}
+                      />
+                    );
+                  }
                   // Anything else the system draws is drawn here as the grid
                   // draws it, by the system, larger: the one picture of a
                   // file wherever it is shown.
@@ -1673,6 +1707,8 @@ type FolderMenuActions = {
   /** Left out where there is no field to type a name in. */
   onRename?: () => void;
   onReveal: () => void;
+  /** A package (an app) gone into as the folder it is; left out for anything else. */
+  onShowPackageContents?: (() => void) | undefined;
   onTrash: () => void;
   /**
    * What the menu acts on, when it is several selected: what names one thing
@@ -1814,6 +1850,7 @@ function FolderMenuItems({
   onQuickLook,
   onRename,
   onReveal,
+  onShowPackageContents,
   onTrash,
   group,
 }: FolderMenuActions & {
@@ -1871,6 +1908,12 @@ function FolderMenuItems({
             <NewTabIcon className="size-4" />
             <span>{several ? "Open in New Tabs" : "Open in New Tab"}</span>
           </Item>
+          {onShowPackageContents && !several ? (
+            <Item onClick={onShowPackageContents}>
+              <FolderOpenIcon className="size-4" />
+              <span>Show Package Contents</span>
+            </Item>
+          ) : null}
           {/* The apps are listed where the Mac can be asked for them, and the
                 submenu asks only once it is opened, so the row is there from
                 the first frame rather than arriving under the pointer once a
@@ -2124,9 +2167,12 @@ function siblingPath(path: string, name: string) {
  * they will stay rather than jumping down once it loads.
  */
 function StagePicture({
+  bare = false,
   fallbackAspect,
   src,
 }: {
+  /** No frame around it, for an icon that carries its own shape. */
+  bare?: boolean;
   /** Width over height while the picture is on its way. */
   fallbackAspect: number;
   src: string;
@@ -2140,8 +2186,9 @@ function StagePicture({
   return (
     <div
       className={cn(
-        "relative w-full overflow-hidden rounded-xl shadow-sm ring-1 ring-border",
-        !isLoaded && "bg-muted",
+        "relative w-full overflow-hidden",
+        !bare && "rounded-xl shadow-sm ring-1 ring-border",
+        !isLoaded && !bare && "bg-muted",
       )}
       style={isLoaded ? undefined : { aspectRatio: fallbackAspect }}
     >
@@ -2412,20 +2459,38 @@ function PlaceMenu({
 
 /**
  * A listed file's own URL, and the system's picture of it where there is one,
- * named by when the file was written so a new write is a new picture.
+ * named by when the file was written so a new write is a new picture. A
+ * package's picture is the system's icon for it, square.
  */
 function previewOf(
   entry: {
     mimeType?: string;
     modifiedAt?: number;
     name: string;
+    package?: true;
     path: string;
   },
   theme: "dark" | "light",
-): Pick<FileSystemFileItem, "previewImageUrl" | "url"> {
+): Pick<
+  FileSystemFileItem,
+  "previewAspectRatio" | "previewImageUrl" | "previewIsIcon" | "url"
+> {
   const version = entry.modifiedAt;
   const url = getComputerFileUrl({ hostPath: entry.path, version });
   const extension = entry.name.split(".").at(-1)?.toLowerCase() ?? "";
+  if (entry.package) {
+    return {
+      previewAspectRatio: 1,
+      previewImageUrl: getComputerThumbnailUrl({
+        hostPath: entry.path,
+        size: 512,
+        theme,
+        version,
+      }),
+      previewIsIcon: true,
+      url,
+    };
+  }
   if (
     !entry.mimeType?.startsWith("image/") &&
     !THUMBNAIL_EXTENSIONS.has(extension)

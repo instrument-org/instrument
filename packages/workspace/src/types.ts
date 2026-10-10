@@ -14,6 +14,7 @@ import { z } from "zod";
 import { type AppConnectionStore } from "./lib/apps/connection";
 import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 import { type StoredAppCredential } from "./lib/apps/origin-bound";
+import { type FinderEntry } from "./lib/chat/finder-entries";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
 import { type TaskId, TaskIdSchema } from "./schemas/task-id";
@@ -186,6 +187,12 @@ export interface WorkspaceConfig {
   defaultTaskTemplateDir: AbsolutePath;
   /** Desktop decoration after the default output folder exists. */
   ensureOutputFolderIcon?: (folderPath: string) => Promise<void>;
+  /**
+   * What the Finder knows about a folder's entries beyond what `stat` says
+   * (packages, hidden extensions, hidden entries), for the file browser's
+   * listing. Absent off macOS and in builds without the Mac module.
+   */
+  finderEntries?: (folder: string) => Promise<FinderEntry[]>;
   getAIProviderConfigs: GetProviderConfigs;
   /**
    * Who is signed in, for the agents to know whose work it is: the account's

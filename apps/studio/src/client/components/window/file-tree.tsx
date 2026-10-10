@@ -190,6 +190,7 @@ function FileRow({
 }) {
   const { resolvedTheme } = useTheme();
   const isPicture = entry.mimeType?.startsWith("image/") === true;
+  const isPackage = entry.package === true;
   return (
     <Row
       depth={depth}
@@ -199,21 +200,23 @@ function FileRow({
             contentType: entry.mimeType,
             kind: "file",
             name: entry.name,
+            previewIsIcon: isPackage,
             // The same picture the Finder's rows draw, so it is read once.
-            previewImageUrl: isPicture
-              ? getComputerThumbnailUrl({
-                  hostPath: entry.path,
-                  size: 512,
-                  theme: resolvedTheme,
-                  version: entry.modifiedAt,
-                })
-              : undefined,
+            previewImageUrl:
+              isPicture || isPackage
+                ? getComputerThumbnailUrl({
+                    hostPath: entry.path,
+                    size: 512,
+                    theme: resolvedTheme,
+                    version: entry.modifiedAt,
+                  })
+                : undefined,
           }}
         />
       }
       isMenuTarget={rows.menuTarget === entry.path}
       isSelected={entry.path === rows.selected}
-      name={entry.name}
+      name={entry.displayName ?? entry.name}
       onMenu={() => {
         rows.onMenu({
           kind: "file",

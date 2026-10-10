@@ -117,6 +117,7 @@ export { SessionMessage } from "./schemas/session/message";
 export { StoreId } from "./schemas/store-id";
 export { type SubdomainPart } from "./schemas/subdomain-part";
 export { SubdomainPartSchema } from "./schemas/subdomain-part";
+export { type FinderEntry, FinderEntrySchema } from "./lib/chat/finder-entries";
 export { type ChatId, ChatIdSchema } from "./schemas/chat-id";
 export { type TaskId, TaskIdSchema } from "./schemas/task-id";
 export {

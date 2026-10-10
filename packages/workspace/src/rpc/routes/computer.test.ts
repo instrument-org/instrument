@@ -4,7 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { getWorkspaceConfig } from "../../lib/workspace-config";
+import {
+  getWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../../lib/workspace-config";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { type WorkspaceRPCContext } from "../base";
@@ -77,6 +80,72 @@ describe("workspace.computer.list", () => {
     expect(
       listing.kind === "listing" && listing.entries.map((entry) => entry.name),
     ).toEqual(["notes.md"]);
+  });
+
+  it("lists a package as a file by the Finder's name, and hides what it hides", async () => {
+    const folder = path.join(tmpDir, "finder");
+    await fs.mkdir(path.join(folder, "Calculator.app", "Contents"), {
+      recursive: true,
+    });
+    await fs.mkdir(path.join(folder, "Library"));
+    await fs.writeFile(path.join(folder, "report.pdf"), "");
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      finderEntries: async (asked) =>
+        asked === folder
+          ? [
+              {
+                hidesExtension: true,
+                kind: "Application",
+                name: "Calculator.app",
+                package: true,
+              },
+              { hidden: true, name: "Library" },
+            ]
+          : [],
+    });
+    try {
+      const listing = await call(
+        computer.list,
+        { id: taskId, path: folder },
+        { context: createContext() },
+      );
+      expect(
+        listing.kind === "listing" &&
+          listing.entries.map(
+            ({
+              createdAt: _created,
+              modifiedAt: _modified,
+              path: _,
+              ...entry
+            }) => entry,
+          ),
+      ).toMatchInlineSnapshot(`
+        [
+          {
+            "hidden": true,
+            "kind": "folder",
+            "name": "Library",
+          },
+          {
+            "displayName": "Calculator",
+            "kind": "file",
+            "name": "Calculator.app",
+            "package": true,
+            "typeName": "Application",
+          },
+          {
+            "kind": "file",
+            "mimeType": "application/pdf",
+            "name": "report.pdf",
+            "size": 0,
+          },
+        ]
+      `);
+    } finally {
+      setWorkspaceConfig(config);
+    }
   });
 
   it("answers a folder it may not read as refused rather than failing", async () => {

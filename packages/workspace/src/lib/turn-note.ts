@@ -1,3 +1,4 @@
+import { joinedMidTurn } from "./chat/mid-turn";
 import { isToolPart } from "./is-tool-part";
 import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
@@ -21,8 +22,9 @@ export const TURN_NOTE = systemNote`
 /**
  * Whether the next step opens a turn the user typed: the turn's message is
  * the user's own words, not a note the harness wrote or one a fork
- * inherited, and no step of the turn has run yet. A failed step does not
- * count, since its retry is still the turn's first.
+ * inherited, nor one that joined a turn already under way, and no step of
+ * the turn has run yet. A failed step does not count, since its retry is
+ * still the turn's first.
  */
 export function opensTypedTurn(messages: SessionMessage.WithParts[]): boolean {
   const start = messages.findLastIndex((message) => message.role === "user");
@@ -30,7 +32,8 @@ export function opensTypedTurn(messages: SessionMessage.WithParts[]): boolean {
   if (
     opener === undefined ||
     opener.metadata.inherited === true ||
-    !isTypedByUser(opener)
+    !isTypedByUser(opener) ||
+    joinedMidTurn(opener)
   ) {
     return false;
   }

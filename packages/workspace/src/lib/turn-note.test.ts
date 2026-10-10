@@ -4,6 +4,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
+import { MID_TURN_NOTE } from "./chat/mid-turn";
 import { systemNoteBody } from "./system-note";
 import { continuesOwnReply, opensTypedTurn, TURN_NOTE } from "./turn-note";
 
@@ -12,7 +13,7 @@ const createdAt = new Date("2026-10-07T12:00:00Z");
 
 function message(
   role: "assistant" | "user",
-  parts: ("text" | "tool" | "wake")[],
+  parts: ("midTurn" | "text" | "tool" | "wake")[],
   extra: { error?: boolean; inherited?: boolean } = {},
 ): SessionMessage.WithParts {
   const id = StoreId.newMessageId();
@@ -24,6 +25,13 @@ function message(
   });
   const built = parts.map((kind): SessionMessagePart.Type => {
     switch (kind) {
+      case "midTurn": {
+        return {
+          data: { text: MID_TURN_NOTE },
+          metadata: meta(),
+          type: "data-intent",
+        };
+      }
       case "text": {
         return { metadata: meta(), state: "done", text: "Hi.", type: "text" };
       }
@@ -104,6 +112,15 @@ describe("opensTypedTurn", () => {
     [
       "a turn a fork inherited",
       [message("user", ["text"], { inherited: true })],
+      false,
+    ],
+    [
+      "a message that joined a turn under way",
+      [
+        asked,
+        message("assistant", ["tool"]),
+        message("user", ["text", "midTurn"]),
+      ],
       false,
     ],
     ["a session with no message yet", [], false],

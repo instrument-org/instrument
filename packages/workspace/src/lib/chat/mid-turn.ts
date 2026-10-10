@@ -29,3 +29,11 @@ export function callsItOff(message: SessionMessage.UserWithParts): boolean {
 export const MID_TURN_NOTE = systemNote`
   The user sent this while you were working on their last message.
 `.trim();
+
+/** Whether a message joined the turn it arrived during. */
+export function joinedMidTurn(message: SessionMessage.WithParts): boolean {
+  return message.parts.some(
+    (part) =>
+      part.type === "data-intent" && part.data.text.includes(MID_TURN_NOTE),
+  );
+}

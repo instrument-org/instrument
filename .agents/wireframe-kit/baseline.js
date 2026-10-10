@@ -21,7 +21,7 @@ const states = [
   },
   {
     title: "Drafts",
-    note: "In Drafts we light the Drafts icon and leave the Chats icon plain. Each draft is a row with a dashed circle on the left, and it says Draft where a chat would show its latest message.",
+    note: "In Drafts the picker names Drafts in grey and the search reads inside it. Each draft is a row with a dashed circle on the left, and it says Draft where a chat would show its latest message, beside the marks of what it holds.",
     body: appWindow({
       body:
         inboxCol({
@@ -29,6 +29,7 @@ const states = [
             {
               title: "Draft the email announcing our new plans",
               time: "9:12 AM",
+              holds: [{ app: "gmail" }, { file: "faq" }],
             },
             { title: "Compare the four SOC 2 audit quotes", time: "Yesterday" },
           ],
@@ -37,7 +38,7 @@ const states = [
   },
   {
     title: "Chat running",
-    note: "While the pricing chat runs, we show its newest step shimmering at the right of the header, and pressing it lists the chat's tasks.",
+    note: "While the pricing chat runs, its newest step shimmers beside the planning dot at the right of the header and on its inbox row, and pressing the step lists the chat's tasks.",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
       body:
@@ -47,13 +48,14 @@ const states = [
   },
   {
     title: "Chat with pane",
-    note: "The chat's tiles sit in a row above the reply box, and we ring the one that's open in the pane. The pane sits right beside the chat, and the × at the end of its location row closes it.",
+    note: "Once its tasks finish, the chat's header keeps a checklist that lists them. The chat's tiles sit in a row above the reply box, and we ring the one that's open in the pane, which sits right beside the chat with Ask, its menu, Expand and × at the end of its location row.",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] }),
       body:
         inboxCol({ on: 0, w: 280 }) +
         thread({
           body: pricing(3),
+          tasks: true,
           tiles: chatTiles(
             [
               { file: "comparison" },
@@ -85,20 +87,36 @@ const states = [
         top: filesTop({ crumbs: ["studio26", "Instrument"] }),
         side: "",
         head: finderHeader({ title: "Instrument", views: finderViews("list") }),
-        body: finderListView(FINDER_FILES.map(([k, n]) => [k, n, "Oct 8, 2026 at 9:41 AM", k === "folder" ? "--" : "24 KB", k === "folder" ? "Folder" : "text/" + k])),
+        body: finderListView(
+          FINDER_FILES.map(([k, n]) => [
+            k,
+            n,
+            "Oct 8, 2026 at 9:41 AM",
+            k === "folder" ? "--" : "24 KB",
+            k === "folder" ? "Folder" : "text/" + k,
+          ]),
+        ),
       }),
     }),
   },
   {
     title: "File open",
-    note: "A file opened from the Finder takes the tab, its type's mark leads the omnibar, its controls sit at the right of the top row, and its folder stands beside it as a tree in place of the places.",
+    note: "A file opened from the Finder takes the tab, its type's mark leads the omnibar and the app it opens in ends it, its controls sit at the right of the top row, and its folder stands beside it as a tree in place of the places.",
     body: appWindow({
       on: "files",
       bar: winBar({ tabs: [{ file: "comparison" }], active: 0 }),
       body: filesPlace({
-        top: filesTop({ crumbs: ["studio26", "Instrument", "pricing-comparison.html"], mark: fileMark("html", "text-[14px]"), right: fileActions() }),
+        top: filesTop({
+          crumbs: ["studio26", "Instrument", "pricing-comparison.html"],
+          mark: fileMark("html", "text-[14px]"),
+          open: "html",
+          right: fileActions(),
+        }),
         side: fileTree(
-          [[0, "folder", "Instrument"], ...FINDER_FILES.map(([k, n]) => [1, k, n])],
+          [
+            [0, "folder", "Instrument"],
+            ...FINDER_FILES.map(([k, n]) => [1, k, n]),
+          ],
           { on: "pricing-comparison.html" },
         ),
         body: page({ file: "comparison" }),
@@ -106,8 +124,17 @@ const states = [
     }),
   },
   {
+    title: "Browser home",
+    note: "Browser with no page open is the omnibar over your bookmarks and the pages you visited lately.",
+    body: appWindow({
+      on: "browser",
+      bar: winBar({ tabs: [{ chats: true }, { browser: true }], active: 1 }),
+      body: browserHome(),
+    }),
+  },
+  {
     title: "Browser",
-    note: "A website opens as a window tab and fills the card.",
+    note: "A website opens as a window tab and fills the card, with reload at the left of its row since the bar holds the tab's back and forward.",
     body: appWindow({
       on: "browser",
       bar: winBar({ tabs: [{ chats: true }, { site: "g2" }], active: 1 }),
@@ -116,14 +143,14 @@ const states = [
   },
   {
     title: "Floating chat",
-    note: "The floating chat sits 420 pixels wide at the bottom right, over whichever place is open.",
+    note: "A chat popped out from its header docks 420 pixels wide at the bottom right like a draft, over whichever place is open.",
     body: appWindow({
       on: "files",
       bar: winBar({
-        tabs: [{ chats: true }, { file: "comparison" }],
+        tabs: [{ chats: true }, { folder: "Instrument" }],
         active: 1,
       }),
-      body: placeCard({ tab: { file: "comparison" } }),
+      body: finder(),
       over: smallChat({
         tabs: [{ site: "zendesk", agent: true }, { file: "comparison" }],
         working: "Reading plans on zendesk.com",
@@ -136,10 +163,10 @@ const states = [
     body: appWindow({
       on: "files",
       bar: winBar({
-        tabs: [{ chats: true }, { file: "comparison" }],
+        tabs: [{ chats: true }, { folder: "Instrument" }],
         active: 1,
       }),
-      body: placeCard({ tab: { file: "comparison" } }),
+      body: finder(),
       over: smallChat({
         tabs: [{ site: "zendesk", agent: true }, { file: "comparison" }],
         peek: 0,
@@ -167,7 +194,7 @@ const states = [
             extras: modelProblem("No models available"),
           }),
         }),
-      over: plusMenu({ left: 456, top: 486 }),
+      over: plusMenu({ left: 462, top: 452, w: 744 }),
     }),
   },
   {

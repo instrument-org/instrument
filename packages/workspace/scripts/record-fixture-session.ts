@@ -27,8 +27,8 @@
 import "./lib/define-globals-apply";
 
 import {
-  TASK_PRIVATE_FOLDER_NAME,
-  TASK_SETTINGS_FILE_NAME,
+  PRIVATE_FOLDER_NAME,
+  SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -245,7 +245,7 @@ async function recordChat({
   const chatId = ChatIdSchema.parse(path.basename(chatDir));
   const settings = JSON.parse(
     await fs.readFile(
-      path.join(chatDir, TASK_PRIVATE_FOLDER_NAME, TASK_SETTINGS_FILE_NAME),
+      path.join(chatDir, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
       "utf8",
     ),
   ) as { chatSessionId?: string; grants?: { path: string }[] };

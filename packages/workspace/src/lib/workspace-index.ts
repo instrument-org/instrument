@@ -7,7 +7,7 @@ import superjson from "superjson";
 import { type ChatId } from "../schemas/chat-id";
 import { cacheByStoreGeneration } from "./store-generation";
 import { STORE_MIGRATION_COUNT } from "./store-migrations";
-import { sessionStorePath } from "./task-dir-utils";
+import { sessionStorePath } from "./chat-dir-utils";
 import { chatDir } from "./record-folders";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 

@@ -403,6 +403,111 @@ describe("migrateWorkspaceLayout", () => {
     expect(read("tasks", "abc", ".tmp", "scratch.csv")).toBe("a,b");
   });
 
+  describe("a chat's database", () => {
+    function writeChatFiles(id: string, files: Record<string, string>) {
+      const privateDir = path.join(rootDir, "chats", id, ".instrument");
+      fs.mkdirSync(privateDir, { recursive: true });
+      for (const [name, contents] of Object.entries(files)) {
+        fs.writeFileSync(path.join(privateDir, name), contents);
+      }
+    }
+
+    function chatFiles(id: string) {
+      return fs
+        .readdirSync(path.join(rootDir, "chats", id, ".instrument"))
+        .toSorted();
+    }
+
+    it("renames task.db to chat.db with its sidecars, once", () => {
+      writeChatFiles("2026-10-01-chat", {
+        "settings.json": "{}",
+        "task.db": "main",
+        "task.db-shm": "shm",
+        "task.db-wal": "wal",
+      });
+
+      migrateWorkspaceLayout({ rootDir });
+      fs.writeFileSync(path.join(rootDir, ...LAYOUT_MARKER), "0");
+      migrateWorkspaceLayout({ rootDir });
+
+      expect(chatFiles("2026-10-01-chat")).toEqual([
+        "chat.db",
+        "chat.db-shm",
+        "chat.db-wal",
+        "settings.json",
+      ]);
+      expect(read("chats", "2026-10-01-chat", ".instrument", "chat.db")).toBe(
+        "main",
+      );
+      expect(
+        read("chats", "2026-10-01-chat", ".instrument", "chat.db-wal"),
+      ).toBe("wal");
+    });
+
+    // A boot cut short after the sidecars moved finishes on the next one,
+    // rather than leaving the database apart from its write-ahead log.
+    it("finishes a rename cut short between the sidecars and the database", () => {
+      writeChatFiles("2026-10-01-chat", {
+        "chat.db-wal": "wal",
+        "task.db": "main",
+      });
+
+      migrateWorkspaceLayout({ rootDir });
+
+      expect(chatFiles("2026-10-01-chat")).toEqual(["chat.db", "chat.db-wal"]);
+    });
+
+    it("never overwrites a chat.db that is already there", () => {
+      writeChatFiles("2026-10-01-chat", {
+        "chat.db": "current",
+        "task.db": "stale",
+      });
+
+      migrateWorkspaceLayout({ rootDir });
+
+      expect(read("chats", "2026-10-01-chat", ".instrument", "chat.db")).toBe(
+        "current",
+      );
+      expect(read("chats", "2026-10-01-chat", ".instrument", "task.db")).toBe(
+        "stale",
+      );
+    });
+
+    it("renames the window's database too", () => {
+      const windowPrivate = path.join(
+        rootDir,
+        ".instrument",
+        "window",
+        ".instrument",
+      );
+      fs.mkdirSync(windowPrivate, { recursive: true });
+      fs.writeFileSync(path.join(windowPrivate, "task.db"), "tabs");
+
+      migrateWorkspaceLayout({ rootDir });
+
+      expect(fs.readdirSync(windowPrivate)).toEqual(["chat.db"]);
+    });
+
+    // What an earlier build left under a chat's tasks/ stays on disk as it
+    // was: nothing reads it.
+    it("leaves a folder under a chat's tasks/ alone", () => {
+      const leftOver = path.join(
+        rootDir,
+        "chats",
+        "2026-10-01-chat",
+        "tasks",
+        "2026-10-01-fork",
+        ".instrument",
+      );
+      fs.mkdirSync(leftOver, { recursive: true });
+      fs.writeFileSync(path.join(leftOver, "task.db"), "fork");
+
+      migrateWorkspaceLayout({ rootDir });
+
+      expect(fs.readdirSync(leftOver)).toEqual(["task.db"]);
+    });
+  });
+
   describe("layout version marker", () => {
     it("records the marker, then skips the per-task sweep while it is current", () => {
       migrateWorkspaceLayout({ rootDir });

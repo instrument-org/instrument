@@ -8,7 +8,7 @@ import { WINDOW_ID } from "../../../schemas/window-id";
 import { askWindow, requestWindowTab } from "../../../lib/chat/window-tab";
 import { taskFsLayout } from "../../../lib/resolve-workspace-file-path";
 import { heldTabs, updateHeldTabs } from "../../../lib/held-tabs";
-import { getBrowserSessionDir } from "../../../lib/task-dir-utils";
+import { getBrowserSessionDir } from "../../../lib/chat-dir-utils";
 import { publisher } from "../../../rpc/publisher";
 import { type StoreId } from "../../../schemas/store-id";
 import { type ChatId } from "../../../schemas/chat-id";

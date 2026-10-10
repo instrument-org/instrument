@@ -30,8 +30,8 @@ interface InvalidChatFolder {
 
 const REASONS = {
   "no-session": "No chat session in its settings (.instrument/settings.json)",
-  "unreadable-messages": "Unreadable messages (.instrument/task.db)",
-  "unreadable-session": "Unreadable chat session (.instrument/task.db)",
+  "unreadable-messages": "Unreadable messages (.instrument/chat.db)",
+  "unreadable-session": "Unreadable chat session (.instrument/chat.db)",
   "unreadable-settings": UNREADABLE_SETTINGS_REASON,
 } as const;
 

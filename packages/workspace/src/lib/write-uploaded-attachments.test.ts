@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { FileUpload } from "../schemas/file-upload";
 import { type ChatDir, ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
@@ -58,11 +58,11 @@ describe("writeUploadedAttachments", () => {
     const [attached] = await attach([file]);
 
     expect(attached?.filePath).toBe(
-      `${TASK_FOLDER_NAMES.attachments}/photo.jpg`,
+      `${CHAT_FOLDER_NAMES.attachments}/photo.jpg`,
     );
     await expect(
       fs.readFile(
-        path.join(dir, TASK_FOLDER_NAMES.attachments, "photo.jpg"),
+        path.join(dir, CHAT_FOLDER_NAMES.attachments, "photo.jpg"),
         "utf8",
       ),
     ).resolves.toBe(CONTENT);
@@ -73,14 +73,14 @@ describe("writeUploadedAttachments", () => {
   // fork it, so the attachment names the file where it already lives.
   it("attaches a file the task already holds where it lies", async () => {
     const file = await writeSourceFile(
-      path.join(dir, TASK_FOLDER_NAMES.downloads, "photo.jpg"),
+      path.join(dir, CHAT_FOLDER_NAMES.downloads, "photo.jpg"),
     );
 
     const [attached] = await attach([file]);
 
-    expect(attached?.filePath).toBe(`${TASK_FOLDER_NAMES.downloads}/photo.jpg`);
+    expect(attached?.filePath).toBe(`${CHAT_FOLDER_NAMES.downloads}/photo.jpg`);
     await expect(
-      fs.readdir(path.join(dir, TASK_FOLDER_NAMES.attachments)),
+      fs.readdir(path.join(dir, CHAT_FOLDER_NAMES.attachments)),
     ).resolves.toEqual([]);
   });
 
@@ -88,19 +88,19 @@ describe("writeUploadedAttachments", () => {
   // copied in like any other outside file rather than referenced in place.
   it("copies a file out of the private dir into attachments", async () => {
     const file = await writeSourceFile(
-      path.join(dir, TASK_FOLDER_NAMES.private, "notes.jpg"),
+      path.join(dir, CHAT_FOLDER_NAMES.private, "notes.jpg"),
     );
 
     const [attached] = await attach([file]);
 
     expect(attached?.filePath).toBe(
-      `${TASK_FOLDER_NAMES.attachments}/notes.jpg`,
+      `${CHAT_FOLDER_NAMES.attachments}/notes.jpg`,
     );
   });
 
   it("gives a copy its own name when one is already attached", async () => {
     await writeSourceFile(
-      path.join(dir, TASK_FOLDER_NAMES.attachments, "photo.jpg"),
+      path.join(dir, CHAT_FOLDER_NAMES.attachments, "photo.jpg"),
       "the one attached earlier",
     );
     const file = await writeSourceFile(path.join(root, "outside", "photo.jpg"));
@@ -108,7 +108,7 @@ describe("writeUploadedAttachments", () => {
     const [attached] = await attach([file]);
 
     expect(attached?.filePath).toBe(
-      `${TASK_FOLDER_NAMES.attachments}/photo-1.jpg`,
+      `${CHAT_FOLDER_NAMES.attachments}/photo-1.jpg`,
     );
   });
 });

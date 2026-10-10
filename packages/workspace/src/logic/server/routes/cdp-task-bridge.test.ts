@@ -35,7 +35,7 @@ vi.mock("../../../lib/held-tabs", () => ({
     return Promise.resolve();
   },
 }));
-vi.mock("../../../lib/task-dir-utils", () => ({
+vi.mock("../../../lib/chat-dir-utils", () => ({
   getBrowserSessionDir: () => "/tmp/profile",
   chatDir: (id: string) => `/tmp/tasks/${id}`,
 }));

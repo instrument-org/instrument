@@ -53,7 +53,7 @@ async function buildSystemFrontMatter(chatId: ChatId) {
     taskCreatedWithAppVersion: settings?.createdWithAppVersion ?? "unknown",
     taskName: settings?.name ?? "unknown",
     // Absolute path to the task's on-disk folder so an agent reading this
-    // transcript can inspect its artifacts (screenshots, output, task.db),
+    // transcript can inspect its artifacts (screenshots, output, chat.db),
     // which is most of why a transcript gets handed to one. It names the
     // user's own machine in a file the user asked for and nothing sends it
     // anywhere, so where the file goes next is theirs to decide.

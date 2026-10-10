@@ -39,7 +39,7 @@ const JUNE_23 = Date.parse("2026-06-23T21:47:33.119Z");
 /** The conversation a chat holds, one line per part, as the chat's agent will read it. */
 function conversationIn(chat: string): string[] {
   const db = new DatabaseSync(
-    path.join(root, "chats", chat, ".instrument", "task.db"),
+    path.join(root, "chats", chat, ".instrument", "chat.db"),
     {
       readOnly: true,
     },
@@ -150,7 +150,7 @@ function readJson(...segments: string[]): Record<string, unknown> {
 
 function sessionOf(chat: string): Record<string, unknown> {
   const db = new DatabaseSync(
-    path.join(root, "chats", chat, ".instrument", "task.db"),
+    path.join(root, "chats", chat, ".instrument", "chat.db"),
     {
       readOnly: true,
     },
@@ -275,7 +275,7 @@ describe("migrateLegacyTasks", () => {
     expect(fs.existsSync(path.join(root, "chats", chat, "tasks"))).toBe(false);
     expect(
       fs.readdirSync(path.join(root, "chats", chat, ".instrument")).toSorted(),
-    ).toEqual(["settings.json", "task.db"]);
+    ).toEqual(["chat.db", "settings.json"]);
     // The task's own record, set aside.
     expect(
       fs
@@ -301,7 +301,7 @@ describe("migrateLegacyTasks", () => {
 
     // Text, not bytes, which the store refuses to read.
     const db = new DatabaseSync(
-      path.join(root, "chats", chat, ".instrument", "task.db"),
+      path.join(root, "chats", chat, ".instrument", "chat.db"),
       { readOnly: true },
     );
     expect(
@@ -752,7 +752,7 @@ describe("migrateLegacyTasks", () => {
     expect(settings.chatSessionId).toBe(sessionOf(chat).id);
     expect(
       fs.readdirSync(path.join(root, "chats", chat, ".instrument")).toSorted(),
-    ).toEqual(["settings.json", "task.db"]);
+    ).toEqual(["chat.db", "settings.json"]);
     expect(
       readJson(".pre-chats", "task-records", chat, "settings.json").name,
     ).toBe("Rotating red square video");

@@ -1,6 +1,6 @@
 import {
-  TASK_PRIVATE_FOLDER_NAME,
-  TASK_SETTINGS_FILE_NAME,
+  PRIVATE_FOLDER_NAME,
+  SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
@@ -170,11 +170,7 @@ export function storedChatSession(
   try {
     parsed = JSON.parse(
       fs.readFileSync(
-        path.join(
-          chatFolder,
-          TASK_PRIVATE_FOLDER_NAME,
-          TASK_SETTINGS_FILE_NAME,
-        ),
+        path.join(chatFolder, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
         "utf8",
       ),
     );

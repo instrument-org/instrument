@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { constants, DatabaseSync } from "node:sqlite";
 
-import { TASK_DB_FILE_NAME, TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_DB_FILE_NAME, CHAT_FOLDER_NAMES } from "../constants";
 
 interface TaskDatabaseQueryResult {
   columns: string[];
@@ -56,7 +56,7 @@ export function queryTaskDatabase({
 export function resolveTaskDatabasePath(inputPath: string): string {
   const absoluteInputPath = path.resolve(inputPath);
   const databasePath = fs.statSync(absoluteInputPath).isDirectory()
-    ? path.join(absoluteInputPath, TASK_FOLDER_NAMES.private, TASK_DB_FILE_NAME)
+    ? path.join(absoluteInputPath, CHAT_FOLDER_NAMES.private, CHAT_DB_FILE_NAME)
     : absoluteInputPath;
 
   if (!fs.statSync(databasePath).isFile()) {

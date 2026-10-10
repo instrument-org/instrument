@@ -58,7 +58,7 @@ describe("resolvePathArgs native-binary bridge", () => {
     });
     // Must NOT resolve to the real private file (`${dir}/.instrument/...`); the
     // private dir quarantines like /mnt, to a nonexistent nested path so the
-    // binary fails not-found instead of reading task.db/state.json/settings.
+    // binary fails not-found instead of reading chat.db/state.json/settings.
     expect(resolved).toEqual([`${dir}/task/.instrument/state.json`]);
     expect(resolved[0]).not.toBe(`${dir}/.instrument/state.json`);
   });

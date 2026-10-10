@@ -63,7 +63,7 @@ const sessionsResult = await Store.getSessions(chatId, {
 });
 if (sessionsResult.isErr()) {
   throw new Error(
-    `Failed to load sessions from ${path.join(dir, ".instrument", "task.db")}: ${sessionsResult.error.message}`,
+    `Failed to load sessions from ${path.join(dir, ".instrument", "chat.db")}: ${sessionsResult.error.message}`,
   );
 }
 

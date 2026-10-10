@@ -10,7 +10,7 @@ import {
   isRootTaskFile,
 } from "@/client/lib/task-file-visibility";
 import { cn } from "@/client/lib/utils";
-import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
+import { CHAT_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { fork } from "radashi";
 
 import { FilePreviewCard } from "./file-preview-card";
@@ -216,10 +216,10 @@ export function FilesGrid({
 // the task root; see `isSurfacedTaskFile` for which paths reach the user at all.
 function bucketByTaskFolder(files: ViewerFile[], prioritizeUserFiles: boolean) {
   const [attachmentFiles, nonAttachmentFiles] = fork(files, (file) =>
-    isFileInTaskFolder(taskPathOf(file), TASK_FOLDER_NAMES.attachments),
+    isFileInTaskFolder(taskPathOf(file), CHAT_FOLDER_NAMES.attachments),
   );
   const [downloadFiles, nonDownloadFiles] = fork(nonAttachmentFiles, (file) =>
-    isFileInTaskFolder(taskPathOf(file), TASK_FOLDER_NAMES.downloads),
+    isFileInTaskFolder(taskPathOf(file), CHAT_FOLDER_NAMES.downloads),
   );
   const [rootFiles] = fork(nonDownloadFiles, (file) =>
     isRootTaskFile(taskPathOf(file)),

@@ -1,6 +1,6 @@
 import {
-  TASK_PRIVATE_FOLDER_NAME,
-  TASK_SETTINGS_FILE_NAME,
+  PRIVATE_FOLDER_NAME,
+  SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
 import { glob } from "glob";
 import { err, type Result, ResultAsync } from "neverthrow";
@@ -34,7 +34,7 @@ export function hasReadableTaskSettings(chatDir: string): boolean {
     return ChatSettingsSchema.safeParse(
       JSON.parse(
         readFileSync(
-          path.join(chatDir, TASK_PRIVATE_FOLDER_NAME, TASK_SETTINGS_FILE_NAME),
+          path.join(chatDir, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
           "utf8",
         ),
       ),

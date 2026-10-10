@@ -15,8 +15,8 @@
 // the artifacts a tool would have written come from the fixture's `files/`.
 
 import {
-  TASK_PRIVATE_FOLDER_NAME,
-  TASK_SETTINGS_FILE_NAME,
+  PRIVATE_FOLDER_NAME,
+  SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
 import { ok, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
@@ -245,11 +245,7 @@ async function makeFolders({
  * seeder writes a task file itself.
  */
 async function pinLegacyTask(id: ChatId, pinnedAt: Date) {
-  const file = path.join(
-    chatDir(id),
-    TASK_PRIVATE_FOLDER_NAME,
-    TASK_SETTINGS_FILE_NAME,
-  );
+  const file = path.join(chatDir(id), PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME);
   const settings = JSON.parse(await fs.readFile(file, "utf8")) as Record<
     string,
     unknown

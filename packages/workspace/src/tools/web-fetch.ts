@@ -6,7 +6,7 @@ import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { SKILL_NAMES } from "../lib/skill-names";
@@ -155,7 +155,7 @@ export const WebFetch = setupTool({
       let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
       if (result.ok && result.spillText !== undefined) {
         spillFilePath = RelativePathSchema.parse(
-          path.posix.join(TASK_FOLDER_NAMES.toolOutput, `${partId}.txt`),
+          path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${partId}.txt`),
         );
         const absoluteSpillPath = absolutePathJoin(
           workDir(chatId),

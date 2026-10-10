@@ -1,6 +1,6 @@
 import { type CommandContext, defineCommand, latin1FromBytes } from "just-bash";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
+import { CHAT_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { APP_COMMAND } from "./app-command";
 import { NODE_COMMAND } from "./node";
@@ -308,7 +308,7 @@ function explainJsExecFailure(stderr: string): string {
     )?.[1];
   if (limit !== undefined) {
     notes.push(
-      `${JS_EXEC_COMMAND.name} reads a file whole through a bridge that carries at most ${limit} bytes, and this one is larger. Copy it into the task (cp '${MOUNT.attachedFolders}/<folder>/<file>' ${TASK_FOLDER_NAMES.attachments}/) and read it with \`${NODE_COMMAND.name}\`, or read only part of it with a shell command (head, tail, rg, xan).`,
+      `${JS_EXEC_COMMAND.name} reads a file whole through a bridge that carries at most ${limit} bytes, and this one is larger. Copy it into the task (cp '${MOUNT.attachedFolders}/<folder>/<file>' ${CHAT_FOLDER_NAMES.attachments}/) and read it with \`${NODE_COMMAND.name}\`, or read only part of it with a shell command (head, tail, rg, xan).`,
     );
   }
 

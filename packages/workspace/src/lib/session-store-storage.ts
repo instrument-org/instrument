@@ -12,7 +12,7 @@ import { sweepInterruptedToolCalls } from "./interrupted-tool-calls";
 import { recordChanged, storeKeyChange } from "./record-changes";
 import { bumpStoreGeneration } from "./store-generation";
 import { runStoreMigrations } from "./store-migrations";
-import { sessionStorePath } from "./task-dir-utils";
+import { sessionStorePath } from "./chat-dir-utils";
 import { chatDir } from "./record-folders";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 import { type WrappedStorage, wrapStorage } from "./wrap-storage";

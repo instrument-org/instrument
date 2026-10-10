@@ -6,7 +6,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { dedent, sleep } from "radashi";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
+import { CHAT_FOLDER_NAMES } from "../../constants";
 import { cdpBridgeUrl } from "../../logic/server/cdp-bridge-path";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { MOUNT } from "../../mount-points";
@@ -39,7 +39,7 @@ import {
   getDownloadsDir,
   getExternalBrowserTmpDir,
   getScreenshotsDir,
-} from "../task-dir-utils";
+} from "../chat-dir-utils";
 import { chatDir } from "../record-folders";
 import { isTaskSession } from "../chat/children";
 import { heldTabs, updateHeldTabs } from "../held-tabs";
@@ -753,7 +753,7 @@ export function createAgentBrowserCommand({
     // to $HOME, and holds the managed config and provider plugin script.
     const homeDir = absolutePathJoin(
       chatDir(chatId),
-      TASK_FOLDER_NAMES.private,
+      CHAT_FOLDER_NAMES.private,
       "agent-browser-home",
     );
     const configPath = path.join(homeDir, "config.json");

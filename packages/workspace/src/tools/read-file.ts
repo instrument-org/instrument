@@ -9,7 +9,7 @@ import path from "node:path";
 import { dedent, fork } from "radashi";
 import { z } from "zod";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { addLineNumbers } from "../lib/add-line-numbers";
 import { executeError } from "../lib/execute-error";
 import { redactTaskDir } from "../lib/filter-shell-output";
@@ -487,7 +487,7 @@ export const ReadFile = setupTool({
     Reads a file from the task, including folders the user attached (mounted under ${MOUNT.attachedFolders}/<name>/). You can access any file directly by using this tool.
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter must be a relative path to a file in the task, or an attached folder's mount path (${MOUNT.attachedFolders}/<name>/...). E.g. ./${TASK_FOLDER_NAMES.attachments}/upload.txt
+    - The ${INPUT_PARAMS.filePath} parameter must be a relative path to a file in the task, or an attached folder's mount path (${MOUNT.attachedFolders}/<name>/...). E.g. ./${CHAT_FOLDER_NAMES.attachments}/upload.txt
     - By default, it reads up to ${DEFAULT_READ_LIMIT} lines starting from the beginning of the file, and at most ${formatBytes(MAX_BYTES)} of content -- whichever limit is reached first. A long file therefore often stops well before ${DEFAULT_READ_LIMIT} lines; the output says where it stopped and which limit applied.
     - You can optionally specify a line ${INPUT_PARAMS.offset} and ${INPUT_PARAMS.limit} (especially handy for long files), but it's recommended to read the whole file by not providing these parameters.
     - When using ${INPUT_PARAMS.limit}, avoid using too small of a limit (< 100), which can lead to tons of tokens being used.
@@ -539,7 +539,7 @@ export const ReadFile = setupTool({
           // would advertise a path every read of it rejects.
           exclude:
             path.resolve(absolutePath) === path.resolve(workDir(chatId))
-              ? [TASK_FOLDER_NAMES.private]
+              ? [CHAT_FOLDER_NAMES.private]
               : undefined,
           hidden: true,
           limit: DIRECTORY_LISTING_LIMIT,

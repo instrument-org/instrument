@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { publisher } from "../rpc/publisher";
 import { type RelativePath, RelativePathSchema } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
@@ -739,7 +739,7 @@ export function startBackgroundRun({
 function allocateId(chatId: ChatId): string {
   const outputDir = absolutePathJoin(
     workDir(chatId),
-    TASK_FOLDER_NAMES.toolOutput,
+    CHAT_FOLDER_NAMES.toolOutput,
   );
   let next = nextIdByFolder.get(outputDir);
 
@@ -899,7 +899,7 @@ function openLogFile({ id, chatId }: { id: string; chatId: ChatId }):
     } {
   try {
     const logFilePath = RelativePathSchema.parse(
-      path.posix.join(TASK_FOLDER_NAMES.toolOutput, `${id}.log`),
+      path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${id}.log`),
     );
     const logFileAbsolutePath = absolutePathJoin(workDir(chatId), logFilePath);
     fs.mkdirSync(path.dirname(logFileAbsolutePath), { recursive: true });

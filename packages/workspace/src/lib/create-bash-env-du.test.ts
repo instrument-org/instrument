@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
@@ -70,11 +70,11 @@ beforeAll(async () => {
 
   await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
   await fs.writeFile(path.join(taskRoot, "work", "small.txt"), "s".repeat(10));
-  await fs.mkdir(path.join(taskRoot, TASK_FOLDER_NAMES.private), {
+  await fs.mkdir(path.join(taskRoot, CHAT_FOLDER_NAMES.private), {
     recursive: true,
   });
   await fs.writeFile(
-    path.join(taskRoot, TASK_FOLDER_NAMES.private, "task.db"),
+    path.join(taskRoot, CHAT_FOLDER_NAMES.private, "chat.db"),
     Buffer.alloc(5_000_000),
   );
 
@@ -143,8 +143,8 @@ describe("du", () => {
   });
 
   it.each([
-    [`/task/${TASK_FOLDER_NAMES.private}`],
-    [`/task/${TASK_FOLDER_NAMES.private.toUpperCase()}`],
+    [`/task/${CHAT_FOLDER_NAMES.private}`],
+    [`/task/${CHAT_FOLDER_NAMES.private.toUpperCase()}`],
   ])("reports %s as absent", async (target) => {
     const result = await run(`du -sb ${target}`);
 

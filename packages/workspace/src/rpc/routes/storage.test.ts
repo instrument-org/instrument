@@ -123,7 +123,7 @@ async function seedBrokenChats() {
   );
   chatFor(StoreId.newSessionId(), ChatIdSchema.parse("2026-10-01-bad-db"));
   fs.writeFileSync(
-    privateFile("2026-10-01-bad-db", "task.db"),
+    privateFile("2026-10-01-bad-db", "chat.db"),
     "not a database, just bytes long enough to be read as a header",
   );
   fs.mkdirSync(path.join(root, "chats", "Not A Chat"));
@@ -161,7 +161,7 @@ describe("storage.invalidFolders", () => {
           "at": "chats/2026-10-01-bad-db",
           "kind": "chat",
           "name": "2026-10-01-bad-db",
-          "reason": "Unreadable chat session (.instrument/task.db)",
+          "reason": "Unreadable chat session (.instrument/chat.db)",
         },
         {
           "at": "chats/2026-10-01-bad-settings",

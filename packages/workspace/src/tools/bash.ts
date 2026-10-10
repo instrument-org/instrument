@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import {
   promoteBackgroundProcess,
@@ -267,7 +267,7 @@ export const BashTool = setupTool({
     let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
     if (truncated) {
       spillFilePath = RelativePathSchema.parse(
-        path.posix.join(TASK_FOLDER_NAMES.toolOutput, `${partId}.log`),
+        path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${partId}.log`),
       );
       const absPath = absolutePathJoin(workDir(chatId), spillFilePath);
       await fs.mkdir(path.dirname(absPath), { recursive: true });

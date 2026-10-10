@@ -4,7 +4,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { TASK_DB_FILE_NAME, TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_DB_FILE_NAME, CHAT_FOLDER_NAMES } from "../constants";
 import {
   queryTaskDatabase,
   resolveTaskDatabasePath,
@@ -17,9 +17,9 @@ let databasePath: string;
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-database-query-"));
   chatDir = path.join(rootDir, "task");
-  const privateDir = path.join(chatDir, TASK_FOLDER_NAMES.private);
+  const privateDir = path.join(chatDir, CHAT_FOLDER_NAMES.private);
   await fs.mkdir(privateDir, { recursive: true });
-  databasePath = path.join(privateDir, TASK_DB_FILE_NAME);
+  databasePath = path.join(privateDir, CHAT_DB_FILE_NAME);
 
   const database = new DatabaseSync(databasePath);
   database.exec(

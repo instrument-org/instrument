@@ -1,6 +1,6 @@
 import {
-  TASK_PRIVATE_FOLDER_NAME,
-  TASK_SETTINGS_FILE_NAME,
+  PRIVATE_FOLDER_NAME,
+  SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
@@ -26,9 +26,9 @@ import { readJsonRecordSync, updateJsonRecordSync } from "./json-record-file";
  * gets another attempt on the next boot.
  */
 export function foldTaskStateFile(taskFolder: string): boolean {
-  const privateDir = path.join(taskFolder, TASK_PRIVATE_FOLDER_NAME);
+  const privateDir = path.join(taskFolder, PRIVATE_FOLDER_NAME);
   const statePath = path.join(privateDir, TASK_STATE_FILE_NAME);
-  const settingsPath = path.join(privateDir, TASK_SETTINGS_FILE_NAME);
+  const settingsPath = path.join(privateDir, SETTINGS_FILE_NAME);
 
   let state: unknown;
   try {

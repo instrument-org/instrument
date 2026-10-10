@@ -11,7 +11,7 @@ import {
   AGENT_BROWSER_SOCKET_DIR,
   externalBrowserSessionName,
 } from "./agent-browser";
-import { getExternalBrowserTmpDir } from "./task-dir-utils";
+import { getExternalBrowserTmpDir } from "./chat-dir-utils";
 
 export async function closeAgentBrowserSessionsForSessions(
   sessionIds: StoreId.Session[],

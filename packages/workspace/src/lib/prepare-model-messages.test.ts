@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import type { SessionMessage } from "../schemas/session/message";
 
 import { type AnyAgent } from "../agents/types";
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { RelativePathSchema } from "../schemas/paths";
 import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
@@ -728,7 +728,7 @@ describe("prepareModelMessages", () => {
 
     /** The boundary the session records, or undefined if it has never reset. */
     beforeEach(async () => {
-      await fs.rm(path.join(chatDir(chatId), TASK_FOLDER_NAMES.work), {
+      await fs.rm(path.join(chatDir(chatId), CHAT_FOLDER_NAMES.work), {
         force: true,
         recursive: true,
       });
@@ -925,7 +925,7 @@ describe("prepareModelMessages", () => {
       });
 
       it("hands back the notes the agent left, in the request itself", async () => {
-        await fs.mkdir(path.join(chatDir(chatId), TASK_FOLDER_NAMES.work), {
+        await fs.mkdir(path.join(chatDir(chatId), CHAT_FOLDER_NAMES.work), {
           recursive: true,
         });
         await fs.writeFile(

@@ -1,7 +1,7 @@
 import { type IFileSystem } from "just-bash";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
+import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import { normalizePath } from "./normalize-path";
 
 /**
@@ -10,7 +10,7 @@ import { normalizePath } from "./normalize-path";
  * private dirs and is nothing of the chat's now.
  */
 export type MaskedEntry =
-  | typeof TASK_FOLDER_NAMES.private
+  | typeof CHAT_FOLDER_NAMES.private
   | typeof TASKS_DIR_NAME;
 
 /**
@@ -241,7 +241,7 @@ function readOnlyError(
     entry === TASKS_DIR_NAME
       ? `the ${TASKS_DIR_NAME}/ directory an earlier version left is not ` +
         `reachable`
-      : `the ${TASK_FOLDER_NAMES.private} directory holds internals and is ` +
+      : `the ${CHAT_FOLDER_NAMES.private} directory holds internals and is ` +
         `not writable`;
   return Object.assign(
     new Error(`EROFS: read-only file system, ${op} '${filePath}' -- ${reason}`),

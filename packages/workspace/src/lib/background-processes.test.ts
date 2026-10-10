@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
@@ -296,7 +296,7 @@ describe("background processes", () => {
     // way a permission or layout problem on the real disk would.
     const toolOutput = absolutePathJoin(
       chatDir(owner.chatId),
-      TASK_FOLDER_NAMES.toolOutput,
+      CHAT_FOLDER_NAMES.toolOutput,
     );
     await fs.mkdir(chatDir(owner.chatId), { recursive: true });
     await fs.writeFile(toolOutput, "not a directory", "utf8");
@@ -839,7 +839,7 @@ describe("background processes", () => {
     // task is in right after the app restarts.
     const outputDir = absolutePathJoin(
       chatDir(owner.chatId),
-      TASK_FOLDER_NAMES.toolOutput,
+      CHAT_FOLDER_NAMES.toolOutput,
     );
     await fs.mkdir(outputDir, { recursive: true });
     const staleOutput = "output an earlier transcript points at\n";

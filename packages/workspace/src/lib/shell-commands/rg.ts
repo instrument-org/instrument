@@ -2,7 +2,7 @@ import { defineCommand } from "just-bash";
 import { realpathSync } from "node:fs";
 import nodePath from "node:path";
 
-import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
+import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
@@ -216,7 +216,7 @@ function bridgePathArgs(
       const masked = isOperand
         ? classifyVirtualPath(layout, resolveVirtual(arg))?.masked
         : undefined;
-      if (masked === TASK_FOLDER_NAMES.private) {
+      if (masked === CHAT_FOLDER_NAMES.private) {
         return {
           error: privateDirLiteralError(`${RG_COMMAND.name}: "${arg}"`),
         };

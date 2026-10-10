@@ -5,7 +5,7 @@ import { z } from "zod";
 import { lastBrowserAgentActivity } from "../../lib/browser-agent-activity";
 import { navigateTarget, restoreLastPage } from "../../lib/browser-state";
 import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
-import { getBrowserSessionDir } from "../../lib/task-dir-utils";
+import { getBrowserSessionDir } from "../../lib/chat-dir-utils";
 import { BrowserPresenceLevelSchema } from "../../machines/task-browser";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";

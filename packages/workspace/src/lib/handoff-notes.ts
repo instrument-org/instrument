@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { MOUNT } from "../mount-points";
 import { type ChatId } from "../schemas/chat-id";
 import { truncateWithoutSplitting } from "./sanitize-model-text";
@@ -20,7 +20,7 @@ import { workDir } from "./work-dir";
  * Under `work/`: these are the agent's own working
  * record, not a deliverable the user asked for.
  */
-const HANDOFF_NOTES_RELATIVE_PATH = `${TASK_FOLDER_NAMES.work}/handoff-notes.md`;
+const HANDOFF_NOTES_RELATIVE_PATH = `${CHAT_FOLDER_NAMES.work}/handoff-notes.md`;
 
 /** The path as the agent sees it, for prompts and notices. */
 export const HANDOFF_NOTES_PATH = `${MOUNT.task}/${HANDOFF_NOTES_RELATIVE_PATH}`;

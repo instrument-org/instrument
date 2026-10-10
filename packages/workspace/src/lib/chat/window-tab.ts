@@ -9,7 +9,7 @@ import {
 } from "../../schemas/window-tab";
 import { decodeBrowserTargetId } from "../../types";
 import { resolveChat, chatDir } from "../record-folders";
-import { getBrowserSessionDir } from "../task-dir-utils";
+import { getBrowserSessionDir } from "../chat-dir-utils";
 import { getChatState } from "../chat-record";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking } from "./activity";

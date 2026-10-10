@@ -1,6 +1,6 @@
 import {
-  TASK_PRIVATE_FOLDER_NAME,
-  TASK_SETTINGS_FILE_NAME,
+  PRIVATE_FOLDER_NAME,
+  SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
@@ -223,7 +223,7 @@ export function writeTopicSync(rootDir: string, topic: Topic): void {
     Object.keys(TopicSettingsSchema.shape).map((key) => [key, undefined]),
   );
   updateJsonRecordSync(
-    path.join(folder, TASK_PRIVATE_FOLDER_NAME, TASK_SETTINGS_FILE_NAME),
+    path.join(folder, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
     () => ({ ...known, ...TopicSettingsSchema.parse(settings) }),
   );
   const instructionsFile = path.join(folder, INSTRUCTIONS_FILE_NAME);
@@ -304,11 +304,7 @@ function readTopicFolder(folderPath: string): Topic | undefined {
     settings = TopicSettingsSchema.parse(
       JSON.parse(
         fs.readFileSync(
-          path.join(
-            folderPath,
-            TASK_PRIVATE_FOLDER_NAME,
-            TASK_SETTINGS_FILE_NAME,
-          ),
+          path.join(folderPath, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
           "utf8",
         ),
       ),

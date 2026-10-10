@@ -4,13 +4,13 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
+import { CHAT_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { type ChatId } from "../../schemas/chat-id";
 import { gitSubprocessEnv } from "../git";
 import { normalizePath } from "../normalize-path";
 import { relativeWithin } from "../path-containment";
-import { getTaskTmpDir } from "../task-dir-utils";
+import { getChatTmpDir } from "../chat-dir-utils";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
@@ -130,7 +130,7 @@ export function bridgeInlineCodePaths(
   }
 
   // The private dir is masked from the shell and file tools; block inline-code
-  // literals too so a real interpreter can't be steered into task.db/state.json
+  // literals too so a real interpreter can't be steered into chat.db/state.json
   // via a quoted `/task/.instrument/...` string. Best-effort, like the /mnt
   // guard above.
   if (quotedMountPattern(privateMountPoint(MOUNT.task)).test(code)) {
@@ -265,8 +265,8 @@ export function parseScriptRunnerArgs<
 /** Guidance for a private-dir reference; subject names the source. */
 export function privateDirLiteralError(subject: string): string {
   return (
-    `${subject} references the private ${TASK_FOLDER_NAMES.private} directory. ` +
-    `It holds task internals (task.db, state.json, settings) and is not readable ` +
+    `${subject} references the private ${CHAT_FOLDER_NAMES.private} directory. ` +
+    `It holds chat internals (chat.db, state.json, settings) and is not readable ` +
     `by real interpreter processes.`
   );
 }
@@ -286,7 +286,7 @@ export function resolveCommandContext(
   // sandbox instead of the host temp dir; created here if absent (recursive
   // mkdir is a no-op when it exists) because interpreters fail if TMPDIR points
   // at a missing dir.
-  const tmpDir = getTaskTmpDir(workDir(chatId));
+  const tmpDir = getChatTmpDir(workDir(chatId));
   mkdirSync(tmpDir, { recursive: true });
   return {
     // Overlay the uv/python env so the real-binary escape hatches (tsx, node,

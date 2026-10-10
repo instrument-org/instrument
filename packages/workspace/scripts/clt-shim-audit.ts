@@ -42,7 +42,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ulid } from "ulid";
 
-import { TASK_FOLDER_NAMES } from "../src/constants";
+import { CHAT_FOLDER_NAMES } from "../src/constants";
 import {
   commandLineToolsEnv,
   MISSING_DEVELOPER_DIR,
@@ -135,8 +135,8 @@ async function installSkill({
     recursive: true,
   });
   for (const folder of [
-    TASK_FOLDER_NAMES.attachments,
-    TASK_FOLDER_NAMES.work,
+    CHAT_FOLDER_NAMES.attachments,
+    CHAT_FOLDER_NAMES.work,
   ]) {
     await fs.mkdir(path.join(dir, folder), { recursive: true });
   }

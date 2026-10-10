@@ -1,4 +1,4 @@
-import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
+import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import path from "node:path";
 
 import { type AbsolutePath, type ChatDir } from "../schemas/paths";
@@ -11,7 +11,7 @@ import { StoredChatStateSchema, type ChatState } from "../schemas/chat-state";
 import { absolutePathJoin } from "./absolute-path-join";
 import { readJsonRecord, updateJsonRecord } from "./json-record-file";
 import { recordChanged } from "./record-changes";
-import { getTaskPrivateDir } from "./task-dir-utils";
+import { getChatPrivateDir } from "./chat-dir-utils";
 
 /**
  * The one file a task keeps beside its conversation, and the only writer of it.
@@ -173,7 +173,7 @@ function recordFrom(parsed: unknown): ChatRecord {
 }
 
 function recordPath(dir: ChatDir): AbsolutePath {
-  return absolutePathJoin(getTaskPrivateDir(dir), TASK_SETTINGS_FILE_NAME);
+  return absolutePathJoin(getChatPrivateDir(dir), SETTINGS_FILE_NAME);
 }
 
 /**

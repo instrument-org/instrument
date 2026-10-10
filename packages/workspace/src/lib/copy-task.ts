@@ -2,7 +2,7 @@ import { ResultAsync } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { type AbsolutePath } from "../schemas/paths";
 import { TypedError } from "./errors";
 import { getIgnore } from "./get-ignore";
@@ -34,7 +34,7 @@ export function copyTask({
           }
           if (
             includePrivateFolder &&
-            relativePath.startsWith(TASK_FOLDER_NAMES.private)
+            relativePath.startsWith(CHAT_FOLDER_NAMES.private)
           ) {
             return true;
           }

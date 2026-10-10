@@ -2,7 +2,7 @@ import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import {
   type SessionMessageDataPart,
-  TASK_FOLDER_NAMES,
+  CHAT_FOLDER_NAMES,
   type ChatId,
 } from "@instrument-org/workspace/client";
 
@@ -59,6 +59,6 @@ function normalizeAttachmentFilePath(filePath: string): string {
     bare.startsWith(prefix),
   );
   return legacyPrefix
-    ? `${TASK_FOLDER_NAMES.attachments}/${bare.slice(legacyPrefix.length)}`
+    ? `${CHAT_FOLDER_NAMES.attachments}/${bare.slice(legacyPrefix.length)}`
     : bare;
 }

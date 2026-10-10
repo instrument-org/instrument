@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { REGISTRY_FOLDER_NAMES, TASK_FOLDER_NAMES } from "../constants";
+import { REGISTRY_FOLDER_NAMES, CHAT_FOLDER_NAMES } from "../constants";
 import { SKILL_CONTENT_LIMIT } from "../lib/skills";
 import {
   getWorkspaceConfig,
@@ -61,8 +61,8 @@ function baseExecuteArgs() {
 function copiedSkillDir(name: string, source = APP_NAME_SLUG) {
   return path.join(
     dir,
-    TASK_FOLDER_NAMES.work,
-    TASK_FOLDER_NAMES.skills,
+    CHAT_FOLDER_NAMES.work,
+    CHAT_FOLDER_NAMES.skills,
     source,
     name,
   );

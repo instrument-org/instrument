@@ -8,7 +8,7 @@ import {
 import { mkdir } from "node:fs/promises";
 import nodePath from "node:path";
 
-import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
+import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import { MOUNT } from "../mount-points";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type AbsolutePath, type ChatDir } from "../schemas/paths";
@@ -412,7 +412,7 @@ export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
 
 /** Virtual mount point of the masked-off private dir under the task mount. */
 export function privateMountPoint(taskMountPoint: string): string {
-  return `${taskMountPoint}/${TASK_FOLDER_NAMES.private}`;
+  return `${taskMountPoint}/${CHAT_FOLDER_NAMES.private}`;
 }
 
 /**
@@ -512,7 +512,7 @@ export function resolveNativeHostPath(
   }
   // Masked paths (and any non-/task virtual path) quarantine to a
   // non-existent path inside the task dir -- same defense as the read-only /mnt
-  // mounts: a native binary must never receive a real path into task.db,
+  // mounts: a native binary must never receive a real path into chat.db,
   // state.json, or settings, or into a chat's tasks, so it fails not-found
   // instead of reaching them.
   return absolutePathJoin(taskHostRoot, normalized);
@@ -717,6 +717,6 @@ function masked(mount: WorkspaceFsMount, fs: IFileSystem): IFileSystem {
  */
 function taskMaskedEntries(taskHostRoot: ChatDir): MaskedEntry[] {
   return nodePath.dirname(taskHostRoot) === chatsDir()
-    ? [TASK_FOLDER_NAMES.private, TASKS_DIR_NAME]
-    : [TASK_FOLDER_NAMES.private];
+    ? [CHAT_FOLDER_NAMES.private, TASKS_DIR_NAME]
+    : [CHAT_FOLDER_NAMES.private];
 }

@@ -1,4 +1,4 @@
-import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
@@ -211,7 +211,7 @@ export function updateRegistry(
 }
 
 export function workspacePrivateDir(workspacePath: string): string {
-  return path.join(workspacePath, TASK_PRIVATE_FOLDER_NAME);
+  return path.join(workspacePath, PRIVATE_FOLDER_NAME);
 }
 
 /** Write through a sibling and rename, so a crash mid-write leaves the old file. */

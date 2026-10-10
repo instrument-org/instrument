@@ -2,7 +2,7 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
+import { CHAT_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
@@ -52,7 +52,7 @@ export const PYTHON_NATIVE_COMMAND = {
 } as const;
 
 /** Under the task, where a loaded skill's copy lives: `work/skills/`. */
-const SKILL_COPIES_DIR = `${MOUNT.task}/${TASK_FOLDER_NAMES.work}/${TASK_FOLDER_NAMES.skills}`;
+const SKILL_COPIES_DIR = `${MOUNT.task}/${CHAT_FOLDER_NAMES.work}/${CHAT_FOLDER_NAMES.skills}`;
 
 export function createPython3Command(
   chatId: ChatId,
@@ -189,7 +189,7 @@ function explainSandboxedPythonFailure(stderr: string): string {
   const tooLarge = /File too large: '([^']+)'/.exec(text)?.[1];
   if (tooLarge !== undefined) {
     notes.push(
-      `this sandboxed python reads a file whole through an 8 MB bridge, so it cannot open ${tooLarge}. Copy the file into the task (cp '${tooLarge}' ${TASK_FOLDER_NAMES.attachments}/) and run the script with \`${PYTHON_NATIVE_COMMAND.name}\`, or read only part of it with a shell command (head, tail, rg, xan) and work on that.`,
+      `this sandboxed python reads a file whole through an 8 MB bridge, so it cannot open ${tooLarge}. Copy the file into the task (cp '${tooLarge}' ${CHAT_FOLDER_NAMES.attachments}/) and run the script with \`${PYTHON_NATIVE_COMMAND.name}\`, or read only part of it with a shell command (head, tail, rg, xan) and work on that.`,
     );
   }
 

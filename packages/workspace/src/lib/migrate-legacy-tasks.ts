@@ -1,6 +1,6 @@
 import {
-  TASK_PRIVATE_FOLDER_NAME,
-  TASK_SETTINGS_FILE_NAME,
+  PRIVATE_FOLDER_NAME,
+  SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
@@ -9,8 +9,9 @@ import { ulid } from "ulid";
 
 import {
   CHATS_DIR_NAME,
-  TASK_DB_FILE_NAME,
-  TASK_FOLDER_NAMES,
+  CHAT_DB_FILE_NAME,
+  LEGACY_TASK_DB_FILE_NAME,
+  CHAT_FOLDER_NAMES,
   TASKS_DIR_NAME,
 } from "../constants";
 import { RelativePathSchema } from "../schemas/paths";
@@ -49,8 +50,8 @@ const TASK_RECORDS_DIR_NAME = "task-records";
 // What a task carries while it is staged as a chat: the chat's database and
 // settings, written beside the task's own and put in their place once the
 // folder is among the chats.
-const CHAT_DB_FILE_NAME = ".chat.db";
-const CHAT_SETTINGS_FILE_NAME = ".chat-settings.json";
+const STAGED_CHAT_DB_FILE_NAME = ".chat.db";
+const STAGED_CHAT_SETTINGS_FILE_NAME = ".chat-settings.json";
 
 // SQLite keeps sidecar files next to a database; they travel with it.
 const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
@@ -257,11 +258,10 @@ function adoptTask({
     }
   | { kind: "empty" } {
   const taskName = path.basename(chatDir);
-  const privateDir = path.join(chatDir, TASK_PRIVATE_FOLDER_NAME);
-  const settings =
-    readJson(path.join(privateDir, TASK_SETTINGS_FILE_NAME)) ?? {};
+  const privateDir = path.join(chatDir, PRIVATE_FOLDER_NAME);
+  const settings = readJson(path.join(privateDir, SETTINGS_FILE_NAME)) ?? {};
   const conversation = readConversation(
-    path.join(privateDir, TASK_DB_FILE_NAME),
+    path.join(privateDir, LEGACY_TASK_DB_FILE_NAME),
   );
   if (
     conversation.tutorial ||
@@ -322,8 +322,8 @@ function adoptTask({
     updatedAt: lastActivityAt,
   };
 
-  const chatDb = path.join(privateDir, CHAT_DB_FILE_NAME);
-  const chatSettings = path.join(privateDir, CHAT_SETTINGS_FILE_NAME);
+  const chatDb = path.join(privateDir, STAGED_CHAT_DB_FILE_NAME);
+  const chatSettings = path.join(privateDir, STAGED_CHAT_SETTINGS_FILE_NAME);
   const stagingDir = path.join(chatsDir, stagingName(chatName));
   fs.rmSync(stagingDir, { force: true, recursive: true });
   try {
@@ -350,7 +350,7 @@ function adoptTask({
         state: {},
       }),
     );
-    fs.mkdirSync(path.join(chatDir, TASK_FOLDER_NAMES.attachments), {
+    fs.mkdirSync(path.join(chatDir, CHAT_FOLDER_NAMES.attachments), {
       recursive: true,
     });
     fs.mkdirSync(chatsDir, { recursive: true });
@@ -375,30 +375,30 @@ function adoptTask({
  */
 function finishStagedChat(stagingDir: string, rootDir: string) {
   const chatName = path.basename(stagingDir).slice(1, -".partial".length);
-  const privateDir = path.join(stagingDir, TASK_PRIVATE_FOLDER_NAME);
+  const privateDir = path.join(stagingDir, PRIVATE_FOLDER_NAME);
   const backup = path.join(
     rootDir,
     BACKUP_DIR_NAME,
     TASK_RECORDS_DIR_NAME,
     chatName,
   );
-  const chatDb = path.join(privateDir, CHAT_DB_FILE_NAME);
+  const chatDb = path.join(privateDir, STAGED_CHAT_DB_FILE_NAME);
   if (present(chatDb)) {
     for (const suffix of DB_FILE_SUFFIXES) {
       setAside(
-        path.join(privateDir, `${TASK_DB_FILE_NAME}${suffix}`),
-        path.join(backup, `${TASK_DB_FILE_NAME}${suffix}`),
+        path.join(privateDir, `${LEGACY_TASK_DB_FILE_NAME}${suffix}`),
+        path.join(backup, `${LEGACY_TASK_DB_FILE_NAME}${suffix}`),
       );
     }
-    fs.renameSync(chatDb, path.join(privateDir, TASK_DB_FILE_NAME));
+    fs.renameSync(chatDb, path.join(privateDir, CHAT_DB_FILE_NAME));
   }
-  const chatSettings = path.join(privateDir, CHAT_SETTINGS_FILE_NAME);
+  const chatSettings = path.join(privateDir, STAGED_CHAT_SETTINGS_FILE_NAME);
   if (present(chatSettings)) {
     setAside(
-      path.join(privateDir, TASK_SETTINGS_FILE_NAME),
-      path.join(backup, TASK_SETTINGS_FILE_NAME),
+      path.join(privateDir, SETTINGS_FILE_NAME),
+      path.join(backup, SETTINGS_FILE_NAME),
     );
-    fs.renameSync(chatSettings, path.join(privateDir, TASK_SETTINGS_FILE_NAME));
+    fs.renameSync(chatSettings, path.join(privateDir, SETTINGS_FILE_NAME));
   }
   fs.renameSync(stagingDir, path.join(path.dirname(stagingDir), chatName));
 }
@@ -437,14 +437,14 @@ function isLegacyTask(chatDir: string): boolean {
   if (!ChatIdSchema.safeParse(path.basename(chatDir)).success) {
     return false;
   }
-  const privateDir = path.join(chatDir, TASK_PRIVATE_FOLDER_NAME);
-  const settingsPath = path.join(privateDir, TASK_SETTINGS_FILE_NAME);
+  const privateDir = path.join(chatDir, PRIVATE_FOLDER_NAME);
+  const settingsPath = path.join(privateDir, SETTINGS_FILE_NAME);
   // The earliest builds could leave a task with a database and no settings
   // yet, which is a task like any other. Settings that cannot be read are
   // left alone.
   const settings = present(settingsPath)
     ? readJson(settingsPath)
-    : present(path.join(privateDir, TASK_DB_FILE_NAME))
+    : present(path.join(privateDir, LEGACY_TASK_DB_FILE_NAME))
       ? {}
       : undefined;
   return (
@@ -457,7 +457,7 @@ function isLegacyTask(chatDir: string): boolean {
 
 function isProjectFolder(folder: string): boolean {
   const settings = readJson(
-    path.join(folder, TASK_PRIVATE_FOLDER_NAME, TASK_SETTINGS_FILE_NAME),
+    path.join(folder, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
   );
   return ProjectIdSchema.safeParse(settings?.id).success;
 }
@@ -707,7 +707,7 @@ function readProjects(rootDir: string): LegacyProject[] {
     readDirs(dir).flatMap((name): LegacyProject[] => {
       const source = path.join(dir, name);
       const settings = readJson(
-        path.join(source, TASK_PRIVATE_FOLDER_NAME, TASK_SETTINGS_FILE_NAME),
+        path.join(source, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
       );
       const id = ProjectIdSchema.safeParse(settings?.id);
       if (!id.success) {

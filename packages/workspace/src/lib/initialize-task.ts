@@ -2,7 +2,7 @@ import { ok, Result, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { type ChatDir } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -130,8 +130,8 @@ function scaffoldWorkFolder(dir: ChatDir, workspaceConfig: WorkspaceConfig) {
       targetDir: dir,
     });
     for (const dirName of [
-      TASK_FOLDER_NAMES.attachments,
-      TASK_FOLDER_NAMES.work,
+      CHAT_FOLDER_NAMES.attachments,
+      CHAT_FOLDER_NAMES.work,
     ]) {
       yield* ResultAsync.fromPromise(
         fs.mkdir(absolutePathJoin(dir, dirName), { recursive: true }),

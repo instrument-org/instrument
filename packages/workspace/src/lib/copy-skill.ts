@@ -1,14 +1,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { type AbsolutePath, type ChatDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getIgnore } from "./get-ignore";
 import { normalizePath } from "./normalize-path";
 import { SKILL_COPY_IGNORE } from "./skill-artifact-ignore";
 import { type SkillSourceId } from "./skills";
-import { getTaskWorkDir } from "./task-dir-utils";
+import { getChatWorkDir } from "./chat-dir-utils";
 
 /**
  * Copy a skill into a task, restoring anything a previous load left missing.
@@ -34,8 +34,8 @@ export async function copySkill({
   skillSource: SkillSourceId;
 }): Promise<{ alreadyLoaded: boolean; destDir: AbsolutePath }> {
   const destDir = absolutePathJoin(
-    getTaskWorkDir(dir),
-    TASK_FOLDER_NAMES.skills,
+    getChatWorkDir(dir),
+    CHAT_FOLDER_NAMES.skills,
     skillSource,
     skillName,
   );

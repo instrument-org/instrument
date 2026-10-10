@@ -1,4 +1,4 @@
-import { APP_PROTOCOL, TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import { APP_PROTOCOL, PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import { serveStaticFile } from "@instrument-org/workspace/electron";
 import { Hono } from "hono";
 import { randomBytes } from "node:crypto";
@@ -45,7 +45,7 @@ const token = randomBytes(16).toString("hex");
 const UNSAFE_PATH_SEGMENT_REGEX = /(?:^|[/\\])\.{1,2}(?:$|[/\\])|[/\\]{2,}|\\/;
 
 const PRIVATE_DIR_SEGMENT_REGEX = new RegExp(
-  `(?:^|/)${TASK_PRIVATE_FOLDER_NAME.replace(".", "\\.")}(?:/|$)`,
+  `(?:^|/)${PRIVATE_FOLDER_NAME.replace(".", "\\.")}(?:/|$)`,
   "i",
 );
 

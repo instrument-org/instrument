@@ -1,4 +1,4 @@
-import { TASK_DB_FILE_NAME, TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_DB_FILE_NAME, CHAT_FOLDER_NAMES } from "../constants";
 import { type AbsolutePath, type ChatDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -6,8 +6,8 @@ import { getWorkspaceConfig } from "./workspace-config";
 export function getBrowserSessionDir(): AbsolutePath {
   return absolutePathJoin(
     getWorkspaceConfig().rootDir,
-    TASK_FOLDER_NAMES.private,
-    TASK_FOLDER_NAMES.browserSession,
+    CHAT_FOLDER_NAMES.private,
+    CHAT_FOLDER_NAMES.browserSession,
   );
 }
 
@@ -15,7 +15,7 @@ export function getBrowserSessionDir(): AbsolutePath {
 // folder so the user can see them and the agent can reach them with a simple
 // relative path.
 export function getDownloadsDir(dir: ChatDir): AbsolutePath {
-  return absolutePathJoin(dir, TASK_FOLDER_NAMES.downloads);
+  return absolutePathJoin(dir, CHAT_FOLDER_NAMES.downloads);
 }
 
 // TMPDIR for invocations that drive a browser outside the app. Workspace-level,
@@ -30,8 +30,8 @@ export function getExternalBrowserTmpDir(
 ): AbsolutePath {
   return absolutePathJoin(
     rootDir,
-    TASK_FOLDER_NAMES.private,
-    TASK_FOLDER_NAMES.externalBrowserTmp,
+    CHAT_FOLDER_NAMES.private,
+    CHAT_FOLDER_NAMES.externalBrowserTmp,
   );
 }
 
@@ -40,32 +40,32 @@ export function getExternalBrowserTmpDir(
 // private dir is now off-limits to the agent, so agent-facing outputs cannot
 // live there.
 export function getScreenshotsDir(dir: ChatDir): AbsolutePath {
-  return absolutePathJoin(getTaskWorkDir(dir), TASK_FOLDER_NAMES.screenshots);
+  return absolutePathJoin(getChatWorkDir(dir), CHAT_FOLDER_NAMES.screenshots);
 }
 
 // The user's inputs (uploads + copies from attached folders). A user-visible top-level dir.
-export function getTaskAttachmentsDir(dir: ChatDir): AbsolutePath {
-  return absolutePathJoin(dir, TASK_FOLDER_NAMES.attachments);
+export function getChatAttachmentsDir(dir: ChatDir): AbsolutePath {
+  return absolutePathJoin(dir, CHAT_FOLDER_NAMES.attachments);
 }
 
-export function getTaskPrivateDir(dir: ChatDir): AbsolutePath {
-  return absolutePathJoin(dir, TASK_FOLDER_NAMES.private);
+export function getChatPrivateDir(dir: ChatDir): AbsolutePath {
+  return absolutePathJoin(dir, CHAT_FOLDER_NAMES.private);
 }
 
 // Subprocess temp dir. TMPDIR/TEMP/TMP point real interpreters here so
 // tempfile, os.tmpdir(), and mktemp land inside the task instead of the host
 // temp dir.
-export function getTaskTmpDir(dir: ChatDir): AbsolutePath {
-  return absolutePathJoin(dir, TASK_FOLDER_NAMES.tmp);
+export function getChatTmpDir(dir: ChatDir): AbsolutePath {
+  return absolutePathJoin(dir, CHAT_FOLDER_NAMES.tmp);
 }
 
 // Scratch: source, scripts, and intermediate files the agent writes. Holds no
 // package of its own, so what lands here resolves the task's dependencies by
 // walking up to the root like anything else in the task.
-export function getTaskWorkDir(dir: ChatDir): AbsolutePath {
-  return absolutePathJoin(dir, TASK_FOLDER_NAMES.work);
+export function getChatWorkDir(dir: ChatDir): AbsolutePath {
+  return absolutePathJoin(dir, CHAT_FOLDER_NAMES.work);
 }
 
 export function sessionStorePath(dir: ChatDir): AbsolutePath {
-  return absolutePathJoin(getTaskPrivateDir(dir), TASK_DB_FILE_NAME);
+  return absolutePathJoin(getChatPrivateDir(dir), CHAT_DB_FILE_NAME);
 }

@@ -5,7 +5,7 @@ import { dedent, pick } from "radashi";
 import {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
-  TASK_FOLDER_NAMES as F,
+  CHAT_FOLDER_NAMES as F,
   TOOL_ACTIVITY_PARAM_NAME,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";

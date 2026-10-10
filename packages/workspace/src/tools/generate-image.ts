@@ -8,7 +8,7 @@ import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { TASK_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { CHAT_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { executeError } from "../lib/execute-error";
 import { findAvailableName } from "../lib/find-available-name";
@@ -165,7 +165,7 @@ export const GenerateImage = setupTool({
     if (filePathResult.value.mount) {
       yield executeError(
         `Images cannot be generated directly into "${filePathResult.value.displayPath}". ` +
-          `Generate into the task (e.g. ${TASK_FOLDER_NAMES.work}/image.png), then move it there with the bash tool if it belongs in the folder.`,
+          `Generate into the task (e.g. ${CHAT_FOLDER_NAMES.work}/image.png), then move it there with the bash tool if it belongs in the folder.`,
       );
       return;
     }

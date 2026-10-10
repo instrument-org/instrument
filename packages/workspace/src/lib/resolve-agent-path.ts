@@ -3,7 +3,7 @@ import { accessSync, constants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
+import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import { MOUNT } from "../mount-points";
 import {
   type AbsolutePath,
@@ -267,9 +267,9 @@ function maskedEntryError(displayPath: string, entry: MaskedEntry) {
     );
   }
   return executeError(
-    `"${displayPath}" is inside the private ${TASK_FOLDER_NAMES.private} ` +
+    `"${displayPath}" is inside the private ${CHAT_FOLDER_NAMES.private} ` +
       `directory, which holds task internals and is not accessible. Agent ` +
-      `outputs like screenshots live under ${TASK_FOLDER_NAMES.work}/.`,
+      `outputs like screenshots live under ${CHAT_FOLDER_NAMES.work}/.`,
   );
 }
 

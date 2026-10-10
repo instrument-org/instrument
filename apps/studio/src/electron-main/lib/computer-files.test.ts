@@ -31,7 +31,7 @@ beforeAll(async () => {
   file = path.join(folder, "notes.txt");
   await fs.writeFile(file, "hello, computer");
   await fs.mkdir(path.join(folder, ".instrument"));
-  await fs.writeFile(path.join(folder, ".instrument", "task.db"), "secret");
+  await fs.writeFile(path.join(folder, ".instrument", "chat.db"), "secret");
   const stats = await fs.stat(file);
   mtimeMs = stats.mtimeMs;
 });
@@ -101,11 +101,11 @@ describe("handleComputerFileRequest", () => {
     ["a missing file", () => urlFor(path.join(folder, "gone.txt"))],
     [
       "the private directory",
-      () => urlFor(path.join(folder, ".instrument", "task.db")),
+      () => urlFor(path.join(folder, ".instrument", "chat.db")),
     ],
     [
       "the private directory in another case",
-      () => urlFor(path.join(folder, ".INSTRUMENT", "task.db")),
+      () => urlFor(path.join(folder, ".INSTRUMENT", "chat.db")),
     ],
     // A literal `..` never reaches the handler: URL parsing collapses it, so
     // the request names whatever the collapsed path is. The encoded spelling

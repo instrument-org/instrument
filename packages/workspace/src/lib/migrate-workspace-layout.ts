@@ -1,16 +1,19 @@
 import {
-  TASK_PRIVATE_FOLDER_NAME,
-  TASK_SETTINGS_FILE_NAME,
+  PRIVATE_FOLDER_NAME,
+  SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 
 import {
-  TASK_DB_FILE_NAME,
-  TASK_FOLDER_NAMES,
+  CHAT_DB_FILE_NAME,
+  CHATS_DIR_NAME,
+  LEGACY_TASK_DB_FILE_NAME,
+  CHAT_FOLDER_NAMES,
   TASK_STATE_FILE_NAME,
   TASKS_DIR_NAME,
 } from "../constants";
+import { AbsolutePathSchema } from "../schemas/paths";
 import { ProjectIdSchema } from "../schemas/project-id";
 import { foldTaskStateFile } from "./fold-task-state-file";
 import { foldTaskWorkDir } from "./fold-task-work-dir";
@@ -19,6 +22,7 @@ import {
   migrateLegacyTasks,
 } from "./migrate-legacy-tasks";
 import { readJsonRecordSync, updateJsonRecordSync } from "./json-record-file";
+import { windowDir } from "./window-paths";
 
 // Legacy on-disk names this migration renames to their current equivalents.
 const LEGACY_TASKS_DIR_NAME = "projects";
@@ -47,7 +51,7 @@ const LEGACY_PROJECTS_MIGRATED_MARKER_NAME = ".legacy-projects-migrated";
 // that leaves them in the current shape, as initializeTask does. A task folder
 // hand-copied into tasks/, or one a 1.x build writes after the sweep, stays as
 // it is until the next version bump.
-const WORKSPACE_LAYOUT_VERSION = 3;
+const WORKSPACE_LAYOUT_VERSION = 4;
 const WORKSPACE_LAYOUT_VERSION_MARKER_NAME = ".layout-version";
 
 // Cloned Chrome profiles left in a task's temp dir from when agent-browser
@@ -112,6 +116,7 @@ export function migrateWorkspaceLayout({
     };
   }
 
+  renameChatDatabases(rootDir);
   const removedBrowserProfileCloneCount = normalizeTasks(
     path.join(rootDir, TASKS_DIR_NAME),
   );
@@ -132,8 +137,8 @@ export function migrateWorkspaceLayout({
 function isProjectFolder(folderPath: string): boolean {
   const settingsPath = path.join(
     folderPath,
-    TASK_PRIVATE_FOLDER_NAME,
-    TASK_SETTINGS_FILE_NAME,
+    PRIVATE_FOLDER_NAME,
+    SETTINGS_FILE_NAME,
   );
   let parsed: unknown;
   try {
@@ -150,7 +155,7 @@ function isProjectFolder(folderPath: string): boolean {
 function legacyProjectsMarkerPath(rootDir: string): string {
   return path.join(
     rootDir,
-    TASK_PRIVATE_FOLDER_NAME,
+    PRIVATE_FOLDER_NAME,
     LEGACY_PROJECTS_MIGRATED_MARKER_NAME,
   );
 }
@@ -269,16 +274,17 @@ function normalizeTask(taskFolder: string): number {
 // Folds legacy user-input dirs (user-provided/, agent-retrieved/) into a single
 // attachments/ dir.
 function normalizeTaskAttachments(taskFolder: string) {
-  const attachmentsDir = path.join(taskFolder, TASK_FOLDER_NAMES.attachments);
+  const attachmentsDir = path.join(taskFolder, CHAT_FOLDER_NAMES.attachments);
   for (const legacyName of LEGACY_ATTACHMENT_DIR_NAMES) {
     mergeDirInto(path.join(taskFolder, legacyName), attachmentsDir);
   }
 }
 
-// Renames per-task private files: sessions.db -> task.db (with sidecars) and
-// the legacy state file -> state.json.
+// Renames a 1.x task's private files to the names the 1.x migration reads:
+// sessions.db -> task.db (with sidecars) and the legacy state file ->
+// state.json.
 function normalizeTaskPrivateFiles(taskFolder: string) {
-  const privateDir = path.join(taskFolder, TASK_PRIVATE_FOLDER_NAME);
+  const privateDir = path.join(taskFolder, PRIVATE_FOLDER_NAME);
   if (!fs.existsSync(privateDir)) {
     return;
   }
@@ -286,7 +292,7 @@ function normalizeTaskPrivateFiles(taskFolder: string) {
   for (const suffix of DB_FILE_SUFFIXES) {
     moveIfMissingTarget(
       path.join(privateDir, LEGACY_DB_FILE_NAME + suffix),
-      path.join(privateDir, TASK_DB_FILE_NAME + suffix),
+      path.join(privateDir, LEGACY_TASK_DB_FILE_NAME + suffix),
     );
   }
 
@@ -294,6 +300,49 @@ function normalizeTaskPrivateFiles(taskFolder: string) {
     path.join(privateDir, LEGACY_STATE_FILE_NAME),
     path.join(privateDir, TASK_STATE_FILE_NAME),
   );
+}
+
+/**
+ * Renames each chat's database from the name it had while a chat was a task
+ * record (`task.db`) to `chat.db`, and the window's, which is scoped like a
+ * chat. Only `chats/<id>/.instrument` is touched: a folder an earlier build
+ * left under a chat's `tasks/` stays as it is.
+ */
+function renameChatDatabases(rootDir: string) {
+  const chatsDir = path.join(rootDir, CHATS_DIR_NAME);
+  const chats = fs.existsSync(chatsDir)
+    ? fs
+        .readdirSync(chatsDir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => path.join(chatsDir, entry.name))
+    : [];
+  for (const folder of [
+    ...chats,
+    windowDir(AbsolutePathSchema.parse(rootDir)),
+  ]) {
+    renameChatDatabase(path.join(folder, PRIVATE_FOLDER_NAME));
+  }
+}
+
+/**
+ * One folder's `task.db` as `chat.db`: its sidecars first and the database
+ * last, so a sweep cut short between them leaves the rest for the next boot's
+ * sweep rather than a database apart from its write-ahead log. A name already
+ * taken is never overwritten.
+ */
+function renameChatDatabase(privateDir: string) {
+  if (
+    !fs.existsSync(path.join(privateDir, LEGACY_TASK_DB_FILE_NAME)) ||
+    fs.existsSync(path.join(privateDir, CHAT_DB_FILE_NAME))
+  ) {
+    return;
+  }
+  for (const suffix of [...DB_FILE_SUFFIXES.filter(Boolean), ""]) {
+    moveIfMissingTarget(
+      path.join(privateDir, LEGACY_TASK_DB_FILE_NAME + suffix),
+      path.join(privateDir, CHAT_DB_FILE_NAME + suffix),
+    );
+  }
 }
 
 // Normalizes every task folder to the current layout.
@@ -316,9 +365,9 @@ function normalizeTasks(tasksDir: string) {
 // Moves the settings file from the task root into the private dir, whether it
 // is named `instrument.json` or `settings.json`.
 function normalizeTaskSettingsFile(taskFolder: string) {
-  const privateDir = path.join(taskFolder, TASK_PRIVATE_FOLDER_NAME);
-  const settingsDestination = path.join(privateDir, TASK_SETTINGS_FILE_NAME);
-  for (const filename of [TASK_SETTINGS_FILE_NAME, LEGACY_SETTINGS_FILE_NAME]) {
+  const privateDir = path.join(taskFolder, PRIVATE_FOLDER_NAME);
+  const settingsDestination = path.join(privateDir, SETTINGS_FILE_NAME);
+  for (const filename of [SETTINGS_FILE_NAME, LEGACY_SETTINGS_FILE_NAME]) {
     moveIfMissingTarget(path.join(taskFolder, filename), settingsDestination);
   }
 }
@@ -328,7 +377,7 @@ function normalizeTaskSettingsFile(taskFolder: string) {
 // one.
 function observedTaskTimestamps(taskFolder: string) {
   const targets = [
-    path.join(taskFolder, TASK_PRIVATE_FOLDER_NAME, TASK_DB_FILE_NAME),
+    path.join(taskFolder, PRIVATE_FOLDER_NAME, LEGACY_TASK_DB_FILE_NAME),
     taskFolder,
   ];
 
@@ -388,8 +437,8 @@ function removeBrowserProfileClones(taskFolder: string) {
 function stampTaskTimestamps(taskFolder: string) {
   const settingsPath = path.join(
     taskFolder,
-    TASK_PRIVATE_FOLDER_NAME,
-    TASK_SETTINGS_FILE_NAME,
+    PRIVATE_FOLDER_NAME,
+    SETTINGS_FILE_NAME,
   );
 
   const read = readJsonRecordSync(settingsPath);
@@ -439,7 +488,7 @@ function workspaceLayoutCurrent(rootDir: string): boolean {
 function workspaceLayoutMarkerPath(rootDir: string): string {
   return path.join(
     rootDir,
-    TASK_PRIVATE_FOLDER_NAME,
+    PRIVATE_FOLDER_NAME,
     WORKSPACE_LAYOUT_VERSION_MARKER_NAME,
   );
 }

@@ -182,7 +182,7 @@ describe("private-dir (.instrument) restriction", () => {
   it.each([
     { input: ".instrument", label: "the private dir itself" },
     { input: ".instrument/state.json", label: "a relative private file" },
-    { input: "./.instrument/task.db", label: "a dot-relative private file" },
+    { input: "./.instrument/chat.db", label: "a dot-relative private file" },
   ])("rejects $label via resolveToolPath", ({ input }) => {
     const result = resolveToolPath(layout, input);
     expect(result.isErr()).toBe(true);

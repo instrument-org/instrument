@@ -94,7 +94,7 @@ export { WINDOW_ID } from "./schemas/window-id";
 export { appListChanges, sessionEnds } from "./lib/host-events";
 export { FILES_FENCE } from "./lib/parse-files-block";
 
-export { getBrowserSessionDir } from "./lib/task-dir-utils";
+export { getBrowserSessionDir } from "./lib/chat-dir-utils";
 export { chatDir } from "./lib/record-folders";
 export { getChatSettings } from "./lib/chat-settings";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";

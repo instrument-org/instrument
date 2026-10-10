@@ -31,7 +31,7 @@ import path from "node:path";
 import readline from "node:readline";
 import { ulid } from "ulid";
 
-import { TASK_FOLDER_NAMES } from "../src/constants";
+import { CHAT_FOLDER_NAMES } from "../src/constants";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { createBashEnv } from "../src/lib/create-bash-env";
@@ -184,7 +184,7 @@ const chatDir = path.join(chatsDir, chatId);
 await fs.mkdir(chatDir, { recursive: true });
 // Match initializeTask's guarantee: the agent-visible pair always exists
 // (the repl skips the template copy that normally scaffolds `work/`).
-for (const dirName of [TASK_FOLDER_NAMES.attachments, TASK_FOLDER_NAMES.work]) {
+for (const dirName of [CHAT_FOLDER_NAMES.attachments, CHAT_FOLDER_NAMES.work]) {
   await fs.mkdir(path.join(chatDir, dirName), { recursive: true });
 }
 const sessionId = StoreId.newSessionId();

@@ -1,4 +1,4 @@
-import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 
 import { type AbsolutePath } from "../schemas/paths";
@@ -15,11 +15,7 @@ const WINDOW_FOLDER_NAME = "window";
 export function windowDir(
   rootDir: AbsolutePath = getWorkspaceConfig().rootDir,
 ): AbsolutePath {
-  return absolutePathJoin(
-    rootDir,
-    TASK_PRIVATE_FOLDER_NAME,
-    WINDOW_FOLDER_NAME,
-  );
+  return absolutePathJoin(rootDir, PRIVATE_FOLDER_NAME, WINDOW_FOLDER_NAME);
 }
 
 /** Makes the window's folder, which its tabs' store opens inside. */

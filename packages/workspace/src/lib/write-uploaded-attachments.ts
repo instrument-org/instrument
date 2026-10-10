@@ -2,7 +2,7 @@ import { err, ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { type FileUpload } from "../schemas/file-upload";
 import {
   type AbsolutePath,
@@ -20,7 +20,7 @@ import { getMimeType } from "./get-mime-type";
 import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 import { sanitizeFilename } from "./sanitize-filename";
-import { getTaskAttachmentsDir } from "./task-dir-utils";
+import { getChatAttachmentsDir } from "./chat-dir-utils";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
 interface PreparedUploadedFile {
@@ -166,7 +166,7 @@ function prepareUploadedFiles({
   files: FileUpload.Type[];
 }) {
   return safeTry(async function* () {
-    const inputDir = getTaskAttachmentsDir(dir);
+    const inputDir = getChatAttachmentsDir(dir);
     yield* ResultAsync.fromPromise(
       fs.mkdir(inputDir, { recursive: true }),
       fileSystemError,
@@ -205,7 +205,7 @@ function prepareUploadedFiles({
       reservedFilenames.add(uniqueFilename);
 
       const relativePath = RelativePathSchema.parse(
-        `${TASK_FOLDER_NAMES.attachments}/${uniqueFilename}`,
+        `${CHAT_FOLDER_NAMES.attachments}/${uniqueFilename}`,
       );
 
       preparedFiles.push({
@@ -240,7 +240,7 @@ function taskAttachmentPath({
     relative === ".." ||
     relative.startsWith("../") ||
     path.isAbsolute(relative) ||
-    relative.split("/")[0] === TASK_FOLDER_NAMES.private
+    relative.split("/")[0] === CHAT_FOLDER_NAMES.private
   ) {
     return undefined;
   }

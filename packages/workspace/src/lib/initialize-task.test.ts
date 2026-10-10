@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
@@ -124,7 +124,7 @@ describe("initializeChat", () => {
       "
     `);
     await expect(
-      fs.access(path.join(chatDir(chatId), TASK_FOLDER_NAMES.private)),
+      fs.access(path.join(chatDir(chatId), CHAT_FOLDER_NAMES.private)),
     ).resolves.toBeUndefined();
   });
 });

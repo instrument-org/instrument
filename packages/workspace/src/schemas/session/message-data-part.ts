@@ -863,7 +863,7 @@ export namespace SessionMessageDataPart {
    *
    * It is still parsed because tasks from before the fence hold it, and it is
    * the only record those conversations have of what a turn produced. Dropping
-   * the schema does not delete the payload -- it survives in `task.db` either
+   * the schema does not delete the payload -- it survives in `chat.db` either
    * way -- it just makes the part unreadable, which costs those transcripts
    * their file links for no gain.
    *

@@ -33,6 +33,7 @@ import { ulid } from "ulid";
 
 import { CHAT_FOLDER_NAMES } from "../src/constants";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
+import { credentialPlaces } from "../src/lib/native-sandbox";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { createBashEnv } from "../src/lib/create-bash-env";
 import { assignMountNames } from "../src/lib/assign-mount-names";
@@ -149,6 +150,7 @@ setWorkspaceConfig({
   isExternalBrowserEnabled: () => true,
   modelCache: noopModelCache,
   nodeExecEnv: {},
+  nativeSandboxPlaces: credentialPlaces(),
   pnpmBinPath: AbsolutePathSchema.parse(
     await execa({ reject: false })`which pnpm`.then(
       ({ stdout }) => stdout.trim() || "/usr/bin/pnpm",

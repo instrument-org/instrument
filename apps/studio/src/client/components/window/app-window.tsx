@@ -484,9 +484,6 @@ function WindowShell({
       return;
     }
     void queryClient.prefetchQuery(
-      rpcClient.workspace.computer.recents.queryOptions(),
-    );
-    void queryClient.prefetchQuery(
       rpcClient.workspace.computer.places.queryOptions(),
     );
   }, [opened, queryClient]);

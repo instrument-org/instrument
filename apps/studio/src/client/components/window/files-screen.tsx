@@ -15,6 +15,7 @@ import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
+import { noteFileOpened } from "@/client/hooks/use-recent-files";
 import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { fileUrlOf } from "@/client/lib/file-url";
@@ -164,6 +165,15 @@ export function FilesScreen({
   const activeFile: FileTab | undefined = file
     ? { hostPath: file, name: segmentsOf(file).at(-1) ?? file }
     : undefined;
+  // Every way into a file lands on this screen: a folder, a link in a reply,
+  // a file card, the Finder handing one over. A file coming up in the tab the
+  // person is looking at is a file they opened, so it is told to history here
+  // and nowhere else.
+  useEffect(() => {
+    if (file !== undefined && isActiveTab) {
+      noteFileOpened(file);
+    }
+  }, [file, isActiveTab]);
   const isPageFile =
     activeFile !== undefined &&
     !source &&

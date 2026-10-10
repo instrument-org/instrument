@@ -1,3 +1,4 @@
+import { getHistoryStore } from "@/electron-main/browser-view/history-store";
 import {
   findInTrash,
   type Identity,
@@ -124,6 +125,7 @@ const rename = base
       throw errors.NAME_IN_USE();
     }
     await fs.rename(input.path, moved);
+    getHistoryStore().moveFiles(input.path, moved);
     await record(moved, (identity) => ({
       from: input.path,
       identity,
@@ -245,6 +247,9 @@ const undo = base
         trash: (at) => shell.trashItem(at),
       });
       journal.remove(entry.id);
+      if (entry.kind === "rename") {
+        getHistoryStore().moveFiles(entry.to, entry.from);
+      }
       const isFolder =
         restored !== null &&
         (await fs.lstat(restored).then(

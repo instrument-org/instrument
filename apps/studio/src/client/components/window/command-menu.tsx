@@ -5,6 +5,10 @@ import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { APPS_HREF, bookmarksAtom, CHATS_HREF } from "@/client/atoms/window";
 import { PageFavicon } from "@/client/components/favicon";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
+import { useRecentFiles } from "@/client/hooks/use-recent-files";
+import { FileTypeIcon } from "@/client/components/extend/file-system";
+import { folderOf, homeRelative } from "@/client/components/window/host-path";
+import { fileHref } from "@/shared/computer-href";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { useTheme } from "@/client/components/theme-provider";
 import {
@@ -62,6 +66,7 @@ const fuzzy = new uFuzzy({ intraMode: 1 });
 /** Rows per kind past which a search stops listing: enough to choose from, few enough to read. */
 const APPS_SHOWN = 6;
 const PAGES_SHOWN = 6;
+const FILES_SHOWN = 6;
 /** How long a search has to be before the decision model is asked what it means. */
 const MEANING_MIN_LENGTH = 3;
 /** Chats listed before anything is typed, newest first. */
@@ -84,7 +89,8 @@ type Item = Extract<Row, { type: "item" }>;
 
 /**
  * The window's command menu (Cmd+K): one place to run a command, change the
- * theme, or jump to a chat, an app, or a page the browser has been to. A
+ * theme, or jump to a chat, an app, a page the browser has been to, or a
+ * file the person opened. A
  * search that turns up nothing at all is handed to the decision model, which
  * looks through the chats for the one the words mean. Words starting `!`
  * reach the switches kept out of sight: `!dev` and `!beta`.
@@ -103,6 +109,8 @@ export function CommandMenu({
   const developerMode = useDeveloperMode();
   const appsBySlug = useAppsBySlug();
   const visited = useRecentPages();
+  // Described only while the menu is up: each file is looked at on the disk.
+  const recentFiles = useRecentFiles({ enabled: open }).files;
   const bookmarks = useAtomValue(bookmarksAtom);
 
   const preferences = useQuery(
@@ -381,6 +389,29 @@ export function CommandMenu({
           },
           {
             items: fuzzyMatch(
+              recentFiles,
+              (file) => [
+                file.name,
+                homeRelative(file.path, window.api.homeDir),
+              ],
+              words,
+            )
+              .slice(0, FILES_SHOWN)
+              .map(({ item: file, ranges }) => ({
+                detail: homeRelative(folderOf(file.path), window.api.homeDir),
+                icon: <FileTypeIcon fileName={file.name} />,
+                id: `file:${file.path}`,
+                label: file.name,
+                ranges,
+                run: () => {
+                  openScreen(fileHref(file.path));
+                },
+                type: "item",
+              })),
+            label: "Recent files",
+          },
+          {
+            items: fuzzyMatch(
               debugItems,
               (item) => [item.label, item.href],
               words,
@@ -464,7 +495,7 @@ export function CommandMenu({
 
   return (
     <CommandDialog
-      description="Run a command or go to a chat, an app, or a page"
+      description="Run a command or go to a chat, an app, a page, or a file"
       onOpenChange={(value) => {
         if (value) {
           setOpen(true);

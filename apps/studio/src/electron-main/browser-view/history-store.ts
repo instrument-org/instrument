@@ -1,3 +1,4 @@
+import { logger } from "@/electron-main/lib/electron-logger";
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { workspacePrivateDir } from "@/electron-main/lib/workspaces";
 import { EventPublisher } from "@orpc/server";
@@ -6,7 +7,10 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 /**
- * The in-app browser's history, modeled on Chromium's `urls` and `visits`
+ * The person's history in the app: the in-app browser's pages, and the files
+ * they opened.
+ *
+ * Pages are modeled on Chromium's `urls` and `visits`
  * tables: one row per address, carrying what the address is called and the
  * counts the address field ranks by, and one row per time a tab committed it.
  *
@@ -35,6 +39,22 @@ export type HistoryTransition = "back_forward" | "link" | "typed";
  * failed to load, `sign-in` a page the app's own sign-in flow went through.
  */
 export type HiddenBy = "error" | "redirect" | "sign-in";
+
+/**
+ * How a file was opened: `tab` shown in one of the app's own tabs, by any way
+ * in (a folder, a link in a reply, the Finder handing it over); `external`
+ * handed to another app from here.
+ */
+export type FileOpenVia = "external" | "tab";
+
+/** A file the person opened, as the recents read it. */
+export interface OpenedFile {
+  /** When they last opened it, in epoch ms. */
+  at: number;
+  openCount: number;
+  /** The host path, as it was when last opened or since moved by the app. */
+  path: string;
+}
 
 /** A page as the history surfaces draw it. */
 export interface HistoryPage {
@@ -93,6 +113,20 @@ CREATE TABLE IF NOT EXISTS visits (
 CREATE INDEX IF NOT EXISTS visits_url ON visits(url_id);
 CREATE INDEX IF NOT EXISTS visits_at ON visits(at);
 CREATE INDEX IF NOT EXISTS urls_last_visit ON urls(last_visit);
+CREATE TABLE IF NOT EXISTS files (
+  id INTEGER PRIMARY KEY,
+  path TEXT NOT NULL UNIQUE,
+  open_count INTEGER NOT NULL DEFAULT 0,
+  last_open INTEGER NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS file_opens (
+  id INTEGER PRIMARY KEY,
+  file_id INTEGER NOT NULL REFERENCES files(id),
+  at INTEGER NOT NULL,
+  via TEXT NOT NULL
+) STRICT;
+CREATE INDEX IF NOT EXISTS file_opens_file ON file_opens(file_id);
+CREATE INDEX IF NOT EXISTS files_last_open ON files(last_open);
 `;
 
 /** A visit that counts toward history: the person's own, and not hidden. */
@@ -123,7 +157,9 @@ export function createHistoryStore(file: string) {
   if (version !== SCHEMA_VERSION) {
     // Nothing older than this version was ever written; a file of another
     // version is from a build this one cannot read, so it starts over.
-    database.exec("DROP TABLE IF EXISTS visits; DROP TABLE IF EXISTS urls;");
+    database.exec(
+      "DROP TABLE IF EXISTS visits; DROP TABLE IF EXISTS urls; DROP TABLE IF EXISTS file_opens; DROP TABLE IF EXISTS files;",
+    );
     database.exec(`PRAGMA user_version = ${SCHEMA_VERSION.toString()}`);
   }
   database.exec(SCHEMA);
@@ -176,6 +212,32 @@ export function createHistoryStore(file: string) {
       );
 
   return {
+    /**
+     * The person opened a file. Kept by its host path; the row lasts while
+     * the file is gone, so a file put back is the same recent again.
+     */
+    addFileOpen({
+      at,
+      path: filePath,
+      via,
+    }: {
+      at: number;
+      path: string;
+      via: FileOpenVia;
+    }) {
+      database
+        .prepare(
+          "INSERT INTO files (path, open_count, last_open) VALUES (?, 1, ?) ON CONFLICT(path) DO UPDATE SET open_count = open_count + 1, last_open = max(last_open, excluded.last_open)",
+        )
+        .run(filePath, at);
+      database
+        .prepare(
+          "INSERT INTO file_opens (file_id, at, via) SELECT id, ?, ? FROM files WHERE path = ?",
+        )
+        .run(at, via, filePath);
+      changed();
+    },
+
     /** A visit committed in a tab; answers its id. */
     addVisit(visit: NewVisit): number {
       const urlId = urlIdOf(visit.url);
@@ -240,6 +302,58 @@ export function createHistoryStore(file: string) {
         .run(hiddenBy, visitId);
       refresh(urlId);
       changed();
+    },
+
+    /**
+     * Something the app moved or renamed from `from` to `to`: the file there,
+     * or every file under the folder there, keeps its history at its new path.
+     * A row already at the new path gives way to the one that moved there.
+     */
+    moveFiles(from: string, to: string) {
+      const moved = database
+        .prepare(
+          "SELECT id, path FROM files WHERE path = ? OR substr(path, 1, length(?) + 1) = ? || ?",
+        )
+        .all(from, from, from, path.sep)
+        .map((row) => ({
+          id: Number(row.id),
+          path: `${to}${String(row.path).slice(from.length)}`,
+        }));
+      if (moved.length === 0) {
+        return;
+      }
+      const evict = database.prepare(
+        "DELETE FROM file_opens WHERE file_id IN (SELECT id FROM files WHERE path = ?)",
+      );
+      const evictFile = database.prepare("DELETE FROM files WHERE path = ?");
+      const update = database.prepare("UPDATE files SET path = ? WHERE id = ?");
+      database.exec("BEGIN");
+      try {
+        for (const entry of moved) {
+          evict.run(entry.path);
+          evictFile.run(entry.path);
+          update.run(entry.path, entry.id);
+        }
+        database.exec("COMMIT");
+      } catch (error) {
+        database.exec("ROLLBACK");
+        throw error;
+      }
+      changed();
+    },
+
+    /** The files the person opened, most recently opened first. */
+    openedFiles(limit: number): OpenedFile[] {
+      return database
+        .prepare(
+          "SELECT path, last_open, open_count FROM files ORDER BY last_open DESC LIMIT ?",
+        )
+        .all(limit)
+        .map((row) => ({
+          at: Number(row.last_open),
+          openCount: Number(row.open_count),
+          path: String(row.path),
+        }));
     },
 
     /** The person's visible pages, newest first. */
@@ -346,4 +460,17 @@ export function getHistoryStore(): HistoryStore {
     path.join(workspacePrivateDir(getWorkspaceFolder()), "history.db"),
   );
   return opened;
+}
+
+/**
+ * Writes a file the person opened into history, now. A failure is reported
+ * and swallowed: the open itself has happened, and history is what follows
+ * it rather than a gate in front of it.
+ */
+export function recordFileOpen(filePath: string, via: FileOpenVia) {
+  try {
+    getHistoryStore().addFileOpen({ at: Date.now(), path: filePath, via });
+  } catch (error) {
+    logger.error("Could not record a file open", error);
+  }
 }

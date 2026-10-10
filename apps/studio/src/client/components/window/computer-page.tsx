@@ -61,6 +61,7 @@ import {
 } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 import { useOpenFile } from "@/client/hooks/use-open-file";
 import {
@@ -145,29 +146,22 @@ const PAGE_ASPECT = 0.78;
 const REFRESH_MS = ms("4 seconds");
 
 /**
- * The soonest the recents are read again. Their own clock, slower than a
- * folder's: the answer is read out of what every channel has said, and it can
- * only change when the conversation says something new.
- */
-const RECENTS_REFRESH_MS = ms("15 seconds");
-
-/**
- * The place that is not a folder: the files the conversation has shown the
- * user, wherever they live. Stands where a root folder stands, so the browser
- * opens on it the way it opens on Home.
+ * The place that is not a folder: the files the person opened, wherever they
+ * live. Stands where a root folder stands, so the browser opens on it the way
+ * it opens on Home.
  */
 export const RECENTS_ROOT = "recents:";
 
-/**
- * The order the recents open in: the order they were handed over, most
- * recently shown first, which is the order the user met them in.
- */
-const RECENTS_SORT: FileSystemSortState = { direction: "desc", key: "shownAt" };
+/** The order the recents open in: the most recently opened first. */
+const RECENTS_SORT: FileSystemSortState = {
+  direction: "desc",
+  key: "openedAt",
+};
 
 /**
  * The orders the folder's menu offers, in the Finder's words, each opening in
  * the direction the toolbar's sort opens it in. The recents add the order
- * they were shown in, which is theirs alone.
+ * they were opened in, which is theirs alone.
  */
 const SORT_BY: {
   direction: "asc" | "desc";
@@ -175,7 +169,12 @@ const SORT_BY: {
   label: string;
   recentsOnly?: boolean;
 }[] = [
-  { direction: "desc", key: "shownAt", label: "Date Shown", recentsOnly: true },
+  {
+    direction: "desc",
+    key: "openedAt",
+    label: "Date Last Opened",
+    recentsOnly: true,
+  },
   { direction: "asc", key: "name", label: "Name" },
   { direction: "asc", key: "kind", label: "Kind" },
   { direction: "desc", key: "updatedAt", label: "Date Modified" },
@@ -272,15 +271,10 @@ export function ComputerPage({
   // The recents stand where a root folder stands, and are listed the way a
   // folder is, so everything the browser does to a folder it does to them.
   const isRecents = root === RECENTS_ROOT;
-  const recents = useQuery(
-    rpcClient.workspace.computer.recents.queryOptions({
-      enabled: isRecents,
-      refetchInterval:
-        refreshInterval === false
-          ? false
-          : Math.max(refreshInterval, RECENTS_REFRESH_MS),
-    }),
-  );
+  const recents = useRecentFiles({
+    enabled: isRecents,
+    refetchInterval: refreshInterval,
+  });
   const homePath = window.api.homeDir;
   const instrumentPath = places.data?.favorites.find(
     (place) => place.name === "Instrument",
@@ -417,8 +411,8 @@ export function ComputerPage({
     }));
   }, [goneFolder]);
   // The recents as a folder's worth of files: named where they live, and flat,
-  // since a list of what was shown is not a tree.
-  const recentEntries = recents.data ?? [];
+  // since a list of what was opened is not a tree.
+  const recentEntries = recents.files;
   const recentKeys = recentPaths(recentEntries);
   const recentItems = recentEntries.map((entry, index): FileSystemItem => {
     return {
@@ -431,7 +425,7 @@ export function ComputerPage({
       name: entry.name,
       path: recentKeys[index] ?? entry.name,
       ...previewOf(entry, resolvedTheme),
-      shownAt: new Date(entry.shownAt).toISOString(),
+      openedAt: new Date(entry.openedAt).toISOString(),
       size: entry.size,
       ...(entry.modifiedAt === undefined
         ? {}
@@ -522,7 +516,7 @@ export function ComputerPage({
       queryKey: rpcClient.workspace.computer.list.key(),
     });
     void queryClient.invalidateQueries({
-      queryKey: rpcClient.workspace.computer.recents.key(),
+      queryKey: rpcClient.workspace.computer.describe.key(),
     });
   };
 

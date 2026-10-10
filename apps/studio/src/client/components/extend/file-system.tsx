@@ -165,12 +165,12 @@ export type FileSystemFileItem = {
    */
   previewPageCount?: number;
   /**
-   * When this file was put in front of the user, for a list that is a log of
-   * what they were shown rather than a folder. Sortable, and nothing else: a
-   * file's own dates say when it was made and changed, which is a different
-   * question and often a different answer.
+   * When the person last opened this file, for a list that is a log of what
+   * they opened rather than a folder. Sortable, and nothing else: a file's own
+   * dates say when it was made and changed, which is a different question and
+   * often a different answer.
    */
-  shownAt?: string;
+  openedAt?: string;
   size?: number;
   /** The Kind column's text, where the system names it: "Application". */
   typeName?: string;
@@ -689,8 +689,8 @@ export type FileSystemSortKey =
   | "kind"
   | "name"
   // Not in SORT_OPTIONS, so it never appears in the toolbar: only a list whose
-  // items carry `shownAt` can be in this order, and it opens in it.
-  | "shownAt"
+  // items carry `openedAt` can be in this order, and it opens in it.
+  | "openedAt"
   | "size"
   | "updatedAt";
 export type FileSystemSortState = {
@@ -832,13 +832,13 @@ function defaultSortDirection(key: FileSystemSortKey) {
 }
 function entrySortTimestamp(
   entry: FileSystemEntry,
-  key: "createdAt" | "shownAt" | "updatedAt",
+  key: "createdAt" | "openedAt" | "updatedAt",
 ) {
-  // A folder is never shown to anyone, so it has no `shownAt` to read.
+  // The recents list only files, so a folder has no `openedAt` to read.
   const value =
-    key === "shownAt"
+    key === "openedAt"
       ? entry.kind === "file"
-        ? entry.shownAt
+        ? entry.openedAt
         : undefined
       : entry[key];
   const time = value ? Date.parse(value) : Number.NaN;

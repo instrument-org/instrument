@@ -129,3 +129,48 @@ describe("history store", () => {
     ]);
   });
 });
+
+describe("opened files", () => {
+  it("lists each file once, most recently opened first, counting its opens", () => {
+    const history = store();
+    history.addFileOpen({ at: 1, path: "/a/one.txt", via: "tab" });
+    history.addFileOpen({ at: 2, path: "/a/two.txt", via: "external" });
+    history.addFileOpen({ at: 3, path: "/a/one.txt", via: "tab" });
+    expect(history.openedFiles(10)).toEqual([
+      { at: 3, openCount: 2, path: "/a/one.txt" },
+      { at: 2, openCount: 1, path: "/a/two.txt" },
+    ]);
+    expect(history.openedFiles(1)).toHaveLength(1);
+  });
+
+  it("follows a renamed file and every file under a moved folder, and leaves a sibling with the same prefix", () => {
+    const history = store();
+    history.addFileOpen({ at: 1, path: "/a/doc.txt", via: "tab" });
+    history.addFileOpen({ at: 2, path: "/a/sub/deep.txt", via: "tab" });
+    history.addFileOpen({ at: 3, path: "/ab/other.txt", via: "tab" });
+    history.moveFiles("/a/doc.txt", "/a/renamed.txt");
+    history.moveFiles("/a", "/b");
+    expect(history.openedFiles(10).map((file) => file.path)).toEqual([
+      "/ab/other.txt",
+      "/b/sub/deep.txt",
+      "/b/renamed.txt",
+    ]);
+  });
+
+  it("keeps the moved file's history where a file was already recorded at the new path", () => {
+    const history = store();
+    history.addFileOpen({ at: 1, path: "/a/old.txt", via: "tab" });
+    history.addFileOpen({ at: 2, path: "/a/new.txt", via: "tab" });
+    history.moveFiles("/a/old.txt", "/a/new.txt");
+    expect(history.openedFiles(10)).toEqual([
+      { at: 1, openCount: 1, path: "/a/new.txt" },
+    ]);
+  });
+
+  it("is left alone by clearing browsing history", () => {
+    const history = store();
+    history.addFileOpen({ at: 1, path: "/a/one.txt", via: "tab" });
+    history.clear();
+    expect(history.openedFiles(10)).toHaveLength(1);
+  });
+});

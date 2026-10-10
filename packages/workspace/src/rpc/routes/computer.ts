@@ -5,10 +5,10 @@ import {
   ComputerPlacesSchema,
 } from "../../lib/chat/computer-places";
 import {
+  ComputerFileEntrySchema,
   ComputerFolderSchema,
-  ComputerRecentSchema,
+  describeComputerFiles,
   listComputerFolder,
-  recentComputerFiles,
 } from "../../lib/chat/computer";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base } from "../base";
@@ -64,15 +64,18 @@ const places = base
   .handler(() => computerPlaces());
 
 /**
- * The files the chats have shown the user, newest first, each with whether
- * the chat that showed it can still reach it.
+ * Files by host path, in the order asked, each with whether the chat `id`
+ * can reach it. Paths no longer there, or no longer files, are left out.
  */
-const recents = base
-  .output(ComputerRecentSchema.array())
-  .handler(() => recentComputerFiles());
+const describe = base
+  .input(z.object({ id: TaskIdSchema, paths: z.array(z.string()) }))
+  .output(ComputerFileEntrySchema.array())
+  .handler(({ input }) =>
+    describeComputerFiles({ paths: input.paths, taskId: input.id }),
+  );
 
 export const computer = {
+  describe,
   list,
   places,
-  recents,
 };

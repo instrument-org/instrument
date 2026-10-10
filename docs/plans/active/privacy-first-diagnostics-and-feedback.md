@@ -1,6 +1,6 @@
 # Plan: privacy-first diagnostics and feedback
 
-Status: in progress. Tier A's removal half has landed: PostHog is gone from both processes (SDKs, init, CSP hosts, env validation, the release source-map upload), along with the persisted `telemetryId`, the `enableUsageMetrics` preference and its Settings toggle, and the whole event catalog with every call site. Decision 2 went the other way from its recommendation: the catalog was deleted rather than retargeted, so nothing records events locally either. Exceptions still flow through the injected `CaptureExceptionFunction`, which now writes only to the main log and the developer-mode exception list. Not started: the local journal, spans and the stall watchdog, the diagnostics screen, feedback reports, and the default-off crash reports (phase 3, planned as Sentry). Owner: TBD. Depends on [conversation-storage.md](conversation-storage.md) for the report payload; related to [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md).
+Status: in progress. Tier A's removal half has landed: PostHog is gone from both processes (SDKs, init, CSP hosts, env validation, the release source-map upload), along with the persisted `telemetryId`, the `enableUsageMetrics` preference and its Settings toggle, and the whole event catalog with every call site. Decision 2 went the other way from its recommendation: the catalog was deleted rather than retargeted, so nothing records events locally either. Exceptions still flow through the injected `CaptureExceptionFunction`, which now writes only to the main log and the developer-mode exception list. Phase 3's local half is built: Crashpad runs with uploads off, and each start logs the minidumps it has not reported yet and whether the last session exited at all ([register-crash-diagnostics.ts](../../../apps/studio/src/electron-main/lib/register-crash-diagnostics.ts)). Release builds attach their source maps to the GitHub release, so a stack in a report can be resolved against the build it came from. Not started: the local journal, spans and the stall watchdog, the diagnostics screen, feedback reports, the pending-crash notice, and sending a crash report. Owner: TBD. Depends on [conversation-storage.md](conversation-storage.md) for the report payload; related to [user-chosen-working-folder.md](../completed/user-chosen-working-folder.md).
 
 ## Scope
 
@@ -111,7 +111,7 @@ Today it attaches account identity, email, URL, user agent, country, and Cloudfl
 
 **Phase 2.** Report composer, thumbs with first-run disclosure, task rating, "Report this problem". Bundle, redaction, preview, upload, receipt, deletion token, lifecycle.
 
-**Phase 3.** Crashpad with upload disabled, pending-crash UI, manual submission, the default-off sanitized exception setting.
+**Phase 3.** Crashpad with upload disabled and the unclean-exit marker (built). Pending-crash UI, manual submission, the default-off sanitized exception setting.
 
 **Phase 4.** Quarantine queue, sanitized derivatives, dedup fingerprints, isolated triage, human approval gate, promotion into evals.
 

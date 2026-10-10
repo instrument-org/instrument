@@ -207,6 +207,44 @@ export function skillOfHref(href: string): string | undefined {
   }
 }
 
+/** The address of a setting, which the window shows in Settings rather than as a screen. */
+const SETTINGS_HREF = "/settings";
+
+/**
+ * The setting an address names: a row's id, a page's name, or what an older
+ * link named that Settings no longer has, which Settings searches for.
+ * Nothing for any other address.
+ */
+export function settingOfHref(href: string): string | undefined {
+  return segmentUnder(SETTINGS_HREF, href);
+}
+
+/** The address of a screen named by a link, which the window opens where that screen lives. */
+const SCREEN_HREF = "/screen";
+
+/** The screen an address names, by its name, known or not. Nothing for any other address. */
+export function screenOfHref(href: string): string | undefined {
+  return segmentUnder(SCREEN_HREF, href);
+}
+
+/** The one path segment under `prefix` in `href`, as written. */
+function segmentUnder(prefix: string, href: string): string | undefined {
+  const pathname = new URL(href, "http://tabs").pathname;
+  if (!pathname.startsWith(`${prefix}/`)) {
+    return undefined;
+  }
+  const segment = pathname.slice(prefix.length + 1);
+  if (!segment || segment.includes("/")) {
+    return undefined;
+  }
+  // The router writes a colon (`provider:<id>`) as `%3A`.
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 /** A name that is a whole volume on Windows, which is where a path there starts. */
 function isDrive(name: string) {
   return /^[a-z]:$/i.test(name);

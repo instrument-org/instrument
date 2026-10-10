@@ -187,6 +187,95 @@ export function settingAnchor(
   return { "data-setting": id };
 }
 
+/**
+ * Each page of Settings, in the order its sidebar lists them, with what it is
+ * for and who sees it: `developerOnly` for a page only developer mode lists,
+ * `shownWhen` for one the sidebar lists only while it has something to show.
+ * Typed against every tab, so a page added to Settings does not build until
+ * it is described here.
+ */
+export const SETTINGS_PAGES: Record<
+  SettingsTab,
+  { detail: string; developerOnly?: true; shownWhen?: string }
+> = {
+  General: {
+    detail: `Your account, how ${APP_NAME} looks, notifications, updates, and the diagnostic log.`,
+  },
+  Memory: {
+    detail: `What ${APP_NAME} remembers about you, which you can search, forget, or add to from another AI.`,
+  },
+  Providers: {
+    detail: `The AI models ${APP_NAME} can use: your ChatGPT or Claude plan, or a provider you add with your own key.`,
+  },
+  Skills: {
+    detail: `The skills ${APP_NAME}'s tasks can use, and making a new one.`,
+  },
+  Storage: {
+    detail:
+      "Where your chats and tasks live, and fixing ones whose folders have problems.",
+    shownWhen: "some chats or tasks have problems in their folders",
+  },
+  Features: {
+    detail: "Feature flags.",
+    developerOnly: true,
+  },
+  Debug: {
+    detail: "Tools for working on the app.",
+    developerOnly: true,
+  },
+};
+
+// `Object.keys` widens the keys to `string`; they are the record's tabs.
+const SETTINGS_TABS = Object.keys(SETTINGS_PAGES) as SettingsTab[];
+
+/**
+ * Where a link's name for a setting lands: a page by its name in any case
+ * (`memory`), a row or a label on one by its id (`zoom`, `release-notes`), or
+ * a row a page draws from data (`provider:<id>`). A name Settings has none of,
+ * from a reply older or newer than this build, is searched for in its own
+ * words, so it still lands near what it meant.
+ */
+export function settingsTargetOf(
+  name: string,
+):
+  | { kind: "page"; tab: SettingsTab }
+  | { kind: "row"; mark: string; tab: SettingsTab }
+  | { kind: "search"; search: string } {
+  const tab = SETTINGS_TABS.find(
+    (page) => page.toLowerCase() === name.toLowerCase(),
+  );
+  if (tab) {
+    return { kind: "page", tab };
+  }
+  const entry = SETTINGS_INDEX.find((row) => row.id === name);
+  if (entry) {
+    return {
+      kind: "row",
+      mark: "mark" in entry ? entry.mark : entry.id,
+      tab: entry.tab,
+    };
+  }
+  if (name.startsWith("provider:")) {
+    return { kind: "row", mark: name, tab: "Providers" };
+  }
+  if (name.startsWith("feature:")) {
+    return { kind: "row", mark: name, tab: "Features" };
+  }
+  return { kind: "search", search: name.replaceAll(/[-_:]+/g, " ").trim() };
+}
+
+/** Where a setting is, as a person would say the way there: `Settings › General › Zoom`. */
+export function settingsPathOf(name: string): string {
+  const target = settingsTargetOf(name);
+  if (target.kind === "search") {
+    return "Settings";
+  }
+  const entry = SETTINGS_INDEX.find((row) => row.id === name);
+  return entry
+    ? `Settings › ${target.tab} › ${entry.title}`
+    : `Settings › ${target.tab}`;
+}
+
 export type SettingsMatch = {
   entry: SettingsEntry;
   /** Ranges to highlight in the page name drawn under a row's title. */

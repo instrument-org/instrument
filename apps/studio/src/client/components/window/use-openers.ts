@@ -1,8 +1,10 @@
 import { openSettings } from "@/client/atoms/settings-modal";
+import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { CHATS_HREF } from "@/client/atoms/window";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
+import { isScreenName, SCREENS } from "@/shared/instrument-screens";
 import {
   type ChatId,
   encodeBrowserTargetId,
@@ -12,6 +14,7 @@ import {
   type WindowTabAnswer,
   type WindowTabRequest,
 } from "@instrument-org/workspace/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
@@ -33,6 +36,8 @@ import { visitInTab } from "./tab-history";
 import { taskRecordOptions } from "./child-tasks-query";
 import {
   memoryOfHref,
+  screenOfHref,
+  settingOfHref,
   skillOfHref,
   taskHref,
   tasksHref,
@@ -231,6 +236,28 @@ export function useOpeners({
     const skill = skillOfHref(href);
     if (skill) {
       openSettings({ skill, tab: "Skills" });
+      return;
+    }
+    // A setting likewise, in Settings, on its page and lit; a name Settings
+    // has no row or page for is searched for there instead.
+    const setting = settingOfHref(href);
+    if (setting) {
+      openSettings({ setting });
+      return;
+    }
+    // A screen a reply named opens where it lives: a place at its own
+    // address, or a dialog over the window.
+    const screen = screenOfHref(href);
+    if (screen !== undefined) {
+      if (!isScreenName(screen)) {
+        sayNoScreen();
+        return;
+      }
+      if (screen === "shortcuts") {
+        openShortcutGuide();
+      } else {
+        openScreen(SCREENS[screen].href, options);
+      }
       return;
     }
     // A chat's tasks, or one task, are a tab in the chat's group, a task in
@@ -595,6 +622,10 @@ export function useOpeners({
 }
 
 /** Says a chat's address named none of the chats here. */
+function sayNoScreen() {
+  toast(`This version of ${APP_NAME} doesn't have that screen`);
+}
+
 function sayNoChat() {
   toast("No chat at that address", {
     description: "It may have been deleted, or the link is not for this chat.",

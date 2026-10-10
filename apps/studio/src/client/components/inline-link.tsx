@@ -13,6 +13,7 @@ import {
   webUrl,
 } from "@/client/lib/link-target";
 import { cn } from "@/client/lib/utils";
+import { settingsPathOf } from "@/client/components/settings/settings-index";
 import {
   type InstrumentLink,
   instrumentLinkOf,
@@ -21,7 +22,9 @@ import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
+import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
+import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { Children, type ReactNode } from "react";
 
 import { EmailLink } from "./email-link";
@@ -285,7 +288,7 @@ function AppLink({
       </span>
     );
   }
-  return (
+  const chip = (
     <ChipButton
       className={className}
       onActivate={open.run}
@@ -294,6 +297,17 @@ function AppLink({
     >
       {body}
     </ChipButton>
+  );
+  // A setting's chip says where in Settings it goes, since its label is the
+  // setting's name and could as well be a memory's or a chat's.
+  if (link.kind !== "settings") {
+    return chip;
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{chip}</TooltipTrigger>
+      <TooltipContent>{settingsPathOf(link.name)}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -308,6 +322,16 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
     }
     case "memory": {
       return <FingerprintIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
+    case "screen": {
+      return link.name === "shortcuts" ? (
+        <KeyboardIcon className={INLINE_CHIP_ICON_CLASS_NAME} />
+      ) : (
+        <AppWindowIcon className={INLINE_CHIP_ICON_CLASS_NAME} />
+      );
+    }
+    case "settings": {
+      return <FadersHorizontalIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
     }
     case "skill": {
       return <CubeIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;

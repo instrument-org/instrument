@@ -61,6 +61,22 @@ describe("instrumentLinkOf", () => {
       },
     ],
     [
+      "instrument://settings/zoom",
+      { href: "/settings/zoom", kind: "settings", name: "zoom" },
+    ],
+    [
+      "instrument://settings/provider:openai-1",
+      {
+        href: "/settings/provider:openai-1",
+        kind: "settings",
+        name: "provider:openai-1",
+      },
+    ],
+    [
+      "instrument://screen/shortcuts",
+      { href: "/screen/shortcuts", kind: "screen", name: "shortcuts" },
+    ],
+    [
       "INSTRUMENT://Task/lisbon-hotel",
       {
         href: "/tasks/lisbon-hotel",
@@ -76,7 +92,7 @@ describe("instrumentLinkOf", () => {
     ["a task with no id", "instrument://task"],
     ["a name with a path under it", "instrument://task/lisbon-hotel/files"],
     ["a name with characters no name has", "instrument://memory/no%20stevia"],
-    ["a noun the app has no screen for", "instrument://settings/general"],
+    ["a noun the app has no screen for", "instrument://topic/general"],
     ["the file channel", "instrument://computer-abc123/Users/me/notes.md"],
     ["a web address", "https://instrument.page/task/lisbon-hotel"],
     ["a path", "work/report.md"],

@@ -25,6 +25,7 @@ import {
   closeAllAgentBrowserSessions,
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
+  prepareBundledSkills,
   pruneExternalBrowserTmp,
   setBashWorkerFactory,
   stopWorkspaceSkillWatcher,
@@ -196,6 +197,11 @@ export function createWorkspaceActor() {
 
   const workspaceConfig = snapshot.context.config;
   rememberAppsDir(workspaceConfig.appsDir);
+  // In the background: a shell builds its mounts per command, so the bundled
+  // skills appear under `/skills` for the first command after this lands.
+  prepareBundledSkills(workspaceConfig).catch((error: unknown) => {
+    logger.warn("Could not prepare the bundled skills", error);
+  });
 
   // Warn before stopping in-flight agents. Fails open so a count error never
   // blocks quitting.

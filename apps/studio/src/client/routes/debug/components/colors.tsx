@@ -20,7 +20,13 @@ interface ColorToken {
   name: string;
 }
 
-const scaleSteps = [
+const tokens = (names: string[]) => names.map((name) => ({ name }));
+
+const scaleTokens = (prefix: string, steps: readonly string[]) =>
+  tokens(steps.map((step) => `${prefix}-${step}`));
+
+/** The full ramp brand and gray are drawn in. */
+const FULL_STEPS = [
   "25",
   "50",
   "100",
@@ -35,10 +41,8 @@ const scaleSteps = [
   "950",
 ] as const;
 
-const tokens = (names: string[]) => names.map((name) => ({ name }));
-
-const scaleTokens = (prefix: string) =>
-  tokens(scaleSteps.map((step) => `${prefix}-${step}`));
+/** The six stops the status and accent ramps carry. */
+const SHORT_STEPS = ["50", "100", "300", "500", "700", "900"] as const;
 
 const coreGroups = [
   {
@@ -63,11 +67,12 @@ const coreGroups = [
       "secondary",
       "secondary-foreground",
       "destructive",
+      "brand-text",
     ]),
     title: "Actions",
   },
   {
-    colors: tokens(["border", "input", "ring"]),
+    colors: tokens(["border", "window-border", "input", "ring", "ground"]),
     title: "Chrome",
   },
   {
@@ -90,32 +95,42 @@ const coreGroups = [
 
 const scaleGroups = [
   {
-    colors: [...scaleTokens("brand"), ...tokens(["brand-foreground"])],
+    colors: [
+      ...scaleTokens("brand", FULL_STEPS),
+      ...tokens(["brand-foreground"]),
+    ],
     title: "Brand",
   },
   {
-    colors: scaleTokens("warning"),
-    title: "Warning",
+    colors: scaleTokens("gray", FULL_STEPS),
+    title: "Gray",
   },
   {
-    colors: scaleTokens("success"),
-    title: "Success",
-  },
-  {
-    colors: scaleTokens("blue"),
-    title: "Blue",
-  },
-  {
-    colors: scaleTokens("error"),
+    colors: scaleTokens("error", SHORT_STEPS),
     title: "Error",
   },
   {
-    colors: scaleTokens("brown"),
+    colors: scaleTokens("warning", SHORT_STEPS),
+    title: "Warning",
+  },
+  {
+    colors: scaleTokens("success", SHORT_STEPS),
+    title: "Success",
+  },
+  {
+    colors: scaleTokens("yellow", SHORT_STEPS),
+    title: "Yellow",
+  },
+  {
+    colors: scaleTokens("brown", SHORT_STEPS),
     title: "Brown",
   },
   {
-    colors: scaleTokens("gray"),
-    title: "Gray",
+    colors: scaleTokens(
+      "dev",
+      FULL_STEPS.filter((step) => step !== "25"),
+    ),
+    title: "Dev (developer-only screens)",
   },
 ] satisfies {
   colors: ColorToken[];

@@ -46,7 +46,7 @@ async function open() {
   act(() => {
     openClearBrowsingData();
   });
-  await screen.findByText("From github.com and 1 more site.");
+  await screen.findByText("You visited github.com and 1 other site.");
 }
 
 const checkbox = (name: string) => screen.getByRole("checkbox", { name });
@@ -61,9 +61,9 @@ describe("ClearBrowsingDataModal", () => {
     await open();
 
     expect(
-      screen.getByText("From 2 sites. This signs you out of most of them."),
+      screen.getByText("You'll be signed out of most sites."),
     ).toBeTruthy();
-    expect(screen.getByText(/^Frees up 11 MB\./)).toBeTruthy();
+    expect(screen.getByText(/^Clearing it frees up 11 MB,/)).toBeTruthy();
     expect(checkbox("Browsing history").getAttribute("aria-checked")).toBe(
       "true",
     );

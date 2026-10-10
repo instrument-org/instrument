@@ -675,7 +675,7 @@ export function CommandMenu({
 
   return (
     <CommandDialog
-      description="Run a command or go to a chat, an app, a page, or a file"
+      description="Search for anything, or type an address."
       onOpenChange={(value) => {
         if (value) {
           setOpen(true);

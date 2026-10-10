@@ -83,7 +83,7 @@ export function NotificationsBell() {
         </div>
         {empty ? (
           <p className="px-4 py-8 text-center text-[13px] text-muted-foreground">
-            Nothing needs you right now.
+            You don't have any notifications.
           </p>
         ) : (
           <div className="max-h-[min(480px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] divide-y divide-border overflow-y-auto">
@@ -238,12 +238,9 @@ function ProblemItem({
   const title = crashed
     ? `${APP_NAME} quit unexpectedly`
     : `${APP_NAME} didn't close properly`;
-  const line =
-    problem.count > 1
-      ? `This happened ${problem.count} times. One report covers all of them.`
-      : crashed
-        ? "Sending a report helps us fix what went wrong."
-        : "It may have stopped responding before it was quit. A report helps us find out why.";
+  const line = crashed
+    ? "Sending a report helps us fix what went wrong."
+    : "It may have stopped responding before it was quit. A report helps us find out why.";
 
   return (
     <div className="flex gap-3 px-4 py-3">

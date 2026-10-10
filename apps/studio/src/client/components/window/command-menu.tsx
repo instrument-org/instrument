@@ -2,12 +2,7 @@ import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
 import { openSettings, type SettingsTab } from "@/client/atoms/settings-modal";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
-import {
-  type AppPlace,
-  APPS_HREF,
-  bookmarksAtom,
-  CHATS_HREF,
-} from "@/client/atoms/window";
+import { APPS_HREF, bookmarksAtom, CHATS_HREF } from "@/client/atoms/window";
 import { PageFavicon } from "@/client/components/favicon";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
@@ -26,7 +21,6 @@ import {
 import { Spinner } from "@/client/components/ui/spinner";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { PLACES } from "@/client/components/window/app-rail";
-import { placeStartHref } from "@/client/components/window/app-tabs";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { byActivity, type Chat } from "@/client/components/window/chats";
 import { PlaceIcon } from "@/client/components/window/place-icons";
@@ -85,8 +79,17 @@ const FILES_SHOWN = 6;
 const MEANING_MIN_LENGTH = 3;
 /** Chats listed before anything is typed, newest first. */
 const RECENT_CHATS_SHOWN = 5;
-/** The commands a new tab lists before anything is typed; the rest are found by typing. */
-const NEW_TAB_COMMANDS = new Set(["new-chat", "settings", "shortcuts"]);
+/**
+ * The commands listed before anything is typed: the ones worth reaching
+ * often, each with its chord. The rest (the theme, clearing browsing data,
+ * updates) are found by typing.
+ */
+const LISTED_COMMANDS = new Set([
+  "new-chat",
+  "new-tab",
+  "settings",
+  "shortcuts",
+]);
 
 export const COMMAND_MENU_PLACEHOLDER = "Search or type an address";
 
@@ -107,23 +110,17 @@ type Row =
   | { type: "looking" }
   | Item;
 
-/**
- * Where the menu is drawn: over the window by Cmd+K, or as a new tab's page.
- * The page leads with the places to go, the one the tab was opened from
- * first in line for Return.
- */
-export type CommandMenuSurface =
-  | { kind: "dialog" }
-  | { kind: "page"; origin: AppPlace };
+/** Where the menu is drawn: over the window by Cmd+K, or as a new tab's page. */
+export type CommandMenuSurface = "dialog" | "page";
 
 /**
  * The menu's rows for the words typed, the same wherever it is drawn: what
- * the words name (an address to open, commands, chats, the apps set up here,
- * pages, files), then a web search for words that are a search, then, when
+ * the words name (an address to open, the places, commands, chats, the apps
+ * set up here, pages, files), then a web search for words that are a search, then, when
  * nothing matched by name and the words are no address, the chats the
  * decision model says they mean, below the search so Return never changes
- * under the caret. Before anything is typed, the commands, and the newest
- * chats in the dialog, where a new tab has the places instead. Words
+ * under the caret. Before anything is typed, the places, the commands worth
+ * reaching often, and the newest chats. Words
  * starting `!` reach the switches kept out of sight: `!dev` and `!beta`.
  *
  * The rows follow the words a beat behind while typing, so the field keeps
@@ -178,7 +175,7 @@ export function useCommandMenuRows({
   );
 
   const chats = shell.chats ?? [];
-  const isPage = surface.kind === "page";
+  const isPage = surface === "page";
 
   const commands: Omit<Item, "ranges" | "type">[] = [
     {
@@ -376,23 +373,19 @@ export function useCommandMenuRows({
     label,
     ranges: null,
     run: () => {
-      shell.appTabs.navigate(placeStartHref(id));
+      shell.appTabs.goToPlace(id);
     },
     type: "item",
   }));
 
   const named: { items: Item[]; label: string }[] = isSearch
     ? [
-        ...(isPage
-          ? [
-              {
-                items: fuzzyMatch(goTo, (item) => [item.label], words).map(
-                  ({ item, ranges }) => ({ ...item, ranges }),
-                ),
-                label: "Go to",
-              },
-            ]
-          : []),
+        {
+          items: fuzzyMatch(goTo, (item) => [item.label], words).map(
+            ({ item, ranges }) => ({ ...item, ranges }),
+          ),
+          label: "Go to",
+        },
         {
           items: fuzzyMatch(
             [...commands, ...settingsRows],
@@ -492,23 +485,19 @@ export function useCommandMenuRows({
     ? [{ items: bangRows, label: "Switches" }]
     : words === ""
       ? [
-          ...(isPage ? [{ items: goTo, label: "Go to" }] : []),
+          { items: goTo, label: "Go to" },
           {
             items: commands
-              .filter((command) => !isPage || NEW_TAB_COMMANDS.has(command.id))
+              .filter((command) => LISTED_COMMANDS.has(command.id))
               .map((command) => ({ ...command, ranges: null, type: "item" })),
             label: "Commands",
           },
-          ...(isPage
-            ? []
-            : [
-                {
-                  items: byActivity(chats.filter((chat) => !chat.archived))
-                    .slice(0, RECENT_CHATS_SHOWN)
-                    .map((chat) => chatItem(chat, null)),
-                  label: "Recent chats",
-                },
-              ]),
+          {
+            items: byActivity(chats.filter((chat) => !chat.archived))
+              .slice(0, RECENT_CHATS_SHOWN)
+              .map((chat) => chatItem(chat, null)),
+            label: "Recent chats",
+          },
         ]
       : [
           ...(site
@@ -663,7 +652,7 @@ export function CommandMenu({
     },
     openPage,
     openScreen,
-    surface: { kind: "dialog" },
+    surface: "dialog",
     words: search.trim(),
   });
 

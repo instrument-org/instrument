@@ -139,11 +139,6 @@ export function useAppTabs() {
   const lastChat = useAtomValue(chatGroupAtom);
   const activeRouter = getTabRouter(model.selectedId);
 
-  /** Where the tab up stands. */
-  const hrefOfSelected = () =>
-    activeRouter?.history.location.href ??
-    model.tabs.find((tab) => tab.id === model.selectedId)?.pathname ??
-    INBOX_HREF;
   /** A tab of its own at an address, up at once unless asked to wait behind. */
   const open = (href: string, { select = true }: { select?: boolean } = {}) => {
     setModel((current) =>
@@ -222,18 +217,9 @@ export function useAppTabs() {
     model,
     navigate,
     open,
-    /** A new tab, its menu ready to go back to the place the tab up stands in, or the chat outside any place. */
+    /** A new tab: the command menu, until something is picked there. */
     openNewTab: () => {
-      const href = hrefOfSelected();
-      const { pathname, search } = parseHref(href);
-      // From a new tab, the next one goes back where that one would.
-      open(
-        newTabHrefFrom(
-          pathname === NEW_TAB_HREF
-            ? newTabOrigin(search)
-            : (placeOfHref(href) ?? "chat"),
-        ),
-      );
+      open(NEW_TAB_HREF);
     },
     reopen: () => {
       setModel((current) => reopenClosed(current, { id: freshTabId() }));
@@ -258,29 +244,10 @@ export function useAppTabs() {
   };
 }
 
-/** The new tab's address, carrying the place it was opened from. */
-function newTabHrefFrom(place: AppPlace): string {
-  return `${NEW_TAB_HREF}?${new URLSearchParams({ from: place })}`;
-}
-
-/** The place a new tab was opened from, which its menu goes back to on Return; the chat when it says none. */
-export function newTabOrigin(search: URLSearchParams): AppPlace {
-  const from = search.get("from");
-  return from === "apps" || from === "browser" || from === "files"
-    ? from
-    : "chat";
-}
-
-/** Where a new tab goes for a place: as the rail would take it, with the chat at the inbox. */
-export function placeStartHref(place: AppPlace): string {
-  return placeHrefOf(place, null);
-}
-
 /**
  * Where the rail takes a tab for a place: the chat at the one it last had
  * open, the computer at the Instrument folder, the browser's start, and the
- * apps. With no chat named, the chat is the inbox, which is
- * where a new tab of the chat opens.
+ * apps. With no chat named, the chat is the inbox.
  */
 function placeHrefOf(place: AppPlace, lastChat: null | string): string {
   switch (place) {

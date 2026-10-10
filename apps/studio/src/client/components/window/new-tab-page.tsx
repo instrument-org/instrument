@@ -6,7 +6,6 @@ import { formatAccelerator } from "@/client/lib/format-accelerator";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { useEffect, useRef, useState } from "react";
 
-import { newTabOrigin } from "./app-tabs";
 import {
   COMMAND_MENU_PLACEHOLDER,
   CommandMenuList,
@@ -16,17 +15,16 @@ import { useWindow } from "./context";
 
 /**
  * A new tab: the command menu laid into the page with the caret in it,
- * under a greeting. Whatever is picked sends this tab there; Return with
- * nothing typed goes back to the place the tab was opened from, which is
- * what Cmd+T used to open. The line under the menu names Cmd+K, so the tab
- * teaches the menu, and Cmd+K here puts the caret back in it.
+ * under a greeting, and the same rows Cmd+K shows. Whatever is picked sends
+ * this tab there. The line under the menu names Cmd+K, so the tab teaches
+ * the menu, and Cmd+K here puts the caret back in it.
  */
-export function NewTabPage({ search }: { search: URLSearchParams }) {
+export function NewTabPage() {
   const { openPage, openScreen } = useWindow();
   const isActive = useIsActiveTab();
-  const origin = newTabOrigin(search);
   const [words, setWords] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
   const {
     isBang,
     rows,
@@ -36,7 +34,7 @@ export function NewTabPage({ search }: { search: URLSearchParams }) {
     done: (run) => run,
     openPage,
     openScreen,
-    surface: { kind: "page", origin },
+    surface: "page",
     words: words.trim(),
   });
 
@@ -54,20 +52,15 @@ export function NewTabPage({ search }: { search: URLSearchParams }) {
   }, [isActive]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col items-center overflow-hidden bg-muted/20 px-4 pt-18 pb-6">
+    // Centered in the tab, the menu as tall as most of it allows, and
+    // shorter in a short window, where the greeting and the line under it
+    // stay in view and the list scrolls.
+    <div className="flex h-full min-h-0 flex-col items-center justify-center overflow-hidden bg-muted/20 px-4 py-10">
       <h1 className="mb-6 shrink-0 text-[22px] font-medium tracking-tight">
         <Greeting />
       </h1>
-      {/* As tall as the places and the commands need, and shorter in a short
-          window, where the list scrolls and the greeting and the line under
-          it stay in view. */}
-      <div className="flex h-92 min-h-40 w-full max-w-160 shrink flex-col overflow-hidden rounded-2xl border bg-card shadow-sm">
-        <Command
-          className="bg-card"
-          defaultValue={`goto:${origin}`}
-          loop
-          shouldFilter={false}
-        >
+      <div className="flex h-150 min-h-40 w-full max-w-160 shrink flex-col overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <Command className="bg-card" loop shouldFilter={false}>
           <CommandInput
             className="text-sm"
             containerClassName="h-12 shrink-0 border-b px-4"

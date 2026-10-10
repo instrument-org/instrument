@@ -52,6 +52,12 @@ let stopping = false;
  * over. A clone costs no disk until written to, and only the outer bundle is
  * re-signed, since the Info.plist is all that changed. Undefined anywhere it
  * cannot be made, which leaves the run on Electron's own bundle.
+ *
+ * The re-sign is also what lets a dev run post notifications. Electron's own
+ * bundle is only linker-signed, with no Info.plist bound and no sealed
+ * resources, so it fails `codesign -v` and macOS refuses its request to
+ * notify without ever asking. The clone's ad-hoc signature verifies, so macOS
+ * asks once for com.github.Electron, and every clone shares that answer.
  */
 function namedElectron(name: string) {
   if (process.platform !== "darwin") {

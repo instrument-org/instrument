@@ -939,12 +939,15 @@ export function ChatStream({
       );
     }
 
-    // The conversation at work: from the moment the user sends, through the
-    // words of a step being composed and the gaps between calls and steps, the
-    // dots stand at its end, since that is where the next thing comes out.
-    // One row under one key for the whole run, so going from one of those to
-    // the next never takes the dots away and fades a new copy in.
-    if (presentation === "chat" && (isAgentRunning || isAwaitingFirstRow)) {
+    // The conversation drafting a reply: the dots stand at its end, where the
+    // words will land, only while a step is writing words, never while it
+    // calls a tool or waits. Every other kind of working is the line under
+    // the chat's title, so the dots only ever promise a reply that is coming.
+    if (
+      presentation === "chat" &&
+      isAgentRunning &&
+      isDraftingReply(messages)
+    ) {
       // The dots are the assistant's last bubble while they stand, so the
       // reply above them gives its tail up to them.
       boxBubbles.push(TYPING_TAIL_ID);
@@ -1014,6 +1017,20 @@ export function ChatStream({
         </div>
       </FollowedBubblesContext>
     </TranscriptExpansionContext>
+  );
+}
+
+/**
+ * Whether the conversation's newest step is writing words the reader will
+ * get: a step still open whose latest part is text. A step calling a tool,
+ * thinking, or not begun yet is working, not drafting.
+ */
+export function isDraftingReply(messages: SessionMessage.WithParts[]): boolean {
+  const last = messages.at(-1);
+  return (
+    last?.role === "assistant" &&
+    last.metadata.finishedAt === undefined &&
+    last.parts.at(-1)?.type === "text"
   );
 }
 

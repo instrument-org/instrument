@@ -26,6 +26,7 @@ import { type ComponentProps, type ReactNode, useRef, useState } from "react";
 
 import { chatMenuGroups, useChatActions } from "./chat-actions";
 import { ChatActivity } from "./chat-activity";
+import { ChatStatusLine } from "./chat-status-line";
 import { TopicPill } from "./chat-row";
 import { ChatTitleButton, ChatTitleField } from "./chat-title";
 import { type Chat, type Topic } from "./chats";
@@ -36,13 +37,15 @@ import { TopicPicker } from "./topic-picker";
 import { type ChatRename, useChatRename } from "./use-chat-rename";
 
 /**
- * The head over a chat's conversation, the way a task's page heads its
- * chat: its title at the left, which opens the chat's menu, the topics it
- * is filed under after it, and at the right what the chat has in flight while its tasks work, then
- * the glyph that pops the conversation out into its small view in the corner (lit while it is out, when pressing it brings the
- * conversation back), then the pane toggle while the pane is closed. No way out of the chat here: the
- * chat stays beside the inbox until the inbox is dragged over it. Nothing
- * under the head but air: the transcript starts below.
+ * The head over a chat's conversation: its title in the middle, which opens
+ * the chat's menu, with the topics it is filed under after it, and under the
+ * title the one line saying where its work stands (`ChatStatusLine`), which
+ * is the chat's loading state. At the right, the mark that lists the chat's
+ * tasks, then the glyph that pops the conversation out into its small view
+ * in the corner (lit while it is out, when pressing it brings the
+ * conversation back), then the pane toggle while the pane is closed. No way
+ * out of the chat here: the chat stays beside the inbox until the inbox is
+ * dragged over it.
  */
 export function ChatHeader({
   chat,
@@ -79,7 +82,7 @@ export function ChatHeader({
 }) {
   const [isDeleting, setDeleting] = useState(false);
   return (
-    <div className="@container/head flex w-full min-w-0 shrink-0 items-center gap-x-2 bg-background p-3">
+    <>
       {chat && (
         <DeleteChatDialog
           chat={chat}
@@ -88,33 +91,48 @@ export function ChatHeader({
           open={isDeleting}
         />
       )}
-      <div className="flex h-8 min-w-0 flex-1 items-center gap-x-2">
-        {leading}
-        {chat ? (
-          <ChatHeading
-            chat={chat}
-            menu={{ onArchived, onViewTasks }}
-            onDelete={() => {
-              setDeleting(true);
-            }}
-            onNewTopic={onNewTopic}
-            onSetTopics={onSetTopics}
-            titleClassName="text-sm font-medium"
-            topics={topics}
-          />
-        ) : (
-          <h2 className="min-w-0 truncate text-sm font-medium">Chat</h2>
-        )}
-      </div>
-      {chat && (
-        <ChatActivity
-          chatId={chat.id}
-          onOpen={onOpenTask}
-          tasks={chat.runningTasks}
-        />
-      )}
-      {(popOut !== undefined || Boolean(trailing)) && (
-        <div className="flex shrink-0 items-center gap-x-1">
+      {/* Three columns, the outer two of one width, so the title stands in
+          the middle of the conversation whatever sits at either side. The
+          middle one is given its width rather than sized to the title,
+          since the heading is a container and has no width of its own. */}
+      <div className="@container/head grid h-14 w-full min-w-0 shrink-0 grid-cols-[minmax(max-content,1fr)_minmax(0,3fr)_minmax(max-content,1fr)] items-start gap-x-2 bg-background px-3 pt-2">
+        <div className="flex h-8 items-center gap-x-1">{leading}</div>
+        <div className="flex min-w-0 flex-col items-center">
+          <div className="flex h-8 w-full min-w-0 items-center">
+            {chat ? (
+              <ChatHeading
+                centered
+                chat={chat}
+                menu={{ onArchived, onViewTasks }}
+                onDelete={() => {
+                  setDeleting(true);
+                }}
+                onNewTopic={onNewTopic}
+                onSetTopics={onSetTopics}
+                titleClassName="text-sm font-medium"
+                topics={topics}
+              />
+            ) : (
+              <h2 className="min-w-0 truncate text-sm font-medium">Chat</h2>
+            )}
+          </div>
+          {chat && (
+            <div className="-mt-1 flex h-4 max-w-full min-w-0 justify-center">
+              <ChatStatusLine chat={chat} onOpenTask={onOpenTask} />
+            </div>
+          )}
+        </div>
+        <div className="flex h-8 items-center justify-end gap-x-1">
+          {/* The step itself is the line under the title, so this stands
+              as its mark alone. */}
+          {chat && (
+            <ChatActivity
+              chatId={chat.id}
+              isCompact
+              onOpen={onOpenTask}
+              tasks={chat.runningTasks}
+            />
+          )}
           {popOut && (
             <ToolbarTooltip label={popOut.isOut ? "Bring back" : "Pop out"}>
               <Button
@@ -135,8 +153,8 @@ export function ChatHeader({
           )}
           {trailing}
         </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -149,6 +167,7 @@ export function ChatHeader({
  * marks alone.
  */
 export function ChatHeading({
+  centered = false,
   chat,
   menu,
   onDelete,
@@ -157,6 +176,8 @@ export function ChatHeading({
   titleClassName,
   topics,
 }: {
+  /** Whether the title and its topics stand in the middle of the room, as the chat's head has them. */
+  centered?: boolean;
   chat: Chat;
   /** What the menu offers beyond what every head's does. */
   menu: Pick<
@@ -198,7 +219,12 @@ export function ChatHeading({
     );
   };
   return (
-    <div className="@container/chathead flex min-w-0 flex-1 items-center gap-x-2">
+    <div
+      className={cn(
+        "@container/chathead flex min-w-0 flex-1 items-center gap-x-2",
+        centered && "justify-center",
+      )}
+    >
       {/* The title opens the chat's menu, Rename among it; renaming puts
           the field in the title's place. */}
       <h2 className="flex min-w-0">

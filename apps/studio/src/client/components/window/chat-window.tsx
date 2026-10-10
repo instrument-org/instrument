@@ -28,6 +28,7 @@ import {
 import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
 import { ChatActivity } from "./chat-activity";
+import { ChatStatusLine } from "./chat-status-line";
 import { ChatHeading } from "./chat-header";
 import { ChatScreen } from "./chat-screen";
 import { ChatTiles } from "./chat-tiles";
@@ -470,28 +471,38 @@ export function ChatWindow({
         />
       )}
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
-        {/* No mark of work here: the line at the conversation's end says
-          the chat is working, where its reply will land. */}
         <ChatsCircleIcon className="size-4 shrink-0 text-muted-foreground" />
         {chat ? (
-          <ChatHeading
-            chat={chat}
-            menu={{
-              // An archived chat is put away, so its window goes with it.
-              onArchived: onClose,
-              onOpenInChats,
-              onViewTasks: () => {
-                openTasksHere(tasksHref(chatId));
-              },
-            }}
-            onDelete={() => {
-              setDeleting(true);
-            }}
-            onNewTopic={onNewTopic}
-            onSetTopics={onSetTopics}
-            titleClassName="text-[13px] font-semibold"
-            topics={topics}
-          />
+          // The title, and under it the line saying where the chat's work
+          // stands, as the chat's own head has them.
+          <div className="flex min-w-0 flex-1 flex-col">
+            <ChatHeading
+              chat={chat}
+              menu={{
+                // An archived chat is put away, so its window goes with it.
+                onArchived: onClose,
+                onOpenInChats,
+                onViewTasks: () => {
+                  openTasksHere(tasksHref(chatId));
+                },
+              }}
+              onDelete={() => {
+                setDeleting(true);
+              }}
+              onNewTopic={onNewTopic}
+              onSetTopics={onSetTopics}
+              titleClassName="text-[13px] font-semibold"
+              topics={topics}
+            />
+            <div className="-mt-0.5 flex min-w-0 empty:hidden">
+              <ChatStatusLine
+                chat={chat}
+                onOpenTask={(id) => {
+                  openTasksHere(taskHref(id, chatId));
+                }}
+              />
+            </div>
+          </div>
         ) : (
           <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">
             {sentWords === undefined ? "Chat" : draftTitle(sentWords)}

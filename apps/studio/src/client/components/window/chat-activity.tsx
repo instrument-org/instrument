@@ -41,7 +41,6 @@ export function ChatActivity({
   onOpen: (taskId: TaskId) => void;
   tasks: RunningTask[];
 }) {
-  const [isOpen, setOpen] = useState(false);
   const listed = useChatTasks(chatId).data;
   // The one whose step the head shows: a task held for the user first,
   // since that is the one the user can do something about.
@@ -51,9 +50,12 @@ export function ChatActivity({
     return null;
   }
   return (
-    <Popover onOpenChange={setOpen} open={isOpen}>
-      <PopoverTrigger asChild>
-        {lead ? (
+    <ChatTasksPopover
+      chatId={chatId}
+      onOpen={onOpen}
+      tasks={tasks}
+      trigger={
+        lead ? (
           <button
             aria-label={`${tasks.length} ${tasks.length === 1 ? "task" : "tasks"} working`}
             className="flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-xs hover:bg-accent data-[state=open]:bg-accent"
@@ -78,9 +80,38 @@ export function ChatActivity({
           >
             <ListChecksIcon className="size-4 shrink-0" />
           </button>
-        )}
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-1">
+        )
+      }
+    />
+  );
+}
+
+/**
+ * The chat's tasks, running ones first, hanging from whatever opens them: the
+ * activity at the head's right, or the line under the chat's title. A task
+ * pressed opens beside the chat.
+ */
+export function ChatTasksPopover({
+  align = "end",
+  chatId,
+  onOpen,
+  tasks,
+  trigger,
+}: {
+  align?: "center" | "end";
+  chatId: ChatId;
+  /** Opens a task's page, as a tab of the chat's. */
+  onOpen: (taskId: TaskId) => void;
+  tasks: RunningTask[];
+  /** A button, which the popover hangs from. */
+  trigger: ReactNode;
+}) {
+  const [isOpen, setOpen] = useState(false);
+  const listed = useChatTasks(chatId).data;
+  return (
+    <Popover onOpenChange={setOpen} open={isOpen}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent align={align} className="w-80 p-1">
         <TaskRows
           listed={listed}
           onOpen={(id) => {

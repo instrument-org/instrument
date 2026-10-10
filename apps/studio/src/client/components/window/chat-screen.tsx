@@ -5,7 +5,6 @@ import { TaskChat } from "@/client/components/task/chat";
 import { Alert, AlertDescription } from "@/client/components/ui/alert";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
-import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { createMessageOptions } from "@/client/lib/message-sends";
@@ -23,7 +22,6 @@ import { chatListOptions } from "./chat-list-query";
 import { type OpenOptions, useWindow, WindowContext } from "./context";
 import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { useReadOnView } from "./use-read-on-view";
-import { WorkingRow } from "./working-row";
 
 /**
  * How long a chat with no session is waited for before it is called gone: a
@@ -113,17 +111,6 @@ function ChatScreenOfRecord({
   // that has landed, which is what marks it read below.
   const chats = useQuery(chatListOptions());
   const chat = chats.data?.find((entry) => entry.id === taskId);
-  // While the chat's own agent composes, the transcript shows the typing
-  // dots; the chat is otherwise at work when a task filed from it is, and
-  // that is said at the transcript's tail too. Read from the tasks filed
-  // from it rather than from the chat's state, which folds its own agent
-  // in: the state is the list's, a re-read behind the actor the dots follow,
-  // so at a turn's end it still says working for a moment after the dots
-  // have gone, and the tail would say so in their place.
-  const { isAgentRunning } = useAgentSessionStatus({ id: taskId, sessionId });
-  const isWorkingElsewhere =
-    chat?.runningTasks.some((running) => !running.waiting) === true &&
-    !isAgentRunning;
   const [defaultModelURI] = useDefaultModelURI();
   const openFile = useContext(FileOpenContext);
   const createMessage = useMutation(createMessageOptions());
@@ -251,9 +238,6 @@ function ChatScreenOfRecord({
                   sendContext={sendContext}
                   sentPrompt={sentPrompt}
                   task={task.data}
-                  transcriptTrailing={
-                    isWorkingElsewhere ? <WorkingRow /> : null
-                  }
                 />
               </TaskSessionProvider>
             </PageOpenContext>

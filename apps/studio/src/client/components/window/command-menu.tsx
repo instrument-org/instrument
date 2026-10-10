@@ -70,7 +70,7 @@ const FILES_SHOWN = 6;
 /** How long a search has to be before the decision model is asked what it means. */
 const MEANING_MIN_LENGTH = 3;
 /** Chats listed before anything is typed, newest first. */
-const RECENT_CHATS_SHOWN = 30;
+const RECENT_CHATS_SHOWN = 5;
 
 type Row =
   | { label: string; type: "header" }

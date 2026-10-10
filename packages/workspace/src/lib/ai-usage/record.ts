@@ -9,8 +9,9 @@ import {
   type TelemetryOptions,
 } from "ai";
 
-import { type TaskId } from "../../schemas/task-id";
-import { chatOf, resolveChat } from "../record-folders";
+import { type ChatId } from "../../schemas/chat-id";
+import { type StoreId } from "../../schemas/store-id";
+import { sessionOfChat } from "../record-folders";
 import {
   type AIUsageEntry,
   type AIUsageKind,
@@ -21,15 +22,17 @@ import { insertAIUsage } from "./store";
 
 /** What a call site knows about a request that the request itself does not carry. */
 export interface AIUsageCall {
+  /** The chat the request was for. */
+  chatId?: ChatId;
   /** The connection the request goes through; never its key. */
   connection?: { displayName?: string; id: string; type: string };
   /** Language unless said otherwise: an image made by a language model is still an image. */
   kind?: AIUsageKind;
   purpose: AIUsagePurpose;
+  /** The session in the chat that asked: the chat's own, or one of its tasks. */
+  sessionId?: StoreId.Session;
   /** Where the request came from when no chat or task asked for it. */
   surface?: AIUsageSurface;
-  /** The chat or task the request was for. */
-  taskId?: TaskId;
 }
 
 /** The connection a model runs through, by the provider config its URI names. */
@@ -47,9 +50,12 @@ export function connectionFor(
   );
 }
 
-/** A turn's purpose: where it ran, in the chat's own turn or in a task's. */
-export function turnPurpose(taskId: TaskId): AIUsagePurpose {
-  return resolveChat(taskId) === undefined ? "task" : "chat";
+/** A turn's purpose: where it ran, in the chat's own session or in a task's. */
+export function turnPurpose(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): AIUsagePurpose {
+  return sessionOfChat(chatId) === sessionId ? "chat" : "task";
 }
 
 /**
@@ -61,21 +67,17 @@ export function recordAIUsage(
   entry: Omit<AIUsageEntry, "kind" | "purpose">,
 ): void {
   setImmediate(() => {
-    try {
-      insertAIUsage({
-        chatId: call.taskId ? (chatOf(call.taskId) ?? null) : null,
-        connectionId: call.connection?.id ?? null,
-        connectionName: call.connection?.displayName ?? null,
-        connectionType: call.connection?.type ?? null,
-        kind: call.kind ?? "language",
-        purpose: call.purpose,
-        surface: call.surface ?? null,
-        taskId: call.taskId ?? null,
-        ...entry,
-      });
-    } catch {
-      // insertAIUsage reports its own failures; resolving the chat is all that is left to fail.
-    }
+    insertAIUsage({
+      chatId: call.chatId ?? null,
+      connectionId: call.connection?.id ?? null,
+      connectionName: call.connection?.displayName ?? null,
+      connectionType: call.connection?.type ?? null,
+      kind: call.kind ?? "language",
+      purpose: call.purpose,
+      sessionId: call.sessionId ?? null,
+      surface: call.surface ?? null,
+      ...entry,
+    });
   });
 }
 

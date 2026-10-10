@@ -21,7 +21,7 @@ import {
 import { err, ok, ResultAsync } from "neverthrow";
 
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { type WorkspaceConfig } from "../types";
 import { recordAIUsage } from "./ai-usage/record";
 import { TypedError } from "./errors";
@@ -243,8 +243,8 @@ type ImageStreamArgs = {
   sessionId: StoreId.Session;
   signal: AbortSignal;
   sourceImages?: Buffer[];
-  /** The chat or task asking, which its record of model requests files the image under. */
-  taskId?: TaskId;
+  /** The chat asking, which its record of model requests files the image under. */
+  chatId?: ChatId;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 };
@@ -275,7 +275,8 @@ export async function* generateImageStream(args: ImageStreamArgs) {
         connection: final?.config,
         kind: "image",
         purpose: "image",
-        taskId: args.taskId,
+        chatId: args.chatId,
+        sessionId: args.sessionId,
       },
       {
         durationMs: Date.now() - startedAt,

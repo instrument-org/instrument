@@ -40,10 +40,10 @@ const COLUMNS = {
   purpose: "purpose",
   reasoningTokens: "reasoning_tokens",
   responseId: "response_id",
+  sessionId: "session_id",
   startedAt: "started_at",
   status: "status",
   surface: "surface",
-  taskId: "task_id",
   totalTokens: "total_tokens",
 } as const satisfies Record<keyof AIUsageRow, string>;
 
@@ -104,7 +104,7 @@ function migrate(database: DatabaseSync) {
       finish_reason TEXT,
       kind TEXT NOT NULL,
       purpose TEXT NOT NULL,
-      task_id TEXT,
+      session_id TEXT,
       chat_id TEXT,
       surface TEXT,
       connection_id TEXT,
@@ -215,10 +215,10 @@ export function insertAIUsage(entry: AIUsageEntry): void {
     purpose: entry.purpose,
     reasoningTokens: entry.reasoningTokens ?? null,
     responseId: entry.responseId ?? null,
+    sessionId: entry.sessionId ?? null,
     startedAt: Math.round(entry.startedAt),
     status: entry.status,
     surface: entry.surface ?? null,
-    taskId: entry.taskId ?? null,
     totalTokens: totalOf(entry),
   };
   const keys = Object.keys(COLUMNS) as (keyof AIUsageRow)[]; // Object.keys widens to string[]
@@ -344,7 +344,7 @@ const CSV_COLUMNS: [
   ["Type", (row) => row.kind],
   ["Purpose", (row) => row.purpose],
   ["Chat", (row) => row.chatId],
-  ["Task", (row) => row.taskId],
+  ["Session", (row) => row.sessionId],
   ["Surface", (row) => row.surface],
   ["Connection", (row) => row.connectionName ?? row.connectionType],
   ["Model asked for", (row) => row.modelRequested],

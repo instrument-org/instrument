@@ -176,7 +176,7 @@ const create = base
             const title = await generateTitleFromUserMessage({
               message,
               model,
-              taskId,
+              chatId,
               workspaceConfig: context.workspaceConfig,
             });
             if (title.isOk()) {

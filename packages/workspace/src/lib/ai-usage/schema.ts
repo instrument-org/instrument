@@ -1,12 +1,7 @@
 import { z } from "zod";
 
 /** What kind of model answered: the column a person filters to tell a reply from a quick choice. */
-const AI_USAGE_KINDS = [
-  "language",
-  "decision",
-  "search",
-  "image",
-] as const;
+const AI_USAGE_KINDS = ["language", "decision", "search", "image"] as const;
 const AIUsageKindSchema = z.enum(AI_USAGE_KINDS);
 export type AIUsageKind = z.output<typeof AIUsageKindSchema>;
 
@@ -70,7 +65,7 @@ export const AIUsageRowSchema = z.object({
   startedAt: z.number(),
   status: AIUsageStatusSchema,
   surface: AIUsageSurfaceSchema.nullable(),
-  taskId: z.string().nullable(),
+  sessionId: z.string().nullable(),
   totalTokens: z.number().nullable(),
 });
 export type AIUsageRow = z.output<typeof AIUsageRowSchema>;

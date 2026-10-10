@@ -13,7 +13,7 @@ import { dedent } from "radashi";
 
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { type SessionMessage } from "../schemas/session/message";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { type WorkspaceConfig } from "../types";
 import { aiUsageTelemetry, connectionFor } from "./ai-usage/record";
 import { TypedError } from "./errors";
@@ -34,7 +34,7 @@ export function generateTitleFromUserMessage({
   message,
   model,
   reply,
-  taskId,
+  chatId,
   workspaceConfig,
 }: {
   /**
@@ -50,8 +50,8 @@ export function generateTitleFromUserMessage({
    * alone could not know.
    */
   reply?: string;
-  /** The chat or task being named, which its record of model requests files the call under. */
-  taskId: TaskId;
+  /** The chat being named, which its record of model requests files the call under. */
+  chatId: ChatId;
   workspaceConfig: WorkspaceConfig;
 }) {
   return ResultAsync.fromPromise(
@@ -110,7 +110,7 @@ export function generateTitleFromUserMessage({
             model.params.providerConfigId,
           ),
           purpose: "chat-title",
-          taskId,
+          chatId,
         }),
       });
 

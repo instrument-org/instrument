@@ -4,7 +4,7 @@ import {
   AIUsagePurposeSchema,
   AIUsageSurfaceSchema,
 } from "../../lib/ai-usage/schema";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import {
   askDecisionModel,
   decisionModelAvailable,
@@ -15,9 +15,9 @@ import { base } from "../base";
 
 /** Why the app is asking, which the record of model requests files the ask under. */
 const AIUsageAskSchema = z.object({
+  chatId: ChatIdSchema.optional(),
   purpose: AIUsagePurposeSchema,
   surface: AIUsageSurfaceSchema.optional(),
-  taskId: TaskIdSchema.optional(),
 });
 
 /**

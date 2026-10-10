@@ -7,7 +7,12 @@ import {
 } from "@tanstack/react-query";
 import ms from "ms";
 
-export type DecisionAsk = RPCInput["workspace"]["decision"]["ask"];
+export type DecisionAsk = Omit<
+  RPCInput["workspace"]["decision"]["ask"],
+  "usage"
+>;
+/** Why an ask is made and for what, which the record of model requests files it under. */
+export type DecisionUsage = RPCInput["workspace"]["decision"]["ask"]["usage"];
 export type DecisionAnswer = RPCOutput["workspace"]["decision"]["ask"];
 
 /**
@@ -49,6 +54,7 @@ export function useDecision({
   checkAvailable = ask !== undefined,
   keepPrevious,
   key,
+  usage,
 }: {
   ask: DecisionAsk | DecisionAsk[] | undefined;
   checkAvailable?: boolean;
@@ -59,6 +65,7 @@ export function useDecision({
    */
   keepPrevious?: (previousKey: QueryKey) => boolean;
   key: QueryKey;
+  usage: DecisionUsage;
 }) {
   const available = useDecisionModelAvailable(checkAvailable);
   const queryClient = useQueryClient();
@@ -77,7 +84,10 @@ export function useDecision({
               [ask]
                 .flat()
                 .map((one) =>
-                  rpcClient.workspace.decision.ask.call(one, { signal }),
+                  rpcClient.workspace.decision.ask.call(
+                    { ...one, usage },
+                    { signal },
+                  ),
                 ),
             );
             const [first, ...rest] = asked;

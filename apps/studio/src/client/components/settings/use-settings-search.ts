@@ -171,6 +171,7 @@ function useMeaningFallback({
         ? { questions: questionsFor(candidates), state: { search: settled } }
         : undefined,
     checkAvailable,
+    usage: { purpose: "settings-search", surface: "settings" },
     key: [
       "settings-search",
       settled,

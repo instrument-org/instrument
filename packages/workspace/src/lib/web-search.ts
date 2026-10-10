@@ -17,8 +17,10 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { type StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 import { type WebSearchResult } from "../schemas/web-search";
 import { type WorkspaceConfig } from "../types";
+import { aiUsageTelemetry, recordAIUsage } from "./ai-usage/record";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
 import { searchKeyless } from "./keyless-web-search";
@@ -96,6 +98,7 @@ export async function* webSearch({
   prompt,
   sessionId,
   signal,
+  taskId,
   workspaceConfig,
   workspaceServerURL,
 }: {
@@ -104,6 +107,8 @@ export async function* webSearch({
   prompt: string;
   sessionId: StoreId.Session;
   signal: AbortSignal;
+  /** The chat or task searching, which its record of model requests files the search under. */
+  taskId?: TaskId;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 }): AsyncGenerator<Result<WebSearchResults, WebSearchFailure>> {
@@ -114,6 +119,7 @@ export async function* webSearch({
     const platformResult = await searchWithPlatform({
       prompt,
       signal,
+      taskId,
       workspaceConfig,
     });
     if (
@@ -135,6 +141,7 @@ export async function* webSearch({
     prompt,
     sessionId,
     signal,
+    taskId,
     workspaceConfig,
     workspaceServerURL,
   })) {
@@ -149,6 +156,7 @@ export async function* webSearch({
       const platformResult = await searchWithPlatform({
         prompt,
         signal,
+        taskId,
         workspaceConfig,
       });
       // A signed-out user cannot reach our endpoint, so a keyless search gives
@@ -202,19 +210,45 @@ function getPerplexityResults(output: unknown) {
     .map((result) => result.data);
 }
 
+/** What a search on our endpoint is recorded as having asked for. */
+const PLATFORM_SEARCH_MODEL = "instrument/search";
+
 async function requestPlatformSearch({
   prompt,
   signal,
+  taskId,
   workspaceConfig,
 }: {
   prompt: string;
   signal: AbortSignal;
+  taskId?: TaskId;
   workspaceConfig: WorkspaceConfig;
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
+  const startedAt = Date.now();
   const response = await workspaceConfig.webSearch({
     input: { query: prompt },
     signal,
   });
+  // Our endpoint is reached from the app's main process rather than through
+  // the model proxy or the AI SDK, so it is recorded here.
+  recordAIUsage(
+    {
+      connection: {
+        id: OUR_MODELS.providerType,
+        type: OUR_MODELS.providerType,
+      },
+      kind: "search",
+      purpose: "web-search",
+      taskId,
+    },
+    {
+      durationMs: Date.now() - startedAt,
+      error: response.ok ? null : response.errorMessage,
+      modelRequested: PLATFORM_SEARCH_MODEL,
+      startedAt,
+      status: response.ok ? "finished" : signal.aborted ? "stopped" : "failed",
+    },
+  );
 
   if (!response.ok) {
     return err({
@@ -260,6 +294,7 @@ function searchSystemPrompt() {
 async function searchWithPlatform(args: {
   prompt: string;
   signal: AbortSignal;
+  taskId?: TaskId;
   workspaceConfig: WorkspaceConfig;
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
   const first = await requestPlatformSearch(args);
@@ -305,6 +340,7 @@ async function* searchWithProviderModel({
   prompt,
   sessionId,
   signal,
+  taskId,
   workspaceConfig,
   workspaceServerURL,
 }: {
@@ -313,6 +349,7 @@ async function* searchWithProviderModel({
   prompt: string;
   sessionId: StoreId.Session;
   signal: AbortSignal;
+  taskId?: TaskId;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 }): AsyncGenerator<Result<WebSearchResults, WebSearchFailure>> {
@@ -365,6 +402,12 @@ async function* searchWithProviderModel({
       model,
       prompt,
       providerOptions,
+      telemetry: aiUsageTelemetry({
+        connection: config,
+        kind: "search",
+        purpose: "web-search",
+        taskId,
+      }),
       tools,
     });
 

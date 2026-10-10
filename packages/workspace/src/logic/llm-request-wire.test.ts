@@ -763,6 +763,7 @@ describe.skipIf(!captureDir)("llm request wire capture", () => {
       const result = await generateTitleFromUserMessage({
         message,
         model,
+        taskId: TaskIdSchema.parse("wire"),
         workspaceConfig: getWorkspaceConfig(),
       });
       write(target, "title", {

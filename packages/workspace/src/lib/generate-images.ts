@@ -21,12 +21,18 @@ import {
 import { err, ok, ResultAsync } from "neverthrow";
 
 import { type StoreId } from "../schemas/store-id";
+import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
+import { recordAIUsage } from "./ai-usage/record";
 import { TypedError } from "./errors";
 
 // Loose agent-supplied image parameters. Validated and routed per selected
 // model by resolveImageParameters; unsupported knobs are dropped.
 type ImageGenerationParameters = Record<string, boolean | number | string>;
+
+// An image made by a language model is recorded with the rest of the image
+// request by `generateImageStream`, so the AI SDK's own recording stays off.
+const RECORDED_BY_CALLER = { isEnabled: false };
 
 interface ImageStreamChunk {
   // The parameters actually forwarded to the model, after dropping unsupported
@@ -133,6 +139,7 @@ export async function generateBufferedImage({
             ? await generateText({
                 abortSignal: signal,
                 headers,
+                telemetry: RECORDED_BY_CALLER,
                 messages: [
                   {
                     content: [
@@ -150,6 +157,7 @@ export async function generateBufferedImage({
             : await generateText({
                 abortSignal: signal,
                 headers,
+                telemetry: RECORDED_BY_CALLER,
                 model,
                 prompt,
               });
@@ -226,10 +234,7 @@ export async function generateBufferedImage({
   );
 }
 
-// Progressive generation used by the generate_image tool: resolves the image
-// model once, then streams partial frames for our default model (text-to-image
-// only) or yields a single buffered chunk for every other path.
-export async function* generateImageStream(args: {
+type ImageStreamArgs = {
   callingModel: AIGatewayModel.Type;
   configs: AIGatewayProviderConfig.Type[];
   count: number;
@@ -238,9 +243,58 @@ export async function* generateImageStream(args: {
   sessionId: StoreId.Session;
   signal: AbortSignal;
   sourceImages?: Buffer[];
+  /** The chat or task asking, which its record of model requests files the image under. */
+  taskId?: TaskId;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
-}) {
+};
+
+/**
+ * Progressive generation used by the generate_image tool, recorded as one
+ * image request whichever path made it: the streamed one is a plain fetch and
+ * `generateImage` emits no telemetry, so neither would be recorded otherwise.
+ */
+export async function* generateImageStream(args: ImageStreamArgs) {
+  const startedAt = Date.now();
+  let final: ImageStreamChunk | undefined;
+  let failure: string | undefined;
+  try {
+    for await (const chunk of streamImages(args)) {
+      if (chunk.isOk()) {
+        if (chunk.value.kind === "final") {
+          final = chunk.value;
+        }
+      } else {
+        failure = chunk.error.message;
+      }
+      yield chunk;
+    }
+  } finally {
+    recordAIUsage(
+      {
+        connection: final?.config,
+        kind: "image",
+        purpose: "image",
+        taskId: args.taskId,
+      },
+      {
+        durationMs: Date.now() - startedAt,
+        error: failure ?? null,
+        inputTokens: final?.usage?.inputTokens ?? null,
+        modelRequested: final?.modelId ?? null,
+        modelServed: final?.modelIdServed ?? null,
+        outputTokens: final?.usage?.outputTokens ?? null,
+        startedAt,
+        status: final ? "finished" : args.signal.aborted ? "stopped" : "failed",
+      },
+    );
+  }
+}
+
+// Resolves the image model once, then streams partial frames for our default
+// model (text-to-image only) or yields a single buffered chunk for every other
+// path.
+async function* streamImages(args: ImageStreamArgs) {
   const modelResult = await getImageModel({
     callingModel: args.callingModel,
     configs: args.configs,

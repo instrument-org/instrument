@@ -82,6 +82,7 @@ export async function retitleChat({
       currentTitle,
       opening: titleSourceText(root),
       reply,
+      taskId: id,
     }))
   ) {
     return currentTitle;
@@ -104,6 +105,7 @@ export async function retitleChat({
     message: root,
     model: model.value,
     reply,
+    taskId: id,
     workspaceConfig,
   });
   if (title.isErr()) {
@@ -162,12 +164,14 @@ export async function titleStillFits({
   currentTitle,
   opening,
   reply,
+  taskId,
 }: {
   ask: typeof askDecisionModel;
   configs: Parameters<typeof askDecisionModel>[0]["configs"];
   currentTitle: string;
   opening: string;
   reply: string;
+  taskId: TaskId;
 }): Promise<boolean> {
   try {
     const asked = await ask({
@@ -191,6 +195,7 @@ export async function titleStillFits({
         },
       },
       configs,
+      usage: { purpose: "title-check", taskId },
     });
     const moved = asked?.response.answers.moved?.noul;
     return moved !== undefined && moved < MOVED_BELOW;

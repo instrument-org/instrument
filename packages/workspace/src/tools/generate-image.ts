@@ -292,6 +292,7 @@ export const GenerateImage = setupTool({
       sessionId,
       signal,
       sourceImages: sourceImageBuffers,
+      taskId,
       workspaceConfig: getWorkspaceConfig(),
       workspaceServerURL: getWorkspaceServerURL(),
     })) {

@@ -77,6 +77,7 @@ export function useChatSearchFallback({
           }))
         : undefined,
     checkAvailable: active,
+    usage: { purpose: "chat-search", surface: "chats" },
     key: [
       "chat-search",
       settled,

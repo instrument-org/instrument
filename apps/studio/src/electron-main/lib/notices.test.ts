@@ -47,6 +47,12 @@ async function load() {
   return import("./notices");
 }
 
+/** The address of the nth request, whatever form fetch was handed it in. */
+function requestedUrl(n = 0): URL {
+  const input = fetchMock.mock.calls[n]?.[0];
+  return new URL(input instanceof Request ? input.url : (input ?? ""));
+}
+
 function answer(notices: unknown[], { etag = '"a"', pollAfter = 21600 } = {}) {
   fetchMock.mockResolvedValueOnce(
     new Response(JSON.stringify({ notices, pollAfter }), {
@@ -77,7 +83,7 @@ describe("notices", () => {
 
     await notices.fetchNotices();
 
-    const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    const url = requestedUrl();
     expect(Object.fromEntries(url.searchParams)).toEqual({
       arch: process.arch,
       channel: "beta",
@@ -96,9 +102,7 @@ describe("notices", () => {
 
     await notices.fetchNotices();
 
-    expect(
-      new URL(String(fetchMock.mock.calls[0]?.[0])).searchParams.get("channel"),
-    ).toBe("alpha");
+    expect(requestedUrl().searchParams.get("channel")).toBe("alpha");
   });
 
   it("sends the last ETag back and keeps what it has on a 304", async () => {

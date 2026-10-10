@@ -260,8 +260,8 @@ function Folder({
   const open = rows.isOpen(path);
   // The Instrument folder wears its own glyph here as it does in the Finder.
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
-  const isOutputFolder = places.data?.favorites.some(
-    (place) => place.name === "Instrument" && place.path === path,
+  const isOutputFolder = places.data?.pinned.some(
+    (place) => place.kind === "output" && place.path === path,
   );
   const listing = useQuery(
     rpcClient.workspace.computer.list.queryOptions({

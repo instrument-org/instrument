@@ -20,7 +20,11 @@ const ComputerPlaceSchema = z.object({
   path: z.string(),
 });
 export const ComputerPlacesSchema = z.object({
-  favorites: ComputerPlaceSchema.array(),
+  /**
+   * The places the sidebar pins until the person changes it: the Instrument
+   * folder, home, and the folders a person keeps things in.
+   */
+  pinned: ComputerPlaceSchema.array(),
   /** The disks and the cloud services' folders: the sidebar's Locations. */
   volumes: ComputerPlaceSchema.array(),
 });
@@ -91,7 +95,7 @@ export async function computerPlaces(): Promise<ComputerPlaces> {
   ]);
   return {
     // A known folder the system points at home itself is home, once.
-    favorites: unique(folders, (place) => place.path),
+    pinned: unique(folders, (place) => place.path),
     // The cloud ahead of the disks, iCloud Drive first, as the Finder lists
     // its Locations.
     volumes: [...(iCloudDrive ? [iCloudDrive] : []), ...clouds, ...drives],

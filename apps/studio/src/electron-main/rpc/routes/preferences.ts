@@ -17,6 +17,12 @@ import {
   getWorkspacePreferences,
   WorkspacePreferencesSchema,
 } from "@/electron-main/stores/workspace/preferences";
+import {
+  pinPlace,
+  restoreDefaultPlaces,
+  type SidebarPlaces,
+  unpinPlace,
+} from "@/shared/sidebar-places";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { APP_BUNDLE_ID } from "@instrument-org/shared";
 import { call, eventIterator } from "@orpc/server";
@@ -90,6 +96,31 @@ const openNotificationSettings = base
     }
     return { opened: url !== undefined };
   });
+
+/** The Files sidebar's Pinned section, changed by `change` and kept. */
+function changeSidebarPlaces(change: (places: SidebarPlaces) => SidebarPlaces) {
+  const store = getMachinePreferences();
+  store.set("sidebarPlaces", change(store.get("sidebarPlaces")));
+}
+
+/** Pins a folder to the Files sidebar, or puts back a default unpinned before. */
+const pinSidebarPlace = base
+  .input(z.object({ path: z.string() }))
+  .handler(({ input }) => {
+    changeSidebarPlaces((places) => pinPlace(places, input.path));
+  });
+
+/** Takes a place off the Files sidebar's Pinned section; a default is hidden until restored. */
+const unpinSidebarPlace = base
+  .input(z.object({ path: z.string() }))
+  .handler(({ input }) => {
+    changeSidebarPlaces((places) => unpinPlace(places, input.path));
+  });
+
+/** Brings back every default place unpinned, and keeps what the person pinned. */
+const restoreDefaultSidebarPlaces = base.handler(() => {
+  changeSidebarPlaces(restoreDefaultPlaces);
+});
 
 const setBlockAds = base
   .input(z.object({ enabled: z.boolean() }))
@@ -180,7 +211,9 @@ export const preferences = {
   getRecentUpdate,
   live,
   openNotificationSettings,
+  pinSidebarPlace,
   quitAndInstall,
+  restoreDefaultSidebarPlaces,
   sendTestNotification,
   setAgentCompletionNotifications,
   setBlockAds,
@@ -189,4 +222,5 @@ export const preferences = {
   setEnableUsageMetrics,
   setReleaseChannel,
   setTheme,
+  unpinSidebarPlace,
 };

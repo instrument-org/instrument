@@ -79,6 +79,7 @@ import {
 } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
+import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
 import { folderNameFromPath } from "@instrument-org/shared";
 import {
   type ComputerFolder,
@@ -93,6 +94,8 @@ import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
+import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
@@ -281,9 +284,28 @@ export function ComputerPage({
     refetchInterval: refreshInterval,
   });
   const homePath = window.api.homeDir;
-  const instrumentPath = places.data?.favorites.find(
-    (place) => place.name === "Instrument",
-  )?.path;
+  const preferences = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const sidebarPlaces = preferences.data?.sidebarPlaces ?? NO_SIDEBAR_CHANGES;
+  const sidebarChangeFailed = () => {
+    toast.error("Couldn't change the sidebar");
+  };
+  // The Instrument folder stands with Recents, as the app's own, and the rest
+  // of the defaults under Pinned with whatever the person pinned.
+  const instrumentPlace = places.data?.pinned.find(
+    (place) => place.kind === "output",
+  );
+  const instrumentPath = instrumentPlace?.path;
+  const pinned = pinnedPlaces(
+    (places.data?.pinned ?? []).filter((place) => place !== instrumentPlace),
+    sidebarPlaces,
+    (place) => ({
+      kind: "folder" as const,
+      name: folderNameFromPath(place),
+      path: place,
+    }),
+  );
   // Folder prefixes under the root whose listings are held, root first. The
   // browser asks for a folder's children only once the folder is in its
   // index, so the folder it opens on needs every folder above it listed. The
@@ -1154,7 +1176,7 @@ export function ComputerPage({
   const openPlaceInNewTab = (place: string) => {
     openScreen(folderHref(place), { behind: true, newTab: true });
   };
-  const placeMenu = (place: string) => (
+  const placeMenu = (place: string, { isPinned = false } = {}) => (
     <PlaceMenu
       hostPath={place}
       onNewDraft={
@@ -1166,6 +1188,14 @@ export function ComputerPage({
       onOpenInNewTab={() => {
         openPlaceInNewTab(place);
       }}
+      onUnpin={
+        isPinned
+          ? () =>
+              void rpcClient.preferences.unpinSidebarPlace
+                .call({ path: place })
+                .catch(sidebarChangeFailed)
+          : undefined
+      }
     />
   );
   const afterMenuClosed = () => {
@@ -1203,6 +1233,7 @@ export function ComputerPage({
             },
             onQuickLook: undefined,
             onRename: undefined,
+            pin: undefined,
             group,
           }
         : {}),
@@ -1290,6 +1321,24 @@ export function ComputerPage({
         fileSystemRef.current?.startRename(renaming);
       };
     },
+    pin: (() => {
+      const folderPath = hostPathOfItem(item);
+      if (item?.kind !== "folder" || !folderPath) {
+        return undefined;
+      }
+      const isPinned = pinned.some((place) => place.path === folderPath);
+      return {
+        isPinned,
+        onToggle: () =>
+          void (
+            isPinned
+              ? rpcClient.preferences.unpinSidebarPlace
+              : rpcClient.preferences.pinSidebarPlace
+          )
+            .call({ path: folderPath })
+            .catch(sidebarChangeFailed),
+      };
+    })(),
     onReveal: () =>
       void rpcClient.utils.showFileInFolder
         .call({ filepath: hostPathOfItem(item) })
@@ -1322,8 +1371,12 @@ export function ComputerPage({
   };
   const placeLists = (
     <>
-      {/* What the conversation showed, before the places a person keeps things. */}
+      {/* The app's own places, which nobody unpins: what the person opened,
+          and the folder Instrument keeps what it makes in. */}
       <PlaceList
+        menu={(place) =>
+          place === RECENTS_ROOT ? undefined : placeMenu(place)
+        }
         onOpenInNewTab={openPlaceInNewTab}
         onOpen={(folder) => {
           rootTo(folder);
@@ -1337,16 +1390,41 @@ export function ComputerPage({
             name: "Recents",
             path: RECENTS_ROOT,
           },
+          ...(instrumentPlace
+            ? [
+                {
+                  icon: <FolderMark large path={instrumentPlace.path} />,
+                  isActive: folderHostPath === instrumentPlace.path,
+                  name: instrumentPlace.name,
+                  path: instrumentPlace.path,
+                },
+              ]
+            : []),
         ]}
       />
       <PlaceList
-        label="Favorites"
-        menu={placeMenu}
+        label="Pinned"
+        labelMenu={
+          <ContextMenuContent className="min-w-48">
+            <ContextMenuItem
+              disabled={sidebarPlaces.unpinned.length === 0}
+              onClick={() =>
+                void rpcClient.preferences.restoreDefaultSidebarPlaces
+                  .call()
+                  .catch(sidebarChangeFailed)
+              }
+            >
+              <PushPinIcon className="size-4" />
+              <span>Restore Default Places</span>
+            </ContextMenuItem>
+          </ContextMenuContent>
+        }
+        menu={(place) => placeMenu(place, { isPinned: true })}
         onOpenInNewTab={openPlaceInNewTab}
         onOpen={(folder) => {
           rootTo(folder === homePath ? "~" : folder);
         }}
-        places={places.data.favorites.map((place) => ({
+        places={pinned.map((place) => ({
           // The home folder wears the house it wears in the Finder, which
           // is what says the account-named folder is home.
           icon: <FolderMark large path={place.path} />,
@@ -1749,6 +1827,8 @@ type FolderMenuActions = {
   /** A package (an app) gone into as the folder it is; left out for anything else. */
   onShowPackageContents?: (() => void) | undefined;
   onTrash: () => void;
+  /** Pinning a folder to the sidebar, or unpinning it; left out for anything but one folder. */
+  pin?: { isPinned: boolean; onToggle: () => void } | undefined;
   /**
    * What the menu acts on, when it is several selected: what names one thing
    * (Rename, Copy Path, Quick Look, Reveal) is left off, and Open With lists
@@ -1891,6 +1971,7 @@ function FolderMenuItems({
   onReveal,
   onShowPackageContents,
   onTrash,
+  pin,
   group,
 }: FolderMenuActions & {
   /** What the menu adds on the folder's empty space, after New Folder. */
@@ -2016,6 +2097,18 @@ function FolderMenuItems({
                   <span>{getRevealInFolderLabel()}</span>
                 </Item>
               )}
+              {pin ? (
+                <Item onClick={pin.onToggle}>
+                  {pin.isPinned ? (
+                    <PushPinSlashIcon className="size-4" />
+                  ) : (
+                    <PushPinIcon className="size-4" />
+                  )}
+                  <span>
+                    {pin.isPinned ? "Unpin from Sidebar" : "Pin to Sidebar"}
+                  </span>
+                </Item>
+              ) : null}
             </>
           )}
         </>
@@ -2377,14 +2470,17 @@ function isTextLike(file: FileSystemFileItem) {
 
 function PlaceList({
   label,
+  labelMenu,
   menu,
   onOpen,
   onOpenInNewTab,
   places,
 }: {
-  /** Left out for a list of one, where a heading says nothing the row does not. */
+  /** Left out for the app's own places, which need no heading. */
   label?: string;
-  /** What a right-click on a place offers, left out where a place is not a folder. */
+  /** What a right-click on the heading offers. */
+  labelMenu?: ReactNode;
+  /** What a right-click on a place offers; nothing where a place is not a folder. */
   menu?: (path: string) => ReactNode;
   onOpen: (path: string) => void;
   /** A middle click: the place in a tab of its own, waiting behind. */
@@ -2399,46 +2495,54 @@ function PlaceList({
   return (
     <div>
       {label === undefined ? null : (
-        <p className="px-2 pb-1 text-xs font-medium text-muted-foreground/70">
-          {label}
-        </p>
+        <ContextMenu>
+          <ContextMenuTrigger asChild disabled={labelMenu === undefined}>
+            <p className="px-2 pb-1 text-xs font-medium text-muted-foreground/70">
+              {label}
+            </p>
+          </ContextMenuTrigger>
+          {labelMenu}
+        </ContextMenu>
       )}
       <ul className="flex flex-col gap-px">
-        {places.map((place) => (
-          <li key={place.path}>
-            <ContextMenu>
-              <ContextMenuTrigger asChild disabled={menu === undefined}>
-                <button
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-foreground/5 data-[state=open]:bg-foreground/5",
-                    place.isActive && "bg-foreground/8",
-                  )}
-                  onAuxClick={(event) => {
-                    if (event.button === 1) {
-                      event.preventDefault();
-                      onOpenInNewTab(place.path);
-                    }
-                  }}
-                  onClick={() => {
-                    onOpen(place.path);
-                  }}
-                  onMouseDown={(event) => {
-                    if (event.button === 1) {
-                      event.preventDefault();
-                    }
-                  }}
-                  type="button"
-                >
-                  <span className="flex size-4 shrink-0 items-center justify-center">
-                    {place.icon}
-                  </span>
-                  <span className="truncate">{place.name}</span>
-                </button>
-              </ContextMenuTrigger>
-              {menu?.(place.path)}
-            </ContextMenu>
-          </li>
-        ))}
+        {places.map((place) => {
+          const placeMenu = menu?.(place.path);
+          return (
+            <li key={place.path}>
+              <ContextMenu>
+                <ContextMenuTrigger asChild disabled={placeMenu === undefined}>
+                  <button
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-foreground/5 data-[state=open]:bg-foreground/5",
+                      place.isActive && "bg-foreground/8",
+                    )}
+                    onAuxClick={(event) => {
+                      if (event.button === 1) {
+                        event.preventDefault();
+                        onOpenInNewTab(place.path);
+                      }
+                    }}
+                    onClick={() => {
+                      onOpen(place.path);
+                    }}
+                    onMouseDown={(event) => {
+                      if (event.button === 1) {
+                        event.preventDefault();
+                      }
+                    }}
+                    type="button"
+                  >
+                    <span className="flex size-4 shrink-0 items-center justify-center">
+                      {place.icon}
+                    </span>
+                    <span className="truncate">{place.name}</span>
+                  </button>
+                </ContextMenuTrigger>
+                {placeMenu}
+              </ContextMenu>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -2454,11 +2558,14 @@ function PlaceMenu({
   hostPath,
   onNewDraft,
   onOpenInNewTab,
+  onUnpin,
 }: {
   hostPath: string;
   /** Left out where no draft can be opened. */
   onNewDraft: (() => void) | undefined;
   onOpenInNewTab: () => void;
+  /** Left out for a place that is not pinned: the app's own, and the disks. */
+  onUnpin: (() => void) | undefined;
 }) {
   return (
     <ContextMenuContent className="min-w-48">
@@ -2512,6 +2619,15 @@ function PlaceMenu({
         <ClipboardTextIcon className="size-4" />
         <span>Copy Path</span>
       </ContextMenuItem>
+      {onUnpin ? (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuItem onClick={onUnpin}>
+            <PushPinSlashIcon className="size-4" />
+            <span>Unpin from Sidebar</span>
+          </ContextMenuItem>
+        </>
+      ) : null}
     </ContextMenuContent>
   );
 }

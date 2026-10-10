@@ -11,6 +11,8 @@ import { utf8Text } from "@/electron-main/lib/utf8-text";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
 import { getFileJournal } from "@/electron-main/stores/machine/file-journal";
+import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
+import { moveSidebarPlaces } from "@/shared/sidebar-places";
 import { eventIterator, ORPCError } from "@orpc/server";
 import { shell } from "electron";
 import { createHash, randomUUID } from "node:crypto";
@@ -125,7 +127,7 @@ const rename = base
       throw errors.NAME_IN_USE();
     }
     await fs.rename(input.path, moved);
-    getHistoryStore().moveFiles(input.path, moved);
+    followMove(input.path, moved);
     await record(moved, (identity) => ({
       from: input.path,
       identity,
@@ -197,6 +199,19 @@ const trash = base
     return { journalId: entry.id };
   });
 
+/**
+ * What the app keeps by path, carried along with a rename or its undo: the
+ * recents, and the folders pinned to the sidebar.
+ */
+function followMove(from: string, to: string) {
+  getHistoryStore().moveFiles(from, to);
+  const preferences = getMachinePreferences();
+  preferences.set(
+    "sidebarPlaces",
+    moveSidebarPlaces(preferences.get("sidebarPlaces"), from, to, path.sep),
+  );
+}
+
 /** Writes an action to the journal, by the identity of what it left at `at`. */
 async function record(
   at: string,
@@ -248,7 +263,7 @@ const undo = base
       });
       journal.remove(entry.id);
       if (entry.kind === "rename") {
-        getHistoryStore().moveFiles(entry.to, entry.from);
+        followMove(entry.to, entry.from);
       }
       const isFolder =
         restored !== null &&

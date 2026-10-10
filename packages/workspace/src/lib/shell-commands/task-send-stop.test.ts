@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
+import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
@@ -149,6 +150,31 @@ describe("task send", () => {
       "
     `);
     expect(sentAddMessage()).toEqual([{ interrupt: true }]);
+  });
+
+  it("sends the chat's words as the chat's, not as the user's", async () => {
+    await send([]);
+    const message = sent.events.flatMap((event) =>
+      typeof event === "object" &&
+      event !== null &&
+      "type" in event &&
+      event.type === "addMessage" &&
+      "value" in event &&
+      typeof event.value === "object" &&
+      event.value !== null &&
+      "message" in event.value
+        ? [event.value.message as SessionMessage.WithParts]
+        : [],
+    )[0];
+    expect(message?.parts.filter((part) => part.type === "text")).toEqual([]);
+    expect(
+      message?.parts.find((part) => part.type === "data-fromChat"),
+    ).toMatchObject({
+      data: {
+        kind: "message",
+        text: "Make it about a submarine captain instead.",
+      },
+    });
   });
 
   it("reports the send as a hand-off to the bash call", async () => {

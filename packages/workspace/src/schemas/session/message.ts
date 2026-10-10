@@ -28,6 +28,7 @@ import { chatContextModelNote } from "../../lib/chat-context-model-text";
 import { chatTopicsModelNote } from "../../lib/chat-topics-model-text";
 import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { formatBytes } from "../../lib/format-bytes";
+import { fromChatModelText } from "../../lib/from-chat-model-text";
 import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { memoryModelNote } from "../../lib/memory-model-text";
@@ -384,6 +385,22 @@ export namespace SessionMessage {
             ? { ...part, text: renderSkillMentionsAsText(part.text) }
             : part,
         );
+
+        // Words the chat wrote to this task stand where a user's words would,
+        // as the message itself rather than as a note beside someone's.
+        const fromChatPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-fromChat";
+          } => part.type === "data-fromChat",
+        );
+        if (fromChatPart) {
+          parts.unshift({
+            text: fromChatModelText(fromChatPart.data),
+            type: "text",
+          });
+        }
 
         const injectedParts: { text: string; type: "text" }[] = [];
 

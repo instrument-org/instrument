@@ -38,6 +38,7 @@ export async function newMessage({
   chatContext,
   files,
   folders,
+  fromChat,
   intent,
   model,
   modelURI,
@@ -62,6 +63,11 @@ export async function newMessage({
     path: string;
     source?: FolderAttachment.Source;
   }[];
+  /**
+   * Words the chat wrote to this task, in place of a prompt; see the
+   * from-chat part.
+   */
+  fromChat?: SessionMessageDataPart.FromChatDataPart;
   intent?: string;
   model: AIGatewayModel.Type;
   modelURI: AIGatewayModelURI.Type;
@@ -86,6 +92,19 @@ export async function newMessage({
       },
       text: prompt.trim(),
       type: "text",
+    });
+  }
+
+  if (fromChat) {
+    parts.push({
+      data: fromChat,
+      metadata: {
+        createdAt,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-fromChat",
     });
   }
 

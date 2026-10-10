@@ -61,6 +61,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // the only record a pre-fence conversation has of what a turn produced, and
   // the person who wants that is the person whose task it is.
   "data-fileChanges": "always",
+  // Words the chat wrote to one of its tasks: the assignment a fork starts
+  // on, and what it sent later. Shown in the task's transcript, where they
+  // are the reason for everything that follows.
+  "data-fromChat": "always",
   "data-intent": "dev",
   "data-maxSteps": "dev",
   // What the agent is told it remembers about the user. Context for the
@@ -270,6 +274,16 @@ export function renderDataPart({
 
       return paths.length === 0 ? null : (
         <FilePathsGrid key={part.metadata.id} paths={[...new Set(paths)]} />
+      );
+    }
+    case "data-fromChat": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={`From the chat: ${part.data.text}`}
+        />
       );
     }
     case "data-intent": {

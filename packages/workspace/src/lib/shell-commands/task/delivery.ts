@@ -24,7 +24,8 @@ export function promptFrom(inline: string, stdin: ByteString): string {
 }
 
 /**
- * Puts a message into a task: saved at once, so the task's transcript shows it
+ * Puts the chat's message into a task, as words from the chat rather than
+ * from the user: saved at once, so the task's transcript shows it
  * the moment it was sent, then handed to its session, which runs it now when
  * the task is idle and at its next step when it is working (at once, its step
  * in flight stopped, with `interrupt`). Says whether the task was working.
@@ -49,9 +50,10 @@ export async function deliver({
   }
   const sessionId = session.value;
   const message = await newMessage({
+    fromChat: { kind: "message", text: prompt },
     model,
     modelURI,
-    prompt,
+    prompt: "",
     sessionId,
     taskId: task.id,
   });

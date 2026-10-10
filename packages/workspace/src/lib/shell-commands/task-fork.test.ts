@@ -321,15 +321,18 @@ describe("task new", () => {
         event.type === "createSession",
     );
     expect(start?.value).toMatchObject({ id });
-    const directive = JSON.stringify(start?.value);
-    expect(directive).toContain(
-      "as a task: you, carrying on in the background",
-    );
-    expect(directive).toContain("named for this job");
-    expect(directive).toContain("Your assignment:\\nBatch");
-    expect(directive).toContain(
-      "rename every photo in Downloads by its date taken",
-    );
+    // The chat's words, not the user's: no text of the user's, and no folder
+    // list the inherited conversation already gives.
+    const parts = (start?.value as { message: SessionMessage.WithParts })
+      .message.parts;
+    expect(parts.filter((part) => part.type === "text")).toEqual([]);
+    expect(parts.some((part) => part.type === "data-attachments")).toBe(false);
+    expect(parts.find((part) => part.type === "data-fromChat")).toMatchObject({
+      data: {
+        kind: "assignment",
+        text: `Batch ${counter}: rename every photo in Downloads by its date taken.`,
+      },
+    });
   });
 
   it("works in the chat's own folder, keeping only its record in its own", async () => {
@@ -424,9 +427,16 @@ describe("task new", () => {
     ]);
     expect(forked.slice(0, chat.length)).toEqual(chat);
     expect(forked).toHaveLength(chat.length + 1);
-    expect(JSON.stringify(forked.at(-1))).toContain(
+    // What the model reads for the chat's words: the fork's note, then the
+    // assignment, with nothing fencing it as the user's.
+    const assignment = JSON.stringify(forked.at(-1));
+    expect(assignment).toContain(
       "Everything above is this conversation as it stood",
     );
+    expect(assignment).toContain("named for this job");
+    expect(assignment).toContain("Your assignment:\\nBatch");
+    expect(assignment).not.toContain("<user_message>");
+    expect(assignment).not.toContain("attached_folders");
   });
 
   it("reaches exactly the chat's folders, and leaves them alone", async () => {

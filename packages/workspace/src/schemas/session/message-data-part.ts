@@ -12,7 +12,7 @@ export namespace SessionMessageDataPart {
    * whether it needs to guard against repeating itself.
    *
    * - **Event**: something that happened on this turn -- `asks`,
-   *   `attachments`, `contextRollover`, `intent`, `maxSteps`, `reply`,
+   *   `attachments`, `contextRollover`, `fromChat`, `intent`, `maxSteps`, `reply`,
    *   `skillChanges`, `skillMentions`, and `projectContext` and
    *   `chatContext` and `adoptedTask`, which are written once at creation. A repeat is
    *   impossible by construction; nothing to guard.
@@ -44,6 +44,7 @@ export namespace SessionMessageDataPart {
     "contextRollover",
     "dateChange",
     "fileChanges",
+    "fromChat",
     "intent",
     "skillChanges",
     "skillMentions",
@@ -525,6 +526,21 @@ export namespace SessionMessageDataPart {
   export type TaskEventDataPart = z.output<typeof TaskEventDataPartSchema>;
 
   /**
+   * Words the chat's agent wrote to one of its tasks, rather than the user's:
+   * the assignment a fork starts on (`assignment`), and what `task send`
+   * passes on later (`message`). Written on a user message with no text, so
+   * the record says who spoke, and the transcript can draw it as one agent
+   * writing to another. The model reads it as the text it carries, with the
+   * fork's standing note ahead of an assignment.
+   */
+  export const FromChatDataPartSchema = z.object({
+    kind: z.enum(["assignment", "message"]),
+    text: z.string().trim().min(1),
+  });
+
+  export type FromChatDataPart = z.output<typeof FromChatDataPartSchema>;
+
+  /**
    * An app the user acted on outside the conversation: a sign-in finished in
    * the browser, a key saved on a card, a decline, a disconnect from the
    * app's page. Like a task event, it wakes the chat on a text-less
@@ -959,6 +975,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
+    [NameSchema.enum.fromChat]: FromChatDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
     [NameSchema.enum.memory]: MemoryDataPartSchema,

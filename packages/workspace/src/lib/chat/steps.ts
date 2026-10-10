@@ -12,13 +12,13 @@ import { latestSessionId } from "./latest-session";
 /**
  * One line of a task's transcript read as a sequence of steps: what its agent
  * set out to do, each call it made and how the call ended, what it and the user
- * said. Tool output is left out on purpose. The transcript's last lines are
+ * said, and what the chat sent it. Tool output is left out on purpose. The transcript's last lines are
  * whatever printed last, and a search that listed ten thousand paths reads as a
  * task lost in them; the steps say what the task was doing.
  */
 export interface Step {
   at: Date;
-  kind: "activity" | "call" | "said" | "user";
+  kind: "activity" | "call" | "said" | "sent" | "user";
   text: string;
 }
 
@@ -42,6 +42,9 @@ export function renderSteps(steps: Step[]): string {
         }
         case "said": {
           return `${time}  said: ${step.text}`;
+        }
+        case "sent": {
+          return `${time}  you sent: ${step.text}`;
         }
         case "user": {
           return `${time}  user: ${step.text}`;
@@ -78,6 +81,15 @@ export async function sessionSteps({
           kind: "user",
           text: clip(text, SAID_MAX_LENGTH),
         });
+      }
+      for (const part of message.parts) {
+        if (part.type === "data-fromChat") {
+          steps.push({
+            at: message.metadata.createdAt,
+            kind: "sent",
+            text: clip(part.data.text, SAID_MAX_LENGTH),
+          });
+        }
       }
       continue;
     }

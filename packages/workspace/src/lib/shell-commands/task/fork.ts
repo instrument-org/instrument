@@ -1,4 +1,3 @@
-import { AGENT_FILES_LANGUAGE, AGENT_NEEDS_LANGUAGE } from "../../../constants";
 import { type ChatId } from "../../../schemas/chat-id";
 import { type SessionMessage } from "../../../schemas/session/message";
 import { type StoreId } from "../../../schemas/store-id";
@@ -8,6 +7,8 @@ import { folderReach } from "../../chat/folder-reach";
 import { latestOrNewSessionId } from "../../chat/latest-session";
 import { expectStop } from "../../chat/wake";
 import { defaultTaskName } from "../../default-task-name";
+import { getCurrentDate } from "../../get-current-date";
+import { type FolderGrant, grantFolders } from "../../grant-folders";
 import { initializeTask } from "../../initialize-task";
 import {
   handOverBackgroundProcesses,
@@ -18,9 +19,8 @@ import { newMessage } from "../../new-message";
 import { newTaskId } from "../../new-task-id";
 import { chatTaskIds } from "../../record-folders";
 import { Store } from "../../store";
-import { systemNote } from "../../system-note";
 import { taskDir } from "../../task-dir-utils";
-import { setTaskState } from "../../task-record";
+import { getTaskState, setTaskState } from "../../task-record";
 import { getTaskSettings, recordTaskActivity } from "../../task-settings";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import { getWorkspaceConfig } from "../../workspace-config";
@@ -110,11 +110,10 @@ async function runFork(
         toTaskId: forkId,
       });
     },
-    prompt: forkDirective(
+    assignment:
       jobs.length > 0
         ? `${directive}\n\nStill running in the background, and yours now under the same ids: ${jobs.join(", ")}. Wait on them with \`fg\` rather than starting them again.`
         : directive,
-    ),
   });
   recordHandOff({ kind: "created", taskId });
   return `Started task ${taskId} ("${name}"). It is running now, in this folder with your folders.\n${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`;
@@ -167,18 +166,13 @@ export function withoutCall(
     });
 }
 
-/** A folder a fork is granted, in the shape `newMessage` takes. */
-type ForkFolder = NonNullable<
-  Parameters<typeof newMessage>[0]["folders"]
->[number];
-
 /**
  * Every folder the chat reaches, at the chat's own path and access, so a path
  * anywhere in the inherited conversation is the same path in the fork.
  */
 export function grantsOfChat(
   chatFolders: Awaited<ReturnType<typeof folderReach>>,
-): ForkFolder[] {
+): FolderGrant[] {
   return Object.values(chatFolders).map((folder) => ({
     access: effectiveFolderAccess(folder),
     mountName: folder.mountName,
@@ -189,11 +183,12 @@ export function grantsOfChat(
 
 /**
  * Starts a fork of a chat: a task of the chat's that works in its
- * folder, inherits its conversation, and runs the agent on `prompt` as its
+ * folder, inherits its conversation, and runs the agent on `assignment` as its
  * own first turn. Returns the fork's id once its
  * session has been asked to start.
  */
 export async function startFork({
+  assignment,
   chatId,
   chatSessionId,
   folders,
@@ -204,11 +199,12 @@ export async function startFork({
   modelURI,
   name,
   onSession,
-  prompt,
 }: {
+  /** What the chat asks the fork to do, as it wrote it. */
+  assignment: string;
   chatId: ChatId;
   chatSessionId: StoreId.Session;
-  folders: ForkFolder[];
+  folders: FolderGrant[];
   handedTabs?: Awaited<ReturnType<typeof resolveTabs>>;
   /** What the fork's id is made from. */
   idFrom: string;
@@ -219,8 +215,6 @@ export async function startFork({
   name: string;
   /** Called with the fork's session before its first turn starts. */
   onSession?: (sessionId: StoreId.Session, taskId: TaskId) => void;
-  /** The fork's first turn, as `forkDirective` writes it. */
-  prompt: string;
 }): Promise<TaskId> {
   const workspaceConfig = getWorkspaceConfig();
   const taskId = await newTaskId({ prompt: idFrom, workspaceConfig });
@@ -242,6 +236,17 @@ export async function startFork({
   if (initialized.isErr()) {
     throw initialized.error;
   }
+  // Granted on the fork's record rather than attached to its first message:
+  // the conversation it inherits already names every folder at these paths,
+  // so a list on the assignment would only repeat it.
+  const held = await getTaskState(taskDir(taskId));
+  await setTaskState(taskDir(taskId), {
+    attachedFolders: grantFolders(
+      Object.values(held.attachedFolders ?? {}),
+      folders,
+      getCurrentDate().getTime(),
+    ).folders,
+  });
   if (handedTabs.length > 0) {
     await setTaskState(taskDir(taskId), {
       browserTabs: handedTabs.map((id) => ({ id, openedBy: "handed" })),
@@ -262,10 +267,10 @@ export async function startFork({
   });
 
   const message = await newMessage({
-    folders,
+    fromChat: { kind: "assignment", text: assignment },
     model,
     modelURI,
-    prompt,
+    prompt: "",
     sessionId,
     taskId,
   });
@@ -284,20 +289,6 @@ export async function startFork({
   });
   await recordTaskActivity(taskId);
   return taskId;
-}
-
-/**
- * The fork's own turn, after everything it inherited. Said here rather than
- * ahead of the conversation so the request up to this turn is the chat's
- * own, which is the prefix a provider's cache already holds; the label that
- * the conversation is background rather than the assignment is the first
- * thing in it.
- */
-export function forkDirective(directive: string): string {
-  const note = systemNote`
-    Everything above is this conversation as it stood when you were started on the work below, as a task: you, carrying on in the background while the conversation goes on without you. Draw on all of it (the user's words, their memories, what was already found), but do what the assignment says and nothing else the conversation asked for. Nobody watches here: no question, folder request, or app card reaches the user, and \`${TASK_COMMAND.name}\`, \`chat\`, \`memory\` and \`tab\` are not in your shell. You share the conversation's folder and the user's folders with it and with any other task, so a file you make here is named for this job, and one that may be open elsewhere is left alone rather than rewritten. Your last message is read back into the conversation, which relays it: a line or two saying what came of it, linking what you made or changed outside the folder by the address you were given for it, and a \`\`\`${AGENT_FILES_LANGUAGE} fence naming what you made, placed where the user can reach it. If you cannot go on without something from the user, end with a \`\`\`${AGENT_NEEDS_LANGUAGE} fence instead, one need per line.
-  `.trim();
-  return `${note}\n\nYour assignment:\n${directive}`;
 }
 
 /**

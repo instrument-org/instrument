@@ -19,7 +19,7 @@ export type ProviderSetupPage = "add-provider" | "welcome";
 
 export function ProviderSetupScreen({
   error,
-  hideManualProvider,
+  instrumentOnly,
   onAddProvider,
   onBack,
   onContinue,
@@ -30,7 +30,7 @@ export function ProviderSetupScreen({
   signedIn,
 }: {
   error?: Error | null;
-  hideManualProvider?: boolean;
+  instrumentOnly?: boolean;
   onAddProvider?: () => void;
   onBack?: () => void;
   onContinue: () => void;
@@ -64,7 +64,7 @@ export function ProviderSetupScreen({
   return (
     <OnboardingScreen
       footer={
-        !hideManualProvider && (
+        !instrumentOnly && (
           <Button
             className="text-foreground/40 hover:bg-transparent hover:text-foreground/60"
             onClick={
@@ -136,17 +136,21 @@ export function ProviderSetupScreen({
             />
           )}
 
-          <ChatGPTLoginButton
-            caption="Pay for ChatGPT Plus or Pro? Use it here."
-            className="w-full justify-center"
-            onSuccess={onLoginSuccess}
-          />
+          {!instrumentOnly && (
+            <>
+              <ChatGPTLoginButton
+                caption="Pay for ChatGPT Plus or Pro? Use it here."
+                className="w-full justify-center"
+                onSuccess={onLoginSuccess}
+              />
 
-          <ClaudeLoginButton
-            caption="Pay for Claude Pro or Max? Use it here."
-            className="w-full justify-center"
-            onSuccess={onLoginSuccess}
-          />
+              <ClaudeLoginButton
+                caption="Pay for Claude Pro or Max? Use it here."
+                className="w-full justify-center"
+                onSuccess={onLoginSuccess}
+              />
+            </>
+          )}
 
           <TermsFooter />
         </div>

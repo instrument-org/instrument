@@ -221,7 +221,7 @@ function PlanUsage() {
           </p>
           <Button
             onClick={() => {
-              openLogin({ hideManualProvider: true });
+              openLogin({ instrumentOnly: true });
             }}
             size="sm"
           >

@@ -85,7 +85,7 @@ export function ProvidersSection({
                   </div>
                   <Button
                     onClick={() => {
-                      openLogin({ hideManualProvider: true });
+                      openLogin({ instrumentOnly: true });
                     }}
                     size="sm"
                   >

@@ -396,7 +396,7 @@ function errorActions({
             {
               label: `Try ${APP_NAME}`,
               onClick: () => {
-                openLogin({ hideManualProvider: true });
+                openLogin({ instrumentOnly: true });
               },
             },
           ]

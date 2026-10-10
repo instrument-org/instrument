@@ -121,7 +121,7 @@ function LoginModalContent({
       ) : (
         <ProviderSetupScreen
           error={error}
-          hideManualProvider={props?.hideManualProvider}
+          instrumentOnly={props?.instrumentOnly}
           onBack={() => {
             setPage("welcome");
           }}

@@ -52,14 +52,14 @@ export function NewTabPage() {
   }, [isActive]);
 
   return (
-    // Centered in the tab, the menu as tall as most of it allows, and
-    // shorter in a short window, where the greeting and the line under it
-    // stay in view and the list scrolls.
+    // Centered in the tab, the menu a fixed height that shows the first
+    // handful of rows, and shorter in a short window, where the greeting and
+    // the line under it stay in view. The list scrolls either way.
     <div className="flex h-full min-h-0 flex-col items-center justify-center overflow-hidden bg-muted/20 px-4 py-10">
       <h1 className="mb-6 shrink-0 text-[22px] font-medium tracking-tight">
         <Greeting />
       </h1>
-      <div className="flex h-150 min-h-40 w-full max-w-160 shrink flex-col overflow-hidden rounded-2xl border bg-card shadow-sm">
+      <div className="flex h-100 min-h-40 w-full max-w-160 shrink flex-col overflow-hidden rounded-2xl border bg-card shadow-sm">
         <Command className="bg-card" loop shouldFilter={false}>
           <CommandInput
             className="text-sm"

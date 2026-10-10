@@ -214,19 +214,15 @@ const thumbnails = {
 
 /** What a person can do to a download on the browser's list. */
 const downloads = {
-  cancel: base
-    .input(z.object({ id: z.string() }))
-    .handler(({ input }) => {
-      cancelDownload(input.id);
-    }),
+  cancel: base.input(z.object({ id: z.string() })).handler(({ input }) => {
+    cancelDownload(input.id);
+  }),
   clear: base.handler(() => {
     clearDownloads();
   }),
-  remove: base
-    .input(z.object({ id: z.string() }))
-    .handler(({ input }) => {
-      removeDownload(input.id);
-    }),
+  remove: base.input(z.object({ id: z.string() })).handler(({ input }) => {
+    removeDownload(input.id);
+  }),
 };
 
 /** The engine's answer: the words asked about, then what it would finish them as. */

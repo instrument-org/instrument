@@ -16,12 +16,10 @@ export function useOpenExternalLink() {
   const mutation = useMutation(
     rpcClient.utils.openExternalLink.mutationOptions({
       onError: async (error, variables) => {
-        const copied = await navigator.clipboard
-          .writeText(variables.url)
-          .then(
-            () => true,
-            () => false,
-          );
+        const copied = await navigator.clipboard.writeText(variables.url).then(
+          () => true,
+          () => false,
+        );
         toast.error("Couldn't open the link in your browser", {
           cause: error,
           description: copied

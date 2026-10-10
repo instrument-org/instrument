@@ -37,9 +37,7 @@ function where({
   looking: BrowserTargetId | null;
 }) {
   pageHoldingKeyboard.mockReturnValue(keyboard);
-  foregroundBrowser.mockReturnValue(
-    looking ? { targetId: looking } : null,
-  );
+  foregroundBrowser.mockReturnValue(looking ? { targetId: looking } : null);
 }
 
 beforeEach(() => {
@@ -67,11 +65,7 @@ describe("pageForChord", () => {
 
   it("means no page when none is on screen", () => {
     where({ keyboard: null, looking: null });
-    for (const chord of [
-      "back",
-      "reloadPage",
-      "zoomIn",
-    ] as const) {
+    for (const chord of ["back", "reloadPage", "zoomIn"] as const) {
       expect(pageForChord(chord)).toBeNull();
     }
   });

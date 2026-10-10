@@ -197,7 +197,7 @@ function useDestinationsFor(): (
                   toast.error(`Couldn't ${copyable.label.toLowerCase()}`, {
                     cause: error,
                   });
-              });
+                });
             },
           },
         ]

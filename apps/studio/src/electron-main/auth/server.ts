@@ -424,9 +424,7 @@ async function start() {
   });
 
   app.get(OPENROUTER_CALLBACK_PATH, async (c) => {
-    const finished = receiveOpenRouterCallback(
-      new URL(c.req.url).searchParams,
-    );
+    const finished = receiveOpenRouterCallback(new URL(c.req.url).searchParams);
     if (!finished) {
       return c.html(renderAuthPage({ kind: "expired" }), 400);
     }
@@ -453,7 +451,9 @@ async function start() {
         );
       }
       case "declined": {
-        return c.html(renderAuthPage({ kind: "declined", service: openRouter }));
+        return c.html(
+          renderAuthPage({ kind: "declined", service: openRouter }),
+        );
       }
     }
   });

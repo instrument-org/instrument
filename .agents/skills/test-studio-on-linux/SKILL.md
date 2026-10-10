@@ -86,7 +86,7 @@ Do not use `state`, `goto`, or `modal`. They wait for a dev-only handle that pac
 node "$DRIVE" rpc workspace.chats.tasks '{"id":"<chat-id>"}' --port 49171
 ```
 
-Two things it needs on a remote host. Developer Mode has to be on in that machine's own settings, because the preference is checked per call and the bridge cannot turn itself on; a call made while it is off says exactly that. And `wait --idle`, which blocks until a task's agent goes quiet, needs an explicit `--task` here, since without one it asks the dev-only handle which task the active tab is showing.
+Two things it needs on a remote host. Developer Mode has to be on in that machine's own settings, because the preference is checked per call and the bridge cannot turn itself on; a call made while it is off says exactly that. And `wait --idle`, which blocks until a chat's agents go quiet, needs an explicit `--chat` here, since without one it asks the dev-only handle which chat the active tab is showing.
 
 Treat screenshots as supporting evidence. Also assert the expected DOM or state, inspect relevant logs, and include the installed version in the result.
 

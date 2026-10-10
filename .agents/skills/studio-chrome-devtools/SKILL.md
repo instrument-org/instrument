@@ -81,10 +81,10 @@ A plain `boot` uses the shared dev application-data directory, so what a run can
 
 ```bash
 node $DRIVE boot --purpose "document viewer" --workspace documents
-node $DRIVE goto /tasks/generated-pdf --workspace documents
+node $DRIVE goto /chats/red-and-blue-squares --workspace documents
 ```
 
-It seeds when the fixture is absent or has changed (`--fresh` forces a rebuild), starts each boot with no tabs restored from earlier runs (`--keep-tabs` keeps them), and reports the seeded task ids, so a script addresses a task by name instead of grepping for one. `--workspace` belongs on every command of the run: it picks the port and the instance record, so a fixture run and a plain dev run can both be up. `pnpm workspace:seed --list` shows what exists; `fixtures/workspaces/README.md` covers adding one.
+It seeds when the fixture is absent or has changed (`--fresh` forces a rebuild), starts each boot with no tabs restored from earlier runs (`--keep-tabs` keeps them), and reports what it seeded: each chat by its id, which is its fixture key, and each task by its session in its chat's store (a task's page is `/tasks/<session>?chat=<chat-id>`), so a script addresses a chat by name instead of grepping for one. `--workspace` belongs on every command of the run: it picks the port and the instance record, so a fixture run and a plain dev run can both be up. `pnpm workspace:seed --list` shows what exists; `fixtures/workspaces/README.md` covers adding one.
 
 `--clean-room <name>` is the other kind of isolation: a blank workspace with no chats, opened by a second process on the developer's own application data and pinned to it with `INSTRUMENT_WORKSPACE`, so the developer's instance keeps its own workspace. It shares the machine's toolchain and caches, so it boots as fast as a plain run, and `--with-sign-ins` copies the developer's Instrument account and API keys into it (not a ChatGPT account, whose rotating refresh token would sign the developer's own instance out), so it can run a real agent turn, which a fixture cannot. Like `--workspace`, it goes on every command. Clean rooms live beside the fixture caches, are reaped after 14 days unbooted, and `--fresh` empties one first.
 
@@ -100,7 +100,7 @@ Reach for a fixture when the run needs known content, a clean room when it needs
 `run` hands a script the app from `scripts/studio-app.mjs` over one held connection. The script default-exports `(app, args)` and returns whatever is worth reporting:
 
 ```bash
-node $DRIVE run sequence.mjs --args '{"taskId":"…"}'
+node $DRIVE run sequence.mjs --args '{"chat":"…"}'
 cat sequence.mjs | node $DRIVE run -          # or on stdin, no quoting to get wrong
 ```
 
@@ -115,7 +115,7 @@ export default async (app, args) => {
 
   // branch on what you found, which a shell chain cannot do
   const tasks = await app.rpc("workspace.chats.tasks", { id: args.chat });
-  if (tasks.length > 0) await app.goto(`/tasks/${tasks[0].id}`);
+  if (tasks.length > 0) await app.goto(`/tasks/${tasks[0].id}?chat=${args.chat}`);
 
   return { taskCount: tasks.length };
 };
@@ -136,58 +136,61 @@ Why this and not a command apiece: a primitive costs 0.3ms to 30ms over a held c
 
 ```bash
 node $DRIVE rpc workspace.chats.tasks '{"id":"<chat-id>"}'
-node $DRIVE rpc workspace.task.status '{"id":"generated-pdf"}'
+node $DRIVE rpc workspace.chats.byId '{"id":"red-and-blue-squares"}'
 node $DRIVE rpc gateway.models.list
 ```
 
 The input is one JSON argument, and the routes are the ones in `packages/workspace/src/rpc/routes/` under `workspace.`, plus Studio's own (`apps/studio/src/electron-main/rpc/routes/`) at the top level.
 
-Tasks are listed one chat at a time: `<chat-id>` is the chat's folder name under the workspace's `chats/` (the id in a `/chats/<id>` address), and no route lists every chat's tasks. `workspace.chats.session '{"id":"<chat-id>"}'` gives a chat's session, for the routes that read its transcript; `workspace.chats.ofSession '{"sessionId":"ses_..."}'` turns a session back into its chat.
+A chat is the only record: `<chat-id>` is its folder name under the workspace's `chats/` (the id in a `/chats/<id>` address), and its per-chat reads (`info`, `state`, `files`, `backgroundProcesses`) are under `workspace.chats.*`. A task is a session in its chat's store, so tasks are listed one chat at a time (`chats.tasks`, each row with its `standing` and whether it is `stoppable`), and no route lists every chat's tasks. `workspace.chats.session '{"id":"<chat-id>"}'` gives a chat's session, for the routes that read its transcript; `workspace.chats.ofSession '{"sessionId":"ses_..."}'` turns a session back into its chat.
 
 Reach for this before the DOM whenever the question is about state rather than about pixels. Scraping `document.body.innerText` for a status answers what the UI painted; the route answers what the UI painted _from_, which is the thing under test, and it does not move when a component does.
 
 ## Running a command in the app's own sandbox
 
-`bash` runs one command in a task's real sandbox and returns `stdout`, `stderr`, `exitCode`, and `durationMs`, through `workspace.debug.runBash`:
+`bash` runs one command in a chat's real sandbox and returns `stdout`, `stderr`, `exitCode`, and `durationMs`, through `workspace.debug.runBash`:
 
 ```bash
-node $DRIVE bash 'curl -sS -o /dev/null -w "%{http_code}" https://example.com' --task <task-id>
-node $DRIVE bash 'ffprobe /nope.mp4 2>/dev/null; echo exit=$?' --task <task-id>
+node $DRIVE bash 'curl -sS -o /dev/null -w "%{http_code}" https://example.com' --chat <chat-id>
+node $DRIVE bash 'ffprobe /nope.mp4 2>/dev/null; echo exit=$?' --chat <chat-id> --task <session-id>
 ```
 
-The session is the task's most recent unless `--session` names one, and a packaged build needs an explicit `--task` for the same reason every other command does.
+It runs as the chat's own session unless `--task` names one of its tasks by session. Without `--chat` it takes the chat or task the active tab is showing, which a packaged build cannot read, so there it needs an explicit `--chat`.
 
 This is not `run-bash`, and the difference decides which one answers a question. `run-bash` builds its own sandbox from a checkout's dependencies, with no task and no app, which makes it fast and makes it blind to anything about a package: a command missing from a bundle resolves fine from `node_modules` and reports success. `bash` runs the mounts, shims, network policy, and bundled binaries of the build that is actually running. Verifying a shipped release wants this one; iterating on a shell fix wants the other.
 
 - It is gated on the **Developer Mode** preference, checked per call. Fixture workspaces pin it on; the shared dev workspace depends on what was last set in Settings > General, and the bridge cannot turn it on for you.
-- `live.*` routes are event iterators and cannot come back through a single evaluation. Call the plain sibling in a loop instead (`chats.info`, not `chats.live.info`).
+- `live.*` routes are event iterators and cannot come back through a single evaluation. Call the plain sibling in a loop instead (`chats.tasks`, not `chats.live.tasks`).
 - Errors come back as data, so a Zod failure prints its issues rather than a stack.
 
-## Running a task without touching the UI
+## Running a chat without touching the UI
 
-One route creates the task and sends the first prompt, and no part of this has to go through the composer (whose ProseMirror editor is its own trap, see [references/repro-recipes.md](references/repro-recipes.md)):
+Two routes start a chat and send its first prompt, the way the window's composer does, and no part of this has to go through the composer (whose ProseMirror editor is its own trap, see [references/repro-recipes.md](references/repro-recipes.md)). The chat's session id is the caller's to choose: `ses_` and a ULID.
 
 ```bash
 node $DRIVE rpc gateway.models.list                  # pick one; build <author>/<canonicalId>?provider=…&providerConfigId=…
-node $DRIVE rpc workspace.task.create '{"modelURI":"<uri>","prompt":"…","name":"smoke"}'
-node $DRIVE wait --idle --task <task-id>
-node $DRIVE rpc workspace.message.list '{"id":"<task-id>","sessionId":"<session-id>"}'
+SES="ses_0$(LC_ALL=C tr -dc '0-9A-HJKMNP-TV-Z' </dev/urandom | head -c 25)"
+node $DRIVE rpc workspace.chats.ensure "{\"sessionId\":\"$SES\",\"firstWords\":\"smoke\"}"   # -> {id}
+node $DRIVE rpc workspace.message.create "{\"id\":\"<chat-id>\",\"newSessionId\":\"$SES\",\"modelURI\":\"<uri>\",\"prompt\":\"…\"}"
+node $DRIVE wait --idle --chat <chat-id>
+node $DRIVE rpc workspace.message.list "{\"id\":\"<chat-id>\",\"sessionId\":\"$SES\"}"
 ```
 
-`task.create` returns `{id, sessionId}`; `message.create` takes both and sends a follow-up into the same session. A seeded fixture workspace holds no credentials, so a live turn needs a plain `boot` against the dev workspace.
+`message.create` with `sessionId` instead of `newSessionId` sends a follow-up into the same session. Tasks the chat starts show up in `chats.tasks`; read one's transcript with `message.list` and its session. A seeded fixture workspace holds no credentials, so a live turn needs a plain `boot` against the dev workspace.
 
 ### Waiting for a turn
 
-`wait --idle` polls `task.status` until the task has no live agent, which is the signal the app itself uses. Without `--task` it takes the task the active tab is showing.
+`wait --idle` polls the chat's routes until nothing in it is at work, which is the signal the app itself uses. Without `--chat` it takes the chat or task the active tab is showing.
 
 ```bash
-node $DRIVE wait --idle --task <task-id>     # blocks for the turn, default timeout 10m
+node $DRIVE wait --idle --chat <chat-id>                       # blocks for the turn, default timeout 10m
+node $DRIVE wait --idle --chat <chat-id> --task <session-id>   # one task in it
 ```
 
 Two things about that status are worth knowing before trusting a wait built on it by hand:
 
-- Busy is `isWorking`: some session carries the `agent.alive` tag, which every non-final state of the session machine does. A task whose turn is over reports not working rather than `agent.done`, because the workspace machine drops the ref when the session finishes.
-- Which makes "not working" also what a task reports _before_ its turn starts. `wait --idle` covers that by requiring idle to hold for `--settle` (2s) until it has seen the task busy, and reports `sawBusy` so you can tell which happened. `sawBusy: false` on a wait that was meant to follow a prompt means the prompt never started an agent.
+- A chat is busy while `chats.byId` reports its `state` as `working`: its own agent is alive, a task it started is moving, or a message it was just sent waits for its agent. A task is busy while its `chats.tasks` row is `stoppable`, meaning its session carries the `agent.alive` tag, which every non-final state of the session machine does. A turn that is over reports not working rather than `agent.done`, because the workspace machine drops the ref when the session finishes.
+- Which makes "not working" also what a chat or task reports _before_ its turn starts. `wait --idle` covers that by requiring idle to hold for `--settle` (2s) until it has seen it busy, and reports `sawBusy` so you can tell which happened. `sawBusy: false` on a wait that was meant to follow a prompt means the prompt never started an agent.
 
 ## Page model
 
@@ -206,7 +209,7 @@ node $DRIVE run $(dirname $DRIVE)/sweep-screens.mjs
 node $DRIVE run $(dirname $DRIVE)/sweep-screens.mjs --args '{"reload":true}'
 ```
 
-It reads an app slug and a task id off the running app, so the parameterized screens are covered without an id written down here going stale and turning an unvisited screen into a clean result. `reload` restarts the renderer first, which is the only way to see what a screen logs while it _mounts_; it costs the wait, so it is off by default.
+It reads an app slug, a chat and one of its tasks off the running app, so the parameterized screens are covered without an id written down here going stale and turning an unvisited screen into a clean result. `reload` restarts the renderer first, which is the only way to see what a screen logs while it _mounts_; it costs the wait, so it is off by default.
 
 Enabling the `Runtime` domain replays the console buffer, so a run would otherwise open by reporting whatever the window logged earlier — an older run's errors, or a person's — as its own findings. Nothing is recorded until the walk starts, and the reload happens before the enable so the buffer it clears is not the one that replays.
 

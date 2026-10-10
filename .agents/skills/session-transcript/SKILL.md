@@ -5,7 +5,7 @@ description: Export a chat's or task's session as a markdown transcript from its
 
 # Session Transcript
 
-`script:dump-session-transcript` renders a session from a chat's `.instrument/task.db` (the chat's own, or one of its tasks') into a markdown transcript.
+`script:dump-session-transcript` renders a session from a chat's `.instrument/chat.db` (the chat's own, or one of its tasks', each a session in that store) into a markdown transcript.
 
 The script lives in `packages/workspace`; the filter runs it from anywhere in the monorepo:
 
@@ -37,5 +37,5 @@ pnpm --filter @instrument-org/workspace run script:dump-session-transcript <work
 
 ## Notes
 
-- Reads only; never mutates the task. Output is stdout unless `--output` is set.
+- Reads only; never mutates the chat. Output is stdout unless `--output` is set.
 - To explore raw session JSON interactively instead, use `script:dump-sessions <workspace-dir>` (prompts for a task, copies JSON to the clipboard).

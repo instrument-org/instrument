@@ -789,14 +789,20 @@ export async function connect({ allowReload = false, port, workspace } = {}) {
       ),
 
     /**
-     * Wait for a task's agent to stop working, read from the status route rather
-     * than from whatever the page is painting. See the note on `sawBusy`: false
-     * means the prompt never started an agent, and the idle being reported is
-     * the state from before it.
+     * Wait for a chat, or one task in it (`sessionId`), to stop working, read
+     * from the chat's routes rather than from whatever the page is painting.
+     * See the note on `sawBusy`: false means the prompt never started an
+     * agent, and the idle being reported is the state from before it.
      */
-    waitForIdle: ({ label, settleMs = 2000, taskId, timeout = 600_000 }) =>
-      step(label ?? `idle ${taskId}`, () =>
-        waitIdle(cdp, { settleMs, taskId, timeoutMs: timeout }),
+    waitForIdle: ({
+      chatId,
+      label,
+      sessionId,
+      settleMs = 2000,
+      timeout = 600_000,
+    }) =>
+      step(label ?? `idle ${sessionId ?? chatId}`, () =>
+        waitIdle(cdp, { chatId, sessionId, settleMs, timeoutMs: timeout }),
       ),
   });
 
@@ -942,7 +948,7 @@ export async function callRpc(cdp, route, input) {
   if (outcome.iterator) {
     fail(
       `"${route}" is an event iterator, and one cannot be carried back through a single evaluation.\n` +
-        `Poll its plain counterpart instead: task.status for task.live.status.`,
+        `Poll its plain counterpart instead: chats.tasks for chats.live.tasks.`,
     );
   }
 
@@ -1128,28 +1134,46 @@ export async function snapshotTree(cdp, { depth = 12, selector } = {}) {
 }
 
 /**
- * Wait for a task's agent to stop working, read from `task.status` rather
- * than from whatever the page is currently painting.
+ * Wait for a chat, or one of its tasks, to stop working, read from the chat's
+ * routes rather than from whatever the page is currently painting.
  *
- * Busy is `isWorking`: some session of the task carries the `agent.alive`
- * tag, which every non-final state of the session machine does, so this
- * covers running, paused and mid-tool-call without enumerating them.
+ * A chat is busy while `chats.byId` reports it `working`: its own agent is
+ * alive, a task it started is moving, or a message it was just sent waits for
+ * its agent. A task (a session in the chat's store) is busy while its row in
+ * `chats.tasks` is `stoppable`: its agent is alive, which every non-final
+ * state of the session machine is.
  *
- * Completion is the *absence* of a live session, not an `agent.done` tag.
- * The workspace machine drops a session's ref when it finishes, so a task
- * whose turn is over reports not working -- which is also what a task that
- * has not started one reports. Hence `settleMs`: until the task has been seen
- * busy, idle has to hold rather than count immediately, so a wait issued in
- * the same breath as `message.create` does not return before the session has
- * been spawned.
- *
- * A subagent outliving its parent keeps this waiting, because any live
- * session of the task counts.
+ * Completion is the *absence* of a live agent, not an `agent.done` tag. The
+ * workspace machine drops a session's ref when it finishes, so a turn that is
+ * over reports not working -- which is also what one that has not started
+ * reports. Hence `settleMs`: until it has been seen busy, idle has to hold
+ * rather than count immediately, so a wait issued in the same breath as
+ * `message.create` does not return before the session has been spawned.
  */
-export async function waitIdle(cdp, { settleMs, taskId, timeoutMs }) {
-  // Reads the task first so a wrong id fails saying so, rather than waiting out
-  // the whole timeout on a task that was never going to report anything.
-  await callRpc(cdp, "workspace.chats.info", { id: taskId });
+export async function waitIdle(
+  cdp,
+  { chatId, sessionId, settleMs, timeoutMs },
+) {
+  const read = async () => {
+    if (sessionId) {
+      const tasks = await callRpc(cdp, "workspace.chats.tasks", {
+        id: chatId,
+      });
+      const task = tasks?.find((each) => each.id === sessionId);
+      if (!task) {
+        fail(`Chat ${chatId} has no task ${sessionId}.`);
+      }
+      return { busy: task.stoppable === true, status: task };
+    }
+    const chat = await callRpc(cdp, "workspace.chats.byId", { id: chatId });
+    if (!chat) {
+      fail(`No chat ${chatId}.`);
+    }
+    return {
+      busy: chat.state === "working",
+      status: { runningTasks: chat.runningTasks, state: chat.state },
+    };
+  };
 
   const startedAt = Date.now();
   const deadline = startedAt + timeoutMs;
@@ -1158,23 +1182,24 @@ export async function waitIdle(cdp, { settleMs, taskId, timeoutMs }) {
   let status;
 
   for (;;) {
-    status = await callRpc(cdp, "workspace.task.status", { id: taskId });
-    const busy = status?.isWorking === true;
+    const reading = await read();
+    status = reading.status;
 
-    if (busy) {
+    if (reading.busy) {
       idleSince = undefined;
       sawBusy = true;
     } else {
       idleSince ??= Date.now();
       if (sawBusy || Date.now() - idleSince >= settleMs) {
         return {
+          chatId,
           idle: true,
           // Whether the turn was watched or merely found finished. `false` on a
           // wait that was meant to follow a prompt means the prompt never
           // started an agent, and the idle being reported is the state from
           // before it.
           sawBusy,
-          taskId,
+          ...(sessionId ? { sessionId } : {}),
           waitedMs: Date.now() - startedAt,
         };
       }
@@ -1182,7 +1207,7 @@ export async function waitIdle(cdp, { settleMs, taskId, timeoutMs }) {
 
     if (Date.now() > deadline) {
       fail(
-        `Timed out after ${timeoutMs}ms waiting for ${taskId} to go idle.\n` +
+        `Timed out after ${timeoutMs}ms waiting for ${sessionId ?? chatId} to go idle.\n` +
           `Status: ${JSON.stringify(status)}`,
       );
     }

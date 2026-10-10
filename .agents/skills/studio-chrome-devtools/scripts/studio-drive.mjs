@@ -14,7 +14,7 @@
 //   node studio-drive.mjs shot out.png --selector '[role=dialog]'
 //   node studio-drive.mjs wait 'document.querySelectorAll("webview").length > 0'
 //   node studio-drive.mjs rpc workspace.chats.tasks '{"id":"<chat-id>"}'
-//   node studio-drive.mjs wait --idle --task <id>
+//   node studio-drive.mjs wait --idle --chat <chat-id> [--task <session-id>]
 //   node studio-drive.mjs run sequence.mjs
 //   node studio-drive.mjs stop
 //
@@ -96,8 +96,8 @@
 // `sort-modules` would order the declarations alphabetically and leave the
 // section banners labeling whatever landed under them; the cache-location
 // variables belong to a standalone CLI rather than a turbo task; and `dir` is
-// how a path is named everywhere this script reaches, from `taskDir` through
-// `workspaceConfig.tasksDir` to the `ELECTRON_USER_DATA_DIR` it sets.
+// how a path is named everywhere this script reaches, from `chatDir` through
+// `workspaceConfig.chatsDir` to the `ELECTRON_USER_DATA_DIR` it sets.
 
 import { execFileSync, spawn } from "node:child_process";
 import {
@@ -392,14 +392,14 @@ function reapOlderThan(root, maxAgeMs, { keep = new Set() } = {}) {
 }
 
 /**
- * Drops installed dependencies left inside tasks by a live agent run. A seeded
+ * Drops installed dependencies left inside chat folders by a live agent run. A seeded
  * transcript never creates these, so a workspace only used for driving stays in the low
  * megabytes and this finds nothing.
  */
 function reapWorkArtifacts(workspaceDir) {
-  for (const taskDir of recordDirs(workspaceDir)) {
+  for (const recordDir of recordDirs(workspaceDir)) {
     for (const name of WORK_ARTIFACT_NAMES) {
-      const dir = path.join(taskDir, "work", name);
+      const dir = path.join(recordDir, "work", name);
       try {
         if (Date.now() - statSync(dir).mtimeMs > WORK_ARTIFACT_MAX_AGE_MS) {
           rmSync(dir, { force: true, recursive: true });
@@ -412,9 +412,9 @@ function reapWorkArtifacts(workspaceDir) {
 }
 
 /**
- * Every task and chat folder of a workspace: tasks no chat owns under
- * `tasks/`, chats under `chats/`, and each chat's tasks under its own
- * `tasks/`.
+ * Every record folder of a workspace: the chats under `chats/`, plus any task
+ * folder a 1.x build left under `tasks/` that the boot migration has not yet
+ * moved. A chat's tasks are sessions in its store and work in its folder.
  */
 function recordDirs(workspaceDir) {
   const children = (dir) => {
@@ -427,11 +427,7 @@ function recordDirs(workspaceDir) {
     }
   };
   const chats = children(path.join(workspaceDir, "chats"));
-  return [
-    ...children(path.join(workspaceDir, "tasks")),
-    ...chats,
-    ...chats.flatMap((chat) => children(path.join(chat, "tasks"))),
-  ];
+  return [...children(path.join(workspaceDir, "tasks")), ...chats];
 }
 
 // --- lifecycle ---------------------------------------------------------
@@ -976,8 +972,8 @@ async function dispatch(app) {
     case "wait": {
       return argv.includes("--idle")
         ? app.waitForIdle({
+            ...(await resolveTarget(app)),
             settleMs: Number(flag(argv, "--settle", "2000")),
-            taskId: await resolveTaskId(app, flag(argv, "--task")),
             // A turn is minutes of work, not the seconds a DOM predicate waits.
             timeout: Number(flag(argv, "--timeout", "600000")),
           })
@@ -1009,39 +1005,36 @@ async function cmdModal(app, name) {
 }
 
 /**
- * One command in a task's real sandbox, with stdout and stderr kept apart.
+ * One command in a chat's real sandbox, with stdout and stderr kept apart.
  * `run-bash` in a checkout answers a different question: it builds its own
  * sandbox from that checkout's dependencies, so it cannot see what a packaged
  * build bundles. Reach for this whenever the question is about the app that is
  * running rather than about the shell in the abstract.
  *
- * The session is the task's most recent unless named, because `session.list`
- * already returns them newest first and a verification check does not care
- * which one it lands in.
+ * The session is the task's when `--task` (or the active tab) names one, and
+ * otherwise the chat's own, which `chats.byId` reports.
  */
 async function cmdBash(app, commandText) {
   if (!commandText) {
     fail(
-      `Usage: bash <command> [--task <id>] [--session <id>]\n` +
-        `  bash 'ffprobe /nope.mp4 2>/dev/null; echo exit=$?' --task <task-id>\n` +
+      `Usage: bash <command> [--chat <chat-id>] [--task <session-id>]\n` +
+        `  bash 'ffprobe /nope.mp4 2>/dev/null; echo exit=$?' --chat <chat-id>\n` +
         `Needs Developer Mode on, and a build carrying workspace.debug.runBash.`,
     );
   }
-  const taskId = await resolveTaskId(app, flag(argv, "--task"));
-  let sessionId = flag(argv, "--session");
+  const { chatId, sessionId: taskSession } = await resolveTarget(app);
+  let sessionId = taskSession;
   if (!sessionId) {
-    const sessions = await app.rpc("workspace.session.list", { id: taskId });
-    if (!sessions?.length) {
-      fail(
-        `Task ${taskId} has no sessions to run in. Open it once, or pass --session.`,
-      );
+    const chat = await app.rpc("workspace.chats.byId", { id: chatId });
+    if (!chat) {
+      fail(`No chat ${chatId}.`);
     }
-    sessionId = sessions[0].id;
+    sessionId = chat.sessionId;
   }
   return app.rpc("workspace.debug.runBash", {
+    chatId,
     command: commandText,
     sessionId,
-    taskId,
   });
 }
 
@@ -1049,8 +1042,8 @@ async function cmdRpc(app, route, rawInput) {
   if (!route) {
     fail(
       `Usage: rpc <route> [json]\n` +
-        `  rpc workspace.chats.tasks '{"id":"<chat-id>"}'\n` +
-        `  rpc workspace.task.status '{"id":"<task-id>"}'`,
+        `  rpc workspace.chats.byId '{"id":"<chat-id>"}'\n` +
+        `  rpc workspace.chats.tasks '{"id":"<chat-id>"}'`,
     );
   }
 
@@ -1069,29 +1062,42 @@ async function cmdRpc(app, route, rawInput) {
   return app.rpc(route, input);
 }
 
-/** The task named on the command line, or the one the active tab is showing. */
-async function resolveTaskId(app, explicit) {
-  if (explicit) {
-    return explicit;
+/**
+ * The chat named by `--chat`, and the task in it by `--task` (its session),
+ * or else what the active tab is showing: a chat at `/chats/<id>`, a task at
+ * `/tasks/<session>?chat=<id>`.
+ */
+async function resolveTarget(app) {
+  const chatId = flag(argv, "--chat");
+  const sessionId = flag(argv, "--task");
+  if (chatId) {
+    return { chatId, ...(sessionId ? { sessionId } : {}) };
   }
-  // Reading the active tab needs the dev-only handle, though the wait itself
-  // does not. Say so here rather than spending the handle's timeout to report
-  // a missing dev build, which is not what a packaged build is missing.
+  // Reading the active tab needs the dev-only handle, though the commands
+  // themselves do not. Say so here rather than spending the handle's timeout
+  // to report a missing dev build, which is not what a packaged build is
+  // missing.
   if (!(await evaluate(app.cdp, "Boolean(window.__studioDrive)"))) {
     fail(
-      "Pass --task. Taking the task from the active tab needs the dev-only handle, " +
-        "which a packaged build omits; the wait itself does not.",
+      "Pass --chat. Taking the chat from the active tab needs the dev-only handle, " +
+        "which a packaged build omits; the command itself does not.",
     );
   }
   const { path: routePath } = await evaluate(
     app.cdp,
     "window.__studioDrive.state()",
   );
-  const match = /^\/tasks\/([^/?]+)/.exec(routePath ?? "");
-  if (!match) {
-    fail(
-      `No --task, and the active tab is not a task (path: ${routePath ?? "none"}).`,
-    );
+  const url = new URL(routePath ?? "/", "app://studio");
+  const chat = /^\/chats\/([^/]+)$/.exec(url.pathname);
+  if (chat) {
+    return { chatId: decodeURIComponent(chat[1]) };
   }
-  return match[1];
+  const task = /^\/tasks\/([^/]+)$/.exec(url.pathname);
+  const taskChat = url.searchParams.get("chat");
+  if (task && taskChat) {
+    return { chatId: taskChat, sessionId: decodeURIComponent(task[1]) };
+  }
+  fail(
+    `No --chat, and the active tab is not a chat or a task (path: ${routePath ?? "none"}).`,
+  );
 }

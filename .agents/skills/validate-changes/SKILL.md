@@ -153,6 +153,6 @@ Two things not to do, each of which costs someone else their session:
 
 - `session-transcript` skill — render any task's session as markdown, including
   one from an exported `.zip`. This is also how you read a real user's run.
-- `task-database-query` skill — read-only SQL against a task's `task.db` when
+- `task-database-query` skill — read-only SQL against a chat's `chat.db` when
   the transcript is not enough.
 - `find-ui-changes` skill — which recent commits changed user-visible surfaces.

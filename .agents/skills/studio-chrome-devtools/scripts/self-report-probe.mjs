@@ -163,10 +163,10 @@ const probe = () => {
 };
 
 // Read the automation-visible surface of an in-app browser guest, for comparing
-// against what a real Chrome reports. Pass `--args '{"taskId":"..."}'` to pick a
-// guest when the pool holds more than one; the first mounted guest is the
-// default. Open a page in the guest first -- an `about:blank` guest reports
-// little.
+// against what a real Chrome reports. Pass `--args '{"chatId":"..."}'` (a chat's
+// id or a task's session, matched against the guest's partition) to pick a guest
+// when the pool holds more than one; the first mounted guest is the default. Open
+// a page in the guest first -- an `about:blank` guest reports little.
 //
 // This reads values; it does not judge them. For a scored second opinion, point
 // the guest at a hosted conformance suite and read the page back:
@@ -178,10 +178,10 @@ const probe = () => {
 // positive for the CDP `Runtime.enable` leak because `console.debug` invokes
 // `toString` on a regex with or without a client attached.
 export default async (app, args) => {
-  const taskId = args?.taskId ?? "";
+  const chatId = args?.chatId ?? "";
   const result = await app.eval(`(async () => {
     const guests = Array.from(document.querySelectorAll("webview"));
-    const wanted = ${JSON.stringify(taskId)};
+    const wanted = ${JSON.stringify(chatId)};
     const target = (wanted === "" ? null : guests.find((w) => w.getAttribute("partition")?.includes(wanted))) ?? guests[0];
     if (target == null) return { error: "no webview guest mounted", guests: guests.length };
     const payload = await target.executeJavaScript("(" + ${JSON.stringify(probe.toString())} + ")()");

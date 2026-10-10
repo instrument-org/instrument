@@ -181,9 +181,8 @@ export interface WorkspaceConfig {
   appsDir: AbsolutePath;
   /**
    * The file this workspace's record of the model requests it made is kept
-   * in: outside the workspace, so one in a synced folder never carries a live
-   * database. Absent where nothing should persist (tests, scripts), and then
-   * nothing is recorded.
+   * in, inside the workspace's own `.instrument` folder. Absent where nothing
+   * should persist (tests, scripts), and then nothing is recorded.
    */
   aiUsageFile?: AbsolutePath;
   appVersion: string;

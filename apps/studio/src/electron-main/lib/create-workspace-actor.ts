@@ -44,7 +44,7 @@ import { captureServerEvent } from "./capture-server-event";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
-import { getResolvedWorkspace } from "./workspaces";
+import { workspacePrivateDir } from "./workspaces";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
 import { getRegistryDir } from "./registry-dir";
@@ -133,14 +133,9 @@ export function createWorkspaceActor() {
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,
-      // Beside the indexes, outside the workspace, for the same reason; but
-      // unlike an index it is the only copy of what it holds, so it is named
-      // by the workspace's registered id, which a moved folder keeps.
-      aiUsageFile: path.join(
-        app.getPath("userData"),
-        "ai-usage",
-        `${getResolvedWorkspace().id}.db`,
-      ),
+      // The workspace's own record, beside its browser history, so it moves
+      // and goes with the workspace.
+      aiUsageFile: path.join(workspacePrivateDir(rootDir), "ai-usage.db"),
       apps: createAppsConfig(),
       appVersion: app.getVersion(),
       browser: browserViewManager.browser,

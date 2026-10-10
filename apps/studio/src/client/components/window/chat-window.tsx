@@ -463,9 +463,6 @@ export function ChatWindow({
         fallbackTitle={
           sentWords === undefined ? undefined : draftTitle(sentWords)
         }
-        leading={
-          <ChatsCircleIcon className="size-4 shrink-0 text-muted-foreground" />
-        }
         // An archived chat is put away, so its window goes with it.
         onArchived={onClose}
         onDeleted={onClose}

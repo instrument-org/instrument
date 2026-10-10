@@ -22,7 +22,14 @@ import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { TagIcon } from "@phosphor-icons/react/Tag";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
-import { type ComponentProps, type ReactNode, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  type CSSProperties,
+  type ReactNode,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { chatMenuGroups, useChatActions } from "./chat-actions";
 import { ChatActivity } from "./chat-activity";
@@ -46,8 +53,9 @@ import { type ChatRename, useChatRename } from "./use-chat-rename";
  * adds: beside the inbox the glyph that pops the conversation out (lit while
  * it is out, when pressing it brings the conversation back) and the pane
  * toggle while the pane is closed; popped out, the window's own buttons. The
- * two sides keep one width, so the title stands in the middle however narrow
- * the head is, and gives way first, truncating.
+ * two sides keep one width, the wider one's, so the title stands in the
+ * window's middle however unevenly they are filled, and takes all the room
+ * between them before it gives way, truncating.
  */
 export function ChatHeader({
   chat,
@@ -67,7 +75,7 @@ export function ChatHeader({
   chat: Chat | undefined;
   /** The title while there is no chat yet: the words just sent, once there are any. */
   fallbackTitle?: string;
-  /** What sits ahead of the title: the toggle that puts the inbox away, or the popped-out window's mark. */
+  /** What sits ahead of the title: the toggle that puts the inbox away. */
   leading?: ReactNode;
   /** After the chat is archived from its menu, so the window can put it away. */
   onArchived?: () => void;
@@ -89,6 +97,7 @@ export function ChatHeader({
   trailing?: ReactNode;
 }) {
   const [isDeleting, setDeleting] = useState(false);
+  const sideWidth = useWiderSide();
   return (
     <>
       {chat && (
@@ -99,12 +108,28 @@ export function ChatHeader({
           open={isDeleting}
         />
       )}
-      {/* Three columns, the outer two of one width, so the title stands in
-          the middle of the conversation whatever sits at either side. The
-          middle one is given its width rather than sized to the title,
-          since the heading is a container and has no width of its own. */}
-      <div className="@container/head grid h-14 w-full min-w-0 shrink-0 grid-cols-[minmax(max-content,1fr)_minmax(0,3fr)_minmax(max-content,1fr)] items-start gap-x-2 bg-background px-3 pt-2">
-        <div className="flex h-8 items-center gap-x-1">{leading}</div>
+      {/* Three columns, the outer two both as wide as the wider side's
+          contents, so the title stands in the middle of the conversation
+          whatever sits at either side. The middle one takes the rest rather
+          than sizing to the title, since the heading is a container and has
+          no width of its own. */}
+      <div
+        className="@container/head grid h-14 w-full min-w-0 shrink-0 grid-cols-[var(--side,max-content)_minmax(0,1fr)_var(--side,max-content)] items-start gap-x-2 bg-background px-3 pt-2"
+        style={
+          sideWidth.width === undefined
+            ? undefined
+            : // A custom property, which CSSProperties has no key for.
+              ({ "--side": `${sideWidth.width}px` } as CSSProperties)
+        }
+      >
+        <div className="flex h-8 items-center">
+          <div
+            className="flex w-max items-center gap-x-1"
+            ref={sideWidth.leading}
+          >
+            {leading}
+          </div>
+        </div>
         <div className="flex min-w-0 flex-col items-center">
           <div className="flex h-8 w-full min-w-0 items-center">
             {chat ? (
@@ -132,40 +157,71 @@ export function ChatHeader({
             </div>
           )}
         </div>
-        <div className="flex h-8 items-center justify-end gap-x-1">
-          {/* The step itself is the line under the title, so this stands
+        <div className="flex h-8 items-center justify-end">
+          <div
+            className="flex w-max items-center gap-x-1"
+            ref={sideWidth.trailing}
+          >
+            {/* The step itself is the line under the title, so this stands
               as its mark alone. */}
-          {chat && (
-            <ChatActivity
-              chatId={chat.id}
-              isCompact
-              onOpen={onOpenTask}
-              tasks={chat.runningTasks}
-            />
-          )}
-          {popOut && (
-            <ToolbarTooltip label={popOut.isOut ? "Bring back" : "Pop out"}>
-              <Button
-                aria-label={popOut.isOut ? "Bring back" : "Pop out"}
-                aria-pressed={popOut.isOut}
-                className={cn(
-                  toolbarClassName({ pressed: popOut.isOut }),
-                  popOut.isOut &&
-                    "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300",
-                )}
-                onClick={popOut.onToggle}
-                size="icon-sm"
-                variant="ghost"
-              >
-                <PictureInPictureIcon className="size-4" />
-              </Button>
-            </ToolbarTooltip>
-          )}
-          {trailing}
+            {chat && (
+              <ChatActivity
+                chatId={chat.id}
+                isCompact
+                onOpen={onOpenTask}
+                tasks={chat.runningTasks}
+              />
+            )}
+            {popOut && (
+              <ToolbarTooltip label={popOut.isOut ? "Bring back" : "Pop out"}>
+                <Button
+                  aria-label={popOut.isOut ? "Bring back" : "Pop out"}
+                  aria-pressed={popOut.isOut}
+                  className={cn(
+                    toolbarClassName({ pressed: popOut.isOut }),
+                    popOut.isOut &&
+                      "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300",
+                  )}
+                  onClick={popOut.onToggle}
+                  size="icon-sm"
+                  variant="ghost"
+                >
+                  <PictureInPictureIcon className="size-4" />
+                </Button>
+              </ToolbarTooltip>
+            )}
+            {trailing}
+          </div>
         </div>
       </div>
     </>
   );
+}
+
+/**
+ * The width both sides of the head take: the wider side's contents, read in
+ * layout px (`offsetWidth`, not a rect) since the app scales with CSS zoom,
+ * and read again whenever either side's contents change size.
+ */
+function useWiderSide() {
+  const [leading, setLeading] = useState<HTMLDivElement | null>(null);
+  const [trailing, setTrailing] = useState<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState<number>();
+  useLayoutEffect(() => {
+    const sides = [leading, trailing].filter((side) => side !== null);
+    const measure = () => {
+      setWidth(Math.max(0, ...sides.map((side) => side.offsetWidth)));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    for (const side of sides) {
+      observer.observe(side);
+    }
+    return () => {
+      observer.disconnect();
+    };
+  }, [leading, trailing]);
+  return { leading: setLeading, trailing: setTrailing, width };
 }
 
 /**

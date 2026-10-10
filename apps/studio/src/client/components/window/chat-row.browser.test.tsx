@@ -516,7 +516,13 @@ describe("ChatRow", () => {
   it("shows the step in brand while working, and the question behind the amber glyph while waiting", async () => {
     const { rows } = await renderRows([
       chat({
-        latest: undefined,
+        // The workspace names a working chat's step in `latest`, the same
+        // step the line under its title shows.
+        latest: {
+          at: MOVED_AT.getTime(),
+          kind: "step",
+          text: "Reading the automation",
+        },
         runningTasks: [
           {
             id: TaskIdSchema.parse("nest-guard"),

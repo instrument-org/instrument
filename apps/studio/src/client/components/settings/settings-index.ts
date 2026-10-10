@@ -119,6 +119,13 @@ export const SETTINGS_INDEX = [
     title: "Claude account",
   },
   {
+    detail: `Every request ${APP_NAME} sends to an AI, with its model, tokens, and time`,
+    id: "ai-usage",
+    page: true,
+    tab: "AI usage",
+    title: "AI usage",
+  },
+  {
     detail: "Ask for a skill that teaches a new way of working.",
     id: "new-skill",
     tab: "Skills",

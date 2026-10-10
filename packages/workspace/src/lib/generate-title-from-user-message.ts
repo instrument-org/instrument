@@ -13,7 +13,9 @@ import { dedent } from "radashi";
 
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { type SessionMessage } from "../schemas/session/message";
+import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
+import { aiUsageTelemetry, connectionFor } from "./ai-usage/record";
 import { TypedError } from "./errors";
 import { isNonRetryableGatewayError } from "./gateway-response-body";
 import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
@@ -32,6 +34,7 @@ export function generateTitleFromUserMessage({
   message,
   model,
   reply,
+  taskId,
   workspaceConfig,
 }: {
   /**
@@ -47,6 +50,8 @@ export function generateTitleFromUserMessage({
    * alone could not know.
    */
   reply?: string;
+  /** The chat or task being named, which its record of model requests files the call under. */
+  taskId: TaskId;
   workspaceConfig: WorkspaceConfig;
 }) {
   return ResultAsync.fromPromise(
@@ -98,6 +103,14 @@ export function generateTitleFromUserMessage({
         providerOptions: providerOptionsForModel(aiSDKModel, {
           effort: "low",
           reasoning: model.reasoning,
+        }),
+        telemetry: aiUsageTelemetry({
+          connection: connectionFor(
+            workspaceConfig.getAIProviderConfigs(),
+            model.params.providerConfigId,
+          ),
+          purpose: "chat-title",
+          taskId,
         }),
       });
 

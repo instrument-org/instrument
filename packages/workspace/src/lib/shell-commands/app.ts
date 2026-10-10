@@ -637,6 +637,7 @@ async function runCatalog(args: string[], signal: AbortSignal | undefined) {
     const meant = await searchAppCatalogByMeaning(query, {
       configs: getWorkspaceConfig().getAIProviderConfigs(),
       signal,
+      usage: { purpose: "app-search", surface: "agent" },
     });
     if (meant.length > 0) {
       return ok(

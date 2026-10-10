@@ -1,12 +1,24 @@
 import { z } from "zod";
 
 import {
+  AIUsagePurposeSchema,
+  AIUsageSurfaceSchema,
+} from "../../lib/ai-usage/schema";
+import { TaskIdSchema } from "../../schemas/task-id";
+import {
   askDecisionModel,
   decisionModelAvailable,
   DecisionQuestionSchema,
   DecisionResponseSchema,
 } from "../../lib/decision-model";
 import { base } from "../base";
+
+/** Why the app is asking, which the record of model requests files the ask under. */
+const AIUsageAskSchema = z.object({
+  purpose: AIUsagePurposeSchema,
+  surface: AIUsageSurfaceSchema.optional(),
+  taskId: TaskIdSchema.optional(),
+});
 
 /**
  * Typed questions about a state, answered by the decision model with a
@@ -19,6 +31,7 @@ const ask = base
     z.object({
       questions: z.record(z.string(), DecisionQuestionSchema),
       state: z.unknown(),
+      usage: AIUsageAskSchema,
     }),
   )
   .output(
@@ -28,9 +41,10 @@ const ask = base
     let asked: Awaited<ReturnType<typeof askDecisionModel>>;
     try {
       asked = await askDecisionModel({
-        body: input,
+        body: { questions: input.questions, state: input.state },
         configs: context.workspaceConfig.getAIProviderConfigs(),
         signal,
+        usage: input.usage,
       });
     } catch (error) {
       if (signal?.aborted) {

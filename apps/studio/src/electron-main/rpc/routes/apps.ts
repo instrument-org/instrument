@@ -261,6 +261,7 @@ const catalogByMeaning = base
     const meant = await searchAppCatalogByMeaning(input.query, {
       configs: context.workspaceConfig.getAIProviderConfigs(),
       signal,
+      usage: { purpose: "app-search", surface: "apps" },
     });
     return Promise.all(meant.map(withIcon));
   });

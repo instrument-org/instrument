@@ -1,3 +1,4 @@
+import { TaskIdSchema } from "../../src/schemas/task-id";
 import { decisionBar } from "@instrument-org/shared/decision-bars";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -526,6 +527,7 @@ function retitle(): Shape {
           currentTitle: title,
           opening: chat.opening,
           reply: chat.reply,
+          taskId: TaskIdSchema.parse("2026-10-10-decision-eval"),
         });
         if (!asked) {
           throw failure instanceof Error

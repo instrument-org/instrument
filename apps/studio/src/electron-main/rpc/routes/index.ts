@@ -1,5 +1,6 @@
 import { workspaceRouter } from "@instrument-org/workspace/electron";
 
+import { aiUsage } from "./ai-usage";
 import { appCommands } from "./app-commands";
 import { apps } from "./apps";
 import { auth } from "./auth";
@@ -31,6 +32,7 @@ import { window } from "./window";
 import { workspaces } from "./workspaces";
 
 export const router = {
+  aiUsage,
   appCommands,
   apps,
   auth,

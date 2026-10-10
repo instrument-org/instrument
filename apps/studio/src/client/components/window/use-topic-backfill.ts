@@ -97,6 +97,7 @@ export function useTopicBackfill({
       typeof previousName === "string" &&
       previousName !== "" &&
       (settled.startsWith(previousName) || previousName.startsWith(settled)),
+    usage: { purpose: "topic-backfill", surface: "topics" },
     key: [
       "topic-backfill",
       settled,

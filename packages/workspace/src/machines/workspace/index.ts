@@ -24,6 +24,7 @@ import { APPS_DIR_NAME, CHATS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
+import { registerAIUsageTelemetry } from "../../lib/ai-usage/record";
 import { setWorkspaceConfig } from "../../lib/workspace-config";
 import { workspaceServerLogic } from "../../logic/server";
 import { type WorkspaceServerParentEvent } from "../../logic/server/types";
@@ -360,6 +361,7 @@ export const workspaceMachine = setup({
     events: {} as WorkspaceEvent,
     input: {} as {
       aiGatewayApp: AIGatewayApp;
+      aiUsageFile?: string;
       apps: WorkspaceAppsConfig;
       appVersion: string;
       browser: BrowserConfig;
@@ -392,6 +394,9 @@ export const workspaceMachine = setup({
   context: ({ input, self, spawn }) => {
     const rootDir = WorkspaceDirSchema.parse(input.rootDir);
     const workspaceConfig: WorkspaceConfig = {
+      ...(input.aiUsageFile && {
+        aiUsageFile: AbsolutePathSchema.parse(input.aiUsageFile),
+      }),
       apps: input.apps,
       appsDir: absolutePathJoin(rootDir, APPS_DIR_NAME),
       appVersion: input.appVersion,
@@ -436,6 +441,7 @@ export const workspaceMachine = setup({
     // Publish the single per-process config so code can read it via
     // getWorkspaceConfig() instead of threading it through every ChatId.
     setWorkspaceConfig(workspaceConfig);
+    registerAIUsageTelemetry();
     return {
       config: workspaceConfig,
       pendingBrowserReapResolvers: new Map(),

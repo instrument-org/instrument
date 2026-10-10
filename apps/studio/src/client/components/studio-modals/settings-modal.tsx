@@ -2,6 +2,7 @@ import {
   settingsModalAtom,
   type SettingsTab,
 } from "@/client/atoms/settings-modal";
+import { AIUsageSection } from "@/client/components/settings/ai-usage-section";
 import { DebugSection } from "@/client/components/settings/debug-section";
 import { FeaturesSection } from "@/client/components/settings/features-section";
 import { GeneralSection } from "@/client/components/settings/general-section";
@@ -48,6 +49,7 @@ import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { FlagIcon } from "@phosphor-icons/react/Flag";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { PulseIcon } from "@phosphor-icons/react/Pulse";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
@@ -442,6 +444,9 @@ function SettingsSectionBody({
   tab: SettingsTab;
 }) {
   switch (tab) {
+    case "AI usage": {
+      return <AIUsageSection />;
+    }
     case "Debug": {
       return <DebugSection />;
     }
@@ -492,6 +497,11 @@ function useNavItems(): NavItem[] {
       icon: CpuIcon,
       tab: "Providers",
       title: "Providers",
+    },
+    {
+      icon: PulseIcon,
+      tab: "AI usage",
+      title: "AI usage",
     },
     {
       icon: CubeIcon,

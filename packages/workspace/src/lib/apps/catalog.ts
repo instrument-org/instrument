@@ -266,9 +266,11 @@ export async function searchAppCatalogByMeaning(
   {
     configs,
     signal,
+    usage,
   }: {
     configs: Parameters<typeof askDecisionModel>[0]["configs"];
     signal?: AbortSignal;
+    usage: Parameters<typeof askDecisionModel>[0]["usage"];
   },
 ): Promise<AppCatalogEntry[]> {
   const browsed = getAppCatalog().filter((entry) => entry.tier !== "hidden");
@@ -278,6 +280,7 @@ export async function searchAppCatalogByMeaning(
       body: appMeaningRequest(query, browsed),
       configs,
       signal,
+      usage,
     });
     return pickMeant(asked?.response.answers ?? {}).flatMap((slug) => {
       const entry = bySlug.get(slug);

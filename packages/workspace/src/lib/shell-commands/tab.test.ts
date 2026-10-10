@@ -2,12 +2,24 @@ import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { publisher } from "../../rpc/publisher";
+import { TaskDirSchema } from "../../schemas/paths";
+import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { type WindowTabAction } from "../../schemas/window-tab";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { createTabCommand } from "./tab";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
 const chatId = ChatIdSchema.parse("tab-command-chat");
+const layout = buildWorkspaceFsLayout({
+  taskHostRoot: TaskDirSchema.parse("/work/chats/tab-command-chat"),
+});
+
+// A page tab, by the session id the window's page tabs carry, and the
+// addresses the browser reports it showing, one per ask, the last repeating.
+const pageTab = StoreId.newSessionId();
+let pageUrls: string[];
 
 // Which task is at work in which tab, as the chat's tasks' records would say.
 const holders = new Map<
@@ -28,7 +40,7 @@ let stopAnswering: () => void;
  * got.
  */
 function answeringWindow() {
-  const known = "tab-known";
+  const known = new Set<string>(["tab-known", pageTab]);
   return publisher.subscribe("window.tab", (ask) => {
     asked.push({
       action: ask.action,
@@ -38,9 +50,9 @@ function answeringWindow() {
     const answer =
       action.kind === "open"
         ? { tabId: `made-${asked.length}` }
-        : action.tabId === known
+        : known.has(action.tabId)
           ? {
-              tabId: known,
+              tabId: action.tabId,
               ...(action.kind === "read"
                 ? { text: "Jar\nA rigid container." }
                 : {}),
@@ -57,7 +69,7 @@ function answeringWindow() {
 function run(options: { timeoutMs?: number }, ...args: string[]) {
   const fsTree = new InMemoryFs();
   fsTree.writeFileSync("/mnt/Instrument/report.md", "# report");
-  return createTabCommand({ chatId, ...options }).execute(
+  return createTabCommand({ chatId, layout, ...options }).execute(
     args,
     createCommandContext({
       cwd: "/task",
@@ -71,6 +83,16 @@ function run(options: { timeoutMs?: number }, ...args: string[]) {
 beforeEach(() => {
   asked = [];
   holders.clear();
+  pageUrls = [];
+  const config = getWorkspaceConfig();
+  setWorkspaceConfig({
+    ...config,
+    browser: {
+      ...config.browser,
+      getTargetUrl: () =>
+        pageUrls.length > 1 ? pageUrls.shift() : pageUrls[0],
+    },
+  });
   stopAnswering = answeringWindow();
 });
 
@@ -205,6 +227,34 @@ describe("tab close, replace and show", () => {
 
     expect(asked[0]?.action).toEqual({ kind: "read", tabId: "tab-known" });
     expect(result.stdout).toBe("Jar\nA rigid container.\n");
+  });
+
+  it("reads a local page under the chat's own folder", async () => {
+    pageUrls = ["file:///work/chats/tab-command-chat/notes.html"];
+    const result = await run({}, "read", pageTab);
+
+    expect(result.stdout).toBe("Jar\nA rigid container.\n");
+  });
+
+  it("refuses to read a tab on a file outside the chat's folders", async () => {
+    pageUrls = ["file:///Users/someone/secrets.txt"];
+    const result = await run({}, "read", pageTab);
+
+    expect(asked).toEqual([]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe(
+      `tab: tab ${pageTab} shows a file outside your folders, so it can't be read.\n`,
+    );
+  });
+
+  // A page can send its own tab to another file while the window reads it.
+  it("withholds the text when the tab moved outside the chat's folders during the read", async () => {
+    pageUrls = ["https://example.com/", "file:///Users/"];
+    const result = await run({}, "read", pageTab);
+
+    expect(asked).toHaveLength(1);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
   });
 
   it("passes on the window's refusal to read a tab it does not have", async () => {

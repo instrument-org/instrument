@@ -8,9 +8,15 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
+import {
+  agentPathOfFileUrl,
+  agentSpellingOfFileUrls,
+  isLocalAddress,
+} from "../local-page-address";
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
 import { owningChat, resolveChat, sessionOfChat } from "../record-folders";
+import { taskFsLayout } from "../resolve-workspace-file-path";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
@@ -404,7 +410,7 @@ async function onSessionDone(
   // from its words, so a turn that ended blocked reads as waiting rather than
   // finished and the fence is not said twice.
   const needs = receipt === undefined ? [] : needsNamedIn(receipt);
-  const tabs = await openTabsOf(id);
+  const tabs = await openTabsOf(id, chatId);
   const summary =
     receipt === undefined
       ? undefined
@@ -464,23 +470,46 @@ function schedule(
  */
 async function openTabsOf(
   taskId: TaskId,
+  chatId: TaskId,
 ): Promise<NonNullable<TaskEvent["tabs"]>> {
   const { browser } = getWorkspaceConfig();
   const held = (await getTaskState(taskDir(taskId))).browserTabs;
-  return held.flatMap((tab) => {
+  const tabs: NonNullable<TaskEvent["tabs"]> = [];
+  for (const tab of held) {
     const decoded = decodeBrowserTargetId(tab.id);
     if (!decoded || !browser.getTargetMeta(tab.id)) {
-      return [];
+      continue;
     }
     const url = browser.getTargetUrl(tab.id);
-    return [
-      {
-        id: decoded.sessionId,
-        openedBy: tab.openedBy,
-        ...(url === undefined ? {} : { url }),
-      },
-    ];
-  });
+    tabs.push({
+      id: decoded.sessionId,
+      openedBy: tab.openedBy,
+      ...(url === undefined
+        ? {}
+        : { url: await chatSpellingOfUrl(url, { chatId, taskId }) }),
+    });
+  }
+  return tabs;
+}
+
+/**
+ * A tab's address as the chat names it: a page on this computer by the
+ * chat's own path to it, or as a file outside its folders, never by where it
+ * is on disk.
+ */
+export async function chatSpellingOfUrl(
+  url: string,
+  { chatId, taskId }: { chatId: TaskId; taskId: TaskId },
+): Promise<string> {
+  if (!isLocalAddress(url)) {
+    return url;
+  }
+  const layout = await taskFsLayout(taskId);
+  const agentPath = agentPathOfFileUrl(layout, url);
+  if (agentPath === null) {
+    return agentSpellingOfFileUrls(url, layout);
+  }
+  return `file://${(await inChatPaths(agentPath, { chatId, taskId })) ?? agentPath}`;
 }
 
 /**

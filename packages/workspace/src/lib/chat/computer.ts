@@ -12,13 +12,18 @@ import { pathIsWithin } from "../path-is-within";
 import { type ReadRefusal, readRefusalOf } from "../read-refusal";
 import { resolveExistingFilePath } from "../resolve-agent-path";
 import { taskDir } from "../task-dir-utils";
+import { getWorkspaceConfig } from "../workspace-config";
 import {
   buildWorkspaceFsLayout,
   effectiveFolderAccess,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import { childTaskMounts } from "./children";
-import { type FinderEntry, finderEntriesOf } from "./finder-entries";
+import {
+  type FinderEntry,
+  finderEntriesOf,
+  resolveThroughAliases,
+} from "./finder-entries";
 import { folderReach } from "./folder-reach";
 import { hiddenEntryNames } from "./hidden-entries";
 import {
@@ -205,7 +210,10 @@ export async function listComputerFolder({
   path: string;
   taskId: TaskId;
 }): Promise<ComputerFolder> {
-  const hostPath = await resolveICloudPath(expandHomePath(input), exists);
+  const hostPath = await resolveThroughAliases(
+    await resolveICloudPath(expandHomePath(input), exists),
+    getWorkspaceConfig().resolveAlias,
+  );
   let dirents: Dirent[];
   let hiddenNames: ReadonlySet<string>;
   let finder: ReadonlyMap<string, FinderEntry>;
@@ -405,9 +413,14 @@ async function describeEntry(
     finder?.hidesExtension && extensionAt > 0
       ? { displayName: name.slice(0, extensionAt) }
       : {};
+  // An alias is what it leads to, as a symbolic link is, while the entry
+  // stays the alias: renaming or throwing it away is of the alias.
+  const target = finder?.alias
+    ? await resolveThroughAliases(entryPath, getWorkspaceConfig().resolveAlias)
+    : entryPath;
   let stats;
   try {
-    stats = await fs.stat(entryPath);
+    stats = await fs.stat(target);
   } catch {
     return { ...isHidden, kind: "file", name, path: entryPath };
   }
@@ -440,7 +453,7 @@ async function describeEntry(
     ...displayName,
     createdAt: stats.birthtimeMs,
     kind: "file",
-    mimeType: getMimeType(name),
+    mimeType: getMimeType(target === entryPath ? name : path.basename(target)),
     modifiedAt: stats.mtimeMs,
     name,
     path: entryPath,

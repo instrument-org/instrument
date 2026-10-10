@@ -193,6 +193,12 @@ export interface WorkspaceConfig {
    * listing. Absent off macOS and in builds without the Mac module.
    */
   finderEntries?: (folder: string) => Promise<FinderEntry[]>;
+  /**
+   * Where a Finder alias leads, for the file browser to follow one as it
+   * follows a symbolic link; undefined for a path that is not an alias.
+   * Absent off macOS and in builds without the Mac module.
+   */
+  resolveAlias?: (path: string) => Promise<string | undefined>;
   getAIProviderConfigs: GetProviderConfigs;
   /**
    * Who is signed in, for the agents to know whose work it is: the account's

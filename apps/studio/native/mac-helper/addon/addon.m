@@ -246,12 +246,46 @@ static napi_value fileIcon(napi_env env, napi_callback_info info) {
   });
 }
 
+/// Where a Finder alias points, without asking anyone to sign in to a server
+/// or mounting a volume to find out; an error for a path that is not an alias
+/// or whose target is gone.
+static napi_value resolveAlias(napi_env env, napi_callback_info info) {
+  NSArray *args = stringArguments(env, info, 1);
+  NSString *path = args.count > 0 && args[0] != NSNull.null ? args[0] : nil;
+  return answer(env, ^(Done done) {
+    if (path == nil) {
+      done(@{@"error" : @"a path is required"});
+      return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      NSURL *url = [NSURL fileURLWithPath:path];
+      NSNumber *isAlias = nil;
+      [url getResourceValue:&isAlias forKey:NSURLIsAliasFileKey error:nil];
+      if (!isAlias.boolValue) {
+        done(@{@"error" : @"not an alias"});
+        return;
+      }
+      NSError *error = nil;
+      NSURL *target = [NSURL URLByResolvingAliasFileAtURL:url
+                                                  options:NSURLBookmarkResolutionWithoutUI |
+                                                          NSURLBookmarkResolutionWithoutMounting
+                                                    error:&error];
+      if (target == nil) {
+        done(@{@"error" : error.localizedDescription ?: @"the alias leads nowhere"});
+        return;
+      }
+      done(@{@"path" : target.path});
+    });
+  });
+}
+
 static const struct {
   const char *name;
   napi_callback fn;
 } FUNCTIONS[] = {
     {"fileIcon", fileIcon},
     {"finderEntries", finderEntries},
+    {"resolveAlias", resolveAlias},
     {"notificationStatus", notificationStatus},
     {"requestNotifications", requestNotifications},
 };

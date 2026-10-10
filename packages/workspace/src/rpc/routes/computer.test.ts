@@ -148,6 +148,41 @@ describe("workspace.computer.list", () => {
     }
   });
 
+  it("follows a Finder alias to a folder, and a path that runs through one", async () => {
+    const folder = path.join(tmpDir, "aliases");
+    const target = path.join(tmpDir, "alias-target");
+    await fs.mkdir(path.join(target, "inner"), { recursive: true });
+    await fs.writeFile(path.join(target, "inner", "notes.md"), "");
+    await fs.mkdir(folder);
+    const alias = path.join(folder, "Projects alias");
+    // An alias is a bookmark file, which begins with its magic.
+    await fs.writeFile(alias, "book\0\0\0\0mark");
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      finderEntries: async (asked) =>
+        asked === folder ? [{ alias: true, name: "Projects alias" }] : [],
+      resolveAlias: async (asked) => (asked === alias ? target : undefined),
+    });
+    const list = async (at: string) => {
+      const listing = await call(
+        computer.list,
+        { id: taskId, path: at },
+        { context: createContext() },
+      );
+      return (
+        listing.kind === "listing" &&
+        listing.entries.map(({ kind, name }) => `${kind} ${name}`)
+      );
+    };
+    try {
+      expect(await list(folder)).toEqual(["folder Projects alias"]);
+      expect(await list(path.join(alias, "inner"))).toEqual(["file notes.md"]);
+    } finally {
+      setWorkspaceConfig(config);
+    }
+  });
+
   it("answers a folder it may not read as refused rather than failing", async () => {
     const target = path.join(tmpDir, "shut");
     await fs.mkdir(target, { mode: 0o000 });

@@ -372,6 +372,7 @@ export const workspaceMachine = setup({
       defaultTaskTemplateDir: string;
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
       finderEntries?: WorkspaceConfig["finderEntries"];
+      resolveAlias?: WorkspaceConfig["resolveAlias"];
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
       indexesDir?: string;
@@ -411,6 +412,7 @@ export const workspaceMachine = setup({
         ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }
         : {}),
       ...(input.finderEntries ? { finderEntries: input.finderEntries } : {}),
+      ...(input.resolveAlias ? { resolveAlias: input.resolveAlias } : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
       ...(input.knownFolders ? { knownFolders: input.knownFolders } : {}),

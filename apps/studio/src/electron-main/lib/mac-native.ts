@@ -55,6 +55,7 @@ export function macHelperBinPath(): string | undefined {
 interface MacModule {
   fileIcon: (path: string, pixels: string) => Promise<string>;
   finderEntries: (folder: string) => Promise<string>;
+  resolveAlias: (path: string) => Promise<string>;
   notificationStatus: () => Promise<string>;
   requestNotifications: () => Promise<string>;
 }
@@ -205,4 +206,22 @@ export async function fileIcon(
     .union([z.object({ png: z.string() }), z.object({ error: z.string() })])
     .parse(JSON.parse(await native.fileIcon(filePath, String(pixels))));
   return "error" in answer ? null : Buffer.from(answer.png, "base64");
+}
+
+/**
+ * Where a Finder alias leads, without signing in to a server or mounting a
+ * volume to find out. Undefined for a path that is not an alias, an alias
+ * that leads nowhere, and off macOS.
+ */
+export async function resolveAlias(
+  filePath: string,
+): Promise<string | undefined> {
+  const native = loadModule();
+  if (!native) {
+    return undefined;
+  }
+  const answer = z
+    .union([z.object({ path: z.string() }), z.object({ error: z.string() })])
+    .parse(JSON.parse(await native.resolveAlias(filePath)));
+  return "error" in answer ? undefined : answer.path;
 }

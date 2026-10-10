@@ -4,6 +4,7 @@ import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
 import {
   finderEntries,
   macHelperBinPath,
+  resolveAlias,
 } from "@/electron-main/lib/mac-native";
 import {
   isQuitGuardForcedInDev,
@@ -145,6 +146,7 @@ export function createWorkspaceActor() {
         : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
       ensureOutputFolderIcon,
       finderEntries,
+      resolveAlias,
       macHelperBinPath: macHelperBinPath(),
       getAIProviderConfigs,
       getUser: getSignedInUser,

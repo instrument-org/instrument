@@ -73,16 +73,23 @@ export function OpenInMenu({
 }
 
 export function OpenWithDropdown({
+  align = "end",
   children,
   file,
+  onOpenChange,
+  withFileManager = true,
 }: {
+  align?: "start" | "end";
   children: ReactElement;
   file: FileRef;
+  onOpenChange?: (open: boolean) => void;
+  /** Left off where the file manager is the app the trigger beside it opens. */
+  withFileManager?: boolean;
 }) {
   return (
-    <DropdownMenu>
+    <DropdownMenu {...(onOpenChange ? { onOpenChange } : {})}>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="flex min-w-52 flex-col p-0">
+      <DropdownMenuContent align={align} className="flex min-w-52 flex-col p-0">
         <MenuScrollArea className="max-h-80">
           <OpenWithCandidates
             files={[file]}
@@ -90,10 +97,12 @@ export function OpenWithDropdown({
             omitDefault
           />
         </MenuScrollArea>
-        <FileManagerFooter
-          file={file}
-          menuComponents={dropdownMenuComponents}
-        />
+        {withFileManager ? (
+          <FileManagerFooter
+            file={file}
+            menuComponents={dropdownMenuComponents}
+          />
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

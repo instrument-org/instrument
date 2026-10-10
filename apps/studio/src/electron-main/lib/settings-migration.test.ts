@@ -99,13 +99,11 @@ describe("settings migration", () => {
         defaultWorkspacePath(userDataDir),
       );
       expect(read(path.join(userDataDir, "machine-preferences.json"))).toEqual({
-        enableUsageMetrics: false,
         releaseChannel: "beta",
       });
       expect(read(path.join(userDataDir, "machine-state.json"))).toEqual({
         lastLaunchedVersion: "2.0.0-beta.39",
         lastUpdateCheck: 42,
-        telemetryId: "anon-1",
       });
       expect(read(path.join(settings, "preferences.json"))).toEqual({
         agentCompletionNotifications: "always",

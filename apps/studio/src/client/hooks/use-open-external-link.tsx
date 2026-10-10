@@ -37,7 +37,7 @@ export function useOpenExternalLink() {
     const finalUrl = addReferral ? addRef(href) : href;
     // Fire-and-forget: mutateAsync rejects on failure, and because this handler
     // is never awaited that rejection surfaces as an unhandled rejection
-    // (captured by PostHog). mutate() routes failures through onError (toast +
+    // (logged as a crash). mutate() routes failures through onError (toast +
     // clipboard copy) without leaking.
     mutation.mutate({ url: finalUrl });
   };

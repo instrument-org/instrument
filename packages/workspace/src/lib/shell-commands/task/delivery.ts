@@ -63,7 +63,6 @@ export async function deliver({
   const sessionId = session.value;
   const message = await newMessage({
     ...(files ? { files } : {}),
-    model,
     modelURI,
     prompt,
     sessionId,

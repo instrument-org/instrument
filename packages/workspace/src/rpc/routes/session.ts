@@ -106,8 +106,6 @@ const run = base
 
     // A settings write, which the record change feed reports: what moves the task in the list.
     await recordTaskActivity(taskId);
-
-    context.workspaceConfig.captureEvent("session.run");
   });
 
 const stop = base
@@ -122,8 +120,6 @@ const stop = base
         id: input.id,
       },
     });
-
-    context.workspaceConfig.captureEvent("session.stopped");
   });
 
 const toMarkdown = base

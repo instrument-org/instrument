@@ -2,7 +2,6 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { generateSessionTitle } from "./generate-session-title";
 import { Store } from "./store";
-import { getWorkspaceConfig } from "./workspace-config";
 
 export async function createSession({
   sessionId,
@@ -28,10 +27,6 @@ export async function createSession({
     taskId,
     { signal },
   );
-
-  if (result.isOk()) {
-    getWorkspaceConfig().captureEvent("session.created");
-  }
 
   return result;
 }

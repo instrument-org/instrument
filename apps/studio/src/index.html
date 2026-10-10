@@ -19,14 +19,14 @@
     <meta
       http-equiv="Content-Security-Policy"
       content="
-        connect-src 'self' instrument: instrument-local: http://localhost:* https://localhost:* https://*.posthog.com;
+        connect-src 'self' instrument: instrument-local: http://localhost:* https://localhost:*;
         default-src 'self' http://localhost:* https://localhost:*;
         font-src 'self' data:;
         frame-src 'self' data: instrument: instrument-local: mailto: tel: http://localhost:* https://localhost:*;
         img-src 'self' blob: data: instrument: instrument-local: https://*.googleusercontent.com https://*.gstatic.com https://*.googleapis.com https://images.google.com https://www.google.com https://github.com https://*.github.com https://*.githubusercontent.com https://*.s3.amazonaws.com;
         media-src 'self' data: instrument: instrument-local: http://localhost:* https://localhost:*;
-        script-src 'self' 'wasm-unsafe-eval' https://*.posthog.com;
-        style-src 'self' 'unsafe-inline' https://*.posthog.com;
+        script-src 'self' 'wasm-unsafe-eval';
+        style-src 'self' 'unsafe-inline';
         worker-src 'self' blob:;
       "
     />

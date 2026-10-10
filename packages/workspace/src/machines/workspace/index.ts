@@ -4,10 +4,7 @@ import {
   type GetProviderConfigs,
   type ModelCache,
 } from "@instrument-org/ai-gateway";
-import {
-  type CaptureEventFunction,
-  type CaptureExceptionFunction,
-} from "@instrument-org/shared";
+import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import ms from "ms";
 import {
   type ActorRefFrom,
@@ -367,7 +364,6 @@ export const workspaceMachine = setup({
       apps: WorkspaceAppsConfig;
       appVersion: string;
       browser: BrowserConfig;
-      captureEvent: CaptureEventFunction;
       captureException: CaptureExceptionFunction;
       defaultTaskTemplateDir: string;
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
@@ -402,7 +398,6 @@ export const workspaceMachine = setup({
       appsDir: absolutePathJoin(rootDir, APPS_DIR_NAME),
       appVersion: input.appVersion,
       browser: input.browser,
-      captureEvent: input.captureEvent,
       captureException: input.captureException,
       defaultTaskTemplateDir: AbsolutePathSchema.parse(
         input.defaultTaskTemplateDir,

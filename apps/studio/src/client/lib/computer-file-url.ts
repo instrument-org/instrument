@@ -1,7 +1,7 @@
 import { safe } from "@orpc/client";
 
 import { rpcClient } from "../rpc/client";
-import { captureException } from "./telemetry";
+import { captureException } from "./capture-exception";
 
 // The channel the person's viewers read a file on this computer through, by
 // its real path. Its origin carries a per-launch token, resolved once at boot

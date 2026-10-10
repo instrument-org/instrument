@@ -11,7 +11,6 @@ import {
   requestQuit,
   startQuit,
 } from "@/electron-main/lib/quit";
-import { finalizeTelemetry } from "@/electron-main/lib/register-telemetry";
 import { diskModelCache } from "@/electron-main/stores/machine/model-cache";
 import { isFeatureEnabled } from "@/electron-main/stores/workspace/features";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
@@ -44,7 +43,6 @@ import { createBrowserViewManager } from "../browser-view/manager";
 import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { createAppsConfig, rememberAppsDir } from "./apps";
-import { captureServerEvent } from "./capture-server-event";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
@@ -58,9 +56,9 @@ const DEFAULT_TASK_TEMPLATE_DIR_NAME = "default-task-template";
 const SYSTEM_SKILLS_DIR_NAME = "system-skills";
 
 /**
- * What quit teardown allows the skills watcher and the telemetry flush on top of
- * the slowest thing it waits for. Enough that a background process taking its
- * whole grace period does not spend the other two's budget as well.
+ * What quit teardown allows the skills watcher on top of the slowest thing it
+ * waits for. Enough that a background process taking its whole grace period
+ * does not spend the watcher's budget as well.
  */
 const QUIT_TEARDOWN_SLACK_MS = ms("2 seconds");
 const UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR = path.resolve(
@@ -139,7 +137,6 @@ export function createWorkspaceActor() {
       apps: createAppsConfig(),
       appVersion: app.getVersion(),
       browser: browserViewManager.browser,
-      captureEvent: captureServerEvent,
       captureException: captureServerException,
       defaultTaskTemplateDir: app.isPackaged
         ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
@@ -282,9 +279,6 @@ export function createWorkspaceActor() {
           return confirmQuitWithRunningAgents();
         }),
         closeBrowserSessions: fromPromise(() => closeAllAgentBrowserSessions()),
-        // The app.exit at the end skips `will-quit`, where the telemetry flush
-        // and crash-marker cleanup would otherwise run, so drive them from here.
-        finalizeTelemetry: fromPromise(() => finalizeTelemetry()),
         stopServices: fromPromise(async () => {
           // @parcel/watcher aborts the process (SIGABRT) if a live subscription
           // is torn down while Node frees the environment, so stop the skills

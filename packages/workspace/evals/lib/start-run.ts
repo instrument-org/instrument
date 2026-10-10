@@ -91,7 +91,6 @@ export async function startRun(
   const sent = await newMessage({
     files,
     folders: folders?.map((folder) => ({ ...folder, source: "user" })),
-    model,
     modelURI: uri,
     prompt,
     sessionId,

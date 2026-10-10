@@ -148,7 +148,7 @@ function describe(status: Status) {
     return `Getting Claude Code ready, ${percent}% done.`;
   }
   if (status.signingIn) {
-    return `Finish signing in to Claude in your browser. ${APP_NAME} picks it up as soon as you're done.`;
+    return "Finish signing in to Claude in your browser.";
   }
   if (status.install?.state === "failed") {
     return `Claude Code didn't install: ${status.install.failed}`;

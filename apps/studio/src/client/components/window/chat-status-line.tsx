@@ -187,9 +187,7 @@ function isTyped(message: SessionMessage.WithParts): boolean {
  * A call still streaming in has its phase written first, so the phase counts
  * once another field has started after it.
  */
-export function turnStep(
-  messages: SessionMessage.WithParts[],
-): string | undefined {
+function turnStep(messages: SessionMessage.WithParts[]): string | undefined {
   const turnStart = messages.findLastIndex(
     (message) => message.role === "user",
   );

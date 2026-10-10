@@ -1025,7 +1025,7 @@ export function ChatStream({
  * get: a step still open whose latest part is text. A step calling a tool,
  * thinking, or not begun yet is working, not drafting.
  */
-export function isDraftingReply(messages: SessionMessage.WithParts[]): boolean {
+function isDraftingReply(messages: SessionMessage.WithParts[]): boolean {
   const last = messages.at(-1);
   return (
     last?.role === "assistant" &&

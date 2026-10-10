@@ -360,4 +360,98 @@ describe("webSearch", () => {
       );
     });
   });
+
+  describe("a model whose provider cannot search", () => {
+    const signedOut: WebSearchClient = () =>
+      Promise.resolve({
+        errorMessage: "Sign in to search the web.",
+        errorType: "not-authenticated",
+        ok: false,
+      });
+
+    function setUp(webSearch: WebSearchClient) {
+      const model = createMockAIGatewayModel({ provider: "openai-compatible" });
+      createMockTaskConfig(
+        TaskIdSchema.parse("2026-10-10-web-search-keyless"),
+        { model, webSearch },
+      );
+      return model;
+    }
+
+    it("searches keyless when the user is signed out", async () => {
+      const model = setUp(signedOut);
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        Response.json({
+          id: 1,
+          jsonrpc: "2.0",
+          result: {
+            content: [
+              {
+                text: "Title: One\nURL: https://one.test\nPublished: 2026-10-08T09:00:00.000Z\nAuthor: N/A\nHighlights:\nThe passage that matched.",
+                type: "text",
+              },
+            ],
+          },
+        }),
+      );
+
+      const results = await collect(model);
+      fetchSpy.mockRestore();
+
+      expect(results.map((r) => r._unsafeUnwrap())).toMatchInlineSnapshot(`
+        [
+          {
+            "costDollars": 0,
+            "kind": "excerpts",
+            "sources": [
+              {
+                "author": undefined,
+                "publishedDate": "2026-10-08T09:00:00.000Z",
+                "text": "The passage that matched.",
+                "title": "One",
+                "url": "https://one.test",
+              },
+            ],
+          },
+        ]
+      `);
+    });
+
+    it("leaves a signed-in user on our endpoint", async () => {
+      const model = setUp(() =>
+        Promise.resolve({
+          data: { costDollars: 0.007, results: [] },
+          ok: true,
+        }),
+      );
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      const results = await collect(model);
+      fetchSpy.mockRestore();
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(results.at(-1)?._unsafeUnwrap()).toMatchObject({
+        costDollars: 0.007,
+      });
+    });
+
+    it("offers signing in when the keyless search fails", async () => {
+      const model = setUp(signedOut);
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response("", { status: 500 }));
+
+      const results = await collect(model);
+      fetchSpy.mockRestore();
+
+      expect(results.map((r) => r._unsafeUnwrapErr())).toMatchInlineSnapshot(`
+        [
+          {
+            "errorMessage": "The free web search failed with status 500. Try again in a moment, or sign in to Instrument to search the web.",
+            "errorType": "not-authenticated",
+          },
+        ]
+      `);
+    });
+  });
 });

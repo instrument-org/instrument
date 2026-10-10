@@ -227,11 +227,10 @@ async function bootstrapPrimaryInstance() {
   // can surface a one-time "updated" notification.
   await timeBootStep("checkRecentVersionBump", checkRecentVersionBump);
 
-  const {
-    actor: workspaceRef,
-    browserViewManager,
-    workspaceConfig,
-  } = await timeBootStep("createWorkspaceActor", createWorkspaceActor);
+  const { actor: workspaceRef, workspaceConfig } = await timeBootStep(
+    "createWorkspaceActor",
+    createWorkspaceActor,
+  );
 
   // A signed-in ChatGPT account's access token lasts an hour.
   scheduleChatGPTAccountRefresh();
@@ -273,7 +272,6 @@ async function bootstrapPrimaryInstance() {
   await timeBootStep("initializeRPC", () => {
     initializeRPC({
       appUpdater: updater,
-      browserViewManager,
       workspaceConfig,
       workspaceRef,
     });

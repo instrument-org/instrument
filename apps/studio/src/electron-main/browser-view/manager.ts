@@ -89,9 +89,6 @@ export interface BrowserViewManager {
   // guests meant for it.
   bindHost: (host: WebContents) => void;
   browser: BrowserConfig;
-  // Debug-only handles, consumed by `./debug-snapshot.ts`. Read-only by
-  // convention; do not mutate the returned map from outside the manager.
-  getDebugEntries: () => ReadonlyMap<BrowserTargetId, BrowserEntry>;
   // Every recorded target and whether its guest has attached yet. The renderer
   // pool mounts a guest for every id; the UI treats only attached ones as live.
   getTargets: () => BrowserGuestTarget[];
@@ -757,7 +754,6 @@ export function createBrowserViewManager(): BrowserViewManager {
   managerInstance = {
     bindHost,
     browser,
-    getDebugEntries: () => entries,
     getTargets: () =>
       [...entries.values()].map((entry) => ({
         attached: hasGuest(entry),

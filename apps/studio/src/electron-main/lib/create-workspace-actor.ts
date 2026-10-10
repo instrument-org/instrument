@@ -318,7 +318,6 @@ export function createWorkspaceActor() {
 
   return {
     actor,
-    browserViewManager,
     workspaceConfig,
   };
 }

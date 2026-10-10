@@ -19,8 +19,6 @@ import fsSync from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 
-import { browserViewManagerDebugRoutes } from "../../browser-view/debug-snapshot";
-
 const systemInfo = devOnly.handler(async ({ context }) => {
   const pnpmVersionValue = await pnpmVersion();
   return [
@@ -38,20 +36,6 @@ const systemInfo = devOnly.handler(async ({ context }) => {
     },
   ];
 });
-
-const throwError = devOnly
-  .input(
-    z.object({
-      type: z.enum(["known", "unknown"]),
-    }),
-  )
-  .handler(({ errors, input }) => {
-    const error =
-      input.type === "known"
-        ? errors.NOT_FOUND({ message: "This is a known error for testing" })
-        : new Error("This is an uncaught error for testing");
-    throw error;
-  });
 
 const events = {
   testNotification: devOnly.handler(async function* ({ signal }) {
@@ -279,7 +263,6 @@ const setQuitGuardForced = devOnly
   });
 
 export const debug = {
-  browserViewManager: browserViewManagerDebugRoutes,
   events,
   getAppEnvironment,
   getQuitGuardForced,
@@ -290,6 +273,5 @@ export const debug = {
   setQuitGuardForced,
   skipOnboarding,
   systemInfo,
-  throwError,
   trigger,
 };

@@ -91,11 +91,9 @@ describe("screenPresentation", () => {
   });
 
   it.each([
-    ["the debug home", "/debug", "Debug home"],
-    ["a debug tool", "/debug/errors", "Errors"],
+    ["a debug tool", "/debug/notifications", "Notifications"],
     ["a component page", "/debug/components/colors", "Colors"],
     ["an onboarding screen", "/debug/components/onboarding/login", "Log in"],
-    ["one agent browser", "/debug/browser-view/target-1", "Debug browser view"],
   ])("names %s", (_, href, title) => {
     expect(screenPresentation(href, CONTEXT).title).toBe(title);
   });

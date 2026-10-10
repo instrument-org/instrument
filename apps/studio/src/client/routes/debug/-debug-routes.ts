@@ -1,64 +1,17 @@
-const debugRoutes = [
+export const debugNavigationRoutes = [
   {
-    description: "Start here and jump into focused debug tools.",
-    id: "index",
-    label: "Debug home",
-    showCard: false,
-    showNav: true,
-    title: "Debug home",
-    to: "/debug",
-  },
-  {
-    description: "Browse UI component previews.",
     id: "components",
     label: "Components",
-    showCard: true,
-    showNav: true,
     title: "Debug components",
     to: "/debug/components",
   },
   {
-    description: "Trigger RPC error states.",
-    id: "errors",
-    label: "Errors",
-    showCard: true,
-    showNav: true,
-    title: "Debug errors",
-    to: "/debug/errors",
-  },
-  {
-    description: "Watch agent browser state.",
-    id: "browserViews",
-    label: "Browser views",
-    showCard: true,
-    showNav: true,
-    title: "Debug browser views",
-    to: "/debug/browser-views",
-  },
-  {
-    description: "Trigger notification states for testing.",
     id: "notifications",
     label: "Notifications",
-    showCard: true,
-    showNav: true,
     title: "Debug notifications",
     to: "/debug/notifications",
   },
-  {
-    id: "browserView",
-    showCard: false,
-    showNav: false,
-    title: "Debug browser view",
-  },
 ] as const;
-
-export const debugNavigationRoutes = debugRoutes.filter(
-  (route) => route.showNav && "to" in route,
-);
-
-export const debugCardRoutes = debugRoutes.filter(
-  (route) => route.showCard && "to" in route,
-);
 
 export const componentPages = [
   {
@@ -152,7 +105,7 @@ export const onboardingScreens = [
 ] as const;
 
 type ComponentPageId = (typeof componentPages)[number]["id"];
-type DebugRouteId = (typeof debugRoutes)[number]["id"];
+type DebugRouteId = (typeof debugNavigationRoutes)[number]["id"];
 type OnboardingScreenId = (typeof onboardingScreens)[number]["id"];
 
 /**
@@ -162,9 +115,6 @@ type OnboardingScreenId = (typeof onboardingScreens)[number]["id"];
  */
 export function debugPageTitle(pathname: string): string {
   const path = pathname.replace(/\/$/, "");
-  if (path.startsWith("/debug/browser-view/")) {
-    return getDebugRoute("browserView").title;
-  }
   const page = [
     ...debugNavigationRoutes,
     ...componentPages,
@@ -182,7 +132,7 @@ export function getComponentPage(id: ComponentPageId) {
 }
 
 export function getDebugRoute(id: DebugRouteId) {
-  const route = debugRoutes.find((item) => item.id === id);
+  const route = debugNavigationRoutes.find((item) => item.id === id);
   if (!route) {
     throw new Error(`Unknown debug route: ${id}`);
   }

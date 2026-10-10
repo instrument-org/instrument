@@ -79,6 +79,7 @@ Grouped by area; status is the short form of each file's own line.
 | [What marks a renderer hidden](electron-page-visibility.md) — and what does not | resolved, guidance |
 | [Task file links resolve at render time](task-file-links-resolve-at-render-time.md) | resolved |
 | [Task attention state must be persisted](task-attention-state-persistence.md) — not derived from live status | moot, unread marks removed |
+| [Route preloading does not pay](route-preloading-does-not-pay.md): a local chunk costs single-digit milliseconds, so slow screens wait on data or rendering | closed, measured |
 
 ### App lifecycle and platform
 

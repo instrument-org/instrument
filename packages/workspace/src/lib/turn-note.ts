@@ -53,7 +53,7 @@ export function opensTypedTurn(messages: SessionMessage.WithParts[]): boolean {
  * step). Without a message after it, the request would end on the agent's own
  * reply, which some providers refuse as prefill.
  */
-export const PROMISED_NOTE = systemNote`
+const PROMISED_NOTE = systemNote`
   Your last reply said you would start work but called no tool. Do it now, without saying the line again.
 `;
 

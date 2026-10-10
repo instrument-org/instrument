@@ -90,6 +90,7 @@ const config: KnipConfig = {
         "__mocks__/*",
         "evals/cli.ts!",
         "evals/handoff-matrix.ts!",
+        "evals/user-view-grade.ts!",
         "evals/lib/memoize-model-catalogs.ts!",
         "evals/lib/pin-openrouter-model.ts!",
         "evals/lib/retry-workers-ai-rate-limits.ts!",

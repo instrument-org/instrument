@@ -170,7 +170,7 @@ export function withoutCall(
  * Every folder the chat reaches, at the chat's own path and access, so a path
  * anywhere in the inherited conversation is the same path in the fork.
  */
-export function grantsOfChat(
+function grantsOfChat(
   chatFolders: Awaited<ReturnType<typeof folderReach>>,
 ): FolderGrant[] {
   return Object.values(chatFolders).map((folder) => ({
@@ -187,7 +187,7 @@ export function grantsOfChat(
  * own first turn. Returns the fork's id once its
  * session has been asked to start.
  */
-export async function startFork({
+async function startFork({
   assignment,
   chatId,
   chatSessionId,

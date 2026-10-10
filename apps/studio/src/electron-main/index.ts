@@ -64,6 +64,7 @@ import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { filesInArgv } from "./lib/files-in-argv";
 import { logGpuStatus } from "./lib/gpu-status";
 import { handleBootFailure } from "./lib/handle-boot-failure";
+import { startAppCatalog } from "./lib/app-catalog";
 import { startNotices } from "./lib/notices";
 import { sendPendingAutomatically } from "./lib/problem-reports";
 import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
@@ -319,6 +320,9 @@ async function bootstrapPrimaryInstance() {
 
   // Notices from us for this build and account, for the bell.
   startNotices();
+
+  // The app directory as we serve it now, in place of the one built in.
+  startAppCatalog();
 
   app.on("activate", function () {
     // On macOS it's common to re-create a window in the app when the

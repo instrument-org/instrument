@@ -9,6 +9,7 @@ export {
   catalogEntrySupportsApiKey,
   catalogEntryForApp,
   catalogKeyHelp,
+  applyServedAppCatalog,
   findCatalogEntry,
   getAppCatalog,
   searchAppCatalogByMeaning,

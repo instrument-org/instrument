@@ -4,6 +4,7 @@ import {
   APP_FAMILY_IDS,
   searchDirectory,
 } from "@instrument-org/shared/app-directory";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { askDecisionModel } from "../decision-model";
@@ -127,11 +128,90 @@ const AppCatalogEntrySchema = z.object({
 
 export type AppCatalogEntry = z.output<typeof AppCatalogEntrySchema>;
 
-const CatalogSeedSchema = z.object({
-  entries: z.array(AppCatalogEntrySchema),
+/**
+ * The directory as the seed holds it and our API serves it. `revision` is
+ * when its entries last changed, as an ISO time, so a build can tell a served
+ * copy older than its own; `entriesHash` is what a test checks the entries
+ * against, so an edit that forgets to move the revision fails. Entries stay
+ * unknown here and are read one at a time, so one a build cannot read costs
+ * that entry rather than the directory.
+ */
+export const AppCatalogDocumentSchema = z.object({
+  entries: z.array(z.unknown()),
+  entriesHash: z.string(),
+  revision: z.iso.datetime(),
 });
 
-let cached: AppCatalogEntry[] | undefined;
+/** What `entriesHash` holds for a directory's entries. */
+export function appCatalogEntriesHash(entries: unknown[]): string {
+  return createHash("sha256")
+    .update(JSON.stringify(entries))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+type Catalog = { entries: AppCatalogEntry[]; revision: string };
+
+let builtIn: Catalog | undefined;
+let served: Catalog | undefined;
+
+/** The directory this build ships, parsed and validated once. */
+function builtInCatalog(): Catalog {
+  if (builtIn === undefined) {
+    const document = AppCatalogDocumentSchema.parse(catalogSeed);
+    builtIn = {
+      entries: z.array(AppCatalogEntrySchema).parse(document.entries),
+      revision: document.revision,
+    };
+  }
+  return builtIn;
+}
+
+/** The revision of the directory this build ships. */
+export function builtInAppCatalogRevision(): string {
+  return builtInCatalog().revision;
+}
+
+/**
+ * Use a directory our API served in place of the built-in one, so a fix to
+ * the directory reaches builds already installed. One older than the
+ * built-in is refused, since it would undo what this build shipped with. An
+ * entry this build cannot read keeps the built-in entry of the same slug,
+ * when there is one, rather than dropping the service.
+ */
+export function applyServedAppCatalog(
+  document: unknown,
+): "older" | "unreadable" | "used" {
+  const parsed = AppCatalogDocumentSchema.safeParse(document);
+  if (!parsed.success) {
+    return "unreadable";
+  }
+  const own = builtInCatalog();
+  if (Date.parse(parsed.data.revision) < Date.parse(own.revision)) {
+    return "older";
+  }
+  const entries = parsed.data.entries.flatMap((raw) => {
+    const entry = AppCatalogEntrySchema.safeParse(raw);
+    if (entry.success) {
+      return [entry.data];
+    }
+    const slug = z.object({ slug: z.string() }).safeParse(raw);
+    const fallback = slug.success
+      ? own.entries.find((candidate) => candidate.slug === slug.data.slug)
+      : undefined;
+    return fallback ? [fallback] : [];
+  });
+  if (entries.length === 0) {
+    return "unreadable";
+  }
+  served = { entries, revision: parsed.data.revision };
+  return "used";
+}
+
+/** Back to the built-in directory, for tests. */
+export function resetServedAppCatalog(): void {
+  served = undefined;
+}
 
 /**
  * The entry's own MCP server that runs on this machine, when it has one: for
@@ -326,10 +406,9 @@ export function catalogEntryForApp(
   );
 }
 
-/** The built-in directory, parsed and validated once. */
+/** The directory: the one our API served when there is one, else the built-in. */
 export function getAppCatalog(): AppCatalogEntry[] {
-  cached ??= CatalogSeedSchema.parse(catalogSeed).entries;
-  return cached;
+  return served?.entries ?? builtInCatalog().entries;
 }
 
 /**

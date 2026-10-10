@@ -13,7 +13,6 @@ import {
   closeOnboardingWindow,
   openOnboardingWindow,
 } from "@/electron-main/windows/onboarding";
-import { PORTS } from "@instrument-org/shared";
 import {
   DEV_INSTANCE_COLORS,
   isDevInstanceColor,
@@ -151,13 +150,6 @@ const openOnboarding = devOnly.input(z.void()).handler(() => {
   openOnboardingWindow();
 });
 
-const openAuthTestPage = devOnly.input(z.void()).handler(() => {
-  const port = app.isPackaged
-    ? PORTS.authCallback.prod
-    : PORTS.authCallback.dev;
-  void shell.openExternal(`http://localhost:${port}/test`);
-});
-
 /**
  * The remote debugging port this instance answers on. It is the only thing that
  * separates two instances of one checkout, which is what a hand-started window
@@ -281,7 +273,6 @@ export const debug = {
   events,
   getAppEnvironment,
   getQuitGuardForced,
-  openAuthTestPage,
   openOnboarding,
   openUserDataFolder,
   openWorkspaceFolder,

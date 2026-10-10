@@ -97,6 +97,7 @@ export function AppIcon({
           className,
         )}
         draggable={false}
+        loading="lazy"
         src={icon}
       />
     );
@@ -119,6 +120,10 @@ export function AppIcon({
             size === "sm" ? "rounded-sm" : "rounded-[22%]",
           )}
           draggable={false}
+          // The directory draws one per service, each a request the main
+          // process answers; asked for all at once they hold up its first
+          // scroll, so the ones below the fold wait until it nears them.
+          loading="lazy"
           src={mark}
         />
       ) : site ? (

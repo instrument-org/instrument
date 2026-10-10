@@ -44,7 +44,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [Semantic prompt composer](active/semantic-prompt-composer.md) | landed for skills and apps |
 | [Render a file to look at it](active/render-a-file-to-look-at-it.md): letting a task look at what it made | proposed, nothing built |
 | [Chat status line and loading states](active/chat-status-line-and-loading-states.md): dots only while a reply is written, one activity line under the title | proposed |
-| [Fork sessions in the chat's task.db](active/fork-sessions-in-chat-task-db.md): a fork's session lives in its chat's database, with no record folder | proposed |
+| [One chat, one database](active/one-chat-one-database.md): a chat is the only record; its database holds sessions as a tree, and a task is a child session that reads its history from the parent | accepted, in progress |
 
 ### Files, folders, skills, and storage
 

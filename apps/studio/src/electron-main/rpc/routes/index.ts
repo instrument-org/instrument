@@ -18,6 +18,7 @@ import { onboarding } from "./onboarding";
 import { pageEditor } from "./page-editor";
 import { plans } from "./plans";
 import { preferences } from "./preferences";
+import { problems } from "./problems";
 import { providerConfig } from "./provider-config";
 import { releases } from "./releases";
 import { stripe } from "./stripe";
@@ -48,6 +49,7 @@ export const router = {
   pageEditor,
   plans,
   preferences,
+  problems,
   providerConfig,
   releases,
   stripe,

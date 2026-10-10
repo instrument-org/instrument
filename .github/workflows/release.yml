@@ -71,6 +71,7 @@ jobs:
         run: pnpm turbo run build:vite --filter=@instrument-org/studio
         env:
           MAIN_VITE_APP_API_BASE_URL: ${{ vars.MAIN_VITE_APP_API_BASE_URL }}
+          MAIN_VITE_REPORTS_BASE_URL: ${{ vars.MAIN_VITE_REPORTS_BASE_URL }}
 
       - if: matrix.os == 'ubuntu-latest'
         name: Package Linux
@@ -87,6 +88,7 @@ jobs:
         run: pnpm turbo run build:vite --filter=@instrument-org/studio
         env:
           MAIN_VITE_APP_API_BASE_URL: ${{ vars.MAIN_VITE_APP_API_BASE_URL }}
+          MAIN_VITE_REPORTS_BASE_URL: ${{ vars.MAIN_VITE_REPORTS_BASE_URL }}
 
       # Apple's notary service intermittently drops the connection while the
       # signing step polls for submission status, which surfaces as an opaque
@@ -188,6 +190,7 @@ jobs:
         run: pnpm turbo run build:vite --filter=@instrument-org/studio
         env:
           MAIN_VITE_APP_API_BASE_URL: ${{ vars.MAIN_VITE_APP_API_BASE_URL }}
+          MAIN_VITE_REPORTS_BASE_URL: ${{ vars.MAIN_VITE_REPORTS_BASE_URL }}
 
       - if: matrix.os == 'windows-latest'
         name: Package Windows

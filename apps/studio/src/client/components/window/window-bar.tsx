@@ -1,4 +1,5 @@
 import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
+import { ProblemsBell } from "@/client/components/window/problems-bell";
 import { WindowControls } from "@/client/components/window-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { cn, isMacOS } from "@/client/lib/utils";
@@ -97,6 +98,7 @@ export function WindowCorner() {
       {/* A build waiting to be installed is the window's news, not a
         chat's, so it sits in the window's corner. */}
       <UpdateStatusIndicator />
+      <ProblemsBell />
     </>
   );
 }

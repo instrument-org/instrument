@@ -64,6 +64,7 @@ import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { filesInArgv } from "./lib/files-in-argv";
 import { logGpuStatus } from "./lib/gpu-status";
 import { handleBootFailure } from "./lib/handle-boot-failure";
+import { sendPendingAutomatically } from "./lib/problem-reports";
 import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
 import { requestQuitApproval, withdrawQuitApproval } from "./lib/quit";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
@@ -310,6 +311,10 @@ async function bootstrapPrimaryInstance() {
   void logGpuStatus(app);
 
   void startAuthCallbackServer();
+
+  // A crash from the last session goes out now when the person chose to send
+  // error reports without asking; otherwise it waits in the bell.
+  void sendPendingAutomatically();
 
   app.on("activate", function () {
     // On macOS it's common to re-create a window in the app when the

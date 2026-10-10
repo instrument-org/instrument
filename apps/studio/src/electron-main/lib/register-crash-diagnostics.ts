@@ -6,6 +6,7 @@ import path from "node:path";
 import { captureServerException } from "./capture-server-exception";
 import { describeError } from "./describe-error";
 import { createScopedLogger } from "./electron-logger";
+import { recordEndedSession } from "./problem-reports";
 
 const log = createScopedLogger("CrashDiagnostics");
 
@@ -64,9 +65,16 @@ export function registerCrashDiagnostics(app: Electron.App) {
   // Before ready, so every process the app starts is watched.
   crashReporter.start({ uploadToServer: false });
 
-  reportPreviousCrash(app);
-  reportUncleanExit(app);
-  reportNewCrashDumps(app);
+  const crashRecord = reportPreviousCrash(app);
+  const exit = reportUncleanExit(app);
+  const dumps = reportNewCrashDumps(app);
+  recordEndedSession({
+    crashRecord,
+    dumps,
+    endedAt: Date.now(),
+    previousVersion: exit.previousVersion,
+    unclean: exit.unclean,
+  });
 
   // Written synchronously, ahead of the listeners below, so the record exists
   // whatever reporting does. See `writeCrashRecord`. A network drop is left
@@ -160,15 +168,22 @@ function isOtherLiveProcess(pid: unknown): boolean {
  * per worktree), so it is neither reported nor taken over. A marker with no
  * readable details is one an older build wrote, and it still means the same.
  */
-function reportUncleanExit(app: Electron.App) {
+function reportUncleanExit(app: Electron.App): {
+  previousVersion: string | undefined;
+  unclean: boolean;
+} {
   const markerPath = getSessionMarkerPath(app);
+  let previousVersion: string | undefined;
+  let unclean = false;
   try {
     if (fs.existsSync(markerPath)) {
       const previous = readSessionMarker(markerPath);
       if (isOtherLiveProcess(previous?.pid)) {
-        return;
+        return { previousVersion: undefined, unclean: false };
       }
       if (previous?.pid !== process.pid) {
+        unclean = true;
+        previousVersion = previous?.version;
         const details = previous
           ? ` (${previous.version}, started ${previous.startedAt})`
           : "";
@@ -191,7 +206,7 @@ function reportUncleanExit(app: Electron.App) {
         cause: error,
       }),
     );
-    return;
+    return { previousVersion, unclean };
   }
   process.on("exit", () => {
     try {
@@ -202,6 +217,7 @@ function reportUncleanExit(app: Electron.App) {
       // Already gone, or another instance has it.
     }
   });
+  return { previousVersion, unclean };
 }
 
 function readSessionMarker(
@@ -238,7 +254,7 @@ function readSessionMarker(
  * size, so this only reads. The dumps stay on this computer; the log line says
  * where one is, for a report the user chooses to send.
  */
-function reportNewCrashDumps(app: Electron.App) {
+function reportNewCrashDumps(app: Electron.App): number {
   const reportedPath = getDumpsReportedPath(app);
   try {
     const reportedUntil = fs.existsSync(reportedPath)
@@ -265,12 +281,15 @@ function reportNewCrashDumps(app: Electron.App) {
     if (latest) {
       fs.writeFileSync(reportedPath, String(latest.mtimeMs));
     }
+    return dumps.length;
   } catch (error) {
     // No `crashDumps` yet is the first start, not a failure.
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-      return;
+    if (
+      !(error instanceof Error && "code" in error && error.code === "ENOENT")
+    ) {
+      log.warn(new Error("Could not read the crash dumps", { cause: error }));
     }
-    log.warn(new Error("Could not read the crash dumps", { cause: error }));
+    return 0;
   }
 }
 
@@ -292,11 +311,11 @@ function identifyWebContents(webContents: Electron.WebContents): string {
  *
  * Removed once read, so a later boot does not report the same crash again.
  */
-function reportPreviousCrash(app: Electron.App) {
+function reportPreviousCrash(app: Electron.App): string | undefined {
   const recordPath = getCrashRecordPath(app);
   try {
     if (!fs.existsSync(recordPath)) {
-      return;
+      return undefined;
     }
     const contents = fs
       .readFileSync(recordPath, "utf8")
@@ -306,10 +325,12 @@ function reportPreviousCrash(app: Electron.App) {
     if (contents) {
       log.error(`Previous session hit an uncaught exception:\n${contents}`);
     }
+    return contents || undefined;
   } catch (error) {
     log.warn(
       new Error("Could not read the previous crash record", { cause: error }),
     );
+    return undefined;
   }
 }
 

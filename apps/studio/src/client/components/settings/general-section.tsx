@@ -10,6 +10,7 @@ import { CopyButton } from "@/client/components/copy-button";
 import { ExternalLink } from "@/client/components/external-link";
 import { ThemeToggle } from "@/client/components/theme-toggle";
 import { Button } from "@/client/components/ui/button";
+import { Switch } from "@/client/components/ui/switch";
 import { Card } from "@/client/components/ui/card";
 import {
   Dialog,
@@ -576,9 +577,9 @@ function DiagnosticLog() {
           <div className="text-sm font-medium">Diagnostic log</div>
           <p className="text-xs text-muted-foreground">
             {APP_NAME} keeps a private, local-only record of what it did while
-            running. Send this log to {APP_NAME} Support when you report a
-            problem. It can include the names of files and tasks you worked on,
-            so read it before you share it.
+            running. A report about the app includes its last lines, which can
+            name files and tasks you worked on, so you can read them in the
+            report before you send it.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -598,6 +599,7 @@ function DiagnosticLog() {
             }}
           />
         </div>
+        <AutomaticErrorReports />
       </div>
 
       <Dialog onOpenChange={setViewerOpen} open={viewerOpen}>
@@ -705,6 +707,43 @@ function DiagnosticLog() {
  * ("save a copy", "export") each read as something slightly different from what
  * happens. The tooltip carries the name for anyone who wants one.
  */
+/**
+ * Whether crashes and app errors are sent without asking. It's turned on from
+ * a report's own checkbox, so this is where it's turned off.
+ */
+function AutomaticErrorReports() {
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setSendAutomatically = useMutation(
+    rpcClient.problems.setSendAutomatically.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't change that setting", { cause: error });
+      },
+    }),
+  );
+  return (
+    <label className="flex items-start justify-between gap-4 border-t border-border pt-3">
+      <span className="space-y-1">
+        <span className="block text-sm font-medium">
+          Send error reports automatically
+        </span>
+        <span className="block text-xs text-muted-foreground">
+          When {APP_NAME} crashes or runs into an error, it sends a report
+          without asking. Chats are never sent automatically.
+        </span>
+      </span>
+      <Switch
+        checked={preferences?.sendErrorReportsAutomatically === true}
+        disabled={setSendAutomatically.isPending}
+        onCheckedChange={(enabled) => {
+          setSendAutomatically.mutate({ enabled });
+        }}
+      />
+    </label>
+  );
+}
+
 function DownloadLogButton({
   disabled,
   onDownload,

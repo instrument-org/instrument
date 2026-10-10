@@ -270,6 +270,10 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
     historyMenu,
     createWindowMenu(),
     createHelpMenu({
+      reportProblem: () => {
+        BrowserWindow.getFocusedWindow()?.webContents.focus();
+        publisher.publish("window.command", "reportProblem");
+      },
       shortcutGuide: () => {
         // A focused page guest holds the keyboard, and the guide's search
         // field is the window's, so the window takes the keyboard back first.

@@ -5,13 +5,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { registerCrashDiagnostics } from "./register-crash-diagnostics";
 
-const { captureServerException, crashReporter, log } = vi.hoisted(() => ({
-  captureServerException: vi.fn(),
-  crashReporter: { start: vi.fn() },
-  log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
-}));
+const { captureServerException, crashReporter, log, recordEndedSession } =
+  vi.hoisted(() => ({
+    captureServerException: vi.fn(),
+    crashReporter: { start: vi.fn() },
+    recordEndedSession: vi.fn(),
+    log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+  }));
 
 vi.mock("electron", () => ({ crashReporter }));
+vi.mock("./problem-reports", () => ({ recordEndedSession }));
 
 vi.mock("./electron-logger", () => ({ createScopedLogger: () => log }));
 vi.mock("./capture-server-exception", () => ({ captureServerException }));
@@ -438,5 +441,28 @@ describe("registerCrashDiagnostics", () => {
     vi.clearAllMocks();
     registerCrashDiagnostics(createFakeApp().app);
     expect(log.error).not.toHaveBeenCalled();
+  });
+
+  it("hands how the last session ended to the problem reports", () => {
+    fs.writeFileSync(
+      sessionMarkerPath(),
+      JSON.stringify({
+        pid: 999_999_999,
+        startedAt: "2026-10-09T12:00:00.000Z",
+        version: "2.0.4",
+      }),
+    );
+    fs.writeFileSync(crashRecordPath(), "uncaughtException: boom\n");
+
+    registerCrashDiagnostics(createFakeApp().app);
+
+    expect(recordEndedSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        crashRecord: "uncaughtException: boom",
+        dumps: 0,
+        previousVersion: "2.0.4",
+        unclean: true,
+      }),
+    );
   });
 });

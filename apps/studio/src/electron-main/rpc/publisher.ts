@@ -18,6 +18,9 @@ interface PublisherEvents {
         outcome: Extract<SignInOutcome, "failed">;
       }
     | { outcome: Extract<SignInOutcome, "declined" | "signed-in"> };
+  // The problems from earlier sessions waiting in the bell changed: one was
+  // found at start, sent, or dismissed.
+  "problems.updated": null;
   // The in-app browser's download list changed: a download began, moved
   // along, ended, or was taken off the list. The agent's own downloads report
   // through agent-browser instead and are not on it.
@@ -105,6 +108,7 @@ interface PublisherEvents {
     | "nextTab"
     | "openSettings"
     | "openShortcutGuide"
+    | "reportProblem"
     | "previousChat"
     | "previousTab"
     | "reloadPage"

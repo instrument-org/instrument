@@ -76,7 +76,7 @@ export function ConnectControls({
     setSignInsWaiting((current) => {
       const next = new Map(current);
       if (isWaiting) {
-        next.set(slug, from);
+        next.set(slug, { from, inChat: appWindow?.chatId !== undefined });
       } else {
         next.delete(slug);
       }

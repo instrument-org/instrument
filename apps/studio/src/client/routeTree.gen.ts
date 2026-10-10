@@ -19,7 +19,6 @@ import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as DebugIndexRouteImport } from './routes/debug/index'
 import { Route as DebugComponentsRouteImport } from './routes/debug/components'
-import { Route as DebugNotificationsRouteImport } from './routes/debug/notifications'
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
 import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
 import { Route as OnboardingThemeRouteImport } from './routes/onboarding/theme'
@@ -43,6 +42,7 @@ import { Route as DebugComponentsOnboardingRouteImport } from './routes/debug/co
 import { Route as DebugComponentsProviderIconsRouteImport } from './routes/debug/components/provider-icons'
 import { Route as DebugComponentsQuestionRouteImport } from './routes/debug/components/question'
 import { Route as DebugComponentsSpinnerRouteImport } from './routes/debug/components/spinner'
+import { Route as DebugComponentsToastsRouteImport } from './routes/debug/components/toasts'
 import { Route as DebugComponentsTranscriptRouteImport } from './routes/debug/components/transcript'
 import { Route as DebugComponentsTypographyRouteImport } from './routes/debug/components/typography'
 import { Route as DebugComponentsOnboardingIndexRouteImport } from './routes/debug/components/onboarding/index'
@@ -98,11 +98,6 @@ const DebugIndexRoute = DebugIndexRouteImport.update({
 const DebugComponentsRoute = DebugComponentsRouteImport.update({
   id: '/components',
   path: '/components',
-  getParentRoute: () => DebugRouteRoute,
-} as any)
-const DebugNotificationsRoute = DebugNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
   getParentRoute: () => DebugRouteRoute,
 } as any)
 const OnboardingIndexRoute = OnboardingIndexRouteImport.update({
@@ -227,6 +222,11 @@ const DebugComponentsSpinnerRoute = DebugComponentsSpinnerRouteImport.update({
   path: '/spinner',
   getParentRoute: () => DebugComponentsRoute,
 } as any)
+const DebugComponentsToastsRoute = DebugComponentsToastsRouteImport.update({
+  id: '/toasts',
+  path: '/toasts',
+  getParentRoute: () => DebugComponentsRoute,
+} as any)
 const DebugComponentsTranscriptRoute =
   DebugComponentsTranscriptRouteImport.update({
     id: '/transcript',
@@ -279,7 +279,6 @@ export interface FileRoutesByFullPath {
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
-  '/debug/notifications': typeof DebugNotificationsRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/debug/': typeof DebugIndexRoute
@@ -300,6 +299,7 @@ export interface FileRoutesByFullPath {
   '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
   '/debug/components/question': typeof DebugComponentsQuestionRoute
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
+  '/debug/components/toasts': typeof DebugComponentsToastsRoute
   '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/apps/': typeof AppAppsIndexRoute
@@ -318,7 +318,6 @@ export interface FileRoutesByTo {
   '/files': typeof AppFilesRoute
   '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
-  '/debug/notifications': typeof DebugNotificationsRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/debug': typeof DebugIndexRoute
@@ -338,6 +337,7 @@ export interface FileRoutesByTo {
   '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
   '/debug/components/question': typeof DebugComponentsQuestionRoute
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
+  '/debug/components/toasts': typeof DebugComponentsToastsRoute
   '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/apps': typeof AppAppsIndexRoute
@@ -361,7 +361,6 @@ export interface FileRoutesById {
   '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
-  '/debug/notifications': typeof DebugNotificationsRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
   '/debug/': typeof DebugIndexRoute
@@ -382,6 +381,7 @@ export interface FileRoutesById {
   '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
   '/debug/components/question': typeof DebugComponentsQuestionRoute
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
+  '/debug/components/toasts': typeof DebugComponentsToastsRoute
   '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/_app/apps/': typeof AppAppsIndexRoute
@@ -405,7 +405,6 @@ export interface FileRouteTypes {
     | '/new-tab'
     | '/release-notes'
     | '/debug/components'
-    | '/debug/notifications'
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/debug/'
@@ -426,6 +425,7 @@ export interface FileRouteTypes {
     | '/debug/components/provider-icons'
     | '/debug/components/question'
     | '/debug/components/spinner'
+    | '/debug/components/toasts'
     | '/debug/components/transcript'
     | '/debug/components/typography'
     | '/apps/'
@@ -444,7 +444,6 @@ export interface FileRouteTypes {
     | '/files'
     | '/new-tab'
     | '/release-notes'
-    | '/debug/notifications'
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/debug'
@@ -464,6 +463,7 @@ export interface FileRouteTypes {
     | '/debug/components/provider-icons'
     | '/debug/components/question'
     | '/debug/components/spinner'
+    | '/debug/components/toasts'
     | '/debug/components/transcript'
     | '/debug/components/typography'
     | '/apps'
@@ -486,7 +486,6 @@ export interface FileRouteTypes {
     | '/_app/new-tab'
     | '/_app/release-notes'
     | '/debug/components'
-    | '/debug/notifications'
     | '/onboarding/providers'
     | '/onboarding/theme'
     | '/debug/'
@@ -507,6 +506,7 @@ export interface FileRouteTypes {
     | '/debug/components/provider-icons'
     | '/debug/components/question'
     | '/debug/components/spinner'
+    | '/debug/components/toasts'
     | '/debug/components/transcript'
     | '/debug/components/typography'
     | '/_app/apps/'
@@ -597,13 +597,6 @@ declare module '@tanstack/react-router' {
       path: '/components'
       fullPath: '/debug/components'
       preLoaderRoute: typeof DebugComponentsRouteImport
-      parentRoute: typeof DebugRouteRoute
-    }
-    '/debug/notifications': {
-      id: '/debug/notifications'
-      path: '/notifications'
-      fullPath: '/debug/notifications'
-      preLoaderRoute: typeof DebugNotificationsRouteImport
       parentRoute: typeof DebugRouteRoute
     }
     '/onboarding/': {
@@ -767,6 +760,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugComponentsSpinnerRouteImport
       parentRoute: typeof DebugComponentsRoute
     }
+    '/debug/components/toasts': {
+      id: '/debug/components/toasts'
+      path: '/toasts'
+      fullPath: '/debug/components/toasts'
+      preLoaderRoute: typeof DebugComponentsToastsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
     '/debug/components/transcript': {
       id: '/debug/components/transcript'
       path: '/transcript'
@@ -888,6 +888,7 @@ interface DebugComponentsRouteChildren {
   DebugComponentsProviderIconsRoute: typeof DebugComponentsProviderIconsRoute
   DebugComponentsQuestionRoute: typeof DebugComponentsQuestionRoute
   DebugComponentsSpinnerRoute: typeof DebugComponentsSpinnerRoute
+  DebugComponentsToastsRoute: typeof DebugComponentsToastsRoute
   DebugComponentsTranscriptRoute: typeof DebugComponentsTranscriptRoute
   DebugComponentsTypographyRoute: typeof DebugComponentsTypographyRoute
   DebugComponentsIndexRoute: typeof DebugComponentsIndexRoute
@@ -906,6 +907,7 @@ const DebugComponentsRouteChildren: DebugComponentsRouteChildren = {
   DebugComponentsProviderIconsRoute: DebugComponentsProviderIconsRoute,
   DebugComponentsQuestionRoute: DebugComponentsQuestionRoute,
   DebugComponentsSpinnerRoute: DebugComponentsSpinnerRoute,
+  DebugComponentsToastsRoute: DebugComponentsToastsRoute,
   DebugComponentsTranscriptRoute: DebugComponentsTranscriptRoute,
   DebugComponentsTypographyRoute: DebugComponentsTypographyRoute,
   DebugComponentsIndexRoute: DebugComponentsIndexRoute,
@@ -917,13 +919,11 @@ const DebugComponentsRouteWithChildren = DebugComponentsRoute._addFileChildren(
 
 interface DebugRouteRouteChildren {
   DebugComponentsRoute: typeof DebugComponentsRouteWithChildren
-  DebugNotificationsRoute: typeof DebugNotificationsRoute
   DebugIndexRoute: typeof DebugIndexRoute
 }
 
 const DebugRouteRouteChildren: DebugRouteRouteChildren = {
   DebugComponentsRoute: DebugComponentsRouteWithChildren,
-  DebugNotificationsRoute: DebugNotificationsRoute,
   DebugIndexRoute: DebugIndexRoute,
 }
 

@@ -40,18 +40,6 @@ const systemInfo = devOnly.handler(async ({ context }) => {
   ];
 });
 
-const events = {
-  testNotification: devOnly.handler(async function* ({ signal }) {
-    for await (const _payload of publisher.subscribe("test-notification", {
-      signal,
-    })) {
-      yield {
-        testNotification: true,
-      };
-    }
-  }),
-};
-
 const trigger = {
   testDownloadNotification: devOnly.handler(() => {
     publisher.publish("updates.status", {
@@ -110,9 +98,6 @@ const trigger = {
         },
       });
     });
-  }),
-  testNotification: devOnly.handler(() => {
-    publisher.publish("test-notification", null);
   }),
   testNoUpdateNotification: devOnly.handler(() => {
     publisher.publish("updates.status", {
@@ -270,7 +255,6 @@ const setQuitGuardForced = devOnly
   });
 
 export const debug = {
-  events,
   getAppEnvironment,
   getQuitGuardForced,
   openOnboarding,

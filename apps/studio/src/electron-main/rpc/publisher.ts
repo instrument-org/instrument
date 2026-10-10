@@ -79,7 +79,6 @@ interface PublisherEvents {
   };
   "server-exceptions.updated": null;
   "session.apiBearerToken.updated": null;
-  "test-notification": null;
   "updates.status": { status: AppUpdaterStatus };
   "updates.trigger-check": null;
   // Asked of the app window by a swipe, a thumb button, a menu

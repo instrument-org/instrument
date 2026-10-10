@@ -5,12 +5,6 @@ export const debugNavigationRoutes = [
     title: "Debug components",
     to: "/debug/components",
   },
-  {
-    id: "notifications",
-    label: "Notifications",
-    title: "Debug notifications",
-    to: "/debug/notifications",
-  },
 ] as const;
 
 export const componentPages = [
@@ -73,6 +67,11 @@ export const componentPages = [
     id: "alerts",
     label: "Alerts",
     to: "/debug/components/alerts",
+  },
+  {
+    id: "toasts",
+    label: "Toasts",
+    to: "/debug/components/toasts",
   },
   {
     id: "form-elements",

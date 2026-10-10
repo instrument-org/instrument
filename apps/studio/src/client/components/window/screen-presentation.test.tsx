@@ -91,7 +91,7 @@ describe("screenPresentation", () => {
   });
 
   it.each([
-    ["a debug tool", "/debug/notifications", "Notifications"],
+    ["a debug tool", "/debug/components", "Components"],
     ["a component page", "/debug/components/colors", "Colors"],
     ["an onboarding screen", "/debug/components/onboarding/login", "Log in"],
   ])("names %s", (_, href, title) => {

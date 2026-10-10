@@ -52,7 +52,7 @@ The gateway's provider proxy is untouched: no body wrapping, no stream parsing, 
 
 ### Storage
 
-One SQLite table in its own file per workspace, opened with `node:sqlite` in WAL mode so two Studio instances on one workspace can both write, the same way the workspace index and browser history are opened. Not inside the workspace folder: workspaces can live in synced folders, where a SQLite file and its log invite conflict copies (the reasoning in [chat-list-index.md](../completed/chat-list-index.md)). It sits in the app's data folder beside the workspace index, at `ai-usage/<workspace id>.db`. The index is named by a hash of the workspace's path, which is fine for something derived and thrown away; this record is the only copy of what it holds, so it is named by the id the workspace registry gives the workspace, which a moved folder keeps.
+One SQLite table at `<workspace>/.instrument/ai-usage.db`, opened with `node:sqlite` in WAL mode so two Studio instances on one workspace can both write. It belongs to the workspace, so it lives in the workspace's own `.instrument` folder beside the browser's `history.db`, moves with the workspace, and goes when the workspace does. The app's data folder is for what belongs to the machine or can be rebuilt, such as the search index; this record is the only copy of what it holds.
 
 Indexes on `started_at` and on each filterable column paired with `started_at` keep the totals line a single indexed aggregate. At a heavy thousand requests a day that is under 400,000 rows a year, a few hundred bytes each, so there is no rotation.
 

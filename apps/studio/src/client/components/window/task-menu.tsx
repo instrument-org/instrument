@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { toolbarClassName } from "@/client/components/ui/toggle";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { showInFolderLabel, showTaskFolder } from "@/client/lib/show-in-files";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
@@ -28,7 +28,7 @@ export function TaskMenu({
   taskId: TaskId;
 }) {
   const transcript = useTranscriptActions({ id: taskId, sessionId });
-  const isDeveloperMode = useDeveloperMode();
+  const isDeveloperMode = useTabDeveloperMode();
 
   return (
     <DropdownMenu>

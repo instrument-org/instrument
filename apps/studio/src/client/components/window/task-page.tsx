@@ -9,7 +9,7 @@ import {
   useIsTaskWorking,
   useTaskHold,
 } from "@/client/components/window/task-working";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { StopIcon } from "@phosphor-icons/react/Stop";
@@ -37,7 +37,7 @@ export function TaskPage({ taskId }: { taskId: TaskId }) {
   const isWorking = useIsTaskWorking(taskId);
   const held = useTaskHold(taskId);
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
-  const isDeveloperMode = useDeveloperMode();
+  const isDeveloperMode = useTabDeveloperMode();
   if (!task.data) {
     return (
       <div className="flex h-full items-center justify-center">

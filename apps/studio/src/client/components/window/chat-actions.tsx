@@ -1,6 +1,6 @@
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { useTranscriptActions } from "@/client/components/task/transcript-actions";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { showInFolderLabel, showTaskFolder } from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId, type TaskId } from "@instrument-org/workspace/client";
@@ -63,7 +63,7 @@ export function useChatActions(chat: Chat): RowAction[] {
  */
 export function useChatActionsFor(): (chat: Chat) => RowAction[] {
   const transcript = useTranscriptActions({ sessionId: undefined });
-  const isDeveloperMode = useDeveloperMode();
+  const isDeveloperMode = useTabDeveloperMode();
   const queryClient = useQueryClient();
   const paint = (id: TaskId, change: (chat: Chat) => Chat) => {
     paintChat(queryClient, { id }, change);

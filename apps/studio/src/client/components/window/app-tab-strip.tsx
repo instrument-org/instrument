@@ -1,10 +1,15 @@
 import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
+import {
+  tabsWithoutDeveloperModeAtom,
+  useDeveloperMode,
+} from "@/client/hooks/use-developer-mode";
 import { type TabId } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
 import { type ChatId, type TaskId } from "@instrument-org/workspace/client";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -13,7 +18,9 @@ import {
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
 import { XIcon } from "@phosphor-icons/react/X";
+import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
+import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
 
 import { INBOX_HREF } from "./app-tabs";
@@ -153,7 +160,10 @@ export function AppTabStrip({
   );
 }
 
-/** A tab's own menu: reload and copy it, then close it or the tabs around it. */
+/**
+ * A tab's own menu: reload and copy it, then close it or the tabs around it.
+ * In developer mode, a screen's tab can also be shown without it.
+ */
 function TabMenu({
   id,
   isLast,
@@ -173,6 +183,9 @@ function TabMenu({
   onDuplicate: (id: TabId) => void;
   reload: (() => void) | undefined;
 }) {
+  const isDeveloperMode = useDeveloperMode();
+  const [tabsWithout, setTabsWithout] = useAtom(tabsWithoutDeveloperModeAtom);
+
   return (
     <DropdownMenuContent align="start" className="min-w-52" sideOffset={0}>
       {reload && (
@@ -189,6 +202,23 @@ function TabMenu({
         <NewTabIcon className="size-4" />
         <span>Duplicate Tab</span>
       </DropdownMenuItem>
+      {/* A site's page shows nothing developer mode adds, so only a
+          screen's tab offers it. */}
+      {isDeveloperMode && !reload && (
+        <DropdownMenuCheckboxItem
+          checked={!tabsWithout.has(id)}
+          className="text-dev-700 dark:text-dev-300"
+          onCheckedChange={(checked) => {
+            const next = new Set(tabsWithout);
+            if (checked) next.delete(id);
+            else next.add(id);
+            setTabsWithout(next);
+          }}
+        >
+          <WrenchIcon className="size-4 text-dev-700 dark:text-dev-300" />
+          <span>Developer Mode in This Tab</span>
+        </DropdownMenuCheckboxItem>
+      )}
       <DropdownMenuSeparator />
       <DropdownMenuItem
         onClick={() => {

@@ -6,7 +6,7 @@ import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn } from "@/client/lib/utils";
@@ -239,7 +239,7 @@ export function TaskChat({
   const isLoadingMessages = messagesQuery.isLoading;
   const refetch = messagesQuery.refetch;
 
-  const isDeveloperMode = useDeveloperMode();
+  const isDeveloperMode = useTabDeveloperMode();
 
   const { isAgentAlive, isAgentRunning } = useAgentSessionStatus({
     id,

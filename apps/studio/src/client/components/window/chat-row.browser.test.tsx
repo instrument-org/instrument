@@ -48,6 +48,7 @@ const developerMode = vi.hoisted(() => ({ enabled: false }));
 
 vi.mock("@/client/hooks/use-developer-mode", () => ({
   useDeveloperMode: () => developerMode.enabled,
+  useTabDeveloperMode: () => developerMode.enabled,
 }));
 
 // A site's icon comes over the app protocol, which only the main process

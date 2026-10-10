@@ -1,4 +1,7 @@
-import { type OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
+import {
+  type OAuthClientProvider,
+  UnauthorizedError,
+} from "@modelcontextprotocol/sdk/client/auth.js";
 
 import { getWorkspaceConfig } from "../../workspace-config";
 import { type McpAppManifest } from "../manifest";
@@ -29,7 +32,7 @@ export function mcpAuthProviderForCommand(
   }
   return createMcpOAuthProvider({
     openAuthorization: () => {
-      throw new Error(
+      throw new UnauthorizedError(
         "This app needs the user to sign in again. Ask with connect_app.",
       );
     },

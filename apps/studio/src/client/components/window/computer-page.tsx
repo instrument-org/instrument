@@ -991,13 +991,21 @@ export function ComputerPage({
   // a double-click in the system's file manager does: a disk image mounts and
   // shows its window. Where that fails, the tab's card says why and offers
   // what is left.
+  //
+  // An app is launched too. `opensInSystemApp` holds back what runs the moment
+  // it opens, since nothing about such a file says it is a program; an app the
+  // Finder lists as one is drawn with its own icon and called an Application,
+  // so opening it is asking to run it.
   const handOff = useMutation(rpcClient.utils.openPath.mutationOptions());
+  const opensOutside = (tab: { hostPath: string; name: string }) =>
+    opensInSystemApp(tab.name) ||
+    (/\.app$/i.test(tab.name) && packagePaths.has(tab.hostPath));
   const openFile = (file: FileSystemFileItem) => {
     const tab = fileTabOf(file);
     if (!tab) {
       return;
     }
-    if (opensInSystemApp(tab.name)) {
+    if (opensOutside(tab)) {
       handOff.mutate(
         { filepath: tab.hostPath },
         {
@@ -1277,7 +1285,7 @@ export function ComputerPage({
   const openSeveral = (picked: FileSystemItem[]) => {
     const inTabs = picked.filter((item) => {
       const tab = item.kind === "file" ? fileTabOf(item) : undefined;
-      if (item.kind === "file" && tab && opensInSystemApp(tab.name)) {
+      if (item.kind === "file" && tab && opensOutside(tab)) {
         openFile(item);
         return false;
       }

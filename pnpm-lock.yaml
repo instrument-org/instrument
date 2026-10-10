@@ -86,7 +86,7 @@ importers:
     devDependencies:
       '@instrument-org/agent-hooks':
         specifier: github:instrument-org/agent-hooks
-        version: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/56e5020a97a542b17bf807eff32830a2b2a7fa43
+        version: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/fae5ed21e83993b1651d628f98975dda5072acd0
       '@instrument-org/typescript-config':
         specifier: workspace:*
         version: link:packages/typescript-config
@@ -2252,9 +2252,9 @@ packages:
       '@types/node':
         optional: true
 
-  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/56e5020a97a542b17bf807eff32830a2b2a7fa43':
-    resolution: {gitHosted: true, integrity: sha512-8B5CbNxNd843Qq5naHZYOsWiI57ibVqXkG2IoOHXm6bThMPiDwc60vvhuWlTgDl1LbsyixrIGQY0xoCS/XqgjA==, tarball: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/56e5020a97a542b17bf807eff32830a2b2a7fa43}
-    version: 1.4.1
+  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/fae5ed21e83993b1651d628f98975dda5072acd0':
+    resolution: {gitHosted: true, integrity: sha512-ZS8hAKWNAlX3k6WVFyYhHaOPI8PWQ8drauTTbsBLihTpJHSNL2qwKYeZvqyw4+UlnALD96Jt0W4CP4z22WT/MA==, tarball: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/fae5ed21e83993b1651d628f98975dda5072acd0}
+    version: 1.5.0
     engines: {node: '>=22'}
 
   '@internationalized/number@3.6.8':
@@ -11132,7 +11132,7 @@ snapshots:
       '@types/node': 24.13.1
     optional: true
 
-  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/56e5020a97a542b17bf807eff32830a2b2a7fa43': {}
+  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/fae5ed21e83993b1651d628f98975dda5072acd0': {}
 
   '@internationalized/number@3.6.8':
     dependencies:

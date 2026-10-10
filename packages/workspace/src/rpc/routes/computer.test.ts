@@ -183,6 +183,31 @@ describe("workspace.computer.list", () => {
     }
   });
 
+  it("says a refused folder is a package, which the folder panel cannot pick", async () => {
+    const target = path.join(tmpDir, "Photos Library.photoslibrary");
+    await fs.mkdir(target, { mode: 0o000 });
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      finderEntries: async (asked) =>
+        asked === tmpDir
+          ? [{ name: "Photos Library.photoslibrary", package: true }]
+          : [],
+    });
+    try {
+      await expect(
+        call(
+          computer.list,
+          { id: taskId, path: target },
+          { context: createContext() },
+        ),
+      ).resolves.toMatchObject({ kind: "refused", package: true });
+    } finally {
+      setWorkspaceConfig(config);
+      await fs.chmod(target, 0o700);
+    }
+  });
+
   it("answers a folder it may not read as refused rather than failing", async () => {
     const target = path.join(tmpDir, "shut");
     await fs.mkdir(target, { mode: 0o000 });

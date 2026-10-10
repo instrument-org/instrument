@@ -125,6 +125,11 @@ const ComputerRefusalSchema = z.object({
   /** The path as a person writes it, the home folder as `~`. */
   display: z.string(),
   kind: z.literal("refused"),
+  /**
+   * The folder is a package (a Photos library), which the system's folder
+   * panel cannot pick, so the only way in is the app it belongs to.
+   */
+  package: z.literal(true).optional(),
   /** The host path asked for, `~` expanded. */
   path: z.string(),
   reason: z.enum(["account", "system"]) satisfies z.ZodType<ReadRefusal>,
@@ -216,9 +221,13 @@ export async function listComputerFolder({
     if (reason === undefined) {
       throw error;
     }
+    const isPackage = (await finderEntriesOf(path.dirname(hostPath))).get(
+      path.basename(hostPath).normalize("NFC"),
+    )?.package;
     return {
       display: displayHostPath(hostPath),
       kind: "refused",
+      ...(isPackage ? { package: true } : {}),
       path: hostPath,
       reason,
     };

@@ -2219,7 +2219,10 @@ export function refusalLine(reason: ComputerRefusal["reason"]) {
  * person's intent, which the Mac honors from then on without asking again,
  * so the panel opens at the folder itself and the answer is one press. The
  * settings pane is where a declined ask is undone for good. A refusal by the
- * folder's own permissions has neither, so it only says whose they are.
+ * folder's own permissions has neither, so it only says whose they are. A
+ * package (a Photos library) has neither either: the panel will not pick one,
+ * and what guards it is the app's own permission, so the way in is to open it
+ * in its app.
  */
 function NotPermitted({
   onGranted,
@@ -2246,7 +2249,33 @@ function NotPermitted({
   const openSettings = useMutation(
     rpcClient.features.openFilesAndFoldersSettings.mutationOptions(),
   );
+  const openInApp = useMutation(rpcClient.utils.openPath.mutationOptions());
   const isSystem = refusal.reason === "system";
+  if (isSystem && refusal.package) {
+    return (
+      <div className="flex size-full items-center justify-center p-8">
+        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+          <FileSystemFolderGlyph className="h-10 w-auto opacity-60" />
+          <div>
+            <p className="text-sm font-medium">
+              {`macOS hasn’t let Instrument look inside “${name}”`}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              It belongs to another app, so you can open it there instead.
+            </p>
+          </div>
+          <Button
+            onClick={() => {
+              openInApp.mutate({ filepath: refusal.path });
+            }}
+            size="sm"
+          >
+            Open
+          </Button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex size-full items-center justify-center p-8">
       <div className="flex max-w-sm flex-col items-center gap-4 text-center">

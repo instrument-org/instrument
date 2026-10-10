@@ -54,7 +54,6 @@ import {
 } from "@/client/components/window/window-href";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
-import { useTabSurface } from "@/client/hooks/use-tab-surface";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { outputFolderHref } from "@/shared/computer-href";
@@ -72,7 +71,7 @@ import {
 } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 /** Dragged narrower than this, the inbox column slides shut rather than stopping at its floor. */
 const INBOX_COLLAPSE_THRESHOLD = 240;
@@ -191,24 +190,6 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     });
     setPaneOpen(chat, true);
   };
-  // Cmd+T in the chat opens a browser beside it, and Cmd+W in the pane closes
-  // the tab up there.
-  const surfaceRef = useRef<HTMLElement>(null);
-  const paneRef = useRef<HTMLDivElement>(null);
-  useTabSurface({
-    anchor: surfaceRef,
-    closeTabUp: () => {
-      if (!showsPane) {
-        return false;
-      }
-      shell.requestClose(up.id);
-      return true;
-    },
-    enabled: isActive && chat !== undefined,
-    openTab: addWeb,
-    tabIds: tabs.map((tab) => tab.id),
-    tabsAnchor: paneRef,
-  });
 
   // Drawn only once there is something in it.
   const tiles = chat !== undefined && tabs.length > 0 && (
@@ -292,10 +273,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       </ChatColumn>
       {chat === undefined && <NoChatOpen onNew={shell.newDraft} />}
       {chat !== undefined && (
-        <main
-          className="relative flex min-w-0 flex-1 flex-col"
-          ref={surfaceRef}
-        >
+        <main className="relative flex min-w-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1">
             <div className="relative min-w-0 flex-1">
               <RightPane
@@ -385,7 +363,6 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                 paneKey={chat}
               >
                 <div
-                  ref={paneRef}
                   className={cn(
                     "flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-border",
                     // A page's bottom corners follow what they meet: square

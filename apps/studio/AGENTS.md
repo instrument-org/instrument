@@ -57,7 +57,7 @@ The app window is a single web contents (see Windows), so modals are plain `<Dia
 
 - **App-wide** (`login`, `settings`, `shortcut-guide`): a Jotai atom (`atoms/<name>-modal.ts`, created via `studioModalAtom()` from `atoms/studio-modal.ts`) + `openX()` setter callable from anywhere + a component in `components/studio-modals/<name>-modal.tsx`, all mounted once via `<StudioModals />` in `window/window-frame.tsx`. At most one app-wide modal is open at a time: opening one replaces whichever is open (never stacks) — e.g. sign-in triggered from inside settings closes settings. A modal created with `replaceable: false` holds the slot until it closes itself; opening another over it is ignored.
 - **Contextual** (`delete-chat`): `<Dialog>` inline next to its trigger with local `useState`. Use for a small number of co-located triggers.
-- `useHoldWindow(open, { onClose })` is how anything drawn over the whole window (a modal, a draft or chat grown over the row) keeps the tab behind it still: the tab chords and history wait while it is up, and back and Cmd+W run `onClose`, the same way out its Escape takes.
+- `useHoldWindow(open, { onClose })` is how anything drawn over the whole window (a modal, a draft or chat grown over the row) keeps the tab behind it still: the tab chords and history wait while it is up, back and Cmd+W run `onClose` (the same way out its Escape takes), and Cmd+T runs every hold's `onClose` before opening the window's new tab. Cmd+T and Cmd+W are otherwise always the window's tabs', whatever has focus.
 
 ## Copy
 

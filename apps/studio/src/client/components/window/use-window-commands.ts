@@ -14,10 +14,6 @@ import { requestPageEditToggle } from "@/client/components/window/page-edit-stat
 import { openFindForKeyboard } from "@/client/lib/find-targets";
 import { stepForKeyboard, stepSurfaceAt } from "@/client/lib/history-surfaces";
 import { runPageChord } from "@/client/lib/page-chords";
-import {
-  closeTabForKeyboard,
-  openTabForKeyboard,
-} from "@/client/lib/tab-surfaces";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
@@ -199,13 +195,20 @@ export function useWindowCommands(
           }
           const holds = getDefaultStore().get(windowHoldsAtom);
           if (!MODAL_SAFE_COMMANDS.has(command) && holds.length > 0) {
-            // Over a hold, Cmd+T and Cmd+W still mean a chat or draft the
-            // keyboard is in (one grown over the row is a hold), and Cmd+W
-            // otherwise closes the hold itself; the tab behind never moves.
-            if (command === "newTab") {
-              openTabForKeyboard();
-            } else if (command === "closeTab" && !closeTabForKeyboard()) {
+            // The tab chords stay the window's: Cmd+W closes the innermost
+            // hold (a grown draft or chat shrinks), and Cmd+T puts every hold
+            // away and opens the window's new tab, as it would with none up.
+            // A hold that cannot be left (a delete under way) keeps both.
+            if (command === "closeTab") {
               holds.findLast((hold) => hold.close)?.close?.();
+            } else if (
+              command === "newTab" &&
+              holds.every((hold) => hold.close)
+            ) {
+              for (const hold of holds.toReversed()) {
+                hold.close?.();
+              }
+              latest.current.newTab();
             }
             continue;
           }
@@ -217,10 +220,7 @@ export function useWindowCommands(
               break;
             }
             case "closeTab": {
-              // The tab up in the tabs the keyboard is in, else the window's.
-              if (!closeTabForKeyboard()) {
-                latest.current.closeTab();
-              }
+              latest.current.closeTab();
               break;
             }
             case "editPage": {
@@ -246,11 +246,7 @@ export function useWindowCommands(
               break;
             }
             case "newTab": {
-              // A tab of the chat or draft the keyboard is in, else the
-              // window's.
-              if (!openTabForKeyboard()) {
-                latest.current.newTab();
-              }
+              latest.current.newTab();
               break;
             }
             case "nextChat": {

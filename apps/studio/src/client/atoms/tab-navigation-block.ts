@@ -4,8 +4,8 @@ import { atom } from "jotai";
  * What holds the window over the tab behind it (a dialog, a draft or a chat
  * grown over the row), in the order they came up. While any does,
  * `useWindowCommands` keeps the tab chords and history off the tab behind:
- * back and Cmd+W close the innermost hold that can close, Cmd+T opens a tab
- * only in a chat or draft the keyboard is in, and the rest wait. See
+ * back and Cmd+W close the innermost hold that can close, Cmd+T closes them
+ * all and opens the window's new tab, and the rest wait. See
  * `useHoldWindow`.
  */
 export const windowHoldsAtom = atom<readonly { close?: () => void }[]>([]);

@@ -63,7 +63,7 @@ export async function seedConnectedApps(
       );
       await fs.writeFile(
         path.join(dir, "guide.md"),
-        `# ${fixture.name}\n\nWorked on the web at ${fixture.url}.\n`,
+        `# ${fixture.name}\n\nWorked on the web${fixture.url === undefined ? "" : ` at ${fixture.url}`}.\n`,
       );
       await recordConnected(fixture.slug, { apps, appsDir });
       continue;

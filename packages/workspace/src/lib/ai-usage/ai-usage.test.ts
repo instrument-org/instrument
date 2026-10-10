@@ -133,7 +133,7 @@ describe("recording through AI SDK telemetry", () => {
       abortSignal: controller.signal,
       model,
       prompt: "hi",
-      telemetry: aiUsageTelemetry({ purpose: "chat-reply" }),
+      telemetry: aiUsageTelemetry({ purpose: "chat" }),
     });
     for await (const part of result.fullStream) {
       if (part.type === "text-delta") {
@@ -165,7 +165,7 @@ describe("recording through AI SDK telemetry", () => {
 describe("the store", () => {
   const entry = (over: Partial<AIUsageEntry>): AIUsageEntry => ({
     kind: "language",
-    purpose: "chat-reply",
+    purpose: "chat",
     startedAt: Date.UTC(2026, 9, 10, 10),
     status: "finished",
     ...over,

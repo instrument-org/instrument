@@ -241,6 +241,9 @@ async function deliver(
     sessions.set(key, sessionId);
     byChat.set(key, [...(byChat.get(key) ?? []), event]);
   }
+  // A report is the task's latest activity: the list orders by it, and the
+  // chat's line names a task that finished since the user last wrote by it.
+  await Promise.all(events.map((event) => recordTaskActivity(event.taskId)));
   for (const [key, chatEvents] of byChat) {
     await wakeWith(
       chatId,

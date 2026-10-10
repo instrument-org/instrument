@@ -1,10 +1,6 @@
 import { z } from "zod";
 
-export const FeatureNameSchema = z.enum([
-  "bash_summary_chip",
-  "context_ring",
-  "external_browser",
-]);
+export const FeatureNameSchema = z.enum(["context_ring", "external_browser"]);
 export type FeatureName = z.output<typeof FeatureNameSchema>;
 
 export const FeaturesSchema = z.record(FeatureNameSchema, z.boolean());
@@ -20,11 +16,6 @@ export const FEATURE_METADATA: Record<
   FeatureName,
   { code: string; description: string; title: string }
 > = {
-  bash_summary_chip: {
-    code: "b",
-    description: "Show compact bash command names in tool call summaries.",
-    title: "Bash Summary Chip",
-  },
   context_ring: {
     code: "c",
     description:

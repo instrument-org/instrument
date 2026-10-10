@@ -14,6 +14,7 @@ import { atom, type SetStateAction } from "jotai";
 import { atomFamily } from "jotai/utils";
 
 import { keptAtom } from "@/client/lib/kept-state";
+import { DRAFTS_KEY } from "@/shared/kept-state";
 
 /**
  * What the chat column is narrowed to.
@@ -131,10 +132,11 @@ export function draftOfGroup(group: string | undefined): string | undefined {
 }
 
 /**
- * Every draft not yet started, newest last, kept on this computer across
- * launches the way the tabs are: a draft put away is still in Drafts.
+ * Every draft not yet started, newest last, kept across launches as a folder
+ * each in the workspace's `drafts/`: a draft put away is still in Drafts, and
+ * one whose folder is deleted is gone.
  */
-export const draftsAtom = keptAtom<Draft[]>("drafts", "drafts.v2", []);
+export const draftsAtom = keptAtom<Draft[]>("drafts", DRAFTS_KEY, []);
 
 /** How long a draft's words are left alone before its record is written. */
 const DRAFT_WORDS_SETTLE_MS = 300;

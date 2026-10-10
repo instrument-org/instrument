@@ -38,7 +38,6 @@ it("writes each key to its file on flush, and reads them back in a new store", (
   expect(createKeptStateStore(dir).snapshot()).toEqual({
     bookmarks: {},
     drafts: { "drafts.v2": [{ id: "d" }] },
-    history: {},
     layout: { "app-tabs.v2": { tabs: [] } },
     view: { "zoom.v1": 1.25 },
   });

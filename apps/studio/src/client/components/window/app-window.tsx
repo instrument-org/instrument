@@ -326,12 +326,8 @@ function WindowShell({
         windowTabs.dropGroup(draftGroupOf(draft.id));
       }
     }
+    // A draft's folder goes with it, and what was pasted into it.
     setDrafts((current) => current.filter(isKept));
-    // What drafts kept on disk goes with them, including any whose clear
-    // never ran.
-    void rpcClient.drafts.prune
-      .call({ keep: drafts.filter(isKept).map((draft) => draft.id) })
-      .catch(() => undefined);
     for (const entry of compose.entries) {
       if (
         entry.kind === "draft" &&

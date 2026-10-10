@@ -35,6 +35,20 @@ A child's history is read, never copied: the parent's messages up to `forkedAtMe
 
 **Tabs.** The chat drives every tab by default. A task drives a tab only when handed one (`task new --tab`) or when it opened one; while it does, the chat leaves that tab alone, and when the task finishes the tab returns to the chat. The user can always use any tab. One driver per tab, so two agents never act in one page at once.
 
+## The task command
+
+`task` only ever acts on the chat's background sessions, never on the chat itself:
+
+```
+task new --name '<title>' [--tab <id>] [--job <bg id>] <<'EOF'   prints t1
+task send <t id> [--now] <<'EOF'
+task stop <t id> [<bg id> | --all]
+task list [--running] [--since <date>] [--limit <n>]
+task log <t id> [--steps] [--tail <lines>]
+```
+
+A task's id is a per-chat handle, `t1`, `t2` in creation order, like a background command's `bg_1`, mapped to its session and never reassigned. `task show` goes: with model, folders and tabs on the chat it only repeated what `list` and `log --steps` give. `task folder --add`, the chat granting itself a folder, moves to the permission card (`request_folder`) with the permissions work.
+
 ## What goes
 
 - Fork folders under `chats/<c>/tasks/` and their databases.

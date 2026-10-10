@@ -55,6 +55,7 @@ import { z } from "zod";
 import {
   announceConnected,
   appOAuthRedirectUrl,
+  appOAuthRelayUrl,
   disconnectApp,
 } from "../../lib/apps";
 import { accountSignedInOn } from "../../lib/web-sign-in-account";
@@ -582,6 +583,7 @@ const startOAuth = base
       appsDir: context.workspaceConfig.appsDir,
       opensIn: input.opensIn,
       redirectUrl: appOAuthRedirectUrl(),
+      relayRedirectUrl: appOAuthRelayUrl,
       slug: input.slug,
       store: appOAuthStore,
     });

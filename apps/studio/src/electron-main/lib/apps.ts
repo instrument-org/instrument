@@ -93,6 +93,20 @@ export function appOAuthRedirectUrl(): string {
   return `http://127.0.0.1:${getAuthServerPort() ?? DEFAULT_PORT}${APP_OAUTH_CALLBACK_PATH}`;
 }
 
+const STAGING_API_BASE_URL = "https://staging.api.tryinstrument.com";
+
+/**
+ * Where a vendor sends back a sign-in made with Instrument's own client for
+ * `service`: our API's relay, which passes the browser on to the loopback
+ * port the state names. The vendor takes only the https addresses registered
+ * with it, so an API running on this machine borrows staging's relay.
+ */
+export function appOAuthRelayUrl(service: string): string {
+  const api = URL.parse(import.meta.env.MAIN_VITE_APP_API_BASE_URL ?? "");
+  const base = api?.protocol === "https:" ? api.origin : STAGING_API_BASE_URL;
+  return `${base}/oauth/${service}/callback`;
+}
+
 /**
  * What the workspace gets to keep about apps: the encrypted credential and
  * token stores, and the connection records.
@@ -104,6 +118,7 @@ export function createAppsConfig(): WorkspaceConfig["apps"] {
     getCredential: (slug) => Promise.resolve(getAppCredential(slug)),
     oauth: {
       redirectUrl: appOAuthRedirectUrl,
+      relayRedirectUrl: appOAuthRelayUrl,
       store: appOAuthStore,
     },
   };

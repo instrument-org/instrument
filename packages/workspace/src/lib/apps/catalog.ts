@@ -81,6 +81,13 @@ const AppCatalogEntrySchema = z.object({
       auth: z.string().optional(),
       /** For the Mac's own app (`format: "mac-app"`), which app. */
       bundleId: z.string().optional(),
+      /**
+       * For `auth: "oauth-client"`, the client Instrument registered with the
+       * vendor: a public PKCE client, so the id is no secret. Its sign-in
+       * comes back through our API's relay, the only https redirect the
+       * vendor accepts.
+       */
+      clientId: z.string().optional(),
       endpoint: z.string().optional(),
       format: z.string(),
       /**
@@ -141,13 +148,19 @@ export function catalogEntryLocalServer(
     : undefined;
 }
 
+type CatalogInterface = AppCatalogEntry["interfaces"][number];
+
 /**
- * An interface's `auth` when its sign-in needs an OAuth client registered
- * with the vendor ahead of time, which Instrument does not have yet: the
- * server registers no client on the spot, so the sign-in card cannot make
- * one. Such a server is skipped for the next way in.
+ * Whether an interface's sign-in needs an OAuth client registered with the
+ * vendor ahead of time (`auth: "oauth-client"`) and Instrument has none for
+ * it: the server registers no client on the spot, so the sign-in card cannot
+ * make one. Such a server is skipped for the next way in.
  */
-const NEEDS_REGISTERED_CLIENT = "oauth-client";
+export function catalogInterfaceLacksClient(
+  surface: CatalogInterface,
+): boolean {
+  return surface.auth === "oauth-client" && surface.clientId === undefined;
+}
 
 /**
  * The entry's hosted MCP server, when it has one the sign-in card or a key
@@ -161,20 +174,47 @@ export function catalogEntryMcpEndpoint(
     (surface) =>
       surface.format === "mcp" &&
       surface.endpoint &&
-      surface.auth !== NEEDS_REGISTERED_CLIENT,
+      !catalogInterfaceLacksClient(surface),
   )?.endpoint;
 }
 
-/** Whether an endpoint is one the directory knows needs a registered sign-in client. */
+function sameEndpoint(a: string, b: string | undefined): boolean {
+  return a.replace(/\/+$/, "") === b?.replace(/\/+$/, "");
+}
+
+/** Whether an endpoint is one the directory knows needs a registered sign-in client it does not have. */
 export function catalogEndpointNeedsClient(endpoint: string): boolean {
-  const bare = endpoint.replace(/\/+$/, "");
   return getAppCatalog().some((entry) =>
     entry.interfaces.some(
       (surface) =>
-        surface.auth === NEEDS_REGISTERED_CLIENT &&
-        surface.endpoint?.replace(/\/+$/, "") === bare,
+        catalogInterfaceLacksClient(surface) &&
+        sameEndpoint(endpoint, surface.endpoint),
     ),
   );
+}
+
+/**
+ * Instrument's own sign-in client for an MCP server, when the directory has
+ * one for exactly that endpoint, with the service whose relay route the
+ * sign-in comes back through. Matched on the endpoint rather than the app's
+ * slug, so the client is only ever offered to the server it was issued for.
+ */
+export function catalogRegisteredClient(
+  endpoint: string,
+): undefined | { clientId: string; service: string } {
+  for (const entry of getAppCatalog()) {
+    for (const surface of entry.interfaces) {
+      if (
+        surface.format === "mcp" &&
+        surface.auth === "oauth-client" &&
+        surface.clientId !== undefined &&
+        sameEndpoint(endpoint, surface.endpoint)
+      ) {
+        return { clientId: surface.clientId, service: entry.slug };
+      }
+    }
+  }
+  return undefined;
 }
 
 /**

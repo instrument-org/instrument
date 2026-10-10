@@ -55,12 +55,12 @@ describe("setUpFromDirectory", () => {
   });
 
   it("starts a web app's sign-in on the directory's sign-in page", async () => {
-    await setUpFromDirectory({ slug: "slack" });
+    await setUpFromDirectory({ slug: "pagerduty" });
 
-    expect(await manifestOf("slack")).toMatchObject({
-      signIn: "https://slack.com/signin",
+    expect(await manifestOf("pagerduty")).toMatchObject({
+      signIn: "https://app.pagerduty.com/",
       type: "web",
-      url: "https://app.slack.com",
+      url: "https://www.pagerduty.com",
     });
   });
 

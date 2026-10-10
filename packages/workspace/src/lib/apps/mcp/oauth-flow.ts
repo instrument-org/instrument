@@ -11,7 +11,11 @@ import { boundTo } from "../origin-bound";
 import { loadApp } from "../store";
 import { type McpConnectionError } from "./client";
 import { fetchForMcp } from "./fetch";
-import { createMcpOAuthProvider, type McpOAuthStore } from "./oauth-provider";
+import {
+  createMcpOAuthProvider,
+  mcpSignInClient,
+  type McpOAuthStore,
+} from "./oauth-provider";
 
 /**
  * Interactive OAuth for MCP apps, orchestrated here (the SDK lives in this
@@ -58,12 +62,14 @@ export async function beginMcpOAuth({
   appsDir,
   opensIn = "app",
   redirectUrl,
+  relayRedirectUrl,
   slug,
   store,
 }: {
   appsDir: AbsolutePath;
   opensIn?: SignInOpensIn;
   redirectUrl: string;
+  relayRedirectUrl: (service: string) => string;
   slug: string;
   store: McpOAuthStore;
 }): Promise<
@@ -99,11 +105,15 @@ export async function beginMcpOAuth({
   const opened: { url?: string } = {};
   const origin = new URL(manifest.url).origin;
   const provider = createMcpOAuthProvider({
+    ...mcpSignInClient({
+      loopbackRedirectUrl: redirectUrl,
+      relayRedirectUrl,
+      serverUrl: manifest.url,
+    }),
     openAuthorization: (url) => {
       opened.url = url.toString();
     },
     origin,
-    redirectUrl,
     scope: manifest.auth.scope,
     slug,
     store,

@@ -36,6 +36,8 @@ vi.mock("@/electron-main/stores/workspace/app-oauth", () => ({
 vi.mock("../../lib/apps", () => ({
   announceConnected: vi.fn(),
   appOAuthRedirectUrl: () => "http://127.0.0.1:1/auth/callback/app",
+  appOAuthRelayUrl: (service: string) =>
+    `https://api.example/oauth/${service}/callback`,
   disconnectApp: vi.fn(),
 }));
 vi.mock(

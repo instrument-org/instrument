@@ -167,9 +167,12 @@ export interface WorkspaceAppsConfig {
    * Present in the desktop app: backs OAuth MCP apps with the app's encrypted
    * store. Optional so headless and test contexts run without sign-in. The
    * redirect URL is read per sign-in, from the port the callback server bound.
+   * The relay redirect is where a vendor sends back a sign-in made with
+   * Instrument's own client for `service`, on its way to that same port.
    */
   oauth?: {
     redirectUrl: () => string;
+    relayRedirectUrl: (service: string) => string;
     store: McpOAuthStore;
   };
 }

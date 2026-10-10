@@ -301,8 +301,9 @@ describe("app test and the guide skeleton", () => {
     // through to a key the user can make on a page the directory names...
     ["asana", "--api https://app.asana.com/api/1.0 --auth bearer"],
     // ...and past a token that takes building an app first, to the web.
-    ["slack", "--web https://app.slack.com"],
     ["hubspot", "--web https://app.hubspot.com"],
+    // One Instrument holds a registered client for signs in on the card.
+    ["slack", "--mcp https://mcp.slack.com/mcp\n"],
     // One that wants a sign-in gets the card, not --auth none.
     ["semgrep", "--mcp https://mcp.semgrep.ai/mcp\n"],
   ])("sets %s up the way it actually connects", async (slug, line) => {
@@ -582,41 +583,41 @@ describe("app new refuses what cannot connect", () => {
   });
 
   it("starts the web set-up line's sign-in where the directory says", async () => {
-    const line = (await app("catalog", "slack")).stdout;
-    expect(line).toContain("--web https://app.slack.com  (on the web");
+    const line = (await app("catalog", "pagerduty")).stdout;
+    expect(line).toContain("--web https://www.pagerduty.com  (on the web");
 
     await app(
       "new",
-      "slack-web",
+      "pagerduty-web",
       "--name",
-      "Slack",
+      "PagerDuty",
       "--web",
-      "https://app.slack.com",
+      "https://www.pagerduty.com",
     );
-    expect(await manifestOf("slack-web")).toMatchObject({
-      service: "slack",
-      signIn: "https://slack.com/signin",
+    expect(await manifestOf("pagerduty-web")).toMatchObject({
+      service: "pagerduty",
+      signIn: "https://app.pagerduty.com/",
     });
   });
 
   it("refuses a listed server whose sign-in needs a registered client", async () => {
     const result = await app(
       "new",
-      "slack",
+      "pagerduty",
       "--name",
-      "Slack",
+      "PagerDuty",
       "--mcp",
-      "https://mcp.slack.com/mcp",
+      "https://mcp.pagerduty.com/mcp",
     );
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
       "signs in only with a client registered with its vendor ahead of time",
     );
-    expect(result.stderr).toContain("--web https://app.slack.com");
-    expect((await loadApp(getWorkspaceConfig().appsDir, "slack")).isErr()).toBe(
-      true,
-    );
+    expect(result.stderr).toContain("--web https://www.pagerduty.com");
+    expect(
+      (await loadApp(getWorkspaceConfig().appsDir, "pagerduty")).isErr(),
+    ).toBe(true);
   });
 
   it("refuses an unlisted server whose metadata offers no registration", async () => {

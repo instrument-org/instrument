@@ -6,7 +6,7 @@ import {
 import { getWorkspaceConfig } from "../../workspace-config";
 import { type McpAppManifest } from "../manifest";
 import { credentialOrigin } from "../origin-bound";
-import { createMcpOAuthProvider } from "./oauth-provider";
+import { createMcpOAuthProvider, mcpSignInClient } from "./oauth-provider";
 
 /**
  * The OAuth provider an `app` command uses to reach an OAuth MCP app. It reads
@@ -31,13 +31,17 @@ export function mcpAuthProviderForCommand(
     return undefined;
   }
   return createMcpOAuthProvider({
+    ...mcpSignInClient({
+      loopbackRedirectUrl: oauth.redirectUrl(),
+      relayRedirectUrl: oauth.relayRedirectUrl,
+      serverUrl: manifest.url,
+    }),
     openAuthorization: () => {
       throw new UnauthorizedError(
         "This app needs the user to sign in again. Ask with connect_app.",
       );
     },
     origin: credentialOrigin(manifest),
-    redirectUrl: oauth.redirectUrl(),
     scope: manifest.auth.scope,
     slug,
     store: oauth.store,

@@ -237,6 +237,8 @@ describe("an MCP app's sign-in", () => {
       ...createMemoryAppsConfig(),
       oauth: {
         redirectUrl: () => "http://127.0.0.1:1/auth/callback/app",
+        relayRedirectUrl: (service) =>
+          `https://api.example/oauth/${service}/callback`,
         store,
       },
     });
@@ -256,6 +258,8 @@ describe("an MCP app's sign-in", () => {
     const begun = await beginMcpOAuth({
       appsDir: getWorkspaceConfig().appsDir,
       redirectUrl: "http://127.0.0.1:1/auth/callback/app",
+      relayRedirectUrl: (service) =>
+        `https://api.example/oauth/${service}/callback`,
       slug,
       store,
     });
@@ -272,6 +276,8 @@ describe("an MCP app's sign-in", () => {
     const begun = await beginMcpOAuth({
       appsDir: getWorkspaceConfig().appsDir,
       redirectUrl: "http://127.0.0.1:1/auth/callback/app",
+      relayRedirectUrl: (service) =>
+        `https://api.example/oauth/${service}/callback`,
       slug,
       store,
     });

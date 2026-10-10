@@ -10,6 +10,7 @@ import { type TaskId } from "../../schemas/task-id";
 import {
   type AppCatalogEntry,
   catalogEndpointNeedsClient,
+  catalogInterfaceLacksClient,
   catalogEntryAt,
   catalogEntryForApp,
   findCatalogEntry,
@@ -274,12 +275,12 @@ function nativeCommandFor(bundleId: string): string | undefined {
 function describeCatalogEntry(entry: AppCatalogEntry): string {
   const surfaces = entry.interfaces.map((surface) => {
     // Said in words, so the endpoint is not mistaken for one to set up.
-    const auth =
-      surface.auth === "oauth-client"
-        ? ` (not usable: its sign-in takes only a client registered with ${entry.name}, which ${APP_NAME} does not have yet)`
-        : surface.auth
-          ? ` (${surface.auth})`
-          : "";
+    const auth = catalogInterfaceLacksClient(surface)
+      ? ` (not usable: its sign-in takes only a client registered with ${entry.name}, which ${APP_NAME} does not have yet)`
+      : surface.auth
+        ? // A sign-in with Instrument's own client is a sign-in like any other.
+          ` (${surface.auth === "oauth-client" ? "oauth" : surface.auth})`
+        : "";
     return `    ${surface.format.padEnd(9)} ${surface.endpoint ?? surface.package ?? surface.name}${auth}`;
   });
   const methods =

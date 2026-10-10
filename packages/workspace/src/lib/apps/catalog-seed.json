@@ -4030,7 +4030,8 @@
           "format": "mcp",
           "name": "Slack MCP",
           "endpoint": "https://mcp.slack.com/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "clientId": "7844234082100.12310227817328"
         },
         {
           "format": "openapi",

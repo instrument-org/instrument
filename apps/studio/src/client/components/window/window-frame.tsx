@@ -123,14 +123,9 @@ export function WindowFrame({
               <Agentation />
             </Suspense>
           )}
-        {/* Top right, clear of the drafts at the foot, and below the bar on
-          every platform: the bar holds the traffic lights or the window
-          controls, and a toast over it covers the window's own chrome. */}
-        <Toaster
-          mobileOffset={{ top: TOOLBAR_HEIGHT + 16 }}
-          offset={{ top: TOOLBAR_HEIGHT + 16 }}
-          position="top-right"
-        />
+        {/* Bottom left, over the rail's foot: clear of the drafts and the
+          floating chat, which dock at the bottom right. */}
+        <Toaster />
         <UpdatedToast
           onWhatsNew={() => {
             appTabs.open("/release-notes");

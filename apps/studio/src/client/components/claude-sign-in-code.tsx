@@ -2,7 +2,7 @@ import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
 import { rpcClient } from "@/client/rpc/client";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * For a Claude sign-in whose browser cannot get back to this computer: on

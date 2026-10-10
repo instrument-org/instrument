@@ -2,7 +2,7 @@ import { useWindow } from "@/client/components/window/context";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * Connect on a service the directory lists: set up from the directory's

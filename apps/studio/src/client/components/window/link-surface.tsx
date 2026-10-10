@@ -6,7 +6,7 @@ import {
 } from "@/client/hooks/use-open-target";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type ReactNode, useContext } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { type OpenOptions, WindowContext } from "./context";
 import { type LinkTarget, linkTargetOf } from "./link-address";

@@ -9,7 +9,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { type ReactNode, useContext, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /** Where the sign-in page opens: the window's own browser, or the user's. */
 type SignInDestination = "app" | "external";

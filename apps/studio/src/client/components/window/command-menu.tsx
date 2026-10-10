@@ -55,7 +55,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
 import { unique } from "radashi";
 import { type ReactNode, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
 

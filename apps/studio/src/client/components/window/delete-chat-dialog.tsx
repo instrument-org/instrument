@@ -2,7 +2,7 @@ import { DeleteWithProgressDialog } from "@/client/components/delete-with-progre
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";

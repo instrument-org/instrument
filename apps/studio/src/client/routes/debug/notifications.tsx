@@ -5,7 +5,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { getDebugRoute } from "./-debug-routes";
 

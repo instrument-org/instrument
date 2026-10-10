@@ -4,7 +4,7 @@ import {
   UpgradeSubscriptionAlertView,
 } from "@/client/components/upgrade-subscription-alert";
 import { createFileRoute } from "@tanstack/react-router";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 export const Route = createFileRoute("/debug/components/alerts")({
   component: RouteComponent,

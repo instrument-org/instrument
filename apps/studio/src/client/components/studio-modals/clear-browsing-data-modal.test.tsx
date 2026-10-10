@@ -3,7 +3,7 @@ import { ClearBrowsingDataModal } from "@/client/components/studio-modals/clear-
 import { renderWithDefaultStore } from "@/tests/render";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { act } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { clearHistory, clearSiteData } = vi.hoisted(() => ({
@@ -11,7 +11,9 @@ const { clearHistory, clearSiteData } = vi.hoisted(() => ({
   clearSiteData: vi.fn(),
 }));
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("@/client/lib/toast", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {

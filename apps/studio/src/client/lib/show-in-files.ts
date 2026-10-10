@@ -9,7 +9,7 @@ import { folderHref } from "@/shared/computer-href";
 import { type TaskId } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { getDefaultStore } from "jotai";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * Whether this window has a folder view of its own to show a thing in. The

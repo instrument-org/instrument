@@ -15,7 +15,7 @@ import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { useAtom } from "jotai";
 import { type ReactNode, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { AppIcon } from "./app-icon";
 import { computerName } from "./computer-name";

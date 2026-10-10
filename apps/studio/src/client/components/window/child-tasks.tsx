@@ -24,7 +24,7 @@ import { safe } from "@orpc/client";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { TabIcon } from "./browser-tabs";
 import { type OpenOptions, useWindow } from "./context";

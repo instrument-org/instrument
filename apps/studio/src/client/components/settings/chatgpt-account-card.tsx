@@ -20,7 +20,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 const USAGE_URL = "https://chatgpt.com/settings/usage";
 

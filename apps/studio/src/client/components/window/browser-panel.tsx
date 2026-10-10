@@ -80,7 +80,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * A page of the in-app browser, hosted in the artifact panel. The guest `<webview>`

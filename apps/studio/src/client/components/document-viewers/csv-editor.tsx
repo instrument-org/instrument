@@ -18,7 +18,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { type ReferenceElement } from "@floating-ui/dom";
 import { useQuery } from "@tanstack/react-query";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { FileLoading } from "../file-loading";
 import { markdownCell } from "./ask-selection-context";

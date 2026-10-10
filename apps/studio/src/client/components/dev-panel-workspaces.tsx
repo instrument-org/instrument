@@ -34,7 +34,7 @@ import { formatBytes } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * The dev panel's workspaces: switch between them, make a new one, and clear

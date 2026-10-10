@@ -2,7 +2,7 @@ import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { rpcClient, type RPCInput } from "@/client/rpc/client";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 export type TranscriptFormat = RPCInput["transcript"]["save"]["format"];
 

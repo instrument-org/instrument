@@ -7,7 +7,7 @@ import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";

@@ -4,7 +4,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * A path read from the home folder's own name, that shows its folder: in Files

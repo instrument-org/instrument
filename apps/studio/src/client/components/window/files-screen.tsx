@@ -32,7 +32,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { newSiteGroup, pageHrefOf } from "./app-tabs";
 import { AskTray } from "./ask-tray";

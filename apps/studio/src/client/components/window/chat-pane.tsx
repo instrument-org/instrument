@@ -4,7 +4,7 @@ import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { ChatList } from "./chat-list";

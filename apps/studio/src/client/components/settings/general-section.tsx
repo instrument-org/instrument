@@ -51,7 +51,7 @@ import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 function SettingsSection({
   children,

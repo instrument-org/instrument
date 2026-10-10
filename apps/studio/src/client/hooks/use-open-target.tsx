@@ -10,7 +10,7 @@ import {
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient, type RPCInput } from "@/client/rpc/client";
 import { useContext } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /** The middle button, which asks for a place of its own wherever a link is drawn. */
 const MIDDLE_BUTTON = 1;

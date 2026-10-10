@@ -16,7 +16,7 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { useAtom } from "jotai";
 import { posthog } from "posthog-js";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 import { z } from "zod";
 
 function nullishToUndefined<T>(val: null | T): T | undefined {

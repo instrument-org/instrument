@@ -3,7 +3,7 @@
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { useFileOpenTarget } from "./use-file-open-target";
 import { useOpenFile } from "./use-open-file";

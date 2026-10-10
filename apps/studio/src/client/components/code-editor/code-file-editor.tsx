@@ -13,7 +13,7 @@ import { openSearchPanel } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import {
   type CodeExternalChange,

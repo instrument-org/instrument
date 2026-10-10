@@ -14,7 +14,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { capitalize } from "radashi";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /** A usage window this full is worth pointing out a way past. */
 const RUNNING_LOW_PERCENT = 80;

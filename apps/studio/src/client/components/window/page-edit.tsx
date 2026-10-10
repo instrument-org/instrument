@@ -31,7 +31,7 @@ import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { noop } from "radashi";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 import { createActor, fromCallback } from "xstate";
 
 import {

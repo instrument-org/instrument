@@ -12,7 +12,7 @@ import {
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { newSiteGroup, pageHrefOf, type useAppTabs } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";

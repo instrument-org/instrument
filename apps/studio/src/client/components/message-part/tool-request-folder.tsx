@@ -7,7 +7,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { Button } from "../ui/button";
 import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";

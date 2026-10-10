@@ -2,7 +2,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { addRef } from "@instrument-org/shared";
 import { isDefinedError } from "@orpc/client";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * Hand a URL to the OS browser, reporting a refusal where the user can act on

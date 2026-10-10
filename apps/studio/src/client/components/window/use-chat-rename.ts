@@ -2,7 +2,7 @@ import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation } from "@tanstack/react-query";
 import { sleep } from "radashi";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { type Chat } from "./chats";
 

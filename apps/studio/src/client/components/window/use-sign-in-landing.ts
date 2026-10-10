@@ -3,7 +3,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { atom, useAtom } from "jotai";
 import { useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * The app sign-ins started from the window and not yet finished, by slug,

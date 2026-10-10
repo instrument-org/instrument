@@ -62,7 +62,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 import { ulid } from "ulid";
 
 import { featuresAtom } from "../atoms/features";
@@ -685,7 +685,6 @@ export const PromptInput = ({
           },
         }),
         ...(detail && { description: detail }),
-        duration: 7000,
       });
       return false;
     }

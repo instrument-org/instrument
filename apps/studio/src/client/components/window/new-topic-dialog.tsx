@@ -39,7 +39,7 @@ import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { useEmojiSet } from "./emoji-set";
 import { useEmojiSuggestions } from "./emoji-suggestions";

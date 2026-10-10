@@ -13,7 +13,7 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { PlugsIcon } from "@phosphor-icons/react/Plugs";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import {
   childrenOf,

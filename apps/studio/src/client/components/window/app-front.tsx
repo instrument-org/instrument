@@ -48,7 +48,7 @@ import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /** How many of the pages visited in the app its front lists. */
 const VISITS_SHOWN = 12;

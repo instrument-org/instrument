@@ -1,7 +1,7 @@
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 // Opens a file with the application the computer would use for it.
 export function useOpenFile() {

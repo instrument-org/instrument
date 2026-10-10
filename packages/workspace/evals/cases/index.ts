@@ -9,6 +9,7 @@ import { DOCUMENT_DESIGN_EVALS } from "./document-design";
 import { FILES_FENCE_EVALS } from "./files-fence";
 import { GIT_OVER_MOUNTS_EVALS } from "./git-over-mounts";
 import { IMAGE_REGION_EVALS } from "./image-region";
+import { INSTRUMENT_GUIDE_EVALS } from "./instrument-guide";
 import { LARGE_FOLDER_SEARCH_EVALS } from "./large-folder-search";
 import { MEMORY_EVALS } from "./memory";
 import { MESSAGE_BLOCK_EVALS } from "./message-blocks";
@@ -36,6 +37,7 @@ export const EVALS = [
   ...FILES_FENCE_EVALS,
   ...GIT_OVER_MOUNTS_EVALS,
   ...IMAGE_REGION_EVALS,
+  ...INSTRUMENT_GUIDE_EVALS,
   ...LARGE_FOLDER_SEARCH_EVALS,
   ...MEMORY_EVALS,
   ...MESSAGE_BLOCK_EVALS,

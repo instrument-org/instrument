@@ -351,7 +351,7 @@ const VIEWERS = {
     hasToolbar: true,
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
-        <LazyArchiveViewer url={file.url} />
+        <LazyArchiveViewer file={file} />
       </ViewerSurface>
     ),
     scrolls: "self",

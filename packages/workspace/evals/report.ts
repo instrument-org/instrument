@@ -29,6 +29,7 @@ import {
 } from "./provenance";
 import { buildReportWorkspaceConfig, c, write } from "./utils";
 import { resolveChat } from "../src/lib/record-folders";
+import { renderUserView } from "./lib/user-view";
 
 interface RollupSummary {
   assertions: {
@@ -337,6 +338,13 @@ export async function generateReport({
     // that is the case where the old code never loaded the sessions at all.
     const sessions = await sessionsFor(taskId);
     const systemPromptSha256 = systemPromptDigest(sessions);
+    if (evalCase?.kind === "chat") {
+      await fs.writeFile(
+        path.join(taskOutputDir, "user-view.md"),
+        renderUserView(sessions),
+        "utf8",
+      );
+    }
     if (systemPromptSha256) {
       rollupPromptDigests.add(systemPromptSha256);
     }

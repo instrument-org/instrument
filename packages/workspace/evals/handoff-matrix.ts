@@ -75,6 +75,15 @@ const CASES: Record<string, string> = {
   injection: "scenario",
   "injection-fork": "scenario",
   "slow-wake": "scenario",
+  // Messages typed mid-work (`cases/interruptions.ts`): run only when named.
+  "interrupt-fragments": "interruption",
+  "interrupt-correction": "interruption",
+  "interrupt-added-step": "interruption",
+  "interrupt-later-wish": "interruption",
+  "interrupt-stop": "interruption",
+  "holdout-unrelated": "interruption",
+  "holdout-issue": "interruption",
+  "holdout-month": "interruption",
 };
 
 const SLUGS = Object.keys(CASES);
@@ -259,7 +268,9 @@ async function run() {
   }
   const slugs =
     values.cases?.split(",") ??
-    SLUGS.filter((slug) => CASES[slug] !== "scenario");
+    SLUGS.filter(
+      (slug) => CASES[slug] !== "scenario" && CASES[slug] !== "interruption",
+    );
   const unknown = slugs.filter((slug) => !(slug in CASES));
   if (unknown.length > 0) {
     throw new Error(`Unknown cases: ${unknown.join(", ")}`);

@@ -121,8 +121,8 @@ export function AppIcon({
           )}
           draggable={false}
           // The directory draws one per service, each a request the main
-          // process answers; asked for all at once they hold up its first
-          // scroll, so the ones below the fold wait until it nears them.
+          // process answers, so the ones below the fold wait until the
+          // scroll nears them rather than all arriving on open.
           loading="lazy"
           src={mark}
         />

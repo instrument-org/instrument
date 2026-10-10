@@ -15,8 +15,8 @@ export type AIUsageKind = z.output<typeof AIUsageKindSchema>;
  * is recorded as, so a call site that forgot to say shows up as a gap.
  */
 const AI_USAGE_PURPOSES = [
-  "chat-reply",
-  "task-step",
+  "chat",
+  "task",
   "chat-title",
   "title-check",
   "web-search",

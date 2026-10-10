@@ -58,14 +58,14 @@ const KIND_LABELS: Record<Row["kind"], string> = {
 
 const PURPOSE_LABELS: Record<Row["purpose"], string> = {
   "app-search": "App search",
-  "chat-reply": "Chat reply",
+  chat: "Chat",
   "chat-search": "Chat search",
   "chat-title": "Chat title",
   "emoji-suggestion": "Emoji suggestion",
   image: "Image",
   other: "Other",
   "settings-search": "Settings search",
-  "task-step": "Task step",
+  task: "Task",
   "title-check": "Title check",
   "topic-backfill": "Topic sorting",
   "topic-suggestion": "Topic suggestion",

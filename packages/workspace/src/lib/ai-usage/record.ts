@@ -47,9 +47,9 @@ export function connectionFor(
   );
 }
 
-/** A turn's purpose: a chat's reply, or a step of a task's work. */
+/** A turn's purpose: where it ran, in the chat's own turn or in a task's. */
 export function turnPurpose(taskId: TaskId): AIUsagePurpose {
-  return resolveChat(taskId) === undefined ? "task-step" : "chat-reply";
+  return resolveChat(taskId) === undefined ? "task" : "chat";
 }
 
 /**

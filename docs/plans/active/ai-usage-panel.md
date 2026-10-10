@@ -31,13 +31,13 @@ Chat replies already store their usage (`metadata.usage` on the assistant messag
 | status | finished, failed (with the HTTP status or error kind), stopped |
 | finish reason | as the model reported it: ended its turn, called a tool, hit the length limit |
 | type | language model, decision model, web search, image model |
-| purpose | chat reply, task step, chat title, chat emoji, topic suggestion, topic backfill, chat search, settings search, app search, retitle check, other |
+| purpose | chat (a step of the chat's own turn), task (a step of a task's), chat title, title check, web search, image, emoji suggestion, topic suggestion, topic backfill, chat search, settings search, app search, other |
 | chat id, task id | absent for requests that belong to no chat; origin is shown from these, or from the surface (Settings, Apps, Chats) when there is none |
 | connection | its id, type and display name; never its key |
 | model requested | the model ID the request named |
 | model served | only when the response named one; absent means no evidence |
 | response id | the provider's own ID for the response, when it sent one |
-| tokens | input, cache read, cache write, output, reasoning; each absent when the response did not report it |
+| tokens | input, cache read, cache write, output, reasoning; each absent when the response did not report it. A task starts from the chat's whole conversation, so its first request is mostly cache read |
 
 ### Capture
 

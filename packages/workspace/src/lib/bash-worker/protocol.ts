@@ -76,8 +76,6 @@ export type ToWorker =
       /** Whether main has a background run's sink to stream native output into. */
       stream: boolean;
       type: "exec";
-      /** The port main's workspace server bound, which the shell's fetch refuses. */
-      workspaceServerPort: number;
     }
   | { callId: number; error: WireError; type: "call-error" }
   | { callId: number; result: WireResult; type: "call-result" }

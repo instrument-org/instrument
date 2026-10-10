@@ -237,8 +237,9 @@ jobs:
         if: env.SKIP_INTEL_MACOS != 'true'
         shell: bash
         run: |
+          # Relative, since GNU tar on Windows reads a `D:` path as a remote host.
           cd apps/studio/out
-          find . -name '*.map' -print0 | tar -czf "$GITHUB_WORKSPACE/sourcemaps-${{ github.ref_name }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" --null -T -
+          find . -name '*.map' -print0 | tar -czf "../../../sourcemaps-${{ github.ref_name }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" --null -T -
 
       - name: Upload source maps
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

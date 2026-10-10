@@ -9,6 +9,8 @@ import {
   inboxWidthAtom,
   paneOpenByGroupAtom,
   screenViewsAtom,
+  walkedFoldersAtom,
+  chatsOutOf,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
 } from "@/client/atoms/window";
@@ -52,6 +54,7 @@ import {
 } from "@/client/components/window/window-href";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
+import { useTabSurface } from "@/client/hooks/use-tab-surface";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { outputFolderHref } from "@/shared/computer-href";
@@ -69,7 +72,7 @@ import {
 } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 /** Dragged narrower than this, the inbox column slides shut rather than stopping at its floor. */
 const INBOX_COLLAPSE_THRESHOLD = 240;
@@ -154,7 +157,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
   // brings them back in the other order, each a margin past the width it
   // left at.
   const needs = CONVERSATION_WIDTH_MIN + (showsPane ? PANE_WIDTH_MIN : 0);
-  const { isCrossing, isShown } = useInboxRoom({
+  const { isAtOnce, isShown } = useInboxRoom({
     isActive,
     margin: ROOM_MARGIN,
     needs,
@@ -177,6 +180,35 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     showsPane && up.kind === "page",
   );
   const chatRecord = chats?.find((entry) => entry.id === chat);
+  /** A browser beside the chat, the way the tiles' Browser does. */
+  const addWeb = () => {
+    if (chat === undefined) {
+      return;
+    }
+    windowTabs.openScreen(BROWSER_HREF, {
+      group: chat,
+      select: true,
+    });
+    setPaneOpen(chat, true);
+  };
+  // Cmd+T in the chat opens a browser beside it, and Cmd+W in the pane closes
+  // the tab up there.
+  const surfaceRef = useRef<HTMLElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
+  useTabSurface({
+    anchor: surfaceRef,
+    closeTabUp: () => {
+      if (!showsPane) {
+        return false;
+      }
+      shell.requestClose(up.id);
+      return true;
+    },
+    enabled: isActive && chat !== undefined,
+    openTab: addWeb,
+    tabIds: tabs.map((tab) => tab.id),
+    tabsAnchor: paneRef,
+  });
 
   // Drawn only once there is something in it.
   const tiles = chat !== undefined && tabs.length > 0 && (
@@ -192,13 +224,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
         });
         setPaneOpen(chat, true);
       }}
-      onAddWeb={() => {
-        windowTabs.openScreen(BROWSER_HREF, {
-          group: chat,
-          select: true,
-        });
-        setPaneOpen(chat, true);
-      }}
+      onAddWeb={addWeb}
       onClose={shell.requestClose}
       onReorder={(keys) => {
         windowTabs.reorder(keys, chat);
@@ -219,7 +245,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     <div className="flex min-h-0 min-w-0 flex-1">
       <ChatColumn
         bounds={bounds}
-        isAtOnce={isCrossing}
+        isAtOnce={isAtOnce}
         // With no chat open there is no toggle to bring it back by, so it
         // stays.
         isOpen={isShown || !showsRightArea}
@@ -227,8 +253,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
           setInboxOpen(false);
         }}
       >
-        {/* `select-text`: the window's shell is chrome and turns selection off; the chat is text. */}
-        <div className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
+        <div className="flex min-h-0 w-full flex-1 flex-col [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
           {/* A plain click on a row opens in this tab, and a middle or
             modified click asks for a tab of its own. */}
           <ChatPane
@@ -237,19 +262,40 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
             // An archived chat is put away, so it leaves the side beside
             // the list with it.
             onArchiveOpen={leaveChat}
-            onDeleteDraft={shell.deleteDraft}
+            // A chat deleted from its row takes its tabs with it, and the
+            // inbox takes the tab back when it was the one open.
+            onDeleted={(id) => {
+              windowTabs.dropGroup(id);
+              if (id === chat) {
+                appTabs.navigate(INBOX_HREF, { replace: true });
+                setInboxOpen(true);
+              }
+            }}
+            onDeleteDraft={shell.discardDraft}
             onListed={isActive ? shell.onListed : undefined}
             onOpenChat={(entry) => {
               appWindow.openScreen(`${CHATS_HREF}/${entry.id}`);
             }}
             onOpenDraft={shell.showDraft}
+            // As from the chat's head: popped out, the chat open here is
+            // no longer the one this tab has open.
+            onPopOut={(entry) => {
+              shell.compose.float(entry.id);
+              if (entry.id === chat) {
+                leaveChat();
+              }
+            }}
             openChatId={chat}
+            outIds={chatsOutOf(shell.compose.entries)}
           />
         </div>
       </ChatColumn>
       {chat === undefined && <NoChatOpen onNew={shell.newDraft} />}
       {chat !== undefined && (
-        <main className="relative flex min-w-0 flex-1 flex-col">
+        <main
+          className="relative flex min-w-0 flex-1 flex-col"
+          ref={surfaceRef}
+        >
           <div className="flex min-h-0 flex-1">
             <div className="relative min-w-0 flex-1">
               <RightPane
@@ -339,6 +385,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                 paneKey={chat}
               >
                 <div
+                  ref={paneRef}
                   className={cn(
                     "flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-border",
                     // A page's bottom corners follow what they meet: square
@@ -402,7 +449,9 @@ function RouteScreen({ href }: { href: string }) {
   const appWindow = useWindow();
   const shell = useShell();
   const appsBySlug = useAppsBySlug();
-  const screenView = useAtomValue(screenViewsAtom)[useTabId()];
+  const tabId = useTabId();
+  const screenView = useAtomValue(screenViewsAtom)[tabId];
+  const walkedFolder = useAtomValue(walkedFoldersAtom)[tabId];
   usePageSlot(null, undefined, false);
   // The row's head and tail, where a file's viewer puts a toggle for its
   // panel and its actions.
@@ -417,7 +466,12 @@ function RouteScreen({ href }: { href: string }) {
   });
   const location =
     fromHref.kind === "folder" && screenView?.folder
-      ? { ...fromHref, path: screenView.folder.display }
+      ? {
+          ...fromHref,
+          ...(walkedFolder
+            ? { hostPath: walkedFolder.hostPath, path: walkedFolder.walked }
+            : { path: screenView.folder.display }),
+        }
       : fromHref;
   // The apps' catalog is a place you arrive at from the rail, with nothing
   // above it to walk back up to and nothing to type an address for: a row
@@ -449,6 +503,7 @@ function RouteScreen({ href }: { href: string }) {
                 ),
               }
             : {})}
+          fillsTab
           location={location}
         />
       )}

@@ -1,5 +1,6 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { PageFavicon } from "@/client/components/favicon";
+import { PageTooltip } from "@/client/components/window/page-tooltip";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
@@ -192,7 +193,7 @@ export function ChatTiles({
       // Pulled out by the row's padding, which leaves the chosen tile's
       // plate room inside the scroll's clip while the tiles stay in line
       // with the composer.
-      className="relative -mx-1 -mt-1 mb-1 select-none"
+      className="relative -mx-1 -mt-1 mb-1"
     >
       <motion.div
         className="relative flex [scrollbar-width:none] items-start gap-2 overflow-x-auto p-1.5"
@@ -369,11 +370,10 @@ function AddTile({
 }
 
 /**
- * A picture at its tile's full width, hung from the top and cut off at the
- * tile's foot: the head of a page or a document is what says what it is, so
- * it is kept whole across, never cropped at the sides. A picture wider than
- * the tile's shape leaves the card's ground under it. The tile's mark rides
- * its lower corner; a tile with no picture shows its mark large instead.
+ * A picture covering its tile, anchored at the top: the head of a page or a
+ * document is what says what it is, so a picture taller than the tile loses
+ * its foot, and one wider loses its sides. The tile's mark rides its lower
+ * corner; a tile with no picture shows its mark large instead.
  */
 function FittedPicture({
   mark,
@@ -389,7 +389,7 @@ function FittedPicture({
     <>
       <img
         alt=""
-        className="absolute inset-x-0 top-0 h-auto w-full"
+        className="absolute inset-0 size-full object-cover object-top"
         draggable={false}
         onError={onError}
         src={src}
@@ -592,7 +592,11 @@ function ChatTile({
   // file's type, a folder, an app.
   const mark =
     tab.kind === "page" ? (
-      <PageFavicon favicon={tab.favicon} url={tab.url ?? tab.openedUrl ?? ""} />
+      <PageFavicon
+        favicon={tab.favicon}
+        hasTooltip={false}
+        url={tab.url ?? tab.openedUrl ?? ""}
+      />
     ) : (
       <ScreenMark
         appsBySlug={appsBySlug}
@@ -600,6 +604,67 @@ function ChatTile({
         href={tab.href}
       />
     );
+  const face = (isWorking: boolean) => (
+    <button
+      aria-label={title}
+      className="flex flex-col gap-1.5 text-left outline-none"
+      // A middle click closes it, as it does a browser's tab.
+      onAuxClick={(event) => {
+        if (event.button === 1) {
+          onClose();
+        }
+      }}
+      onClick={onSelect}
+      onMouseDown={(event) => {
+        if (event.button === 1) {
+          event.preventDefault();
+        }
+      }}
+      // A page says what it is on hover, all of its title and where it
+      // is; anything else, its name.
+      title={tab.kind === "page" ? undefined : title}
+      type="button"
+    >
+      <span
+        className={cn(
+          "relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-lg bg-card shadow-xs ring-1 transition",
+          isChosen
+            ? "ring-2 ring-foreground/70"
+            : "ring-border/70 group-hover/tile:ring-border",
+        )}
+      >
+        {tab.kind === "page" ? (
+          <PagePicture
+            isOnScreen={isChosen}
+            mark={mark}
+            tab={tab}
+            targetId={targetOf(tab)}
+          />
+        ) : (
+          <ScreenPicture
+            appsBySlug={appsBySlug}
+            chatTitles={chatTitles}
+            href={tab.href}
+            mark={mark}
+          />
+        )}
+      </span>
+      {/* The name alone, at the tile's whole width: the mark is on the
+          picture, or is the picture when there is none. */}
+      <span
+        className={cn(
+          "flex min-w-0 px-0.5 text-[11px] leading-4",
+          isChosen
+            ? "font-medium text-foreground"
+            : "text-muted-foreground group-hover/tile:text-foreground",
+        )}
+      >
+        <span className={cn("truncate", isWorking && "brand-shiny-text")}>
+          {title}
+        </span>
+      </span>
+    </button>
+  );
   const tile = (isWorking: boolean) => (
     // The one up sits on a plate, the way the rail lights the place the
     // window is in.
@@ -609,63 +674,13 @@ function ChatTile({
         isChosen && "-m-1.5 rounded-xl bg-foreground/8 p-1.5",
       )}
     >
-      <button
-        aria-label={title}
-        className="flex flex-col gap-1.5 text-left outline-none"
-        // A middle click closes it, as it does a browser's tab.
-        onAuxClick={(event) => {
-          if (event.button === 1) {
-            onClose();
-          }
-        }}
-        onClick={onSelect}
-        onMouseDown={(event) => {
-          if (event.button === 1) {
-            event.preventDefault();
-          }
-        }}
-        title={title}
-        type="button"
-      >
-        <span
-          className={cn(
-            "relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-lg bg-card shadow-xs ring-1 transition",
-            isChosen
-              ? "ring-2 ring-foreground/70"
-              : "ring-border/70 group-hover/tile:ring-border",
-          )}
-        >
-          {tab.kind === "page" ? (
-            <PagePicture
-              isOnScreen={isChosen}
-              mark={mark}
-              tab={tab}
-              targetId={targetOf(tab)}
-            />
-          ) : (
-            <ScreenPicture
-              appsBySlug={appsBySlug}
-              chatTitles={chatTitles}
-              href={tab.href}
-              mark={mark}
-            />
-          )}
-        </span>
-        {/* The name alone, at the tile's whole width: the mark is on the
-            picture, or is the picture when there is none. */}
-        <span
-          className={cn(
-            "flex min-w-0 px-0.5 text-[11px] leading-4",
-            isChosen
-              ? "font-medium text-foreground"
-              : "text-muted-foreground group-hover/tile:text-foreground",
-          )}
-        >
-          <span className={cn("truncate", isWorking && "brand-shiny-text")}>
-            {title}
-          </span>
-        </span>
-      </button>
+      {tab.kind === "page" ? (
+        <PageTooltip title={tab.title} url={tab.url ?? tab.openedUrl ?? ""}>
+          {face(isWorking)}
+        </PageTooltip>
+      ) : (
+        face(isWorking)
+      )}
       <button
         aria-label={`Close ${title}`}
         className={cn(

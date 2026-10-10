@@ -3,7 +3,7 @@ import {
   placeholderTitle,
   TASK_SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
-import { alphabetical, parallel, unique } from "radashi";
+import { parallel, unique } from "radashi";
 import { z } from "zod";
 
 import { publisher } from "../../rpc/publisher";
@@ -18,16 +18,10 @@ import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { getTaskAgentStatus } from "../get-task-agent-status";
 import { pathsNamedInMessage } from "../paths-named-in-message";
-import { recordChanged } from "../record-changes";
-import { chatTaskIds, sessionOfChat } from "../record-folders";
+import { chatTaskIds, resolveChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getTaskPrivateDir, taskDir } from "../task-dir-utils";
 import { getTaskSettings } from "../task-settings";
-import {
-  getWindowState,
-  NOTHING_SEEN,
-  updateWindowState,
-} from "../window-state";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
 import { indexedByStore, kept, unkept } from "../workspace-index";
@@ -99,10 +93,6 @@ export const ChatSchema = z.object({
   lastAsk: z.string().optional(),
   /** When the last reply with words finished, in ms; absent until there is one. */
   lastReplyAt: z.number().optional(),
-  /** The newest message that is done, which is what marking seen records. */
-  newestSettledMessageId: StoreId.MessageSchema.optional(),
-  /** Replies that finished with visible words. */
-  replyCount: z.number(),
   /** The user's first message, whatever it carried; absent only before one is saved. */
   root: SessionMessage.UserSchemaWithParts.optional(),
   /** The tasks filed from this chat that are at work right now. */
@@ -115,14 +105,15 @@ export const ChatSchema = z.object({
       waiting: z.string().optional(),
     }),
   ),
+  /** The chat's session, which its transcript is read and its messages are sent through. */
+  sessionId: StoreId.SessionSchema,
   /**
    * Working while the chat's own agent is alive or a task filed from it is
    * moving; waiting while a task filed from it is stopped on an ask, or its
-   * own last turn ended on one; idle otherwise.
+   * own last turn ended on one; failed while its last turn ended in an error
+   * and nothing has been said since; idle otherwise.
    */
-  /** The chat's session, which its transcript is read and its messages are sent through. */
-  sessionId: StoreId.SessionSchema,
-  state: z.enum(["idle", "waiting", "working"]),
+  state: z.enum(["failed", "idle", "waiting", "working"]),
   title: z.string(),
   /**
    * Whether the agent has named the chat. Until it has, `title` is the
@@ -131,35 +122,20 @@ export const ChatSchema = z.object({
   titled: z.boolean(),
   /** Topic ids, from the session record. */
   topics: z.array(z.string()),
-  /** Non-user messages after the newest the user has seen, or after the window's seen floor when nothing is recorded for the chat. */
-  unread: z.number(),
+  /** Whether something in the chat has not been looked at: the mark on its session record. */
+  unread: z.boolean(),
+  /** Whether the user set that mark themselves, which holds until they come back to the chat. */
+  unreadByUser: z.boolean(),
   /** When anything last happened in it, in ms. */
   updatedAt: z.number(),
 });
 
 export type Chat = z.output<typeof ChatSchema>;
 
-/**
- * Each chat's messages as last read, oldest first. Reading every part of
- * every chat is most of what building the list costs, and most rebuilds
- * follow a change in one chat (a reply streaming) or in none (an archive, a
- * star, a chat marked seen). An entry goes as soon as the chat's transcript
- * is written, so the read after a write is always a fresh one; a read
- * already on its way when the change lands is dropped with it rather than
- * kept.
- */
-const messagesByChat = new Map<
-  TaskId,
-  Promise<SessionMessage.WithParts[] | undefined>
->();
-
 /** The apps a filed task was given, as last read from its settings, until they are written. */
 const filedAppsByTask = new Map<TaskId, Promise<string[]>>();
 
 publisher.subscribe("record.changed", (change) => {
-  if (change.kind === "messages" || change.kind === "removed") {
-    messagesByChat.delete(change.id);
-  }
   if (change.kind === "settings" || change.kind === "removed") {
     filedAppsByTask.delete(change.id);
   }
@@ -168,23 +144,10 @@ publisher.subscribe("record.changed", (change) => {
 /** One queue per chat for the marks the user puts on its session record. */
 const markQueue = createWriteQueue();
 
-/**
- * What was seen is where the user left off in the chat, kept in the
- * window's file rather than the chat's, so it is said on the change feed
- * here: the count clears the moment the chat is opened rather than the next
- * time something is said.
- */
-function announceMark(chatId: ChatId) {
-  recordChanged(chatId, "state");
-}
-
 /** What every chat of a conversation is read against, loaded once per list. */
 interface Shared {
   /** The apps the workspace has, so a hold names only a real one. */
   knownApps: Set<string>;
-  /** Each chat's seen mark, by chat id. */
-  seen: Record<string, StoreId.Message>;
-  seenFloor?: StoreId.Message;
 }
 
 /**
@@ -273,44 +236,55 @@ export async function chatReadProblem(
   return session.isErr() ? "unreadable-session" : "unreadable-messages";
 }
 
-/** Records what the user has seen in a chat, so its count can clear. */
-export async function markChatSeen(chatId: ChatId): Promise<void> {
-  const messages = await chatMessages(chatId);
-  if (!messages) {
-    return;
-  }
-  const newest = newestSettledIn(messages);
-  if (!newest) {
-    return;
-  }
-  await updateWindowState((state) => ({
-    chatSeen: { ...state.chatSeen, [chatId]: newest },
-  }));
-  announceMark(chatId);
+/** Takes the unread mark off a chat: the user has looked at it, or said they have. */
+export async function markChatRead(chatId: ChatId): Promise<boolean> {
+  return saveMark(chatId, (session) => {
+    if (session.unreadAt === undefined) {
+      return session;
+    }
+    const { unreadAt: _at, unreadByUser: _byUser, ...rest } = session;
+    return rest;
+  });
 }
 
 /**
- * Puts a chat back among the unread: its newest finished reply counts as
- * unseen again, and only that one, since what the user asks for is the
- * chat's dot back rather than every reply it ever had. A chat with no
- * finished reply has nothing to put back.
+ * Puts the unread mark on a chat: the chat settling with something new, or
+ * the user marking it unread. Any chat can carry one, whatever it holds. A
+ * mark already on keeps its date, and one the user set stays theirs, so the
+ * chat settling under it cannot make it one that clears on sight.
  */
-export async function markChatUnseen(chatId: ChatId): Promise<void> {
-  const ordered = await chatMessages(chatId);
-  if (!ordered) {
-    return;
-  }
-  const newest = ordered.findLast(countsAsUnread);
-  if (!newest) {
-    return;
-  }
-  const before = ordered
-    .slice(0, ordered.indexOf(newest))
-    .findLast((message) => message.role !== "session-context");
-  await updateWindowState((state) => ({
-    chatSeen: { ...state.chatSeen, [chatId]: before?.id ?? NOTHING_SEEN },
+export async function markChatUnread(
+  chatId: ChatId,
+  { byUser }: { byUser: boolean },
+): Promise<boolean> {
+  return saveMark(chatId, (session) => ({
+    ...session,
+    unreadAt: session.unreadAt ?? new Date(),
+    ...(byUser || session.unreadByUser ? { unreadByUser: true } : {}),
   }));
-  announceMark(chatId);
+}
+
+/**
+ * Marks a chat unread each time it settles: its agent and every task filed
+ * from it have stopped, whether on a reply, a question, or an error. A turn
+ * that leaves something of the chat's still working waits for the one that
+ * settles it, the same moment its title is settled and a notification
+ * treats as news. A chat the user is looking at as it settles is marked
+ * too; the window takes the mark off again at once.
+ */
+export function startChatUnreadOnSettle(): void {
+  void (async () => {
+    for await (const { id } of publisher.subscribe("session.done")) {
+      try {
+        const chatId = resolveChat(id);
+        if (chatId && !(await chatIsWorking(chatId))) {
+          await markChatUnread(chatId, { byUser: false });
+        }
+      } catch (error) {
+        getWorkspaceConfig().captureException(error);
+      }
+    }
+  })();
 }
 
 /**
@@ -434,21 +408,19 @@ interface ChatDigest {
   lastMessageAt?: number;
   lastReplyAt?: number;
   madeFiles: string[];
-  newestSettledMessageId?: StoreId.Message;
+  /** Whether the chat's last turn ended in an error with nothing said after it. */
+  failed: boolean;
   /** The newest user or assistant message's role and time, which says whether a turn is starting. */
   newestTurn?: { at: number; role: "assistant" | "user" };
   openedHosts: string[];
   /** What the chat's own last turn asked the user, if it ended on an ask. */
   ownAsk?: string;
-  replyCount: number;
   root?: SessionMessage.UserWithParts;
   sent: ReturnType<typeof sentHeld>;
   session: Session.Type;
   /** The last reply with words: when it finished and its first line. */
   spoken?: { at: number; text: string };
   stepInMessages?: string;
-  /** Messages that count once seen, by id, against the newest the user saw. */
-  unreadCandidates: StoreId.Message[];
 }
 
 /**
@@ -561,15 +533,13 @@ async function chatFor(
     filed.some((task) => !task.waiting) ||
     filedTasks.some((filedTask) => hasPendingWake(taskId, filedTask));
   const ask = working ? undefined : askOf(digest, filed);
-  const state = working ? "working" : ask ? "waiting" : "idle";
-
-  // A chat with no mark of its own has seen up to the window's floor.
-  const seen = shared.seen[taskId] ?? shared.seenFloor;
-  // A reply still being written is not news yet: it counts once it has
-  // finished, which is also when marking the chat seen would record it.
-  const unread = digest.unreadCandidates.filter(
-    (id) => seen === undefined || id > seen,
-  ).length;
+  const state = working
+    ? "working"
+    : ask
+      ? "waiting"
+      : digest.failed
+        ? "failed"
+        : "idle";
 
   const latest = latestFor({
     ask,
@@ -605,10 +575,6 @@ async function chatFor(
     ...(digest.lastReplyAt === undefined
       ? {}
       : { lastReplyAt: digest.lastReplyAt }),
-    ...(digest.newestSettledMessageId
-      ? { newestSettledMessageId: digest.newestSettledMessageId }
-      : {}),
-    replyCount: digest.replyCount,
     ...(root ? { root } : {}),
     runningTasks,
     sessionId: session.id,
@@ -620,7 +586,8 @@ async function chatFor(
       : session.title,
     titled: !isUntitledChatSessionTitle(session.title),
     topics: session.topics ?? [],
-    unread,
+    unread: session.unreadAt !== undefined,
+    unreadByUser: session.unreadByUser === true,
     // When anything last happened: the session's own stamp moves when a turn
     // starts, so a reply landing later and the line it is peeked by count too.
     updatedAt: Math.max(
@@ -649,43 +616,6 @@ function chatDigest(
       ? kept(digestOf(session.value, messages.value))
       : unkept(undefined);
   });
-}
-
-/** A chat's messages, oldest first, or nothing when they cannot be read. */
-function chatMessages(
-  chatId: ChatId,
-): Promise<SessionMessage.WithParts[] | undefined> {
-  const sessionId = sessionOfChat(chatId);
-  if (!sessionId) {
-    return Promise.resolve(undefined);
-  }
-  const cached = messagesByChat.get(chatId);
-  if (cached) {
-    return cached;
-  }
-  const read = Promise.resolve(
-    Store.getMessagesWithParts({ sessionId, taskId: chatId }),
-  ).then((result) => {
-    if (result.isErr()) {
-      // A failed read is not remembered: the next list tries again.
-      if (messagesByChat.get(chatId) === read) {
-        messagesByChat.delete(chatId);
-      }
-      return;
-    }
-    return alphabetical(result.value, (message) => message.id);
-  });
-  messagesByChat.set(chatId, read);
-  return read;
-}
-
-/** A message the user could have missed: a finished reply, or anything else that is not their own. */
-function countsAsUnread(message: SessionMessage.WithParts): boolean {
-  return (
-    message.role !== "user" &&
-    message.role !== "session-context" &&
-    (message.role !== "assistant" || message.metadata.finishedAt !== undefined)
-  );
 }
 
 function digestOf(
@@ -724,17 +654,25 @@ function digestOf(
   const stepInMessages = latestStepIn(messages);
   const lastMessageAt = messages.at(-1)?.metadata.createdAt.getTime();
   const lastReplyAt = replies.at(-1)?.metadata.finishedAt?.getTime();
-  const newestSettledMessageId = newestSettledIn(messages);
+  // The last thing the agent did ended in an error, after the user's
+  // newest message: a turn that never got its reply out. A retry that went
+  // on to answer, or anything the user sends after, leaves it behind.
+  const failed =
+    lastAssistant !== undefined &&
+    messages.lastIndexOf(lastAssistant) >
+      (lastUser ? messages.lastIndexOf(lastUser) : -1) &&
+    (lastAssistant.metadata.error !== undefined ||
+      lastAssistant.metadata.finishReason === "error");
   return {
     calledApps: commands.flatMap(appSlugsIn),
     ...(lastAssistant && {
       lastAssistantAt: lastAssistant.metadata.createdAt.getTime(),
     }),
+    failed,
     lastAsk: lastUser ? firstLine(textOf(lastUser)) : "",
     ...(lastMessageAt !== undefined && { lastMessageAt }),
     ...(lastReplyAt !== undefined && { lastReplyAt }),
     madeFiles: filesHeld(messages),
-    ...(newestSettledMessageId && { newestSettledMessageId }),
     ...(newestTurn && {
       newestTurn: {
         at: newestTurn.metadata.createdAt.getTime(),
@@ -743,7 +681,6 @@ function digestOf(
     }),
     openedHosts: commands.flatMap(openedHostsIn),
     ...(ownAsk !== undefined && { ownAsk }),
-    replyCount: replies.length,
     ...(root && { root }),
     sent: sentHeld(messages),
     session,
@@ -754,7 +691,6 @@ function digestOf(
       },
     }),
     ...(stepInMessages !== undefined && { stepInMessages }),
-    unreadCandidates: messages.filter(countsAsUnread).map(({ id }) => id),
   };
 }
 
@@ -858,12 +794,7 @@ function latestFor({
 }
 
 async function loadShared(): Promise<Shared> {
-  const state = await getWindowState();
-  return {
-    knownApps: await knownAppSlugs(),
-    seen: state.chatSeen ?? {},
-    ...(state.seenFloor ? { seenFloor: state.seenFloor } : {}),
-  };
+  return { knownApps: await knownAppSlugs() };
 }
 
 /** Each item once, where it last appeared. */
@@ -874,24 +805,6 @@ function newestLast(items: string[]): string[] {
     seen.add(item);
   }
   return [...seen];
-}
-
-/**
- * The newest message that is done: the user's own, or a reply that has
- * finished. A reply still being written is not seen by being on screen when
- * it starts, and marking it so would leave the chat silent about what it
- * went on to say after the user left.
- */
-function newestSettledIn(
-  messages: SessionMessage.WithParts[],
-): StoreId.Message | undefined {
-  const settled = messages.filter(
-    (message) =>
-      message.role === "user" ||
-      (message.role === "assistant" &&
-        message.metadata.finishedAt !== undefined),
-  );
-  return alphabetical(settled, (message) => message.id).at(-1)?.id;
 }
 
 /** The hostnames a shell command opens for the user with `tab open <url>`. */

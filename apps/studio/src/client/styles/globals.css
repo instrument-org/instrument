@@ -208,6 +208,12 @@ body {
   --shadow-xl-soft: var(--elevation-xl-soft);
   --shadow-2xl-soft: var(--elevation-2xl-soft);
   --shadow-3xl-soft: var(--elevation-3xl-soft);
+  /* Same ramp for what floats over arbitrary content: menus, popovers,
+   * tooltips. Its hairline is opaque, so nothing passing under it shows
+   * through the ring. */
+  --shadow-float-sm: var(--elevation-float-sm);
+  --shadow-float-md: var(--elevation-float-md);
+  --shadow-float-lg: var(--elevation-float-lg);
 }
 
 /* =========================
@@ -271,6 +277,9 @@ body {
   --elevation-xl: var(--elevation-xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
   --elevation-2xl: var(--elevation-2xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
   --elevation-3xl: var(--elevation-3xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
+  --elevation-float-sm: var(--elevation-sm);
+  --elevation-float-md: var(--elevation-md);
+  --elevation-float-lg: var(--elevation-lg);
 
   /* Status ramps — 6 stops (50/100/300/500/700/900) per Figma. */
   --error-50: #fbeef0;
@@ -406,6 +415,19 @@ body {
   --elevation-xl: 0 0 0 1px rgb(255 255 255 / 0.13), var(--elevation-xl-soft);
   --elevation-2xl: 0 0 0 1px rgb(255 255 255 / 0.14), var(--elevation-2xl-soft);
   --elevation-3xl: 0 0 0 1px rgb(255 255 255 / 0.16), var(--elevation-3xl-soft);
+  /* The ring sits outside the element's edge, so a translucent white would
+   * show whatever passes under a menu or popover through it. Each floating
+   * ring is that white already composited over `--background`: the same pixel
+   * over the window, and a steady edge over anything else. */
+  --elevation-float-sm:
+    0 0 0 1px color-mix(in srgb, #fff 8%, var(--background)),
+    var(--elevation-sm-soft);
+  --elevation-float-md:
+    0 0 0 1px color-mix(in srgb, #fff 10%, var(--background)),
+    var(--elevation-md-soft);
+  --elevation-float-lg:
+    0 0 0 1px color-mix(in srgb, #fff 11%, var(--background)),
+    var(--elevation-lg-soft);
 }
 
 /* Typography gives `.prose` a `max-width: 65ch` measure of its own, and every
@@ -886,8 +908,25 @@ body {
   * {
     @apply border-border outline-ring/50 scrollbar-thin scrollbar-color;
   }
+  /* The window is chrome, and a click that strays across a label, a row, or a
+   * tab must not leave a highlight behind, so selection is off for all of it.
+   * What a person reads or copies turns it back on: anything editable, a
+   * conversation, an error's message, and any region that says `select-text`.
+   * `:where` keeps these at no specificity, so a component's own rule (a
+   * widget inside an editor, a gutter) still wins. */
   body {
-    @apply text-foreground font-sans antialiased;
+    @apply text-foreground font-sans antialiased select-none;
+  }
+  :where(
+    input,
+    textarea,
+    [contenteditable]:not([contenteditable="false"]),
+    [data-transcript],
+    [data-slot="alert-description"],
+    [data-slot="dialog-description"],
+    [data-slot="alert-dialog-description"]
+  ) {
+    user-select: text;
   }
 }
 

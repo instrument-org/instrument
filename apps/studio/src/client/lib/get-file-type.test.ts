@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { EXTENSION_MAP } from "./file-extension-to-language";
-import { getFileKindLabel, getFileType } from "./get-file-type";
+import {
+  getFileKindLabel,
+  getFileType,
+  opensInSystemApp,
+} from "./get-file-type";
 
 describe("getFileType", () => {
   it.each([
@@ -234,4 +238,28 @@ describe("types a viewer exists for", () => {
       expect(getFileType({ filename })).toBe("unknown");
     },
   );
+});
+
+describe("opensInSystemApp", () => {
+  it.each([
+    // No viewer here, so the system's app takes them.
+    ["Installer.dmg", true],
+    ["setup.pkg", true],
+    ["backup.7z", true],
+    ["report.doc", true],
+    // Shown here.
+    ["photo.png", false],
+    ["notes.md", false],
+    ["bundle.zip", false],
+    // Run the moment they open.
+    ["build.command", false],
+    ["Setup.exe", false],
+    ["tool.AppImage", false],
+    // No extension: the system decides by contents and may run it.
+    ["archive.tar.gz", true],
+    ["mystery", false],
+    [".hidden", false],
+  ])("%s → %s", (filename, expected) => {
+    expect(opensInSystemApp(filename)).toBe(expected);
+  });
 });

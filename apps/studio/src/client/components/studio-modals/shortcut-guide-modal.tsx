@@ -8,7 +8,7 @@ import {
 } from "@/client/components/ui/dialog";
 import { Input } from "@/client/components/ui/input";
 import { Kbd, KbdGroup } from "@/client/components/ui/kbd";
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useShortcutGuideHotkey } from "@/client/hooks/use-shortcut-guide-hotkey";
@@ -40,7 +40,11 @@ export function ShortcutGuideModal() {
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
   useShortcutGuideHotkey();
-  useBlockTabNavigation(isOpen);
+  useHoldWindow(isOpen, {
+    onClose: () => {
+      setState(null);
+    },
+  });
 
   return (
     <Dialog

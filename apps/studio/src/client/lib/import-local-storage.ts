@@ -32,7 +32,6 @@ const LEGACY_KEYS: Record<string, KeptFile> = {
   "studio.pane-open.v2": "layout",
   "studio.pane-share.v1": "view",
   "studio.recents.v4": "history",
-  "studio.visited-pages.v1": "history",
   "studio.window-tabs.v9": "layout",
   "studio.zoom.v1": "view",
 };

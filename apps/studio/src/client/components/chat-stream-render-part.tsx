@@ -9,7 +9,7 @@ import {
 import { AssistantMessage } from "./assistant-message";
 import { isDataPart, renderDataPart } from "./chat-stream-data-parts";
 import { ChatDevOnly } from "./dev-mode-card";
-import { ToolCall } from "./message-part/tool-call";
+import { ToolCall, ToolCallBody } from "./message-part/tool-call";
 import {
   isToolCallVisible,
   isToolPartRunning,
@@ -47,6 +47,17 @@ function isAskingTheUser(part: SessionMessagePart.ToolPart): boolean {
     part.type === "tool-connect_app" ||
     part.type === "tool-request_folder"
   );
+}
+
+/**
+ * Whether a card asking the user has what it needs to draw: the whole question
+ * or folder request, or for a connect, the app the call came back naming.
+ */
+function isCardReady(part: SessionMessagePart.ToolPart): boolean {
+  if (part.type === "tool-connect_app") {
+    return part.state === "output-available" || part.state === "output-error";
+  }
+  return part.state !== "input-streaming";
 }
 
 // Returns null for parts that don't render inline. Data-part visibility comes
@@ -147,6 +158,20 @@ export function renderChatPart({
           part.output.state === "failure"));
     if (isDevOnly && !ctx.isDeveloperMode) {
       return null;
+    }
+    // The chat draws a card that asks the user as the card alone, with no
+    // row above it to open or shut it, and only once it has something to
+    // ask: a card that arrives empty and fills in a moment later reads as
+    // broken.
+    if (ctx.presentation === "chat" && !isDevOnly) {
+      return isCardReady(part) ? (
+        <ToolCallBody
+          key={part.metadata.id}
+          onRetry={ctx.onRetry}
+          part={part}
+          task={ctx.task}
+        />
+      ) : null;
     }
     const streaming = ctx.isToolStreaming(part, message);
     // A part can carry a start with no end long after the run that wrote it

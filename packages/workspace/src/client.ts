@@ -66,7 +66,7 @@ export type { SessionTag } from "./schemas/task-agent-status";
 export { type ChatId, ChatIdSchema } from "./schemas/chat-id";
 export { type TaskId, TaskIdSchema } from "./schemas/task-id";
 export { WINDOW_ID } from "./schemas/window-id";
-export type { WindowTabRequest } from "./schemas/window-tab";
+export type { WindowTabAnswer, WindowTabRequest } from "./schemas/window-tab";
 export type { ToolName } from "./tools/types";
 export {
   type BrowserTargetId,

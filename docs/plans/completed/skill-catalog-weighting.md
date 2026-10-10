@@ -74,7 +74,7 @@ A skill removed from the registry does not disappear from a machine that install
 
 **The trap to avoid.** Every eval run gets a sandboxed home of its own, which is the whole point of `evals/lib/sandbox-home.ts`. Skills are discovered partly from co-installed agent homes, so a sandboxed run sees a much smaller catalog than a real machine, everything fits in full, the shortening step never fires, and the eval passes for a reason that has nothing to do with the fix. Before trusting a green run, confirm the catalog under test actually shortened: `renderSkillCatalog` returns `shortened` and `omitted` counts for exactly this. The cheapest honest coverage is a unit test that calls `renderSkillCatalog` directly with a realistic skill count and asserts the named skills kept their full descriptions; the eval then measures whether the model acts on what it was shown.
 
-`--model` is required and there is no default set. Workers AI first, since the credits are already paid for, and say which models were run and why in the same breath as the result.
+`--model` is required and there is no default set. Workers AI first, since it runs without `--paid`, and say which models were run and why in the same breath as the result.
 
 ## What is deliberately not changed
 

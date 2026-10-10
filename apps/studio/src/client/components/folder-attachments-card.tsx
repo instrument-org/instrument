@@ -1,7 +1,13 @@
+import { FileOpenContext } from "@/client/components/file-open-context";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
+import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { showInFolder } from "@/client/lib/show-in-files";
-import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
+import {
+  isFolderPath,
+  type SessionMessageDataPart,
+} from "@instrument-org/workspace/client";
+import { useContext } from "react";
 
 import { Button } from "./ui/button";
 
@@ -37,14 +43,24 @@ function FolderAttachmentPreview({
 }: {
   folder: SessionMessageDataPart.FolderAttachmentDataPart;
 }) {
-  const handleClick = async () => {
+  // Opened where the surface opens files, which in a chat is the chat's own
+  // tabs; a surface with nowhere to open it shows the folder in Finder.
+  const openFile = useContext(FileOpenContext);
+  const handleClick = async (event: { ctrlKey: boolean; metaKey: boolean }) => {
+    if (openFile) {
+      openFile(
+        isFolderPath(folder.path) ? folder.path : `${folder.path}/`,
+        wantsNewTab(event) ? { newTab: true } : {},
+      );
+      return;
+    }
     await showInFolder(folder.path, { kind: "folder" });
   };
 
   return (
     <Button
       className="h-auto w-full justify-start gap-x-2.5 rounded-none px-3 py-2"
-      onClick={() => void handleClick()}
+      onClick={(event) => void handleClick(event)}
       type="button"
       variant="ghost"
     >

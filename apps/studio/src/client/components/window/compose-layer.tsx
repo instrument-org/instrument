@@ -1,18 +1,22 @@
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { composeKeyOf, type Draft, draftGroupOf } from "@/client/atoms/window";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type SessionMessageDataPart,
   type ChatId,
 } from "@instrument-org/workspace/client";
+import { useAtomValue } from "jotai";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 
+import { appTabsAtom } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { ChatBar, ChatWindow } from "./chat-window";
 import { type Chat, type Topic } from "./chats";
 import { COMPOSE_MOTION } from "./compose-layout";
 import { ComposeBar, ComposeWindow, type DraftSend } from "./compose-window";
 import { type useCompose } from "./use-compose";
+import { parseHref } from "./window-href";
 
 /**
  * The windows floating over the row: the drafts being written, each in its
@@ -36,6 +40,7 @@ export function ComposeLayer({
   onCloseChat,
   onCloseDraft,
   onCloseTab,
+  onDiscardDraft,
   onModelChange,
   onNewChatTopic,
   onNewTopic,
@@ -59,6 +64,8 @@ export function ComposeLayer({
   onCloseDraft: (id: string, words: string) => void;
   /** A tab closed from a chat window's tiles: asks first while a task is working in it. */
   onCloseTab: (id: string) => void;
+  /** A draft thrown away from its window's head. */
+  onDiscardDraft: (id: string) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** A topic asked for from a draft's head, with what was typed: the topic it makes files that draft. */
   /** Makes a topic from a popped-out chat's head, filing that chat under it. */
@@ -98,11 +105,37 @@ export function ComposeLayer({
   }, [orphanKey]);
 
   const grown = compose.placed.find((entry) => entry.placement === "expanded");
+  const isGrown = grown !== undefined;
   const shrink = () => {
     if (grown) {
       compose.setPlacement(composeKeyOf(grown), "docked");
     }
   };
+  // Grown over the row, a window holds the tab behind it like a dialog: back
+  // and Cmd+W shrink it back to the foot, as Escape and the scrim do.
+  useHoldWindow(grown !== undefined, { onClose: shrink });
+  // Held like that, the tab behind moves only for something asked for from
+  // the grown window (a file shown in its folder, a link to another chat or
+  // a place), which comes up there; the window shrinks back to the foot so
+  // the person sees it arrive.
+  const appTabs = useAtomValue(appTabsAtom);
+  const upHref = appTabs.tabs.find(
+    (tab) => tab.id === appTabs.selectedId,
+  )?.pathname;
+  const behindKey = `${appTabs.selectedId ?? ""} ${upHref === undefined ? "" : parseHref(upHref).pathname}`;
+  const shrinkEvent = useEffectEvent(shrink);
+  const behindWhenGrown = useRef<string>(undefined);
+  useEffect(() => {
+    if (!isGrown) {
+      behindWhenGrown.current = undefined;
+      return;
+    }
+    if (behindWhenGrown.current === undefined) {
+      behindWhenGrown.current = behindKey;
+    } else if (behindWhenGrown.current !== behindKey) {
+      shrinkEvent();
+    }
+  }, [behindKey, isGrown]);
 
   return (
     <div
@@ -236,6 +269,9 @@ export function ComposeLayer({
               }}
               onClose={(words) => {
                 onCloseDraft(draft.id, words);
+              }}
+              onDiscard={() => {
+                onDiscardDraft(draft.id);
               }}
               onModelChange={onModelChange}
               onNewTopic={(name) => {

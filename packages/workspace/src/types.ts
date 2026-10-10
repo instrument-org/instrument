@@ -11,6 +11,7 @@ import { z } from "zod";
 import { type AppConnectionStore } from "./lib/apps/connection";
 import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 import { type StoredAppCredential } from "./lib/apps/origin-bound";
+import { type FinderEntry } from "./lib/chat/finder-entries";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
 import { type TaskId, TaskIdSchema } from "./schemas/task-id";
@@ -47,6 +48,12 @@ export interface BrowserConfig {
    */
   hasNoWindow: boolean;
   listTargets: (id: TaskId) => Promise<BrowserTarget[]>;
+  /**
+   * Told just before a blank guest is navigated back to the page its tab was
+   * last on (`restoreLastPage`), so the browser's history can tell reopening
+   * a page from visiting it.
+   */
+  noteRestore?: (targetId: BrowserTargetId, url: string) => void;
   /**
    * Whether ads and trackers are blocked in this task's tabs: off when the
    * person turned blocking off for the workspace, or when the task set
@@ -176,6 +183,18 @@ export interface WorkspaceConfig {
   defaultTaskTemplateDir: AbsolutePath;
   /** Desktop decoration after the default output folder exists. */
   ensureOutputFolderIcon?: (folderPath: string) => Promise<void>;
+  /**
+   * What the Finder knows about a folder's entries beyond what `stat` says
+   * (packages, hidden extensions, hidden entries), for the file browser's
+   * listing. Absent off macOS and in builds without the Mac module.
+   */
+  finderEntries?: (folder: string) => Promise<FinderEntry[]>;
+  /**
+   * Where a Finder alias leads, for the file browser to follow one as it
+   * follows a symbolic link; undefined for a path that is not an alias.
+   * Absent off macOS and in builds without the Mac module.
+   */
+  resolveAlias?: (path: string) => Promise<string | undefined>;
   getAIProviderConfigs: GetProviderConfigs;
   /**
    * Who is signed in, for the agents to know whose work it is: the account's
@@ -220,14 +239,25 @@ export interface WorkspaceConfig {
   trashItem: (path: AbsolutePath) => Promise<void>;
   // Path to the bundled `uv` binary (escape hatch for python/pip/uv commands).
   uvBinPath: AbsolutePath;
-  // The bundled Mac helper behind the `calendar` and `contacts` commands; absent off
-  // macOS and in builds that do not carry it.
+  // The bundled Mac helper behind the `calendar` and `contacts` commands and
+  // iCloud Drive's app folders; absent off macOS and in builds that do not carry it.
   macHelperBinPath?: AbsolutePath;
+  // Where the system keeps the person's own folders, which is not always under
+  // the home folder by its English name: Windows moves Desktop and Documents
+  // into OneDrive, and Linux names them in the desktop's language.
+  knownFolders?: Record<KnownFolder, string>;
   // Base dir for uv's isolated cache/python-install/tool dirs. Lives under the
   // app's userData so a sandboxed `HOME=/` never sends uv writing to the host.
   uvDataDir: AbsolutePath;
   webSearch: WebSearchClient;
 }
+export type KnownFolder =
+  | "desktop"
+  | "documents"
+  | "downloads"
+  | "music"
+  | "pictures"
+  | "videos";
 type CdpMethod = keyof ProtocolMapping.Commands;
 type CdpParams<M extends CdpMethod> = ProtocolMapping.Commands[M]["paramsType"];
 

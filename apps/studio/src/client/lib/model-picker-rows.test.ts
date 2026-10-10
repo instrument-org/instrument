@@ -317,6 +317,24 @@ describe("rowsForConnection", () => {
     },
   );
 
+  it("leads the recommendations with the provider's default", () => {
+    const models = shortMixed.map((model) =>
+      model.canonicalId === "glm-5.3-flash"
+        ? { ...model, tags: [...model.tags, "default" as const] }
+        : model,
+    );
+    const rows = rowsForConnection({
+      connectionId: "workers-ai",
+      models,
+      showAll: false,
+    });
+    expect(describeRows(rows).slice(0, 3)).toEqual([
+      "# Recommended",
+      "(z-ai) GLM 5.3 Flash",
+      "(deepseek) DeepSeek V4 Flash",
+    ]);
+  });
+
   it("shows the whole of a long catalog when asked", () => {
     const rows = rowsForConnection({
       connectionId: "openrouter-key",
@@ -346,6 +364,32 @@ describe("rowsForSearch", () => {
         "# OpenRouter",
         "(anthropic) Claude Sonnet 5.5",
       ]
+    `);
+  });
+
+  it("tries a search that finds nothing again with the connection named and versions split off", () => {
+    const models = [...autoOnly, ...anthropicList, ...longCatalog];
+    expect(
+      Object.fromEntries(
+        ["openrouter sonnet", "claude opus5.5", "anthropic haiku4"].map(
+          (query) => [query, describeRows(rowsForSearch({ models, query }))],
+        ),
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "anthropic haiku4": [
+          "# Anthropic",
+          "(anthropic) Claude Haiku 4.5",
+        ],
+        "claude opus5.5": [
+          "# Anthropic",
+          "(anthropic) Claude Opus 5.5 — Needs a paid plan.",
+        ],
+        "openrouter sonnet": [
+          "# OpenRouter",
+          "(anthropic) Claude Sonnet 5.5",
+        ],
+      }
     `);
   });
 });

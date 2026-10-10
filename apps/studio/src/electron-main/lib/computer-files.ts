@@ -1,10 +1,14 @@
 import { APP_PROTOCOL, TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
-import { serveStaticFile } from "@instrument-org/workspace/electron";
+import {
+  resolveThroughAliases,
+  serveStaticFile,
+} from "@instrument-org/workspace/electron";
 import { Hono } from "hono";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { resolveAlias } from "./mac-native";
 import {
   fileThumbnail,
   fileThumbnailDeps,
@@ -36,6 +40,8 @@ import {
  *   exercises the same path the packaged build does.
  * - The task's private directory is refused as a segment anywhere, the way
  *   every other road to a file refuses it, and only GET and HEAD are answered.
+ *   A Finder alias on the path is followed, as a symbolic link is, and where
+ *   it leads is held to the same refusal.
  */
 const HOST_PREFIX = "computer-";
 
@@ -102,8 +108,12 @@ app.all("/*", async (c) => {
   if (c.req.method !== "GET" && c.req.method !== "HEAD") {
     return c.notFound();
   }
-  const hostPath = hostPathOfComputerFileUrl(new URL(c.req.url));
-  if (hostPath === undefined) {
+  const asked = hostPathOfComputerFileUrl(new URL(c.req.url));
+  if (asked === undefined) {
+    return c.notFound();
+  }
+  const hostPath = await resolveThroughAliases(asked, resolveAlias);
+  if (PRIVATE_DIR_SEGMENT_REGEX.test(hostPath)) {
     return c.notFound();
   }
   // The renderer's own origin is never this scheme, so every read is

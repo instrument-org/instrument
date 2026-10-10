@@ -88,6 +88,34 @@ describe("continuationOf", () => {
     });
   });
 
+  // Our loop marks a cache breakpoint on the last part of the newest two
+  // messages, so the breakpoint a message carried last step is gone from it
+  // this step. Reading that as a changed message restarted the process on
+  // every step, from a replay that dropped images and the cached prefix.
+  it("continues when a cache breakpoint moved off a part it had seen", () => {
+    const marked = (message: LanguageModelV4Message): LanguageModelV4Message =>
+      message.role === "user"
+        ? {
+            ...message,
+            content: message.content.map((part) => ({
+              ...part,
+              providerOptions: {
+                anthropic: { cacheControl: { type: "ephemeral" } },
+              },
+            })),
+          }
+        : message;
+    const first = [system, marked(user("one"))];
+    expect(
+      continuation(after(first, ["t1"]), [
+        system,
+        user("one"),
+        callsTool("t1"),
+        toolResult("t1"),
+      ]),
+    ).toMatchObject({ kind: "tool-results" });
+  });
+
   it("starts over when an earlier message changed", () => {
     const first = [system, user("one")];
     expect(

@@ -306,7 +306,6 @@ export const WINDOW_TABS_EVALS = [
             url: "https://example.com/",
           },
         ],
-        text: "A jar is a rigid, cylindrical or slightly conical container, typically made of glass, ceramic, or plastic.",
         title: "Jar - Wikipedia",
         url: JAR,
       },

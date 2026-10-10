@@ -9,7 +9,6 @@ import {
   NewWorkspaceDialog,
   SwitchWorkspaceDialog,
   type SwitchTarget,
-  WORKSPACE_COLOR_HEX,
   WorkspaceMenu,
 } from "@/client/components/dev-panel-workspaces";
 import { useTheme } from "@/client/components/theme-provider";
@@ -213,22 +212,6 @@ export function DevPanel() {
       {crash && <CrashProbe />}
       <div className="flex h-5 items-center gap-x-0.5 rounded-full bg-foreground/4 px-0.5 ring-1 ring-foreground/8 ring-inset">
         <ThemeToggle />
-        {/* Its own pill in its own color, apart from the instance label: which
-            workspace is open is a different fact from which checkout and port
-            this is. Nothing for the default workspace, which is what every
-            other one is a deviation from. */}
-        {currentWorkspace !== undefined && !currentWorkspace.isDefault && (
-          <span
-            className="flex h-4 items-center gap-x-1 rounded-full px-1.5 font-mono text-[9px] leading-none"
-            style={{
-              backgroundColor: `color-mix(in oklab, ${WORKSPACE_COLOR_HEX[currentWorkspace.color]} 16%, transparent)`,
-              color: WORKSPACE_COLOR_HEX[currentWorkspace.color],
-            }}
-            title={`Workspace: ${currentWorkspace.name}`}
-          >
-            {currentWorkspace.name}
-          </span>
-        )}
         <Menubar className="h-auto gap-0 border-none bg-transparent p-0">
           <MenubarMenu>
             <MenubarTrigger className={pillTriggerClassName}>

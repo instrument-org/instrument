@@ -32,6 +32,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
 import { ClosedTabsMenu } from "./closed-tabs-menu";
 import { pageTabTitle } from "./file-tabs";
+import { useComputerVolumes } from "./computer-volumes";
 import { screenPresentation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
 import { TabStrip } from "./tab-strip";
@@ -77,6 +78,7 @@ export function AppTabStrip({
   // A closed site's page is kept aside rather than among the group's tabs,
   // and is what its entry in the closed list is named by.
   const putAway = useAtomValue(putAwaySitesAtom);
+  const volumes = useComputerVolumes();
   const [menu, setMenu] = useState<{ id: TabId; x: number; y: number }>();
   const menuStyle = useWindowPointStyle(menu ?? { x: 0, y: 0 });
   const idOf = (key: string) => tabs.find((tab) => tab.id === key)?.id;
@@ -106,6 +108,7 @@ export function AppTabStrip({
       appsBySlug,
       chatTitles,
       taskTitles: childTitles,
+      ...(volumes ? { volumes } : {}),
     });
   };
 

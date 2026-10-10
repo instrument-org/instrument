@@ -1,4 +1,4 @@
-import { getAppCatalog } from "./catalog";
+import { catalogEntryForApp } from "./catalog";
 import { type AppManifest } from "./manifest";
 
 /**
@@ -14,7 +14,7 @@ export function appHomeFor(
   if (manifest.type === "web") {
     return manifest.url;
   }
-  const entry = getAppCatalog().find((candidate) => candidate.slug === slug);
+  const entry = catalogEntryForApp(slug, manifest);
   return entry?.home ?? appSiteFor(slug, manifest);
 }
 
@@ -29,7 +29,7 @@ export function appSiteFor(
   slug: string,
   manifest: AppManifest,
 ): string | undefined {
-  const entry = getAppCatalog().find((candidate) => candidate.slug === slug);
+  const entry = catalogEntryForApp(slug, manifest);
   if (entry) {
     return `https://${entry.domain}`;
   }

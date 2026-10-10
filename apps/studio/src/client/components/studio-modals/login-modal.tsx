@@ -14,7 +14,7 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/client/components/ui/dialog";
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { SHARED } from "@/client/lib/styles";
@@ -40,7 +40,11 @@ export function LoginModal() {
   // the instant the dialog starts closing.
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
-  useBlockTabNavigation(isOpen);
+  useHoldWindow(isOpen, {
+    onClose: () => {
+      setState(null);
+    },
+  });
 
   const complete = () => {
     state?.onCompleted?.();
@@ -78,12 +82,10 @@ function LoginModalContent({
   props?: LoginModalProps;
 }) {
   const { error, login } = useLoginSocial();
-  // When the caller only needs a provider (not a login), open straight on the
-  // add-provider form. There's no welcome page to go back to in that case.
-  const opensOnAddProvider = props?.reason === "provider-required";
-  const [page, setPage] = useState<Page>(
-    opensOnAddProvider ? "add-provider" : "welcome",
-  );
+  // When the caller only needs a provider (not a login), the first page
+  // offers the accounts to add and leaves out signing in to Instrument.
+  const providerOnly = props?.reason === "provider-required";
+  const [page, setPage] = useState<Page>("welcome");
 
   return (
     <DialogContent
@@ -120,13 +122,9 @@ function LoginModalContent({
         <ProviderSetupScreen
           error={error}
           hideManualProvider={props?.hideManualProvider}
-          onBack={
-            opensOnAddProvider
-              ? undefined
-              : () => {
-                  setPage("welcome");
-                }
-          }
+          onBack={() => {
+            setPage("welcome");
+          }}
           onContinue={onComplete}
           onLogin={login}
           onLoginSuccess={() => {
@@ -134,6 +132,7 @@ function LoginModalContent({
           }}
           onPageChange={setPage}
           page={page}
+          signedIn={providerOnly}
         />
       )}
     </DialogContent>

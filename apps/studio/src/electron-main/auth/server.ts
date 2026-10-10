@@ -8,6 +8,7 @@ import {
   GOOGLE_MARK,
   newAuthReference,
   OPENAI_MARK,
+  OPENROUTER_MARK,
   previewOutcomes,
   renderAuthPage,
 } from "@/electron-main/auth/page";
@@ -15,7 +16,6 @@ import { setAuthServerPort } from "@/electron-main/auth/state";
 import {
   announceConnected,
   APP_OAUTH_CALLBACK_PATH,
-  appHome,
   appMark,
   appName,
   getAppsDir,
@@ -26,6 +26,10 @@ import {
   CHATGPT_CALLBACK_PATH,
   receiveChatGPTCallback,
 } from "@/electron-main/lib/chatgpt-account";
+import {
+  OPENROUTER_CALLBACK_PATH,
+  receiveOpenRouterCallback,
+} from "@/electron-main/lib/openrouter-connect";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getSessionStore } from "@/electron-main/stores/workspace/session";
@@ -42,6 +46,7 @@ import {
 } from "@instrument-org/workspace/electron";
 import { type Context, Hono } from "hono";
 import fs from "node:fs/promises";
+import { settleSignIn } from "../browser-view/history-intents";
 
 const DEFAULT_PORT =
   process.env.NODE_ENV === "development"
@@ -284,6 +289,13 @@ async function start() {
     const state = c.req.query("state");
     const oauthError = c.req.query("error");
     const appsDir = getAppsDir();
+    // The sign-in's pages in the window's browser end with this one: where
+    // the tab goes next is the person's own history again.
+    const settling =
+      state === undefined ? undefined : pendingMcpOAuthSlug(state);
+    if (settling !== undefined) {
+      settleSignIn(settling);
+    }
     if (
       state !== undefined &&
       (oauthError !== undefined || code === undefined)
@@ -340,18 +352,13 @@ async function start() {
     if (appsDir) {
       await announceConnected(result.value.slug);
     }
-    // A sign-in that ran in the window's own browser lands on the service
-    // itself, signed in: the connection is visible where it matters, and no
-    // page of ours is left in the tab. One that ran in the user's browser
-    // gets a page that says what happened and the way back into the app,
-    // and the window comes to the front so that way back is already taken.
-    const home = appsDir
-      ? await appHome(appsDir, result.value.slug)
-      : undefined;
-    if (result.value.opensIn === "app" && home) {
-      return c.redirect(home);
+    // Either way the tab gets a page that says what happened. The window
+    // takes itself back to the app's page when the sign-in it waited on
+    // lands; one that ran in the user's own browser also brings the window
+    // to the front, so that way back is already taken.
+    if (result.value.opensIn !== "app") {
+      focusAppWindow();
     }
-    focusAppWindow();
     return c.html(
       renderAuthPage({
         kind: "connected",
@@ -411,6 +418,41 @@ async function start() {
             service: chatGPT,
           }),
         );
+      }
+    }
+  });
+
+  app.get(OPENROUTER_CALLBACK_PATH, async (c) => {
+    const finished = receiveOpenRouterCallback(
+      new URL(c.req.url).searchParams,
+    );
+    if (!finished) {
+      return c.html(renderAuthPage({ kind: "expired" }), 400);
+    }
+    const openRouter = { mark: OPENROUTER_MARK, name: "OpenRouter" };
+    const status = await finished.then(
+      (value) => ({ value }),
+      (error: unknown) =>
+        failed(new Error("Connecting OpenRouter failed", { cause: error }), {
+          connecting: openRouter.name,
+        }),
+    );
+    focusAppWindow();
+    if (!("value" in status)) {
+      return c.html(status, 400);
+    }
+    switch (status.value.outcome) {
+      case "canceled": {
+        // A newer connect took this one's place, or it was given up in the app.
+        return c.html(renderAuthPage({ kind: "expired" }), 400);
+      }
+      case "connected": {
+        return c.html(
+          renderAuthPage({ kind: "connected", service: openRouter }),
+        );
+      }
+      case "declined": {
+        return c.html(renderAuthPage({ kind: "declined", service: openRouter }));
       }
     }
   });

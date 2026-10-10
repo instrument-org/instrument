@@ -178,7 +178,7 @@ export function UpgradeSubscriptionAlertView({
           You don&apos;t have enough credits to continue. Contact support to get
           more.
         </p>
-        {/* TODO: Route to credit-pack purchase when available. */}
+        {/* TODO: Route to wherever the API says credits can be added. */}
         <div className="flex">
           <Button asChild size="sm" variant="brand">
             <ExternalLink href={SUPPORT_URL}>Contact support</ExternalLink>

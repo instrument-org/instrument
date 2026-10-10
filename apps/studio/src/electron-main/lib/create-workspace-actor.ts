@@ -1,7 +1,11 @@
 import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
-import { macHelperBinPath } from "@/electron-main/lib/mac-native";
+import {
+  finderEntries,
+  macHelperBinPath,
+  resolveAlias,
+} from "@/electron-main/lib/mac-native";
 import {
   isQuitGuardForcedInDev,
   requestQuit,
@@ -138,6 +142,8 @@ export function createWorkspaceActor() {
         ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
         : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
       ensureOutputFolderIcon,
+      finderEntries,
+      resolveAlias,
       macHelperBinPath: macHelperBinPath(),
       getAIProviderConfigs,
       getUser: getSignedInUser,
@@ -145,6 +151,14 @@ export function createWorkspaceActor() {
       // index is derived, and a workspace may sit in a synced folder.
       indexesDir: path.join(app.getPath("userData"), "indexes"),
       isExternalBrowserEnabled: () => isFeatureEnabled("external_browser"),
+      knownFolders: {
+        desktop: app.getPath("desktop"),
+        documents: app.getPath("documents"),
+        downloads: app.getPath("downloads"),
+        music: app.getPath("music"),
+        pictures: app.getPath("pictures"),
+        videos: app.getPath("videos"),
+      },
       modelCache: diskModelCache,
       nodeExecEnv: {
         // Required to allow Electron to operate as a node process

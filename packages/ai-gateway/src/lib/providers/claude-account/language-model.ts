@@ -16,7 +16,6 @@ import {
   type SDKRateLimitInfo,
 } from "@anthropic-ai/claude-agent-sdk";
 import { createHash, randomUUID } from "node:crypto";
-import { omit } from "radashi";
 import { z } from "zod";
 
 import { CLIENT_SESSION_ID_HEADER } from "../../../constants";
@@ -99,10 +98,19 @@ export function splitPrompt(prompt: LanguageModelV4Message[]) {
   };
 }
 
-/** What one message is, for telling whether a process has already seen it. */
+/**
+ * What one message is, for telling whether a process has already seen it.
+ * Provider options are left out at every depth: our loop moves its cache
+ * breakpoints onto the newest messages each step, on the message or on its
+ * last part, and a message that lost one is still the message the process saw.
+ */
 function fingerprintOf(message: LanguageModelV4Message) {
   return createHash("sha256")
-    .update(JSON.stringify(omit(message, ["providerOptions"])))
+    .update(
+      JSON.stringify(message, (key, value: unknown) =>
+        key === "providerOptions" ? undefined : value,
+      ),
+    )
     .digest("hex");
 }
 

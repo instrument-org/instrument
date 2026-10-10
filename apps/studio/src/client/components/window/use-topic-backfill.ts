@@ -1,5 +1,5 @@
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { useDecision } from "@/client/hooks/use-decision";
+import { decisionBar } from "@instrument-org/shared/decision-bars";
 import { useEffect, useState } from "react";
 
 import { askOf, byActivity, type Chat } from "./chats";
@@ -11,14 +11,13 @@ export interface BackfillCandidate {
   title: string;
 }
 
-type Answer = RPCOutput["workspace"]["decision"]["ask"];
-
 /**
- * How sure the decision model has to be that a chat belongs. Measured on
- * both decision models, chats that fit a topic's name land at 0.75 to 0.98
- * and the rest at 0.6 or under, so the bar sits in the gap.
+ * How sure the decision model has to be that a chat belongs. On 10 labeled
+ * topics over 200 real chats, Clef-flash and Jev at 0.7 find 34 and 33 of
+ * the 43 that belong, with 7 and 2 wrong; Clef scores lower and at 0.55 finds
+ * 35 with 1 wrong.
  */
-const BELONGS = 0.7;
+const BELONGS = { clef: 0.55, clefFlash: 0.7, other: 0.7 };
 /** The newest this many are read: one request, a fraction of a cent, well inside the model's context. */
 const MOST_READ = 200;
 const ASK_MAX = 200;
@@ -74,51 +73,43 @@ export function useTopicBackfill({
   }, [name]);
 
   const asking = open && candidates.length > 0 && settled.length > 1;
-  const { data } = useQuery<Answer, Error, Answer, string[]>({
+  const { answer } = useDecision({
+    ask: asking
+      ? {
+          questions: Object.fromEntries(
+            candidates.map((chat, index) => [
+              String(index),
+              {
+                // A sentence rather than an object: one decision model reads
+                // a structured question poorly and scores every chat alike.
+                instructions: `Does the chat titled "${chat.title}", which opened with "${chat.asked.replace(/\s+/g, " ")}", belong under the topic in the state?`,
+                type: "noul",
+              },
+            ]),
+          ),
+          state: { topic: { name: settled } },
+        }
+      : undefined,
     // While the name is still being typed, the last answer stays up until the
     // next arrives, so the line under the name changes once per answer
     // rather than blinking out between them.
-    placeholderData: (previous, previousQuery) => {
-      const previousName = previousQuery?.queryKey[1] ?? "";
-      return previousName &&
-        (settled.startsWith(previousName) || previousName.startsWith(settled))
-        ? previous
-        : undefined;
-    },
-    queryFn: asking
-      ? ({ signal }) =>
-          rpcClient.workspace.decision.ask.call(
-            {
-              questions: Object.fromEntries(
-                candidates.map((chat, index) => [
-                  String(index),
-                  {
-                    // A sentence rather than an object: one decision model
-                    // reads a structured question poorly and scores every
-                    // chat alike.
-                    instructions: `Does the chat titled "${chat.title}", which opened with "${chat.asked.replace(/\s+/g, " ")}", belong under the topic in the state?`,
-                    type: "noul",
-                  },
-                ]),
-              ),
-              state: { topic: { name: settled } },
-            },
-            { signal },
-          )
-      : skipToken,
-    queryKey: [
+    keepPrevious: ([, previousName]) =>
+      typeof previousName === "string" &&
+      previousName !== "" &&
+      (settled.startsWith(previousName) || previousName.startsWith(settled)),
+    key: [
       "topic-backfill",
       settled,
       candidates.map((chat) => chat.id).join("\n"),
     ],
-    retry: false,
-    staleTime: Infinity,
   });
 
-  if (!asking || !data) {
+  if (!asking || !answer) {
     return [];
   }
   return candidates.filter(
-    (_, index) => (data.answers[String(index)]?.noul ?? 0) >= BELONGS,
+    (_, index) =>
+      (answer.answers[String(index)]?.noul ?? 0) >=
+      decisionBar(answer.model, BELONGS),
   );
 }

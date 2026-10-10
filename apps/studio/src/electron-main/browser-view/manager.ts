@@ -9,8 +9,10 @@ import {
   type BrowserTarget,
   type BrowserTargetId,
   encodeBrowserTargetId,
+  lastBrowserAgentActivity,
   type StoreId,
   type TaskId,
+  WINDOW_ID,
 } from "@instrument-org/workspace/electron";
 import {
   BrowserWindow,
@@ -44,6 +46,19 @@ import { isBlocking } from "./content-blocking";
 import { attachGuestInteractions } from "./guest-interactions";
 import { guests } from "./guest-registry";
 import { configureGuestSession } from "./guest-session";
+import {
+  noteRestored,
+  signInAt,
+  signInPending,
+  takeRestored,
+  takeTyped,
+} from "./history-intents";
+import {
+  createTabRecorder,
+  type NavigationSnapshot,
+  type TabRecorder,
+} from "./history-recorder";
+import { getHistoryStore } from "./history-store";
 import { mayPageNavigateTo } from "./local-file-policy";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
@@ -59,6 +74,13 @@ import {
 // whenever the agent runs, so attach normally completes in well under a second;
 // the timeout only fires if no renderer is available to host the guest.
 const ATTACH_TIMEOUT_MS = 15_000;
+
+// How long before a navigation starts an agent's command still claims it.
+// Electron says nothing about who started a navigation, so it is read off
+// the agent's own traffic: a command arrives just before the click or the
+// navigate it causes. A page's own script that navigates later than this
+// after an agent's click is counted as the person's.
+const AGENT_NAVIGATION_TAIL_MS = 2000;
 
 export interface BrowserViewManager {
   // Register the `<webview>` attach lifecycle on a window's webContents.
@@ -303,19 +325,48 @@ export function createBrowserViewManager(): BrowserViewManager {
       },
     });
 
+    const history = recordHistory(entry, guest);
     guest.on("did-start-navigation", (details) => {
       if (details.isMainFrame && !details.isSameDocument) {
         focusGuard.onNavigationStart(targetId);
         markNavigated(entry, details.url);
+        history.start(details.url);
+      }
+    });
+    guest.on("did-redirect-navigation", (details) => {
+      if (details.isMainFrame) {
+        history.redirect(details.url);
       }
     });
     // The blank page every guest is born on is not somewhere the page has
     // been: once it has somewhere real, that start leaves its history, so
     // back from its first page is the tab's back rather than a step onto
-    // an empty page.
-    guest.on("did-navigate", (_event, url) => {
+    // an empty page. History compares the list as the commit left it,
+    // before the blank start goes, and settles on it after.
+    guest.on("did-navigate", (_event, url, httpResponseCode) => {
+      history.commit({
+        after: navigationSnapshot(guest),
+        status: httpResponseCode,
+        url,
+      });
       if (url !== "about:blank") {
         dropBlankStart(guest);
+      }
+      history.settle(navigationSnapshot(guest));
+    });
+    guest.on("did-navigate-in-page", (_event, url, isMainFrame) => {
+      if (isMainFrame) {
+        history.commitSameDocument({ after: navigationSnapshot(guest), url });
+        history.settle(navigationSnapshot(guest));
+      }
+    });
+    guest.on("page-title-updated", (_event, title, explicitSet) => {
+      history.title(title, explicitSet);
+    });
+    guest.on("page-favicon-updated", (_event, favicons) => {
+      const favicon = favicons[0];
+      if (favicon) {
+        history.favicon(favicon);
       }
     });
     guest.on("dom-ready", () => {
@@ -326,6 +377,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     });
     guest.on("did-stop-loading", () => {
       focusGuard.onLoadSettled(targetId);
+      history.stoppedLoading();
     });
     guest.on("focus", () => {
       focusGuard.onGuestFocus(targetId);
@@ -333,7 +385,10 @@ export function createBrowserViewManager(): BrowserViewManager {
 
     guest.on(
       "did-fail-load",
-      (_event, errorCode, errorDescription, validatedURL) => {
+      (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+        if (isMainFrame && errorCode !== -3) {
+          history.failed(validatedURL);
+        }
         // Only the host goes in the log: a page's full address can carry
         // tokens and says what the user was looking at.
         if (errorCode !== -3) {
@@ -613,6 +668,7 @@ export function createBrowserViewManager(): BrowserViewManager {
       workspace: isBlocking(),
     }),
     listTargets,
+    noteRestore: noteRestored,
     onTargetDestroyed,
     sendCommand: (async (
       targetId: BrowserTargetId,
@@ -724,6 +780,109 @@ export function createBrowserViewManager(): BrowserViewManager {
 
 export function getBrowserViewManager(): BrowserViewManager | undefined {
   return managerInstance;
+}
+
+/**
+ * A guest's history recorder, every call guarded: history is never worth a
+ * navigation event handler throwing, so a store that cannot be written
+ * (a full disk, a locked file) is logged once and recording goes quiet.
+ *
+ * A window tab's navigation is the person's unless an agent's command for
+ * that tab came shortly before it started; a task's own browser is only ever
+ * driven by its agent.
+ */
+function recordHistory(entry: BrowserEntry, guest: WebContents): TabRecorder {
+  const { targetId } = entry;
+  let recorder: TabRecorder | undefined;
+  let failed = false;
+  const run = (call: (tab: TabRecorder) => void) => {
+    if (failed) {
+      return;
+    }
+    try {
+      recorder ??= createTabRecorder({
+        actorSince: (startedAt) =>
+          entry.id !== WINDOW_ID ||
+          (lastBrowserAgentActivity(targetId) ?? Number.NEGATIVE_INFINITY) >=
+            startedAt - AGENT_NAVIGATION_TAIL_MS
+            ? "agent"
+            : "user",
+        now: Date.now,
+        signInAt,
+        signInPending,
+        sink: getHistoryStore(),
+        takeRestored: (urls) => takeRestored(targetId, urls),
+        takeTyped,
+      });
+      call(recorder);
+    } catch (error) {
+      failed = true;
+      log.error(
+        `history recording stopped targetId=${targetId} error=${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  };
+  const history: TabRecorder = {
+    commit: (commit) => {
+      run((tab) => {
+        tab.commit(commit);
+      });
+    },
+    commitSameDocument: (commit) => {
+      run((tab) => {
+        tab.commitSameDocument(commit);
+      });
+    },
+    failed: (url) => {
+      run((tab) => {
+        tab.failed(url);
+      });
+    },
+    favicon: (favicon) => {
+      run((tab) => {
+        tab.favicon(favicon);
+      });
+    },
+    redirect: (url) => {
+      run((tab) => {
+        tab.redirect(url);
+      });
+    },
+    settle: (after) => {
+      run((tab) => {
+        tab.settle(after);
+      });
+    },
+    start: (url) => {
+      run((tab) => {
+        tab.start(url);
+      });
+    },
+    stoppedLoading: () => {
+      run((tab) => {
+        tab.stoppedLoading();
+      });
+    },
+    title: (title, explicit) => {
+      run((tab) => {
+        tab.title(title, explicit);
+      });
+    },
+  };
+  if (!guest.isDestroyed()) {
+    history.settle(navigationSnapshot(guest));
+  }
+  return history;
+}
+
+/** Where a guest stands in its navigation list, for history to compare commits against. */
+function navigationSnapshot(wc: WebContents): NavigationSnapshot {
+  const history = wc.navigationHistory;
+  return {
+    index: history.getActiveIndex(),
+    length: history.length(),
+    urls: history.getAllEntries().map((entry) => entry.url),
+  };
 }
 
 /** Removes the blank entries behind where a guest stands in its history. */

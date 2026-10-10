@@ -1,0 +1,184 @@
+{
+  "entries": [
+    {
+      "id": "account",
+      "tab": "General",
+      "title": "Account",
+      "detail": "Your Instrument account and plan"
+    },
+    {
+      "id": "theme",
+      "tab": "General",
+      "title": "Theme",
+      "detail": "Choose your preferred color scheme."
+    },
+    {
+      "id": "zoom",
+      "tab": "General",
+      "title": "Zoom",
+      "detail": "Make everything in the app larger or smaller."
+    },
+    {
+      "id": "notifications",
+      "tab": "General",
+      "title": "Notify when tasks finish",
+      "detail": "Show a desktop notification when a task finishes."
+    },
+    {
+      "id": "version",
+      "tab": "General",
+      "title": "Version and updates",
+      "detail": "Which version of Instrument you have, and updates"
+    },
+    {
+      "id": "open-source",
+      "tab": "General",
+      "title": "Open source",
+      "detail": "View the source, or tell us about something that isn't working."
+    },
+    {
+      "id": "diagnostic-log",
+      "tab": "General",
+      "title": "Diagnostic log",
+      "detail": "A local record to send with a problem report"
+    },
+    {
+      "id": "memory-import",
+      "tab": "Memory",
+      "title": "Import from another AI",
+      "detail": "Bring in what another AI knows about you."
+    },
+    {
+      "id": "add-provider",
+      "tab": "Providers",
+      "title": "Add provider",
+      "detail": "Use a model with your own key."
+    },
+    {
+      "id": "chatgpt-account",
+      "tab": "Providers",
+      "title": "ChatGPT account",
+      "detail": "Use your ChatGPT Plus or Pro plan."
+    },
+    {
+      "id": "claude-account",
+      "tab": "Providers",
+      "title": "Claude account",
+      "detail": "Use your Claude plan."
+    },
+    {
+      "id": "provider:openrouter",
+      "tab": "Providers",
+      "title": "OpenRouter",
+      "detail": "OpenRouter"
+    },
+    {
+      "id": "new-skill",
+      "tab": "Skills",
+      "title": "New skill",
+      "detail": "Ask for a skill that teaches a new way of working."
+    }
+  ],
+  "searches": [
+    {
+      "query": "night mode",
+      "must": ["theme"],
+      "ok": []
+    },
+    {
+      "query": "make the text bigger",
+      "must": ["zoom"],
+      "ok": []
+    },
+    {
+      "query": "font size",
+      "must": ["zoom"],
+      "ok": []
+    },
+    {
+      "query": "turn off alerts",
+      "must": ["notifications"],
+      "ok": []
+    },
+    {
+      "query": "stop pinging me",
+      "must": ["notifications"],
+      "ok": []
+    },
+    {
+      "query": "send feedback",
+      "must": ["open-source"],
+      "ok": ["diagnostic-log"]
+    },
+    {
+      "query": "report a problem",
+      "must": ["open-source", "diagnostic-log"],
+      "ok": []
+    },
+    {
+      "query": "crash logs",
+      "must": ["diagnostic-log"],
+      "ok": []
+    },
+    {
+      "query": "is there a new version",
+      "must": ["version"],
+      "ok": []
+    },
+    {
+      "query": "sign out",
+      "must": ["account"],
+      "ok": ["chatgpt-account", "claude-account"]
+    },
+    {
+      "query": "my subscription",
+      "must": ["account"],
+      "ok": ["chatgpt-account", "claude-account"]
+    },
+    {
+      "query": "billing",
+      "must": ["account"],
+      "ok": ["chatgpt-account", "claude-account"]
+    },
+    {
+      "query": "use my own api key",
+      "must": ["add-provider"],
+      "ok": ["provider:openrouter"]
+    },
+    {
+      "query": "connect gpt",
+      "must": ["chatgpt-account"],
+      "ok": ["add-provider"]
+    },
+    {
+      "query": "anthropic login",
+      "must": ["claude-account"],
+      "ok": ["add-provider", "account"]
+    },
+    {
+      "query": "bring my chatgpt memories over",
+      "must": ["memory-import"],
+      "ok": ["chatgpt-account"]
+    },
+    {
+      "query": "teach it a new trick",
+      "must": ["new-skill"],
+      "ok": []
+    },
+    {
+      "query": "taxes",
+      "must": [],
+      "ok": []
+    },
+    {
+      "query": "asdf",
+      "must": [],
+      "ok": []
+    },
+    {
+      "query": "the",
+      "must": [],
+      "ok": []
+    }
+  ]
+}

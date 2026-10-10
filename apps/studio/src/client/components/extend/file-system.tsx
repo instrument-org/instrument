@@ -63,6 +63,7 @@ import {
 import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { useFileDragArea } from "@/client/hooks/use-file-drag";
+import { useFindTarget } from "@/client/hooks/use-find-target";
 import { cn, isMacOS } from "@/client/lib/utils";
 import {
   createFileTreeIconResolver,
@@ -126,6 +127,11 @@ import {
 export type FileSystemFileItem = {
   contentType?: string;
   createdAt?: string;
+  /**
+   * The name shown, where it differs from the one in the path: an app without
+   * its `.app`. Renaming still starts from the whole name.
+   */
+  displayName?: string;
   etag?: string;
   /** Original object key (S3/R2). Defaults to `path`. */
   key?: string;
@@ -144,6 +150,11 @@ export type FileSystemFileItem = {
   /** Externally generated thumbnail. The component never renders documents itself. */
   previewImageUrl?: null | string;
   /**
+   * Whether the preview is an icon (an app's) rather than a picture of the
+   * file's contents: drawn bare, as the system draws it, not on a page.
+   */
+  previewIsIcon?: boolean;
+  /**
    * Externally generated page thumbnails (first entry is the cover). When a
    * file has more than one page, large thumbnails show a hover pager.
    */
@@ -161,6 +172,8 @@ export type FileSystemFileItem = {
    */
   shownAt?: string;
   size?: number;
+  /** The Kind column's text, where the system names it: "Application". */
+  typeName?: string;
   updatedAt?: string;
   /** Optional if already public/presigned. Otherwise resolved via `getFileUrl`. */
   url?: string;
@@ -506,7 +519,12 @@ const FILE_KIND_LABELS: Record<string, string> = {
 function entryKindLabel(entry: FileSystemEntry) {
   return entry.kind === "folder" ? "Folder" : fileKindLabel(entry);
 }
+/** The name an entry is shown by: the system's, where it leaves the extension off. */
+function shownName(entry: FileSystemEntry) {
+  return entry.kind === "file" ? (entry.displayName ?? entry.name) : entry.name;
+}
 function fileKindLabel(file: FileEntry) {
+  if (file.typeName) return file.typeName;
   const byExtension = FILE_KIND_LABELS[fileExtension(file.name)];
   if (byExtension) return byExtension;
   if (file.contentType?.startsWith("image/")) return "Image";
@@ -1354,16 +1372,23 @@ function FileVisual({
   const customPreview =
     !previewUrl && !isLazyPagePending ? renderFilePreview?.(file) : null;
   const showPager = pageable && totalPages > 1;
+  const isIcon = file.previewIsIcon === true;
   const thumbnail = (
     <FileThumbnail
-      className={cn("@container", !showPager && className)}
+      bare={isIcon}
+      className={cn(
+        "@container",
+        !showPager && className,
+        // An icon carries its own shape and shadow.
+        isIcon && "rounded-none shadow-none",
+      )}
       file={{ name: file.name, type: file.contentType ?? "" }}
       isLoading={isLazyPagePending}
       previewAspectRatio={resolvedAspectRatio}
       // Previews are drawn on white, as a page is. The white is the image's
       // own backing so it arrives with the image; on the box it would sit
       // under the loading placeholder and show through as the image fades in.
-      previewClassName={cn("[&>img]:bg-white", previewClassName)}
+      previewClassName={cn(!isIcon && "[&>img]:bg-white", previewClassName)}
       previewContent={
         previewUrl || isLazyPagePending
           ? undefined
@@ -2840,6 +2865,16 @@ export function FileSystem({
     sort,
     treeExpansionRef,
   };
+  // ⌘F focuses the toolbar search. Below 560px the field is in a popover,
+  // outside the component, so a press with the caret already in it is ours too.
+  useFindTarget({
+    anchor: rootRef,
+    holdsKeyboard: () => document.activeElement === searchInputRef.current,
+    openFind: () => {
+      setIsSearchExpanded(true);
+      searchInputRef.current?.focus();
+    },
+  });
   const openedFileName = openedFile
     ? (openedFile.file.name ?? openedFile.file.path)
     : "";
@@ -2865,6 +2900,7 @@ export function FileSystem({
         "flex h-[480px] min-h-0 flex-col overflow-hidden rounded-xl border bg-background text-foreground outline-none select-none",
         className,
       )}
+      data-find-surface
       data-slot="file-system"
       onClickCapture={dragArea.onClickCapture}
       onContextMenu={(event) => {
@@ -2880,13 +2916,6 @@ export function FileSystem({
       }}
       onDragStart={dragArea.onDragStart}
       onKeyDown={(event) => {
-        // ⌘F focuses the toolbar search while focus is inside the component.
-        if ((event.metaKey || event.ctrlKey) && event.key === "f") {
-          event.preventDefault();
-          setIsSearchExpanded(true);
-          searchInputRef.current?.focus();
-          return;
-        }
         // The rows' keys, read here for every view. A press already answered
         // (a menu's own arrows), one from something portalled out of the
         // browser (its menus and dialogs), and one typed into a field are
@@ -4660,7 +4689,7 @@ function FileSystemIconsView({
                   )}
                   data-file-system-name=""
                 >
-                  <span className="line-clamp-2">{entry.name}</span>
+                  <span className="line-clamp-2">{shownName(entry)}</span>
                 </span>
               </button>
             );
@@ -5317,7 +5346,7 @@ function FileSystemListView({
                           className="ml-1.5 min-w-0 flex-1 truncate"
                           data-file-system-name=""
                         >
-                          {entry.name}
+                          {shownName(entry)}
                         </span>
                       )}
                     </div>
@@ -5351,9 +5380,10 @@ function FileSystemListView({
 const failedRowThumbnails = new Set<string>();
 /**
  * The small picture a row leads with: the folder glyph, a picture's own
- * thumbnail in its own shape with a hairline around it, or the file's type.
- * Pictures and design artwork are drawn as themselves at this size; a text
- * document's thumbnail would be a smudge, and its type says more.
+ * thumbnail in its own shape with a hairline around it, an app's icon, or
+ * the file's type. Pictures and design artwork are drawn as themselves at
+ * this size; a text document's thumbnail would be a smudge, and its type
+ * says more.
  */
 export function FileSystemRowGlyph({
   entry,
@@ -5362,7 +5392,7 @@ export function FileSystemRowGlyph({
     | { glyphSrc?: string; kind: "folder" }
     | (Pick<
         FileSystemFileItem,
-        "contentType" | "previewImageUrl" | "previewImageUrls"
+        "contentType" | "previewImageUrl" | "previewImageUrls" | "previewIsIcon"
       > & { kind: "file"; name: string });
 }) {
   const [, setFailed] = React.useState(false);
@@ -5375,12 +5405,28 @@ export function FileSystemRowGlyph({
     );
   }
   const coverUrl =
+    entry.previewIsIcon ||
     mimeTypeForFile(entry).startsWith("image/") ||
     /\.(?:ai|psd)$/i.test(entry.name)
       ? filePreviewUrls(entry)[0]
       : undefined;
   if (!coverUrl || failedRowThumbnails.has(coverUrl)) {
     return <FileTypeIcon className="size-4" fileName={entry.name} />;
+  }
+  if (entry.previewIsIcon) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails come from caller-provided file preview URLs.
+      <img
+        alt=""
+        className="size-4 shrink-0 object-contain"
+        draggable={false}
+        onError={() => {
+          failedRowThumbnails.add(coverUrl);
+          setFailed(true);
+        }}
+        src={coverUrl}
+      />
+    );
   }
   return (
     // eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails come from caller-provided file preview URLs.
@@ -5667,7 +5713,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
               </div>
               <div className="text-center">
                 <div className="text-sm font-semibold break-words">
-                  {selectedFile.name}
+                  {shownName(selectedFile)}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {fileKindLabel(selectedFile)}
@@ -5899,7 +5945,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                       className="min-w-0 flex-1 truncate"
                       data-file-system-name=""
                     >
-                      {entry.name}
+                      {shownName(entry)}
                     </span>
                     {entry.kind === "folder" &&
                     folderHasChildren(index, entry) ? (
@@ -6361,7 +6407,7 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
                   }}
                   role="option"
                   tabIndex={isActive ? 0 : -1}
-                  title={entry.name}
+                  title={shownName(entry)}
                   type="button"
                 >
                   {entry.kind === "folder" ? (
@@ -6452,7 +6498,7 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
               )}
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold break-words">
-                  {activeEntry.name}
+                  {shownName(activeEntry)}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {activeFile ? fileKindLabel(activeFile) : "Folder"}

@@ -14,7 +14,7 @@
     {
       "name": "stat",
       "pulls": [
-        { "number": 420, "commit": "efc4ba1b402622dcbb9b58ef5bf21ddee2c6f797" }
+        { "number": 420, "commit": "7846d1dcfec7fd8c455a0d54db9e8458fa528e3f" }
       ]
     },
     {
@@ -26,7 +26,7 @@
       "name": "python3 worker",
       "pulls": [
         { "number": 424, "commit": "760ca23baa1519cbb783008d1139325ca9ce0591" },
-        { "number": 425, "commit": "64423f7054752db54036257004fea5770663d7ad" }
+        { "number": 425, "commit": "0a0555e87c01654100225eb36be75b18b0a6288a" }
       ]
     },
     {
@@ -50,13 +50,13 @@
     {
       "name": "sort -h",
       "pulls": [
-        { "number": 452, "commit": "5d4ee41645f83b145b0a656a9830f510cdfa94b7" }
+        { "number": 452, "commit": "a47c39d7abfc94a28bf603e3a457a1b0dae43dc0" }
       ]
     },
     {
       "name": "worker exit",
       "pulls": [
-        { "number": 501, "commit": "3b8d605255b105ae2d4879223fd5c221aba7b094" }
+        { "number": 501, "commit": "32321fa6e1808c3f89b463402c5d543d78e253df" }
       ]
     },
     {
@@ -69,6 +69,12 @@
       "name": "pathlib glob",
       "pulls": [
         { "number": 544, "commit": "da2e87cf2c0428fb0b0989e218ccdec477046dbf" }
+      ]
+    },
+    {
+      "name": "find time predicates",
+      "pulls": [
+        { "number": 555, "commit": "500413a98d771fbea4592c4dbb5ae2505f6ed0b3" }
       ]
     }
   ]

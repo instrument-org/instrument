@@ -2,7 +2,6 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { PageSection } from "@/client/components/window/page-section";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { rpcClient } from "@/client/rpc/client";
-import { PlayIcon } from "@phosphor-icons/react/Play";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -118,9 +117,9 @@ function Group({
   return (
     <div className="min-w-0">
       <p className="mb-1.5 text-xs font-medium text-foreground">{label}</p>
-      {/* One quiet list per group: each row opens the action's details, Ask
-          starts a request with it, and a look-up that needs nothing filled
-          in can also be tried on the spot. */}
+      {/* One quiet list per group: each row opens the action's details,
+          where a look-up that needs nothing filled in runs on the spot, and
+          Ask starts a request with it. */}
       <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/60">
         {shown.map((item) => (
           <li className="group/row flex min-w-0 items-center" key={item.name}>
@@ -142,19 +141,6 @@ function Group({
               ) : null}
             </button>
             <div className="flex shrink-0 items-center gap-0.5 pr-1.5">
-              {item.runsAsIs ? (
-                <button
-                  aria-label={`Try ${item.label}`}
-                  className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-                  onClick={() => {
-                    onOpen(item.name);
-                  }}
-                  type="button"
-                >
-                  <PlayIcon className="size-3.5" />
-                  Try
-                </button>
-              ) : null}
               <button
                 aria-label={`Ask Instrument to ${item.label.toLowerCase()}`}
                 className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"

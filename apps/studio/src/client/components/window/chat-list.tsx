@@ -1,6 +1,7 @@
 import { type Draft } from "@/client/atoms/window";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { cn } from "@/client/lib/utils";
+import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Fragment,
@@ -17,6 +18,7 @@ import { useChatActionsFor } from "./chat-actions";
 import { ChatRow } from "./chat-row";
 import { byActivity, type Chat, type Topic } from "./chats";
 import { DraftRow } from "./draft-row";
+import { type RowAction } from "./row-shell";
 import { useNow } from "./use-now";
 
 /**
@@ -29,6 +31,7 @@ const ListedChat = memo(function ListedChat({
   actionsFor,
   chat,
   handlers,
+  isOut,
   ...row
 }: {
   actionsFor: ReturnType<typeof useChatActionsFor>;
@@ -36,19 +39,40 @@ const ListedChat = memo(function ListedChat({
   chat: Chat;
   handlers: RefObject<{
     onArchived: (chat: Chat) => void;
+    onDelete: (chat: Chat) => void;
     onNewTopic: (chat: Chat, name?: string) => void;
     onOpen: (chat: Chat) => void;
+    onPopOut: ((chat: Chat) => void) | undefined;
     onSetTopics: (chat: Chat, topics: string[]) => void;
   }>;
   isArriving: boolean;
   isOpen: boolean;
+  /** Whether the chat already stands in a window of its own over the row. */
+  isOut: boolean;
   now: Date;
+  search: string;
   topics: Topic[];
 }) {
+  // First on the tile and beside the ways to open it in the menu, while the
+  // chat is not already up in a window of its own; one put down to the bar
+  // is raised again.
+  const popOut: RowAction[] =
+    handlers.current.onPopOut && !isOut
+      ? [
+          {
+            icon: <PictureInPictureIcon className="size-3.5" />,
+            id: "popOut",
+            label: "Pop out",
+            run: () => {
+              handlers.current.onPopOut?.(chat);
+            },
+          },
+        ]
+      : [];
   return (
     <ChatRow
       {...row}
-      actions={actionsFor(chat).map((action) =>
+      actions={[...popOut, ...actionsFor(chat)].map((action) =>
         action.id === "archive"
           ? {
               ...action,
@@ -60,6 +84,9 @@ const ListedChat = memo(function ListedChat({
           : action,
       )}
       chat={chat}
+      onDelete={() => {
+        handlers.current.onDelete(chat);
+      }}
       onNewTopic={(name) => {
         handlers.current.onNewTopic(chat, name);
       }}
@@ -110,15 +137,19 @@ export function ChatList({
   emptyLine,
   isLoading,
   onArchiveOpen,
+  onDelete,
   onDeleteDraft,
   onNewTopic,
   onOpen,
   onOpenDraft,
+  onPopOut,
   onSetTopics,
   onWiden,
   openId,
+  outIds,
   outside = 0,
   scrollSignal,
+  search = "",
   topics,
 }: {
   appsBySlug: AppsBySlug;
@@ -133,20 +164,28 @@ export function ChatList({
   isLoading: boolean;
   /** Told when the open chat's row archives it, so the window can put the chat away with it. */
   onArchiveOpen?: () => void;
+  /** Asks before a chat goes to the trash, through the caller's dialog. */
+  onDelete: (chat: Chat) => void;
   onDeleteDraft: (id: string) => void;
   /** Opens the new-topic dialog for a chat: the topic it makes is filed on that chat. */
   onNewTopic: (chat: Chat, name?: string) => void;
   onOpen: (chat: Chat) => void;
   onOpenDraft: (id: string) => void;
+  /** Floats a chat in a window of its own over the row; a row offers it only when given. */
+  onPopOut?: (chat: Chat) => void;
   onSetTopics: (chat: Chat, topics: string[]) => void;
   /** Lifts the place, topic, and app filters so the search reads every chat. */
   onWiden?: () => void;
   /** The chat open beside the list, which its row is marked as. */
   openId: string | undefined;
+  /** The chats already up in a window of their own, whose rows do not offer to pop them out. */
+  outIds?: ReadonlySet<string>;
   /** How many chats the search finds that the filters keep out of the list. */
   outside?: number;
   /** Counts up whenever the list should be taken back to its top, whatever the reader was doing. */
   scrollSignal: number;
+  /** The words a row marks where they turn up: the search the chats were found by, when they were found by their words. */
+  search?: string;
   topics: Topic[];
 }) {
   const now = useNow();
@@ -161,9 +200,23 @@ export function ChatList({
       onArchiveOpen?.();
     }
   };
-  const handlers = useRef({ onArchived, onNewTopic, onOpen, onSetTopics });
+  const handlers = useRef({
+    onArchived,
+    onDelete,
+    onNewTopic,
+    onOpen,
+    onPopOut,
+    onSetTopics,
+  });
   useLayoutEffect(() => {
-    handlers.current = { onArchived, onNewTopic, onOpen, onSetTopics };
+    handlers.current = {
+      onArchived,
+      onDelete,
+      onNewTopic,
+      onOpen,
+      onPopOut,
+      onSetTopics,
+    };
   });
   useLayoutEffect(() => {
     ref.current?.scrollTo({ top: 0 });
@@ -195,7 +248,9 @@ export function ChatList({
             handlers={handlers}
             isArriving={chat.id === arrivedId}
             isOpen={chat.id === openId}
+            isOut={outIds?.has(chat.id) ?? false}
             now={now}
+            search={search}
             topics={topics}
           />
         ),

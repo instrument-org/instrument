@@ -4,7 +4,8 @@
 // - instrument-mac, the helper process behind the agent's `calendar` and
 //   `contacts` commands (Swift, native/mac-helper/Sources);
 // - instrument-mac.node, the module main loads for what macOS keys to the
-//   app itself, like notification permission (Objective-C over Node-API,
+//   app itself, like notification permission, and for what the file browser
+//   asks of every folder it lists (Objective-C over Node-API,
 //   native/mac-helper/addon). Node-API is ABI-stable, so it is built once
 //   against Node's headers and loads in any Electron.
 //
@@ -71,6 +72,8 @@ if (target !== "darwin" || process.platform !== "darwin") {
       "-mmacosx-version-min=13.0",
       "-I",
       headers,
+      "-framework",
+      "AppKit",
       "-framework",
       "Foundation",
       "-framework",

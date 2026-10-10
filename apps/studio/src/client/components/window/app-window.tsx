@@ -9,6 +9,7 @@ import {
   pageSlotsAtom,
   paneOpenByGroupAtom,
   screenViewsAtom,
+  chatsOutOf,
 } from "@/client/atoms/window";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -88,7 +89,9 @@ import { chatListOptions } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
 import { ComposeLayer } from "./compose-layer";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
+import { useSignInLanding } from "./use-sign-in-landing";
 import { InboxPeek } from "./inbox-peek";
+import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
 import { NewTopicDialog } from "./new-topic-dialog";
 import { contextReaders } from "./send-context";
@@ -266,6 +269,7 @@ function WindowShell({
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
+  const setInboxLandsAtOnce = useSetAtom(inboxLandsAtOnceAtom);
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
     Promise.resolve(undefined),
   );
@@ -323,6 +327,11 @@ function WindowShell({
       }
     }
     setDrafts((current) => current.filter(isKept));
+    // What drafts kept on disk goes with them, including any whose clear
+    // never ran.
+    void rpcClient.drafts.prune
+      .call({ keep: drafts.filter(isKept).map((draft) => draft.id) })
+      .catch(() => undefined);
     for (const entry of compose.entries) {
       if (
         entry.kind === "draft" &&
@@ -488,6 +497,7 @@ function WindowShell({
   };
 
   usePageThumbnailHousekeeping();
+  useSignInLanding(openScreen);
 
   const topicsQuery = useQuery(rpcClient.workspace.topics.list.queryOptions());
   const topics = topicsQuery.data ?? [];
@@ -550,7 +560,8 @@ function WindowShell({
   const {
     arrivedId,
     closeDraft,
-    deleteDraft,
+    discardDraft,
+    discardingIds,
     newDraft,
     sentWords,
     showDraft,
@@ -565,6 +576,12 @@ function WindowShell({
     isChat,
     openChat: (chatId) => {
       appTabs.navigate(`${CHATS_HREF}/${chatId}`);
+    },
+    openDrafts: () => {
+      setInboxOpen(true);
+      if (place !== "chat") {
+        appTabs.goToPlace("chat");
+      }
     },
     saveDefaultModelURI,
     topics,
@@ -714,14 +731,17 @@ function WindowShell({
     arrivedId,
     childTitles,
     compose,
-    deleteDraft,
+    discardDraft,
     // Only a draft with words is a draft to come back to; one being written
-    // with none yet is its window's alone, and one being sent is already its
-    // chat.
+    // with none yet is its window's alone, one being sent is already its
+    // chat, and one just discarded is gone unless its Undo brings it back.
     chats: chats.data,
     chatTitles,
     drafts: drafts.filter(
-      (draft) => hasWords(draft) && !startingIds.has(draft.id),
+      (draft) =>
+        hasWords(draft) &&
+        !startingIds.has(draft.id) &&
+        !discardingIds.has(draft.id),
     ),
     newDraft: () => {
       newDraft();
@@ -782,17 +802,22 @@ function WindowShell({
                 modelURI={defaultModelURI}
                 onChangeDraft={(id, update) => {
                   setDrafts((current) =>
-                    current.map((entry) =>
-                      entry.id === id
-                        ? { ...update(entry), updatedAt: Date.now() }
-                        : entry,
-                    ),
+                    current.map((entry) => {
+                      if (entry.id !== id) {
+                        return entry;
+                      }
+                      const next = update(entry);
+                      return next === entry
+                        ? entry
+                        : { ...next, updatedAt: Date.now() };
+                    }),
                   );
                 }}
                 onCloseChat={(chatId) => {
                   compose.remove(chatId);
                 }}
                 onCloseDraft={closeDraft}
+                onDiscardDraft={discardDraft}
                 onCloseTab={requestClose}
                 onModelChange={setDefaultModelURI}
                 onNewChatTopic={(chatId, name) => {
@@ -816,8 +841,13 @@ function WindowShell({
               <AppRail
                 onChoose={(next, { newTab }) => {
                   // Chat asked for is the inbox asked for too, even where the
-                  // row is narrow enough that it stepped aside.
+                  // row is narrow enough that it stepped aside. Peeked out
+                  // already, the list stays where it is drawn rather than
+                  // sliding in again under it.
                   if (next === "chat") {
+                    if (inboxPeek.isOpen) {
+                      setInboxLandsAtOnce(true);
+                    }
                     setInboxOpen(true);
                   }
                   if (next === place && !newTab) {
@@ -852,6 +882,7 @@ function WindowShell({
               </div>
               <InboxPeek
                 isOpen={inboxPeek.isOpen}
+                leavesAtOnce={inboxPeek.leavesAtOnce}
                 onPointerEnter={inboxPeek.onPointerEnter}
                 onPointerLeave={inboxPeek.onPointerLeave}
                 panelRef={inboxPeek.panelRef}
@@ -867,7 +898,15 @@ function WindowShell({
                     appTabs.navigate(INBOX_HREF);
                     setInboxOpen(true);
                   }}
-                  onDeleteDraft={deleteDraft}
+                  onDeleted={(id) => {
+                    windowTabs.dropGroup(id);
+                    if (id === chatUp) {
+                      inboxPeek.close();
+                      appTabs.navigate(INBOX_HREF, { replace: true });
+                      setInboxOpen(true);
+                    }
+                  }}
+                  onDeleteDraft={discardDraft}
                   onOpenChat={(entry) => {
                     inboxPeek.close();
                     // Peeked out over another place, the chat pops out over
@@ -883,7 +922,18 @@ function WindowShell({
                     inboxPeek.close();
                     showDraft(id);
                   }}
+                  onPopOut={(entry) => {
+                    inboxPeek.close();
+                    compose.float(entry.id);
+                    // The chat up in Chat leaves it for its own window, with
+                    // the inbox back in its column.
+                    if (entry.id === chatUp && isChat) {
+                      appTabs.navigate(INBOX_HREF);
+                      setInboxOpen(true);
+                    }
+                  }}
                   openChatId={chatUp}
+                  outIds={chatsOutOf(compose.entries)}
                 />
               </InboxPeek>
               <CommandMenu

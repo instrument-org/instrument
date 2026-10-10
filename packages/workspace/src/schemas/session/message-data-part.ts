@@ -540,6 +540,8 @@ export namespace SessionMessageDataPart {
     events: z
       .array(
         z.object({
+          /** The account the app is signed in as, when it is named. */
+          account: z.string().optional(),
           /** A line of detail: how many tools, what went wrong. */
           detail: z.string().optional(),
           event: z.enum([
@@ -569,7 +571,7 @@ export namespace SessionMessageDataPart {
   /** The task at work in a tab, stamped when the message is stored. */
   const TabHolderSchema = z.object({ id: z.string(), title: z.string() });
 
-  /** The page the window's browser shows: its address and title, what is selected on it, and how its text begins. */
+  /** The page the window's browser shows: its address and title, what is selected on it, and where the cursor is. */
   const ViewedPageSchema = z.object({
     /** Where the user's cursor is on the page: the focused control, described. */
     focus: z.string().optional(),
@@ -587,7 +589,6 @@ export namespace SessionMessageDataPart {
         }),
       )
       .optional(),
-    text: z.string().optional(),
     title: z.string(),
     url: z.string(),
   });

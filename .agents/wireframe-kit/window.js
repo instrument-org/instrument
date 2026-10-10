@@ -15,78 +15,82 @@ const brand = (key, cls = "size-4") =>
 const letterMark = (letter, cls, size = "size-4 text-[9px]") =>
   `<span class="grid ${size} shrink-0 place-items-center rounded-[4px] font-bold text-white ${cls}">${letter}</span>`;
 
-// Sites the Lisbon thread's task opens. Invented pages, real hosts.
+// Sites the pricing thread's task opens. Invented pages and prices, real hosts.
 const SITES = {
-  tap: {
-    title: "Lisbon flights · TAP",
-    host: "flytap.com",
-    mark: (s) => letterMark("T", "bg-[#12a14b]", s),
+  zendesk: {
+    title: "Suite plans · Zendesk",
+    host: "zendesk.com",
+    mark: (s) => letterMark("Z", "bg-[#03363d]", s),
   },
-  booking: {
-    title: "Hotels in Alfama · Booking.com",
-    host: "booking.com",
-    mark: (s) => letterMark("B", "bg-[#003580]", s),
+  intercom: {
+    title: "Pricing · Intercom",
+    host: "intercom.com",
+    mark: (s) => letterMark("I", "bg-[#1f1f1f]", s),
   },
-  cp: {
-    title: "Lisboa → Sintra · CP",
-    host: "cp.pt",
-    mark: (s) => letterMark("CP", "bg-[#5a9e2f]", s),
+  freshdesk: {
+    title: "Plans · Freshdesk",
+    host: "freshworks.com",
+    mark: (s) => letterMark("F", "bg-[#25c16f]", s),
   },
-  wiki: {
-    title: "Alfama · Wikipedia",
-    host: "en.wikipedia.org",
-    mark: (s) => brand("wikipedia", s ? s.split(" ")[0] : "size-4"),
+  g2: {
+    title: "Help desk software · G2",
+    host: "g2.com",
+    mark: (s) => letterMark("G2", "bg-[#ff492c]", s),
   },
-  maps: {
-    title: "Belém to Alfama · Maps",
-    host: "maps.google.com",
-    mark: (s) => letterMark("M", "bg-[#34a853]", s),
+  wayback: {
+    title: "zendesk.com/pricing · Wayback Machine",
+    host: "web.archive.org",
+    mark: (s) => letterMark("W", "bg-[#5c5c5c]", s),
   },
   notion: {
-    title: "Trips · Notion",
+    title: "Pricing and packaging · Notion",
     host: "notion.so",
     mark: (s) => brand("notion", s ? s.split(" ")[0] : "size-4"),
   },
 };
 
-// Files the Lisbon thread's task makes, and one from the user's folder.
+// Files the pricing thread's task makes, and two from the user's folder.
 const FILES = {
-  itinerary: { title: "lisbon-itinerary.html", kind: "html" },
-  costs: { title: "lisbon-costs.csv", kind: "csv" },
-  packing: { title: "packing-list.md", kind: "md" },
-  haiku: { title: "snow-haiku.md", kind: "md" },
+  comparison: { title: "pricing-comparison.html", kind: "html" },
+  prices: { title: "competitor-prices.csv", kind: "csv" },
+  faq: { title: "pricing-page-faq.md", kind: "md" },
+  board: { title: "q3-board-update.md", kind: "md" },
 };
 
-/** The colored file-type marks the Finder draws. */
+/** The colored file-type marks the Finder draws, each in the same box (1.15em, from `cls`'s size) so names line up whatever the kind. */
 const fileMark = (kind, cls = "text-[13px]") =>
-  ({
-    html: `<span class="shrink-0 font-bold text-[#e8793a] ${cls}">#</span>`,
-    md: `<span class="shrink-0 font-bold tracking-tighter text-[#3f9d52] ${cls}">M↓</span>`,
-    csv: `<i class="ph ph-table shrink-0 text-[#2f8f5b] ${cls}"></i>`,
-    pdf: `<i class="ph ph-file-pdf shrink-0 text-[#d14b3f] ${cls}"></i>`,
-    folder: `<i class="ph ph-folder shrink-0 text-[#4a9ff5] ${cls}"></i>`,
-  })[kind];
+  `<span class="inline-flex w-[1.15em] shrink-0 items-center justify-center ${cls}">${
+    {
+      html: `<span class="font-bold text-[#e8793a]">#</span>`,
+      md: `<span class="text-[0.72em] font-bold tracking-tighter text-[#3f9d52]">M↓</span>`,
+      csv: `<i class="ph ph-table text-[#2f8f5b]"></i>`,
+      pdf: `<i class="ph ph-file-pdf text-[#d14b3f]"></i>`,
+      folder: `<i class="ph ph-folder text-[#4a9ff5]"></i>`,
+    }[kind]
+  }</span>`;
 
-/** A tab is {site} or {file} or {newtab: true}; `agent` marks one the task is driving. */
+/** A tab is {site}, {file}, {folder: name} (Files open on a folder) or {newtab: true}; `agent` marks one the task is driving. */
 const tabMark = (t, size) =>
   t.site
     ? SITES[t.site].mark(size)
     : t.file
       ? fileMark(FILES[t.file].kind)
-      : `<i class="ph ph-magnifying-glass shrink-0 text-[14px]"></i>`;
+      : t.folder
+        ? fileMark("folder", "text-[15px]")
+        : `<i class="ph ph-magnifying-glass shrink-0 text-[14px]"></i>`;
 const tabTitle = (t) =>
   t.site
     ? SITES[t.site].title
     : t.file
       ? FILES[t.file].title
-      : t.title || "New tab";
+      : t.folder || t.title || "New tab";
 
 // ---- window --------------------------------------------------------------------
 
 const GROUND = "bg-[#e7e5e4]";
 const trafficLights = `<div class="flex w-20 shrink-0 items-center gap-2 pl-3"><span class="size-3 rounded-full bg-[#ff5f57]"></span><span class="size-3 rounded-full bg-[#febc2e]"></span><span class="size-3 rounded-full bg-[#28c840]"></span></div>`;
 
-/** A window tab in the bar. `t` is a tab ({site} | {file} | {newtab}) or {chats: true, title}. */
+/** A window tab in the bar. `t` is a tab ({site} | {file} | {folder} | {newtab}) or {chats: true, title}. */
 const barTab = (t, { on = false } = {}) => `
   <div class="relative flex h-8 max-w-48 min-w-20 shrink-0 items-center gap-2 rounded-xl px-2.5 text-sm font-medium ${on ? "bg-background shadow-xs" : "text-foreground/55"}">
     ${t.chats ? `<i class="ph ph-chat-circle text-[14px]"></i>` : tabMark(t)}
@@ -172,29 +176,29 @@ const noChatOpen = () => `
 
 const ROWS = [
   {
-    title: "Lisbon trip itinerary with ticket prices",
+    title: "Help desk pricing against competitors",
     preview:
-      "It's going well: the task is checking current ticket prices and fares for the cost table.",
+      "It's going well: the task is reading each pricing page and noting what every tier includes.",
     unread: true,
     working: true,
     time: "9:41 AM",
   },
   {
-    title: "Kitchen quotes from Alder St contractors",
+    title: "SOC 2 audit quotes from four firms",
     preview:
-      "Three of the four replied. Harbor Build is the lowest, and the only one that includes permits.",
+      "Three of the four replied. Ridgeline is the lowest, and the only one that includes a readiness review.",
     starred: true,
     time: "Yesterday",
   },
   {
-    title: "Season of the snow haiku in the Instrument",
-    preview: "That was snow-haiku.md, in your Instrument folder.",
+    title: "Q3 board update in the Instrument folder",
+    preview: "That was q3-board-update.md, in your Instrument folder.",
     time: "Mon",
   },
   {
-    title: "Weekly grocery order",
+    title: "Renewal reminders for October accounts",
     preview:
-      "The cart is ready in Instacart; nothing is ordered until you say so.",
+      "The 14 drafts are ready in Gmail; nothing is sent until you say so.",
     time: "Sep 26",
   },
   {
@@ -308,7 +312,7 @@ const pageRow = (site) => `
 
 /** The work in flight, at a chat head's right while its tasks run: a spinner, the newest step in the shimmer's green and how many more (`more`), or with `compact` the spinner and the count. Pressed, it lists the chat's tasks. */
 const workLine = (
-  text = "Checking fares on flytap.com",
+  text = "Reading plans on zendesk.com",
   { more = 0, compact = false } = {},
 ) => `
   <span class="flex h-8 min-w-0 shrink items-center gap-1.5 rounded-md px-2 text-[12px]"><i class="ph ph-circle-notch shrink-0 animate-spin text-[13px] text-brand-600"></i>${compact ? `<span class="text-muted-foreground tabular-nums">${more + 1}</span>` : `<span class="truncate text-brand-600">${text}</span>${more ? `<span class="shrink-0 text-muted-foreground tabular-nums">+${more}</span>` : ""}`}<i class="ph ph-caret-down shrink-0 text-[11px] text-muted-foreground"></i></span>`;
@@ -320,34 +324,34 @@ const replyBox = ({ ph = "Talk to Instrument", text = "" } = {}) => `
     <span class="grid size-7 shrink-0 place-items-center rounded-full bg-brand-600"><i class="ph ph-arrow-up text-[16px] text-white"></i></span>
   </div>`;
 
-const LISBON_TITLE = "Lisbon trip itinerary with ticket prices";
+const PRICING_TITLE = "Help desk pricing against competitors";
 
-/** The Lisbon chat's transcript. `stage` 1: running; 2: pages opened; 3: finished with files. */
-const lisbon = (stage = 1) =>
+/** The pricing chat's transcript. `stage` 1: running; 2: pages opened; 3: finished with files. */
+const pricing = (stage = 1) =>
   [
-    you("Plan a trip to Lisbon"),
+    you("How does our pricing compare with Zendesk, Intercom and Freshdesk?"),
     agent(
-      "I'll put together a Lisbon trip plan, assuming a first visit of about five days; say the word if the dates or length are different.",
+      "I'll line up each one's list prices against our plans, per agent per month and billed annually, for a 10-agent team; say the word if you'd rather compare at a different size.",
     ),
     stage >= 2
       ? agent(
-          "It's going well: the task is checking current ticket prices and fares for the cost table. I'll let you know when the itinerary page is ready.",
+          "It's going well: the task is reading each pricing page and noting what every tier includes. I'll let you know when the comparison is ready.",
         )
       : "",
     stage >= 3
       ? agent(
-          "The itinerary is ready: five days, Alfama base, Sintra on day three. Flights and the hotel come to about €1,140 for two.",
+          "The comparison is ready: at 10 agents our Team plan is 18% under Zendesk Suite Team and 8% under Freshdesk Pro. Intercom looks cheaper per seat, but its AI agent bills per resolution.",
         )
       : "",
-    stage >= 3 ? fileRow("itinerary") + fileRow("costs") : "",
+    stage >= 3 ? fileRow("comparison") + fileRow("prices") : "",
   ]
     .filter(Boolean)
     .join("");
 
 /** A chat column: header (with the work in flight while `working` names a step), the centered transcript, then its tiles (`tiles`, from chatTiles) over the reply box. */
 const thread = ({
-  title = LISBON_TITLE,
-  body = lisbon(2),
+  title = PRICING_TITLE,
+  body = pricing(2),
   working = "",
   tiles = "",
   head = "",
@@ -422,88 +426,111 @@ const bars2 = (...ws) =>
 
 /** Plausible page bodies, drawn small so they survive any width. */
 const PAGES = {
-  tap: () => `
+  zendesk: () => `
     <div class="h-full bg-white">
-      <div class="flex h-10 items-center gap-2 bg-[#12a14b] px-4 text-[12px] font-bold text-white">TAP AIR PORTUGAL<span class="flex-1"></span><span class="font-normal">EN · €</span></div>
+      <div class="flex h-10 items-center gap-2 bg-[#03363d] px-4 text-[13px] font-bold text-white">zendesk<span class="flex-1"></span><span class="font-normal">USD · Billed annually</span></div>
       <div class="p-4">
-        <div class="text-[15px] font-semibold">New York (JFK) → Lisbon (LIS)</div>
-        <div class="mt-1 text-[11px] text-muted-foreground">Thu 15 Oct → Tue 20 Oct · 2 adults · Economy</div>
+        <div class="text-[15px] font-semibold">Zendesk Suite</div>
+        <div class="mt-1 text-[11px] text-muted-foreground">Per agent per month</div>
         ${[
-          ["TP 210", "7:40 PM → 7:25 AM", "€412"],
-          ["TP 202", "10:10 PM → 9:55 AM", "€389"],
-          ["TP 208", "5:55 PM → 5:45 AM", "€455"],
+          ["Suite Team", "Ticketing, messaging, help center", "$55"],
+          ["Suite Growth", "Adds SLAs and multiple brands", "$89"],
+          ["Suite Professional", "Adds skills routing and HIPAA", "$115"],
         ]
           .map(
-            ([n, t, p], i) =>
-              `<div class="mt-2.5 flex items-center gap-3 rounded-lg border ${i === 1 ? "border-[#12a14b]" : "border-border"} p-2.5 text-[12px]"><span class="w-12 font-medium">${n}</span><span class="flex-1">${t}</span><span class="font-semibold">${p}</span></div>`,
+            ([n, d, p], i) =>
+              `<div class="mt-2.5 flex items-center gap-3 rounded-lg border ${i === 0 ? "border-[#03363d]" : "border-border"} p-2.5 text-[12px]"><div class="min-w-0 flex-1"><div class="font-medium">${n}</div><div class="mt-0.5 truncate text-[11px] text-muted-foreground">${d}</div></div><span class="font-semibold">${p}</span></div>`,
           )
           .join("")}
       </div>
     </div>`,
-  booking: () => `
+  intercom: () => `
     <div class="h-full bg-white">
-      <div class="flex h-10 items-center bg-[#003580] px-4 text-[13px] font-bold text-white">Booking.com</div>
+      <div class="flex h-10 items-center border-b border-border px-4 text-[13px] font-bold">intercom</div>
       <div class="p-4">
-        <div class="text-[14px] font-semibold">Alfama, Lisbon: 38 properties</div>
-        ${[
-          ["Memmo Alfama", "9.1", "€212"],
-          ["Palácio Belmonte", "9.4", "€340"],
-          ["Solar do Castelo", "8.9", "€188"],
-        ]
-          .map(
-            ([n, s, p]) =>
-              `<div class="mt-2.5 flex gap-3 rounded-lg border border-border p-2"><div class="size-12 shrink-0 rounded bg-[#d9e4f2]"></div><div class="min-w-0 flex-1 text-[12px]"><div class="font-semibold text-[#006ce4]">${n}</div><div class="mt-1 text-[11px] text-muted-foreground">${s} · per night</div></div><span class="text-[12px] font-semibold">${p}</span></div>`,
-          )
-          .join("")}
+        <div class="text-[15px] font-semibold">Plans for every team</div>
+        <div class="mt-3 grid grid-cols-3 gap-2">
+          ${[
+            ["Essential", "$29"],
+            ["Advanced", "$85"],
+            ["Expert", "$132"],
+          ]
+            .map(
+              ([n, p]) =>
+                `<div class="rounded-lg border border-border p-2.5 text-[12px]"><div class="font-medium">${n}</div><div class="mt-1.5 text-[16px] font-semibold">${p}</div><div class="text-[10px] text-muted-foreground">per seat / mo</div></div>`,
+            )
+            .join("")}
+        </div>
+        <div class="mt-3 rounded-lg bg-[#f4f4f1] px-3 py-2 text-[11px]">Fin AI Agent: $0.99 per resolution, on every plan</div>
       </div>
     </div>`,
-  cp: () => `
+  freshdesk: () => `
     <div class="h-full bg-white">
-      <div class="flex h-10 items-center gap-2 border-b border-border px-4 text-[13px] font-bold text-[#5a9e2f]">CP · Comboios de Portugal</div>
-      <div class="p-4 text-[12px]"><div class="text-[14px] font-semibold">Lisboa Rossio → Sintra</div><div class="mt-3 space-y-2">${["09:11", "09:41", "10:11", "10:41"].map((t) => `<div class="flex justify-between border-b border-border pb-1.5"><span>${t}</span><span class="text-muted-foreground">40 min</span><span>€2.40</span></div>`).join("")}</div></div>
-    </div>`,
-  wiki: () =>
-    `<div class="h-full bg-white p-5"><div class="font-serif text-[20px]">Alfama</div><div class="mt-1 border-b border-border pb-1 text-[10px] text-muted-foreground">From Wikipedia, the free encyclopedia</div><div class="mt-3 space-y-2">${bars2("100%", "96%", "88%", "100%", "62%")}</div><div class="mt-4 space-y-2">${bars2("100%", "91%", "70%")}</div></div>`,
-  maps: () =>
-    `<div class="relative h-full bg-[#e8eef0]"><div class="absolute inset-0 bg-[repeating-linear-gradient(35deg,transparent_0_38px,#fff_38px_42px)]"></div><div class="absolute top-4 left-4 rounded-lg bg-white px-3 py-2 text-[12px] shadow">Belém → Alfama · 28 min by tram</div></div>`,
-  notion: () =>
-    `<div class="h-full bg-white p-6"><div class="text-[22px] font-bold">Trips</div><div class="mt-4 space-y-2">${bars2("60%", "44%", "52%")}</div></div>`,
-  itinerary: () => `
-    <div class="h-full bg-white p-5">
-      <div class="text-[11px] font-medium tracking-wide text-[#e8793a] uppercase">Lisbon · 15–20 Oct</div>
-      <div class="mt-1 text-[18px] font-semibold">Five days in Lisbon</div>
-      ${[
-        "Day 1 · Alfama and the castle",
-        "Day 2 · Belém",
-        "Day 3 · Sintra by train",
-        "Day 4 · LX Factory",
-        "Day 5 · Chiado",
+      <div class="flex h-10 items-center bg-[#25c16f] px-4 text-[13px] font-bold text-white">freshdesk</div>
+      <div class="p-4 text-[12px]"><div class="text-[14px] font-semibold">Support desk plans</div><div class="mt-3 space-y-2">${[
+        ["Growth", "$15"],
+        ["Pro", "$49"],
+        ["Enterprise", "$79"],
       ]
         .map(
-          (d) =>
-            `<div class="mt-3 text-[12px] font-medium">${d}</div><div class="mt-1.5 space-y-1.5">${bars2("92%", "64%")}</div>`,
+          ([n, p]) =>
+            `<div class="flex justify-between border-b border-border pb-1.5"><span>${n}</span><span class="text-muted-foreground">agent / mo, billed annually</span><span class="font-semibold">${p}</span></div>`,
+        )
+        .join("")}</div></div>
+    </div>`,
+  g2: () =>
+    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Best Help Desk Software</div><div class="mt-1 border-b border-border pb-2 text-[10px] text-muted-foreground">Ranked by user reviews</div>${["Zendesk", "Freshdesk", "Intercom", "Help Scout"].map((n) => `<div class="mt-3 flex items-center gap-3"><div class="size-8 shrink-0 rounded bg-[#f3e8e6]"></div><div class="min-w-0 flex-1"><div class="text-[12px] font-medium">${n}</div><div class="mt-1.5 space-y-1.5">${bars2("80%")}</div></div></div>`).join("")}</div>`,
+  wayback: () =>
+    `<div class="h-full bg-white"><div class="flex h-9 items-center gap-2 border-b border-border bg-[#f4f4f4] px-4 text-[11px] text-muted-foreground"><span class="font-semibold text-foreground">INTERNET ARCHIVE</span>zendesk.com/pricing · captured 12 Oct 2025</div><div class="p-4"><div class="text-[14px] font-semibold">Zendesk Suite</div><div class="mt-3 space-y-2 text-[12px]">${[
+      ["Suite Team", "$55"],
+      ["Suite Growth", "$89"],
+      ["Suite Professional", "$115"],
+    ]
+      .map(
+        ([n, p]) =>
+          `<div class="flex justify-between border-b border-border pb-1.5"><span>${n}</span><span>${p}</span></div>`,
+      )
+      .join("")}</div></div></div>`,
+  notion: () =>
+    `<div class="h-full bg-white p-6"><div class="text-[22px] font-bold">Pricing and packaging</div><div class="mt-4 space-y-2">${bars2("60%", "44%", "52%")}</div></div>`,
+  comparison: () => `
+    <div class="h-full bg-white p-5">
+      <div class="text-[11px] font-medium tracking-wide text-[#e8793a] uppercase">Help desk pricing · Oct 2026</div>
+      <div class="mt-1 text-[18px] font-semibold">Our plans against three competitors</div>
+      <div class="mt-1 text-[11px] text-muted-foreground">10 agents, per agent per month, billed annually</div>
+      ${[
+        ["Zendesk Suite Team", "$55", 100],
+        ["Freshdesk Pro", "$49", 89],
+        ["Our Team plan", "$45", 82],
+        ["Intercom Essential", "$29 + AI usage", 53],
+      ]
+        .map(
+          ([n, p, w]) =>
+            `<div class="mt-3 flex items-center justify-between text-[12px] font-medium"><span>${n}</span><span>${p}</span></div><div class="mt-1.5 h-[7px] rounded-full ${n.startsWith("Our") ? "bg-[#e8793a]" : "bg-gray-300"}" style="width:${w}%"></div>`,
         )
         .join("")}
+      <div class="mt-5 text-[12px] font-medium">What each tier includes</div>
+      <div class="mt-1.5 space-y-1.5">${bars2("92%", "64%", "78%")}</div>
     </div>`,
-  costs: () => `
+  prices: () => `
     <div class="h-full bg-white p-3 font-mono text-[11px]">
       ${[
-        ["item", "each", "total"],
-        ["Flights TP 202 ×2", "€389", "€778"],
-        ["Memmo Alfama ×5", "€212", "€1,060"],
-        ["Sintra train ×4", "€2.40", "€9.60"],
-        ["Tram 28 day pass ×2", "€6.80", "€13.60"],
+        ["vendor", "plan", "agent/mo", "10 agents/yr"],
+        ["Zendesk", "Suite Team", "$55", "$6,600"],
+        ["Freshdesk", "Pro", "$49", "$5,880"],
+        ["Intercom", "Essential", "$29", "$3,480+"],
+        ["Ours", "Team", "$45", "$5,400"],
       ]
         .map(
           (r, i) =>
-            `<div class="grid grid-cols-[1fr_60px_70px] border-b border-border py-1.5 ${i ? "" : "font-semibold"}">${r.map((c) => `<span>${c}</span>`).join("")}</div>`,
+            `<div class="grid grid-cols-[1fr_1fr_60px_84px] border-b border-border py-1.5 ${i ? "" : "font-semibold"}">${r.map((c) => `<span>${c}</span>`).join("")}</div>`,
         )
         .join("")}
     </div>`,
-  packing: () =>
-    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Packing list</div><div class="mt-3 space-y-2">${bars2("40%", "52%", "36%", "48%")}</div></div>`,
-  haiku: () =>
-    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Snow haiku</div><div class="mt-3 space-y-2">${bars2("50%", "62%", "44%")}</div></div>`,
+  faq: () =>
+    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Pricing page FAQ</div><div class="mt-3 space-y-2">${bars2("40%", "52%", "36%", "48%")}</div></div>`,
+  board: () =>
+    `<div class="h-full bg-white p-5"><div class="text-[18px] font-semibold">Q3 board update</div><div class="mt-3 space-y-2">${bars2("50%", "62%", "44%")}</div></div>`,
   newtab: () => `
     <div class="h-full bg-card p-6">
       <div class="text-[13px] font-medium text-muted-foreground">This Mac</div>
@@ -518,49 +545,133 @@ const page = (t) =>
 
 // ---- places --------------------------------------------------------------------
 
-/** Files, Browser, an app or a skill: the place fills the card, under its location row (none on Apps). Its tabs are the window's, in the bar. */
+/** Browser, an app or a skill (Files has filesPlace): the place fills the card, under its location row (none on Apps). Its tabs are the window's, in the bar. */
 const placeCard = ({ tab, body, loc = true }) => `
   <div class="flex min-w-0 flex-1 flex-col">
     ${loc ? locRow(tab) : ""}
     <div class="relative min-h-0 flex-1 overflow-hidden">${body ?? page(tab)}</div>
   </div>`;
 
+// Files, measured off the documents fixture (2026-10-09) at 1280x800. The card opens on
+// a 40px top row: the sidebar toggle, the omnibar centered across the card (640 wide)
+// ending in the button that shows the folder in the Mac's Finder, and the open file's
+// own controls at the right. Under it a folder gets the 175px sidebar of places and the
+// Finder's 48px header; a file gets the 240px tree of its folder in place of the places.
+
 const FINDER_FILES = [
   ["folder", "ai-spend"],
   ["html", "comparison-index.html"],
   ["md", "claude-usage-report.md"],
   ["folder", "cat-word-doc"],
-  ["html", "lisbon-itinerary.html"],
-  ["csv", "lisbon-costs.csv"],
-  ["md", "packing-list.md"],
-  ["md", "snow-haiku.md"],
+  ["html", "pricing-comparison.html"],
+  ["csv", "competitor-prices.csv"],
+  ["md", "pricing-page-faq.md"],
+  ["md", "q3-board-update.md"],
   ["html", "demo-page.html"],
 ];
 
-/** The Finder, Files' first tab. */
-const finder = ({ pick = -1 } = {}) => `
-  <div class="flex h-full">
-    <div class="w-[180px] shrink-0 border-r border-border p-2 text-[12px]">
-      <div class="flex items-center gap-2 px-2 py-1.5"><i class="ph ph-clock-counter-clockwise"></i>Recents</div>
-      <div class="px-2 pt-3 pb-1 text-[11px] text-muted-foreground">Favorites</div>
-      ${["Instrument", "Home", "Desktop", "Documents", "Downloads"].map((n, i) => `<div class="flex items-center gap-2 rounded-md px-2 py-1.5 ${i === 0 ? "bg-black/[0.06]" : ""}">${fileMark("folder")}${n}</div>`).join("")}
-      <div class="px-2 pt-3 pb-1 text-[11px] text-muted-foreground">Locations</div>
-      <div class="flex items-center gap-2 px-2 py-1.5"><i class="ph ph-hard-drive"></i>Macintosh HD</div>
+const toolBtn = (inner, cls = "") =>
+  `<span class="flex h-8 min-w-8 shrink-0 items-center justify-center gap-1 rounded-lg bg-card px-2 text-muted-foreground ring-1 ring-border ${cls}">${inner}</span>`;
+
+/** Files' top row. `mark` leads the omnibar (a folder, or the open file's type), `crumbs` are its path, `right` the open file's controls (fileActions). */
+const filesTop = ({ crumbs = ["studio26"], mark = fileMark("folder", "text-[15px]"), right = "", left = "" } = {}) => `
+  <div class="grid h-10 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-border px-2">
+    <div class="flex items-center gap-1"><span class="grid size-8 place-items-center rounded-lg text-muted-foreground"><i class="ph ph-sidebar-simple text-[17px]"></i></span>${left}</div>
+    <div class="flex h-8 w-[640px] min-w-0 items-center gap-2 rounded-full border border-border bg-card px-3 text-[13px] shadow-xs">
+      ${mark}${crumbs.map((c, i) => `<span class="truncate ${i === crumbs.length - 1 ? "text-foreground" : "text-muted-foreground"}">${c}</span>`).join(`<i class="ph ph-caret-right text-[10px] text-muted-foreground"></i>`)}
+      <span class="flex-1"></span><span class="grid size-4 shrink-0 place-items-center rounded-[4px] bg-[#1e88f0] text-white"><i class="ph ph-smiley text-[11px]"></i></span>
     </div>
-    <div class="min-w-0 flex-1">
-      <div class="flex h-10 items-center gap-2 border-b border-border px-3 text-[13px] font-medium">Instrument<span class="flex-1"></span><span class="flex h-7 w-40 items-center gap-1.5 rounded-md border border-border px-2 text-[12px] font-normal text-gray-400"><i class="ph ph-magnifying-glass"></i>Search</span></div>
-      <div class="w-[260px] border-r border-border p-1.5 text-[12px]">${FINDER_FILES.map(([k, n], i) => `<div class="flex items-center gap-2 rounded-md px-2 py-1.5 ${i === pick ? "bg-[#d6e6fb]" : ""}">${fileMark(k)}<span class="truncate">${n}</span></div>`).join("")}</div>
+    <div class="flex items-center justify-end gap-1">${right}</div>
+  </div>`;
+
+/** The open file's controls in the top row: Viewing (or Editing), Ask, its menu, and expand. */
+const fileActions = ({ editing = false, ask = "Ask" } = {}) => `
+  <span class="flex h-8 items-center gap-1.5 rounded-lg px-2 text-[13px] ${editing ? "bg-foreground text-background" : "text-muted-foreground"}"><i class="ph ph-${editing ? "pencil-simple" : "eye"} text-[15px]"></i>${editing ? "Editing" : "Viewing"}<i class="ph ph-caret-down text-[10px]"></i></span>
+  <span class="flex h-8 items-center gap-1.5 rounded-lg px-2 text-[13px] font-medium">${brand("instrumentglyph", "size-4")}${ask}</span>
+  <span class="grid size-8 place-items-center text-muted-foreground"><i class="ph ph-dots-three-vertical text-[16px]"></i></span>
+  <span class="grid size-8 place-items-center text-muted-foreground"><i class="ph ph-arrows-out-simple text-[15px]"></i></span>`;
+
+/** The Finder's sidebar of places. `starred` adds a Starred place over Recents. */
+const finderSidebar = ({ on = "studio26", starred = false, places = ["Instrument", "studio26", "Desktop", "Documents", "Downloads"] } = {}) => {
+  const item = (icon, name) =>
+    `<div class="flex h-7 items-center gap-2 rounded-lg px-2 ${name === on ? "bg-foreground/8" : ""}">${icon}<span class="truncate">${name}</span></div>`;
+  const placeIcon = (n) =>
+    n === "Instrument"
+      ? `<i class="ph ph-folder-simple shrink-0 text-[15px] text-[#3f9d8a]"></i>`
+      : n === "studio26"
+        ? `<i class="ph ph-house shrink-0 text-[15px] text-muted-foreground"></i>`
+        : fileMark("folder", "text-[15px]");
+  return `
+  <div class="w-[175px] shrink-0 border-r border-border px-2 pt-2 text-[13px]">
+    ${starred ? item(`<i class="ph ph-star shrink-0 text-[15px] text-muted-foreground"></i>`, "Starred") : ""}
+    ${item(`<i class="ph ph-clock-counter-clockwise shrink-0 text-[15px] text-muted-foreground"></i>`, "Recents")}
+    <div class="px-2 pt-3 pb-1 text-[12px] text-muted-foreground">Favorites</div>
+    ${places.map((n) => item(placeIcon(n), n)).join("")}
+    <div class="px-2 pt-3 pb-1 text-[12px] text-muted-foreground">Locations</div>
+    ${item(`<i class="ph ph-cloud shrink-0 text-[15px] text-muted-foreground"></i>`, "iCloud Drive")}
+    ${item(`<i class="ph ph-hard-drive shrink-0 text-[15px] text-muted-foreground"></i>`, "Macintosh HD")}
+  </div>`;
+};
+
+/** The view picker: Grid, List, Columns, and any `extra` views a proposal adds as [key, icon]. */
+const finderViews = (view = "columns", extra = []) =>
+  `<span class="flex h-8 items-center rounded-lg bg-foreground/8 p-0.5">${[["icons", "ph-squares-four"], ["list", "ph-rows"], ["columns", "ph-columns"], ...extra].map(([k, i]) => `<span class="grid h-7 w-8 place-items-center rounded-md ${k === view ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"}"><i class="ph ${i} text-[15px]"></i></span>`).join("")}</span>`;
+
+/** The Finder's 48px header: the folder's name, then Ask, the views, sort, filter, more and search. */
+const finderHeader = ({ title = "studio26", views = finderViews(), ask = "Ask" } = {}) => `
+  <div class="flex h-12 shrink-0 items-center gap-1.5 border-b border-border px-3">
+    <span class="min-w-0 flex-1 truncate text-[15px] font-semibold">${title}</span>
+    ${toolBtn(`${brand("instrumentglyph", "size-4")}<span class="text-[13px] font-medium text-foreground">${ask}</span>`, "px-2.5")}
+    ${views}
+    ${toolBtn(`<i class="ph ph-arrows-down-up text-[15px]"></i><i class="ph ph-caret-down text-[9px]"></i>`)}
+    ${toolBtn(`<i class="ph ph-funnel-simple text-[15px]"></i>`)}
+    ${toolBtn(`<i class="ph ph-dots-three text-[15px]"></i>`)}
+    ${toolBtn(`<i class="ph ph-magnifying-glass text-[15px]"></i>`)}
+  </div>`;
+
+/** The Finder's list view: Name, Date Modified, Size and Kind over 24px striped rows. Rows are [kind, name, modified, size, kindText]. */
+const finderListView = (rows, { pick = -1 } = {}) => `
+  <div class="text-[13px]">
+    <div class="grid h-7 items-center border-b border-border px-3 text-[12px] text-muted-foreground" style="grid-template-columns:1fr 170px 70px 110px"><span class="pl-6">Name <i class="ph ph-caret-up text-[9px]"></i></span><span>Date Modified</span><span class="text-right">Size</span><span class="pl-3">Kind</span></div>
+    ${rows.map(([k, n, d, sz, kt], i) => `<div class="grid h-6 items-center px-3 ${i === pick ? "bg-brand-600 text-white" : i % 2 ? "bg-foreground/[0.03]" : ""}" style="grid-template-columns:1fr 170px 70px 110px"><span class="flex min-w-0 items-center gap-2">${fileMark(k)}<span class="truncate">${n}</span></span><span class="${i === pick ? "" : "text-muted-foreground"}">${d}</span><span class="text-right ${i === pick ? "" : "text-muted-foreground"}">${sz}</span><span class="pl-3 ${i === pick ? "" : "text-muted-foreground"}">${kt}</span></div>`).join("")}
+  </div>`;
+
+/** A file's folder as the tree beside it: 240px, 24px rows, the open file in the brand color. Rows are [depth, kind, name]. */
+const fileTree = (rows, { on = "" } = {}) => `
+  <div class="w-[240px] shrink-0 overflow-hidden border-r border-border px-1.5 py-1 text-[13px]">
+    ${rows.map(([d, k, n]) => `<div class="flex h-6 items-center gap-1.5 rounded-md pr-2 ${n === on ? "bg-brand-600 text-white" : ""}" style="padding-left:${8 + d * 16}px">${k === "folder" ? `<i class="ph ph-caret-${d === 0 ? "down" : "right"} text-[10px] ${n === on ? "" : "text-muted-foreground"}"></i>` : `<span class="w-2.5"></span>`}${fileMark(k)}<span class="truncate">${n}</span></div>`).join("")}
+  </div>`;
+
+/** Files filling the card: its top row, then `side` (finderSidebar, fileTree, or nothing), then `head` over `body`. */
+const filesPlace = ({ top = filesTop(), side = finderSidebar(), head = "", body = "" } = {}) => `
+  <div class="flex min-w-0 flex-1 flex-col">
+    ${top}
+    <div class="flex min-h-0 flex-1">
+      ${side}
+      <div class="relative flex min-w-0 flex-1 flex-col">${head}<div class="relative min-h-0 flex-1 overflow-hidden">${body}</div></div>
     </div>
   </div>`;
+
+/** The Finder as Files opens it on the Instrument folder, in list view. */
+const finder = ({ pick = -1 } = {}) =>
+  filesPlace({
+    top: filesTop({ crumbs: ["studio26", "Instrument"] }),
+    side: finderSidebar({ on: "Instrument" }),
+    head: finderHeader({ title: "Instrument", views: finderViews("list") }),
+    body: finderListView(
+      FINDER_FILES.map(([k, n], i) => [k, n, `Oct ${8 - (i % 5)}, 2026 at ${9 + (i % 4)}:${10 + i * 5} AM`, k === "folder" ? "--" : `${12 + i * 7} KB`, { folder: "Folder", html: "text/html", md: "text/markdown", csv: "text/csv" }[k]]),
+      { pick },
+    ),
+  });
 
 // ---- floating ------------------------------------------------------------------
 
 /** The small view: a thread floating over whatever place is up (420x560, bottom right), its tiles over its reply box. `peek` is the index of the tile peeked at, drawn in a card over the conversation. */
 const smallChat = ({
-  title = LISBON_TITLE,
+  title = PRICING_TITLE,
   tabs = [],
   peek = -1,
-  body = lisbon(2),
+  body = pricing(2),
   working = "",
   right = 12,
   bottom = 12,
@@ -591,7 +702,7 @@ const chatPeek = (t, { bottom = 180 } = {}) => `
 
 /** A minimized chat: a 300px dark bar on the bottom edge. */
 const miniBar = ({
-  title = LISBON_TITLE,
+  title = PRICING_TITLE,
   working = false,
   right = 12,
 } = {}) => `
@@ -695,6 +806,93 @@ const plusMenu = ({ left, top, model = "Choose a model" } = {}) =>
     ],
     { left, top, w: 256 },
   );
+
+// ---- model picker ----------------------------------------------------------------
+
+/** The picker's size as built: PANEL_WIDTH and PANEL_HEIGHT in model-picker.tsx. */
+const PICKER_W = 680;
+const PICKER_H = 520;
+
+/** The connections in the picker's rail, in the order Settings lists them. */
+const PICKER_CONNS = [
+  { k: "instrument", name: "Instrument", mark: "instrumentglyph" },
+  { k: "chatgpt", name: "ChatGPT plan", mark: "openai" },
+  { k: "anthropic", name: "Anthropic", mark: "anthropic" },
+  { k: "openrouter", name: "OpenRouter", mark: "openrouter" },
+];
+
+/** The chosen row: the pressed tint and a check at its end. */
+const PICKED = "bg-accent text-accent-foreground";
+const pickedCheck = `<i class="ph ph-check text-[16px]"></i>`;
+
+/** The picker's popover placed in a window frame, `left`/`top` in the window's pixels. */
+const pickerPop = (inner, { left = 0, top = 0 } = {}) => `
+  <div class="absolute z-50 flex flex-col overflow-hidden rounded-xl border border-border bg-popover text-foreground shadow-xl" style="left:${left}px;top:${top}px;width:${PICKER_W}px;height:${PICKER_H}px">${inner}</div>`;
+
+/** The picker alone, filling a PICKER_W x PICKER_H frame, for a frame about what is inside it. */
+const pickerCrop = (inner) =>
+  `<div class="flex h-full flex-col bg-popover text-foreground [color-scheme:light]">${inner}</div>`;
+
+const pickerSearch = (q = "") => `
+  <div class="shrink-0 border-b border-border p-2">
+    <div class="flex h-8 items-center gap-2 rounded-lg bg-black/[0.04] px-2.5 text-[14px]">
+      <i class="ph ph-magnifying-glass text-[15px] text-muted-foreground"></i>
+      <span class="${q ? "" : "text-muted-foreground"}">${q || "Search models"}</span>${q ? `<span class="-ml-1.5 h-4 w-px bg-foreground"></span>` : ""}
+    </div>
+  </div>`;
+
+/** The rail: `open` is lit, `held` (the connection with the chosen model) carries a small check, `mark` gets the click. */
+const pickerRail = (open, { held = "", mark = "" } = {}) => `
+  <div class="flex w-50 shrink-0 flex-col gap-0.5 border-r border-border bg-muted/40 p-2">
+    ${PICKER_CONNS.map((c) => {
+      const it = `<div class="flex min-h-8 items-center gap-2.5 rounded-md px-2 text-[14px] ${open === c.k ? "bg-black/[0.06] font-medium" : ""}">${brand(c.mark)}<span class="min-w-0 flex-1 truncate">${c.name}</span>${held === c.k ? `<i class="ph ph-check text-[14px] text-muted-foreground"></i>` : ""}</div>`;
+      return mark === c.k ? clickable(it) : it;
+    }).join("")}
+    <div class="flex-1"></div>
+    <div class="flex min-h-8 items-center gap-2.5 rounded-md px-2 text-[14px] text-muted-foreground"><i class="ph ph-plus text-[16px]"></i>Add a provider</div>
+  </div>`;
+
+/** A group label in the list (a maker under OpenRouter, Older versions). */
+const pickerHead = (t, mark = "") =>
+  `<div class="flex items-center gap-2 px-2.5 pt-2.5 pb-1 text-[12px] font-medium text-muted-foreground">${mark ? brand(mark, "size-3.5") : ""}${t}</div>`;
+
+/** A model row as ModelRow draws it: the maker's mark, the name, an optional line under it, the check when chosen. */
+const pickerRow = (name, { mark = "", sub = "", on = false } = {}) => `
+  <div class="flex items-center gap-2.5 rounded-md px-2.5 ${sub ? "py-1.5" : "min-h-9"} ${on ? PICKED : ""}">
+    ${mark ? brand(mark) : ""}
+    <span class="flex min-w-0 flex-1 flex-col"><span class="truncate text-[14px] ${on ? "font-medium" : ""}">${name}</span>${sub ? `<span class="truncate text-[12px] ${on ? "opacity-80" : "text-muted-foreground"}">${sub}</span>` : ""}</span>
+    ${on ? pickedCheck : ""}
+  </div>`;
+
+/** Auto as AutoRow draws it at the head of a longer Instrument list, with the rule under it. */
+const pickerAutoRow = ({ on = false } = {}) => `
+  <div class="flex min-h-9 items-center gap-2.5 rounded-md px-2.5 ${on ? PICKED : ""}">
+    ${brand("instrumentglyph")}
+    <span class="flex min-w-0 flex-1 items-baseline gap-2"><span class="text-[14px] ${on ? "font-medium" : ""}">Auto</span><span class="text-[12px] font-medium text-brand-700">Recommended</span><span class="truncate text-[12px] ${on ? "opacity-80" : "text-muted-foreground"}">Included with your subscription</span></span>
+    ${on ? pickedCheck : ""}
+  </div>
+  <div class="mx-2.5 my-2 h-px bg-border"></div>`;
+
+/** Auto as AutoOnly draws it when it is all Instrument offers: centered, with its one button. */
+const pickerAutoOnly = ({ on = false } = {}) => `
+  <div class="flex flex-col items-center gap-3 px-6 pt-16 pb-10 text-center">
+    ${brand("instrumentglyph", "size-9")}
+    <div class="flex flex-col items-center gap-1">
+      <span class="flex items-center gap-2 text-[16px] font-medium">Auto<span class="text-[12px] font-medium text-brand-700">Recommended</span></span>
+      <span class="text-[14px] text-muted-foreground">Included with your subscription</span>
+    </div>
+    ${on ? `<span class="mt-1 flex h-8 items-center gap-1.5 px-3 text-[14px] font-medium"><i class="ph ph-check text-[16px]"></i>In use</span>` : `<span class="mt-1 flex h-8 items-center rounded-lg bg-brand-600 px-3 text-[14px] font-medium text-white">Use Auto</span>`}
+  </div>`;
+
+/** The whole panel: search over the rail and the open connection's list. */
+const modelPicker = ({
+  open = "instrument",
+  held = "",
+  list = "",
+  q = "",
+  mark = "",
+} = {}) =>
+  `${pickerSearch(q)}<div class="flex min-h-0 flex-1">${pickerRail(q ? "" : open, { held, mark })}<div class="min-w-0 flex-1 overflow-hidden p-2">${list}</div></div>`;
 
 // ---- onboarding ------------------------------------------------------------------
 

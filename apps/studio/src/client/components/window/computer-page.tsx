@@ -67,7 +67,7 @@ import {
   getComputerFileUrl,
   getComputerThumbnailUrl,
 } from "@/client/lib/computer-file-url";
-import { getFileType } from "@/client/lib/get-file-type";
+import { getFileType, opensInSystemApp } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
@@ -196,6 +196,12 @@ export interface FolderOnScreen {
   selected: string[];
   /** What is selected in it, by host path and kind. */
   selectedItems: ChosenItem[];
+  /**
+   * As the person walked to it, which is how the location bar names it.
+   * Differs from `display` where the folder lives somewhere other than
+   * where it is shown: an iCloud Drive app folder.
+   */
+  walked: string;
 }
 
 /**
@@ -470,16 +476,31 @@ export function ComputerPage({
           return {
             ...stamps,
             contentType: entry.mimeType,
+            ...(entry.displayName === undefined
+              ? {}
+              : { displayName: entry.displayName }),
             kind: "file",
             metadata: { hostPath: entry.path },
             path: `${prefix}${entry.name}`,
             ...previewOf(entry, resolvedTheme),
             size: entry.size,
+            ...(entry.typeName === undefined
+              ? {}
+              : { typeName: entry.typeName }),
           };
         })
     );
   });
   const items = isRecents ? recentItems : folderItems;
+  // Listed as files and opened as one, but folders inside, which the menu's
+  // Show Package Contents goes into.
+  const packagePaths = new Set(
+    listings.flatMap(({ data }) =>
+      (data?.entries ?? []).flatMap((entry) =>
+        entry.package ? [entry.path] : [],
+      ),
+    ),
+  );
   const itemsByPath = new Map(items.map((item) => [item.path, item]));
   const selectedItem =
     selectedPath === null ? undefined : itemsByPath.get(selectedPath);
@@ -874,6 +895,13 @@ export function ComputerPage({
     ? recentFolder && homeRelative(recentFolder, homePath)
     : (currentListing?.display ??
       (refusedHostPath && homeRelative(refusedHostPath, homePath)));
+  // Where the person walked to the folder, which is how the location bar
+  // names it: an iCloud Drive app folder under iCloud Drive, though it lives
+  // in its app's container.
+  const walked =
+    isRecents || display === undefined
+      ? display
+      : homeRelative(hostPathOf(onScreen, rootHostPath ?? root), homePath);
   const hostPath = isRecents
     ? recentFolder
     : (currentListing?.path ?? refusedHostPath);
@@ -921,16 +949,34 @@ export function ComputerPage({
       ...(mount === undefined ? {} : { mount }),
       selected: selectedOnScreen.map(({ name }) => name),
       selectedItems: selectedOnScreen.map(({ item }) => item),
+      walked: walked ?? display,
     });
     // The selection by its key: the rows are rebuilt on every re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [access, display, hostPath, mount, onFolderChange, selectedKey]);
+  }, [access, display, hostPath, mount, onFolderChange, selectedKey, walked]);
 
+  // A type with no viewer here goes to the app the computer would use, the way
+  // a double-click in the system's file manager does: a disk image mounts and
+  // shows its window. Where that fails, the tab's card says why and offers
+  // what is left.
+  const handOff = useMutation(rpcClient.utils.openPath.mutationOptions());
   const openFile = (file: FileSystemFileItem) => {
     const tab = fileTabOf(file);
-    if (tab) {
-      onOpenFile(tab);
+    if (!tab) {
+      return;
     }
+    if (opensInSystemApp(tab.name)) {
+      handOff.mutate(
+        { filepath: tab.hostPath },
+        {
+          onError: () => {
+            onOpenFile(tab);
+          },
+        },
+      );
+      return;
+    }
+    onOpenFile(tab);
   };
 
   // Space on a selected file, the way the Finder shows one over everything.
@@ -1146,7 +1192,7 @@ export function ComputerPage({
       ...(group
         ? {
             onOpen: () => {
-              openInTabs(group, { behind: false });
+              openSeveral(group);
             },
             onOpenInNewTab: () => {
               openInTabs(group, { behind: true });
@@ -1183,6 +1229,19 @@ export function ComputerPage({
       isFirst = false;
     }
   };
+  // Opening several, as a double-click or ⌘O on a selection does: each file
+  // goes where opening it alone would, and the rest come up in tabs.
+  const openSeveral = (picked: FileSystemItem[]) => {
+    const inTabs = picked.filter((item) => {
+      const tab = item.kind === "file" ? fileTabOf(item) : undefined;
+      if (item.kind === "file" && tab && opensInSystemApp(tab.name)) {
+        openFile(item);
+        return false;
+      }
+      return true;
+    });
+    openInTabs(inTabs, { behind: false });
+  };
   const menuActionsForOne = (item: FileSystemItem | undefined) => ({
     onCopyPath: () => void copyPath(item),
     onNewFolder:
@@ -1210,6 +1269,14 @@ export function ComputerPage({
           onQuickLook(tab);
         }
       }),
+    onShowPackageContents: (() => {
+      const packagePath = hostPathOfItem(item);
+      return packagePath && packagePaths.has(packagePath)
+        ? () => {
+            rootTo(packagePath);
+          }
+        : undefined;
+    })(),
     onRename: () => {
       const renaming = item?.path;
       if (renaming === undefined) {
@@ -1320,7 +1387,7 @@ export function ComputerPage({
       {isNarrow ? (
         <nav
           className={cn(
-            "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft select-none",
+            "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft",
             !isPlacesOpen && "hidden",
           )}
           onKeyDown={onPlacesKeyDown}
@@ -1426,7 +1493,7 @@ export function ComputerPage({
                 onColumnWidthChange={setColumnWidth}
                 onFileOpen={openFile}
                 onOpenSeveral={(several) => {
-                  openInTabs(several, { behind: false });
+                  openSeveral(several);
                 }}
                 onItemContextMenu={(item) => {
                   setMenuItem(item ?? undefined);
@@ -1475,6 +1542,17 @@ export function ComputerPage({
                   ) {
                     return (
                       <StagePicture fallbackAspect={4 / 3} src={file.url} />
+                    );
+                  }
+                  // An app's icon at the size the grid already holds, which
+                  // is more than the pane draws it at, and bare.
+                  if (tab && file.previewImageUrl && file.previewIsIcon) {
+                    return (
+                      <StagePicture
+                        bare
+                        fallbackAspect={1}
+                        src={file.previewImageUrl}
+                      />
                     );
                   }
                   // Anything else the system draws is drawn here as the grid
@@ -1606,7 +1684,38 @@ export function ComputerPage({
             sort={shown.sort}
           />
         </ContextMenu>
+        {currentListing?.appFoldersLocked && <ICloudAccessBanner />}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Under the top of iCloud Drive while macOS keeps its app folders from
+ * Instrument. The first read asks for the iCloud Drive permission, and macOS
+ * never asks twice, so after that the switch in System Settings is the only
+ * way in.
+ */
+function ICloudAccessBanner() {
+  const openSettings = useMutation(
+    rpcClient.features.openFilesAndFoldersSettings.mutationOptions(),
+  );
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-4 py-3 text-xs text-muted-foreground">
+      <p className="min-w-0 flex-1 leading-5">
+        Some folders in iCloud Drive need your permission before Instrument can
+        show them. You can turn on iCloud Drive for Instrument in System
+        Settings.
+      </p>
+      <Button
+        onClick={() => {
+          openSettings.mutate(undefined);
+        }}
+        size="sm"
+        variant="outline"
+      >
+        Open System Settings
+      </Button>
     </div>
   );
 }
@@ -1628,6 +1737,8 @@ type FolderMenuActions = {
   /** Left out where there is no field to type a name in. */
   onRename?: () => void;
   onReveal: () => void;
+  /** A package (an app) gone into as the folder it is; left out for anything else. */
+  onShowPackageContents?: (() => void) | undefined;
   onTrash: () => void;
   /**
    * What the menu acts on, when it is several selected: what names one thing
@@ -1769,6 +1880,7 @@ function FolderMenuItems({
   onQuickLook,
   onRename,
   onReveal,
+  onShowPackageContents,
   onTrash,
   group,
 }: FolderMenuActions & {
@@ -1784,10 +1896,14 @@ function FolderMenuItems({
   const several = group?.length;
   const file = tab && !several ? { hostPath: tab.hostPath } : undefined;
   const openFile = useOpenFile();
-  const { openLabel, showOpen } = useFileOpenTarget(file);
+  const { openLabel, opensUnnamed, showOpen } = useFileOpenTarget(file);
   const itemHostPath = hostPathOfItem(item);
+  // A file the system opens with a helper not worth naming has one way to
+  // open, and the Open above already takes it.
   const openIn =
-    isMacOS() && itemHostPath ? { hostPath: itemHostPath } : undefined;
+    isMacOS() && itemHostPath && !opensUnnamed
+      ? { hostPath: itemHostPath }
+      : undefined;
   // The rest of the selection, opened along with the row in the app picked.
   const openInOthers = (group ?? []).flatMap((each) => {
     const hostPath = hostPathOfItem(each);
@@ -1826,6 +1942,12 @@ function FolderMenuItems({
             <NewTabIcon className="size-4" />
             <span>{several ? "Open in New Tabs" : "Open in New Tab"}</span>
           </Item>
+          {onShowPackageContents && !several ? (
+            <Item onClick={onShowPackageContents}>
+              <FolderOpenIcon className="size-4" />
+              <span>Show Package Contents</span>
+            </Item>
+          ) : null}
           {/* The apps are listed where the Mac can be asked for them, and the
                 submenu asks only once it is opened, so the row is there from
                 the first frame rather than arriving under the pointer once a
@@ -1837,7 +1959,7 @@ function FolderMenuItems({
               menuComponents={menuComponents}
               others={openInOthers}
             />
-          ) : file && showOpen ? (
+          ) : file && showOpen && !opensUnnamed ? (
             <Item
               onClick={() => {
                 openFile(file);
@@ -2079,9 +2201,12 @@ function siblingPath(path: string, name: string) {
  * they will stay rather than jumping down once it loads.
  */
 function StagePicture({
+  bare = false,
   fallbackAspect,
   src,
 }: {
+  /** No frame around it, for an icon that carries its own shape. */
+  bare?: boolean;
   /** Width over height while the picture is on its way. */
   fallbackAspect: number;
   src: string;
@@ -2095,8 +2220,9 @@ function StagePicture({
   return (
     <div
       className={cn(
-        "relative w-full overflow-hidden rounded-xl shadow-sm ring-1 ring-border",
-        !isLoaded && "bg-muted",
+        "relative w-full overflow-hidden",
+        !bare && "rounded-xl shadow-sm ring-1 ring-border",
+        !isLoaded && !bare && "bg-muted",
       )}
       style={isLoaded ? undefined : { aspectRatio: fallbackAspect }}
     >
@@ -2367,20 +2493,38 @@ function PlaceMenu({
 
 /**
  * A listed file's own URL, and the system's picture of it where there is one,
- * named by when the file was written so a new write is a new picture.
+ * named by when the file was written so a new write is a new picture. A
+ * package's picture is the system's icon for it, square.
  */
 function previewOf(
   entry: {
     mimeType?: string;
     modifiedAt?: number;
     name: string;
+    package?: true;
     path: string;
   },
   theme: "dark" | "light",
-): Pick<FileSystemFileItem, "previewImageUrl" | "url"> {
+): Pick<
+  FileSystemFileItem,
+  "previewAspectRatio" | "previewImageUrl" | "previewIsIcon" | "url"
+> {
   const version = entry.modifiedAt;
   const url = getComputerFileUrl({ hostPath: entry.path, version });
   const extension = entry.name.split(".").at(-1)?.toLowerCase() ?? "";
+  if (entry.package) {
+    return {
+      previewAspectRatio: 1,
+      previewImageUrl: getComputerThumbnailUrl({
+        hostPath: entry.path,
+        size: 512,
+        theme,
+        version,
+      }),
+      previewIsIcon: true,
+      url,
+    };
+  }
   if (
     !entry.mimeType?.startsWith("image/") &&
     !THUMBNAIL_EXTENSIONS.has(extension)

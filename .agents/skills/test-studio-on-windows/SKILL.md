@@ -26,6 +26,8 @@ If the profile or either scheduled task is missing, read [references/host-enroll
 - Use `installed` to validate the installed packaged product. It uses the production user data and can mutate real local application state. Route helpers do not exist, so use generic `eval`, `click`, `press`, `wait`, and `shot` operations.
 - The installed target validates the installed application version, not the remote checkout. The dev targets validate the remote checkout's exact Git state, not uncommitted changes on the primary machine.
 
+A preview build is how to test a branch's packaged app without touching the installed one. `gh workflow run preview.yml --ref <branch> -f os=windows` (or `all`) builds it, and `gh api repos/instrument-org/instrument/actions/artifacts/<id>/zip > installer.exe` fetches the installer itself (the run's `artifacts` endpoint lists ids). `gh run download` fails on it, since it expects every artifact to be a zip. It installs beside Instrument under `Instrument Preview (<name>)`, in its own folder under `%LOCALAPPDATA%\Programs`, with its own user data, and `window.__studioDrive` is attached, so route helpers work. No `preview` target is enrolled yet: start it the way [references/host-enrollment.md](references/host-enrollment.md) starts the installed app, with the preview's executable and a CDP port of its own. Every build is a first launch, since the run number is part of its name; for another first launch, build again.
+
 ## Establish source identity
 
 Run status before every test and report the returned commit, branch, and dirty state:

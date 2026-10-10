@@ -12,16 +12,27 @@ import { pathIsWithin } from "../path-is-within";
 import { type ReadRefusal, readRefusalOf } from "../read-refusal";
 import { resolveExistingFilePath } from "../resolve-agent-path";
 import { taskDir } from "../task-dir-utils";
+import { getWorkspaceConfig } from "../workspace-config";
 import {
   buildWorkspaceFsLayout,
   effectiveFolderAccess,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import { childTaskMounts } from "./children";
+import {
+  type FinderEntry,
+  finderEntriesOf,
+  resolveThroughAliases,
+} from "./finder-entries";
 import { folderReach } from "./folder-reach";
 import { hiddenEntryNames } from "./hidden-entries";
+import {
+  type ICloudAppFolders,
+  iCloudAppFolders,
+  iCloudDrivePath,
+  resolveICloudPath,
+} from "./icloud-drive";
 import { linkedFiles } from "./linked-files";
-import { outputFolderPath } from "./output-folder";
 import { resolveChat } from "../record-folders";
 
 /**
@@ -37,18 +48,35 @@ const RECENTS_MAX = 20;
 const ComputerEntrySchema = z.object({
   createdAt: z.number().optional(),
   /**
-   * Whether the system hides this entry. Absent means it does not, and on the
-   * platforms where hidden-ness is a leading dot it is always absent: the name
-   * says it, and the browser is the one holding the switch.
+   * The name as the system's file manager shows it, where that differs from
+   * `name`: the Finder leaves `.app` off an app, and any extension a person
+   * chose to hide.
+   */
+  displayName: z.string().optional(),
+  /**
+   * Whether the system hides this entry. Absent means it does not, and for a
+   * name with a leading dot it is always absent: the name says it, and the
+   * browser is the one holding the switch.
    */
   hidden: z.boolean().optional(),
+  /**
+   * A file, or a folder the system shows and opens as one item (a package:
+   * an app, a Photos library), which is listed as a file with `package` set.
+   */
   kind: z.enum(["file", "folder"]),
   mimeType: z.string().optional(),
   modifiedAt: z.number().optional(),
   name: z.string(),
+  /**
+   * A folder the system treats as one item. Listed as a file, since that is
+   * how it is opened, and drawn by the system's icon for it.
+   */
+  package: z.literal(true).optional(),
   /** The host path. */
   path: z.string(),
   size: z.number().optional(),
+  /** What the system calls this kind of item, where the name cannot say: "Application". */
+  typeName: z.string().optional(),
 });
 type ComputerEntry = z.output<typeof ComputerEntrySchema>;
 
@@ -84,6 +112,12 @@ export type ComputerRecent = z.output<typeof ComputerRecentSchema>;
 
 const ComputerListingSchema = z.object({
   access: ComputerAccessSchema.optional(),
+  /**
+   * At the top of iCloud Drive, that macOS kept this app from the app folders
+   * shown there (Pages, Shortcuts): iCloud Drive's own folders open without
+   * it, and the apps' take the iCloud Drive permission.
+   */
+  appFoldersLocked: z.literal(true).optional(),
   /** The path as a person writes it, the home folder as `~`. */
   display: z.string(),
   entries: ComputerEntrySchema.array(),
@@ -116,14 +150,6 @@ export const ComputerFolderSchema = z.discriminatedUnion("kind", [
 ]);
 export type ComputerFolder = z.output<typeof ComputerFolderSchema>;
 
-const ComputerPlaceSchema = z.object({
-  name: z.string(),
-  path: z.string(),
-});
-export const ComputerPlacesSchema = z.object({
-  favorites: ComputerPlaceSchema.array(),
-  volumes: ComputerPlaceSchema.array(),
-});
 /** A granted folder as a host root, with how the agent reaches what is under it. */
 export interface AttachedRoot {
   /**
@@ -135,8 +161,6 @@ export interface AttachedRoot {
   mountPoint: string;
   root: string;
 }
-
-export type ComputerPlaces = z.output<typeof ComputerPlacesSchema>;
 
 /**
  * The deepest granted folder a host path sits in, and the virtual path the
@@ -170,60 +194,6 @@ export function accessIn(
 }
 
 /**
- * Where the computer is entered from: the folder Instrument keeps its own
- * outcomes in, which is where what the app made is looked for and so stands
- * first; then the folders a person keeps things in, and every mounted volume.
- * The home folder goes by its own name, as the file manager calls it.
- */
-export async function computerPlaces(): Promise<ComputerPlaces> {
-  const home = os.homedir();
-  const candidates: [string, string][] = [
-    ["Instrument", outputFolderPath()],
-    [path.basename(home), home],
-    ["Desktop", path.join(home, "Desktop")],
-    ["Documents", path.join(home, "Documents")],
-    ["Downloads", path.join(home, "Downloads")],
-  ];
-  const candidatePlaces = await Promise.all(
-    candidates.map(async ([name, folder]) =>
-      (await isDirectory(folder)) ? { name, path: folder } : undefined,
-    ),
-  );
-  const favorites = candidatePlaces.filter((place) => place !== undefined);
-
-  let volumes: ComputerPlaces["volumes"] = [];
-  try {
-    const names = await fs.readdir("/Volumes");
-    const mounted = await Promise.all(
-      names
-        .filter((name) => !name.startsWith("."))
-        .map(async (name) => {
-          try {
-            // The boot volume is a link to `/`; the others are themselves.
-            const real = await fs.realpath(path.join("/Volumes", name));
-            return { name, path: real };
-          } catch {
-            return;
-          }
-        }),
-    );
-    volumes = mounted.filter((place) => place !== undefined);
-  } catch {
-    // Not a Mac, or no volumes folder: the root the home folder sits on,
-    // named the way that system names it.
-    const { root } = path.parse(home);
-    volumes = [
-      {
-        name:
-          process.platform === "win32" ? root.replace(/[\\/]+$/, "") : "Root",
-        path: root,
-      },
-    ];
-  }
-  return { favorites, volumes };
-}
-
-/**
  * One folder of the computer: files and subfolders, folders first. Read as the
  * app's own user, which is what the person browsing is; whether the agent may
  * read it is a separate question, answered by `access`.
@@ -240,13 +210,18 @@ export async function listComputerFolder({
   path: string;
   taskId: TaskId;
 }): Promise<ComputerFolder> {
-  const hostPath = expandHomePath(input);
+  const hostPath = await resolveThroughAliases(
+    await resolveICloudPath(expandHomePath(input), exists),
+    getWorkspaceConfig().resolveAlias,
+  );
   let dirents: Dirent[];
   let hiddenNames: ReadonlySet<string>;
+  let finder: ReadonlyMap<string, FinderEntry>;
   try {
-    [dirents, hiddenNames] = await Promise.all([
+    [dirents, hiddenNames, finder] = await Promise.all([
       fs.readdir(hostPath, { withFileTypes: true }),
       hiddenEntryNames(hostPath),
+      finderEntriesOf(hostPath),
     ]);
   } catch (error) {
     const reason = readRefusalOf(error);
@@ -275,19 +250,61 @@ export async function listComputerFolder({
     dirents
       .slice(0, MAX_ENTRIES)
       .map((entry) =>
-        describeEntry(hostPath, entry.name, hiddenNames.has(entry.name)),
+        describeEntry(
+          hostPath,
+          entry.name,
+          hiddenNames.has(entry.name),
+          finder.get(entry.name.normalize("NFC")),
+        ),
       ),
   );
+  const appFolders =
+    process.platform === "darwin" && hostPath === iCloudDrivePath()
+      ? await iCloudAppFolders()
+      : undefined;
+  if (appFolders) {
+    entries.push(
+      ...(await iCloudAppEntries(
+        appFolders,
+        new Set(dirents.map((d) => d.name)),
+      )),
+    );
+  }
   entries.sort(compareEntries);
 
   return {
     access: await computerAccess(taskId, hostPath),
+    ...(appFolders?.access === "refused" ? { appFoldersLocked: true } : {}),
     display: displayHostPath(hostPath),
     entries,
     kind: "listing",
     path: hostPath,
     truncated,
   };
+}
+
+/**
+ * The app folders iCloud Drive shows beside its own, each by its app's name
+ * and at the folder it really is, so whatever is opened from one is opened
+ * where it lives. A name iCloud Drive itself holds keeps that name.
+ */
+async function iCloudAppEntries(
+  { folders }: ICloudAppFolders,
+  taken: ReadonlySet<string>,
+): Promise<ComputerEntry[]> {
+  return Promise.all(
+    folders
+      .filter((folder) => !taken.has(folder.name))
+      .map(async (folder) => ({
+        ...(await describeEntry(
+          path.dirname(folder.path),
+          path.basename(folder.path),
+          false,
+          undefined,
+        )),
+        name: folder.name,
+      })),
+  );
 }
 
 /**
@@ -379,20 +396,47 @@ async function computerAccess(
 
 /**
  * One entry of a folder, with what the Finder shows about it. A symlink is
- * what it points at; one that leads nowhere is left as a bare name.
+ * what it points at; one that leads nowhere is left as a bare name. A package
+ * is a file, by the Finder's name and kind for it.
  */
 async function describeEntry(
   folder: string,
   name: string,
   hidden: boolean,
+  finder: FinderEntry | undefined,
 ): Promise<ComputerEntry> {
   const entryPath = path.join(folder, name);
-  const isHidden = hidden ? { hidden: true } : {};
+  const isHidden =
+    hidden || (finder?.hidden && !name.startsWith(".")) ? { hidden: true } : {};
+  const extensionAt = name.lastIndexOf(".");
+  const displayName =
+    finder?.hidesExtension && extensionAt > 0
+      ? { displayName: name.slice(0, extensionAt) }
+      : {};
+  // An alias is what it leads to, as a symbolic link is, while the entry
+  // stays the alias: renaming or throwing it away is of the alias.
+  const target = finder?.alias
+    ? await resolveThroughAliases(entryPath, getWorkspaceConfig().resolveAlias)
+    : entryPath;
   let stats;
   try {
-    stats = await fs.stat(entryPath);
+    stats = await fs.stat(target);
   } catch {
     return { ...isHidden, kind: "file", name, path: entryPath };
+  }
+  if (stats.isDirectory() && finder?.package) {
+    // No size: a package's is its folder's, which says nothing of what is in it.
+    return {
+      ...isHidden,
+      ...displayName,
+      createdAt: stats.birthtimeMs,
+      kind: "file",
+      modifiedAt: stats.mtimeMs,
+      name,
+      package: true,
+      path: entryPath,
+      ...(finder.kind === undefined ? {} : { typeName: finder.kind }),
+    };
   }
   if (stats.isDirectory()) {
     return {
@@ -406,9 +450,10 @@ async function describeEntry(
   }
   return {
     ...isHidden,
+    ...displayName,
     createdAt: stats.birthtimeMs,
     kind: "file",
-    mimeType: getMimeType(name),
+    mimeType: getMimeType(target === entryPath ? name : path.basename(target)),
     modifiedAt: stats.mtimeMs,
     name,
     path: entryPath,
@@ -477,10 +522,10 @@ function expandHomePath(input: string): string {
   return path.resolve(trimmed);
 }
 
-async function isDirectory(folder: string) {
+async function exists(hostPath: string) {
   try {
-    const stats = await fs.stat(folder);
-    return stats.isDirectory();
+    await fs.lstat(hostPath);
+    return true;
   } catch {
     return false;
   }

@@ -59,28 +59,34 @@ export function ToolRequestFolder({
     return <ToolCardEmpty message="The request has not arrived yet." />;
   }
 
-  const { reason } = part.input;
+  const { folder: refusedFolder, reason } = part.input;
   const isUnanswered = part.state === "input-available";
   const isPending = isUnanswered && isWaitedOn;
 
   const choose = async () => {
+    const refused = refusedFolder
+      ? await refusedHostPath(taskId, refusedFolder)
+      : undefined;
     const picked = await rpcClient.utils.showFolderPicker.call({
       buttonLabel: "Allow",
       message: `${APP_NAME} asked for a folder: ${reason ?? ""}`,
+      ...(refused && { startingAt: refused }),
     });
     if (!picked) {
       return;
     }
-    const folder = await attach.mutateAsync({
-      id: taskId,
-      path: picked.path,
-    });
+    // The refused folder picked as it is: the pick is what lets the app in,
+    // and the conversation already reaches it at the path it named.
+    const mountPoint =
+      refused && refusedFolder && picked.path === refused
+        ? refusedFolder
+        : `${MOUNT.attachedFolders}/${
+            (await attach.mutateAsync({ id: taskId, path: picked.path }))
+              .mountName
+          }`;
     answer.mutate({
       id: taskId,
-      output: {
-        mountPoint: `${MOUNT.attachedFolders}/${folder.mountName}`,
-        status: "granted",
-      },
+      output: { mountPoint, status: "granted" },
       toolCallId: part.toolCallId,
       toolName: "request_folder",
     });
@@ -138,4 +144,33 @@ export function ToolRequestFolder({
       </ToolCardSection>
     </ToolCard>
   );
+}
+
+/**
+ * Where on disk a folder the conversation reaches is, given the path it is
+ * mounted at: the mount it sits in, and the rest of the path inside that.
+ */
+async function refusedHostPath(
+  taskId: TaskId,
+  mountPath: string,
+): Promise<string | undefined> {
+  const prefix = `${MOUNT.attachedFolders}/`;
+  if (!mountPath.startsWith(prefix)) {
+    return undefined;
+  }
+  const inside = mountPath.slice(prefix.length).replace(/\/+$/, "");
+  const { attachedFolders } = await rpcClient.workspace.task.state.get.call({
+    id: taskId,
+  });
+  const mount = Object.values(attachedFolders ?? {})
+    .filter(
+      ({ mountName }) =>
+        inside === mountName || inside.startsWith(`${mountName}/`),
+    )
+    .toSorted((a, b) => b.mountName.length - a.mountName.length)[0];
+  if (!mount) {
+    return undefined;
+  }
+  const rest = inside.slice(mount.mountName.length);
+  return `${mount.path}${rest}`;
 }

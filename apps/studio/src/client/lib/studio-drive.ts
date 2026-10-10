@@ -5,6 +5,7 @@ import { appTabsAtom } from "@/client/components/window/app-tabs";
 import { freshTabId, openTab } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { reopenClosed } from "@/client/lib/tabs-model";
+import { APP_FLAVOR } from "@instrument-org/shared";
 import { getDefaultStore } from "jotai";
 
 declare global {
@@ -54,11 +55,17 @@ type StudioModalName = keyof typeof MODAL_OPENERS;
 
 /**
  * Hands the app window's tabs and modals to `studio-drive`, for as long as
- * the renderer lives. Attached under `import.meta.env.DEV`, so a packaged
- * build ships no remote control.
+ * the renderer lives. Attached in a development run and in a preview, which
+ * an agent downloads to drive. Both conditions are inlined at build time, so
+ * a release folds this to an early return and ships no remote control.
  */
 export function initStudioDrive() {
-  if (!import.meta.env.DEV) {
+  // The raw name is what folds away in a release; the flavor check keeps a
+  // name that reduces to nothing, which no preview has, from attaching it.
+  if (
+    !import.meta.env.DEV &&
+    (!process.env.INSTRUMENT_PREVIEW_NAME || APP_FLAVOR.kind !== "preview")
+  ) {
     return;
   }
   const store = getDefaultStore();

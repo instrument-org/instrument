@@ -11,7 +11,7 @@ pnpm monorepo for the Instrument desktop app platform.
 ## Product terminology
 
 - The user's unit of work is a **task** everywhere: copy, code, routes, RPC, types, tool names, and on-disk layout.
-- On disk, a chat lives under `chats/<id>/` and the tasks it started under `chats/<id>/tasks/<id>/`, each with `.instrument/{task.db,settings.json}`. Every task belongs to the chat that started it; `tasks/<id>/` at the root is only where 1.x left tasks for the layout migration to move into chats. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. One record file: what the app knows about the task at the top level, where the user left off under `state`. Where a record's folder is says what it is and which chat a task belongs to; nothing in the record does. What the window keeps about the chats (seen marks, the tab on screen) is `.instrument/window.json` at the workspace root.
+- On disk, a chat lives under `chats/<id>/` and the tasks it started under `chats/<id>/tasks/<id>/`, each with `.instrument/{task.db,settings.json}`. Every task belongs to the chat that started it; `tasks/<id>/` at the root is only where 1.x left tasks for the layout migration to move into chats. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. One record file: what the app knows about the task at the top level, where the user left off under `state`. Where a record's folder is says what it is and which chat a task belongs to; nothing in the record does. A chat's own marks (starred, archived, unread) are on its session record in its `task.db`. An app's connection record holds the chat waiting on its sign-in (`askedIn`).
 
 ## UI copy
 
@@ -31,6 +31,10 @@ A line that works: "Importing adds to what Instrument remembers, so you can brin
 Never commit machine-local paths (`/Users/...`, `~/code/...`, `C:\...`) or names of sibling repos/checkouts on one dev's disk — not in code, docs, plans, commits, or PRs. Meaningless to others, goes stale when layout changes. Such pointers go in local notes, not shared history.
 
 Sources outside this repo are reachable by name instead: `agent-reference.json` (shared) and `agent-reference.local.json` (gitignored, where machine paths go) declare them, and `agent-reference status` lists them.
+
+## Plans and usage
+
+Plans, pricing, and usage limits belong to the API, which enforces them and records why. In this repo, treat them as answers the server gives rather than re-deciding them: build what the app does with them, and keep code, docs, and commits about that behavior.
 
 ## Registry Submodule
 

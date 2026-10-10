@@ -36,9 +36,15 @@ import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { createBashEnv } from "../src/lib/create-bash-env";
 import { grantFolders } from "../src/lib/grant-folders";
+import { placeTaskAt } from "../src/lib/record-folders";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { type FolderAttachment } from "../src/schemas/folder-attachment";
-import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
+import { ChatIdSchema } from "../src/schemas/chat-id";
+import {
+  AbsolutePathSchema,
+  TaskDirSchema,
+  WorkspaceDirSchema,
+} from "../src/schemas/paths";
 import { StoreId } from "../src/schemas/store-id";
 import { TaskIdSchema } from "../src/schemas/task-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
@@ -182,6 +188,13 @@ await fs.mkdir(taskDir, { recursive: true });
 for (const dirName of [TASK_FOLDER_NAMES.attachments, TASK_FOLDER_NAMES.work]) {
   await fs.mkdir(path.join(taskDir, dirName), { recursive: true });
 }
+// A task belongs to the chat that started it, and the shell finds its folder
+// through that record; the repl's task has no chat, so it is placed by hand.
+placeTaskAt(
+  taskId,
+  ChatIdSchema.parse(ulid().toLowerCase()),
+  TaskDirSchema.parse(taskDir),
+);
 
 const sessionId = StoreId.newSessionId();
 

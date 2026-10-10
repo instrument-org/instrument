@@ -11,7 +11,7 @@ import {
 
 // Bumped only when the persisted shape changes. Candidate curation runs on
 // read, so editing the policy lists no longer invalidates anything here.
-const CACHE_VERSION = 9;
+const CACHE_VERSION = 10;
 
 // Resolution spawns helper processes and only depends on the file type, so
 // every entry is an application-wide cache. Refreshes re-read icons, producing
@@ -54,6 +54,7 @@ const PersistedTargetSchema = z.object({
     appName: z.string().nullable(),
     iconUrl: z.string().nullable(),
     launchAppPath: z.string().nullable(),
+    opensUnnamed: z.boolean(),
   }),
 });
 

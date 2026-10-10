@@ -4,7 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { getWorkspaceConfig } from "../../lib/workspace-config";
+import {
+  getWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../../lib/workspace-config";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { type WorkspaceRPCContext } from "../base";
@@ -77,6 +80,107 @@ describe("workspace.computer.list", () => {
     expect(
       listing.kind === "listing" && listing.entries.map((entry) => entry.name),
     ).toEqual(["notes.md"]);
+  });
+
+  it("lists a package as a file by the Finder's name, and hides what it hides", async () => {
+    const folder = path.join(tmpDir, "finder");
+    await fs.mkdir(path.join(folder, "Calculator.app", "Contents"), {
+      recursive: true,
+    });
+    await fs.mkdir(path.join(folder, "Library"));
+    await fs.writeFile(path.join(folder, "report.pdf"), "");
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      finderEntries: async (asked) =>
+        asked === folder
+          ? [
+              {
+                hidesExtension: true,
+                kind: "Application",
+                name: "Calculator.app",
+                package: true,
+              },
+              { hidden: true, name: "Library" },
+            ]
+          : [],
+    });
+    try {
+      const listing = await call(
+        computer.list,
+        { id: taskId, path: folder },
+        { context: createContext() },
+      );
+      expect(
+        listing.kind === "listing" &&
+          listing.entries.map(
+            ({
+              createdAt: _created,
+              modifiedAt: _modified,
+              path: _,
+              ...entry
+            }) => entry,
+          ),
+      ).toMatchInlineSnapshot(`
+        [
+          {
+            "hidden": true,
+            "kind": "folder",
+            "name": "Library",
+          },
+          {
+            "displayName": "Calculator",
+            "kind": "file",
+            "name": "Calculator.app",
+            "package": true,
+            "typeName": "Application",
+          },
+          {
+            "kind": "file",
+            "mimeType": "application/pdf",
+            "name": "report.pdf",
+            "size": 0,
+          },
+        ]
+      `);
+    } finally {
+      setWorkspaceConfig(config);
+    }
+  });
+
+  it("follows a Finder alias to a folder, and a path that runs through one", async () => {
+    const folder = path.join(tmpDir, "aliases");
+    const target = path.join(tmpDir, "alias-target");
+    await fs.mkdir(path.join(target, "inner"), { recursive: true });
+    await fs.writeFile(path.join(target, "inner", "notes.md"), "");
+    await fs.mkdir(folder);
+    const alias = path.join(folder, "Projects alias");
+    // An alias is a bookmark file, which begins with its magic.
+    await fs.writeFile(alias, "book\0\0\0\0mark");
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      finderEntries: async (asked) =>
+        asked === folder ? [{ alias: true, name: "Projects alias" }] : [],
+      resolveAlias: async (asked) => (asked === alias ? target : undefined),
+    });
+    const list = async (at: string) => {
+      const listing = await call(
+        computer.list,
+        { id: taskId, path: at },
+        { context: createContext() },
+      );
+      return (
+        listing.kind === "listing" &&
+        listing.entries.map(({ kind, name }) => `${kind} ${name}`)
+      );
+    };
+    try {
+      expect(await list(folder)).toEqual(["folder Projects alias"]);
+      expect(await list(path.join(alias, "inner"))).toEqual(["file notes.md"]);
+    } finally {
+      setWorkspaceConfig(config);
+    }
   });
 
   it("answers a folder it may not read as refused rather than failing", async () => {

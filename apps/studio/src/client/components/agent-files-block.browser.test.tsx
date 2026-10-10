@@ -120,6 +120,11 @@ test("names every file it draws, in the tree and not just on screen", async () =
     "output/revenue.png\noutput/notes.md\noutput/clip.mp4",
   );
 
+  // The thumbnail's host never resolves, so the image is in the tree until its
+  // load fails and the tile falls back to the icon. Snapshot after that.
+  await expect
+    .poll(() => locator.element().querySelector("img"), { timeout: 10_000 })
+    .toBeNull();
   await expect(ariaSnapshot(locator)).resolves.toMatchInlineSnapshot(`
     "- button "Open revenue.png"
     - button "Open clip.mp4"

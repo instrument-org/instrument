@@ -22,6 +22,7 @@ import {
 } from "@/client/lib/model-picker-rows";
 import { type ModelAction, type ModelNotice } from "@/client/lib/model-status";
 import { cn } from "@/client/lib/utils";
+import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
 import { type RPCOutput } from "@/client/rpc/client";
 import {
   type AIGatewayModel,
@@ -37,7 +38,13 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type RefObject, useLayoutEffect, useRef, useState } from "react";
+import {
+  type PointerEvent,
+  type RefObject,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { AIProviderIcon } from "./ai-provider-icon";
 import { FuzzyHighlight } from "./fuzzy-highlight";
@@ -52,7 +59,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
  * resize the panel under the pointer.
  */
 const PANEL_WIDTH = "42.5rem";
-const PANEL_HEIGHT = "32.5rem";
+const PANEL_HEIGHT_REM = 32.5;
+const PANEL_HEIGHT = `${String(PANEL_HEIGHT_REM)}rem`;
 
 /** The chosen model's row, the same pressed state the inbox's filters use. */
 const CHOSEN = "bg-accent text-accent-foreground";
@@ -67,6 +75,7 @@ type RailEntry = Connection & { failed?: ListError };
 export function ModelPicker({
   align = "start",
   anchorOnly = false,
+  bounds,
   className = "",
   disabled = false,
   errors,
@@ -96,6 +105,12 @@ export function ModelPicker({
    * is disabled, since `disabled:opacity-50` outranks a plain `opacity-0`.
    */
   anchorOnly?: boolean;
+  /**
+   * The composer box to hang the panel off, the way its plus menu hangs: as
+   * wide as the box and clear of its edge, rather than over the prompt it is
+   * choosing a model for.
+   */
+  bounds?: HTMLElement | null;
   className?: string;
   disabled?: boolean;
   errors?: ListError[];
@@ -118,6 +133,19 @@ export function ModelPicker({
 }) {
   const [open, setOpen] = useState(false);
   const isOpen = openProp ?? open;
+  // Whichever the panel is positioned against: the trigger, or the empty box
+  // standing in for one.
+  const anchorRef = useRef<HTMLElement | null>(null);
+  const setAnchor = (element: HTMLElement | null) => {
+    anchorRef.current = element;
+  };
+  const placement = useComposerMenuPlacement({
+    anchorRef,
+    bounds: bounds ?? null,
+    maxHeight: PANEL_HEIGHT_REM * 16,
+    open: isOpen,
+  });
+  const hangsOff = bounds != null;
 
   const closePopover = () => {
     setOpen(false);
@@ -149,7 +177,7 @@ export function ModelPicker({
       open={isOpen}
     >
       {anchorOnly ? (
-        <PopoverAnchor className={className} />
+        <PopoverAnchor className={className} ref={setAnchor} />
       ) : (
         <PopoverTrigger asChild>
           <Button
@@ -163,6 +191,7 @@ export function ModelPicker({
               className,
             )}
             disabled={disabled || isLoading}
+            ref={setAnchor}
             role="combobox"
             size="sm"
             variant="ghost"
@@ -171,7 +200,7 @@ export function ModelPicker({
               <span className="flex min-w-0 items-center gap-2 text-xs leading-4 font-medium">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="shrink-0">
+                    <span className="flex shrink-0">
                       {selectedModel && !isProblem ? (
                         <AIProviderIcon
                           className="size-4"
@@ -200,13 +229,25 @@ export function ModelPicker({
         </PopoverTrigger>
       )}
       <PopoverContent
-        align={align}
-        className="flex flex-col p-0"
+        align={hangsOff ? "start" : align}
+        alignOffset={hangsOff ? placement.alignOffset : undefined}
+        // Off where it hangs off the composer, which picks its side instead.
+        // See `useComposerMenuPlacement`.
+        avoidCollisions={!hangsOff}
+        // The composer's corner, which its menus wear too. What sits inside
+        // is 8px in, so it rounds at 12px and curves alongside it.
+        className="flex flex-col rounded-[20px] p-0"
         maxHeight={PANEL_HEIGHT}
+        side={hangsOff ? placement.side : undefined}
+        sideOffset={hangsOff ? placement.sideOffset : undefined}
         style={{
           height: PANEL_HEIGHT,
-          maxWidth: "var(--radix-popover-content-available-width)",
-          width: PANEL_WIDTH,
+          ...(hangsOff
+            ? { width: placement.width }
+            : {
+                maxWidth: "var(--radix-popover-content-available-width)",
+                width: PANEL_WIDTH,
+              }),
         }}
       >
         {isOpen && (
@@ -298,12 +339,22 @@ function PickerPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   // cmdk always lights an item, the first if nothing else, so a panel that
   // had not been touched opened with one row looking pointed at. The light is
-  // not drawn until a key or the pointer is used in the panel. Holding cmdk's
-  // value empty does not do it: cmdk keeps its own pick of the first item and
-  // shows it at the next update.
+  // not drawn until a key is pressed or the pointer reaches a row, which cmdk
+  // lights as it passes; a pointer crossing the provider rail would otherwise
+  // light the first row while another is chosen. Holding cmdk's value empty
+  // does not do it: cmdk keeps its own pick of the first item and shows it at
+  // the next update.
   const [engaged, setEngaged] = useState(false);
   const engage = () => {
     setEngaged(true);
+  };
+  const engageOnRow = (event: PointerEvent) => {
+    if (
+      event.target instanceof Element &&
+      event.target.closest("[cmdk-item]")
+    ) {
+      setEngaged(true);
+    }
   };
 
   const opened = rail.find((entry) => entry.id === openId);
@@ -327,14 +378,14 @@ function PickerPanel({
       data-engaged={engaged || undefined}
       label="Search models"
       onKeyDownCapture={engage}
-      onPointerMoveCapture={engage}
+      onPointerMoveCapture={engageOnRow}
       shouldFilter={false}
     >
       <div className="shrink-0 border-b p-2">
         <CommandInput
           autoFocus
           className="h-8 py-0"
-          containerClassName="h-8 rounded-lg bg-black/[0.04] px-2.5 dark:bg-white/[0.06]"
+          containerClassName="h-8 rounded-xl bg-black/[0.04] px-2.5 dark:bg-white/[0.06]"
           onValueChange={setQuery}
           placeholder="Search models"
           value={query}
@@ -351,7 +402,7 @@ function PickerPanel({
                 !searching && entry.id === openId ? "true" : undefined
               }
               className={cn(
-                "flex min-h-8 items-center gap-2.5 rounded-md px-2 text-left text-sm hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
+                "flex min-h-8 items-center gap-2.5 rounded-xl px-2 text-left text-sm hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
                 !searching &&
                   entry.id === openId &&
                   "bg-black/[0.06] font-medium dark:bg-white/10",
@@ -395,7 +446,7 @@ function PickerPanel({
           ))}
           <span className="flex-1" />
           <button
-            className="flex min-h-8 items-center gap-2.5 rounded-md px-2 text-left text-sm text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]"
+            className="flex min-h-8 items-center gap-2.5 rounded-xl px-2 text-left text-sm text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]"
             onClick={onAddProvider}
             type="button"
           >
@@ -615,7 +666,7 @@ function VirtualRows({
               />
             ) : row.type === "show-all" || row.type === "show-fewer" ? (
               <CommandItem
-                className="flex min-h-9 items-center gap-2.5 rounded-md px-2.5 text-sm text-muted-foreground"
+                className="flex min-h-9 items-center gap-2.5 rounded-xl px-2.5 text-sm text-muted-foreground"
                 onSelect={() => {
                   onShowAll(row.type === "show-all");
                 }}
@@ -662,7 +713,7 @@ function AutoRow({
     <CommandItem
       data-chosen={chosen || undefined}
       className={cn(
-        "flex min-h-9 items-center gap-2.5 rounded-md px-2.5",
+        "flex min-h-9 items-center gap-2.5 rounded-xl px-2.5",
         chosen && CHOSEN,
       )}
       onSelect={() => {
@@ -672,6 +723,7 @@ function AutoRow({
     >
       <AIProviderIcon
         className="size-4 shrink-0"
+        colored
         type={OUR_MODELS.providerType}
       />
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
@@ -717,7 +769,11 @@ function AutoOnly({
 }) {
   return (
     <div className="flex flex-col items-center gap-3 px-6 pt-16 pb-10 text-center">
-      <AIProviderIcon className="size-9" type={OUR_MODELS.providerType} />
+      <AIProviderIcon
+        className="size-9"
+        colored
+        type={OUR_MODELS.providerType}
+      />
       <div className="flex flex-col items-center gap-1">
         <span className="flex items-center gap-2 text-base font-medium">
           Auto
@@ -776,7 +832,7 @@ function ModelRow({
     <CommandItem
       data-chosen={chosen || undefined}
       className={cn(
-        "flex items-center gap-2.5 rounded-md px-2.5",
+        "flex items-center gap-2.5 rounded-xl px-2.5",
         row.sub ? "py-1.5" : "min-h-9",
         chosen && CHOSEN,
       )}
@@ -882,7 +938,7 @@ function EmptyMessage({
     <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
       <p className="text-sm text-muted-foreground">{text}</p>
       {detail && (
-        <p className="line-clamp-3 max-w-80 text-xs text-muted-foreground">
+        <p className="line-clamp-3 max-w-80 text-xs text-muted-foreground select-text">
           {detail}
         </p>
       )}

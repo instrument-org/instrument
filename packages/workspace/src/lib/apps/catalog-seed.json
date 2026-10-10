@@ -27,9 +27,9 @@
       "tier": "listed",
       "rank": 61,
       "examples": [
-        "What keywords does our homepage rank for?",
-        "Who started linking to our site this month?",
-        "Run a site audit and list the worst problems"
+        "What keywords does my site rank for?",
+        "Which of my pages lost traffic lately?",
+        "Who started linking to my site recently?"
       ]
     },
     {
@@ -37,9 +37,9 @@
       "name": "Airtable",
       "tagline": "Bases, tables, and records.",
       "examples": [
-        "How many orders came in this week?",
-        "Add Jordan Lee to my contacts base",
-        "Which records are marked overdue?"
+        "What bases do I have?",
+        "Which records changed this week?",
+        "Summarize my most recently edited base"
       ],
       "description": "You can ask questions, create and update records, and analyze your data—all through conversation.",
       "domain": "airtable.com",
@@ -90,9 +90,9 @@
       "home": "https://web.akiflow.com",
       "rank": 390,
       "examples": [
-        "What’s in my inbox to plan today?",
-        "Block two hours tomorrow morning for the report",
-        "Add call the landlord to my tasks for Thursday"
+        "What’s on my plate today?",
+        "What’s still sitting in my inbox?",
+        "What did I get done this week?"
       ]
     },
     {
@@ -121,9 +121,9 @@
       "tier": "listed",
       "registryName": "io.github.algolia/algolia-productivity",
       "examples": [
-        "What are people searching for most this week?",
+        "What are people searching for most?",
         "Which searches came back with no results?",
-        "Find the record for the blue denim jacket"
+        "Which indices do I have?"
       ]
     },
     {
@@ -146,9 +146,9 @@
       "tier": "listed",
       "rank": 175,
       "examples": [
-        "Find an easy hike near Asheville under 5 miles",
-        "What do recent reviews say about Angels Landing?",
-        "Show me dog-friendly trails close to Denver"
+        "Find an easy hike near me",
+        "What are the most popular trails nearby?",
+        "Find a dog-friendly trail under 5 miles"
       ]
     },
     {
@@ -179,8 +179,8 @@
       "registryName": "com.amplitude/mcp-server",
       "examples": [
         "How many people signed up last week?",
-        "Where do people drop off in our checkout funnel?",
-        "How is the new onboarding experiment doing?"
+        "Which features get used the most?",
+        "How did active users change this month?"
       ]
     },
     {
@@ -210,9 +210,9 @@
       "rank": 246,
       "registryName": "com.apify/apify-mcp-server",
       "examples": [
-        "Get the reviews from this Google Maps listing",
-        "Pull the latest posts from our competitor’s blog",
-        "Collect the prices from this product page"
+        "Which actors have I run lately?",
+        "Did any of my recent runs fail?",
+        "Find a scraper for Google Maps reviews"
       ]
     },
     {
@@ -242,9 +242,9 @@
       "rank": 34,
       "registryName": "io.github.apolloio/apollo-mcp",
       "examples": [
-        "Find marketing heads at fintech companies in Austin",
-        "Get the work email for Elena Park at Brightwave",
-        "Which companies like Acme are hiring sales reps?"
+        "What does Apollo know about my company?",
+        "Which of my sequences is doing best?",
+        "Who replied to my outreach this week?"
       ]
     },
     {
@@ -267,9 +267,9 @@
       "tier": "listed",
       "rank": 40,
       "examples": [
-        "What do I have on Saturday?",
-        "Add lunch with Chris on Thursday at noon",
-        "When is my next dentist appointment?"
+        "What’s on my calendar this week?",
+        "When is my next free afternoon?",
+        "How busy am I tomorrow?"
       ]
     },
     {
@@ -291,9 +291,9 @@
       "tier": "listed",
       "rank": 50,
       "examples": [
-        "What emails came in from my boss today?",
-        "Find the shipping confirmation from last week",
-        "Draft a reply to Hannah’s email about the trip"
+        "What needs a reply from me today?",
+        "Summarize my unread email",
+        "Find my recent shipping confirmations"
       ]
     },
     {
@@ -317,9 +317,9 @@
       "tier": "listed",
       "rank": 45,
       "examples": [
-        "Tell Leo I’ll pick him up at six",
-        "Text Nina that I’m running ten minutes late",
-        "Let Sam know dinner moved to Friday"
+        "Did I miss any texts today?",
+        "Summarize my unread messages",
+        "Who have I been texting most lately?"
       ]
     },
     {
@@ -327,9 +327,9 @@
       "name": "Apple Notes",
       "tagline": "Notes and folders on this Mac and iCloud.",
       "examples": [
-        "Find my note with the Wi-Fi password",
-        "Add milk and eggs to my grocery list",
-        "What did I write down yesterday?"
+        "What did I write down this week?",
+        "Summarize my most recent note",
+        "Find notes with unfinished checklists"
       ],
       "description": "The Mac's own Notes app. Nothing to connect: a task works in it with AppleScript, and macOS asks the user once to allow Instrument to control it. Reads and writes the notes synced to this Mac, iCloud's included.",
       "domain": "apple.com",
@@ -351,9 +351,9 @@
       "name": "Apple Reminders",
       "tagline": "Reminders and lists on this Mac and iCloud.",
       "examples": [
-        "Remind me to call the dentist tomorrow at 9",
         "What’s on my reminders for today?",
-        "Add buying a birthday card to my Errands list"
+        "Which reminders are overdue?",
+        "What’s coming up this week?"
       ],
       "description": "The Mac's own Reminders app. Nothing to connect: a task works in it with AppleScript, and macOS asks the user once to allow Instrument to control it. Reads and writes the lists synced to this Mac.",
       "domain": "apple.com",
@@ -375,9 +375,9 @@
       "name": "Asana",
       "tagline": "Tasks, projects, and goals across the workspace.",
       "examples": [
-        "What tasks are due this week?",
-        "Ask Maria to review the launch plan by Friday",
-        "How is the website redesign project going?"
+        "What’s due this week?",
+        "What’s assigned to me that’s overdue?",
+        "How are my projects going?"
       ],
       "description": "Coordinate work across teams while connecting AI insights to real deliverables.",
       "domain": "asana.com",
@@ -462,9 +462,9 @@
       "rank": 41,
       "registryName": "com.atlassian/atlassian-mcp-server",
       "examples": [
-        "What Jira tickets are assigned to me?",
-        "Find the onboarding guide in Confluence",
-        "File a bug: the export button does nothing"
+        "What Jira issues are assigned to me?",
+        "What changed in my issues since yesterday?",
+        "Find Confluence pages I edited recently"
       ]
     },
     {
@@ -493,9 +493,9 @@
       "tier": "listed",
       "rank": 137,
       "examples": [
-        "Who did we last talk to at Northwind?",
-        "Log a note from my call with Omar today",
-        "Which deals have gone quiet for two weeks?"
+        "Which deals have gone quiet lately?",
+        "Who did I talk to most recently?",
+        "What’s in my pipeline this month?"
       ]
     },
     {
@@ -518,9 +518,9 @@
       "tier": "listed",
       "rank": 189,
       "examples": [
-        "Find a gripping mystery audiobook for a road trip",
+        "Find a gripping mystery for a road trip",
         "What are the best-reviewed history audiobooks?",
-        "Suggest something like Project Hail Mary"
+        "Suggest a short audiobook I can finish today"
       ]
     },
     {
@@ -568,9 +568,9 @@
       "tier": "listed",
       "registryName": "co.axiom/mcp",
       "examples": [
-        "Show me errors from the API in the last hour",
-        "How many 500s did we serve yesterday?",
-        "Which endpoints got slower this week?"
+        "What errors came in over the last hour?",
+        "Which datasets do I have?",
+        "What’s been logged most today?"
       ]
     },
     {
@@ -600,9 +600,9 @@
       "home": "https://app.bitly.com",
       "rank": 215,
       "examples": [
-        "How many clicks did my newsletter link get?",
-        "Shorten this link for our spring sale",
-        "Make a QR code for our event sign-up page"
+        "Which of my links got the most clicks?",
+        "How did my links do this week?",
+        "What links have I made lately?"
       ]
     },
     {
@@ -642,9 +642,9 @@
       "tier": "listed",
       "rank": 14,
       "examples": [
-        "Find the signed vendor agreement from June",
-        "What’s in our Legal folder?",
-        "Summarize the latest file Kevin shared with me"
+        "What files did I work on this week?",
+        "What’s been shared with me recently?",
+        "Summarize the newest file shared with me"
       ],
       "signIn": "https://account.box.com/login"
     },
@@ -674,9 +674,9 @@
       "tier": "listed",
       "rank": 197,
       "examples": [
-        "How much did we spend on travel this month?",
+        "How much did I spend this month?",
         "Which of my expenses still need a receipt?",
-        "Am I allowed to expense a team dinner?"
+        "Where does most of our money go?"
       ]
     },
     {
@@ -704,9 +704,9 @@
       "category": "research",
       "tier": "listed",
       "examples": [
-        "What comes up on Google for best running shoes?",
-        "Get the text from this page that keeps blocking me",
-        "Pull the product listings from this store’s site"
+        "What comes up on Google for best laptops?",
+        "What’s trending on Hacker News right now?",
+        "Search the web for today’s top tech news"
       ]
     },
     {
@@ -736,9 +736,9 @@
       "category": "research",
       "tier": "listed",
       "examples": [
-        "Check if this site has tickets for Saturday",
-        "Fill out the contact form on this page",
-        "Get the opening hours from this restaurant’s site"
+        "What’s on the front page of Hacker News?",
+        "Look up today’s top headlines",
+        "What movies are trending this week?"
       ]
     },
     {
@@ -765,9 +765,9 @@
       "category": "developer",
       "tier": "listed",
       "examples": [
-        "Why did the last build on main fail?",
+        "Why did my last build fail?",
         "Which pipelines are failing right now?",
-        "Show me the logs from the latest deploy build"
+        "What builds ran today?"
       ]
     },
     {
@@ -776,8 +776,8 @@
       "tagline": "Event types, scheduled events, and availability.",
       "examples": [
         "Who booked time with me this week?",
-        "Send me my link for 30-minute meetings",
-        "Did anyone cancel a meeting today?"
+        "Did anyone cancel on me lately?",
+        "What do I have booked tomorrow?"
       ],
       "description": "Event types, scheduled events, and availability.",
       "domain": "calendly.com",
@@ -806,9 +806,9 @@
       "name": "Canva",
       "tagline": "Designs, brand kits, and exports.",
       "examples": [
-        "Find the poster I made last month",
-        "Make an Instagram post announcing our sale",
-        "Export my latest presentation as a PDF"
+        "What designs did I make recently?",
+        "Find my most recent presentation",
+        "What’s in my Canva folders?"
       ],
       "description": "Make Canva a native part of your AI workflow—an AI-powered design agent that helps you create polished visuals faster, with less friction.",
       "domain": "canva.com",
@@ -859,9 +859,9 @@
       "tier": "listed",
       "rank": 66,
       "examples": [
-        "Find the LinkedIn profiles for these leads",
-        "Which companies in my table raised money recently?",
-        "Add work emails to my prospects table"
+        "What tables do I have?",
+        "Summarize my most recent table",
+        "Which rows in my latest table lack emails?"
       ]
     },
     {
@@ -885,9 +885,9 @@
       "rank": 418,
       "registryName": "io.github.clerk/mcp-server",
       "examples": [
-        "How do I add sign-in to my Next.js app?",
-        "Show me how to protect an API route",
-        "How do I get the signed-in user in React?"
+        "How do I add sign-in to my app?",
+        "How do I protect an API route?",
+        "How do I get the signed-in user?"
       ]
     },
     {
@@ -916,9 +916,9 @@
       "tier": "listed",
       "rank": 30,
       "examples": [
-        "What’s on my plate for this week?",
-        "Add a task to send the invoice by Friday",
-        "What’s blocked in the Website space?"
+        "What’s on my plate this week?",
+        "What’s overdue?",
+        "What changed in my tasks since yesterday?"
       ]
     },
     {
@@ -948,9 +948,9 @@
       "home": "https://app.close.com",
       "rank": 80,
       "examples": [
-        "Which leads haven’t heard from us in a week?",
-        "Log a call with Rachel Kim from Bluebird",
-        "How many calls did I make yesterday?"
+        "Which leads haven’t heard from me in a week?",
+        "How many calls did I make yesterday?",
+        "What’s in my pipeline this month?"
       ]
     },
     {
@@ -1003,9 +1003,9 @@
       "tier": "listed",
       "registryName": "com.cloudflare.mcp/mcp",
       "examples": [
-        "Why is my worker throwing errors?",
-        "What’s in my KV namespace for sessions?",
-        "How many requests did my site get today?"
+        "Are any of my workers throwing errors?",
+        "How much traffic did my sites get today?",
+        "Which domains are on my account?"
       ]
     },
     {
@@ -1035,9 +1035,9 @@
       "rank": 247,
       "registryName": "io.github.cloudinary/asset-management-mcp",
       "examples": [
-        "Find the product photos I uploaded last week",
-        "Resize the hero image to 1200 pixels wide",
-        "Which videos take up the most space?"
+        "What did I upload most recently?",
+        "Which files take up the most space?",
+        "How much storage am I using?"
       ]
     },
     {
@@ -1067,7 +1067,7 @@
       "examples": [
         "Does intermittent fasting help with weight loss?",
         "What do studies say about screen time and sleep?",
-        "Find recent papers on creatine and memory"
+        "Is coffee good for you, according to research?"
       ]
     },
     {
@@ -1109,9 +1109,9 @@
       "category": "developer",
       "tier": "listed",
       "examples": [
-        "Set up a Convex backend for my React app",
-        "Add Convex to my existing Next.js project",
-        "How do I scale my Convex app for more traffic?"
+        "How do I add Convex to my project?",
+        "Set up a Convex backend for a new app",
+        "How do I scale a Convex app for more traffic?"
       ]
     },
     {
@@ -1142,8 +1142,8 @@
       "rank": 222,
       "examples": [
         "What’s on today’s daily note?",
-        "Find my notes from the offsite planning",
-        "Add pick up dry cleaning to today’s page"
+        "What did I write this week?",
+        "Find my most recent documents"
       ]
     },
     {
@@ -1172,9 +1172,9 @@
       "tier": "listed",
       "rank": 219,
       "examples": [
-        "Which of our prospects are customers of our partners?",
-        "What accounts do we share with Segment?",
-        "Which partner overlaps could help this quarter?"
+        "Which of my prospects are partners’ customers?",
+        "Which partners overlap with us most?",
+        "What new overlaps showed up this week?"
       ]
     },
     {
@@ -1220,9 +1220,9 @@
       "tier": "listed",
       "rank": 207,
       "examples": [
-        "What did customers say about pricing?",
-        "Find interview highlights about onboarding",
-        "What themes came up in last month’s research?"
+        "What are customers saying most often?",
+        "What themes came up in recent research?",
+        "Summarize my latest project"
       ]
     },
     {
@@ -1245,9 +1245,9 @@
       "registryName": "io.draw/mcp",
       "home": "https://app.diagrams.net",
       "examples": [
-        "Draw a flowchart of our sign-up process",
-        "Make a diagram of our three-tier web app",
-        "Sketch an org chart for the sales team"
+        "Draw a flowchart of my morning routine",
+        "Diagram how a web request works",
+        "Make a simple org chart template"
       ]
     },
     {
@@ -1255,9 +1255,9 @@
       "name": "Dropbox",
       "tagline": "Files and folders, searched and read.",
       "examples": [
-        "Find the contract I saved last week",
-        "What’s in my Taxes folder?",
-        "Summarize the latest file Alex shared with me"
+        "What files did I change this week?",
+        "Summarize the newest file shared with me",
+        "Find my most recent PDFs"
       ],
       "description": "Dropbox's MCP server searches a Dropbox, reads what it finds, and follows the sharing a file already carries.",
       "domain": "dropbox.com",
@@ -1308,9 +1308,9 @@
       "home": "https://elevenlabs.io/app",
       "rank": 108,
       "examples": [
-        "Read this paragraph aloud in a warm voice",
-        "Make a sound effect of a door creaking open",
-        "Turn my blog post into an audio file"
+        "What voices can I use?",
+        "Say good morning in a few different voices",
+        "Make a sound effect of rain on a window"
       ],
       "signIn": "https://elevenlabs.io/app/sign-in"
     },
@@ -1354,9 +1354,9 @@
       "tier": "listed",
       "rank": 60,
       "examples": [
-        "Sketch how our app talks to the database",
-        "Draw a whiteboard diagram of our hiring steps",
-        "Make a quick diagram of the weekly release cycle"
+        "Sketch how a website talks to a database",
+        "Draw a whiteboard diagram of my week",
+        "Sketch a simple sign-up flow"
       ]
     },
     {
@@ -1385,9 +1385,9 @@
       "tier": "listed",
       "rank": 362,
       "examples": [
-        "Did my latest iOS build finish?",
-        "What updates did we ship to production this week?",
-        "Has the Android submission gone through?"
+        "Did my latest build finish?",
+        "What updates did I ship this week?",
+        "Which builds failed recently?"
       ]
     },
     {
@@ -1416,8 +1416,8 @@
       "tier": "listed",
       "examples": [
         "Make an image of a cozy cabin in the snow",
-        "Turn this photo into a short video clip",
-        "Generate a calm piano track for my intro"
+        "Make a short video of waves at sunset",
+        "Generate a calm piano track"
       ]
     },
     {
@@ -1447,9 +1447,9 @@
       "rank": 55,
       "registryName": "ai.fathom.api/mcp",
       "examples": [
-        "Summarize my call with the Acme team",
+        "Summarize my last meeting",
         "What action items came out of today’s meetings?",
-        "What did Lucia say about the budget on Tuesday?"
+        "What did I commit to this week?"
       ]
     },
     {
@@ -1457,9 +1457,9 @@
       "name": "Figma",
       "tagline": "Design files, components, and variables.",
       "examples": [
-        "What changed in our design file this week?",
-        "List the components in our design system",
-        "Describe the checkout screen in our app design"
+        "Describe the frame I have selected",
+        "What components does this file use?",
+        "What fonts and colors are in this design?"
       ],
       "description": "Figma's hosted MCP server supplies design context and canvas tools, but it only accepts MCP clients on Figma's own catalog and refuses to register any other (a bare 403 at the registration endpoint), so it is not reachable from here. The way in is the Dev Mode MCP server the Figma desktop app runs on this machine, at http://127.0.0.1:3845/mcp with no sign-in: the user turns it on under the Figma menu, Preferences, Enable Dev Mode MCP Server, and it needs a Dev or Full seat. Failing that, the user signs in to the site in Instrument's browser, as a web app, and a task works there.",
       "domain": "figma.com",
@@ -1519,9 +1519,9 @@
       "rank": 80,
       "registryName": "io.github.firecrawl/firecrawl-mcp-server",
       "examples": [
-        "Get the text from this article",
-        "Search the web for reviews of the Framework laptop",
-        "Pull the pricing from this company’s website"
+        "Find reviews of the best budget laptops",
+        "Get today’s top headlines from a news site",
+        "What’s new on Hacker News today?"
       ]
     },
     {
@@ -1551,9 +1551,9 @@
       "rank": 67,
       "registryName": "ai.fireflies/fireflies",
       "examples": [
-        "Summarize my last sales call",
-        "What action items do I have from this week?",
-        "What did we decide in Monday’s planning meeting?"
+        "Summarize my last meeting",
+        "What action items do I have this week?",
+        "What was decided in this week’s meetings?"
       ]
     },
     {
@@ -1591,8 +1591,8 @@
       "rank": 253,
       "examples": [
         "What conversations are assigned to me?",
-        "Draft a reply to the latest message from Globex",
-        "Which support emails are still unanswered?"
+        "Which conversations are still unanswered?",
+        "Summarize what came in today"
       ]
     },
     {
@@ -1620,9 +1620,9 @@
       "tier": "listed",
       "rank": 21,
       "examples": [
-        "Make a presentation from my product launch notes",
-        "Turn this outline into a one-page site",
-        "Make a five-slide deck about our Q3 results"
+        "Make a five-slide deck on the history of coffee",
+        "Make a one-page guide to houseplant care",
+        "Make a presentation about the solar system"
       ]
     },
     {
@@ -1631,8 +1631,8 @@
       "tagline": "Repos, issues, pull requests, and Actions.",
       "examples": [
         "What pull requests are waiting on my review?",
-        "Open an issue for the broken sign-up link",
-        "What changed in our main repo this week?"
+        "What changed in my repos this week?",
+        "Which of my pull requests have new comments?"
       ],
       "description": "GitHub exposes more agent-callable surface area than almost any service: a fully-specified REST API, a GraphQL API, the `gh` CLI, and a remote MCP server. The MCP server is not reachable from here: it only accepts OAuth clients GitHub has issued in advance and refuses one registered on the spot, so the way in is the REST API with a fine-grained personal access token.",
       "domain": "github.com",
@@ -1709,8 +1709,8 @@
       "registryName": "com.gitlab/mcp",
       "examples": [
         "What merge requests are waiting on my review?",
-        "Why did the last pipeline on main fail?",
-        "Open an issue for the broken password reset"
+        "Why did my last pipeline fail?",
+        "What issues are assigned to me?"
       ]
     },
     {
@@ -1738,9 +1738,9 @@
       "tier": "listed",
       "registryName": "io.globalping/mcp",
       "examples": [
-        "Is my site reachable from Europe and Asia?",
+        "How fast does github.com load worldwide?",
         "Ping example.com from a few countries",
-        "Check how DNS resolves my domain worldwide"
+        "Check how DNS resolves google.com worldwide"
       ]
     },
     {
@@ -1749,8 +1749,8 @@
       "tagline": "Mail, threads, labels, and drafts.",
       "examples": [
         "What emails need a reply from me today?",
-        "Draft a reply to the last email from Dana",
-        "Find the receipt from my last Amazon order"
+        "Summarize my unread email",
+        "What did I miss in my inbox this week?"
       ],
       "description": "Google's email. Reached through Google's Gmail MCP server once Instrument's Google client clears review; until then through Mail on this Mac when the account is added there, or the web app.",
       "domain": "gmail.com",
@@ -1780,7 +1780,9 @@
       "family": "google",
       "tier": "featured",
       "rank": 2,
-      "signIn": "https://accounts.google.com/ServiceLogin?service=mail&continue=https://mail.google.com/mail/"
+      "signIn": "https://accounts.google.com/ServiceLogin?service=mail&continue=https://mail.google.com/mail/",
+      "addAccount": "https://accounts.google.com/AddSession?service=mail&continue=https://mail.google.com/mail/",
+      "accountHome": "https://mail.google.com/mail/?authuser={account}"
     },
     {
       "slug": "google-calendar",
@@ -1788,8 +1790,8 @@
       "tagline": "Events, invites, and availability.",
       "examples": [
         "What’s on my calendar tomorrow?",
-        "Find a free hour with Sam next week",
-        "Move my 3pm meeting to Friday"
+        "When am I free this week?",
+        "How much of my week is meetings?"
       ],
       "description": "Google's calendar. Reached through Google's Calendar MCP server once Instrument's Google client clears review; until then through Calendar on this Mac when the account is added there, or the web app.",
       "domain": "calendar.google.com",
@@ -1819,16 +1821,18 @@
       "family": "google",
       "tier": "featured",
       "rank": 3,
-      "signIn": "https://accounts.google.com/ServiceLogin?service=cl&continue=https://calendar.google.com/calendar/"
+      "signIn": "https://accounts.google.com/ServiceLogin?service=cl&continue=https://calendar.google.com/calendar/",
+      "addAccount": "https://accounts.google.com/AddSession?service=cl&continue=https://calendar.google.com/calendar/",
+      "accountHome": "https://calendar.google.com/calendar/?authuser={account}"
     },
     {
       "slug": "google-drive",
       "name": "Google Drive",
       "tagline": "Files, Docs, Sheets, and Slides.",
       "examples": [
-        "Find the budget spreadsheet I worked on last week",
+        "What files did I work on last week?",
         "Summarize the newest doc shared with me",
-        "What’s in my Q3 planning folder?"
+        "Find files shared with me this month"
       ],
       "description": "Google's file storage and the Docs, Sheets, and Slides editors. Reached through Google's Drive MCP server once Instrument's Google client clears review; until then the web app.",
       "domain": "drive.google.com",
@@ -1860,7 +1864,9 @@
       "family": "google",
       "tier": "featured",
       "rank": 1,
-      "signIn": "https://accounts.google.com/ServiceLogin?service=wise&continue=https://drive.google.com/drive/"
+      "signIn": "https://accounts.google.com/ServiceLogin?service=wise&continue=https://drive.google.com/drive/",
+      "addAccount": "https://accounts.google.com/AddSession?service=wise&continue=https://drive.google.com/drive/",
+      "accountHome": "https://drive.google.com/drive/?authuser={account}"
     },
     {
       "slug": "grafana",
@@ -1889,8 +1895,8 @@
       "registryName": "io.github.grafana/mcp-grafana",
       "examples": [
         "Which alerts are firing right now?",
-        "How did CPU usage look last night?",
-        "Find the dashboard for the payments service"
+        "What dashboards do I have?",
+        "What looks unusual in the last hour?"
       ]
     },
     {
@@ -1918,9 +1924,9 @@
       "tier": "listed",
       "rank": 23,
       "examples": [
-        "Summarize my meeting with Theo this morning",
+        "Summarize my last meeting",
         "What did I promise to follow up on this week?",
-        "What came up in my last call with Northwind?"
+        "What came up in my meetings today?"
       ]
     },
     {
@@ -1950,8 +1956,8 @@
       "rank": 704,
       "examples": [
         "Which roles are open right now?",
-        "Who’s in the final round for the designer role?",
-        "What did interviewers say about Marcus Bell?"
+        "Who applied this week?",
+        "Which candidates are waiting on feedback?"
       ]
     },
     {
@@ -1979,9 +1985,9 @@
       "category": "developer",
       "tier": "listed",
       "examples": [
-        "Show me the logs from the last deploy",
-        "How many dynos is my app running?",
-        "What add-ons does my production app use?"
+        "What apps do I have running?",
+        "Show me the logs from my latest deploy",
+        "Did any of my apps have errors today?"
       ]
     },
     {
@@ -2010,9 +2016,9 @@
       "tier": "listed",
       "rank": 181,
       "examples": [
-        "Find our weekly revenue dashboard",
-        "How many active users did we have last month?",
-        "Which projects use the orders table?"
+        "What projects did I work on recently?",
+        "Which projects get viewed most?",
+        "What data sources are connected?"
       ]
     },
     {
@@ -2021,8 +2027,8 @@
       "tagline": "Contacts, companies, deals, and tickets.",
       "examples": [
         "Which deals are closing this month?",
-        "Add Jordan Lee from Acme as a contact",
-        "When did we last talk to Acme?"
+        "What contacts were added this week?",
+        "Which deals have gone quiet?"
       ],
       "description": "Query key CRM objects like contacts, deals, companies, and tickets based on your permissions, all without switching contexts.",
       "domain": "hubspot.com",
@@ -2113,8 +2119,8 @@
       "rank": 262,
       "examples": [
         "What applets do I have turned on?",
-        "Turn off my lights automation for the weekend",
-        "Which applets ran today?"
+        "Which applets ran today?",
+        "Did any applets fail recently?"
       ]
     },
     {
@@ -2145,8 +2151,8 @@
       "rank": 146,
       "examples": [
         "Are there any incidents open right now?",
-        "Who responded to last night’s outage?",
-        "What follow-ups are left from the database incident?"
+        "What happened in the last incident?",
+        "What follow-ups are still open?"
       ]
     },
     {
@@ -2175,9 +2181,9 @@
       "tier": "listed",
       "rank": 216,
       "examples": [
-        "Add everything for tacos to my cart",
-        "Is oat milk in stock at my nearest store?",
-        "Turn this lasagna recipe into a grocery list"
+        "Which stores near me deliver today?",
+        "Make a grocery list for taco night",
+        "Is oat milk in stock nearby?"
       ],
       "signIn": "https://www.instacart.com/login"
     },
@@ -2239,8 +2245,8 @@
       "rank": 13,
       "examples": [
         "What conversations are waiting on a reply?",
-        "Find the help article about refunds",
-        "What has Sofia Ruiz asked us about before?"
+        "What are customers asking about most?",
+        "Summarize today’s conversations"
       ]
     },
     {
@@ -2269,8 +2275,8 @@
       "rank": 263,
       "examples": [
         "What bugs were reported this week?",
-        "Show me the console errors from the latest Jam",
-        "What steps led to the checkout bug?"
+        "Summarize my most recent Jam",
+        "Which Jams have console errors?"
       ]
     },
     {
@@ -2300,8 +2306,8 @@
       "home": "https://www.jotform.com/myforms",
       "rank": 20,
       "examples": [
-        "How many people signed up through my event form?",
-        "Show me this week’s contact form submissions",
+        "Which forms got new submissions this week?",
+        "Summarize my latest form responses",
         "Which approvals are waiting on me?"
       ]
     },
@@ -2332,7 +2338,7 @@
       "home": "https://app.kajabi.com",
       "rank": 50,
       "examples": [
-        "How many people joined my course this month?",
+        "How many people joined my courses this month?",
         "Which members haven’t logged in lately?",
         "What were my sales last week?"
       ]
@@ -2358,9 +2364,9 @@
       "tier": "listed",
       "rank": 76,
       "examples": [
-        "Find cheap flights from Chicago to Lisbon in May",
-        "What’s the cheapest weekend flight to Miami?",
-        "Are there direct flights from Boston to Dublin?"
+        "Find the cheapest flight to Paris next month",
+        "What’s a cheap flight for a weekend getaway?",
+        "Are there direct flights to Tokyo?"
       ]
     },
     {
@@ -2389,9 +2395,9 @@
       "tier": "listed",
       "rank": 48,
       "examples": [
-        "How did last week’s email campaign do?",
-        "How many people are in my VIP segment?",
-        "Write subject lines for our holiday sale email"
+        "How did my last campaign do?",
+        "Which flows bring in the most revenue?",
+        "How big is my email list?"
       ]
     },
     {
@@ -2400,7 +2406,7 @@
       "tagline": "Issues, projects, and cycles.",
       "examples": [
         "What issues are assigned to me?",
-        "File a bug: the login page won’t load in Safari",
+        "What changed in my issues since yesterday?",
         "What’s left in the current cycle?"
       ],
       "description": "Linear's entire product runs on its public GraphQL API, and its hosted MCP server gives agents the same tools the official integrations use: create and update issues, manage projects, and coordinate cycles.",
@@ -2465,9 +2471,9 @@
       "home": "https://lovable.dev",
       "rank": 42,
       "examples": [
-        "Build a landing page for my dog-walking business",
-        "Make a simple app to track my reading list",
-        "Add a contact form to my portfolio site"
+        "Build a simple habit tracker app",
+        "Make a landing page for a coffee shop",
+        "Build a to-do list app with dark mode"
       ]
     },
     {
@@ -2496,9 +2502,9 @@
       "rank": 31,
       "registryName": "app.lucid.mcp/lucid",
       "examples": [
-        "Find our network diagram in Lucidchart",
-        "Draw a flowchart of our refund process",
-        "What’s on the brainstorm board from Tuesday?"
+        "What documents did I edit recently?",
+        "Find my most recent diagrams",
+        "Summarize my latest board"
       ]
     },
     {
@@ -2530,8 +2536,8 @@
       "registryName": "com.make/mcp-server",
       "examples": [
         "Which scenarios failed today?",
-        "Run my weekly report scenario now",
-        "What does my new-lead scenario do?"
+        "What scenarios do I have running?",
+        "Which scenario runs most often?"
       ]
     },
     {
@@ -2560,9 +2566,9 @@
       "rank": 293,
       "registryName": "io.github.mem-labs/mem",
       "examples": [
-        "What did I write about the Berlin trip?",
-        "Find my notes on the hiring plan",
-        "Save a note with today’s meeting takeaways"
+        "What did I write about this week?",
+        "Summarize my most recent notes",
+        "What topics come up most in my notes?"
       ]
     },
     {
@@ -2591,8 +2597,8 @@
       "tier": "listed",
       "rank": 270,
       "examples": [
-        "What’s our balance across all accounts?",
-        "What did we spend on software last month?",
+        "What’s my balance across all accounts?",
+        "What did I spend the most on last month?",
         "Show me deposits from this week"
       ]
     },
@@ -2618,9 +2624,9 @@
       "rank": 83,
       "registryName": "com.mermaidchart/mermaid-mcp",
       "examples": [
-        "Draw a sequence diagram of our login flow",
-        "Check why my Mermaid diagram won’t render",
-        "Make a flowchart of how we handle refunds"
+        "Draw a sequence diagram of a login flow",
+        "Make a flowchart of a typical refund",
+        "Draw a state diagram for a traffic light"
       ]
     },
     {
@@ -2670,9 +2676,9 @@
       "rank": 16,
       "registryName": "io.github.miroapp/mcp-server",
       "examples": [
-        "Summarize the sticky notes from our retro board",
-        "What’s on the product planning board?",
-        "Add a frame for next week’s ideas"
+        "What boards did I work on recently?",
+        "Summarize the sticky notes on my latest board",
+        "What’s new on my boards this week?"
       ]
     },
     {
@@ -2701,7 +2707,7 @@
       "rank": 104,
       "examples": [
         "How many people signed up yesterday?",
-        "Where do users drop off during onboarding?",
+        "Which events are most common this week?",
         "How many new users come back after a week?"
       ]
     },
@@ -2711,8 +2717,8 @@
       "tagline": "Boards, items, and updates.",
       "examples": [
         "What items are assigned to me?",
-        "Add the client kickoff to our Projects board",
-        "What’s stuck on the Marketing board?"
+        "What’s stuck or overdue?",
+        "What changed on my boards this week?"
       ],
       "description": "monday.com's GraphQL API lets agents query and update workspaces, boards, items, columns, and users. Its hosted MCP server wraps the platform API with agent-oriented tools.",
       "domain": "monday.com",
@@ -2764,9 +2770,9 @@
       "tier": "listed",
       "rank": 352,
       "examples": [
-        "Which clusters do we have running?",
-        "Add a read-only database user for analytics",
-        "What tier is our production cluster on?"
+        "Which clusters do I have running?",
+        "What tier is each of my clusters on?",
+        "Which databases use the most storage?"
       ],
       "signIn": "https://account.mongodb.com/account/login"
     },
@@ -2796,9 +2802,9 @@
       "tier": "listed",
       "rank": 363,
       "examples": [
-        "How many orders did we get each day last week?",
-        "What tables are in my sales database?",
-        "Which products sold best last month?"
+        "What tables are in my databases?",
+        "Which of my tables is the largest?",
+        "Describe the data in my biggest table"
       ]
     },
     {
@@ -2828,9 +2834,9 @@
       "rank": 297,
       "registryName": "com.neon/mcp",
       "examples": [
-        "What databases are in my Neon project?",
-        "Make a branch of production for testing",
-        "How many users signed up today?"
+        "What projects and branches do I have?",
+        "Which databases are in my projects?",
+        "How much storage am I using?"
       ]
     },
     {
@@ -2861,7 +2867,7 @@
       "examples": [
         "Did my latest deploy succeed?",
         "What form submissions came in this week?",
-        "Add an API key variable to my site"
+        "Which sites do I have?"
       ]
     },
     {
@@ -2869,9 +2875,9 @@
       "name": "Notion",
       "tagline": "Pages, databases, and comments.",
       "examples": [
-        "Find my notes from Monday’s team meeting",
-        "Add this article to my reading list page",
-        "What’s on our roadmap this quarter?"
+        "What did I edit this week?",
+        "Find my notes from my last meeting",
+        "What pages were shared with me recently?"
       ],
       "description": "Notion's hosted MCP server lets agents search, create, and reorganize workspace content. The REST API underneath uses internal integrations with explicit page-level sharing — a natural permission boundary for agents.",
       "domain": "notion.com",
@@ -2913,8 +2919,8 @@
       "name": "OneDrive",
       "tagline": "Files, plus Word, Excel, and PowerPoint documents.",
       "examples": [
-        "Find the slide deck I edited yesterday",
-        "Summarize my Project Plan document",
+        "Find the files I edited yesterday",
+        "Summarize the newest file shared with me",
         "What’s in my Documents folder?"
       ],
       "description": "Microsoft's file storage, SharePoint, and Office documents. Reached through Microsoft Graph once Instrument's Microsoft client is verified; until then the web app.",
@@ -2961,9 +2967,9 @@
       "tier": "listed",
       "registryName": "org.openweathermap/agents",
       "examples": [
-        "Will it rain in Seattle tomorrow?",
         "What’s the weather like this weekend?",
-        "How cold will it get tonight?"
+        "How cold will it get tonight?",
+        "Will it rain tomorrow?"
       ]
     },
     {
@@ -2993,9 +2999,9 @@
       "home": "https://clip.opus.pro",
       "rank": 225,
       "examples": [
-        "Cut short clips from my latest podcast episode",
-        "Make three vertical clips from this webinar",
-        "Find the funniest moments in this video"
+        "Find the best moments in my latest video",
+        "Cut a few vertical clips from a video",
+        "Which of my clips did best?"
       ]
     },
     {
@@ -3023,9 +3029,9 @@
       "tier": "listed",
       "rank": 105,
       "examples": [
-        "Summarize my meeting with the design team",
-        "What did Ben say about the timeline yesterday?",
-        "Find the call where we discussed pricing"
+        "Summarize my last meeting",
+        "What action items came up this week?",
+        "What did I commit to in recent meetings?"
       ]
     },
     {
@@ -3033,8 +3039,8 @@
       "name": "Outlook",
       "tagline": "Mail and calendar on Microsoft 365.",
       "examples": [
-        "What came in from my manager today?",
-        "Draft a reply to the last email from Dana",
+        "What needs a reply from me today?",
+        "Summarize my unread email",
         "What meetings do I have this afternoon?"
       ],
       "description": "Microsoft's mail and calendar, for work and personal accounts. Reached through Microsoft Graph once Instrument's Microsoft client is verified; until then through the Outlook or Mail app on this Mac, or the web app.",
@@ -3089,9 +3095,9 @@
       "tier": "listed",
       "registryName": "io.oxylabs/oxylabs-mcp",
       "examples": [
-        "Get the price and reviews from this Amazon listing",
         "What comes up on Google for coffee grinders?",
-        "Crawl this site and list all its pages"
+        "What’s trending on Amazon right now?",
+        "Search Google for today’s top news"
       ]
     },
     {
@@ -3119,8 +3125,8 @@
       "category": "money",
       "tier": "listed",
       "examples": [
-        "How many new subscriptions did we get this month?",
-        "When is our next payout?",
+        "How many new subscriptions did I get this month?",
+        "When is my next payout?",
         "Which subscriptions were canceled this week?"
       ]
     },
@@ -3151,9 +3157,9 @@
       "home": "https://padlet.com",
       "rank": 618,
       "examples": [
-        "What did students post on the field trip board?",
-        "Add a post with this week’s reading",
-        "Summarize the ideas on our brainstorm padlet"
+        "What’s new on my padlets this week?",
+        "Summarize the posts on my latest padlet",
+        "Which padlets have I made?"
       ]
     },
     {
@@ -3215,9 +3221,9 @@
       "home": "https://app.pandadoc.com",
       "rank": 79,
       "examples": [
-        "Which proposals are still waiting to be signed?",
-        "Has Harbor Labs signed the quote yet?",
-        "Make a proposal for the Riverside project"
+        "Which documents are waiting to be signed?",
+        "What did I send out this week?",
+        "Which proposals were viewed recently?"
       ]
     },
     {
@@ -3241,8 +3247,8 @@
       "tier": "listed",
       "examples": [
         "Describe the selected frame in my design",
-        "Make the heading on this screen larger",
-        "What fonts and colors does this design use?"
+        "What fonts and colors does this design use?",
+        "What could be clearer on this screen?"
       ]
     },
     {
@@ -3273,8 +3279,8 @@
       "registryName": "com.paypal.mcp/mcp",
       "examples": [
         "Which invoices haven’t been paid yet?",
-        "Send Aisha an invoice for $400",
-        "Do I have any open disputes?"
+        "Do I have any open disputes?",
+        "What payments came in this week?"
       ]
     },
     {
@@ -3336,8 +3342,8 @@
       "registryName": "io.github.PostHog/mcp",
       "examples": [
         "What changed in signups last week?",
-        "How many people used the new export feature?",
-        "Turn on the new-checkout flag for 10% of users"
+        "Which features get used the most?",
+        "Which feature flags are turned on?"
       ]
     },
     {
@@ -3367,9 +3373,9 @@
       "rank": 53,
       "registryName": "com.postman/postman-mcp-server",
       "examples": [
-        "What requests are in our payments collection?",
-        "Which environment has the staging API key?",
-        "Add a request for the new orders endpoint"
+        "What collections do I have?",
+        "What environments do I have set up?",
+        "Which requests did I add recently?"
       ]
     },
     {
@@ -3399,8 +3405,8 @@
       "registryName": "io.prisma/mcp",
       "examples": [
         "What tables are in my database?",
-        "Add a column for phone numbers to users",
-        "How many accounts were created this month?"
+        "Describe my database schema",
+        "How many rows does each table have?"
       ]
     },
     {
@@ -3430,8 +3436,8 @@
       "rank": 430,
       "examples": [
         "What are customers asking for most?",
-        "Which features are on the roadmap this quarter?",
-        "What feedback did we get about dark mode?"
+        "What’s on the roadmap this quarter?",
+        "What feedback came in this week?"
       ]
     },
     {
@@ -3462,8 +3468,8 @@
       "rank": 45,
       "examples": [
         "Which invoices are overdue?",
-        "What were our biggest expenses last month?",
-        "How’s our cash flow looking this quarter?"
+        "What were my biggest expenses last month?",
+        "How’s my cash flow looking this quarter?"
       ]
     },
     {
@@ -3493,9 +3499,9 @@
       "rank": 188,
       "registryName": "com.railway/mcp",
       "examples": [
-        "Why did my last Railway deploy crash?",
-        "Which services are in my project?",
-        "Add a variable for the Stripe key to the API"
+        "Why did my last deploy crash?",
+        "Which services are in my projects?",
+        "Show me the logs from my latest deploy"
       ]
     },
     {
@@ -3524,9 +3530,9 @@
       "tier": "listed",
       "rank": 97,
       "examples": [
-        "How much did we spend on meals this month?",
+        "How much did we spend this month?",
         "Which cards spent the most last week?",
-        "What did we pay for software in September?"
+        "Who are our biggest vendors?"
       ]
     },
     {
@@ -3555,9 +3561,9 @@
       "tier": "listed",
       "rank": 343,
       "examples": [
-        "How much did we collect in payments today?",
+        "How much did I collect in payments today?",
         "Which payments were refunded this week?",
-        "When is our next settlement?"
+        "When is my next settlement?"
       ]
     },
     {
@@ -3589,7 +3595,7 @@
       "rank": 252,
       "examples": [
         "Why did my last deploy fail?",
-        "Show me the logs for the web service",
+        "Show me the logs for my services",
         "Which services are running right now?"
       ]
     },
@@ -3618,8 +3624,8 @@
       "tier": "listed",
       "examples": [
         "Make an image of a fox reading a book",
-        "Remove the background from this photo",
-        "Find a model that turns speech into text"
+        "Find a model that turns speech into text",
+        "Which models are popular right now?"
       ]
     },
     {
@@ -3656,9 +3662,9 @@
       "tier": "listed",
       "rank": 147,
       "examples": [
-        "Did my welcome emails get delivered today?",
-        "Send a test email to myself",
-        "How many contacts are in my newsletter audience?"
+        "Did my emails get delivered today?",
+        "Which emails bounced this week?",
+        "How many contacts are in my audiences?"
       ]
     },
     {
@@ -3688,9 +3694,9 @@
       "rank": 198,
       "registryName": "io.sanity.www/mcp",
       "examples": [
-        "Which blog posts are still drafts?",
-        "Fix the typo in the About page title",
-        "What fields does a product document have?"
+        "Which documents are still drafts?",
+        "What changed in my content this week?",
+        "What document types does my schema have?"
       ]
     },
     {
@@ -3719,9 +3725,9 @@
       "rank": 126,
       "registryName": "ai.scite/mcp",
       "examples": [
-        "Has this study on vitamin D been disputed?",
+        "Is coffee good for you, according to research?",
         "Find well-supported research on sleep and memory",
-        "How has this paper been cited since it came out?"
+        "Has research on vitamin D been disputed?"
       ]
     },
     {
@@ -3749,8 +3755,8 @@
       "tier": "listed",
       "examples": [
         "Scan my project for security issues",
-        "Are there any SQL injection risks in this code?",
-        "Check this file for common bugs"
+        "Which findings in my project matter most?",
+        "Are there secrets checked into my code?"
       ]
     },
     {
@@ -3798,8 +3804,8 @@
       "registryName": "io.github.getsentry/sentry-mcp",
       "examples": [
         "What new errors showed up today?",
-        "Why is the checkout page crashing?",
-        "Which issues got worse since the last release?"
+        "Which issues affect the most users?",
+        "What got worse since the last release?"
       ]
     },
     {
@@ -3829,9 +3835,9 @@
       "home": "https://apps.goshippo.com",
       "rank": 380,
       "examples": [
-        "Where is my package to Seattle right now?",
-        "Compare shipping rates for a 3 lb box to Ohio",
-        "Make a shipping label for order 1042"
+        "Where are my packages right now?",
+        "What did I ship this week?",
+        "Compare rates for a 3 lb box"
       ]
     },
     {
@@ -3874,7 +3880,7 @@
       "examples": [
         "How many orders came in today?",
         "Which products are running low on stock?",
-        "Mark the summer tote as sold out"
+        "What were my best sellers this week?"
       ],
       "signIn": "https://accounts.shopify.com/store-login"
     },
@@ -3906,7 +3912,7 @@
       "examples": [
         "What stories are assigned to me?",
         "What’s left in this iteration?",
-        "Add a story to fix the slow search page"
+        "What changed in my stories since yesterday?"
       ]
     },
     {
@@ -3935,8 +3941,8 @@
       "tier": "listed",
       "rank": 228,
       "examples": [
-        "Who still needs to sign the lease?",
-        "Send the NDA to Rosa for her signature",
+        "What’s waiting on my signature?",
+        "Who still needs to sign my documents?",
         "Which documents did I sign this month?"
       ]
     },
@@ -3966,9 +3972,9 @@
       "tier": "listed",
       "rank": 124,
       "examples": [
-        "How much traffic does notion.so get?",
-        "Where does our competitor’s traffic come from?",
-        "How does our site compare to rivals this month?"
+        "How much traffic does wikipedia.org get?",
+        "Where does nytimes.com’s traffic come from?",
+        "Compare traffic for Netflix and YouTube"
       ]
     },
     {
@@ -3991,9 +3997,9 @@
       "registryName": "com.skiplagged/mcp",
       "home": "https://skiplagged.com",
       "examples": [
-        "Find the cheapest flight to Denver next Friday",
-        "Show me cheap hotels in Austin this weekend",
-        "What are the cheapest flights to Tokyo in June?"
+        "What are the cheapest flights to Tokyo?",
+        "Find a cheap hotel in New York this weekend",
+        "Where can I fly cheaply next month?"
       ]
     },
     {
@@ -4001,9 +4007,9 @@
       "name": "Slack",
       "tagline": "Read, search, and send messages where your team already works.",
       "examples": [
-        "What did I miss in #general today?",
+        "What did I miss today?",
         "Summarize the threads where I was mentioned",
-        "Tell Priya I’m running five minutes late"
+        "What’s waiting on a reply from me?"
       ],
       "description": "Slack's hosted MCP server covers messaging, search, and canvases. The underlying Web API is one of the most battle-tested REST surfaces anywhere — token-based, method-oriented, and fully documented.",
       "domain": "slack.com",
@@ -4067,9 +4073,9 @@
       "tier": "listed",
       "rank": 20,
       "examples": [
-        "Play my Discover Weekly",
-        "Make a playlist of upbeat songs for running",
-        "What have I been listening to most lately?"
+        "What have I been listening to most lately?",
+        "Who are my top artists this year?",
+        "Play my Discover Weekly"
       ],
       "signIn": "https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F"
     },
@@ -4101,7 +4107,7 @@
       "examples": [
         "What were today’s sales?",
         "Which items are running low?",
-        "Who are our most frequent customers?"
+        "Who are my most frequent customers?"
       ]
     },
     {
@@ -4123,9 +4129,9 @@
       "category": "stores",
       "tier": "listed",
       "examples": [
-        "Is bluefinbakery.com available?",
-        "Suggest domain names for my yoga studio",
-        "What names are close to tidewater.com?"
+        "Suggest domain names for a coffee shop",
+        "Is my name available as a .com?",
+        "What names are close to the one I want?"
       ]
     },
     {
@@ -4229,9 +4235,9 @@
       "rank": 11,
       "registryName": "com.stripe/mcp",
       "examples": [
-        "How much did we make this month?",
+        "How much did I make this month?",
         "Which payments failed this week?",
-        "Send Ryan Cole an invoice for $250"
+        "Who are my newest customers?"
       ]
     },
     {
@@ -4263,7 +4269,7 @@
       "examples": [
         "How many users signed up this week?",
         "What tables are in my project?",
-        "Add a created_at column to the posts table"
+        "Are there any security warnings on my project?"
       ]
     },
     {
@@ -4292,8 +4298,8 @@
       "tier": "listed",
       "examples": [
         "What’s still unread from this morning?",
-        "Draft a reply to Mateo’s email about the contract",
-        "Find the flight confirmation for my Denver trip"
+        "What needs a reply from me?",
+        "Summarize what came in today"
       ]
     },
     {
@@ -4322,9 +4328,9 @@
       "tier": "listed",
       "registryName": "com.supermetrics/supermetrics",
       "examples": [
-        "Which ad campaign had the best return last month?",
+        "Which ad campaign did best last month?",
         "How much did we spend on ads this week?",
-        "Compare our Google and Meta ad results"
+        "Which channel brought the most traffic?"
       ]
     },
     {
@@ -4401,9 +4407,9 @@
       "tier": "listed",
       "rank": 70,
       "examples": [
-        "What did I miss in the Marketing channel?",
-        "Tell Grace I’ll join the call in five minutes",
-        "Summarize yesterday’s project sync meeting"
+        "What did I miss today?",
+        "Summarize the chats where I was mentioned",
+        "What meetings do I have tomorrow?"
       ]
     },
     {
@@ -4428,7 +4434,7 @@
       "examples": [
         "Find a plumber near me for a leaky faucet",
         "How much does it cost to paint a bedroom?",
-        "Get quotes from house cleaners this week"
+        "Find house cleaners near me"
       ],
       "signIn": "https://www.thumbtack.com/login"
     },
@@ -4438,7 +4444,7 @@
       "tagline": "Tasks, projects, and reminders.",
       "examples": [
         "What’s due today?",
-        "Add renew my passport for next Monday",
+        "What’s overdue?",
         "What did I finish this week?"
       ],
       "description": "Todoist is a task manager with a mature developer platform. Agents can create and complete tasks, organize projects, and query filters through the unified v1 REST API or the official hosted MCP server.",
@@ -4482,8 +4488,8 @@
       "tagline": "Boards, lists, and cards.",
       "examples": [
         "What cards are assigned to me?",
-        "Add a Book the venue card to the Planning board",
-        "Move the website copy card to Done"
+        "What’s due this week?",
+        "What changed on my boards since yesterday?"
       ],
       "description": "Atlassian's boards for tracking work. Its MCP server signs in with an Atlassian account and registers a client on the spot.",
       "domain": "trello.com",
@@ -4530,7 +4536,7 @@
       "examples": [
         "Find a hotel in Rome for under $150 a night",
         "Compare hotel prices in Chicago this weekend",
-        "What are the best-rated hotels near the beach?"
+        "What are the best-rated beach hotels nearby?"
       ]
     },
     {
@@ -4560,9 +4566,9 @@
       "home": "https://admin.typeform.com",
       "rank": 15,
       "examples": [
-        "How many responses did my survey get?",
-        "Summarize the feedback from this week’s responses",
-        "What did people say about our new menu?"
+        "How many responses did my forms get this week?",
+        "Summarize my latest responses",
+        "Which form gets the most responses?"
       ]
     },
     {
@@ -4592,9 +4598,9 @@
       "home": "https://typefully.com",
       "rank": 371,
       "examples": [
-        "Schedule a post about our launch for Tuesday",
-        "Draft a thread from my latest blog post",
-        "What posts do I have scheduled this week?"
+        "What posts do I have scheduled?",
+        "Which of my posts did best lately?",
+        "What drafts haven’t I published yet?"
       ]
     },
     {
@@ -4748,8 +4754,8 @@
       "registryName": "com.webflow/mcp",
       "examples": [
         "Which CMS items haven’t been published yet?",
-        "Add a new team member to the Team collection",
-        "Update the headline on our home page"
+        "What sites do I have?",
+        "When was each of my sites last published?"
       ]
     },
     {
@@ -4779,8 +4785,8 @@
       "home": "https://whimsical.com",
       "rank": 183,
       "examples": [
-        "Make a mind map for our trip planning",
-        "Draw a flowchart of our support process",
+        "Make a mind map for planning a trip",
+        "Draw a flowchart of a support process",
         "Sketch a wireframe for a sign-up screen"
       ]
     },
@@ -4813,7 +4819,7 @@
       "examples": [
         "How many bookings do I have this week?",
         "Which products are out of stock?",
-        "Add a new post to my blog"
+        "How did my site do this month?"
       ]
     },
     {
@@ -4870,8 +4876,8 @@
       "registryName": "com.workos/mcp",
       "examples": [
         "Which organizations have SSO set up?",
-        "Is Initech’s directory sync working?",
-        "Add a new organization for Umbrella Corp"
+        "Are any directory syncs failing?",
+        "How many organizations do I have?"
       ]
     },
     {
@@ -4901,9 +4907,9 @@
       "tier": "listed",
       "rank": 62,
       "examples": [
-        "Which customers owe us money right now?",
+        "Which customers owe me money right now?",
         "What bills are due this week?",
-        "How much did we spend on rent this year?"
+        "What were my biggest expenses last month?"
       ],
       "signIn": "https://login.xero.com/"
     },
@@ -4934,9 +4940,9 @@
       "rank": 27,
       "registryName": "com.zapier/mcp",
       "examples": [
-        "Add this lead to my Google Sheet",
-        "Post a message in Slack when I finish this",
-        "Create a Trello card for the client request"
+        "What actions do I have set up?",
+        "Which apps can you reach through Zapier?",
+        "What could I automate with my apps?"
       ]
     },
     {
@@ -4946,7 +4952,7 @@
       "examples": [
         "Summarize my last meeting",
         "What Zoom calls do I have tomorrow?",
-        "Find the recording of Tuesday’s all-hands"
+        "Find my most recent recording"
       ],
       "description": "Meetings, recordings, and summaries.",
       "domain": "zoom.us",
@@ -4998,9 +5004,9 @@
       "rank": 47,
       "registryName": "io.github.Zoominfo/zoominfo-mcp",
       "examples": [
-        "Find IT directors at hospitals in Ohio",
-        "Get the phone number for Daniel Wu at Initrode",
-        "Which companies in Denver use Salesforce?"
+        "What does ZoomInfo know about my company?",
+        "Which companies near me are hiring?",
+        "Find marketing leaders at mid-size companies"
       ]
     }
   ]

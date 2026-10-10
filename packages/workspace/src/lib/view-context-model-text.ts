@@ -122,11 +122,7 @@ function pageNote(data: ViewContext) {
     `;
   }
   const title = page.title ? ` "${page.title}"` : "";
-  const words = page.selection
-    ? `Selected on it: "${page.selection}".`
-    : page.text
-      ? `It begins: "${page.text}".`
-      : "It has no text yet.";
+  const words = page.selection ? ` Selected on it: "${page.selection}".` : "";
   const focus = page.focus ? ` Their cursor is in ${page.focus}.` : "";
   const shown = page.tabs?.find((other) => other.id === page.tab);
   const tab = page.tab ? ` (tab ${page.tab}${heldClause(shown?.heldBy)})` : "";
@@ -136,7 +132,7 @@ function pageNote(data: ViewContext) {
       ? `Other tabs open but not on screen: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id}${heldClause(other.heldBy)})`).join("; ")}.`
       : "No other tabs are open.";
   return systemNote`
-    When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it. ${words}${focus}
+    When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it.${words}${focus}
     ${tabs}
   `;
 }

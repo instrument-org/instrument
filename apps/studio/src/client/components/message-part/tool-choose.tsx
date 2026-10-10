@@ -9,16 +9,10 @@ import { useMutation } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
-import { getToolLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
-import {
-  ToolCard,
-  ToolCardEmpty,
-  ToolCardHeader,
-  ToolCardSection,
-} from "./tool-card";
+import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";
 import { useHasLiveSession } from "./use-live-session";
 
 export type ChooseOutput = Extract<
@@ -36,20 +30,23 @@ type ChoosePart = Extract<SessionMessagePart.ToolPart, { type: "tool-choose" }>;
  * in the user's own words, a note can ride along with either, and Skip answers
  * that there is no answer. `ended` is a question nothing is listening to any
  * more; `closed` is one that was answered or failed.
+ *
+ * `sending` is an answer on its way: drawn as picked, with the rest of the card
+ * held, so the click shows what it chose before the agent has it.
  */
 export function QuestionCard({
   choices,
-  isSending = false,
   onAnswer,
   output,
   question,
+  sending,
   status,
 }: {
   choices: string[];
-  isSending?: boolean;
   onAnswer: (output: ChooseOutput) => void;
   output?: ChooseOutput;
   question: string;
+  sending?: ChooseOutput;
   status: "closed" | "ended" | "open";
 }) {
   const [ownAnswer, setOwnAnswer] = useState("");
@@ -57,8 +54,10 @@ export function QuestionCard({
   const [note, setNote] = useState("");
 
   const isOpen = status === "open";
+  const isSending = sending !== undefined;
+  const shown = output ?? sending;
   const selected =
-    output && "selectedChoice" in output ? output.selectedChoice : undefined;
+    shown && "selectedChoice" in shown ? shown.selectedChoice : undefined;
   // The answer is stored trimmed, so a choice written with stray spaces is
   // matched by its trimmed text.
   const isOwnAnswer =
@@ -79,18 +78,20 @@ export function QuestionCard({
   };
 
   return (
+    // No header strip: the transcript row above the card already says it is
+    // waiting, so the question leads, the way the folder and app cards lead
+    // with what they ask.
     <ToolCard>
-      <ToolCardHeader>
-        <p className="text-xs font-medium text-muted-foreground">
-          {getToolLabel("choose")}
-        </p>
-      </ToolCardHeader>
-
       {/* Clamped only once it is answered: a clamp over an open question can
           hide the row or the note someone is about to type into. */}
       <ToolCardSection collapsedHeight={isOpen ? 1024 : 256}>
-        <p className="mb-3 text-sm">{question}</p>
-        <div className="space-y-1.5" role={isOpen ? "radiogroup" : undefined}>
+        <p className="mb-2 text-sm font-medium text-pretty">{question}</p>
+        {/* Pulled out by the rows' own padding, so the rings line up with the
+            question while a highlighted row still has room around its text. */}
+        <div
+          className="-mx-2 flex flex-col gap-0.5"
+          role={isOpen ? "radiogroup" : undefined}
+        >
           {choices.map((choice, index) => {
             const isSelected = choice.trim() === selected;
             const row = <ChoiceRow isSelected={isSelected}>{choice}</ChoiceRow>;
@@ -120,11 +121,16 @@ export function QuestionCard({
             // rather than clicked, and sent with Return or the arrow.
             <div
               className={cn(
-                rowClassName({ isOpen, isSelected: false }),
-                "py-1.5 focus-within:border-foreground/30",
+                rowClassName({ isOpen, isSelected: isOwnAnswer }),
+                // A row's height with the send button in it rather than a
+                // line of text, so it stands as tall as the rows above, and
+                // the button sits 4px in from the row's top, right and bottom.
+                "py-1 pr-1",
+                !isOwnAnswer && "focus-within:bg-foreground/5",
+                isSending && !isOwnAnswer && "opacity-50",
               )}
             >
-              <ChoiceRow isSelected={false}>
+              <ChoiceRow isSelected={isOwnAnswer}>
                 <input
                   aria-label="Your own answer"
                   className="w-full bg-transparent py-0.5 outline-none placeholder:text-muted-foreground"
@@ -142,18 +148,25 @@ export function QuestionCard({
                     }
                   }}
                   placeholder="Something else…"
-                  value={ownAnswer}
+                  // The answer on its way rather than what was typed, so the
+                  // row reads from the props like every other state of it.
+                  value={isSending && isOwnAnswer ? selected : ownAnswer}
                 />
               </ChoiceRow>
+              {/* Inset in the row, so its corners are the row's less the 4px
+                  between them: concentric with the highlight around it. */}
               <Button
                 aria-label="Send your answer"
-                className={cn("size-6", !ownAnswer.trim() && "invisible")}
+                className={cn(
+                  "size-6 rounded-sm",
+                  (isSending || !ownAnswer.trim()) && "invisible",
+                )}
                 disabled={isSending || !ownAnswer.trim()}
                 onClick={sendOwnAnswer}
                 size="icon-sm"
                 variant="brand"
               >
-                <ArrowUpIcon weight="bold" />
+                <ArrowUpIcon className="size-3.5" weight="bold" />
               </Button>
             </div>
           ) : isOwnAnswer ? (
@@ -169,7 +182,7 @@ export function QuestionCard({
               <Textarea
                 aria-label="Note"
                 autoFocus
-                className="mt-2 min-h-12"
+                className="mt-3 min-h-12"
                 disabled={isSending}
                 onChange={(event) => {
                   setNote(event.target.value);
@@ -178,11 +191,14 @@ export function QuestionCard({
                 value={note}
               />
             ) : null}
-            <div className="mt-2 flex items-center justify-between gap-2">
+            {/* Pulled out by the buttons' padding, so their words line up with
+                the question's edges rather than sitting indented under it. */}
+            <div className="-mx-2.5 mt-2 flex items-center justify-between gap-2">
               {isNoteOpen ? (
                 <span />
               ) : (
                 <Button
+                  className="text-muted-foreground"
                   disabled={isSending}
                   onClick={() => {
                     setIsNoteOpen(true);
@@ -194,6 +210,7 @@ export function QuestionCard({
                 </Button>
               )}
               <Button
+                className="text-muted-foreground"
                 disabled={isSending}
                 onClick={() => {
                   answer({ declined: true });
@@ -201,7 +218,9 @@ export function QuestionCard({
                 size="xs"
                 variant="ghost"
               >
-                Skip
+                {/* Says the note goes too, since skipping is the one answer
+                    where a note would otherwise look like it was thrown away. */}
+                {note.trim() ? "Skip with note" : "Skip"}
               </Button>
             </div>
           </>
@@ -247,6 +266,11 @@ export function ToolChoose({
   );
 
   const isWaitedOn = useHasLiveSession(part.metadata.sessionId);
+  // Held from the click until the output lands in the part, not just while the
+  // call is pending: the call settles before the session's update brings the
+  // output, and the card falling back to unpicked in between reads as the
+  // click not taking. A failure clears it so the choices come back.
+  const [sending, setSending] = useState<ChooseOutput>();
 
   if (!part.input) {
     return <ToolCardEmpty message="The question has not arrived yet." />;
@@ -261,17 +285,25 @@ export function ToolChoose({
   return (
     <QuestionCard
       choices={choices.filter((choice) => choice !== undefined)}
-      isSending={answer.isPending}
       onAnswer={(output) => {
-        answer.mutate({
-          id: taskId,
-          output,
-          toolCallId: part.toolCallId,
-          toolName: "choose",
-        });
+        setSending(output);
+        answer.mutate(
+          {
+            id: taskId,
+            output,
+            toolCallId: part.toolCallId,
+            toolName: "choose",
+          },
+          {
+            onError: () => {
+              setSending(undefined);
+            },
+          },
+        );
       }}
       output={part.state === "output-available" ? part.output : undefined}
       question={part.input.question ?? ""}
+      sending={isUnanswered ? sending : undefined}
       status={isUnanswered ? (isWaitedOn ? "open" : "ended") : "closed"}
     />
   );
@@ -291,16 +323,18 @@ function ChoiceRow({
 }) {
   return (
     <>
+      {/* Hollow rather than filled with the page's background, which in dark
+          mode is darker than the card and drew every ring as a black dot. */}
       <span
         aria-hidden
         className={cn(
-          "grid size-4 shrink-0 place-items-center rounded-full border",
+          "grid size-4.5 shrink-0 place-items-center rounded-full border",
           isSelected
             ? "border-brand-600 bg-brand-600 text-brand-foreground"
-            : "border-border bg-background",
+            : "border-foreground/25 group-hover/choice:border-foreground/45",
         )}
       >
-        {isSelected && <CheckIcon className="size-2.5" weight="bold" />}
+        {isSelected && <CheckIcon className="size-3" weight="bold" />}
       </span>
       <span className="min-w-0 flex-1">{children}</span>
     </>
@@ -314,12 +348,14 @@ function rowClassName({
   isOpen: boolean;
   isSelected: boolean;
 }) {
+  // Rows as a menu draws them, highlighted under the pointer rather than each
+  // boxed in a border: the rings already say these are things to pick.
   return cn(
-    "flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-sm",
+    "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm",
     isSelected
-      ? "border-brand-600/40 bg-brand-500/8 text-foreground"
+      ? "bg-brand-500/10 text-foreground"
       : isOpen
-        ? "border-border text-foreground hover:border-foreground/30 hover:bg-foreground/5"
-        : "border-transparent text-muted-foreground",
+        ? "group/choice text-foreground outline-none hover:bg-foreground/5 focus-visible:bg-foreground/5 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/60 disabled:opacity-50 disabled:hover:bg-transparent"
+        : "text-muted-foreground",
   );
 }

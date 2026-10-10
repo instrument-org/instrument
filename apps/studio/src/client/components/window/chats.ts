@@ -11,7 +11,7 @@ export type Chat = NonNullable<RPCOutput["workspace"]["chats"]["byId"]>;
 export interface ChatFilters {
   /** App slugs a chat has to have used one of. */
   apps: string[];
-  /** The place the column stands in, when it is not the inbox: what needs the user, the starred, the drafts, or all of it. */
+  /** The place the column stands in, when it is not the inbox: the unread, the starred, the drafts, what was put away, or all of it. */
   place?: ChatPlace;
   /** Words that all have to turn up somewhere on a chat's row, whatever their case. */
   search: string;
@@ -19,8 +19,8 @@ export interface ChatFilters {
   topics: string[];
 }
 
-/** The places of the column apart from the inbox: chats waiting on the user, chats the user starred, drafts not yet sent, and every chat, the ones put away among them. What is unread is a count on a place, the way mail counts it, rather than a place of its own. */
-export type ChatPlace = "all" | "drafts" | "needsYou" | "starred";
+/** The places of the column apart from the inbox: chats holding replies not yet seen, chats the user starred, drafts not yet sent, chats put away, and every chat, the ones put away among them. All is where a search reaches past the view it was typed in; the picker never offers it. */
+export type ChatPlace = "all" | "archived" | "drafts" | "starred" | "unread";
 
 /** A topic as the workspace keeps it: a tag with a name, a mark, and a tint. */
 export type Topic = RPCOutput["workspace"]["topics"]["list"][number];
@@ -43,10 +43,11 @@ export interface Filterable {
   root?: undefined | { parts: { text?: string; type: string }[] };
   /** Whether the user starred it: a mark of the user's own, kept wherever the chat is. */
   starred: boolean;
-  state: "idle" | "waiting" | "working";
+  state: "failed" | "idle" | "waiting" | "working";
   title: string;
   topics: string[];
-  unread: number;
+  /** Whether it carries the unread mark: something in it not yet looked at. */
+  unread: boolean;
 }
 
 /** One row of the column: which group it is in, and which of that group's ids it stands for. */
@@ -56,8 +57,8 @@ export type FilterChoice =
 
 /**
  * The filters with a row turned. The column shows one view at a time: the
- * inbox, one topic, one app, or one place (what needs the user, the
- * starred, the drafts, all of it), so choosing any of them leaves the others
+ * inbox, one topic, one app, or one place (the unread, the starred, the
+ * drafts, what was put away, all of it), so choosing any of them leaves the others
  * and choosing the one already on steps back to the inbox. The search is its
  * own thing and stays as it was. The predicate still reads lists, so nothing
  * downstream knows the column only ever fills one.
@@ -84,6 +85,40 @@ export function hasWords(search: string, shown: string[]) {
   }
   const text = shown.join("\n").toLowerCase();
   return words.every((word) => text.includes(word));
+}
+
+/**
+ * Where the words searched for turn up in a line a row shows, as the flat
+ * start and end pairs a highlight draws, in order and with overlaps joined:
+ * every place each word appears, whatever its case. Null when none do.
+ */
+export function wordRanges(text: string, search: string): null | number[] {
+  const words = search.toLowerCase().split(/\s+/).filter(Boolean);
+  const lower = text.toLowerCase();
+  const found: [number, number][] = [];
+  for (const word of words) {
+    for (
+      let at = lower.indexOf(word);
+      at !== -1;
+      at = lower.indexOf(word, at + word.length)
+    ) {
+      found.push([at, at + word.length]);
+    }
+  }
+  if (found.length === 0) {
+    return null;
+  }
+  found.sort((a, b) => a[0] - b[0]);
+  const joined: [number, number][] = [];
+  for (const [start, end] of found) {
+    const last = joined.at(-1);
+    if (last && start <= last[1]) {
+      last[1] = Math.max(last[1], end);
+    } else {
+      joined.push([start, end]);
+    }
+  }
+  return joined.flat();
 }
 
 /** Whether the column stands in the inbox: no place chosen, whatever topic or app narrows it. */
@@ -140,9 +175,9 @@ function anyOf<T extends string>(chosen: T[], held: T[]) {
 
 /**
  * Whether a chat is in the place the column stands in. A chat put away
- * is in All and nowhere else, the way mail keeps what was archived out of
- * the inbox but in the whole of it, so the inbox is every other chat and
- * Needs you those of them waiting on the user. A topic is a label rather
+ * is in Archived and All, the way mail keeps what was archived out of the
+ * inbox but in the whole of it, so the inbox is every other chat and Unread
+ * those of them holding replies not yet seen. A topic is a label rather
  * than a place, so one chosen shows what is filed under it, put away or
  * not. Drafts are not chats at all yet, so that place holds none.
  */
@@ -151,11 +186,11 @@ function matchesPlace(chat: Filterable, filters: ChatFilters) {
     case "all": {
       return true;
     }
+    case "archived": {
+      return chat.archived;
+    }
     case "drafts": {
       return false;
-    }
-    case "needsYou": {
-      return !chat.archived && chat.state === "waiting";
     }
     case "starred": {
       // A star is the user's own mark, and stays on a chat put away.
@@ -163,6 +198,9 @@ function matchesPlace(chat: Filterable, filters: ChatFilters) {
     }
     case undefined: {
       return !chat.archived || filters.topics.length > 0;
+    }
+    case "unread": {
+      return !chat.archived && chat.unread;
     }
   }
 }

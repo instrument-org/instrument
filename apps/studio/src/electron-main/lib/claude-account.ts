@@ -333,18 +333,29 @@ async function beginSignIn(executablePath: string) {
       }
     });
   };
-  void signIn.completion.then(finish, (error: unknown) => {
-    log.info("Claude sign-in ended without finishing", error);
-    if (codePasted.has(signIn) && pendingSignIn === signIn) {
-      clearTimeout(timer);
-      replacing = beginSignIn(executablePath).catch((restartError: unknown) => {
-        log.warn("Couldn't restart Claude sign-in", restartError);
-        finish();
-      });
-      return;
-    }
-    finish();
-  });
+  void signIn.completion.then(
+    () => {
+      // Forward at once, while the status is still being read back from
+      // Claude Code: that read takes seconds, and the person who just pressed
+      // Authorize is looking at the browser until the app comes back.
+      focusAppWindow();
+      finish();
+    },
+    (error: unknown) => {
+      log.info("Claude sign-in ended without finishing", error);
+      if (codePasted.has(signIn) && pendingSignIn === signIn) {
+        clearTimeout(timer);
+        replacing = beginSignIn(executablePath).catch(
+          (restartError: unknown) => {
+            log.warn("Couldn't restart Claude sign-in", restartError);
+            finish();
+          },
+        );
+        return;
+      }
+      finish();
+    },
+  );
   return signIn;
 }
 

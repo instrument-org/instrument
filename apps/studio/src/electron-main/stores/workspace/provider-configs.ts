@@ -12,7 +12,25 @@ const ProviderConfigsStoreSchema = z
     // Named "providers" originally, but now "providerConfigs" to avoid
     // confusion with the AIProviderType type. Kept as "providers" here to
     // support existing data.
-    providers: AIGatewayProviderConfig.Schema.array().default([]),
+    //
+    // Each entry parses on its own, so one the app no longer knows (a provider
+    // type since removed) is dropped rather than failing the list and taking
+    // every other saved key with it.
+    providers: z
+      .array(z.unknown())
+      .default([])
+      .transform((entries) =>
+        entries.flatMap((entry) => {
+          const parsed = AIGatewayProviderConfig.Schema.safeParse(entry);
+          if (parsed.success) {
+            return [parsed.data];
+          }
+          logger.warn("Dropping a provider config that no longer parses", {
+            issues: parsed.error.issues,
+          });
+          return [];
+        }),
+      ),
   })
   .default({ providers: [] });
 

@@ -1,0 +1,1506 @@
+[
+  {
+    "title": "Three recent Downloads PDFs summarized",
+    "ask": "Look through the PDFs in my Downloads folder, pick the three most recent, and write a one-page summary of each into a new folder on my Desktop called \"PDF summaries\". Then tell me which ones you"
+  },
+  {
+    "title": "Connect Gmail",
+    "ask": "Connect [Gmail](instrument://app/gmail)"
+  },
+  {
+    "title": "Connect Apple Mail",
+    "ask": "Connect [Apple Mail](instrument://app/apple-mail)"
+  },
+  {
+    "title": "Connect Mercury",
+    "ask": "Connect [Mercury](instrument://app/mercury)"
+  },
+  {
+    "title": "Connect Apple Messages",
+    "ask": "Connect [Apple Messages](instrument://app/apple-messages)"
+  },
+  {
+    "title": "Connect Slack",
+    "ask": "Connect [Slack](instrument://app/slack)"
+  },
+  {
+    "title": "Connect Canva",
+    "ask": "Connect [Canva](instrument://app/canva)"
+  },
+  {
+    "title": "Connect Google Drive",
+    "ask": "Connect [Google Drive](instrument://app/google-drive)"
+  },
+  {
+    "title": "Navigate five linked pages from Wikipedia Jar",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "borky workspace",
+    "ask": "[$workspace:borky](skill:workspace:borky)"
+  },
+  {
+    "title": "SVG cat on the Desktop",
+    "ask": "hey"
+  },
+  {
+    "title": "Create /borky “Hello Borky” skill",
+    "ask": "Use [$skill-creator](skill:skill-creator) to make a skill that says \"Hello Borky\" after i type /borky"
+  },
+  {
+    "title": "Whether Relay works",
+    "ask": "Relay works?"
+  },
+  {
+    "title": "Exact ChatGPT model identification",
+    "ask": "what model ru"
+  },
+  {
+    "title": "hey",
+    "ask": "hey"
+  },
+  {
+    "title": "hi",
+    "ask": "hi"
+  },
+  {
+    "title": "hello der",
+    "ask": "hello der"
+  },
+  {
+    "title": "hi",
+    "ask": "hi"
+  },
+  {
+    "title": "hi t5here",
+    "ask": "hi t5here"
+  },
+  {
+    "title": "Latest game news from last week",
+    "ask": "latest game news from last week"
+  },
+  {
+    "title": "Latest ARC Raiders news",
+    "ask": "latest news for arc raiders?"
+  },
+  {
+    "title": "Total number of files",
+    "ask": "how many files do i have?"
+  },
+  {
+    "title": "Check whether HA is running",
+    "ask": "is my HA running?"
+  },
+  {
+    "title": "Measuring tool for MiO liquid enhancer dosage",
+    "ask": "Can you find me something on Amazon that will work for measuring out the dosage I'm about to use of MIO style liquid water enhancers? I just want to make sure I'm not going above the recommended"
+  },
+  {
+    "title": "Three example.com pages with different background colors",
+    "ask": "Open three copies of example.com and then change their background colors, each of them to different colors"
+  },
+  {
+    "title": "Latest Fortnite news",
+    "ask": "What's the latest news for Fortnite?"
+  },
+  {
+    "title": "cat.md with \"a dog\" on Desktop",
+    "ask": "make me a file named cat.md with \"a dog\" in it and put it on my Desktop"
+  },
+  {
+    "title": "EDM song from the Lioness season three club",
+    "ask": "Find me the song from season three club episode of Lioness. There was an EDM song playing in the club"
+  },
+  {
+    "title": "Connect to iCloud Notes",
+    "ask": "Connect connect to Notes"
+  },
+  {
+    "title": "Hello world text-to-speech audio",
+    "ask": "can you generate audio for \"hello world\" for me?"
+  },
+  {
+    "title": "cat.md file with a dog",
+    "ask": "make me a file named \"cat.txt\" with ad og in it"
+  },
+  {
+    "title": "Project status for September 21–27, 2026",
+    "ask": "Okay, can you find my project status note in my personal obsidian vault? I'm going to have you update that for meOkay, can you find my project status note in my personal obsidian vault? I'm going to"
+  },
+  {
+    "title": "Three web pages with unique background colors",
+    "ask": "open up these for me:\n\nexample.com/1\nexample.com/2\nexample.com/3\n\nand then give them each a unique bg color"
+  },
+  {
+    "title": "Navigate five Wikipedia pages from Jar",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "Amazon liquid energy alternatives page",
+    "ask": "/Users/sam/Documents/Instrument/amazon-liquid-energy-alternatives.html"
+  },
+  {
+    "title": "Make page 1 red in video-game-news-digest-sept-9-16.docx",
+    "ask": ""
+  },
+  {
+    "title": "Test CSV file creation",
+    "ask": "make me a test csv file"
+  },
+  {
+    "title": "Delete extra heading in caffeine-cart-comparison.html",
+    "ask": ""
+  },
+  {
+    "title": "Make paragraph on line 5 of test.md all",
+    "ask": ""
+  },
+  {
+    "title": "Navigate five Wikipedia pages from the Jar article",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "Test markdown file creation",
+    "ask": "make a test markdown file here"
+  },
+  {
+    "title": "Newest item in what?",
+    "ask": "newest item?"
+  },
+  {
+    "title": "Identify an unknown item",
+    "ask": "wat is this"
+  },
+  {
+    "title": "Create test.md Markdown file",
+    "ask": "Make a small markdown file for me here. I'm just testing something"
+  },
+  {
+    "title": "Comparison reports folder missing skill files",
+    "ask": "are tehse good?"
+  },
+  {
+    "title": "Desktop app mockup with contract search and browser",
+    "ask": "what's this?"
+  },
+  {
+    "title": "Instrument desktop app mockup for finding an Apple",
+    "ask": "what's this?"
+  },
+  {
+    "title": "Navigate five Wikipedia pages from Jar",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "Simple template page featuring rain haiku",
+    "ask": "Using the newest version of the pages creation skill, can you quickly just generate me a very basic page based on one of the templates? You can just bring it over here wholesale, pretty much"
+  },
+  {
+    "title": "How to use Instrument",
+    "ask": "I'm new to Instrument. Make a file that explains what Instrument can do and how to use it."
+  },
+  {
+    "title": "Paper connected to the open design canvas",
+    "ask": "Connect [Paper](instrument://app/paper)"
+  },
+  {
+    "title": "Shared agenda and planning note with Marcus",
+    "ask": "wat is this"
+  },
+  {
+    "title": "Shared agenda and planning note for Marcus and",
+    "ask": "what is this?"
+  },
+  {
+    "title": "Navigate from the Wikipedia jar page through five",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "Navigate five Wikipedia pages from Jar",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "Drafts connected on this computer",
+    "ask": "Connect drafts.app on this computer"
+  },
+  {
+    "title": "Slack announcement for Marcus about message composing capability",
+    "ask": "Write me a Slack message for Marcus announcing the new message composing capability of this product"
+  },
+  {
+    "title": "Question prompt display check",
+    "ask": "Can you show me your ability to ask me a question? Just want to make sure that that's working as expected"
+  },
+  {
+    "title": "Untitled chat 2",
+    "ask": "hi there"
+  },
+  {
+    "title": "hi there",
+    "ask": "hi there"
+  },
+  {
+    "title": "moc_omniman_lol.gif converted to MP4",
+    "ask": "make this a video file instead"
+  },
+  {
+    "title": "Rocky landscape beneath a starry sky",
+    "ask": "what's this?"
+  },
+  {
+    "title": "Example Domain page blue, Quartz page red",
+    "ask": "Turn background one of these pages blue and one of these pages red"
+  },
+  {
+    "title": "September 23 recordings added as checkboxes to the",
+    "ask": "Can you transcribe my new notes in just press record and then place them as checkboxes at the bottom of the first section in this note file \n\n/Users/sam/Library/Mobile"
+  },
+  {
+    "title": "Navigate five Wikipedia pages from “Jar”",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "Time spent mostly on TypeScript in Claude Code",
+    "ask": "Where did I spend most of my time"
+  },
+  {
+    "title": "Amazon liquid energy alternatives to Mio with adjustable",
+    "ask": "What alternatives exist to Mio energy? any that have better dosing options. still want a liquid ideally. amazon only"
+  },
+  {
+    "title": "Import durable personal facts from Cursor's .cursor folder",
+    "ask": "Import what Cursor knows about me from this computer.\n\nHave a task read the .cursor folder inside my home folder, handed to it read-only and never writable: that folder is another tool's memory and"
+  },
+  {
+    "title": "Import durable memories from the .claude folder",
+    "ask": "Import what Claude Code knows about me from this computer.\n\nHave a task read the .claude folder inside my home folder, handed to it read-only and never writable: that folder is another tool's memory"
+  },
+  {
+    "title": "Saved Brazilian phonk playlist with 12M views",
+    "ask": "based on my recent likes, find me community playlists i might enjoy and save them to library (lots of views etc)\n\nfocus on the slowed / trap stuff"
+  },
+  {
+    "title": "PostHog AI generation cost report",
+    "ask": "Connect PostHog"
+  },
+  {
+    "title": "Vercel CLI tool for domain name search",
+    "ask": "Is there a command line tool that's well known that lets agents search for domain names? I think Vercel might have made one"
+  },
+  {
+    "title": "GitHub slop fork button mockup with AI tweak",
+    "ask": "Can you go to GitHub and I just want to mock up what it would look like if on an actual GitHub page there was a slop fork button that was just like a little silly button that would let you fork a"
+  },
+  {
+    "title": "Free agent access to Keepa pricing history",
+    "ask": "Do you see a possibility of giving agents access to pricing data like this with a skill? I'm just thinking it would be very nice if agents were easily able to retrieve pricing history. And I don't"
+  },
+  {
+    "title": "100 mg caffeine powders or pills for cost",
+    "ask": "Okay, I am looking for. I want to order, although you don't need to place the order, I am looking to purchase some 100-ish milligram caffeine powders or pills that I can mix with drinks to try out a"
+  },
+  {
+    "title": "Share an Apple Card with a family member",
+    "ask": "Is it possible to share an Apple card with another person in the family somebody has so that they can make purchases with"
+  },
+  {
+    "title": "Alternative labels for the frequency column",
+    "ask": "Can you suggest for me any other ways of potentially labeling the frequency column here? Not sure if I've nailed it yet \n\nhttps://app.notion.com/p/faa58cb8beb048ca85b13dcb92bf1c00"
+  },
+  {
+    "title": "Mac mini M5 gaming and external SSD options",
+    "ask": "Can a Mac mini M5 run World of Warcraft forever"
+  },
+  {
+    "title": "Best health-focused protein powder brands",
+    "ask": "What is the best health-wise brand of protein powder"
+  },
+  {
+    "title": "test",
+    "ask": "turn the bg of this  page red"
+  },
+  {
+    "title": "Markdown overview of Downloads files",
+    "ask": "Can you add a markdown file here with an overview of all the files that are in my downloads directory"
+  },
+  {
+    "title": "Py and JS",
+    "ask": "Okay, I just shipped with new Python and JavaScript execution environment for the agent, and I want you to test it for me. So you can access the code base here to understand the commits, etc., that"
+  },
+  {
+    "title": "Connect",
+    "ask": "Connect Google Workspace"
+  },
+  {
+    "title": "create-page for",
+    "ask": "Can you use your create page ability to just make me a quick and small demo page? I want to just demonstrate the functionality here\n\n/Users/sam/code/instrument/skills"
+  },
+  {
+    "title": "create-page",
+    "ask": "Can you use your create page ability to just make me a quick and small demo page? I want to just demonstrate the functionality here"
+  },
+  {
+    "title": "hey",
+    "ask": "hey"
+  },
+  {
+    "title": "Test WebAuthn registration and Touch ID prompt",
+    "ask": "Open https://webauthn.io in the browser. First run this and tell me the exact output: agent-browser eval 'typeof PublicKeyCredential !== \"undefined\" ?"
+  },
+  {
+    "title": "Sign in to YouTube Music and evaluate recent",
+    "ask": "open youtube music website and i want to sign in. then i'll ask you to eval my recent music likes to figure out whtt genres i should explore more"
+  },
+  {
+    "title": "hey",
+    "ask": "hey"
+  },
+  {
+    "title": "Improve transcription editing prompt",
+    "ask": "I'm using this prompt for voice note transcription and it's doing pretty well but it ends up giving me a little bit of an overly terse tone that is like maybe a bit stoic or unfriendly in some cases."
+  },
+  {
+    "title": "Pictures of popular personal cooling fans",
+    "ask": "Can you find me pictures of the most popular personal cooling fans"
+  },
+  {
+    "title": "Cheap small chair options on Wayfair",
+    "ask": "Can you find me good, cheap, small chair options on Wayfair. use ur browser"
+  },
+  {
+    "title": "Review pasted-text-137-lines.txt",
+    "ask": "Review the 1 added file to help with this request."
+  },
+  {
+    "title": "Feedback on talk transcript and slides",
+    "ask": "Can you take a look at this talk I gave and give me any notes you have for feedback on how I did based on the transcript here and, of course, the slides"
+  },
+  {
+    "title": "Project status update",
+    "ask": "Okay, I'm dictating my status for this project, and you can summarize the status for me in markdown bullets. So, last week I did 42 hours of code, coded pretty much every day. Velocity is very much"
+  },
+  {
+    "title": "agent-reference talk video",
+    "ask": "Can you transcribe the new long voice note for me here? It is from a talk I gave last night, and the slides are in this folder if you can even potentially match the transcript up with the slides. I"
+  },
+  {
+    "title": "Amazon reviews: Dyson, Shark, and JISULIFE fans",
+    "ask": "I am looking for a portable fan for cooling that's aesthetically pleasing and high quality. Here's what another agent found, and you can go from here to see what you can actually find about the"
+  },
+  {
+    "title": "Navigate five linked Wikipedia pages",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "hi",
+    "ask": "hi"
+  },
+  {
+    "title": "Optimize Amazon orders with Subscribe & Save",
+    "ask": "Can you look at my recent order history on Amazon and see if there's any obvious savings we could be incurring if we were to do different products or subscribe and save or anything else like that? I"
+  },
+  {
+    "title": "Add best-priced Sparkling Ice +Caffeine drinks to cart",
+    "ask": "Can you add the best priced sparkling ice, caffeine drinks to my cart. I don't"
+  },
+  {
+    "title": "Compress instrument launcher video under 10 MB",
+    "ask": "Can you re-encode or do whatever tricks you need to do to get this under 10 megabytes so that I can upload it to GitHub"
+  },
+  {
+    "title": "Tella.tv post-upload audio-video syncing",
+    "ask": "can tella.tv let me shift audio to match video after upload?"
+  },
+  {
+    "title": "M1 Mac Studio upgrade: leasing costs and benchmarks",
+    "ask": "If I wanted to get a Mac studio and try out their leasing program, what's my total cost of ownership over the few years? I have a Mac Studio M1 first-gen 32 gigs of RAM kind of base model, and I am"
+  },
+  {
+    "title": "Check Home Assistant version in home-assistant-api",
+    "ask": "use [$workspace:home-assistant-api](skill:workspace:home-assistant-api) and can you see what version of HA i'm running?"
+  },
+  {
+    "title": "Create a bike image in my folder",
+    "ask": "can you make me a quick image of a bike in my folder"
+  },
+  {
+    "title": "Read and reply on channel screener",
+    "ask": "Read and reply on my channel: [TESTING AGAIN with screener](https://channels.relay.example/c/61b4b76a-b614-435e-810e-28cb9ec366b1/2b29093a-e126-4189-8159-0a4a78a26158)\n\nIt is a small HTTP API rather"
+  },
+  {
+    "title": "Post Hello to the Relay channel",
+    "ask": "Please just say \"Hello\" here:\n\nSomewhere to put things where I will see them: https://channels.relay.example/c/61b4b76a-b614-435e-810e-28cb9ec366b1\n\nPOST to that link to open a channel and it"
+  },
+  {
+    "title": "Reply about Denver weather",
+    "ask": "Read and reply on my channel: [What's the weather in Denver](https://channels.relay.example/c/61b4b76a-b614-435e-810e-28cb9ec366b1/4d5c5596-f0dc-4bea-965c-7b4628735022)\n\nIt is a small HTTP API,"
+  },
+  {
+    "title": "Reply to the Denver weather channel",
+    "ask": "Read and reply on my channel: [What's the weather in Denver](https://channels.relay.example/c/61b4b76a-b614-435e-810e-28cb9ec366b1/b4565fe8-5ba5-4d26-bdc1-94041c5c63d8)\n\nIt is a small HTTP API,"
+  },
+  {
+    "title": "find example ui prompts",
+    "ask": "I'm using this prompt for voice note transcription and it's doing pretty well but it ends up giving me a little bit of an overly terse tone that is like maybe a bit stoic or unfriendly in some cases."
+  },
+  {
+    "title": "Reply to the channel test message",
+    "ask": "Read and reply on my channel: [Okay. Testing this out and seeing if this works.…](https://in.relay.example/c/61b4b76a-b614-435e-810e-28cb9ec366b1/6d23ef24-ef82-40fc-802a-53ae080e120c)\n\nIt is a small"
+  },
+  {
+    "title": "Tweet drafts for Schrödinger’s Prompt concept",
+    "ask": "I want you to write up like the shortest versions of this you can think of that would make sense in a tweet. Give me a few different drafts and I'll iterate with you on it. It's just an idea I had"
+  },
+  {
+    "title": "161 media tail",
+    "ask": "Generate one image of a red bicycle against a white wall. After the image, say nothing else."
+  },
+  {
+    "title": "Read and reply to Relay conversation",
+    "ask": "Read and reply on my channel: [wat is this](https://in.relay.example/c/61b4b76a-b614-435e-810e-28cb9ec366b1/499394ac-01cf-4932-880f-735dc0918b52)\n\nIt is a small HTTP API, not a page to open. GET"
+  },
+  {
+    "title": "Read and reply on WEBSOCKERTS channel",
+    "ask": "Read and reply on my channel: [WEBSOCKERTS](https://in.relay.example/c/61b4b76a-b614-435e-810e-28cb9ec366b1/741c20f7-a5ba-484b-a51d-0cc225fecf25)\n\nIt is a small HTTP API, not a page to open. GET"
+  },
+  {
+    "title": "Read and reply on Emailt est channel",
+    "ask": "Read and reply on my channel: [Emailt est](https://in.relay.example/c/61b4b76a-b614-435e-810e-28cb9ec366b1/826a9e62-e897-4788-87c5-98c2a8e573b0)\n\nIt is a small HTTP API, not a page to open. GET that"
+  },
+  {
+    "title": "WEBSOCKERTS channel conversation",
+    "ask": "**WEBSOCKERTS** — [read and reply on my channel](https://in.relay.example/c/61b4b76a-b614-435e-810e-28cb9ec366b1/741c20f7-a5ba-484b-a51d-0cc225fecf25).\n\nIt is a small HTTP API, not a page to open."
+  },
+  {
+    "title": "Read and reply to Relay channel",
+    "ask": "Read and reply to my channel: https://in.relay.example/c/61b4b76a-b614-435e-810e-28cb9ec366b1/741c20f7-a5ba-484b-a51d-0cc225fecf25\n\nIt is a small HTTP API, not a website. From a shell, run `curl -s"
+  },
+  {
+    "title": "Read and reply to Relay channel",
+    "ask": "Read and reply to my channel: https://in.relay.example/c/61b4b76a-b614-435e-810e-28cb9ec366b1/80880935-5e62-408d-aa13-c3ca9d329886\n\nIt is a small HTTP API, not a website. From a shell, run `curl -s"
+  },
+  {
+    "title": "Read and reply to Relay channel",
+    "ask": "Read and reply to my channel: https://in.relay.example/c/61b4b76a-b614-435e-810e-28cb9ec366b1/726b7a6f-17a6-4f76-bc59-547dba445128\n\nFetch https://in.relay.example/s/channels.md first: it explains"
+  },
+  {
+    "title": "Read and reply to Relay channel",
+    "ask": "Read and reply to my channel: https://in.relay.example/c/61b4b76a-b614-435e-810e-28cb9ec366b1/726b7a6f-17a6-4f76-bc59-547dba445128\n\nFetch https://in.relay.example/s/channels.md first: it explains"
+  },
+  {
+    "title": "Read and reply in Relay channel",
+    "ask": "Read and reply to my channel: https://in.relay.example/c/61b4b76a-b614-435e-810e-28cb9ec366b1/87ade5ec-488e-4290-8d2e-0c789aa0a47c\n\nFetch https://in.relay.example/s/channels.md first: it explains"
+  },
+  {
+    "title": "Read and reply to Relay channel conversation",
+    "ask": "Read and reply to my channel: https://in.relay.example/c/53a202fd-4013-41c3-abb7-d1caa0441e2e/e2e40418-ef1d-41ff-b6e0-142a2d73817c\n\nFetch https://in.relay.example/s/channels.md first: it explains"
+  },
+  {
+    "title": "Process queued work in Relay channel",
+    "ask": "Work my channel: https://in.relay.example/api/w/61b4b76a-b614-435e-810e-28cb9ec366b1/channels/5b1a7d15-89c2-45da-a59f-0d16f91690d8\n\nFirst fetch https://in.relay.example/s/channels.md and follow it."
+  },
+  {
+    "title": "161 browser and stream",
+    "ask": "Open example.com in the browser and tell me the exact heading text on the page. Then write a numbered list of 40 short facts about the solar system directly in your reply."
+  },
+  {
+    "title": "161 long output",
+    "ask": "Run this exact bash command and nothing else first: seq 1 600 | awk (single quote)length(1)(single quote). Actually just run: seq 1 600. Then write a file big.txt containing 800 numbered lines using"
+  },
+  {
+    "title": "161 folder access",
+    "ask": "A folder is attached to this task. Do two things and report plainly what happened for each: 1) read seed.txt in that attached folder and tell me the magic word. 2) try to create a new file called"
+  },
+  {
+    "title": "161 smoke model switch",
+    "ask": "Run a bash command to print the current working directory, then write a file switch.md containing the word hello. Be brief."
+  },
+  {
+    "title": "161 smoke instrument",
+    "ask": "Do these three things in order. 1) Write a file notes.md containing three bullet points about the Apollo program. 2) Read notes.md back and show me its contents. 3) Search the web for what time zone"
+  },
+  {
+    "title": "Browser select-all check with agent-browser",
+    "ask": "Browser select-all check. Do each step as its OWN separate bash tool call, never chained with && into one call:\n1. agent-browser open https://example.com\n2. agent-browser eval to append to the body a"
+  },
+  {
+    "title": "Process dictated prompt inbox items",
+    "ask": "# Dictated prompt inbox\n\nThere is an inbox of prompts I dictated out loud. Read it before continuing, and treat\neach item as an instruction from me.\n\nFetch pending items:\n\n    curl -s"
+  },
+  {
+    "title": "Process dictated prompt inbox",
+    "ask": "# Dictated prompt inbox\n\nThere is an inbox of prompts I dictated out loud. Read it before continuing, and treat\neach item as an instruction from me.\n\nFetch pending items:\n\n    curl -s"
+  },
+  {
+    "title": "Browser focus verification with exact input value read",
+    "ask": "Browser focus verification. Do each step as its OWN separate bash tool call, never chained with && into one call:\n1. agent-browser open https://example.com\n2. agent-browser eval to append to the body"
+  },
+  {
+    "title": "Expand Kevin Albright call notes for Obsidian, Slack",
+    "ask": "Can you look at my personal notes at this note here and write up a short extra piece to go with it? I already shared this in Slack. And so, what I'm looking for is for you to perhaps add or to"
+  },
+  {
+    "title": "Second-floor Nest eco mode guard before 5 p.m.",
+    "ask": "Hey, I'm trying to set up an automation that uses some criteria to determine if the second floor nest thermostat goes into eco mode, and then it could either alert me or even turn it back off. But I"
+  },
+  {
+    "title": "Oven temperature and timing for chicken breasts",
+    "ask": "What temperature should I cook chicken in the oven at? Chicken breasts. I'm going to put them into Pyrex containers. I know to pat them dry and season them, etc. And I'm going to put a meat"
+  },
+  {
+    "title": "Copilot usage: GPT 5.6 Terra vs Sonnet 5",
+    "ask": "Which gets you more usage on your GitHub Copilot subscription using GPT 5.6 Terra or Claude Sonnet 5"
+  },
+  {
+    "title": "Best local models for 16GB laptops",
+    "ask": "What is the state of the art for a model that can actually run on a local computer that is like 16 gigs of RAM or something, like a typical Windows or Mac laptop? Like, what's the state of the art"
+  },
+  {
+    "title": "browser focus verification",
+    "ask": "Browser focus verification. Do each step as its OWN separate bash tool call, never chained with && into one call:\n1. agent-browser open https://example.com\n2. agent-browser eval to append to the body"
+  },
+  {
+    "title": "browser focus verification",
+    "ask": "Browser focus verification. Do each step as its OWN separate bash tool call, never chained with && into one call:\n1. agent-browser open https://example.com\n2. agent-browser eval to append to the body"
+  },
+  {
+    "title": "Schedule Time Machine backups overnight",
+    "ask": "Is there some easy way to only allow Time Machine to run during off hours, thinking like you know, after, I don't know, 5 p.m. Heck, even in the just overnight, like, is there any way to make that"
+  },
+  {
+    "title": "Home Assistant Nest Protect integration options",
+    "ask": "With Home Assistant, what's the most normal way now to add nest protects to them, or what options do I have"
+  },
+  {
+    "title": "VS Code agent modifying Clawed Code sessions",
+    "ask": "How much of VS Code's agent feature can be disabled? I'm especially wondering if there's a chance that they are reading and writing potentially and modifying my Clawed Code sessions, and that that"
+  },
+  {
+    "title": "Create a text file containing “hi”",
+    "ask": "make me a text file that says \"hi\""
+  },
+  {
+    "title": "GlobalSign signing certificate renewal steps on GCP",
+    "ask": "Alright, I'm at this phase renewing my signing certificate that I use for instrument here. You can take a look at the code base and understand it. I would just want to know: so, this is hosted on GCP"
+  },
+  {
+    "title": "Basic example PowerPoint presentation",
+    "ask": "Make me an example PowerPoint here, just basic"
+  },
+  {
+    "title": "Recent reference on agent engineering as steak cooking",
+    "ask": "Can you find me a recent reference? I believe it was in regard to agente engineering being like cooking a steak"
+  },
+  {
+    "title": "HTML mockups for GitHub token-spend badges",
+    "ask": "I had a funny idea. I want to see if you can mock something up for me that would be visual and shareable just as a companion thing to this concept on a post on X, which is an interesting thought."
+  },
+  {
+    "title": "Dan Whitley first meeting",
+    "ask": "When did I first meet Dan Whitley?"
+  },
+  {
+    "title": "Northstar launch brief document (2)",
+    "ask": "Create a polished one-page launch brief for a fictional app named Northstar. Include a title, three sections, a two-column comparison table, and a short next-steps list. Save it as"
+  },
+  {
+    "title": "Sample document file bundle",
+    "ask": "Can you create me a sample PowerPoint, Excel, Word, PDF, CSV file"
+  },
+  {
+    "title": "Privacy-centric AI workspace strategy",
+    "ask": "Alright, I'm brainstorming an idea for my product that's starting to take shape into something interesting, and I'm curious if there are clear things that I should be considering on top of all this."
+  },
+  {
+    "title": "Animated bar chart",
+    "ask": "[$workspace:remotion-create](skill:workspace:remotion-create)  Make an animated bar chart with 5 bars"
+  },
+  {
+    "title": "🐛 file:// url opened",
+    "ask": "This is a flyer that I made for my memoir. It has text and a cover graphic I need a bookmark to handout to people to encourage them to buy my book."
+  },
+  {
+    "title": "Mom's bookmark task",
+    "ask": "on macos can you make menu bar text bigger?"
+  },
+  {
+    "title": "Find Ethan in Fernhill notes",
+    "ask": "what was the guy at fernhill who worked for healthcare \"Ethan\""
+  },
+  {
+    "title": "Dan and Priya handoff notes",
+    "ask": "About to have a meeting with Dan and Priya. Can you get me a light set of summary notes of where things are with the two of them based on my recent interactions so that I can hand it off to my"
+  },
+  {
+    "title": "Early dinner reservations near Larimer Square",
+    "ask": "Planning on having a night out in Denver, we like to probably have an earlier dinner and then hang out and do other stuff around Larimer Square area. What I'm wondering is: are there any"
+  },
+  {
+    "title": "testing /omg",
+    "ask": "testing /omg"
+  },
+  {
+    "title": "Best Prime Hydration value per ounce on Amazon",
+    "ask": "What's the best offering from a price per ounce standpoint for prime hydration drinks on Amazon"
+  },
+  {
+    "title": "Local multi-OS agent testing hardware and VM options",
+    "ask": "Okay, I want to have the best setup in my house for running remote agents on their own dedicated systems for local testing for things like a Linux build, a Windows build, other macOS versions, and"
+  },
+  {
+    "title": "Open-source reference harnesses for AI workspace apps",
+    "ask": "Besides these two, are there other open source or good reference harnesses that I should be potentially including in my local reference for checking out source code or just the apps in general of"
+  },
+  {
+    "title": "HIPAA compliance for local apps",
+    "ask": "So, for an app like Obsidian or a text editor, do they have to also be HIPAA compliant? Or for example, if we operate completely on the person's computer, then they can bring their own AI. Can we say"
+  },
+  {
+    "title": "Best-selling air fryers from Amazon products",
+    "ask": "Use [$workspace:amazon-search-products](skill:workspace:amazon-search-products) to find me the best selling air fryers"
+  },
+  {
+    "title": "Improve tabs and sidebar UX",
+    "ask": "So you can look at this product and better understand, I'm sure, some stuff about it and help me decide something. So, we're getting feedback from our users that the tabs feature is something that"
+  },
+  {
+    "title": "Best selling air fryers",
+    "ask": "Use [$workspace:amazon-search-products](skill:workspace:amazon-search-products) to find me the best selling air fryeres"
+  },
+  {
+    "title": "Amazon search products skill",
+    "ask": "[$system:skill-creator](skill:system:skill-creator) https://browse.sh/skills/amazon.com/search-products-5170mf"
+  },
+  {
+    "title": "Smallest file in Downloads",
+    "ask": "what is my smallest download?"
+  },
+  {
+    "title": "Largest file in Downloads",
+    "ask": "what is my largest download?"
+  },
+  {
+    "title": "Shopify-ready Giro Fixture MIPS II helmet images",
+    "ask": "can you pull all the product images of helmets from this page and create standalone jpg images that i can upload to my shopify store? i need the final image to have the helmet centered on a white"
+  },
+  {
+    "title": "Navigate five linked Wikipedia pages",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "Audible credit subscription offers",
+    "ask": "Are there any audible offers going right now for discounted books or months? I'm not thinking individual books, just basically access to credits"
+  },
+  {
+    "title": "Tuesday morning task",
+    "ask": "hi"
+  },
+  {
+    "title": "Tuesday morning task",
+    "ask": "hi"
+  },
+  {
+    "title": "Change PDF text to black",
+    "ask": "Can you edit this to make the text black instead of gray"
+  },
+  {
+    "title": "Verify ripgrep with piped data",
+    "ask": "Can you pipe some information to your ripgrap command and verify that it works as you expect it to? Just try piping various bits of string data, make sure it functions"
+  },
+  {
+    "title": "Product pain points summary",
+    "ask": "summarize the main pain points w/ our product higlhgihted in this"
+  },
+  {
+    "title": "Navigate Wikipedia through links",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar\n\nusing external chrome"
+  },
+  {
+    "title": "Open Dominos website",
+    "ask": "open dominos.com in your external browser"
+  },
+  {
+    "title": "Chrome tabs inquiry",
+    "ask": "What tabs do I have open in Chrome right now"
+  },
+  {
+    "title": "Open Domino’s website",
+    "ask": "Can you open up Domino's website in your external browser"
+  },
+  {
+    "title": "Open Domino’s website",
+    "ask": "Can you open up Domino's website in your external browser"
+  },
+  {
+    "title": "Find common word in filenames",
+    "ask": "Search the folder I attached for the most common word in its filenames, show me which files contain it with a couple of lines of context, and give me the full path of every match."
+  },
+  {
+    "title": "Excel file review",
+    "ask": "heyo"
+  },
+  {
+    "title": "Investor funding research",
+    "ask": "Ok, so I need to look at a list of potential investors and see if any of them specifically say that they do pre-seed funding. Can I give you a list of companies and you search their websites and let"
+  },
+  {
+    "title": "Image source search",
+    "ask": "Can you use Google Images to try to find the source of this? Just Google Image search"
+  },
+  {
+    "title": "Arc Raiders latest update inquiry",
+    "ask": "what is the latest update to arc raiders????"
+  },
+  {
+    "title": "Image text inquiry",
+    "ask": "wat say this"
+  },
+  {
+    "title": "Image identification",
+    "ask": "what's this?"
+  },
+  {
+    "title": "Image inquiry",
+    "ask": "what's this"
+  },
+  {
+    "title": "Arc Raiders latest update",
+    "ask": "latest update to arc raiders?"
+  },
+  {
+    "title": "Available external browsers",
+    "ask": "What external browsers do you see available to you"
+  },
+  {
+    "title": "Identify bat-winged woman painting",
+    "ask": "what is the painting public domain woman bat fly - not the vampire woman byalbert penot"
+  },
+  {
+    "title": "Order Domino's pizza",
+    "ask": "use an external browser to order me a pizza from dominos. i’ll fill in credit card"
+  },
+  {
+    "title": "Navigate Wikipedia through links",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar\n\nusing my chrome browser"
+  },
+  {
+    "title": "Navigate Wikipedia pages by links",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar\n\nusing chrome"
+  },
+  {
+    "title": "Wikipedia link navigation",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "Identify public-domain bat woman painting",
+    "ask": "what is the painting public domain woman bat fly - not the vampire woman byalbert penot"
+  },
+  {
+    "title": "Create and inspect test pattern",
+    "ask": "Use ffmpeg to create a 6000x4000 test pattern image in this task. Read it back and tell me exactly what dimensions the tool reported, including the size you were shown it at. Then read the same file"
+  },
+  {
+    "title": "Search project dependencies for MIT",
+    "ask": "Set up a small Node project in work/ with a few dependencies installed, then search the whole project including its dependencies for the string \"MIT\" and tell me how many files match."
+  },
+  {
+    "title": "Create and search timeout references",
+    "ask": "Create work/demo with about a dozen small TypeScript and Markdown files, and give several of them a line containing TIMEOUT_MS with different values. Then, without assuming what you just wrote, find"
+  },
+  {
+    "title": "List root folder contents",
+    "ask": "What's in the root of this task's folder? Include hidden files, and make it clear which entries are folders."
+  },
+  {
+    "title": "Find common filename word",
+    "ask": "Search the folder I attached for the most common word in its filenames, show me which files contain it with a couple of lines of context, and give me the full path of every match."
+  },
+  {
+    "title": "TIFF file review",
+    "ask": "Can you use read file to look at this"
+  },
+  {
+    "title": "Ingest Preview documents",
+    "ask": "This is the first time Ingest, so go for it."
+  },
+  {
+    "title": "Skill creation inquiry",
+    "ask": "Are you able to make skills"
+  },
+  {
+    "title": "Northstar launch brief document",
+    "ask": "Create a polished one-page launch brief for a fictional app named Northstar. Include a title, three sections, a two-column comparison table, and a short next-steps list. Save it as"
+  },
+  {
+    "title": "Understanding love",
+    "ask": "how do you\n\ndo this thing\n\ni call love"
+  },
+  {
+    "title": "Codex settings recommendation",
+    "ask": "For the task below, which level of ChatGPT's Codex effort should I use? Let me know all three toggles. Well, I'm not going to use Extra Fast because that's just a waste of credits. But yeah, give me"
+  },
+  {
+    "title": "Wikipedia link navigation",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "Create a skill",
+    "ask": "https://www.remotion.dev/docs/ai/skills"
+  },
+  {
+    "title": "Prefix conflict demo",
+    "ask": "[$claude:prefix-conflict-demo](skill:claude:prefix-conflict-demo)"
+  },
+  {
+    "title": "Random smiley",
+    "ask": "[$workspace:random-smiley](skill:workspace:random-smiley)"
+  },
+  {
+    "title": "Create a skill",
+    "ask": "Make me a skill that just prints out one of three different random emoji smiley faces"
+  },
+  {
+    "title": "Create small video with FFmpeg",
+    "ask": "Use [$ffmpeg](skill:ffmpeg) to… make a small video"
+  },
+  {
+    "title": "Generate fart with local ML",
+    "ask": "Use [$local-ml](skill:local-ml) to fart"
+  },
+  {
+    "title": "Best shade for soft summer",
+    "ask": "of the four shades on this listing which would be best for someone who's tone is considered to be a soft summer"
+  },
+  {
+    "title": "Basic UI switch wireframe",
+    "ask": "Make me a very basic wireframe of a UI switch component"
+  },
+  {
+    "title": "Thursday afternoon task",
+    "ask": "great work"
+  },
+  {
+    "title": "Install esbuild and verify version",
+    "ask": "Add esbuild to the work directory with pnpm, then run esbuild --version. If anything fails, fix it and tell me what you had to change."
+  },
+  {
+    "title": "Verify sharp image setup",
+    "ask": "Load the sharp-images skill and use it to resize any image you generate to 100x100. Tell me the exact sharp version that got installed and whether its native binary loaded without errors."
+  },
+  {
+    "title": "Attachment summary script",
+    "ask": "Write a script to work/report.py that reads every file in the attachments folder and writes a summary to the output folder. Use absolute paths throughout so it's unambiguous, then run it."
+  },
+  {
+    "title": "Generate and summarize sales CSV",
+    "ask": "Generate a synthetic 50k-row sales CSV, then a second script that reads it in chunks, dedupes, and writes a summary. Use temp files for the intermediate chunks so we don't blow memory. Show me the"
+  },
+  {
+    "title": "Clone repository and commit change",
+    "ask": "Clone https://github.com/octocat/Hello-World into the task, show me the last few commits, then make a new branch and commit a small change to a file."
+  },
+  {
+    "title": "Install esbuild with pnpm",
+    "ask": "Add esbuild to the work directory with pnpm, then run esbuild --version. If anything fails, fix it and tell me what you had to change."
+  },
+  {
+    "title": "Check Vite versions and dates",
+    "ask": "Run pnpm dlx vite --version in your work directory and tell me the exact version it printed. Then tell me the publish date of that version and of the newest vite release on npm."
+  },
+  {
+    "title": "Install aws-cdk and compare versions",
+    "ask": "In your work directory, run pnpm add aws-cdk and then tell me which version landed in package.json. Then check npm for the newest published version of aws-cdk and tell me how old the one you"
+  },
+  {
+    "title": "Install aws-cdk with npmrc setting",
+    "ask": "Create a file called .npmrc in your work directory containing exactly minimum-release-age=0, then run pnpm add aws-cdk and tell me which version installed."
+  },
+  {
+    "title": "Sharp image resizing verification",
+    "ask": "Load the sharp-images skill and use it to resize any image you generate to 100x100. Tell me the exact sharp version that got installed and whether its native binary loaded without errors."
+  },
+  {
+    "title": "Replay of Sharp image resizing check",
+    "ask": "Load the sharp-images skill and use it to resize any image you generate to 100x100. Tell me the exact sharp version that got installed and whether its native binary loaded without errors."
+  },
+  {
+    "title": "Sharp image resizing check",
+    "ask": "Load the sharp-images skill and use it to resize any image you generate to 100x100. Tell me the exact sharp version that got installed and whether its native binary loaded without errors."
+  },
+  {
+    "title": "Install and compare aws-cdk versions",
+    "ask": "In your work directory, run pnpm add aws-cdk and then tell me which version landed in package.json. Then check npm for the newest published version of aws-cdk and tell me how old the one you"
+  },
+  {
+    "title": "Mom Test summary review",
+    "ask": "Is this a good summary, or is there anything else that you would add to this from the mom test \n\n#### Mom test rules\n\n- Ask about past behavior, not hypotheticals. \"When did you last...\" not \"Would"
+  },
+  {
+    "title": "Replay of Memoir bookmark design",
+    "ask": "This is a flyer that I made for my memoir. It has text and a cover graphic I need a bookmark to handout to people to encourage them to buy my book."
+  },
+  {
+    "title": "Friday afternoon task",
+    "ask": "Demo time!"
+  },
+  {
+    "title": "Notifications demo",
+    "ask": "Reply back with: I built this for you, Dan, and title of this task should be Notifications Demo"
+  },
+  {
+    "title": "Hello, Dan. I built this",
+    "ask": "Reply back with this sentence: Hello, Dan. I built this for you, and I already can't live without it"
+  },
+  {
+    "title": "Hello, Dan. I built this",
+    "ask": "Reply back with this sentence: Hello, Dan. I built this for you, and I already can't live without it"
+  },
+  {
+    "title": "Python version output request",
+    "ask": "Run this exact bash command and paste the output verbatim:\n\npython -c 'import sys; print(sys.version)'"
+  },
+  {
+    "title": "Run attachment probe commands",
+    "ask": "Run these bash commands exactly as written, one per bash call, in order. Do not modify or \"fix\" them. Paste each command's complete output verbatim.\n\n1. echo bridge-ok > attachments/probe.txt\n2. node"
+  },
+  {
+    "title": "Local background removal for kitten",
+    "ask": "Using local-only processing and no API key, remove the background and save a transparent PNG at output/product-no-background.png."
+  },
+  {
+    "title": "Local audio transcription",
+    "ask": "Using local-only processing, transcribe this audio with the base model. Save full JSON with timestamps to output/transcript.json, including text, language, and ordered segments."
+  },
+  {
+    "title": "Redact email local part",
+    "ask": "Redact only the local part of the email address with a visually matching gradient. Preserve the domain and surrounding pixels. Save the result as output/redacted-contact.png."
+  },
+  {
+    "title": "Northstar launch brief document (3)",
+    "ask": "Create a polished one-page launch brief for a fictional app named Northstar. Include a title, three sections, a two-column comparison table, and a short next-steps list. Save it as"
+  },
+  {
+    "title": "Northstar launch brief document",
+    "ask": "Create a polished one-page launch brief for a fictional app named Northstar. Include a title, three sections, a two-column comparison table, and a short next-steps list. Save it as"
+  },
+  {
+    "title": "Generate image from download source",
+    "ask": "Can you generate an image using a source image from the downloads folder? I want you to use AI ImageM"
+  },
+  {
+    "title": "HTML image link test",
+    "ask": "Can you make me a simple HTML page and then embed the image from the downloads folder into that page just as a link to it just testing something"
+  },
+  {
+    "title": "HTML page with local CSS",
+    "ask": "Building a simple HTML page with a imported style CSS that you also write locally"
+  },
+  {
+    "title": "Friday afternoon task",
+    "ask": "hey"
+  },
+  {
+    "title": "Friday afternoon task",
+    "ask": "hey"
+  },
+  {
+    "title": "Helmets 2.0",
+    "ask": "can you pull all the product images of helmets from this page and create standalone jpg images that i can upload to my shopify store? i need the final image to have the helmet centered on a white"
+  },
+  {
+    "title": "Create Shopify helmet product images",
+    "ask": "can you pull all the product images of helmets from this page and create standalone jpg images that i can upload to my shopify store? i need the final image to have the helmet centered on a white"
+  },
+  {
+    "title": "Helmet Images",
+    "ask": "can you pull all the product images of helmets from this page and create standalone jpg images that i can upload to my shopify store? i need the final image to have the helmet centered on a white"
+  },
+  {
+    "title": "Audioengine vs SoundSticks comparison",
+    "ask": "I have limited space on my desk, and I'm trying to figure out what the best bang for my buck speakers are. I could set up of the ones I already own. I have a subwoofer in addition for both of these"
+  },
+  {
+    "title": "Friday morning task",
+    "ask": "hello"
+  },
+  {
+    "title": "Model identification inquiry",
+    "ask": "what model are u"
+  },
+  {
+    "title": "Cause analysis of text file",
+    "ask": "cause?"
+  },
+  {
+    "title": "Wednesday morning task",
+    "ask": "woo"
+  },
+  {
+    "title": "Arc Raiders update inquiry",
+    "ask": "what's the newest update to arc raiders?"
+  },
+  {
+    "title": "Monday afternoon task",
+    "ask": "hi there"
+  },
+  {
+    "title": "Arc raiders update inquiry",
+    "ask": "what's the newest update to arc raiders?"
+  },
+  {
+    "title": "Monday afternoon task",
+    "ask": "hi there"
+  },
+  {
+    "title": "Cartoon skeleton character design",
+    "ask": "generate a character that suits the example styles. this character should look like a cartoon skeleton with an oversized head. instead of its boned being white make them black so that it is easy to"
+  },
+  {
+    "title": "Monday morning greeting",
+    "ask": "hi"
+  },
+  {
+    "title": "Sunday afternoon greeting",
+    "ask": "hi"
+  },
+  {
+    "title": "Spooky pixel art pet",
+    "ask": "Make me a spooky pixel art pet"
+  },
+  {
+    "title": "Affordable low-calorie caffeine options",
+    "ask": "If I'm looking for something in this caffeine ballpark that is the best price I can get, and I mean ballpark, meaning caffeine per can, and I don't want it to be high calorie. I really like the fact"
+  },
+  {
+    "title": "Best-priced Liquid I.V. option",
+    "ask": "What's the best priced option on here \n\nhttps://www.amazon.com/s?k=liquid+iv"
+  },
+  {
+    "title": "Thank you message",
+    "ask": "ty"
+  },
+  {
+    "title": "Best priced liquid iv option",
+    "ask": "What's the best priced option on here \n\nhttps://www.amazon.com/s?k=liquid+iv"
+  },
+  {
+    "title": "Copy of Redact and resize image for",
+    "ask": "redact this and make it right size for posting on X"
+  },
+  {
+    "title": "Redact and resize image for",
+    "ask": "redact this and make it right size for posting on X"
+  },
+  {
+    "title": "Gluten free rolls check",
+    "ask": "what rolls are gf here? https://sushi.example/menu.pdf"
+  },
+  {
+    "title": "Best Amazon black tea price",
+    "ask": "Find me on Amazon the best price per ounce bottled or canned or whatever black tea"
+  },
+  {
+    "title": "Best deal analysis",
+    "ask": "What's the best deal here? Maybe break it down for me And I'll be doing subscribe and save if it helps"
+  },
+  {
+    "title": "Best deal comparison",
+    "ask": "What's the best deal here? Maybe break it down for me And I'll be doing subscribe and save if it helps"
+  },
+  {
+    "title": "Image redaction for X",
+    "ask": "redact this and make it right size for posting on X"
+  },
+  {
+    "title": "Image redaction for X",
+    "ask": "redact this and make it right size for posting on X"
+  },
+  {
+    "title": "Redact and resize image for",
+    "ask": "redact this and make it right size for posting on X"
+  },
+  {
+    "title": "Redacted screenshot for X",
+    "ask": "redact this and make it right size for posting on X"
+  },
+  {
+    "title": "Screenshot redaction for X",
+    "ask": "redact this and make it right size for posting on X"
+  },
+  {
+    "title": "Image redaction for X post",
+    "ask": "redact this and make it right size for posting on X"
+  },
+  {
+    "title": "Image redaction for X",
+    "ask": "redact this and make it right size for posting on X"
+  },
+  {
+    "title": "Image redaction for X",
+    "ask": "redact this and make it right size for posting on X"
+  },
+  {
+    "title": "Deal comparison breakdown",
+    "ask": "What's the best deal here? Maybe break it down for me And I'll be doing subscribe and save if it helps"
+  },
+  {
+    "title": "Best deal breakdown",
+    "ask": "What's the best deal here? Maybe break it down for me And I'll be doing subscribe and save if it helps"
+  },
+  {
+    "title": "Paper towels price comparison",
+    "ask": "Can you search for paper towels on Amazon and then help me figure out which is the best price option for me? I'll be using subscribe and save if it helps"
+  },
+  {
+    "title": "Alternating two jpgs into GIF",
+    "ask": "Can you turn this into a GIF file? I don't want it to flash. I just want it to, at a reasonable rate, switch between these two images, like before, after, or like a, what would be done at the eye"
+  },
+  {
+    "title": "Tuesday afternoon",
+    "ask": "nice"
+  },
+  {
+    "title": "Tuesday morning greeting",
+    "ask": "hello"
+  },
+  {
+    "title": "Wikipedia link navigation",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "Tuesday morning greeting",
+    "ask": "hi"
+  },
+  {
+    "title": "Tuesday morning inquiry",
+    "ask": "there"
+  },
+  {
+    "title": "Crawlspace estimates comparison",
+    "ask": "compare these 3 estimates for working on our crawlspace and tell which is the best deal and include pros and cons"
+  },
+  {
+    "title": "Cartoon cat images",
+    "ask": "Make me three images of cartoon cats."
+  },
+  {
+    "title": "Environment home resolution check",
+    "ask": "Can you run a quick environment sanity check for me? I want to verify how Python and TypeScript resolve the home directory and where each resolves their caches.\n\nFirst, run this in Python:\n\n\nimport"
+  },
+  {
+    "title": "Readable release notes markdown",
+    "ask": "Give me back Markdown for this that is a lot more readable for release notes."
+  },
+  {
+    "title": "Fernhill notes term search",
+    "ask": "There was some kind of joke derogatory term that Greg and Tom used to call the partners that weren't full partners or were not the main group. I think it was like miniature or mini MP or something"
+  },
+  {
+    "title": "Cloud sync for logged in",
+    "ask": "What would be a logical way to go about setting up Cloud Sync for our product for chats? for logged in users"
+  },
+  {
+    "title": "First commit inquiry",
+    "ask": "when was the first commit"
+  },
+  {
+    "title": "Friday morning task",
+    "ask": "hi"
+  },
+  {
+    "title": "Work start date with Marcus",
+    "ask": "When did I first start work when Marcus?"
+  },
+  {
+    "title": "Cloud sync service recommendation",
+    "ask": "What's the best cloud service to use for sync for a product?"
+  },
+  {
+    "title": "Merging git worktree changes",
+    "ask": "When working with work trees in Git, if you want to then bring a work tree into the main branch, is there a typical workflow for that with Git, or do you have to just do patch files? Like, how do you"
+  },
+  {
+    "title": "Install and verify python packages",
+    "ask": "Install packages and verify they import. Paste full raw output (including exit codes) for each step: (1) install cowsay; (2) run a one-liner that imports cowsay and prints a message; (3) install"
+  },
+  {
+    "title": "Install and verify packages",
+    "ask": "Install packages and verify they import. Paste full raw output (including exit codes) for each step: (1) install cowsay; (2) run a one-liner that imports cowsay and prints a message; (3) install"
+  },
+  {
+    "title": "Broken virtualenv recovery test",
+    "ask": "We are testing recovery from a half-broken virtualenv. Do these in order and paste raw output for every step: (1) run python --version to confirm Python works; (2) list work/.venv/bin (use"
+  },
+  {
+    "title": "Failed package install test",
+    "ask": "Test how a failed install surfaces. (1) Try to install a package named this-package-does-not-exist-fp1152 and paste the full output and the exit code. (2) State whether the error text is clear and"
+  },
+  {
+    "title": "New task python interpreter test",
+    "ask": "Run this in a brand-new task that has NOT used Python before. (1) Run python --version, paste the output, and note roughly how long it took. (2) Because the managed interpreter is cached at the app"
+  },
+  {
+    "title": "Test script path with space",
+    "ask": "Test running a script from a path with a space in it. (1) Using the write-file tool, create my scripts/hello.py (note the space) that prints a message including its own filename. (2) Run python"
+  },
+  {
+    "title": "Verify aliases and env overlay",
+    "ask": "Verify aliases and the env overlay. Paste raw output: (1) run python3 --version and pip3 --version and confirm they match python/pip; (2) from inside Python, print shutil.which(\"uv\") and"
+  },
+  {
+    "title": "Compare inline vs file python",
+    "ask": "Compare inline vs. file execution and report both outcomes. (1) Run an inline multi-line program via python -c that uses a for-loop with an indented print body; paste exactly what happens — it may"
+  },
+  {
+    "title": "Run uv self-update command",
+    "ask": "Run uv's self-update command and paste the exact output and exit code. State whether it was rejected."
+  },
+  {
+    "title": "Run uv and python versions",
+    "ask": "Run the uv version command and report the exact output. Then run the python version command — this is the first Python use in this task, so it may create a virtualenv and download a managed"
+  },
+  {
+    "title": "Rotating red square video",
+    "ask": "Use FFmpeg to make me a short video of a rotating red square."
+  },
+  {
+    "title": "Create PDF from skill",
+    "ask": "Unzip the skill, read through it, and understand it. You should also have all the necessary materials to execute this skill to create a new PDF."
+  },
+  {
+    "title": "2026-06-23 - task before migration",
+    "ask": "2026-06-23 test task hi"
+  },
+  {
+    "title": "Wikipedia page navigation",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "Reword text in images",
+    "ask": "The following sentence seems awkward. Please reword it."
+  },
+  {
+    "title": "How to use Instrument",
+    "ask": "I'm new to Instrument. Make a file that explains what Instrument can do and how to use it."
+  },
+  {
+    "title": "How to use Instrument",
+    "ask": "I'm new to Instrument. Make a file that explains what Instrument can do and how to use it."
+  },
+  {
+    "title": "Create random typescript file",
+    "ask": "Can you create a file in the source directory for me, just a random TypeScript file, and run it?"
+  },
+  {
+    "title": "Fifty megabyte test file",
+    "ask": "Can you make me, like, a 50 megabyte file for testing purposes?"
+  },
+  {
+    "title": "Rotating red square video",
+    "ask": "Use FFmpeg to make me a short video of a rotating red square.Use FFmpeg to make me a short video of a rotating red square."
+  },
+  {
+    "title": "Coverage drilldown zip inquiry",
+    "ask": "what is this?"
+  },
+  {
+    "title": "Rotating red square video",
+    "ask": "Use FFmpeg to make me a short video of a rotating red square."
+  },
+  {
+    "title": "Wikipedia navigation from jar page",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "Test all tools",
+    "ask": "Test all your tools for me real fast."
+  },
+  {
+    "title": "Image watermark removal and edit",
+    "ask": "Generate me a version of this with the watermark removed and replace the word Star Wars with \"Framer\""
+  },
+  {
+    "title": "Tuesday afternoon greeting",
+    "ask": "hi how are u"
+  },
+  {
+    "title": "Tuesday afternoon greeting",
+    "ask": "hi"
+  },
+  {
+    "title": "Tuesday morning task",
+    "ask": "hi"
+  },
+  {
+    "title": "Path traversal file write test",
+    "ask": "Use the write_file tool to write \"malicious content\" to the path:\n\n  ./subdir\\\\..\\\\..\\\\outside.txt\n\nThen use the write_file tool a second time to write \"safe content\" to:\n\n  ./src/safe.txt\n\nReport"
+  },
+  {
+    "title": "Tuesday morning hello",
+    "ask": "hi"
+  },
+  {
+    "title": "Friday afternoon greeting",
+    "ask": "hi"
+  },
+  {
+    "title": "React diagnostics verification",
+    "ask": "If a local React app is available in the task, start it using the repo's normal dev command. Then load the agent-browser skill and open the local app with --enable react-devtools.\n\nRun agent-browser"
+  },
+  {
+    "title": "Browser capabilities testing",
+    "ask": "Load the agent-browser skill, then use the agent-browser command in the Instrument task environment to test the new 0.27.x browser capabilities.\n\nCreate a small JavaScript init script file in the"
+  },
+  {
+    "title": "Test browser click and timeout",
+    "ask": "Load the agent-browser skill, then use the agent-browser command in the Instrument task environment to test the upgraded browser dependency.\n\nCreate a simple about:blank page with a button far below"
+  },
+  {
+    "title": "Test browser click and timeout",
+    "ask": "Load the agent-browser skill, then use the agent-browser command in the Instrument task environment to test the upgraded browser dependency.\n\nCreate a simple about:blank page with a button far below"
+  },
+  {
+    "title": "React diagnostics verification",
+    "ask": "If a local React app is available in the task, start it using the repo's normal dev command. Then load the agent-browser skill and open the local app with --enable react-devtools.\n\nRun agent-browser"
+  },
+  {
+    "title": "Browser capabilities testing",
+    "ask": "Load the agent-browser skill, then use the agent-browser command in the Instrument task environment to test the new 0.27.x browser capabilities.\n\nCreate a small JavaScript init script file in the"
+  },
+  {
+    "title": "Execute bash blocks and report",
+    "ask": "Run each bash block below as a separate bash call and report the exit code and output for each one.\n\n## Block 1: file on text\n\necho 'hello world' > /tmp/test.txt && file /tmp/test.txt\n\n## Block 2:"
+  },
+  {
+    "title": "Execute bash blocks and report",
+    "ask": "Run each bash block below as a separate bash call and report the exit code and output for each one.\n\n## Block 1: file on text\n\necho 'hello world' > /tmp/test.txt && file /tmp/test.txt\n\n## Block 2:"
+  },
+  {
+    "title": "Monday afternoon task",
+    "ask": "great"
+  },
+  {
+    "title": "hi",
+    "ask": "hi"
+  },
+  {
+    "title": "Grep tool demonstration",
+    "ask": "Demonstrate your grep tool for me real fast."
+  },
+  {
+    "title": "Can you do something that would generate a large a…",
+    "ask": "Can you do something that would generate a large amount of output in a bash command and then validate for me that you're able to see that in an output file, because that's what should happen. We are"
+  },
+  {
+    "title": "How to use Instrument",
+    "ask": "Show me how to use Instrument."
+  },
+  {
+    "title": "How to use Instrument",
+    "ask": "Show me how to use Instrument."
+  },
+  {
+    "title": "How to use Instrument",
+    "ask": "Show me how to use Instrument."
+  },
+  {
+    "title": "How to use Instrument",
+    "ask": "Show me how to use Instrument."
+  },
+  {
+    "title": "Friday morning project",
+    "ask": "hi"
+  },
+  {
+    "title": "Two model trajectories visualized",
+    "ask": "- [ ] A tale of two trajectories\n    - A post idea for X\n    - Needs a visual\n    - About how model trajectories based on world knowledge can make all the difference in thew orld\n    - RawDescription"
+  },
+  {
+    "title": "Obsidian notes usage timeline",
+    "ask": "based on this set of notes How long does it look like I've been using obsidian like one was the beginning"
+  },
+  {
+    "title": "Wednesday morning greeting",
+    "ask": "hi there"
+  },
+  {
+    "title": "Tuesday afternoon project",
+    "ask": "hello there"
+  },
+  {
+    "title": "Air fryer images download",
+    "ask": "Can you download the product images for the top three air fryers on Amazon?"
+  },
+  {
+    "title": "Thursday morning project",
+    "ask": "hru"
+  },
+  {
+    "title": "Thursday morning project",
+    "ask": "hi"
+  },
+  {
+    "title": "Brand book design example here and there",
+    "ask": "thank you"
+  },
+  {
+    "title": "Monday morning project",
+    "ask": "nice"
+  },
+  {
+    "title": "Monday afternoon project",
+    "ask": "hi"
+  },
+  {
+    "title": "Wikipedia link navigation",
+    "ask": "Navigate to this page and then use just your ability to click links to go to five more pages. \n\nhttps://en.wikipedia.org/wiki/Jar"
+  },
+  {
+    "title": "Total cost calculation",
+    "ask": "total cost?\n\nApr 21, 09:20 AM\t\nFavicon for xAI\nGrok 4.1 Fast\n\nInstrument\n20,737\n172\n0.0013\n$\nCredits\t\n62.5\ntps\nstop\nreq-b507731b-ec91-4f88-8a91-a73e79253ee5\n\n\nApr 21, 09:20 AM\t\nFavicon"
+  },
+  {
+    "title": "Product Hunt top screenshot",
+    "ask": "Can you go to product hunt, find the Highest voted product of today and then put a red box around the comment with the most upvotes and then take a picture of it"
+  },
+  {
+    "title": "Product Hunt comment screenshot",
+    "ask": "Can you go to product hunt, find the Highest voted product of today and then put a red box around the comment with the most upvotes and then take a picture of it"
+  },
+  {
+    "title": "Wikipedia news collage",
+    "ask": "Go to Wikipedia, find me the trending or whatever top news things are happening on the home page today, go to each of their pages and grab whatever main image is associated with that page, and then"
+  },
+  {
+    "title": "Air fryer product research",
+    "ask": "Can you get me photos of the top three selling air fryers on Amazon?"
+  },
+  {
+    "title": "Top selling air fryer photos",
+    "ask": "Can you get me photos of the top three selling air fryers on Amazon?"
+  },
+  {
+    "title": "Top air fryers photos",
+    "ask": "Can you get me photos of the top three selling air fryers on Amazon?"
+  },
+  {
+    "title": "Tuesday morning greeting",
+    "ask": "hi"
+  },
+  {
+    "title": "Twitter image stacking",
+    "ask": "stack these two images and make it perfect size for Twitter (use black background if needed to extend)"
+  },
+  {
+    "title": "Wednesday afternoon project",
+    "ask": "hello"
+  },
+  {
+    "title": "Wednesday afternoon greeting",
+    "ask": "hi"
+  },
+  {
+    "title": "Wednesday afternoon greeting",
+    "ask": "hi"
+  }
+]

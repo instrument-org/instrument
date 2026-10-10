@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 
 import { zoomAtom } from "@/client/atoms/zoom";
+import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { useAtomValue } from "jotai";
 
 /**
@@ -83,5 +84,21 @@ const VIEWPORT_GUTTER = "2rem";
 export function zoomMaxSize(axis: "height" | "width", intrinsic?: string) {
   const viewport = axis === "width" ? "100vw" : "100vh";
   const windowCeiling = `calc((${viewport} - ${VIEWPORT_GUTTER}) / var(--content-zoom))`;
+  return intrinsic ? `min(${intrinsic}, ${windowCeiling})` : windowCeiling;
+}
+
+/**
+ * {@link zoomMaxSize} for a dialog: the window ceiling keeps a toolbar band's
+ * depth clear on every side rather than a fixed on-screen gutter, so a dialog
+ * that runs out of window stops below the band (and the macOS traffic lights
+ * over it) and keeps the same edge on the other three sides. The inset is
+ * layout px, so it scales with the band it mirrors at every zoom.
+ *
+ * Pair `intrinsic` with an `h-full` class for a dialog that should grow with
+ * the window up to that size, rather than sizing itself to its content.
+ */
+export function dialogMaxSize(axis: "height" | "width", intrinsic?: string) {
+  const viewport = axis === "width" ? "100vw" : "100vh";
+  const windowCeiling = `calc(${viewport} / var(--content-zoom) - ${2 * TOOLBAR_HEIGHT}px)`;
   return intrinsic ? `min(${intrinsic}, ${windowCeiling})` : windowCeiling;
 }

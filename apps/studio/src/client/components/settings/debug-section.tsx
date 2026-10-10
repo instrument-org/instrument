@@ -1,4 +1,5 @@
 import { isLinux } from "@/client/lib/utils";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -16,7 +17,7 @@ function SafeStorage() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" {...settingAnchor("secure-storage")}>
       <div>
         <h3 className="text-base font-semibold">Secure storage</h3>
       </div>

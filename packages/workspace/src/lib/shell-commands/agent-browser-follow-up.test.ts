@@ -8,23 +8,16 @@ import {
 } from "./agent-browser-follow-up";
 
 // Recorded from agent-browser 0.38.1 (`snapshot -i --delta`) against a local
-// fixture page, with the origin shortened.
-const START =
-  "--- AGENT_BROWSER_PAGE_CONTENT nonce=469ca6aabe5e4dfc5d0cd502feceeb4f origin=file:///task/work/big.html ---";
-const END =
-  "--- END_AGENT_BROWSER_PAGE_CONTENT nonce=469ca6aabe5e4dfc5d0cd502feceeb4f ---";
+// fixture page.
 const FULL = [
-  START,
   '- heading "Form" [level=1, ref=e1]',
   '- button "Add" [ref=e2]',
   '- link "Next page" [ref=e4]',
   '- checkbox "Agree" [checked=false, ref=e5]',
-  END,
   "",
 ].join("\n");
 const UNCHANGED = "unchanged (revision 7)\n";
-const DELTA = `${START}
-{
+const DELTA = `{
   "baseRevision": 8,
   "changes": [
     {
@@ -50,7 +43,6 @@ const DELTA = `${START}
     "startLine": 2
   }
 }
-${END}
 `;
 
 describe("pageEffect", () => {
@@ -164,10 +156,8 @@ describe("parseFollowUpSnapshot", () => {
 
   it("keeps a delta's tree lines and removed refs", () => {
     expect(parseFollowUpSnapshot(DELTA, "click")?.text).toMatchInlineSnapshot(`
-      "--- AGENT_BROWSER_PAGE_CONTENT nonce=469ca6aabe5e4dfc5d0cd502feceeb4f origin=file:///task/work/big.html ---
-      - button "Confirm" [ref=e50]
-      --- END_AGENT_BROWSER_PAGE_CONTENT nonce=469ca6aabe5e4dfc5d0cd502feceeb4f ---
-      No longer on the page: @e8"
+      "No longer on the page: @e8
+      - button "Confirm" [ref=e50]"
     `);
   });
 
@@ -176,23 +166,14 @@ describe("parseFollowUpSnapshot", () => {
       { length: 500 },
       (_, index) => `- link "Item ${index}" [ref=e${index + 10}]`,
     );
-    const parsed = parseFollowUpSnapshot(
-      [START, ...lines, END].join("\n"),
-      "open",
-    );
+    const parsed = parseFollowUpSnapshot(lines.join("\n"), "open");
     expect(parsed?.omittedLines).toBeGreaterThan(0);
-    expect(parsed?.text.length).toBeLessThan(
-      10_000 + START.length + END.length + 2,
-    );
-    expect(parsed?.text.endsWith(END)).toBe(true);
+    expect(parsed?.text.length).toBeLessThan(10_000);
   });
 
   it("attaches nothing for a page with no controls", () => {
     expect(
-      parseFollowUpSnapshot(
-        `${START}\n(no interactive elements)\n${END}\n`,
-        "click",
-      ),
+      parseFollowUpSnapshot("(no interactive elements)\n", "click"),
     ).toBeUndefined();
   });
 
@@ -217,12 +198,10 @@ describe("pageAfterText", () => {
   it("renders a full snapshot", () => {
     expect(rendered(FULL, "open")).toMatchInlineSnapshot(`
       "Page after \`open\` (\`agent-browser snapshot -i --delta\`, run for you). Act on these refs directly instead of taking another snapshot; run one only for what this leaves out (\`snapshot -i --urls\` for link addresses).
-      --- AGENT_BROWSER_PAGE_CONTENT nonce=469ca6aabe5e4dfc5d0cd502feceeb4f origin=file:///task/work/big.html ---
       - heading "Form" [level=1, ref=e1]
       - button "Add" [ref=e2]
       - link "Next page" [ref=e4]
-      - checkbox "Agree" [checked=false, ref=e5]
-      --- END_AGENT_BROWSER_PAGE_CONTENT nonce=469ca6aabe5e4dfc5d0cd502feceeb4f ---"
+      - checkbox "Agree" [checked=false, ref=e5]"
     `);
   });
 
@@ -235,10 +214,8 @@ describe("pageAfterText", () => {
   it("renders a delta", () => {
     expect(rendered(DELTA, "click")).toMatchInlineSnapshot(`
       "Page after \`click\` (\`agent-browser snapshot -i --delta\`, run for you): only what changed since the page's last snapshot is below, and every other element and ref is as it was. If you no longer have that snapshot, run \`agent-browser snapshot -i\`.
-      --- AGENT_BROWSER_PAGE_CONTENT nonce=469ca6aabe5e4dfc5d0cd502feceeb4f origin=file:///task/work/big.html ---
-      - button "Confirm" [ref=e50]
-      --- END_AGENT_BROWSER_PAGE_CONTENT nonce=469ca6aabe5e4dfc5d0cd502feceeb4f ---
-      No longer on the page: @e8"
+      No longer on the page: @e8
+      - button "Confirm" [ref=e50]"
     `);
   });
 });

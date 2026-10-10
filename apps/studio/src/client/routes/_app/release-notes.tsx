@@ -61,7 +61,7 @@ function RouteComponent() {
   const currentVersion = appVersionQuery.data?.version;
 
   return (
-    <div className="h-full overflow-y-auto scroll-fade-y">
+    <div className="h-full overflow-y-auto scroll-fade-y select-text">
       <div className="mx-auto w-full max-w-3xl flex-1">
         <div className="px-4 pt-10 @xl/app-content:px-6 @5xl/app-content:px-8 @5xl/app-content:pt-20 @5xl/app-content:pb-4">
           <div className="flex flex-col items-center gap-y-5 text-center">

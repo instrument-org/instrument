@@ -19,10 +19,12 @@ const PARTIAL_GRAPH = "graph TD\n  A[Star";
 // valid ends up.
 const BROKEN_GRAPH = "graph TD\n  A --> ((((";
 
+// The window is unselectable and a transcript turns selection back on, so the
+// diagram is drawn inside one the way a reply's diagram is.
 async function renderDiagram(code: string) {
   const screen = await renderInBrowser(
     <ThemeProvider>
-      <div style={{ width: 600 }}>
+      <div data-transcript style={{ width: 600 }}>
         <MermaidDiagram code={code} language="mermaid" />
       </div>
     </ThemeProvider>,

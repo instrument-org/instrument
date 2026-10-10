@@ -367,6 +367,8 @@ export const workspaceMachine = setup({
       captureException: CaptureExceptionFunction;
       defaultTaskTemplateDir: string;
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
+      finderEntries?: WorkspaceConfig["finderEntries"];
+      resolveAlias?: WorkspaceConfig["resolveAlias"];
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
       indexesDir?: string;
@@ -383,6 +385,7 @@ export const workspaceMachine = setup({
       uvBinPath: string;
       uvDataDir: string;
       macHelperBinPath?: string;
+      knownFolders?: WorkspaceConfig["knownFolders"];
       webSearch: WebSearchClient;
     },
     output: {},
@@ -403,8 +406,11 @@ export const workspaceMachine = setup({
       ...(input.ensureOutputFolderIcon
         ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }
         : {}),
+      ...(input.finderEntries ? { finderEntries: input.finderEntries } : {}),
+      ...(input.resolveAlias ? { resolveAlias: input.resolveAlias } : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
+      ...(input.knownFolders ? { knownFolders: input.knownFolders } : {}),
       ...(input.indexesDir && {
         indexesDir: AbsolutePathSchema.parse(input.indexesDir),
       }),

@@ -227,7 +227,7 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
-  it("replays persisted bounded tool output byte for byte", async () => {
+  it("replays persisted tool output byte for byte", async () => {
     const { sessionId } = baseMetadata();
     const messageId = StoreId.newMessageId();
     const toolCallId = StoreId.ToolCallSchema.parse("call_search_replay");
@@ -289,7 +289,6 @@ describe("SessionMessage.toModelMessages", () => {
     );
 
     expect(replay).toEqual(first);
-    expect(JSON.stringify(first)).toMatch(/nonce=[0-9a-f]{32}/);
   });
 
   it("injects browser status on a user message", async () => {
@@ -1156,5 +1155,44 @@ describe("SessionMessage.toModelMessages", () => {
         },
       ]
     `);
+  });
+});
+
+// A provider renamed or removed since a turn ran left that turn's model record
+// unparsable, and failing it failed the read of the whole session.
+describe("SessionMessage.Schema", () => {
+  it("reads a past turn whose model names a provider this build does not know", () => {
+    const { messageId, sessionId } = baseMetadata();
+    const model = {
+      author: "openai",
+      canonicalId: "gpt-5.6-sol",
+      features: [],
+      name: "GPT-5.6 Sol",
+      params: { provider: "retired-provider", providerConfigId: "gone" },
+      providerId: "gpt-5.6-sol",
+      providerName: "Retired",
+      tags: [],
+      uri: "openai/gpt-5.6-sol?provider=retired-provider&providerConfigId=gone",
+    };
+
+    const message = SessionMessage.Schema.parse({
+      id: messageId,
+      metadata: {
+        aiGatewayModel: model,
+        aiGatewayModelServed: model,
+        createdAt: mockDate,
+        modelId: "gpt-5.6-sol",
+        providerId: "retired-provider",
+        realRole: "assistant",
+        sessionId,
+      },
+      role: "assistant",
+    });
+
+    expect(message.metadata).toMatchObject({
+      aiGatewayModel: undefined,
+      aiGatewayModelServed: undefined,
+      modelId: "gpt-5.6-sol",
+    });
   });
 });

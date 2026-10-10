@@ -27,6 +27,8 @@ Only `installed` is enrolled. It validates the installed packaged product, uses 
 
 There is no `dev` target: enrolling one needs a checkout and a Node toolchain on the host, neither of which a bare desktop install has. The profile schema leaves room for it, and the enrollment reference describes the shape.
 
+A preview build is how to test a branch's packaged app without touching the installed one. `gh workflow run preview.yml --ref <branch> -f os=linux` (or `all`) builds both architectures, and `gh api repos/instrument-org/instrument/actions/artifacts/<id>/zip > preview.tar.gz` fetches one as the file itself (the run's `artifacts` endpoint lists ids); `gh run download` fails on it, since it expects every artifact to be a zip. Take the `tar.gz` matching the host, since the AppImage needs FUSE. Unpacked, it runs as `instrument-preview-<name>` with its own user data, and `window.__studioDrive` is attached, so route helpers work. No `preview` target is enrolled yet: start it the way [references/host-enrollment.md](references/host-enrollment.md) starts the installed app, with the preview's executable and a CDP port of its own. Every build is a first launch, since the run number is part of its name; for another first launch, build again.
+
 ## Establish source identity
 
 Run status before every test and report the version it returns:

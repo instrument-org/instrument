@@ -24,6 +24,7 @@ import {
   AccordionTrigger,
 } from "../ui/accordion";
 import { Alert, AlertDescription } from "../ui/alert";
+import { ConnectOpenRouter } from "./connect-openrouter";
 import { ProviderLinks } from "./provider-links";
 
 type AddProviderAction =
@@ -82,6 +83,9 @@ export function AddProviderForm({
   const [advancedOpen, setAdvancedOpen] = useState<string | undefined>(
     undefined,
   );
+  // A provider that can connect in the browser leads with that, and its key
+  // field waits behind "Paste a key instead".
+  const [pasteKey, setPasteKey] = useState(false);
 
   const createMutation = useMutation(
     rpcClient.providerConfig.create.mutationOptions(),
@@ -97,6 +101,9 @@ export function AddProviderForm({
   const isSecondProviderOfSameType = state.selectedProviderType
     ? providers.some((p) => p.type === state.selectedProviderType)
     : false;
+
+  const canConnect = state.selectedProviderType === "openrouter";
+  const showKeyField = !canConnect || pasteKey;
 
   const hasSelectedProvider = state.selectedProviderType !== undefined;
   const hasAPIKey = !requiresAPIKey || Boolean(state.apiKey.trim());
@@ -182,20 +189,29 @@ export function AddProviderForm({
         type: "SELECT_PROVIDER",
       });
 
-      if (hasExistingProvider && providerType !== "openai-compatible") {
-        setAdvancedOpen("advanced");
-      } else {
-        setAdvancedOpen(undefined);
-      }
+      setAdvancedOpen(undefined);
+      setPasteKey(false);
 
       setTimeout(() => {
-        if (shouldSetDefaultDisplayName) {
-          apiKeyInputRef.current?.focus();
-        } else {
+        if (!shouldSetDefaultDisplayName) {
           displayNameInputRef.current?.focus();
+        } else if (providerType !== "openrouter") {
+          apiKeyInputRef.current?.focus();
         }
       }, 0);
     }
+  };
+
+  // The base URL to save: only one the user changed, so a config follows the
+  // default when it moves.
+  const customBaseURL = () => {
+    if (!state.baseURL.trim()) {
+      return undefined;
+    }
+    const normalizedBaseURL = fixURL(state.baseURL);
+    return normalizedBaseURL === providerMetadata?.api.defaultBaseURL
+      ? undefined
+      : normalizedBaseURL;
   };
 
   const handleSave = async (skipValidation = false) => {
@@ -302,19 +318,65 @@ export function AddProviderForm({
               </>
             )}
 
+            {isSecondProviderOfSameType &&
+              !isOpenAICompatible &&
+              renderDisplayNameField(
+                `Name this one so you can tell your ${providerMetadata.name} accounts apart.`,
+              )}
+
             {requiresAPIKey ? (
               <>
                 <div className="flex flex-col gap-y-1">
                   <Label htmlFor="api-key">API Key</Label>
                   {!isOpenAICompatible && (
                     <ProviderLinks
-                      keyURL={providerMetadata.api.keyURL}
+                      keyURL={
+                        canConnect ? undefined : providerMetadata.api.keyURL
+                      }
                       name={providerMetadata.name}
                       url={providerMetadata.url}
                     />
                   )}
                 </div>
 
+                {canConnect && (
+                  <ConnectOpenRouter
+                    baseURL={customBaseURL()}
+                    displayName={state.displayName.trim() || undefined}
+                    onConnected={onSuccess}
+                    onFailed={(message) => {
+                      dispatch({
+                        allowBypass: false,
+                        message,
+                        type: "SET_ERROR",
+                        validationFailed: false,
+                      });
+                    }}
+                  />
+                )}
+
+                {!showKeyField && (
+                  <button
+                    className="self-center text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    onClick={() => {
+                      setPasteKey(true);
+                      setTimeout(() => apiKeyInputRef.current?.focus(), 0);
+                    }}
+                    type="button"
+                  >
+                    Paste a key instead
+                  </button>
+                )}
+              </>
+            ) : (
+              <ProviderLinks
+                name={providerMetadata.name}
+                url={providerMetadata.url}
+              />
+            )}
+
+            {requiresAPIKey && showKeyField && (
+              <>
                 <Input
                   className="font-mono"
                   id="api-key"
@@ -335,11 +397,6 @@ export function AddProviderForm({
                   </p>
                 </div>
               </>
-            ) : (
-              <ProviderLinks
-                name={providerMetadata.name}
-                url={providerMetadata.url}
-              />
             )}
 
             {!isOpenAICompatible && (
@@ -358,11 +415,10 @@ export function AddProviderForm({
                   </AccordionTrigger>
                   <AccordionContent>
                     <div className="flex flex-col gap-y-3">
-                      {renderDisplayNameField(
-                        isSecondProviderOfSameType
-                          ? "Custom name to distinguish this provider from others of the same type"
-                          : "Custom name to identify this provider",
-                      )}
+                      {!isSecondProviderOfSameType &&
+                        renderDisplayNameField(
+                          "Custom name to identify this provider",
+                        )}
                       {renderBaseURLField({
                         description: (
                           <>
@@ -425,13 +481,15 @@ export function AddProviderForm({
             Back
           </Button>
         )}
-        <Button
-          disabled={saving || !isFormValid}
-          type="submit"
-          variant="default"
-        >
-          {saving ? "Saving..." : submitLabel}
-        </Button>
+        {showKeyField && (
+          <Button
+            disabled={saving || !isFormValid}
+            type="submit"
+            variant="default"
+          >
+            {saving ? "Saving..." : submitLabel}
+          </Button>
+        )}
       </div>
     </form>
   );

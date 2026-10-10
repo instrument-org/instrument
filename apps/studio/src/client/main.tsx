@@ -6,7 +6,6 @@ import ReactDOM, { type Root } from "react-dom/client";
 import { App } from "./app";
 import { FileSystemIconSpriteSheet } from "./components/extend/file-system";
 import { AppWindow } from "./components/window/app-window";
-import { initBrowserDownloadNotices } from "./lib/browser-download-notices";
 import { initBrowserNavigationNotices } from "./lib/browser-navigation-notices";
 import { initBrowserPool } from "./lib/browser-pool";
 import {
@@ -90,7 +89,6 @@ async function start() {
     // commands for the lifetime of the renderer: every browser guest is
     // mounted here.
     initBrowserPool();
-    initBrowserDownloadNotices();
     initBrowserNavigationNotices();
     // The window's tabs, for driving scripts.
     initStudioDrive();

@@ -27,7 +27,7 @@ import {
   MenubarSubTrigger,
 } from "@/client/components/ui/menubar";
 import { Spinner } from "@/client/components/ui/spinner";
-import { TOPIC_COLORS } from "@/client/components/window/topic-colors";
+import { WORKSPACE_COLOR_HEX } from "@/client/components/window/app-identity-chip";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { formatBytes } from "@instrument-org/workspace/client";
@@ -44,22 +44,6 @@ import { toast } from "sonner";
 
 type WorkspaceColor = RPCOutput["workspaces"]["current"]["color"];
 type WorkspaceRow = RPCOutput["workspaces"]["list"]["workspaces"][number];
-
-/**
- * Each workspace color as the deep tier of the topic palette, so a workspace
- * reads in the same hues the app already uses to tell things apart. Hex rather
- * than utility classes: the app's theme defines no hue scales beyond its own.
- */
-export const WORKSPACE_COLOR_HEX: Record<WorkspaceColor, string> = {
-  blue: TOPIC_COLORS[13] ?? "#007fc3",
-  gray: "var(--color-gray-400)",
-  green: TOPIC_COLORS[11] ?? "#218b30",
-  orange: TOPIC_COLORS[9] ?? "#b85300",
-  pink: TOPIC_COLORS[15] ?? "#b2468a",
-  purple: TOPIC_COLORS[14] ?? "#765fca",
-  red: TOPIC_COLORS[8] ?? "#c0434c",
-  teal: TOPIC_COLORS[12] ?? "#009178",
-};
 
 const COLORS = Object.keys(WORKSPACE_COLOR_HEX) as WorkspaceColor[];
 

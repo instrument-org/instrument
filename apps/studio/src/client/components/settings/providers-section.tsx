@@ -1,4 +1,5 @@
 import { openLogin } from "@/client/atoms/login-modal";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
 import { AddProviderDialog } from "@/client/components/add-provider/dialog";
 import { AIProviderEditDialog } from "@/client/components/ai-provider-edit-dialog";
@@ -34,7 +35,10 @@ export function ProvidersSection({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-6">
-      <div className="flex shrink-0 items-center justify-between">
+      <div
+        className="flex shrink-0 items-center justify-between"
+        {...settingAnchor("add-provider")}
+      >
         <h3 className="text-sm font-medium text-muted-foreground">
           AI providers
         </h3>

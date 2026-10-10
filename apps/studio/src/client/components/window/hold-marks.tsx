@@ -101,10 +101,17 @@ export function HoldMarks({
       };
     }),
     // A site with no icon anywhere is left out rather than drawn as a globe:
-    // a row of globes says nothing about which sites the chat reached.
+    // a row of globes says nothing about which sites the chat reached. So is
+    // a site of an app the chat holds, which the app's mark already stands for.
     ...holds.sites
       .toReversed()
       .filter((site) => !iconless.has(iconHostOf(addressOf(site))))
+      .filter(
+        (site) =>
+          !holds.apps.some((slug) =>
+            isSiteOf(hostOf(site), appsBySlug.get(slug)),
+          ),
+      )
       .map((site) => ({
         icon: <Favicon className="size-4" url={addressOf(site)} />,
         key: `site:${site}`,
@@ -143,9 +150,11 @@ export function HoldMarks({
         className,
       )}
       data-slot="holds"
+      // A right click is left to reach the row: a mark that opens something
+      // raises its own menu and refuses the event, so the row's menu answers
+      // only over a bare mark and the empty line past the marks.
       onAuxClick={stopHere}
       onClick={stopHere}
-      onContextMenu={stopHere}
       onKeyDown={stopHere}
     >
       {marked.map((item) =>
@@ -243,6 +252,25 @@ function addressOf(site: string) {
 /** A site as its name alone: the host, with the address's machinery left off. */
 function hostOf(site: string) {
   return URL.canParse(site) ? new URL(site).host : site;
+}
+
+/**
+ * Whether a host is the app's own site: its domain or a subdomain of it, or
+ * the host of its web app, which can sit under another domain (Gmail's at
+ * mail.google.com). Matching below the app's domain alone keeps docs.google.com
+ * out of Google Calendar. An app that runs on this computer owns no site, even
+ * where the directory names its maker's.
+ */
+function isSiteOf(host: string, app: ReturnType<AppsBySlug["get"]>) {
+  if (!app || app.local || !app.site) {
+    return false;
+  }
+  const domain = hostOf(app.site);
+  return (
+    host === domain ||
+    host.endsWith(`.${domain}`) ||
+    (app.home !== undefined && host === hostOf(app.home))
+  );
 }
 
 /** Keeps a mark's gesture from reaching the row it sits on, which would open the chat as well. */

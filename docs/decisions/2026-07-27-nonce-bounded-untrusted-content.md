@@ -2,6 +2,8 @@
 
 Date: 2026-07-27
 
+Superseded by [Outside content arrives last and unmarked](2026-10-09-outside-content-arrives-last-and-unmarked.md) (2026-10-09). The boundaries described here are gone.
+
 ## Context
 
 `load_skill` inlined a skill's SKILL.md body between a fixed pair of tags:

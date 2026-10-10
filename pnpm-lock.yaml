@@ -76,7 +76,7 @@ overrides:
 patchedDependencies:
   '@parcel/watcher@2.6.0': 70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b
   conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
-  just-bash@3.6.0: e8bfd0c1a9c7d3691b6c904e95cda61b750066230e11480459bce6f07339cdbe
+  just-bash@3.6.0: f1bd45dbbce69ce18d345eac0cc4878a4ccae8c00ca9a5b047d227a30c1f44d7
   micromark-extension-gfm-table@2.1.1: df69698554d58e36e0cb8741ec0b37585066f12ddd4396b11511eb2e3d2e9d8e
   sonner@2.0.7: 818c476ad2cc99c02030f98fa6a5bfe80737406b81613aeb90e545efb7e4ecdf
 
@@ -86,7 +86,7 @@ importers:
     devDependencies:
       '@instrument-org/agent-hooks':
         specifier: github:instrument-org/agent-hooks
-        version: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/56e5020a97a542b17bf807eff32830a2b2a7fa43
+        version: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/fae5ed21e83993b1651d628f98975dda5072acd0
       '@instrument-org/typescript-config':
         specifier: workspace:*
         version: link:packages/typescript-config
@@ -812,6 +812,9 @@ importers:
       '@ai-sdk/groq':
         specifier: ^4.0.50
         version: 4.0.50(zod@4.6.5)
+      '@ai-sdk/minimax':
+        specifier: ^3.0.42
+        version: 3.0.42(zod@4.6.5)
       '@ai-sdk/mistral':
         specifier: ^4.0.52
         version: 4.0.52(zod@4.6.5)
@@ -821,15 +824,15 @@ importers:
       '@ai-sdk/openai-compatible':
         specifier: ^3.0.57
         version: 3.0.57(zod@4.6.5)
-      '@ai-sdk/perplexity':
-        specifier: ^4.0.52
-        version: 4.0.52(zod@4.6.5)
       '@ai-sdk/togetherai':
         specifier: ^3.0.58
         version: 3.0.58(zod@4.6.5)
       '@ai-sdk/xai':
         specifier: ^5.0.10
         version: 5.0.10(zod@4.6.5)
+      '@ai-sdk/zai':
+        specifier: ^3.0.19
+        version: 3.0.19(zod@4.6.5)
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.285
         version: 0.3.285(@anthropic-ai/sdk@0.129.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.30.0(supports-color@10.1.0)(zod@4.6.5))(zod@4.6.5)
@@ -977,7 +980,7 @@ importers:
         version: 6.0.0
       just-bash:
         specifier: ^3.6.0
-        version: 3.6.0(patch_hash=e8bfd0c1a9c7d3691b6c904e95cda61b750066230e11480459bce6f07339cdbe)(supports-color@10.1.0)
+        version: 3.6.0(patch_hash=f1bd45dbbce69ce18d345eac0cc4878a4ccae8c00ca9a5b047d227a30c1f44d7)(supports-color@10.1.0)
       lru-cache:
         specifier: ^11.5.2
         version: 11.5.2
@@ -1151,6 +1154,12 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
+  '@ai-sdk/minimax@3.0.42':
+    resolution: {integrity: sha512-oAG5dkCQhEXcQgwg/45mUJVcotIhyG3m+MErV+/xV6xmAQJbgHt5E4DziL+ccd95uDee/GdN81vL/0dvoHe9Jw==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
   '@ai-sdk/mistral@4.0.52':
     resolution: {integrity: sha512-ytqGhPHulDQA+NzDYCsulKFuB1xPo63XcWx+jGuAK7MK98mp8wBF+SddHK/UXa5hv+4CBJMmGgJHWZemzRs/HQ==}
     engines: {node: '>=22'}
@@ -1165,12 +1174,6 @@ packages:
 
   '@ai-sdk/openai@4.0.78':
     resolution: {integrity: sha512-S9WLSZUqebRjZbwYM8uorb4fsjo4Lhz/PGA3rWl01x88WeF/1PdHtNckcxqNZy5xMRzCHPVv9iA3F+ckV74zfA==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/perplexity@4.0.52':
-    resolution: {integrity: sha512-JLKkSDnDH9jVKs6OfXFSXwx192qJHCWzZrjjomfXjdrV4o4inHX/NHwxJ+L/G3aZX99zJfQlSL0tmw3F4qUAMg==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -1193,6 +1196,12 @@ packages:
 
   '@ai-sdk/xai@5.0.10':
     resolution: {integrity: sha512-fSZtjtoQPa6VR6a30WNGagbfIECWTJA1I5dJCovYOC/JDZqibpBNCkvjnxd2YaWJy0Ozzq52rWCS+D1sY3M/uQ==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/zai@3.0.19':
+    resolution: {integrity: sha512-ENyCb1NIneTvxEd6qObgz3SxIIzYJL3RPBG+TmSJdQidCkWcsgKwOCC7NvjilNd0bTTSK02AqN8wCC8/WIW2sw==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -2234,9 +2243,9 @@ packages:
       '@types/node':
         optional: true
 
-  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/56e5020a97a542b17bf807eff32830a2b2a7fa43':
-    resolution: {gitHosted: true, integrity: sha512-8B5CbNxNd843Qq5naHZYOsWiI57ibVqXkG2IoOHXm6bThMPiDwc60vvhuWlTgDl1LbsyixrIGQY0xoCS/XqgjA==, tarball: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/56e5020a97a542b17bf807eff32830a2b2a7fa43}
-    version: 1.4.1
+  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/fae5ed21e83993b1651d628f98975dda5072acd0':
+    resolution: {gitHosted: true, integrity: sha512-ZS8hAKWNAlX3k6WVFyYhHaOPI8PWQ8drauTTbsBLihTpJHSNL2qwKYeZvqyw4+UlnALD96Jt0W4CP4z22WT/MA==, tarball: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/fae5ed21e83993b1651d628f98975dda5072acd0}
+    version: 1.5.0
     engines: {node: '>=22'}
 
   '@internationalized/number@3.6.8':
@@ -9747,6 +9756,13 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.49(zod@4.6.5)
       zod: 4.6.5
 
+  '@ai-sdk/minimax@3.0.42(zod@4.6.5)':
+    dependencies:
+      '@ai-sdk/anthropic': 4.0.65(zod@4.6.5)
+      '@ai-sdk/provider': 4.0.18
+      '@ai-sdk/provider-utils': 5.0.49(zod@4.6.5)
+      zod: 4.6.5
+
   '@ai-sdk/mistral@4.0.52(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 4.0.18
@@ -9760,12 +9776,6 @@ snapshots:
       zod: 4.6.5
 
   '@ai-sdk/openai@4.0.78(zod@4.6.5)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.18
-      '@ai-sdk/provider-utils': 5.0.49(zod@4.6.5)
-      zod: 4.6.5
-
-  '@ai-sdk/perplexity@4.0.52(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 4.0.18
       '@ai-sdk/provider-utils': 5.0.49(zod@4.6.5)
@@ -9793,6 +9803,13 @@ snapshots:
 
   '@ai-sdk/xai@5.0.10(zod@4.6.5)':
     dependencies:
+      '@ai-sdk/provider': 4.0.18
+      '@ai-sdk/provider-utils': 5.0.49(zod@4.6.5)
+      zod: 4.6.5
+
+  '@ai-sdk/zai@3.0.19(zod@4.6.5)':
+    dependencies:
+      '@ai-sdk/openai-compatible': 3.0.57(zod@4.6.5)
       '@ai-sdk/provider': 4.0.18
       '@ai-sdk/provider-utils': 5.0.49(zod@4.6.5)
       zod: 4.6.5
@@ -10922,7 +10939,7 @@ snapshots:
       '@types/node': 24.13.1
     optional: true
 
-  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/56e5020a97a542b17bf807eff32830a2b2a7fa43': {}
+  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/fae5ed21e83993b1651d628f98975dda5072acd0': {}
 
   '@internationalized/number@3.6.8':
     dependencies:
@@ -15943,7 +15960,7 @@ snapshots:
 
   jsonrepair@3.15.0: {}
 
-  just-bash@3.6.0(patch_hash=e8bfd0c1a9c7d3691b6c904e95cda61b750066230e11480459bce6f07339cdbe)(supports-color@10.1.0):
+  just-bash@3.6.0(patch_hash=f1bd45dbbce69ce18d345eac0cc4878a4ccae8c00ca9a5b047d227a30c1f44d7)(supports-color@10.1.0):
     dependencies:
       diff: 8.0.4
       fast-xml-parser: 5.11.0

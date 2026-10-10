@@ -1,0 +1,22 @@
+[
+  { "text": "jurassic park", "fits": "🦖🦕🌴🦴🦎" },
+  { "text": "pizza night", "fits": "🍕" },
+  { "text": "tax return", "fits": "🧾💰💵📄🏦📑💸🗂" },
+  { "text": "marathon training", "fits": "🏃👟🏅🥇" },
+  { "text": "wedding planning", "fits": "💒💍👰🤵💐💌" },
+  { "text": "home assistant", "fits": "🏠🏡🤖💡" },
+  { "text": "voice notes", "fits": "🎙🎤🗣📝" },
+  { "text": "my bikes", "fits": "🚲🚴🚵" },
+  { "text": "gaming", "fits": "🎮🕹👾" },
+  { "text": "music", "fits": "🎵🎶🎧🎸🎹🎼" },
+  { "text": "vegetable garden", "fits": "🌱🪴🥕🥬🍅🌿🥦" },
+  { "text": "dog training", "fits": "🐕🐶🦮🦴🐩" },
+  { "text": "space exploration", "fits": "🚀🪐🌌🛰🌕🔭" },
+  { "text": "coffee shop reviews", "fits": "☕" },
+  { "text": "baby shower", "fits": "👶🍼🎀🎁🧸" },
+  { "text": "beach vacation", "fits": "🏖🌊🌴☀🩱🐚" },
+  { "text": "bug tasks", "fits": "🐛🐞🪲" },
+  { "text": "workout notes", "fits": "🏋💪" },
+  { "text": "reading list", "fits": "📚📖📕" },
+  { "text": "cooking recipes", "fits": "🍳🥘🍲📖🧑‍🍳👩‍🍳" }
+]

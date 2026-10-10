@@ -1,13 +1,10 @@
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
 import { openSettings, type SettingsTab } from "@/client/atoms/settings-modal";
+import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
-import {
-  APPS_HREF,
-  bookmarksAtom,
-  CHATS_HREF,
-  visitedPagesAtom,
-} from "@/client/atoms/window";
+import { APPS_HREF, bookmarksAtom, CHATS_HREF } from "@/client/atoms/window";
 import { PageFavicon } from "@/client/components/favicon";
+import { useRecentPages } from "@/client/hooks/use-browser-history";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { useTheme } from "@/client/components/theme-provider";
 import {
@@ -23,7 +20,7 @@ import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { byActivity, type Chat } from "@/client/components/window/chats";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { formatAccelerator } from "@/client/lib/format-accelerator";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
@@ -39,6 +36,7 @@ import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { SHORTCUTS, type ShortcutAccelerator } from "@/shared/shortcuts";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import uFuzzy from "@leeoniya/ufuzzy";
+import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CodeIcon } from "@phosphor-icons/react/Code";
@@ -100,12 +98,11 @@ export function CommandMenu({
 }) {
   const [open, setOpen] = useAtom(commandMenuOpenAtom);
   const [search, setSearch] = useState("");
-  useBlockTabNavigation(open);
   const shell = useShell();
   const { setTheme, theme } = useTheme();
   const developerMode = useDeveloperMode();
   const appsBySlug = useAppsBySlug();
-  const visited = useAtomValue(visitedPagesAtom);
+  const visited = useRecentPages();
   const bookmarks = useAtomValue(bookmarksAtom);
 
   const preferences = useQuery(
@@ -131,6 +128,7 @@ export function CommandMenu({
       setSearch("");
     }, 200);
   };
+  useHoldWindow(open, { onClose: close });
   /** A row's action, run once the menu is out of the way. */
   const andClose = (run: () => void) => () => {
     close();
@@ -172,6 +170,12 @@ export function CommandMenu({
       id: "shortcuts",
       label: "Keyboard shortcuts",
       run: openShortcutGuide,
+    },
+    {
+      icon: <BroomIcon />,
+      id: "clear-browsing-data",
+      label: "Clear browsing data",
+      run: openClearBrowsingData,
     },
     ...(
       [
@@ -494,11 +498,6 @@ export function CommandMenu({
         ) : words !== "" && !(isBang && words.length < 3) ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 text-sm text-muted-foreground">
             Nothing matches “{words}”
-            {chatsByMeaning.failed ? (
-              <span className="text-xs">
-                Instrument couldn’t search your chats by meaning right now.
-              </span>
-            ) : null}
           </div>
         ) : null}
       </CommandList>

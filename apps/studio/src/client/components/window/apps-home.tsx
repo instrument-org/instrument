@@ -1,3 +1,4 @@
+import { useDecisionModelAvailable } from "@/client/hooks/use-decision";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -12,9 +13,11 @@ import { useConnectFromDirectory } from "@/client/components/window/use-connect-
 import { GlyphButton } from "@/client/components/window/glyph-button";
 import { PageSection } from "@/client/components/window/page-section";
 import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
+import { useFindTarget } from "@/client/hooks/use-find-target";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { APPS_HREF } from "@/client/atoms/window";
 import {
   APP_CATEGORIES,
   directoryByUse,
@@ -24,16 +27,15 @@ import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useDeferredValue, useState } from "react";
+import { type ReactNode, useDeferredValue, useRef, useState } from "react";
 
 type App = RPCOutput["apps"]["list"]["apps"][number];
 type CatalogEntry = RPCOutput["apps"]["catalog"][number];
 
 /**
- * A search that names this few services by its words, and is this long, is
- * also asked of the decision model for the services it means.
+ * A search this long that names no service by its words is asked of the
+ * decision model for the services it means.
  */
-const MEANING_BELOW_MATCHES = 3;
 const MEANING_MIN_LENGTH = 3;
 
 /** How many tiles hold the directory's place while it is on its way. */
@@ -62,7 +64,12 @@ export function AppsHome({
   /** Whether the services still to connect, and the broken ones to fix, are offered. */
   showsConnect?: boolean;
 }) {
-  const { ask } = useWindow();
+  const { ask, openScreen } = useWindow();
+  // Beside a chat or in a draft there is no search or Connect, so the way to
+  // a new app is the Apps place itself, in a tab of the window's own.
+  const openAppsPlace = () => {
+    openScreen(APPS_HREF, { newTab: true });
+  };
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
   const [query, setQuery] = useState("");
@@ -88,14 +95,18 @@ export function AppsHome({
   // follows under its category, so the whole directory is a scroll away.
   const popular = more.filter((entry) => entry.tier === "featured");
   const rest = more.filter((entry) => entry.tier !== "featured");
-  // A search the words barely answer ("text my mom") also goes to the
-  // decision model, once the typing settles. Its place at the foot of the
-  // results is held from the first key that asks, so what it finds lands
-  // where nothing is to be pressed and moves nothing that is.
+  // A search the words don't answer ("text my mom") goes to the decision
+  // model once the typing settles. Its place at the foot of the results is
+  // held from the first key that asks, so what it finds lands where nothing
+  // is to be pressed and moves nothing that is.
+  // Read once a search is typed, so a workspace no model can answer for
+  // never holds a "Related" place that only empties.
+  const canAskMeaning = useDecisionModelAvailable(showsConnect && typed !== "");
   const asksMeaning =
+    canAskMeaning === true &&
     showsConnect &&
     typed.length >= MEANING_MIN_LENGTH &&
-    matches.length < MEANING_BELOW_MATCHES;
+    matches.length === 0;
   const settled = useDebouncedValue(typed, 300);
   const byMeaning = useQuery(
     rpcClient.apps.catalogByMeaning.queryOptions({
@@ -115,14 +126,13 @@ export function AppsHome({
   };
   const openApp = onOpenApp;
   const { connect } = useConnectFromDirectory();
+  // An app of the workspace's is this service when the directory says it
+  // is, whatever its slug, so a second account set up beside the first
+  // (gmail-2 beside gmail) is the same service.
+  const mineOf = (entry: CatalogEntry) =>
+    own.filter((app) => app.service === entry.slug);
   const tileFor = (entry: CatalogEntry) => {
-    // An app of the workspace's is this service when it has its slug or
-    // its site, which is how a second account set up beside the first
-    // (gmail-work beside gmail) is found as the same service.
-    const mine = own.filter(
-      (app) =>
-        app.slug === entry.slug || app.site === `https://${entry.domain}`,
-    );
+    const mine = mineOf(entry);
     return (
       <CatalogTile
         entry={entry}
@@ -140,9 +150,38 @@ export function AppsHome({
       />
     );
   };
+  // A search lays a service already here out account by account.
+  const searchTileFor = (entry: CatalogEntry) => {
+    const mine = mineOf(entry);
+    return mine.length === 0 ? (
+      tileFor(entry)
+    ) : (
+      <AccountTiles
+        apps={mine}
+        entry={entry}
+        key={entry.slug}
+        onConnectAnother={() => {
+          connect(entry, { another: true });
+        }}
+        onOpen={openApp}
+      />
+    );
+  };
+
+  const searchRef = useRef<HTMLInputElement>(null);
+  useFindTarget({
+    anchor: searchRef,
+    openFind: () => {
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    },
+  });
 
   return (
-    <div className="@container/apps h-full min-h-0 overflow-y-auto">
+    <div
+      className="@container/apps h-full min-h-0 overflow-y-auto"
+      data-find-surface
+    >
       {/* As a page, a centered column and head with room around it. Inside
         a draft, the narrower column the draft's frame allows. */}
       <div
@@ -182,14 +221,21 @@ export function AppsHome({
                   }}
                 />
               ))}
+              {showsConnect ? null : <AddAppMark onOpen={openAppsPlace} />}
             </div>
           </PageSection>
         ) : null}
 
         {!showsConnect && list.data !== undefined && own.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Apps you connect show up here.
-          </p>
+          <div className="flex flex-col items-center gap-3 rounded-2xl bg-black/2 px-6 py-8 text-center dark:bg-white/3">
+            <p className="text-sm text-muted-foreground">
+              Once you connect an app, you can use it from any chat.
+            </p>
+            <Button onClick={openAppsPlace} size="sm" variant="outline">
+              <PlusIcon />
+              Add an app
+            </Button>
+          </div>
         ) : null}
 
         {/* The services still to connect, searchable: the popular ones and
@@ -213,6 +259,7 @@ export function AppsHome({
                 shelf, with the brand's green as its focus. */}
               <input
                 aria-label="Search apps"
+                ref={searchRef}
                 className="h-11 w-full rounded-xl border-0 bg-card pr-4 pl-11 text-[15px] shadow-xs transition-shadow outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-brand-500/30 dark:bg-input/30"
                 onChange={(event) => {
                   setQuery(event.target.value);
@@ -242,7 +289,7 @@ export function AppsHome({
               <div className="space-y-6">
                 {matches.length > 0 ? (
                   <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                    {matches.map(tileFor)}
+                    {matches.map(searchTileFor)}
                   </div>
                 ) : null}
                 {/* A service the words name exactly, listed or already
@@ -264,7 +311,7 @@ export function AppsHome({
                     </h3>
                     {answered ? (
                       <div className="grid animate-in grid-cols-1 gap-3 duration-200 fade-in-0 @xl/apps:grid-cols-2">
-                        {meant.map(tileFor)}
+                        {meant.map(searchTileFor)}
                       </div>
                     ) : (
                       <TileSkeletons count={RELATED_SKELETONS} />
@@ -360,9 +407,31 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
 }
 
 /**
+ * The last of the workspace's marks: a dashed plate with a plus, which opens
+ * the Apps place where a new one is found and connected.
+ */
+function AddAppMark({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50"
+      onClick={onOpen}
+      type="button"
+    >
+      <span className="grid size-16 place-items-center rounded-2xl border border-dashed border-border text-muted-foreground group-hover:text-foreground">
+        <PlusIcon className="size-6" />
+      </span>
+      <span className="w-full truncate text-[13px] leading-4 font-medium text-muted-foreground group-hover:text-foreground">
+        Add app
+      </span>
+    </button>
+  );
+}
+
+/**
  * A service the directory knows, still to connect: its icon, its name and
  * tagline, and the one control that starts connecting it. The tile itself
- * opens the service's page, which says what connecting takes.
+ * opens the service's page, which says what connecting takes. One already
+ * here opens its own page, with connecting another account under its menu.
  */
 function CatalogTile({
   entry,
@@ -382,44 +451,23 @@ function CatalogTile({
   // A service already here opens its own page; one not yet here opens the
   // directory's page for it, which says what connecting takes.
   const target = first ?? entry.slug;
-  const href = `/apps/${target}`;
-  const { onContextMenu, opening } = useOpenGestures({
-    href,
-    kind: "screen",
-  });
   return (
-    // A card, the shadow's hairline as its edge, lifting under the pointer.
-    // 72px tall around a 32px button, so the button sits 20px from the top,
-    // the bottom and the end, the inset the icon keeps at the start.
-    <div className="flex h-18 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs transition-shadow duration-200 hover:shadow-md">
-      <button
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
-        {...opening(() => {
-          onOpen(target);
-        })}
-        onContextMenu={onContextMenu}
-        type="button"
-      >
-        {/* No plate of its own: the tile is the box it sits in. */}
-        <AppIcon
-          className="size-9 rounded-lg bg-transparent p-0 shadow-none ring-0"
-          icon={entry.icon}
-          name={entry.name}
-          site={`https://${entry.domain}`}
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] leading-snug font-medium">
-            {entry.name}
-          </span>
-          <span className="block truncate text-[13px] leading-snug text-muted-foreground">
-            {first === undefined
-              ? entry.tagline
-              : mine.length === 1
-                ? "In your apps"
-                : `${mine.length} accounts in your apps`}
-          </span>
-        </span>
-      </button>
+    <Tile
+      icon={entry.icon}
+      line={
+        first === undefined
+          ? entry.tagline
+          : mine.length === 1
+            ? "In your apps"
+            : `${mine.length} accounts in your apps`
+      }
+      name={entry.name}
+      onOpen={() => {
+        onOpen(target);
+      }}
+      site={`https://${entry.domain}`}
+      target={target}
+    >
       {first === undefined ? (
         <GlyphButton onClick={onConnect} size="sm">
           Connect
@@ -453,6 +501,126 @@ function CatalogTile({
           </DropdownMenu>
         </div>
       )}
+    </Tile>
+  );
+}
+
+/**
+ * A search's answer for a service already here: a tile for each of its apps,
+ * each saying which account it is, and one more that connects another, so
+ * every account is a press away and adding one sits right beside them.
+ */
+function AccountTiles({
+  apps,
+  entry,
+  onConnectAnother,
+  onOpen,
+}: {
+  apps: App[];
+  entry: CatalogEntry;
+  onConnectAnother: () => void;
+  onOpen: (slug: string) => void;
+}) {
+  return (
+    <>
+      {apps.map((app) => (
+        <Tile
+          icon={app.icon ?? entry.icon}
+          key={app.slug}
+          line={
+            app.standing === "connected"
+              ? (app.account ?? "In your apps")
+              : waitingLine(app)
+          }
+          name={app.name}
+          onOpen={() => {
+            onOpen(app.slug);
+          }}
+          site={app.site ?? `https://${entry.domain}`}
+          target={app.slug}
+        >
+          <Button
+            onClick={() => {
+              onOpen(app.slug);
+            }}
+            size="sm"
+            variant="outline"
+          >
+            Open
+          </Button>
+        </Tile>
+      ))}
+      <Tile
+        icon={entry.icon}
+        key={`${entry.slug}:another`}
+        line="Connect another account"
+        name={entry.name}
+        onOpen={onConnectAnother}
+        site={`https://${entry.domain}`}
+      >
+        <GlyphButton onClick={onConnectAnother} size="sm">
+          Connect
+        </GlyphButton>
+      </Tile>
+    </>
+  );
+}
+
+/**
+ * The card every directory tile is: the service's icon, a name and a line
+ * under it, pressing it opens `target`'s page (or does `onOpen` where there
+ * is no page to open), and the controls at its end.
+ */
+function Tile({
+  children,
+  icon,
+  line,
+  name,
+  onOpen,
+  site,
+  target,
+}: {
+  children: ReactNode;
+  icon: string | undefined;
+  line: string;
+  name: string;
+  onOpen: () => void;
+  site: string | undefined;
+  /** The app whose page the tile opens, when it opens one. */
+  target?: string;
+}) {
+  const { onContextMenu, opening } = useOpenGestures({
+    href: `/apps/${target ?? ""}`,
+    kind: "screen",
+  });
+  return (
+    // A card, the shadow's hairline as its edge, lifting under the pointer.
+    // 72px tall around a 32px button, so the button sits 20px from the top,
+    // the bottom and the end, the inset the icon keeps at the start.
+    <div className="flex h-18 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs transition-shadow duration-200 hover:shadow-md">
+      <button
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        {...(target === undefined ? { onClick: onOpen } : opening(onOpen))}
+        onContextMenu={target === undefined ? undefined : onContextMenu}
+        type="button"
+      >
+        {/* No plate of its own: the tile is the box it sits in. */}
+        <AppIcon
+          className="size-9 rounded-lg bg-transparent p-0 shadow-none ring-0"
+          icon={icon}
+          name={name}
+          site={site}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] leading-snug font-medium">
+            {name}
+          </span>
+          <span className="block truncate text-[13px] leading-snug text-muted-foreground">
+            {line}
+          </span>
+        </span>
+      </button>
+      {children}
     </div>
   );
 }

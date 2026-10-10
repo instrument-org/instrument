@@ -196,8 +196,6 @@ export function currentBrowserFollowUp(): BrowserFollowUp | undefined {
   return storage.getStore();
 }
 
-const BOUNDARY_START = /^--- AGENT_BROWSER_PAGE_CONTENT nonce=\S+.* ---$/;
-const BOUNDARY_END = /^--- END_AGENT_BROWSER_PAGE_CONTENT nonce=\S+ ---$/;
 const UNCHANGED = /^unchanged \(revision \d+\)$/;
 
 const DeltaSchema = z.object({
@@ -211,32 +209,22 @@ const DeltaSchema = z.object({
  *
  * A delta arrives as the CLI's JSON, which restates every added element twice
  * (once as a ref operation, once as a tree line). Only the tree lines and the
- * removed refs are kept, inside the page-content markers the CLI drew, since
- * element names are the page's text. Anything that does not parse as the shape
- * expected is passed on whole rather than dropped.
+ * removed refs are kept, the removed refs first, since they are ours to state
+ * and the element names in the tree lines are the page's text. Anything that
+ * does not parse as a delta is read as a full snapshot rather than dropped.
  */
 export function parseFollowUpSnapshot(
   output: string,
   after: string,
 ): PageAfter | undefined {
-  const lines = output.trimEnd().split("\n");
-  const first = lines[0];
-  const last = lines.at(-1);
+  const body = output.trimEnd().split("\n");
+  const first = body[0];
   if (first === undefined || first.trim() === "") {
     return undefined;
   }
   if (UNCHANGED.test(first.trim())) {
     return { after, kind: "unchanged", text: "" };
   }
-  if (
-    lines.length < 2 ||
-    last === undefined ||
-    !BOUNDARY_START.test(first) ||
-    !BOUNDARY_END.test(last)
-  ) {
-    return { after, kind: "full", text: output.trimEnd() };
-  }
-  const body = lines.slice(1, -1);
   // Most often a page caught before it loaded. Shown as the page after the
   // change, it reads as a dead end; left out, the model looks for itself.
   if (body.length === 1 && body[0]?.trim() === NO_CONTROLS) {
@@ -252,12 +240,10 @@ export function parseFollowUpSnapshot(
         after,
         kind: "delta",
         text: [
-          ...(delta.treeChange.lines.length > 0
-            ? [first, ...delta.treeChange.lines, last]
-            : []),
           ...(removed.length > 0
             ? [`No longer on the page: ${removed.join(", ")}`]
             : []),
+          ...delta.treeChange.lines,
         ].join("\n"),
       };
     }
@@ -276,7 +262,7 @@ export function parseFollowUpSnapshot(
     after,
     kind: "full",
     ...(omittedLines > 0 ? { omittedLines } : {}),
-    text: [first, ...kept, last].join("\n"),
+    text: kept.join("\n"),
   };
 }
 

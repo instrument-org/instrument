@@ -11,8 +11,10 @@ const mocks = vi.hoisted(() => ({
   appChanged: vi.fn(() => Promise.resolve()),
   beginMcpOAuth: vi.fn(),
   recordConnection: vi.fn(),
+  requireAppCredential: vi.fn(() => Promise.resolve(null)),
   runAppTest: vi.fn(),
   setAppCredential: vi.fn(),
+  withAppMcpClient: vi.fn(),
 }));
 
 vi.mock("@/electron-main/rpc/base", () => ({
@@ -45,7 +47,9 @@ vi.mock(
     appChanged: mocks.appChanged,
     beginMcpOAuth: mocks.beginMcpOAuth,
     recordConnection: mocks.recordConnection,
+    requireAppCredential: mocks.requireAppCredential,
     runAppTest: mocks.runAppTest,
+    withAppMcpClient: mocks.withAppMcpClient,
   }),
 );
 
@@ -148,6 +152,63 @@ describe("startOAuth", () => {
       ),
     ).rejects.toMatchObject({ code: "API_ERROR" });
     expect(mocks.beginMcpOAuth).not.toHaveBeenCalled();
+  });
+});
+
+describe("inspect", () => {
+  beforeEach(async () => {
+    await writeApp("signed-in", {
+      auth: { kind: "oauth" },
+      name: "Signed in",
+      type: "mcp",
+      url: "https://mcp.example.com/mcp",
+    });
+    await writeApp("keyed-mcp", {
+      auth: { kind: "bearer" },
+      name: "Keyed MCP",
+      type: "mcp",
+      url: "https://mcp.example.com/mcp",
+    });
+  });
+
+  it("asks for the sign-in again when the server refuses it, without reading as a fault", async () => {
+    mocks.withAppMcpClient.mockResolvedValue({
+      error: { message: "needs sign-in", reason: "unauthorized" },
+      isErr: () => true,
+    });
+
+    await expect(
+      call(apps.inspect, { slug: "signed-in" }, options),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mocks.recordConnection).toHaveBeenCalledWith("signed-in", {
+      error: "needs sign-in",
+      status: "needs-sign-in",
+    });
+  });
+
+  it("asks for a key when the stored one is gone, without reading as a fault", async () => {
+    mocks.requireAppCredential.mockRejectedValueOnce(new Error("no key"));
+
+    await expect(
+      call(apps.inspect, { slug: "keyed-mcp" }, options),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mocks.recordConnection).toHaveBeenCalledWith("keyed-mcp", {
+      error: "no key",
+      status: "needs-key",
+    });
+    expect(mocks.withAppMcpClient).not.toHaveBeenCalled();
+  });
+
+  it("leaves a server that cannot be reached connected", async () => {
+    mocks.withAppMcpClient.mockResolvedValue({
+      error: { message: "down", reason: "connect" },
+      isErr: () => true,
+    });
+
+    await expect(
+      call(apps.inspect, { slug: "signed-in" }, options),
+    ).rejects.toMatchObject({ code: "API_ERROR" });
+    expect(mocks.recordConnection).not.toHaveBeenCalled();
   });
 });
 

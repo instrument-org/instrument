@@ -1,10 +1,10 @@
 import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import fs from "node:fs/promises";
 
 import { type AbsolutePath } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getWorkspaceConfig } from "./workspace-config";
 
-const WINDOW_STATE_FILE_NAME = "window.json";
 const WINDOW_FOLDER_NAME = "window";
 
 /**
@@ -22,13 +22,7 @@ export function windowDir(
   );
 }
 
-/** Where the window's state is kept. */
-export function windowStatePath(
-  rootDir: AbsolutePath = getWorkspaceConfig().rootDir,
-): AbsolutePath {
-  return absolutePathJoin(
-    rootDir,
-    TASK_PRIVATE_FOLDER_NAME,
-    WINDOW_STATE_FILE_NAME,
-  );
+/** Makes the window's folder, which its tabs' store opens inside. */
+export async function ensureWindowDir(): Promise<void> {
+  await fs.mkdir(windowDir(), { recursive: true });
 }

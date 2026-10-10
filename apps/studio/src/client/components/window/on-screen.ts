@@ -1,4 +1,8 @@
-import { type ScreenView, screenViewsAtom } from "@/client/atoms/window";
+import {
+  type ScreenView,
+  screenViewsAtom,
+  walkedFoldersAtom,
+} from "@/client/atoms/window";
 import { useTabId } from "@/client/hooks/use-active-tab";
 import { useSetAtom } from "jotai";
 import { useEffect } from "react";
@@ -40,4 +44,35 @@ export function useOnScreen(view: null | ScreenView) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [said, key, setViews]);
+}
+
+/**
+ * Says where the folder on this screen was walked to, under the same tab as
+ * `useOnScreen`, for the location bar. Null registers nothing.
+ */
+export function useWalkedFolder(
+  folder: null | { hostPath: string; walked: string },
+) {
+  const setWalked = useSetAtom(walkedFoldersAtom);
+  const groupTabId = useGroupTab()?.id;
+  const appTabId = useTabId();
+  const key = groupTabId ?? appTabId;
+  // By value: the screen builds a fresh object each render.
+  const said = JSON.stringify(folder);
+  useEffect(() => {
+    if (folder === null) {
+      return;
+    }
+    setWalked((current) => ({ ...current, [key]: folder }));
+    return () => {
+      setWalked((current) => {
+        if (current[key] !== folder) {
+          return current;
+        }
+        const { [key]: _gone, ...rest } = current;
+        return rest;
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [said, key, setWalked]);
 }

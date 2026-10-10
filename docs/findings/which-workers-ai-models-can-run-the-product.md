@@ -1,6 +1,6 @@
 # Which Workers AI models can run the product
 
-**Status:** measured 2026-09-06/07 against the Cloudflare Workers AI catalog, GPT 5.6 Luna as the paid control. The verdict is **GLM 5.3 Flash in both seats**, with a reasoning level set. Eligibility rules out most of the catalog before behavior is even scored, and validity checks rule out nothing — the models separate on design and reliability, which only rendering the output shows. Re-running this costs roughly four hours of wall clock and a few million tokens, so the numbers are recorded rather than the method alone. Code references checked 2026-10-02; the catalog figures were not re-measured.
+**Status:** measured 2026-09-06/07 against the Cloudflare Workers AI catalog, GPT 5.6 Luna as the control. The verdict is **GLM 5.3 Flash in both seats**, with a reasoning level set. Eligibility rules out most of the catalog before behavior is even scored, and validity checks rule out nothing — the models separate on design and reliability, which only rendering the output shows. Re-running this costs roughly four hours of wall clock and a few million tokens, so the numbers are recorded rather than the method alone. Code references checked 2026-10-02; the catalog figures were not re-measured.
 
 Companion reading: [the reasoning level was never connected](reasoning-effort-was-never-connected.md) for why every number here would have been different a day earlier, and [a task cannot look at what it drew](a-task-cannot-look-at-what-it-drew.md) for why the self-check numbers below are a floor rather than a measurement.
 
@@ -8,10 +8,10 @@ Companion reading: [the reasoning level was never connected](reasoning-effort-wa
 
 | Seat | Model | Why |
 | --- | --- | --- |
-| The conversation | **GLM 5.3 Flash** | Best delegation score in the eligible pool (74%), cheapest per correct turn, and the only free model strong in both seats. |
+| The conversation | **GLM 5.3 Flash** | Best delegation score in the eligible pool (74%), cheapest per correct turn, and the only Workers AI model strong in both seats. |
 | Tasks | **GLM 5.3 Flash** | Produces designed documents. The cheaper alternative does not, and the seats stop disagreeing once quality is scored. |
 | Second source for tasks | Qwen3.8 27B | Same breadth, but it delivered nothing at all on two of five later briefs. Fallback, not a plan. |
-| Paid upgrade | GPT 5.6 Luna, or Muse Spark 1.3 on the contributor tier | 92% delegation, three times faster on task work, and not uniformly better — see the chart below. Muse matched it on deliverables for half the money; it has not been scored as a conversation. |
+| Stronger alternative | GPT 5.6 Luna, or Muse Spark 1.3 on the contributor tier | 92% delegation, three times faster on task work, and not uniformly better — see the chart below. Muse matched it on deliverables for half the money; it has not been scored as a conversation. |
 
 ## Eligibility cuts 27 models to 6
 
@@ -52,7 +52,7 @@ Scored over 1,836 streamed first turns against the real orchestrator system prom
 
 Three findings worth keeping:
 
-- **Normalizing by hit rate collapses the price gap.** Luna costs $1.71 per thousand correct first turns against GLM 5.3 Flash's $1.61. Per token the free model looks four times cheaper; per unit of work that lands it is a rounding error, because the wrong answers are paid for too. Which pool the money comes from decides this, not the price.
+- **Normalizing by hit rate collapses the price gap.** Luna costs $1.71 per thousand correct first turns against GLM 5.3 Flash's $1.61. Per token GLM 5.3 Flash looks four times cheaper; per unit of work that lands it is a rounding error, because the wrong answers are paid for too.
 - **The failure is one-directional.** Not one run in 1,805 started a task for "hey" or for a folder question. Nothing over-delegates, so a prompt can push harder toward handing off without risking the opposite failure.
 - **The second failure mode is silence, not eagerness.** Llama 3.3 70B answers "hey" by running a shell command and saying nothing, 108 times out of 108. Granite does it 107 times. Seven models look up a folder correctly and never tell the user the number. A model at 0% in the "speaks" column is unusable for a conversation whatever else it scores.
 
@@ -92,7 +92,7 @@ Rerun unchanged, Luna and Muse repeated 14/14 and GLM repeated 4 of 5 — but lo
 
 - **Quality on a finished brief is no longer the differentiator; finishing is.** Every model that produced a file produced a defensible one — correct to the cent on the memo, and all four that got there picked one of the two machines the constraints allow. What separates them is that Luna and Muse always finished and the two Cloudflare models did not.
 - **Qwen3.8 27B is cut off at five minutes, by Cloudflare.** Five briefs across two rounds produced nothing, each ending at 300 or 301 seconds with `finishReason=other` and one output token. That looks exactly like the five-minute no-chunk timer in `machines/agent.ts`, and it is not: a direct streaming request to the endpoint returns 10,105 chunks over 300.9s with a longest gap of 31s, and the timer resets on every stream part including reasoning deltas, so it cannot fire. Nor is it an account cap — GLM has run a single generation to 330s on the same key. It is a per-model generation limit, nothing on our side changes it, and it rules Qwen out of any work that reasons past five minutes. Separately it had three requests refused with `Expected string, received array` at `messages[N].content`, the shape a message takes once it carries an image, which is the self-check path.
-- **Muse Spark 1.3 on the contributor tier is worth a look as the paid tier.** Same 14/14 as Luna at roughly half the cost, and on the two briefs that reward argument it produced more of it. Slower, and it spends tokens freely. Unscored on the conversation seat.
+- **Muse Spark 1.3 on the contributor tier matches Luna.** Same 14/14 as Luna at roughly half the cost, and on the two briefs that reward argument it produced more of it. Slower, and it spends tokens freely. Unscored on the conversation seat.
 - **Both new drawing briefs work as tests and the sewing machine is the better one.** Every model that finished the octopus satisfied the counting constraint, so it separates on arrangement rather than comprehension; the sewing machine broke two models outright.
 
 ## Reliability, which is where GLM actually costs you
@@ -117,9 +117,9 @@ For GLM 5.3 Flash specifically, over ~114 first turns per level, seconds to the 
 
 `low` is the dramatic number and the wrong default. `medium` behaves like sending nothing. `high` is the setting, and it is what the catalog now declares as the Workers AI default.
 
-## The paid value tier, beyond the two controls
+## Six more models, beyond the two controls
 
-Six more models in the same price band, over the four document briefs (memo, workbook, comparison page, mechanism explainer). Two are worth carrying:
+Six more models, over the four document briefs (memo, workbook, comparison page, mechanism explainer). Two are worth carrying:
 
 | Model | $/M in · out | Checks | Time | Round cost | Verdict |
 | --- | --- | --- | --- | --- | --- |

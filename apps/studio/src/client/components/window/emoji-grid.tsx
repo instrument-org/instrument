@@ -91,14 +91,16 @@ export function EmojiGrid({
       : ""
     : (context?.trim() ?? "");
   const related = useEmojiSuggestions(about, all);
-  const relatedSection = about ? (
-    <section aria-label={words ? "AI results" : "Suggested"}>
-      <h3 className="truncate px-1 pt-2 pb-1 text-xs font-medium text-muted-foreground">
-        {words ? "AI results" : `Suggested for “${about}”`}
-      </h3>
-      <RelatedRow onPick={onPick} related={related} />
-    </section>
-  ) : undefined;
+  // No place is drawn for suggestions no model could give.
+  const relatedSection =
+    about && related.available ? (
+      <section aria-label={words ? "AI results" : "Suggested"}>
+        <h3 className="truncate px-1 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+          {words ? "AI results" : `Suggested for “${about}”`}
+        </h3>
+        <RelatedRow onPick={onPick} related={related} />
+      </section>
+    ) : undefined;
 
   // The tab that is lit is the last category whose heading has reached the
   // top of the scroll, so it changes at the moment the sticky heading does.
@@ -262,18 +264,14 @@ function RelatedRow({
   onPick: (emoji: string) => void;
   related: ReturnType<typeof useEmojiSuggestions>;
 }) {
-  const note = related.error
-    ? "Suggestions are unavailable."
-    : related.hasAnswer && related.suggestions.length === 0
+  const note =
+    related.hasAnswer && related.suggestions.length === 0
       ? "Nothing close."
       : undefined;
   return (
     <div className="h-8">
       {note ? (
-        <p
-          className="flex h-full items-center px-1 text-xs text-muted-foreground"
-          title={related.error?.message}
-        >
+        <p className="flex h-full items-center px-1 text-xs text-muted-foreground">
           {note}
         </p>
       ) : related.hasAnswer ? (

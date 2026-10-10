@@ -40,7 +40,8 @@ export interface WindowShell {
   /** Each task's title, for a tab standing on one. */
   childTitles: Map<TaskId, string>;
   compose: ReturnType<typeof useCompose>;
-  deleteDraft: (id: string) => void;
+  /** Throws a draft away, with a moment to take it back. */
+  discardDraft: (id: string) => void;
   /** The drafts worth coming back to, for the inbox. */
   drafts: Draft[];
   /** Opens a new draft, as the rail's New does. */

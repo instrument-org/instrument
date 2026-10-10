@@ -6,7 +6,11 @@ import {
   getWebSearchModel,
   namesSameModel,
 } from "@instrument-org/ai-gateway";
-import { OUR_MODELS, type WorkspaceServerURL } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  OUR_MODELS,
+  type WorkspaceServerURL,
+} from "@instrument-org/shared";
 import { APICallError, type LanguageModelUsage, streamText } from "ai";
 import { err, ok, type Result } from "neverthrow";
 import { dedent } from "radashi";
@@ -17,6 +21,7 @@ import { type WebSearchResult } from "../schemas/web-search";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
+import { searchKeyless } from "./keyless-web-search";
 
 export interface WebSearchFailure {
   errorMessage: string;
@@ -36,10 +41,10 @@ const USER_ACTIONABLE = new Set<WebSearchFailure["errorType"]>([
   "payment-required",
 ]);
 
-// Our search endpoint shares one modest per-second limit across every user, so
-// a burst is over almost as soon as it starts. One short retry usually gets the
-// better backend back rather than spending the rest of the task on the weaker
-// one; the provider's own search is the floor, not the target.
+// Our search endpoint answers a burst with a rate limit that clears almost at
+// once. One short retry usually gets the better backend back rather than
+// spending the rest of the task on the weaker one; the provider's own search
+// is the floor, not the target.
 const RETRY_DELAY_MS = 250;
 
 /**
@@ -102,10 +107,9 @@ export async function* webSearch({
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 }): AsyncGenerator<Result<WebSearchResults, WebSearchFailure>> {
-  // Our search endpoint meters against the signed-in user's credits, so it only
-  // serves the models we already bill for. A model running on a key the user
-  // brought searches through that provider instead: that is the option costing
-  // them nothing extra, and it needs no second API key from them.
+  // A model on our provider searches through our endpoint first. A model on a
+  // key the user brought searches through that provider, which needs no second
+  // API key from them.
   if (callingModel.params.provider === OUR_MODELS.providerType) {
     const platformResult = await searchWithPlatform({
       prompt,
@@ -135,14 +139,24 @@ export async function* webSearch({
     workspaceServerURL,
   })) {
     // A provider with no search of its own (an OpenAI-compatible endpoint, say)
-    // leaves ours as the only backend. A search there costs the user cents;
-    // the agent's alternative is minutes of fetching pages by hand.
+    // leaves ours as the only backend, which beats the agent's alternative of
+    // minutes of fetching pages by hand.
     if (
       result.isErr() &&
       result.error.errorType === "no-search-backend" &&
       callingModel.params.provider !== OUR_MODELS.providerType
     ) {
-      yield await searchWithPlatform({ prompt, signal, workspaceConfig });
+      const platformResult = await searchWithPlatform({
+        prompt,
+        signal,
+        workspaceConfig,
+      });
+      // A signed-out user cannot reach our endpoint, so a keyless search gives
+      // them a working lookup; signing in is what gets them ours.
+      yield platformResult.isErr() &&
+      platformResult.error.errorType === "not-authenticated"
+        ? await searchWithKeyless({ prompt, signal, workspaceConfig })
+        : platformResult;
       return;
     }
     yield result;
@@ -256,6 +270,33 @@ async function searchWithPlatform(args: {
 
   await delay(RETRY_DELAY_MS, args.signal);
   return args.signal.aborted ? first : requestPlatformSearch(args);
+}
+
+async function searchWithKeyless({
+  prompt,
+  signal,
+  workspaceConfig,
+}: {
+  prompt: string;
+  signal: AbortSignal;
+  workspaceConfig: WorkspaceConfig;
+}): Promise<Result<WebSearchResults, WebSearchFailure>> {
+  const result = await searchKeyless({
+    appVersion: workspaceConfig.appVersion,
+    query: prompt,
+    signal,
+  });
+  return result
+    .map((sources) => ({
+      costDollars: 0,
+      kind: "excerpts" as const,
+      sources,
+    }))
+    .mapErr((message) => ({
+      errorMessage: `${message} Try again in a moment, or sign in to ${APP_NAME} to search the web.`,
+      // Signing in is the lasting fix, so the failure offers it.
+      errorType: "not-authenticated" as const,
+    }));
 }
 
 async function* searchWithProviderModel({

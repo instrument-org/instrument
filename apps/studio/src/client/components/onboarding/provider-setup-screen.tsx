@@ -27,6 +27,7 @@ export function ProviderSetupScreen({
   onLoginSuccess,
   onPageChange,
   page,
+  signedIn,
 }: {
   error?: Error | null;
   hideManualProvider?: boolean;
@@ -37,6 +38,8 @@ export function ProviderSetupScreen({
   onLoginSuccess: () => void;
   onPageChange: (page: ProviderSetupPage) => void;
   page: ProviderSetupPage;
+  /** Signed in to Instrument already, so the page offers only the providers to add. */
+  signedIn?: boolean;
 }) {
   const { data: providerConfigs } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
@@ -85,10 +88,12 @@ export function ProviderSetupScreen({
 
           <div className="flex flex-col items-center gap-2 text-center">
             <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground">
-              Log in to {APP_NAME}
+              {signedIn ? "Add an AI provider" : `Log in to ${APP_NAME}`}
             </h1>
             <p className="text-sm text-foreground/80">
-              A guided AI workspace for ambitious work
+              {signedIn
+                ? "Use the ChatGPT or Claude plan you already pay for."
+                : "A guided AI workspace for ambitious work"}
             </p>
           </div>
         </div>
@@ -115,19 +120,21 @@ export function ProviderSetupScreen({
             </div>
           )}
 
-          <GoogleLoginButton
-            caption={
-              <div className="flex items-center justify-center gap-x-2">
-                <BrandLeafIcon className="size-3" />
-                <p className="text-xs leading-4.5 font-medium text-brand-600 dark:text-brand-400">
-                  Create an account to get free AI usage
-                </p>
-              </div>
-            }
-            className="w-full justify-center"
-            onLogin={onLogin}
-            onSuccess={onLoginSuccess}
-          />
+          {!signedIn && (
+            <GoogleLoginButton
+              caption={
+                <div className="flex items-center justify-center gap-x-2">
+                  <BrandLeafIcon className="size-3" />
+                  <p className="text-xs leading-4.5 font-medium text-brand-600 dark:text-brand-400">
+                    Create an account to get free AI usage
+                  </p>
+                </div>
+              }
+              className="w-full justify-center"
+              onLogin={onLogin}
+              onSuccess={onLoginSuccess}
+            />
+          )}
 
           <ChatGPTLoginButton
             caption="Pay for ChatGPT Plus or Pro? Use it here."

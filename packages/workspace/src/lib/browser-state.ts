@@ -175,6 +175,7 @@ export function restoreLastPage({
         if (!target || target.url !== BLANK_PAGE_URL) {
           return ok(undefined);
         }
+        browser.noteRestore?.(targetId, fallbackUrl);
         await browser.sendCommand(targetId, "Page.navigate", {
           url: fallbackUrl,
         });

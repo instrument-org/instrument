@@ -1,8 +1,8 @@
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
-import { chatOfApp } from "../chat/attribution";
 import { wakeChatForApp } from "../chat/wake";
 import { getWorkspaceConfig } from "../workspace-config";
+import { readConnection } from "./connection";
 
 /**
  * Wakes the chat that asked for an app when the user answers the ask
@@ -11,6 +11,11 @@ import { getWorkspaceConfig } from "../workspace-config";
  * becomes a `data-appEvent` part on a text-less user message, the same way a
  * finishing task reaches the chat, so the agent learns without anyone typing
  * and answers on a turn of its own.
+ *
+ * The chat woken is the one the app's connection record says asked. An
+ * answer that settles the ask (connected, declined) takes the ask off the
+ * record, so connecting the app again later from Settings wakes nobody; a
+ * failure leaves it, since the user can try again from the same card.
  *
  * A disconnect or a removal is the user putting an app away, not answering
  * anything, so it wakes no chat; each chat hears of it on the next message
@@ -23,11 +28,16 @@ export function startAppEvents(workspaceRef: WorkspaceActorRef): void {
         continue;
       }
       try {
+        const connection = await readConnection(event.slug);
         await wakeChatForApp(
           { data: { events: [event] }, type: "data-appEvent" },
           workspaceRef,
-          await chatOfApp({ slug: event.slug }),
+          connection?.askedIn,
         );
+        if (connection?.askedIn && event.event !== "failed") {
+          const { askedIn: _answered, ...rest } = connection;
+          await getWorkspaceConfig().apps.connections.set(event.slug, rest);
+        }
       } catch (error) {
         getWorkspaceConfig().captureException(error);
       }

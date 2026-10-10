@@ -49,12 +49,6 @@ const setTheme = base
     preferencesStore.set("theme", input.theme);
   });
 
-const setEnableUsageMetrics = base
-  .input(z.object({ enabled: z.boolean() }))
-  .handler(({ input }) => {
-    getMachinePreferences().set("enableUsageMetrics", input.enabled);
-  });
-
 const setAgentCompletionNotifications = base
   .input(z.object({ mode: AgentCompletionNotificationModeSchema }))
   .handler(({ input }) => {
@@ -156,7 +150,7 @@ const checkForUpdates = base
   )
   .handler(async ({ context, input }) => {
     setLastUpdateCheck();
-    context.workspaceConfig.captureEvent("app.manual_check_for_updates");
+
     return context.appUpdater.checkForUpdates({ notify: input.notify });
   });
 
@@ -219,7 +213,6 @@ export const preferences = {
   setBlockAds,
   setDefaultModelURI,
   setDeveloperMode,
-  setEnableUsageMetrics,
   setReleaseChannel,
   setTheme,
   unpinSidebarPlace,

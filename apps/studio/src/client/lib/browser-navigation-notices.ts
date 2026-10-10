@@ -1,4 +1,4 @@
-import { captureException } from "@/client/lib/telemetry";
+import { captureException } from "@/client/lib/capture-exception";
 import { rpcClient } from "@/client/rpc/client";
 import { sleep } from "radashi";
 import { toast } from "@/client/lib/toast";

@@ -10,9 +10,6 @@ Copy from `apps/studio/.env.local.example`. Loaded by electron-vite for the main
 | --------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `MAIN_VITE_APP_API_BASE_URL`      | yes      | Base URL for the Instrument platform API (accounts, billing, gateway). Local dev: `http://localhost:49100` with the `internal` API repo running. |
 | `MAIN_VITE_APP_REGISTRY_DIR_PATH` | no       | Override path to the skills registry. Unset, the app falls back to the repo submodule at `registry/`.                                            |
-| `VITE_DEBUG_TELEMETRY`            | no       | When `true`, enables extra telemetry logging. Default `false`.                                                                                   |
-| `VITE_POSTHOG_API_HOST`           | no       | PostHog ingest host when telemetry is configured.                                                                                                |
-| `VITE_POSTHOG_API_KEY`            | no       | PostHog project API key when telemetry is configured.                                                                                            |
 
 `apps/studio/.env.development` is gitignored and machine-local, but electron-vite loads it in dev when present, so values there (a registry override) act as defaults underneath `.env.local`. Nothing in the repo ships it: a fresh clone has only what setup copies from `.env.local.example`.
 

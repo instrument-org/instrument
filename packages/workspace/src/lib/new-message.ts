@@ -1,7 +1,4 @@
-import {
-  type AIGatewayModel,
-  type AIGatewayModelURI,
-} from "@instrument-org/ai-gateway";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { extractSkillMentions } from "@instrument-org/shared/skill-mention";
 import { ok } from "neverthrow";
 
@@ -38,7 +35,6 @@ export async function newMessage({
   files,
   folders,
   intent,
-  model,
   modelURI,
   prompt,
   replyTo,
@@ -62,7 +58,6 @@ export async function newMessage({
     source?: FolderAttachment.Source;
   }[];
   intent?: string;
-  model: AIGatewayModel.Type;
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
   /** The earlier message this one answers; see the reply part. */
@@ -322,12 +317,6 @@ export async function newMessage({
   };
 
   await setTaskState(taskDir(taskId), { selectedModelURI: modelURI });
-
-  getWorkspaceConfig().captureEvent("message.created", {
-    files_count: files?.length ?? 0,
-    modelId: model.canonicalId,
-    providerId: model.params.provider,
-  });
 
   return ok(message);
 }

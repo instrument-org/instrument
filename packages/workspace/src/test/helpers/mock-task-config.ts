@@ -119,9 +119,6 @@ export function createMockTaskConfig(
     appsDir: AbsolutePathSchema.parse([MOCK_WORKSPACE_DIR, "apps"].join("/")),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
-    captureEvent: () => {
-      // No-op
-    },
     captureException: (...args: unknown[]) => {
       console.error("captureException", args);
     },

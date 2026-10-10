@@ -144,9 +144,6 @@ setWorkspaceConfig({
   appsDir: AbsolutePathSchema.parse(path.join(rootDir, "apps")),
   appVersion: "0.0.0-repl",
   browser: createStubBrowserConfig(),
-  captureEvent: () => {
-    return;
-  },
   captureException: () => {
     return;
   },

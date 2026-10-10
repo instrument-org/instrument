@@ -4,14 +4,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { app } from "electron";
 import Store from "electron-store";
 import semver from "semver";
-import { ulid } from "ulid";
 import { z } from "zod";
-
-function generateTelemetryId(): string {
-  return `anon-${ulid().toLowerCase()}`;
-}
-
-const DEFAULT_TELEMETRY_ID = "studio-main-default";
 
 /**
  * What the app remembers about this computer, whichever workspace is open.
@@ -20,7 +13,6 @@ const DEFAULT_TELEMETRY_ID = "studio-main-default";
 const MachineStateSchema = z.object({
   lastLaunchedVersion: z.string().optional(),
   lastUpdateCheck: z.number().optional(),
-  telemetryId: z.string().catch(DEFAULT_TELEMETRY_ID),
 });
 
 type MachineState = z.output<typeof MachineStateSchema>;
@@ -45,10 +37,6 @@ export const getMachineState = (): Store<MachineState> => {
       },
       name: MACHINE_STATE_NAME,
     });
-
-    if (STORE.get("telemetryId") === DEFAULT_TELEMETRY_ID) {
-      STORE.set("telemetryId", generateTelemetryId());
-    }
 
     // Settings shows when updates were last checked, read through
     // `preferences.get`.

@@ -46,7 +46,7 @@ export function describeViewerError(error: unknown) {
 }
 
 /**
- * What to send to telemetry for a viewer that threw, or `null` for a failure
+ * What to report for a viewer that threw, or `null` for a failure
  * the file itself explains.
  */
 export function viewerErrorReport(error: unknown) {

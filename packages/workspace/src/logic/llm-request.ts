@@ -158,7 +158,6 @@ export const llmRequestLogic = fromPromise<
     }
   };
 
-  const captureEvent = getWorkspaceConfig().captureEvent;
   const providerId = input.model.params.provider;
   const modelId = input.model.canonicalId;
   const assistantMessage: SessionMessage.Assistant = {
@@ -428,23 +427,6 @@ export const llmRequestLogic = fromPromise<
           assistantMessage.metadata.completionTokensPerSecond =
             completionTokensPerSecond;
           await scopedStore.saveMessage(assistantMessage);
-          captureEvent("llm.request_finished", {
-            cached_input_tokens:
-              part.totalUsage.inputTokenDetails.cacheReadTokens ?? 0,
-            completion_tokens_per_second: completionTokensPerSecond,
-            finish_reason: part.finishReason,
-            input_tokens: part.totalUsage.inputTokens ?? 0,
-            model_id_served: assistantMessage.metadata.modelIdServed,
-            modelId,
-            ms_to_finish: msToFinish ?? 0,
-            ms_to_first_chunk: msToFirstChunk ?? 0,
-            output_tokens: part.totalUsage.outputTokens ?? 0,
-            providerId,
-            reasoning_tokens:
-              part.totalUsage.outputTokenDetails.reasoningTokens ?? 0,
-            step_count: input.stepCount,
-            total_tokens: part.totalUsage.totalTokens ?? 0,
-          });
           break;
         }
         case "file": {
@@ -729,11 +711,6 @@ export const llmRequestLogic = fromPromise<
             toolCalls[part.toolCallId] = newPart;
             await scopedStore.savePart(newPart);
           }
-          captureEvent("llm.tool_called", {
-            modelId,
-            providerId,
-            tool_name: part.toolName,
-          });
           break;
         }
         case "tool-error": {
@@ -804,12 +781,6 @@ export const llmRequestLogic = fromPromise<
               type: "tool-unavailable",
             });
           }
-          captureEvent("llm.error", {
-            error_type: "tool-error",
-            modelId,
-            providerId,
-            tool_name: part.toolName,
-          });
           break;
         }
         case "tool-input-delta": {
@@ -908,11 +879,6 @@ export const llmRequestLogic = fromPromise<
           kind: "disk-full",
           message: error.message,
         };
-        captureEvent("llm.error", {
-          error_type: "disk-full",
-          modelId,
-          providerId,
-        });
         break;
       }
       case error instanceof Error &&
@@ -922,11 +888,6 @@ export const llmRequestLogic = fromPromise<
           kind: "aborted",
           message: error.message,
         };
-        captureEvent("llm.error", {
-          error_type: "aborted",
-          modelId,
-          providerId,
-        });
         break;
       }
       case LoadAPIKeyError.isInstance(error): {
@@ -935,11 +896,6 @@ export const llmRequestLogic = fromPromise<
           kind: "api-key",
           message: error.message,
         };
-        captureEvent("llm.error", {
-          error_type: "api-key",
-          modelId,
-          providerId,
-        });
         break;
       }
       case APICallError.isInstance(error): {
@@ -953,13 +909,6 @@ export const llmRequestLogic = fromPromise<
           statusCode: error.statusCode,
           url: error.url,
         };
-        captureEvent("llm.error", {
-          error_classification: classification.kind,
-          error_classification_evidence: classification.evidence,
-          error_type: "api-call",
-          modelId,
-          providerId,
-        });
         break;
       }
       // Should not be called now that tool-error above handles this
@@ -969,11 +918,6 @@ export const llmRequestLogic = fromPromise<
           kind: "invalid-tool-input",
           message: error.message,
         };
-        captureEvent("llm.error", {
-          error_type: "invalid-tool-input",
-          modelId,
-          providerId,
-        });
         break;
       }
       // Should not be called now that tool-error above handles this
@@ -983,12 +927,6 @@ export const llmRequestLogic = fromPromise<
           message: error.message,
           toolName: error.toolName,
         };
-        captureEvent("llm.error", {
-          error_type: "no-such-tool",
-          modelId,
-          providerId,
-          tool_name: error.toolName,
-        });
         break;
       }
       default: {
@@ -1007,14 +945,6 @@ export const llmRequestLogic = fromPromise<
         if (classification.kind === "unknown") {
           getWorkspaceConfig().captureException(error, {
             scopes: ["workspace", "llm-request"],
-          });
-        } else {
-          captureEvent("llm.error", {
-            error_classification: classification.kind,
-            error_classification_evidence: classification.evidence,
-            error_type: "streamed",
-            modelId,
-            providerId,
           });
         }
       }

@@ -87,7 +87,7 @@ This is not an optimization. `MacUpdater.updateDownloaded` runs at the end of ev
 
 ## Owning the download promise
 
-electron-updater returns the auto-download promise on the check result and attaches no rejection handler of its own. Left alone, every failed download becomes an unhandled rejection in the main process — reported to telemetry as a crash, and fatal under Node's default rejection mode. `runCheck` takes ownership of it; the `error` event has already reported the failure by then.
+electron-updater returns the auto-download promise on the check result and attaches no rejection handler of its own. Left alone, every failed download becomes an unhandled rejection in the main process — reported as a crash, and fatal under Node's default rejection mode. `runCheck` takes ownership of it; the `error` event has already reported the failure by then.
 
 ## Channels
 

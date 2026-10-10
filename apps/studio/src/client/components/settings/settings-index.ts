@@ -83,12 +83,6 @@ export const SETTINGS_INDEX = [
     title: "Update from",
   },
   {
-    detail: `Help ${APP_NAME} improve by submitting usage metrics.`,
-    id: "usage-metrics",
-    tab: "General",
-    title: "Usage metrics",
-  },
-  {
     detail: "A local record to send with a problem report",
     id: "diagnostic-log",
     tab: "General",

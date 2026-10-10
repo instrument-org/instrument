@@ -358,9 +358,6 @@ export async function runEvals(
         ...createStubBrowserConfig(),
         hasNoWindow: true,
       }),
-      captureEvent: () => {
-        return;
-      },
       captureException: (...args: unknown[]) => {
         console.error("captureException", ...args);
       },

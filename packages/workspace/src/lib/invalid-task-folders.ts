@@ -49,7 +49,7 @@ export function hasReadableTaskSettings(taskDir: string): boolean {
 // a user (or an external tool) manually creates, renames, or edits a folder
 // inside the workspace. They are a recoverable, user-visible data condition
 // rather than a bug, so the lists skip them silently -- instead of reporting
-// one telemetry exception per folder on every scan -- and we surface them here
+// one exception per folder on every scan -- and we surface them here
 // for the UI.
 export async function listInvalidTaskFolders(
   workspaceConfig: WorkspaceConfig,

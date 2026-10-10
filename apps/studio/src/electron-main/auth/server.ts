@@ -15,7 +15,6 @@ import {
   appName,
   getAppsDir,
 } from "@/electron-main/lib/apps";
-import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { directoryIconDataUri } from "@/electron-main/lib/directory-icons";
 import {
@@ -232,7 +231,7 @@ async function start() {
     // Delay focus so the renderer has time to navigate to the success screen
     // before the window comes to front -- keeps the entrance animation visible.
     setTimeout(focusAppWindow, 400);
-    captureServerEvent("auth.logged_in");
+
     return c.html(
       renderAuthPage({ email, kind: "signed-in", service: googleService }),
     );

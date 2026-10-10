@@ -66,7 +66,6 @@ import { logGpuStatus } from "./lib/gpu-status";
 import { handleBootFailure } from "./lib/handle-boot-failure";
 import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
 import { requestQuitApproval, withdrawQuitApproval } from "./lib/quit";
-import { registerTelemetry } from "./lib/register-telemetry";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import {
   serveResolvedTheme,
@@ -102,7 +101,6 @@ if (gotTheLock) {
   app.setAsDefaultProtocolClient(APP_PROTOCOL);
 
   registerCrashDiagnostics(app);
-  registerTelemetry(app);
 
   app.on("second-instance", (_event, commandLine) => {
     focusForegroundWindow();

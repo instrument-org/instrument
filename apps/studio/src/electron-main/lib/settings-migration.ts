@@ -46,12 +46,11 @@ export const MACHINE_STATE_NAME = "machine-state";
 const LEGACY_PREFERENCES = "preferences.json";
 const LEGACY_APP_STATE = "app-state.json";
 
-const MACHINE_PREFERENCE_KEYS = ["enableUsageMetrics", "releaseChannel"];
+const MACHINE_PREFERENCE_KEYS = ["releaseChannel"];
 const MACHINE_STATE_KEYS_FROM_PREFERENCES = [
   "lastLaunchedVersion",
   "lastUpdateCheck",
 ];
-const MACHINE_STATE_KEYS_FROM_APP_STATE = ["telemetryId"];
 const WORKSPACE_PREFERENCE_KEYS = [
   "agentCompletionNotifications",
   "defaultModelURI",
@@ -119,7 +118,6 @@ export function migrateMachineSettings(userDataDir: string): string[] {
   const done: string[] = [];
   try {
     const preferences = readObject(path.join(userDataDir, LEGACY_PREFERENCES));
-    const appState = readObject(path.join(userDataDir, LEGACY_APP_STATE));
     writeIfAbsent(
       path.join(userDataDir, `${MACHINE_PREFERENCES_NAME}.json`),
       pick(preferences, MACHINE_PREFERENCE_KEYS),
@@ -127,10 +125,7 @@ export function migrateMachineSettings(userDataDir: string): string[] {
     );
     writeIfAbsent(
       path.join(userDataDir, `${MACHINE_STATE_NAME}.json`),
-      {
-        ...pick(preferences, MACHINE_STATE_KEYS_FROM_PREFERENCES),
-        ...pick(appState, MACHINE_STATE_KEYS_FROM_APP_STATE),
-      },
+      pick(preferences, MACHINE_STATE_KEYS_FROM_PREFERENCES),
       done,
     );
   } catch (error) {

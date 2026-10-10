@@ -18,12 +18,10 @@ function deferred<T = void>() {
 function createHarness({
   approve = () => Promise.resolve(true),
   closeBrowserSessions = () => Promise.resolve(),
-  finalizeTelemetry = () => Promise.resolve(),
   stopServices = () => Promise.resolve(),
 }: {
   approve?: () => Promise<boolean>;
   closeBrowserSessions?: () => Promise<void>;
-  finalizeTelemetry?: () => Promise<void>;
   stopServices?: () => Promise<void>;
 } = {}) {
   const calls: string[] = [];
@@ -41,7 +39,6 @@ function createHarness({
       actors: {
         approve: fromPromise(approveSpy),
         closeBrowserSessions: fromPromise(closeBrowserSessions),
-        finalizeTelemetry: fromPromise(finalizeTelemetry),
         stopServices: fromPromise(stopServicesSpy),
       },
       delays: { teardown: TEARDOWN_MS },
@@ -187,23 +184,10 @@ describe("quit machine", () => {
     ]);
   });
 
-  it("waits for telemetry before exiting", async () => {
-    const telemetry = deferred();
-    const h = createHarness({ finalizeTelemetry: () => telemetry.promise });
-    h.send("quitRequested");
-    await vi.advanceTimersByTimeAsync(0);
-    expect(h.calls).toEqual(["teardown browser views"]);
-
-    telemetry.resolve();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(h.calls).toEqual(["teardown browser views", "exit"]);
-  });
-
-  it.each([
-    ["the services", { stopServices: () => new Promise<void>(() => {}) }],
-    ["telemetry", { finalizeTelemetry: () => new Promise<void>(() => {}) }],
-  ])("still exits on the deadline when %s hang", async (_label, hung) => {
-    const h = createHarness(hung);
+  it("still exits on the deadline when the services hang", async () => {
+    const h = createHarness({
+      stopServices: () => new Promise<void>(() => {}),
+    });
     h.send("quitRequested");
     await vi.advanceTimersByTimeAsync(TEARDOWN_MS - 1);
     expect(h.calls).not.toContain("exit");

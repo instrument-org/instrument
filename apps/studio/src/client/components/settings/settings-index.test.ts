@@ -48,7 +48,6 @@ describe("matchSettings", () => {
   it.each([
     ["theme", "Theme"],
     ["diag log", "Diagnostic log"],
-    ["usage", "Usage metrics"],
     ["claude", "Claude account"],
   ])("finds %s", (query, title) => {
     expect(titles(query)[0]).toBe(title);

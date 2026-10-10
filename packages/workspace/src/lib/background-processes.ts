@@ -326,10 +326,10 @@ export async function killTaskBackgroundProcesses(
 }
 
 /**
- * Moves processes to another session, for a turn forked on interrupt: the
- * fork carries the work on, so what the turn left running is the fork's to
- * read, wait on and stop, under the same ids. The fork works in its chat's
- * folder, so the logs stay where they are.
+ * Moves processes to another session, for work a chat hands to a task
+ * partway (`task new --job`): the task carries the work on, so what the chat
+ * left running is the task's to read, wait on and stop, under the same ids.
+ * A task works in its chat's folder, so the logs stay where they are.
  */
 export function handOverBackgroundProcesses({
   from,

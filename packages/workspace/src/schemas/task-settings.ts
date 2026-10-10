@@ -33,10 +33,6 @@ export const TaskSettingsSchema = z.object({
   // A task `task new` started as a fork of its chat: it carries the chat's
   // conversation and works in the chat's folder (`workdir`).
   fork: z.boolean().optional(),
-  // A fork the harness made rather than the chat: the user wrote while the
-  // chat's turn was mid-work, and the turn went on here
-  // (`lib/fork-on-interrupt.ts`).
-  forkedOnInterrupt: z.boolean().optional(),
   name: z.string().default("Untitled task"),
   // How hard this task's model is asked to think, on every turn it takes. A
   // task the conversation starts copies the conversation's level. Absent

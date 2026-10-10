@@ -3,13 +3,20 @@ import { type ChatId } from "../../../schemas/chat-id";
 import { type SessionMessage } from "../../../schemas/session/message";
 import { type StoreId } from "../../../schemas/store-id";
 import { type TaskId } from "../../../schemas/task-id";
+import { isWorking } from "../../chat/activity";
 import { folderReach } from "../../chat/folder-reach";
 import { latestOrNewSessionId } from "../../chat/latest-session";
+import { expectStop } from "../../chat/wake";
 import { defaultTaskName } from "../../default-task-name";
 import { initializeTask } from "../../initialize-task";
+import {
+  handOverBackgroundProcesses,
+  listBackgroundProcesses,
+} from "../../background-processes";
 import { isToolPart } from "../../is-tool-part";
 import { newMessage } from "../../new-message";
 import { newTaskId } from "../../new-task-id";
+import { chatTaskIds } from "../../record-folders";
 import { Store } from "../../store";
 import { systemNote } from "../../system-note";
 import { taskDir } from "../../task-dir-utils";
@@ -23,6 +30,7 @@ import {
   type SubcommandShell,
   subcommand,
 } from "../subcommands";
+import { normalizeId } from "../background-jobs";
 import { TASK_COMMAND } from "../task-command";
 import { recordHandOff } from "../task-hand-off";
 import { subprocessStdin } from "../utils";
@@ -31,15 +39,17 @@ import { promptFrom } from "./delivery";
 import { chatModel } from "./model-choice";
 import { handedTabsLine, resolveTabs, tabsHeldElsewhere } from "./tab-choice";
 
-const NEW_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--tab <id>]... <<'EOF'
+const NEW_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--tab <id>]... [--job <id>]... <<'EOF'
   <what to do now>
   EOF
       Start a task: you, carrying on in the background with this conversation
       as it stands, in this same folder and with the same folders, apps and
       memories, doing what stdin says while you keep answering here. stdin
       says what to do now and repeats none of the conversation. --tab hands it
-      a tab of the user's, page and all. Prints its id. You are told when it
-      finishes; do not poll it.
+      a tab of the user's, page and all. --job hands it a command of yours
+      still running in the background (an id \`jobs\` lists), which it then
+      waits on rather than you. Prints its id. You are told when it finishes;
+      do not poll it.
 `;
 
 /**
@@ -47,8 +57,8 @@ const NEW_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--tab <id>]... <
  * hands it folders, files or apps, since it reaches exactly the chat's.
  */
 export const newSubcommand = subcommand<TaskCommandContext>({
-  flags: ["name", "tab"],
-  repeatable: ["tab"],
+  flags: ["job", "name", "tab"],
+  repeatable: ["job", "tab"],
   run: runFork,
   usage: NEW_USAGE,
 });
@@ -73,6 +83,7 @@ async function runFork(
       `unexpected ${input.positional.length === 1 ? "argument" : "arguments"} ${input.positional.map((argument) => `"${argument}"`).join(", ")} beside what to do on stdin. A path with a space in it needs quotes.`,
     );
   }
+  const jobs = handedJobs(input.all("job"), chatSessionId);
   const { model, modelURI } = await chatModel("new", context);
   const handedTabs = await resolveTabs(input.all("tab"));
   const sharedTabs = await tabsHeldElsewhere(handedTabs, context.chatId);
@@ -91,10 +102,45 @@ async function runFork(
     model,
     modelURI,
     name,
-    prompt: forkDirective(directive),
+    onSession: (forkSessionId, forkId) => {
+      handOverBackgroundProcesses({
+        from: chatSessionId,
+        ids: jobs,
+        to: forkSessionId,
+        toTaskId: forkId,
+      });
+    },
+    prompt: forkDirective(
+      jobs.length > 0
+        ? `${directive}\n\nStill running in the background, and yours now under the same ids: ${jobs.join(", ")}. Wait on them with \`fg\` rather than starting them again.`
+        : directive,
+    ),
   });
   recordHandOff({ kind: "created", taskId });
   return `Started task ${taskId} ("${name}"). It is running now, in this folder with your folders.\n${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`;
+}
+
+/**
+ * The ids `--job` names, each a command of the chat's still running in the
+ * background, which the fork takes over so that it, not the chat, waits on
+ * it: the route for work the chat hands off partway, with a build or a
+ * download already under way.
+ */
+function handedJobs(args: string[], sessionId: StoreId.Session): string[] {
+  const running = new Set(
+    listBackgroundProcesses(sessionId)
+      .filter((process) => process.status === "running")
+      .map((process) => process.id),
+  );
+  return args.map((arg) => {
+    const id = normalizeId(arg);
+    if (!id || !running.has(id)) {
+      throw new Error(
+        `--job ${arg} is not a command of yours still running; \`jobs\` lists them.`,
+      );
+    }
+    return id;
+  });
 }
 
 /**
@@ -142,8 +188,7 @@ export function grantsOfChat(
 }
 
 /**
- * Starts a fork of a chat, however it was asked for (`task new`, or a message
- * that interrupted the chat's turn): a task of the chat's that works in its
+ * Starts a fork of a chat: a task of the chat's that works in its
  * folder, inherits its conversation, and runs the agent on `prompt` as its
  * own first turn. Returns the fork's id once its
  * session has been asked to start.
@@ -160,7 +205,6 @@ export async function startFork({
   name,
   onSession,
   prompt,
-  settings,
 }: {
   chatId: ChatId;
   chatSessionId: StoreId.Session;
@@ -177,8 +221,6 @@ export async function startFork({
   onSession?: (sessionId: StoreId.Session, taskId: TaskId) => void;
   /** The fork's first turn, as `forkDirective` writes it. */
   prompt: string;
-  /** Recorded on the fork's settings beside what every fork carries. */
-  settings?: { forkedOnInterrupt?: boolean };
 }): Promise<TaskId> {
   const workspaceConfig = getWorkspaceConfig();
   const taskId = await newTaskId({ prompt: idFrom, workspaceConfig });
@@ -190,7 +232,6 @@ export async function startFork({
         fork: true,
         name,
         ...(effort ? { reasoningEffort: effort } : {}),
-        ...settings,
         workdir: chatId,
       },
       taskId,
@@ -369,4 +410,22 @@ function inSession<T extends { metadata: { sessionId: StoreId.Session } }>(
   sessionId: StoreId.Session,
 ): T {
   return { ...item, metadata: { ...item.metadata, sessionId } };
+}
+
+/**
+ * The chat's forks still running, for a stop of the chat to end with them:
+ * Stop means all of the user's work, wherever it is running.
+ */
+export async function runningForks(chatId: ChatId): Promise<TaskId[]> {
+  const ids = chatTaskIds(chatId).filter((id) => isWorking(id));
+  const settings = await Promise.all(
+    ids.map((id) => getTaskSettings(taskDir(id))),
+  );
+  return ids.filter((_, index) => settings[index]?.fork === true);
+}
+
+/** Ends a fork's turn, as a stop the chat expects rather than news. */
+export function stopFork(taskId: TaskId): void {
+  expectStop(taskId);
+  getWorkspaceActorRef().send({ type: "stopSessions", value: { id: taskId } });
 }

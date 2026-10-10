@@ -39,7 +39,7 @@ g, with g-note. The chat's agent is `instrumentAgent` (`packages/workspace/src/a
 
 Alongside it:
 
-- Fork on interrupt (`lib/fork-on-interrupt.ts`) is always on for chats.
+- Fork on interrupt (`lib/fork-on-interrupt.ts`) is always on for chats. Superseded on 2026-10-10: a message typed mid-turn now joins the running turn, and the chat forks its own work with `task new` when the message is about something else. In the real 2.0 chats on two machines, 33 of 36 mid-turn messages continued, corrected, added to, or stopped the running work, and the auto-fork split those into two agents doing one job.
 - Every tool call carries `activity`, a short heading for the phase of work, beside `explanation` (`tools/base.ts`).
 - The first step of each turn the user typed carries `TURN_NOTE` (`lib/turn-note.ts`): one sentence to the user before any tool, then quiet until the outcome. It is placed after the cache breakpoints for that one request and never stored. Forks get none.
 

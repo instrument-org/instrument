@@ -2854,8 +2854,8 @@ const SCENARIOS: Scenario[] = [
   },
   {
     // A job the agent does itself, a few tool calls long, and a quick
-    // question sent while one of those calls is running: the turn is forked,
-    // so the job carries on in the background while the chat answers.
+    // question sent while one of those calls is running: the turn reads it
+    // at its next step, and answers it without dropping the job.
     assertions: [answeredTheQuickQuestion, renamedTheScans],
     followUps: [
       {

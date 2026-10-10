@@ -4,7 +4,7 @@ import { call, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { changedMessageBatches } from "../../lib/changed-message-batches";
-import { runningForks, stopFork } from "../../lib/fork-on-interrupt";
+import { runningForks, stopFork } from "../../lib/shell-commands/task/fork";
 import { resolveChat } from "../../lib/record-folders";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
@@ -118,8 +118,7 @@ const stop = base
         id: input.id,
       },
     });
-    // A chat's work can be running in forks the user never asked for (fork
-    // on interrupt), so stopping the chat stops them too.
+    // A chat's work can be running in its tasks, and Stop means all of it.
     const chatId = resolveChat(input.id);
     if (chatId) {
       for (const forkId of await runningForks(chatId)) {

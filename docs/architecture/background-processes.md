@@ -83,7 +83,7 @@ The agent-facing surface is one file: [`lib/shell-commands/background-jobs.ts`](
 
 The registry is keyed by **session**, not task ([`recordsBySession`](../../packages/workspace/src/lib/background-processes.ts)). One task can have several live sessions — parallel turns, and every subagent gets its own session id from `spawnAgent` — so a task-keyed registry would let one session read and kill another's work.
 
-Ownership moves once: when a chat's turn is forked on interrupt ([`lib/fork-on-interrupt.ts`](../../packages/workspace/src/lib/fork-on-interrupt.ts)), whatever that turn started and still runs goes to the fork's session under the same id (`handOverBackgroundProcesses`), so the fork waits on it with `fg` instead of starting it a second time. The fork works in the chat's folder, so the logs stay put.
+Ownership moves in one case: when the chat hands work to a task partway, `task new --job bg_1` ([`task/fork.ts`](../../packages/workspace/src/lib/shell-commands/task/fork.ts)) moves that command to the task's session under the same id (`handOverBackgroundProcesses`), so the task waits on it with `fg` instead of starting it a second time. The task works in the chat's folder, so the logs stay put.
 
 | Trigger | Reaches | Where |
 |---|---|---|

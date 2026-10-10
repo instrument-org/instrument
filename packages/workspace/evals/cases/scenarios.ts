@@ -270,8 +270,8 @@ const leftTheFleetRunning: Assertion = {
 };
 
 // ---------------------------------------------------------------------------
-// interrupt-chain: a foreground job interrupted by a second job, which is
-// interrupted in turn while the first one's fork still runs
+// interrupt-chain: a foreground job, then a second job and a quick question,
+// each sent while the chat is still working
 // ---------------------------------------------------------------------------
 
 const NOTES = Array.from({ length: 10 }, (_, index) => ({

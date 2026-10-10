@@ -29,8 +29,7 @@ import { expectStop, wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { Store } from "../src/lib/store";
-import { taskDir } from "../src/lib/task-dir-utils";
-import { getTaskSettings, updateTaskSettings } from "../src/lib/task-settings";
+import { updateTaskSettings } from "../src/lib/task-settings";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
@@ -139,11 +138,6 @@ export interface CompletedRun {
  * Times are from the case's first message being sent.
  */
 export interface RunMetrics {
-  /**
-   * Forks the harness made when the user wrote mid-turn, rather than the
-   * agent; among `tasksCreated`.
-   */
-  autoForks: number;
   /** Cached input tokens across the tree, for pricing a run. */
   cacheReadTokens: number;
   /**
@@ -1326,14 +1320,7 @@ async function metricsFor(
       }
     }
   }
-  let autoForks = 0;
-  for (const child of childTaskIds) {
-    if ((await getTaskSettings(taskDir(child)))?.forkedOnInterrupt) {
-      autoForks += 1;
-    }
-  }
   return {
-    autoForks,
     doneMs: doneAt - startedAt,
     firstTextMs:
       firstTextAt === undefined ? undefined : firstTextAt - startedAt,

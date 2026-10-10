@@ -47,6 +47,19 @@ vi.mock(import("../workspace-actor-ref"), () => ({
   setWorkspaceActorRef: vi.fn(),
 }));
 
+const jobs = vi.hoisted(() => ({
+  handed: [] as unknown[],
+  running: [] as { id: string; status: string }[],
+}));
+
+vi.mock(import("../background-processes"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  handOverBackgroundProcesses: (handOver: unknown) => {
+    jobs.handed.push(handOver);
+  },
+  listBackgroundProcesses: () => jobs.running as never,
+}));
+
 vi.mock(import("@instrument-org/ai-gateway"), async (importOriginal) => ({
   ...(await importOriginal()),
   fetchModel: () =>
@@ -61,6 +74,8 @@ let chatSessionId: StoreId.Session;
 beforeEach(async () => {
   counter += 1;
   sent.events = [];
+  jobs.handed = [];
+  jobs.running = [];
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-fork-"));
   // The chat reaches the home folder read and write, so a test that writes
   // into what it reaches would otherwise write into the real one.
@@ -333,6 +348,24 @@ describe("task new", () => {
     const { handOffs, result } = await fork();
     expect(result.stdout).toContain(`Started task ${forkId(handOffs)}`);
     expect(result.stdout).not.toContain("/tasks");
+  });
+
+  it("hands it a command of the chat's still running, to wait on", async () => {
+    jobs.running = [
+      { id: "bg_1", status: "running" },
+      { id: "bg_2", status: "exited" },
+    ];
+    const { handOffs } = await fork(["--job", "%1"]);
+    const id = forkId(handOffs);
+    expect(jobs.handed).toMatchObject([
+      { from: chatSessionId, ids: ["bg_1"], toTaskId: id },
+    ]);
+    const start = JSON.stringify(sent.events.at(-1));
+    expect(start).toContain("yours now under the same ids: bg_1");
+
+    await expect(fork(["--job", "bg_2"])).rejects.toThrow(
+      /--job bg_2 is not a command of yours still running/,
+    );
   });
 
   it("refuses the flags that would hand a fork what it already has", async () => {

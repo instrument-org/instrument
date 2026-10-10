@@ -212,6 +212,15 @@ export function composeKeyOf(entry: ComposeEntry): string {
   return entry.kind === "draft" ? draftGroupOf(entry.draftId) : entry.chatId;
 }
 
+/** The chats up in a window of their own over the row: docked or grown, not put down to a bar. */
+export function chatsOutOf(entries: ComposeEntry[]): Set<string> {
+  return new Set(
+    entries.flatMap((entry) =>
+      entry.kind === "chat" && entry.placement !== "bar" ? [entry.chatId] : [],
+    ),
+  );
+}
+
 /**
  * The windows floating over the row, the way a mail client keeps several
  * compose windows along its foot, oldest first: the newest stands at the

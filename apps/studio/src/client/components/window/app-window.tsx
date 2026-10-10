@@ -9,6 +9,7 @@ import {
   pageSlotsAtom,
   paneOpenByGroupAtom,
   screenViewsAtom,
+  chatsOutOf,
 } from "@/client/atoms/window";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -921,7 +922,18 @@ function WindowShell({
                     inboxPeek.close();
                     showDraft(id);
                   }}
+                  onPopOut={(entry) => {
+                    inboxPeek.close();
+                    compose.float(entry.id);
+                    // The chat up in Chat leaves it for its own window, with
+                    // the inbox back in its column.
+                    if (entry.id === chatUp && isChat) {
+                      appTabs.navigate(INBOX_HREF);
+                      setInboxOpen(true);
+                    }
+                  }}
                   openChatId={chatUp}
+                  outIds={chatsOutOf(compose.entries)}
                 />
               </InboxPeek>
               <CommandMenu

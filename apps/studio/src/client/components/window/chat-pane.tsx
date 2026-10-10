@@ -45,7 +45,9 @@ export function ChatPane({
   onListed,
   onOpenChat,
   onOpenDraft,
+  onPopOut,
   openChatId,
+  outIds,
 }: {
   /** The chat that just started from a draft, whose row arrives with a motion of its own. */
   arrivedId?: string;
@@ -62,8 +64,12 @@ export function ChatPane({
   onOpenChat: (chat: Chat) => void;
   /** Opens a draft to go on writing it. */
   onOpenDraft: (id: string) => void;
+  /** Floats a chat in a window of its own over the row, from its row. */
+  onPopOut?: (chat: Chat) => void;
   /** The chat open beside the list, if one is. */
   openChatId: string | undefined;
+  /** The chats already up in a window of their own. */
+  outIds?: ReadonlySet<string>;
 }) {
   const appsBySlug = useAppsBySlug();
   const chatsQuery = useQuery(chatListOptions());
@@ -213,6 +219,7 @@ export function ChatPane({
         }}
         onOpen={onOpenChat}
         onOpenDraft={onOpenDraft}
+        onPopOut={onPopOut}
         onSetTopics={(chat, next) => {
           setChatTopics(chat.id, next);
         }}
@@ -220,6 +227,7 @@ export function ChatPane({
           changeFilters(widenToSearch(filters));
         }}
         openId={openChatId}
+        outIds={outIds}
         outside={outside}
         scrollSignal={scrollSignal}
         // The decision model's finds are not matches of the words, so

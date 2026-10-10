@@ -10,6 +10,7 @@ import {
   paneOpenByGroupAtom,
   screenViewsAtom,
   walkedFoldersAtom,
+  chatsOutOf,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
 } from "@/client/atoms/window";
@@ -276,7 +277,16 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
               appWindow.openScreen(`${CHATS_HREF}/${entry.id}`);
             }}
             onOpenDraft={shell.showDraft}
+            // As from the chat's head: popped out, the chat open here is
+            // no longer the one this tab has open.
+            onPopOut={(entry) => {
+              shell.compose.float(entry.id);
+              if (entry.id === chat) {
+                leaveChat();
+              }
+            }}
             openChatId={chat}
+            outIds={chatsOutOf(shell.compose.entries)}
           />
         </div>
       </ChatColumn>

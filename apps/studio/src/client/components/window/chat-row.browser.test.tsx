@@ -26,6 +26,7 @@ import { useChatActionsFor } from "./chat-actions";
 import { ChatRow } from "./chat-row";
 import { type Chat, type Topic } from "./chats";
 import { WindowContext, type WindowContextValue } from "./context";
+import { type RowAction } from "./row-shell";
 
 /** What each of the row's own routes was asked, by name. */
 const calls = vi.hoisted(() => ({
@@ -307,11 +308,14 @@ async function renderRow(
 async function renderRows(
   chats: Chat[],
   {
+    leading = [],
     onOpen = vi.fn(),
     onSetTopics = vi.fn(),
     openScreen = vi.fn(),
     store,
   }: {
+    /** Actions the list puts ahead of the chat's own, as it does Pop out. */
+    leading?: RowAction[];
     onOpen?: Mock<() => void>;
     onSetTopics?: Mock<(topics: string[]) => void>;
     openScreen?: Mock<(href: string) => void>;
@@ -325,7 +329,7 @@ async function renderRows(
     return chats.map((entry, index) => (
       <div key={index} style={{ width: "400px" }}>
         <ChatRow
-          actions={actionsFor(entry)}
+          actions={[...leading, ...actionsFor(entry)]}
           appsBySlug={
             new Map([
               ["github", { name: "GitHub", site: "https://github.com" }],
@@ -703,6 +707,47 @@ describe("ChatRow", () => {
       expect(row.textContent).not.toContain("/task");
       expect(row.textContent).not.toContain("wakatime.com");
     }
+  });
+
+  it("raises the row's menu from a right click on the empty line past what it holds", async () => {
+    const { row } = await renderRow(
+      chat({ holds: { apps: [], files: [], sites: ["wakatime.com"] } }),
+    );
+    const line = row.querySelector<HTMLElement>('[data-slot="holds"]');
+    if (!line) {
+      throw new Error("no line of holds");
+    }
+    const { height, left, top, width } = line.getBoundingClientRect();
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: left + width - 4,
+      clientY: top + height / 2,
+    });
+    line.dispatchEvent(event);
+    // Refused, so the window's own menu does not answer as well.
+    expect(event.defaultPrevented).toBe(true);
+    await expect
+      .element(page.getByRole("menuitem", { name: "Open in New Tab" }))
+      .toBeVisible();
+  });
+
+  it("offers Pop Out beside the ways to open the chat when the list gives it", async () => {
+    const run = vi.fn();
+    const { rows } = await renderRows([chat()], {
+      leading: [{ icon: null, id: "popOut", label: "Pop out", run }],
+    });
+    const [row] = rows;
+    if (!row) {
+      throw new Error("no row");
+    }
+    row.dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
+    );
+    const items = page.getByRole("menuitem");
+    await expect.element(items.nth(2)).toHaveTextContent("Pop Out");
+    await userEvent.click(items.nth(2));
+    expect(run).toHaveBeenCalledOnce();
   });
 
   it("keeps what it holds to one line, the files first, clipped at the row's edge rather than wrapped", async () => {

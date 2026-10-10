@@ -6,11 +6,11 @@ Copy example files to local env files before running Studio or workspace logic. 
 
 Copy from `apps/studio/.env.local.example`. Loaded by electron-vite for the main and renderer processes.
 
-| Variable                          | Required | Description                                                                                                                                                        |
-| --------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `MAIN_VITE_APP_API_BASE_URL`      | yes      | Base URL for the Instrument platform API (accounts, billing, gateway). Local dev: `http://localhost:49100` with the `internal` API repo running.                   |
-| `MAIN_VITE_APP_REGISTRY_DIR_PATH` | no       | Override path to the skills registry. Unset, the app falls back to the repo submodule at `registry/`.                                                              |
-| `MAIN_VITE_REPORTS_BASE_URL`      | no       | Where problem reports are sent: the `apps/reports` Worker in the internal repo. Local dev: `http://localhost:49130`. Unset, Send says there is nowhere to send to. |
+| Variable                          | Required | Description                                                                                                                                                                                                    |
+| --------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MAIN_VITE_APP_API_BASE_URL`      | yes      | Base URL for the Instrument platform API (accounts, billing, gateway). The example sets production, so a fresh clone can sign in; set `http://localhost:49100` to use the `internal` API repo running locally. |
+| `MAIN_VITE_APP_REGISTRY_DIR_PATH` | no       | Override path to the skills registry. Unset, the app falls back to the repo submodule at `registry/`.                                                                                                          |
+| `MAIN_VITE_REPORTS_BASE_URL`      | no       | Where problem reports are sent: the `apps/reports` Worker in the internal repo. Local dev: `http://localhost:49130`. Unset, Send says there is nowhere to send to.                                             |
 
 `apps/studio/.env.development` is gitignored and machine-local, but electron-vite loads it in dev when present, so values there (a registry override) act as defaults underneath `.env.local`. Nothing in the repo ships it: a fresh clone has only what setup copies from `.env.local.example`.
 

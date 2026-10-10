@@ -67,7 +67,7 @@ import {
   getComputerFileUrl,
   getComputerThumbnailUrl,
 } from "@/client/lib/computer-file-url";
-import { getFileType } from "@/client/lib/get-file-type";
+import { getFileType, opensInSystemApp } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
@@ -955,11 +955,28 @@ export function ComputerPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [access, display, hostPath, mount, onFolderChange, selectedKey, walked]);
 
+  // A type with no viewer here goes to the app the computer would use, the way
+  // a double-click in the system's file manager does: a disk image mounts and
+  // shows its window. Where that fails, the tab's card says why and offers
+  // what is left.
+  const handOff = useMutation(rpcClient.utils.openPath.mutationOptions());
   const openFile = (file: FileSystemFileItem) => {
     const tab = fileTabOf(file);
-    if (tab) {
-      onOpenFile(tab);
+    if (!tab) {
+      return;
     }
+    if (opensInSystemApp(tab.name)) {
+      handOff.mutate(
+        { filepath: tab.hostPath },
+        {
+          onError: () => {
+            onOpenFile(tab);
+          },
+        },
+      );
+      return;
+    }
+    onOpenFile(tab);
   };
 
   // Space on a selected file, the way the Finder shows one over everything.
@@ -1175,7 +1192,7 @@ export function ComputerPage({
       ...(group
         ? {
             onOpen: () => {
-              openInTabs(group, { behind: false });
+              openSeveral(group);
             },
             onOpenInNewTab: () => {
               openInTabs(group, { behind: true });
@@ -1211,6 +1228,19 @@ export function ComputerPage({
       );
       isFirst = false;
     }
+  };
+  // Opening several, as a double-click or ⌘O on a selection does: each file
+  // goes where opening it alone would, and the rest come up in tabs.
+  const openSeveral = (picked: FileSystemItem[]) => {
+    const inTabs = picked.filter((item) => {
+      const tab = item.kind === "file" ? fileTabOf(item) : undefined;
+      if (item.kind === "file" && tab && opensInSystemApp(tab.name)) {
+        openFile(item);
+        return false;
+      }
+      return true;
+    });
+    openInTabs(inTabs, { behind: false });
   };
   const menuActionsForOne = (item: FileSystemItem | undefined) => ({
     onCopyPath: () => void copyPath(item),
@@ -1463,7 +1493,7 @@ export function ComputerPage({
                 onColumnWidthChange={setColumnWidth}
                 onFileOpen={openFile}
                 onOpenSeveral={(several) => {
-                  openInTabs(several, { behind: false });
+                  openSeveral(several);
                 }}
                 onItemContextMenu={(item) => {
                   setMenuItem(item ?? undefined);

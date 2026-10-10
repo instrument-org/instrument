@@ -2,18 +2,28 @@ import { z } from "zod";
 
 import { folderReach } from "../../../lib/chat/folder-reach";
 import { grantFolder } from "../../../lib/chat/grants";
+import { effectiveFolderAccess } from "../../../lib/workspace-fs-layout";
 import { FolderAttachment } from "../../../schemas/folder-attachment";
 import { ChatIdSchema } from "../../../schemas/chat-id";
 import { base } from "../../base";
 
 /**
  * The folders a chat reaches, by the name each is mounted under: more than
- * it holds grants for (folder-reach.ts).
+ * it holds grants for (folder-reach.ts). Each carries the access its mount
+ * gets, so a folder holding the workspace (the home folder) reads as
+ * read-only, the way the agent meets it.
  */
 const folders = base
   .input(z.object({ id: ChatIdSchema }))
   .output(z.record(z.string(), FolderAttachment.Schema))
-  .handler(({ input }) => folderReach(input.id));
+  .handler(async ({ input }) =>
+    Object.fromEntries(
+      Object.entries(await folderReach(input.id)).map(([name, folder]) => [
+        name,
+        { ...folder, access: effectiveFolderAccess(folder) },
+      ]),
+    ),
+  );
 
 /**
  * Grant a chat a folder outside of a message: what answering an agent's

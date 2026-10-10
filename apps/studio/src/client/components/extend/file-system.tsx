@@ -201,6 +201,13 @@ export type FileSystemProps = {
   /** The order the browser opens in, when name ascending is the wrong one. */
   defaultSort?: FileSystemSortState;
   defaultView?: FileSystemView;
+  /**
+   * What the browser says when there is nothing to list and nothing is
+   * searched or filtered, in every view: a list with nothing in it yet,
+   * which a plain "This folder is empty" would misdescribe. Left out, an
+   * empty folder says that.
+   */
+  emptyState?: { description: string; title: string };
   /** Resolve a URL (e.g. presigned) for a file without one. */
   getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
   /**
@@ -1622,6 +1629,7 @@ export function FileSystem({
   defaultSelectedPath,
   defaultSort,
   defaultView = "icons",
+  emptyState,
   getFileUrl,
   getHostPath,
   items,
@@ -3132,6 +3140,18 @@ export function FileSystem({
             role="status"
           >
             <Spinner className="size-5 text-muted-foreground" delay={1000} />
+          </div>
+        ) : currentEntries.length === 0 &&
+          emptyState &&
+          !isSearching &&
+          !hasActiveFilters ? (
+          <div className="flex size-full flex-col items-center justify-center gap-1 px-6 text-center">
+            <p className="text-sm font-medium text-foreground">
+              {emptyState.title}
+            </p>
+            <p className="max-w-72 text-sm text-muted-foreground">
+              {emptyState.description}
+            </p>
           </div>
         ) : currentEntries.length === 0 &&
           (view !== "columns" || isSearching || hasActiveFilters) ? (

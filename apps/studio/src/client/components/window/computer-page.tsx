@@ -1540,6 +1540,15 @@ export function ComputerPage({
                 // Every row here is a thing on this computer, and drags out of
                 // the window as one: to the desktop, a Finder window, another
                 // app. What lands there is the OS's copy; nothing here moves.
+                emptyState={
+                  isRecents
+                    ? {
+                        description:
+                          "Files you open in Instrument show up here, so you can get back to them quickly.",
+                        title: "No recent files yet",
+                      }
+                    : undefined
+                }
                 getHostPath={(item) => hostPathOfItem(item) || undefined}
                 items={items}
                 key={`${root}#${openings}`}

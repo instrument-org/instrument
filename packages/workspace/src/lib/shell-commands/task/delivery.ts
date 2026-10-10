@@ -49,7 +49,7 @@ export async function deliver({
     modelURI,
     prompt: "",
     sessionId,
-    taskId: task.chatId,
+    chatId: task.chatId,
   });
   if (message.isErr()) {
     throw message.error;

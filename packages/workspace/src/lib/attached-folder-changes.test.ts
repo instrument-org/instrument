@@ -11,7 +11,7 @@ import { attachFolder, detachFolder } from "./attach-folder";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { setAttachedFoldersBaseline } from "./attached-folders-baseline";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
-import { initializeTaskInChat } from "../test/helpers/initialize-task-in-chat";
+import { initializeTestChat } from "../test/helpers/initialize-test-chat";
 
 // A task of its own per test: the session store is cached by task id, so a
 // second task under one name in a fresh temp directory reuses the handle on the
@@ -39,7 +39,7 @@ async function changesSince(
     ...(announced ? { announced } : {}),
     messageId: StoreId.newMessageId(),
     sessionId,
-    taskId: TASK_ID,
+    chatId: TASK_ID,
   });
   if (result.isErr()) {
     throw result.error;
@@ -68,9 +68,9 @@ beforeEach(async () => {
       path.resolve(import.meta.dirname, "../../templates/default"),
     ),
   });
-  await initializeTaskInChat({
+  await initializeTestChat({
     initialSettings: { name: "Find the vault" },
-    taskId: TASK_ID,
+    chatId: TASK_ID,
   });
   sessionId = StoreId.newSessionId();
 });
@@ -84,7 +84,7 @@ describe("detectAttachedFolderChanges", () => {
     await attachFolder({
       access: "read-write",
       path: downloads,
-      taskId: TASK_ID,
+      chatId: TASK_ID,
     });
 
     const changes = await changesSince([]);
@@ -98,7 +98,7 @@ describe("detectAttachedFolderChanges", () => {
     await attachFolder({
       access: "read-write",
       path: downloads,
-      taskId: TASK_ID,
+      chatId: TASK_ID,
     });
 
     // What the attachment part on the message already lists in full.
@@ -110,13 +110,13 @@ describe("detectAttachedFolderChanges", () => {
   it("still reports a removal on a message that brings a folder of its own", async () => {
     const gone = path.join(rootDir, "Old");
     await fs.mkdir(gone);
-    await attachFolder({ access: "read-only", path: gone, taskId: TASK_ID });
+    await attachFolder({ access: "read-only", path: gone, chatId: TASK_ID });
     await attachFolder({
       access: "read-write",
       path: downloads,
-      taskId: TASK_ID,
+      chatId: TASK_ID,
     });
-    await detachFolder({ path: gone, taskId: TASK_ID });
+    await detachFolder({ path: gone, chatId: TASK_ID });
 
     const changes = await changesSince(
       [{ access: "read-only", name: "Old", path: gone }],
@@ -133,7 +133,7 @@ describe("detectAttachedFolderChanges", () => {
     await attachFolder({
       access: "read-write",
       path: downloads,
-      taskId: TASK_ID,
+      chatId: TASK_ID,
     });
 
     const changes = await changesSince([

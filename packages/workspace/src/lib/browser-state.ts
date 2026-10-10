@@ -51,12 +51,12 @@ function withVisit(hosts: string[] | undefined, url: string): string[] {
 }
 
 export function getBrowserState(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
   { signal }: { signal?: AbortSignal } = {},
 ) {
   return safeTry<BrowserState | undefined, Error>(async function* () {
-    const storage = yield* getSessionsStoreStorage(taskId);
+    const storage = yield* getSessionsStoreStorage(chatId);
     const result = await getParsedStorageItem(
       StorageKey.browserState(sessionId),
       BrowserStateSchema,
@@ -106,16 +106,16 @@ export function navigateTarget({
 export function recordVisitedHosts({
   sessionId,
   signal,
-  taskId,
+  chatId,
   urls,
 }: {
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: ChatId;
+  chatId: ChatId;
   urls: string[];
 }) {
   return safeTry(async function* () {
-    const current = yield* getBrowserState(taskId, sessionId, { signal });
+    const current = yield* getBrowserState(chatId, sessionId, { signal });
     const known = new Set(current?.visitedHosts);
     // Every command runs through here with every tab it holds, so only a host
     // the session has not been on is worth a write; one it has been on stays
@@ -131,7 +131,7 @@ export function recordVisitedHosts({
     for (const url of fresh) {
       visitedHosts = withVisit(visitedHosts, url);
     }
-    const storage = yield* getSessionsStoreStorage(taskId);
+    const storage = yield* getSessionsStoreStorage(chatId);
     yield* setParsedStorageItem(
       StorageKey.browserState(sessionId),
       { ...current, lastUsedAt: new Date(), visitedHosts },
@@ -154,12 +154,12 @@ export function recordVisitedHosts({
 export function restoreLastPage({
   fallbackUrl,
   targetId,
-  taskId,
+  chatId,
 }: {
   /** Where the tab goes. */
   fallbackUrl?: string;
   targetId: BrowserTargetId;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   return new ResultAsync(
     (async (): Promise<Result<undefined, Error>> => {
@@ -170,7 +170,7 @@ export function restoreLastPage({
       // unreachable guest would otherwise take the whole open with it.
       try {
         const { browser } = getWorkspaceConfig();
-        const targets = await browser.listTargets(taskId);
+        const targets = await browser.listTargets(chatId);
         const target = targets.find(({ id }) => id === targetId);
         if (!target || target.url !== BLANK_PAGE_URL) {
           return ok(undefined);

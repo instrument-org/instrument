@@ -41,11 +41,11 @@ export function TaskPage({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2">
         <h2 className="min-w-0 truncate text-sm font-medium">{task.title}</h2>
-        <TaskMenu sessionId={sessionId} taskId={chat} />
-        <TaskBackgroundProcesses sessionId={sessionId} taskId={chat} />
+        <TaskMenu sessionId={sessionId} chatId={chat} />
+        <TaskBackgroundProcesses sessionId={sessionId} chatId={chat} />
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {isDeveloperMode && (
-            <TaskUsageSummary sessionId={sessionId} taskId={chat} />
+            <TaskUsageSummary sessionId={sessionId} chatId={chat} />
           )}
           {task.stoppable && (
             <Button

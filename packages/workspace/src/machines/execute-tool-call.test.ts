@@ -141,7 +141,7 @@ describe("executeToolCallMachine", () => {
         model,
         part,
         sessionId,
-        taskId: taskConfig,
+        chatId: taskConfig,
       },
     });
 
@@ -559,7 +559,7 @@ describe("executeToolCallMachine", () => {
       await saveStoppedToolCallPart({
         part,
         reason: "manual",
-        taskId: taskConfig,
+        chatId: taskConfig,
       });
 
       expect(await readStoredPart(part.metadata.id)).toMatchObject({
@@ -592,7 +592,7 @@ describe("executeToolCallMachine", () => {
       await saveStoppedToolCallPart({
         part,
         reason: "manual",
-        taskId: taskConfig,
+        chatId: taskConfig,
       });
 
       const stored = await readStoredPart(part.metadata.id);

@@ -9,7 +9,6 @@ import { message } from "./routes/message";
 import { session } from "./routes/session";
 import { skill } from "./routes/skill";
 import { storage } from "./routes/storage";
-import { task } from "./routes/task";
 import { topics } from "./routes/topics";
 import { window } from "./routes/window";
 
@@ -24,7 +23,6 @@ export const router = {
   session,
   skill,
   storage,
-  task,
   topics,
   window,
 };

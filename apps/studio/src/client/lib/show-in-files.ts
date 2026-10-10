@@ -87,9 +87,9 @@ export function showInFolderLabel(kind: "file" | "folder") {
 }
 
 /** Shows a task's own folder, which is where what it made lands, as `showInFolder` shows any folder. */
-export async function showTaskFolder(taskId: ChatId) {
+export async function showTaskFolder(chatId: ChatId) {
   const [error, hostPath] = await safe(
-    rpcClient.utils.taskFolderPath.call({ id: taskId }),
+    rpcClient.utils.taskFolderPath.call({ id: chatId }),
   );
   if (error) {
     toast.error("Couldn't find the task's folder", {

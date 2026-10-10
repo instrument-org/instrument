@@ -13,7 +13,7 @@ import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
 
 const model = createMockAIGatewayModel();
-const taskId = createMockChatConfig(ChatIdSchema.parse("test"), {
+const chatId = createMockChatConfig(ChatIdSchema.parse("test"), {
   model,
 });
 
@@ -55,7 +55,7 @@ function makeExecuteArgs(
     input,
     model,
     signal: AbortSignal.timeout(10_000),
-    taskId,
+    chatId,
     taskState: { browserTabs: [] },
   };
 }
@@ -63,7 +63,7 @@ function makeExecuteArgs(
 function setupMockFs(files: NonNullable<Parameters<typeof mockFs>[0]> = {}) {
   mockFs({
     [MOCK_WORKSPACE_DIRS.chats]: {
-      [taskId]: {
+      [chatId]: {
         "grep-test.txt": GREP_FILE_CONTENT,
         ...files,
       },
@@ -246,7 +246,7 @@ describe("EditFile", () => {
       `);
       await expect(
         fs.readFile(
-          path.join(MOCK_WORKSPACE_DIRS.chats, taskId, "index.ts"),
+          path.join(MOCK_WORKSPACE_DIRS.chats, chatId, "index.ts"),
           "utf8",
         ),
       ).resolves.toBe(original);

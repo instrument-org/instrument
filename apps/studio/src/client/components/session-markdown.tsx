@@ -14,7 +14,7 @@ export const SessionMarkdown = ({
   isStreaming,
   markdown,
   ref,
-  taskId,
+  chatId,
 }: {
   assetVersion?: string;
   className?: string;
@@ -24,7 +24,7 @@ export const SessionMarkdown = ({
   isStreaming?: boolean;
   markdown: string;
   ref?: Ref<HTMLDivElement>;
-  taskId?: ChatId;
+  chatId?: ChatId;
 }) => {
   return (
     <div
@@ -41,7 +41,7 @@ export const SessionMarkdown = ({
         imageKinds={imageKinds}
         isStreaming={isStreaming}
         markdown={markdown}
-        taskId={taskId}
+        chatId={chatId}
       />
     </div>
   );

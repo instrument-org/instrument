@@ -37,9 +37,9 @@ function read(...segments: string[]): string {
   return fs.readFileSync(path.join(rootDir, ...segments), "utf8");
 }
 
-function readSettings(taskId: string): Record<string, unknown> {
+function readSettings(chatId: string): Record<string, unknown> {
   return JSON.parse(
-    read("tasks", taskId, ".instrument", "settings.json"),
+    read("tasks", chatId, ".instrument", "settings.json"),
   ) as Record<string, unknown>;
 }
 
@@ -62,8 +62,8 @@ function writeProjectFolder(name: string, projectId: string): void {
   fs.writeFileSync(path.join(rootDir, "projects", name, "AGENTS.md"), "do x");
 }
 
-function writeTaskSettings(taskId: string, settings: Record<string, unknown>) {
-  const privateDir = path.join(rootDir, "tasks", taskId, ".instrument");
+function writeTaskSettings(chatId: string, settings: Record<string, unknown>) {
+  const privateDir = path.join(rootDir, "tasks", chatId, ".instrument");
   fs.mkdirSync(privateDir, { recursive: true });
   fs.writeFileSync(
     path.join(privateDir, "settings.json"),

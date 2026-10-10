@@ -19,7 +19,7 @@ import { useQuery } from "@tanstack/react-query";
  */
 export function useHasLiveSession(sessionId: StoreId.Session) {
   const { data } = useQuery({
-    ...rpcClient.workspace.task.live.activity.experimental_liveOptions(),
+    ...rpcClient.workspace.chats.live.activity.experimental_liveOptions(),
     select: (entries) =>
       entries.some((entry) =>
         entry.sessionActors.some((actor) => actor.sessionId === sessionId),

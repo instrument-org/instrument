@@ -31,15 +31,15 @@ import { type ChatId } from "../../schemas/chat-id";
  * keeps its name while a later one comes and goes.
  */
 export async function folderReach(
-  taskId: ChatId,
+  chatId: ChatId,
   state?: ChatState,
 ): Promise<Record<string, FolderAttachment.Type>> {
-  const isWindow = taskId === WINDOW_ID;
+  const isWindow = chatId === WINDOW_ID;
   const held = isWindow
     ? undefined
-    : (state ?? (await getChatState(chatDir(taskId)))).attachedFolders;
-  const chatId = isWindow ? undefined : resolveChat(taskId);
-  if (!isWindow && !chatId) {
+    : (state ?? (await getChatState(chatDir(chatId)))).attachedFolders;
+  const chat = isWindow ? undefined : resolveChat(chatId);
+  if (!isWindow && !chat) {
     return held ?? {};
   }
 
@@ -62,7 +62,7 @@ export async function folderReach(
   )) {
     add(folder);
   }
-  for (const folderPath of chatId ? await topicFolderPaths(chatId) : []) {
+  for (const folderPath of chat ? await topicFolderPaths(chat) : []) {
     add(standingFolder(folderPath));
   }
 

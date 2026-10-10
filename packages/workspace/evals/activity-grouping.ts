@@ -461,7 +461,7 @@ process.stdout.write(
 // there were three activities; only this says whether they were the right three.
 process.stdout.write(`${c.dim}Activities as declared:${c.reset}\n`);
 for (const run of runs) {
-  const timeline = timelineFor(await sessionsFor(run.taskId, run.sessionId));
+  const timeline = timelineFor(await sessionsFor(run.chatId, run.sessionId));
   const lines = [
     timeline.unannounced.length > 0
       ? `    ${c.red}(unannounced)${c.reset} ${c.dim}${timeline.unannounced.join(", ")}${c.reset}`

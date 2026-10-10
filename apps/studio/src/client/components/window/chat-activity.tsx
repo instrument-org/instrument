@@ -38,7 +38,7 @@ export function ChatActivity({
   /** Whether it stands as the spinner and the count whatever the room, for a head as narrow as the floating chat's. */
   isCompact?: boolean;
   /** Opens a task's page, as a tab of the chat's. */
-  onOpen: (taskId: StoreId.Session) => void;
+  onOpen: (sessionId: StoreId.Session) => void;
   tasks: RunningTask[];
 }) {
   const listed = useChatTasks(chatId).data;
@@ -101,7 +101,7 @@ export function ChatTasksPopover({
   align?: "center" | "end";
   chatId: ChatId;
   /** Opens a task's page, as a tab of the chat's. */
-  onOpen: (taskId: StoreId.Session) => void;
+  onOpen: (sessionId: StoreId.Session) => void;
   tasks: RunningTask[];
   /** A button, which the popover hangs from. */
   trigger: ReactNode;
@@ -133,7 +133,7 @@ function TaskRows({
 }: {
   /** The chat's tasks, once read. */
   listed: ChatTask[] | undefined;
-  onOpen: (taskId: StoreId.Session) => void;
+  onOpen: (sessionId: StoreId.Session) => void;
   /** What the chat's record says is running, drawn until the list arrives. */
   running: RunningTask[];
 }) {

@@ -10,7 +10,7 @@ import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { type WorkspaceRPCContext } from "../base";
 import { computer } from "./computer";
 
-const taskId = createMockChatConfig(ChatIdSchema.parse("computer-route"));
+const chatId = createMockChatConfig(ChatIdSchema.parse("computer-route"));
 
 let tmpDir: string;
 
@@ -40,7 +40,7 @@ describe("workspace.computer.list", () => {
     const target = path.join(tmpDir, relative);
     const listing = call(
       computer.list,
-      { id: taskId, path: target },
+      { id: chatId, path: target },
       { context: createContext() },
     );
 
@@ -57,7 +57,7 @@ describe("workspace.computer.list", () => {
     await expect(
       call(
         computer.list,
-        { id: taskId, path: target },
+        { id: chatId, path: target },
         { context: createContext() },
       ),
     ).rejects.toMatchObject({
@@ -70,7 +70,7 @@ describe("workspace.computer.list", () => {
   it("lists a folder", async () => {
     const listing = await call(
       computer.list,
-      { id: taskId, path: tmpDir },
+      { id: chatId, path: tmpDir },
       { context: createContext() },
     );
 
@@ -86,7 +86,7 @@ describe("workspace.computer.list", () => {
       await expect(
         call(
           computer.list,
-          { id: taskId, path: target },
+          { id: chatId, path: target },
           { context: createContext() },
         ),
       ).resolves.toMatchObject({ kind: "refused", reason: "account" });

@@ -169,7 +169,7 @@ describe("task send", () => {
   it("reports the send as a hand-off to the bash call", async () => {
     const handOffs: HandOff[] = [];
     await withHandOffs(handOffs, () => send([]));
-    expect(handOffs).toEqual([{ kind: "sent", taskId: CHILD_ID }]);
+    expect(handOffs).toEqual([{ kind: "sent", sessionId: CHILD_ID }]);
   });
 
   it("runs the task on the model the chat's picker is on now", async () => {
@@ -205,7 +205,7 @@ describe("task send", () => {
       await Store.getMessagesWithParts({
         inherited: false,
         sessionId: CHILD_ID,
-        taskId: CHAT_ID,
+        chatId: CHAT_ID,
       })
     )._unsafeUnwrap();
     expect(own).toHaveLength(1);

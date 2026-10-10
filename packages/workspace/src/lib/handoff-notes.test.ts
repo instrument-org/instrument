@@ -82,9 +82,9 @@ describe("readHandoffNotes", () => {
       path.join(dir, "work", "handoff-notes.md"),
       `${"x".repeat(7999)}🙈${"y".repeat(100)}`,
     );
-    const taskId = createMockChatConfigForDir(dir);
+    const chatId = createMockChatConfigForDir(dir);
 
-    const notes = await readHandoffNotes(taskId);
+    const notes = await readHandoffNotes(chatId);
 
     expect(notes).toBeDefined();
     expect(notes).toContain("[Notes truncated");

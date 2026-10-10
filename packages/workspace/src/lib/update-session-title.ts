@@ -7,7 +7,7 @@ import { getWorkspaceConfig } from "./workspace-config";
 export async function updateSessionTitle({
   expectedCurrentTitle,
   sessionId,
-  taskId,
+  chatId,
   title,
 }: {
   // When set, replace only if the stored title still equals this. Callers that
@@ -16,17 +16,17 @@ export async function updateSessionTitle({
   // isSessionTitleAutoReplaceable can't tell it apart from the default.
   expectedCurrentTitle?: string;
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
   title: string;
 }): Promise<boolean> {
-  const storedSession = await Store.getSession(sessionId, taskId);
+  const storedSession = await Store.getSession(sessionId, chatId);
   if (storedSession.isErr()) {
     return false;
   }
   const canReplace =
     expectedCurrentTitle === undefined
       ? await isSessionTitleAutoReplaceable({
-          taskId,
+          chatId,
           title: storedSession.value.title,
         })
       : storedSession.value.title === expectedCurrentTitle;
@@ -39,7 +39,7 @@ export async function updateSessionTitle({
       title,
       updatedAt: new Date(),
     },
-    taskId,
+    chatId,
   );
   if (renameResult.isErr()) {
     getWorkspaceConfig().captureException(renameResult.error);

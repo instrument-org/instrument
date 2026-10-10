@@ -29,8 +29,8 @@ const mockCtx = createCommandContext({
 });
 
 describe("python-native", () => {
-  const taskId = createMockChatConfig(ChatIdSchema.parse("test"));
-  const command = createPythonNativeCommand(taskId, taskLayout(taskId));
+  const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
+  const command = createPythonNativeCommand(chatId, taskLayout(chatId));
 
   afterEach(() => {
     vi.resetAllMocks();
@@ -116,7 +116,7 @@ describe("python-native", () => {
 
   it("blocks a script file with an absolute /task path and explains the fix", async () => {
     const { execa } = await import("execa");
-    const workDir = path.join(chatDir(taskId), "work");
+    const workDir = path.join(chatDir(chatId), "work");
     await fs.mkdir(workDir, { recursive: true });
     const scriptPath = path.join(workDir, "report.py");
     await fs.writeFile(scriptPath, 'open("/task/output/report.txt", "w")');

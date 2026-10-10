@@ -16,13 +16,13 @@ import { createBashEnv } from "./create-bash-env";
 const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
-let taskId: ChatId;
+let chatId: ChatId;
 
 async function run(command: string, { chat = false } = {}) {
   const bash = await createBashEnv({
-    chat: chat ? { id: ChatIdSchema.parse(taskId) } : undefined,
+    chat: chat ? { id: ChatIdSchema.parse(chatId) } : undefined,
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
 }
@@ -31,7 +31,7 @@ beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-mktemp-"));
   const taskRoot = path.join(tmpDir, "tasks", "test");
   await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
-  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
 });
 
 afterAll(async () => {

@@ -24,7 +24,7 @@ const sessionId = StoreId.newSessionId();
 let tmpDir: string;
 let taskRoot: string;
 let attachedDir: string;
-let taskId: ReturnType<typeof ChatIdSchema.parse>;
+let chatId: ReturnType<typeof ChatIdSchema.parse>;
 
 async function run(command: string, attach: boolean | string = false) {
   const mountName = typeof attach === "string" ? attach : "Docs";
@@ -42,7 +42,7 @@ async function run(command: string, attach: boolean | string = false) {
         }
       : undefined,
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
 }
@@ -65,7 +65,7 @@ beforeEach(async () => {
   );
   await fs.writeFile(path.join(attachedDir, "note.md"), "NEEDLE attached\n");
 
-  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
 });
 
 afterEach(async () => {
@@ -90,9 +90,9 @@ describe("rg command", () => {
     await fs.writeFile(path.join(appDir, "app.ts"), "const NEEDLE = 2;\n");
     try {
       const bash = await createBashEnv({
-        chat: { id: ChatIdSchema.parse(taskId) },
+        chat: { id: ChatIdSchema.parse(chatId) },
         sessionId,
-        taskId,
+        chatId,
       });
       const result = await bash.exec("rg -l NEEDLE /apps/rg-weather", {
         signal: AbortSignal.timeout(30_000),
@@ -359,8 +359,8 @@ describe("rg command in a chat", () => {
   let childDir: string;
 
   async function runInChat(command: string) {
-    const chatId = chatFor();
-    chatFolder = chatDir(chatId);
+    const made = chatFor();
+    chatFolder = chatDir(made);
     childDir = path.join(chatFolder, "tasks", childId);
     await fs.mkdir(path.join(chatFolder, "work"), { recursive: true });
     await fs.mkdir(path.join(childDir, ".instrument"), { recursive: true });
@@ -376,10 +376,10 @@ describe("rg command in a chat", () => {
     );
     const bash = await createBashEnv({
       chat: {
-        id: chatId,
+        id: made,
       },
       sessionId: StoreId.newSessionId(),
-      taskId: chatId,
+      chatId: made,
     });
     return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
   }

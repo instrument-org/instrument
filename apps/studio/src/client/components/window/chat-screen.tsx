@@ -88,7 +88,7 @@ export function ChatScreen(props: ChatScreenProps) {
 }
 
 function ChatScreenOfRecord({
-  chatId: taskId,
+  chatId,
   composerLead,
   isUp,
   sendContext,
@@ -97,33 +97,33 @@ function ChatScreenOfRecord({
   tiles,
 }: ChatScreenProps & { sessionId: StoreId.Session }) {
   const appWindow = useWindow();
-  const task = useQuery(
-    rpcClient.workspace.task.live.byId.experimental_liveOptions({
-      input: { id: taskId },
+  const info = useQuery(
+    rpcClient.workspace.chats.live.info.experimental_liveOptions({
+      input: { id: chatId },
     }),
   );
   const state = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({
-      input: { id: taskId },
+    rpcClient.workspace.chats.state.get.queryOptions({
+      input: { id: chatId },
     }),
   );
   // The chat as the list beside the tabs knows it, for the newest reply
   // that has landed, which is what marks it read below.
   const chats = useQuery(chatListOptions());
-  const chat = chats.data?.find((entry) => entry.id === taskId);
+  const chat = chats.data?.find((entry) => entry.id === chatId);
   const [defaultModelURI] = useDefaultModelURI();
   const openFile = useContext(FileOpenContext);
   const createMessage = useMutation(createMessageOptions());
   // What was marked in files and moved into this chat's composer goes
   // with its next message, as pills there.
-  const groupAsks = useComposerAsks({ chatId: taskId, kind: "chat" });
+  const groupAsks = useComposerAsks({ chatId, kind: "chat" });
   const { remove: removeAsks } = useStagedAskActions();
 
   // Looking at the chat is what takes its unread mark off. The pane beside
   // the tabs does not clear it on its own.
-  useReadOnView({ chat, chatId: taskId, isUp });
+  useReadOnView({ chat, chatId, isUp });
 
-  const loadError = task.error ?? state.error;
+  const loadError = info.error ?? state.error;
   if (loadError) {
     return (
       <div className="flex h-full items-center justify-center p-6">
@@ -136,7 +136,7 @@ function ChatScreenOfRecord({
             <div className="flex gap-2">
               <Button
                 onClick={() => {
-                  void task.refetch();
+                  void info.refetch();
                   void state.refetch();
                 }}
               >
@@ -148,7 +148,7 @@ function ChatScreenOfRecord({
       </div>
     );
   }
-  if (!task.data || !state.data) {
+  if (!info.data || !state.data) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-5" />
@@ -161,7 +161,7 @@ function ChatScreenOfRecord({
   // chat's whatever the window has up at that moment, and never a silent
   // nothing because the group on screen was another's.
   // A new-tab gesture over any of it asks for a tab of the window's own.
-  const into = { group: taskId, ownTab: true, show: true };
+  const into = { group: chatId, ownTab: true, show: true };
   const intoOr = (options?: OpenOptions) =>
     options?.newTab ? { behind: options.behind, newTab: true } : into;
   return (
@@ -180,7 +180,7 @@ function ChatScreenOfRecord({
                 return;
               }
               createMessage.mutate({
-                id: taskId,
+                id: chatId,
                 modelURI,
                 prompt,
                 sessionId,
@@ -192,7 +192,7 @@ function ChatScreenOfRecord({
             openScreen: (href, options) => {
               appWindow.openScreen(href, intoOr(options));
             },
-            chatId: taskId,
+            chatId,
           }}
         >
           <FileOpenContext
@@ -205,7 +205,7 @@ function ChatScreenOfRecord({
                 appWindow.openPage(url, intoOr(options));
               }}
             >
-              <TaskSessionProvider sessionId={sessionId} taskId={taskId}>
+              <TaskSessionProvider sessionId={sessionId} chatId={chatId}>
                 <TaskChat
                   asks={
                     groupAsks.length === 0
@@ -232,12 +232,12 @@ function ChatScreenOfRecord({
                   composerPlaceholder="Talk to Instrument"
                   // Kept past this screen's unmount, so the row in the inbox
                   // can say the chat holds a draft while it does.
-                  draftKey={{ chatId: taskId, scope: "chat" }}
+                  draftKey={{ chatId, scope: "chat" }}
                   selectedModelURI={modelURI}
                   selectedSessionId={sessionId}
                   sendContext={sendContext}
                   sentPrompt={sentPrompt}
-                  task={task.data}
+                  chatInfo={info.data}
                 />
               </TaskSessionProvider>
             </PageOpenContext>

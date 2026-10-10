@@ -37,7 +37,7 @@ export function initializeChat({
   return initializeRecord({
     initialSettings: { ...initialSettings, chatSessionId: sessionId },
     place: () => placeChat(chatId, sessionId),
-    taskId: chatId,
+    chatId,
     workspaceConfig,
   });
 }
@@ -45,12 +45,12 @@ export function initializeChat({
 async function initializeRecord({
   initialSettings,
   place,
-  taskId,
+  chatId,
   workspaceConfig,
 }: {
   initialSettings: Omit<ChatSettingsUpdate, "createdWithAppVersion">;
   place: () => ChatDir;
-  taskId: ChatId;
+  chatId: ChatId;
   workspaceConfig: WorkspaceConfig;
 }) {
   // Lets go of the id reserved below when any later step fails, so a chat or
@@ -68,7 +68,7 @@ async function initializeRecord({
     )();
     const parentDir = path.dirname(dir);
     release = () => {
-      forgetChat(taskId);
+      forgetChat(chatId);
     };
 
     // Ensure the parent dir exists (idempotent), then create the task
@@ -96,7 +96,7 @@ async function initializeRecord({
 
     const createdAt = getCurrentDate();
 
-    yield* updateChatSettings(taskId, {
+    yield* updateChatSettings(chatId, {
       ...initialSettings,
       // Stamped from the start so a task that has never been messaged still
       // lists by when it was made rather than by whatever last touched a file
@@ -108,7 +108,7 @@ async function initializeRecord({
 
     yield* scaffoldWorkFolder(dir, workspaceConfig);
 
-    return ok({ taskId });
+    return ok({ chatId });
   }).mapErr((error) => {
     release?.();
     return error;
@@ -153,10 +153,10 @@ function scaffoldWorkFolder(dir: ChatDir, workspaceConfig: WorkspaceConfig) {
  * already is left as it is.
  */
 export async function ensureWorkFolder(
-  taskId: ChatId,
+  chatId: ChatId,
   workspaceConfig: WorkspaceConfig,
 ) {
-  const dir = workDir(taskId);
+  const dir = workDir(chatId);
   if (await pathExists(absolutePathJoin(dir, "package.json"))) {
     return;
   }

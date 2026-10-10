@@ -23,7 +23,7 @@ const sessionId = StoreId.newSessionId();
 let tmpDir: string;
 let attachedDir: string;
 let taskRoot: string;
-let taskId: ChatId;
+let chatId: ChatId;
 
 async function run(command: string) {
   const bash = await createBashEnv({
@@ -38,7 +38,7 @@ async function run(command: string) {
       },
     },
     sessionId,
-    taskId,
+    chatId,
   });
   const result = await bash.exec(command, {
     signal: AbortSignal.timeout(30_000),
@@ -54,7 +54,7 @@ beforeEach(async () => {
   await fs.mkdir(path.join(taskRoot, "work", "full"), { recursive: true });
   await fs.writeFile(path.join(taskRoot, "work", "full", "a.txt"), "a");
   await fs.mkdir(path.join(attachedDir, "empty"), { recursive: true });
-  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
 });
 
 afterEach(async () => {

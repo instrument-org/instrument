@@ -250,10 +250,10 @@ export function QuestionCard({
 
 export function ToolChoose({
   part,
-  taskId,
+  chatId,
 }: {
   part: ChoosePart;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   const answer = useMutation(
     rpcClient.workspace.session.answerToolCall.mutationOptions({
@@ -289,7 +289,7 @@ export function ToolChoose({
         setSending(output);
         answer.mutate(
           {
-            id: taskId,
+            id: chatId,
             output,
             toolCallId: part.toolCallId,
             toolName: "choose",

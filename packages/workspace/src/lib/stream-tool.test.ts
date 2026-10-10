@@ -13,7 +13,7 @@ import {
 } from "./turn-context";
 
 const model = createMockAIGatewayModel();
-const taskId = ChatIdSchema.parse("stream-tool");
+const chatId = ChatIdSchema.parse("stream-tool");
 
 function makeOptions(sessionId: StoreId.Session) {
   return {
@@ -23,7 +23,7 @@ function makeOptions(sessionId: StoreId.Session) {
     partId: StoreId.newPartId(),
     sessionId,
     signal: AbortSignal.timeout(10_000),
-    taskId,
+    chatId,
     taskState: { browserTabs: [] },
   };
 }
@@ -37,7 +37,7 @@ async function sampleTurn(): Promise<TurnId | undefined> {
 describe("streamTool", () => {
   it("binds a plain async tool to its turn", async () => {
     const sessionId = StoreId.newSessionId();
-    const turn = { id: taskId, sessionId };
+    const turn = { id: chatId, sessionId };
     const turnId = beginTurn(turn);
     const seen: (TurnId | undefined)[] = [];
 
@@ -59,7 +59,7 @@ describe("streamTool", () => {
 
   it("rebinds the turn on every generator resumption", async () => {
     const sessionId = StoreId.newSessionId();
-    const turn = { id: taskId, sessionId };
+    const turn = { id: chatId, sessionId };
     const turnId = beginTurn(turn);
     const seen: (TurnId | undefined)[] = [];
 
@@ -90,7 +90,7 @@ describe("streamTool", () => {
 
   it("binds the cleanup of a tool the consumer abandons", async () => {
     const sessionId = StoreId.newSessionId();
-    const turn = { id: taskId, sessionId };
+    const turn = { id: chatId, sessionId };
     const turnId = beginTurn(turn);
     const seen: (TurnId | undefined)[] = [];
 

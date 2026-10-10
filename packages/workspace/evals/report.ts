@@ -7,7 +7,7 @@ import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
 import { chatDir, resolveChat, sessionOfChat } from "../src/lib/record-folders";
 import { getChatState } from "../src/lib/chat-record";
-import { getTaskUsageSummary } from "../src/lib/usage-summary";
+import { getUsageSummary } from "../src/lib/usage-summary";
 import {
   hasWorkspaceConfig,
   setWorkspaceConfig,
@@ -81,7 +81,7 @@ interface RunReport {
   stoppedBy?: RunStop;
   /** The system prompt this task was scored against. See `provenance`. */
   systemPromptSha256?: string;
-  taskId: string;
+  chatId: string;
   totalTokens: number;
   /** This task plus every task it started, for runs this process watched. */
   treeTokens?: number;
@@ -128,7 +128,7 @@ export async function generateReport({
   // can only be recovered from the run that produced it. Without this the match
   // below almost never succeeds and every committed assertion silently reports
   // nothing, which reads exactly like having no assertions to begin with.
-  const runsByTaskId = new Map(runs.map((run) => [run.taskId, run] as const));
+  const runsByChatId = new Map(runs.map((run) => [run.chatId, run] as const));
   const absoluteWorkspaceDir = path.resolve(workspaceRootDir);
   const workspaceConfig = buildReportWorkspaceConfig(absoluteWorkspaceDir);
   // `chatDir()` and friends read the config from its module singleton, which the
@@ -192,10 +192,10 @@ export async function generateReport({
   const claimedDirs = new Set<string>();
 
   for (const task of tasks) {
-    const taskId = task.id;
-    const run = runsByTaskId.get(taskId);
+    const chatId = task.id;
+    const run = runsByChatId.get(chatId);
 
-    const taskState = await getChatState(chatDir(taskId));
+    const taskState = await getChatState(chatDir(chatId));
     const taskModelURI = run?.modelURI ?? taskState.selectedModelURI;
     if (taskModelURI) {
       rollupModelURIs.add(taskModelURI);
@@ -228,7 +228,7 @@ export async function generateReport({
 
     const rootSession = run
       ? { id: run.sessionId }
-      : await runSessionOf(taskId, label);
+      : await runSessionOf(chatId, label);
     if (!rootSession) {
       continue;
     }
@@ -236,13 +236,13 @@ export async function generateReport({
     const markdown = await getSessionMarkdown({
       includeContextMessages,
       sessionId: rootSession.id,
-      taskId,
+      chatId,
     });
 
     const taskOutputDir = path.join(outputDir, relativeDir);
     await fs.mkdir(taskOutputDir, { recursive: true });
 
-    const stats = await getTaskUsageSummary(taskId, {
+    const stats = await getUsageSummary(chatId, {
       sessionId: rootSession.id,
     });
 
@@ -257,7 +257,7 @@ export async function generateReport({
     // the stored errors by hand.
     const sessionWithParts = await Store.getSessionWithMessagesAndParts(
       rootSession.id,
-      taskId,
+      chatId,
     );
     const messageErrors = sessionWithParts.isOk()
       ? sessionWithParts.value.messages.flatMap((message) =>
@@ -297,7 +297,7 @@ export async function generateReport({
       "utf8",
     );
     const symlinkPath = path.join(taskOutputDir, "task");
-    await fs.symlink(chatDir(taskId), symlinkPath).catch(() => {
+    await fs.symlink(chatDir(chatId), symlinkPath).catch(() => {
       return;
     });
 
@@ -310,7 +310,7 @@ export async function generateReport({
     // Read once for both the digest and the assertions: the digest has to be
     // recorded for every task, including one with no assertions to run, and
     // that is the case where the old code never loaded the sessions at all.
-    const sessions = await sessionsFor(taskId, rootSession.id);
+    const sessions = await sessionsFor(chatId, rootSession.id);
     const systemPromptSha256 = systemPromptDigest(sessions);
     if (evalCase?.kind === "chat") {
       await fs.writeFile(
@@ -335,7 +335,7 @@ export async function generateReport({
           resolvedModelId: run?.resolvedModelId,
           stoppedBy,
           systemPromptSha256,
-          taskId: task.id,
+          chatId: task.id,
         },
         null,
         2,
@@ -349,10 +349,10 @@ export async function generateReport({
       // inside its tasks, which are sessions of the chat's beside its own, so
       // `sessions` alone cannot see the work. Read lazily: only a chat case
       // has children, and only some of its assertions ask.
-      const childSessions = () => childSessionsOf(taskId, rootSession.id);
+      const childSessions = () => childSessionsOf(chatId, rootSession.id);
       assertionResults = await Promise.all(
         evalCase.assertions.map((a) =>
-          Promise.resolve(a.check({ childSessions, sessions, taskId })),
+          Promise.resolve(a.check({ childSessions, sessions, chatId })),
         ),
       );
       const passed = assertionResults.filter((r) => r.passed).length;
@@ -415,7 +415,7 @@ export async function generateReport({
       resolvedModelId: run?.resolvedModelId,
       stoppedBy,
       systemPromptSha256,
-      taskId: task.id,
+      chatId: task.id,
       totalTokens: stats.totalTokens,
       treeTokens: run?.treeUsage.totalTokens,
       treeUsage: run?.treeUsage,
@@ -459,12 +459,11 @@ export async function generateReport({
  * task case started from the empty chat.
  */
 async function runSessionOf(
-  taskId: ChatId,
+  chatId: ChatId,
   label: string,
 ): Promise<undefined | { id: StoreId.Session }> {
-  const chatId = resolveChat(taskId);
-  const own = chatId ? sessionOfChat(chatId) : undefined;
-  if (!chatId || !own) {
+  const own = resolveChat(chatId) ? sessionOfChat(chatId) : undefined;
+  if (!own) {
     process.stderr.write(`Warning: ${label} has no session, skipping.\n`);
     return undefined;
   }

@@ -33,7 +33,7 @@ const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
 let attachedDir: string;
-let taskId: ChatId;
+let chatId: ChatId;
 
 /** Smaller than the tree, which holds `DIRECTORIES * FILES_PER_DIRECTORY` entries. */
 const BUDGET = 20_000;
@@ -51,7 +51,7 @@ async function run(command: string) {
       },
     },
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
 }
@@ -83,7 +83,7 @@ beforeAll(async () => {
       ),
     );
   }
-  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
 });
 
 afterAll(async () => {

@@ -29,7 +29,7 @@ afterEach(async () => {
 
 describe("initializeChat", () => {
   it("creates a chat from the bundled default template", async () => {
-    const taskId = ChatIdSchema.parse("test-task");
+    const chatId = ChatIdSchema.parse("test-task");
     createMockChatConfigForDir(path.join(rootDir, "tasks", "unused"), {
       unplaced: true,
     });
@@ -46,14 +46,14 @@ describe("initializeChat", () => {
     });
 
     const result = await initializeChat({
-      chatId: taskId,
+      chatId,
       initialSettings: { name: "Test task" },
       sessionId: StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B"),
       workspaceConfig: getWorkspaceConfig(),
     });
 
     expect(result.isOk()).toBe(true);
-    expect(await listPaths(chatDir(taskId))).toMatchInlineSnapshot(`
+    expect(await listPaths(chatDir(chatId))).toMatchInlineSnapshot(`
       [
         ".gitignore",
         ".instrument/",
@@ -66,13 +66,13 @@ describe("initializeChat", () => {
       ]
     `);
     await expect(
-      fs.readFile(path.join(chatDir(taskId), "instrument.json"), "utf8"),
+      fs.readFile(path.join(chatDir(chatId), "instrument.json"), "utf8"),
     ).rejects.toMatchObject({ code: "ENOENT" });
     // Stamps normalized rather than frozen: faking the clock for a snapshot
     // leaves every real timer in the file faked too, which is a flake waiting
     // for the suite to run under load.
     const settings = await fs.readFile(
-      path.join(chatDir(taskId), ".instrument", "settings.json"),
+      path.join(chatDir(chatId), ".instrument", "settings.json"),
       "utf8",
     );
     expect(settings.replaceAll(ISO_TIMESTAMP, "<when>")).toMatchInlineSnapshot(`
@@ -85,13 +85,13 @@ describe("initializeChat", () => {
       }"
     `);
     await expect(
-      fs.readFile(path.join(chatDir(taskId), "package.json"), "utf8"),
+      fs.readFile(path.join(chatDir(chatId), "package.json"), "utf8"),
     ).resolves.toContain('"name": "@instrument-org/task"');
     // Snapshotted in full so the supply-chain settings a task installs under
     // stay visible: weakening the age gate or the build allowlist has to show
     // up as a diff here.
     await expect(
-      fs.readFile(path.join(chatDir(taskId), "pnpm-workspace.yaml"), "utf8"),
+      fs.readFile(path.join(chatDir(chatId), "pnpm-workspace.yaml"), "utf8"),
     ).resolves.toMatchInlineSnapshot(`
       "minimumReleaseAge: 10080
       # Declared empty so the key resolves here rather than from a task-local .npmrc,
@@ -124,7 +124,7 @@ describe("initializeChat", () => {
       "
     `);
     await expect(
-      fs.access(path.join(chatDir(taskId), TASK_FOLDER_NAMES.private)),
+      fs.access(path.join(chatDir(chatId), TASK_FOLDER_NAMES.private)),
     ).resolves.toBeUndefined();
   });
 });

@@ -27,7 +27,7 @@ import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
-import { type SessionTag } from "../schemas/task-agent-status";
+import { type SessionTag } from "../schemas/chat-agent-status";
 import { type ChatId } from "../schemas/chat-id";
 import {
   agentMachine,
@@ -42,7 +42,7 @@ export type SessionMachineParentEvent = {
   value: {
     actorId: string;
     error?: unknown;
-    taskId: ChatId;
+    chatId: ChatId;
     usedNonReadOnlyTools: boolean;
   };
 };
@@ -98,7 +98,7 @@ export const sessionMachine = setup({
             parentMessageId,
             parentRef: self,
             sessionId: context.sessionId,
-            taskId: context.taskId,
+            chatId: context.chatId,
           },
         }),
     }),
@@ -122,9 +122,9 @@ export const sessionMachine = setup({
     // the session is empty, which leaves the agent nothing to answer.
     getLastMessageId: fromPromise<
       StoreId.Message | undefined,
-      { sessionId: StoreId.Session; taskId: ChatId }
+      { sessionId: StoreId.Session; chatId: ChatId }
     >(async ({ input, signal }) => {
-      const result = await Store.getMessageIds(input.sessionId, input.taskId, {
+      const result = await Store.getMessageIds(input.sessionId, input.chatId, {
         signal,
       });
       if (result.isErr()) {
@@ -140,7 +140,7 @@ export const sessionMachine = setup({
         message: SessionMessage.UserWithParts;
         saved: boolean;
         sessionId: StoreId.Session;
-        taskId: ChatId;
+        chatId: ChatId;
       }
     >(async ({ input, signal }) => {
       const hasMismatchedSessionId = input.message.parts.some(
@@ -156,7 +156,7 @@ export const sessionMachine = setup({
       }
       const result = await Store.saveMessageWithParts(
         input.message,
-        input.taskId,
+        input.chatId,
         { signal },
       );
       if (result.isErr()) {
@@ -169,10 +169,10 @@ export const sessionMachine = setup({
       void,
       {
         sessionId: StoreId.Session;
-        taskId: ChatId;
+        chatId: ChatId;
       }
-    >(async ({ input: { sessionId, taskId }, signal }) => {
-      const existingSession = await Store.getSession(sessionId, taskId, {
+    >(async ({ input: { sessionId, chatId }, signal }) => {
+      const existingSession = await Store.getSession(sessionId, chatId, {
         signal,
       });
       if (existingSession.isErr()) {
@@ -180,7 +180,7 @@ export const sessionMachine = setup({
           const result = await createSession({
             sessionId,
             signal,
-            taskId,
+            chatId,
           });
           if (result.isErr()) {
             throw new Error(
@@ -199,7 +199,7 @@ export const sessionMachine = setup({
             ...existingSession.value,
             updatedAt: new Date(),
           },
-          taskId,
+          chatId,
           { signal },
         );
         if (result.isErr()) {
@@ -228,7 +228,7 @@ export const sessionMachine = setup({
       savedMessageIds: StoreId.Message[];
       sessionId: StoreId.Session;
       subscription?: { unsubscribe: () => void };
-      taskId: ChatId;
+      chatId: ChatId;
       usedNonReadOnlyTools: boolean;
     },
     events: {} as SessionMachineEvent,
@@ -244,7 +244,7 @@ export const sessionMachine = setup({
       /** Those of `queuedMessages` the sender wrote to the store on arrival. */
       savedMessageIds?: StoreId.Message[];
       sessionId: StoreId.Session;
-      taskId: ChatId;
+      chatId: ChatId;
     },
     tags: {} as SessionTag,
   },
@@ -256,12 +256,12 @@ export const sessionMachine = setup({
       const currentTags = alphabetical([...snapshot.tags], (tag) => tag);
 
       if (!isEqual(currentTags, previousTags)) {
-        recordChanged(input.taskId, "agent");
+        recordChanged(input.chatId, "agent");
         previousTags = currentTags;
       }
     });
 
-    recordChanged(input.taskId, "agent");
+    recordChanged(input.chatId, "agent");
 
     return {
       agent: input.agent,
@@ -275,7 +275,7 @@ export const sessionMachine = setup({
       savedMessageIds: input.savedMessageIds ?? [],
       sessionId: input.sessionId,
       subscription,
-      taskId: input.taskId,
+      chatId: input.chatId,
       usedNonReadOnlyTools: false,
     };
   },
@@ -322,7 +322,7 @@ export const sessionMachine = setup({
             return;
           }
           const typedIntoChat =
-            chatConversation(context.taskId, context.sessionId) !== undefined &&
+            chatConversation(context.chatId, context.sessionId) !== undefined &&
             isTypedByUser(event.value);
           if (
             event.interrupt ||
@@ -504,17 +504,17 @@ export const sessionMachine = setup({
         }
 
         publisher.publish("session.done", {
-          id: context.taskId,
+          id: context.chatId,
           sessionId: context.sessionId,
         });
-        recordChanged(context.taskId, "agent");
+        recordChanged(context.chatId, "agent");
 
         context.parentRef.send({
           type: "session.done",
           value: {
             actorId: self.id,
             error: context.error,
-            taskId: context.taskId,
+            chatId: context.chatId,
             usedNonReadOnlyTools: context.usedNonReadOnlyTools,
           },
         });
@@ -549,7 +549,7 @@ export const sessionMachine = setup({
             message,
             saved: context.savedMessageIds.includes(message.id),
             sessionId: context.sessionId,
-            taskId: context.taskId,
+            chatId: context.chatId,
           };
         },
         onDone: {
@@ -583,7 +583,7 @@ export const sessionMachine = setup({
       invoke: {
         input: ({ context }) => ({
           sessionId: context.sessionId,
-          taskId: context.taskId,
+          chatId: context.chatId,
         }),
         onDone: [
           {
@@ -615,7 +615,7 @@ export const sessionMachine = setup({
       invoke: {
         input: ({ context }) => ({
           sessionId: context.sessionId,
-          taskId: context.taskId,
+          chatId: context.chatId,
         }),
         onDone: {
           target: "ProcessingQueuedMessages",

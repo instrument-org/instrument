@@ -20,6 +20,6 @@ export interface ViewerFile {
    * The task page addresses its panes by that path and a mention in the
    * composer names the file the way the agent knows it.
    */
-  taskFile?: { filePath: string; taskId: ChatId };
+  taskFile?: { filePath: string; chatId: ChatId };
   url: string;
 }

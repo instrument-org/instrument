@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { StoreId } from "@instrument-org/workspace/client";
 
-import { createdTaskId } from "./created-task";
+import { createdTaskSession } from "./created-task";
 
 const TASK = StoreId.newSessionId();
 
@@ -12,10 +12,10 @@ const created = (command: string, output: string) => ({
   state: "output-available",
 });
 
-describe("createdTaskId", () => {
+describe("createdTaskSession", () => {
   it("reads the id off a task new that succeeded", () => {
     expect(
-      createdTaskId(
+      createdTaskSession(
         created(
           "task new --name 'Lisbon' <<'EOF'\nFind a hotel.\nEOF",
           `Created ${TASK} ("Lisbon"). It is running now.\n`,
@@ -26,7 +26,7 @@ describe("createdTaskId", () => {
 
   it("finds a task new later in a chain", () => {
     expect(
-      createdTaskId(
+      createdTaskSession(
         created(
           "task list; task new --name 'x' <<'EOF'\nx\nEOF",
           `Created ${TASK}`,
@@ -53,6 +53,6 @@ describe("createdTaskId", () => {
       part: { input: { command: "task new" }, state: "input-available" },
     },
   ])("gives nothing for $name", ({ part }) => {
-    expect(createdTaskId(part)).toBeUndefined();
+    expect(createdTaskSession(part)).toBeUndefined();
   });
 });

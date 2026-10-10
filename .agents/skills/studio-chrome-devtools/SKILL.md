@@ -160,7 +160,7 @@ The session is the task's most recent unless `--session` names one, and a packag
 This is not `run-bash`, and the difference decides which one answers a question. `run-bash` builds its own sandbox from a checkout's dependencies, with no task and no app, which makes it fast and makes it blind to anything about a package: a command missing from a bundle resolves fine from `node_modules` and reports success. `bash` runs the mounts, shims, network policy, and bundled binaries of the build that is actually running. Verifying a shipped release wants this one; iterating on a shell fix wants the other.
 
 - It is gated on the **Developer Mode** preference, checked per call. Fixture workspaces pin it on; the shared dev workspace depends on what was last set in Settings > General, and the bridge cannot turn it on for you.
-- `live.*` routes are event iterators and cannot come back through a single evaluation. Call the plain sibling in a loop instead (`task.byId`, not `task.live.byId`).
+- `live.*` routes are event iterators and cannot come back through a single evaluation. Call the plain sibling in a loop instead (`chats.info`, not `chats.live.info`).
 - Errors come back as data, so a Zod failure prints its issues rather than a stack.
 
 ## Running a task without touching the UI

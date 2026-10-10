@@ -72,12 +72,12 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
     }
     const tasksDir = path.join(root, name, TASKS_DIR_NAME);
     for (const taskName of listDirs(tasksDir)) {
-      const taskId = ChatIdSchema.safeParse(taskName);
-      const reason = taskId.success
+      const chatId = ChatIdSchema.safeParse(taskName);
+      const reason = chatId.success
         ? hasReadableTaskSettings(path.join(tasksDir, taskName))
           ? undefined
           : UNREADABLE_SETTINGS_REASON
-        : (taskId.error.issues[0]?.message ?? "Not a recognized task folder");
+        : (chatId.error.issues[0]?.message ?? "Not a recognized task folder");
       if (reason) {
         invalid.push({
           kind: "chat-task",

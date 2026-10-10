@@ -18,10 +18,10 @@ const model = createMockAIGatewayModel();
 const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
-let taskId: ReturnType<typeof createMockChatConfigForDir>;
+let chatId: ReturnType<typeof createMockChatConfigForDir>;
 
 async function run(command: string) {
-  const bash = await createBashEnv({ sessionId, taskId });
+  const bash = await createBashEnv({ sessionId, chatId });
   return bash.exec(command, { signal: AbortSignal.timeout(60_000) });
 }
 
@@ -30,7 +30,7 @@ beforeAll(async () => {
   const taskRoot = path.join(tmpDir, "tasks", "test");
   await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
   await fs.mkdir(path.join(taskRoot, ".instrument"), { recursive: true });
-  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
 });
 
 afterAll(async () => {

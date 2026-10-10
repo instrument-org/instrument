@@ -64,7 +64,7 @@ interface Held {
  */
 export function handleTaskCdpClient(
   clientWs: WebSocket,
-  { sessionId, taskId }: { sessionId: StoreId.Session; taskId: ChatId },
+  { sessionId, chatId }: { sessionId: StoreId.Session; chatId: ChatId },
   workspaceConfig: WorkspaceConfig,
   workspaceRef: WorkspaceServerParentRef,
 ) {
@@ -101,7 +101,7 @@ export function handleTaskCdpClient(
 
   /** The tabs the task holds that are open, in the order it came by them. */
   const held = async (): Promise<Held[]> => {
-    return (await heldTabs(taskId, sessionId)).flatMap((tab) => {
+    return (await heldTabs(chatId, sessionId)).flatMap((tab) => {
       const decoded = decodeBrowserTargetId(tab.id);
       return decoded && browser.getTargetMeta(tab.id)
         ? [
@@ -236,14 +236,14 @@ export function handleTaskCdpClient(
   };
 
   const holdOpened = async (targetId: BrowserTargetId) => {
-    await updateHeldTabs(taskId, sessionId, (tabs) => [
+    await updateHeldTabs(chatId, sessionId, (tabs) => [
       ...tabs,
       { id: targetId, openedBy: "task" },
     ]);
   };
 
   const release = async (targetId: BrowserTargetId) => {
-    await updateHeldTabs(taskId, sessionId, (tabs) =>
+    await updateHeldTabs(chatId, sessionId, (tabs) =>
       tabs.filter((tab) => tab.id !== targetId),
     );
   };
@@ -264,7 +264,7 @@ export function handleTaskCdpClient(
       // Asked of an address before any tab is at it, so no page is current.
       const gate = createLocalFileGate({
         currentUrl: noPageYet,
-        readLayout: () => taskFsLayout(taskId),
+        readLayout: () => taskFsLayout(chatId),
       });
       if (!(await gate.mayOpen(address))) {
         send({ error: notYourFile(address), id });
@@ -272,8 +272,8 @@ export function handleTaskCdpClient(
       }
     }
     const tabId = await requestWindowTab({
-      askedBy: taskId,
-      group: resolveChat(taskId),
+      askedBy: chatId,
+      group: resolveChat(chatId),
       show: false,
       ...(address === undefined ? {} : { url: address }),
     });
@@ -316,8 +316,8 @@ export function handleTaskCdpClient(
     if (tab.openedBy === "task") {
       await askWindow({
         action: { kind: "close", tabId: tab.tabId },
-        askedBy: taskId,
-        group: resolveChat(taskId),
+        askedBy: chatId,
+        group: resolveChat(chatId),
       });
     }
     answer(id, { success: true } satisfies Protocol.Target.CloseTargetResponse);
@@ -355,7 +355,7 @@ export function handleTaskCdpClient(
         // Electron doesn't support CDP browser context management. A synthetic
         // context lets agent-browser's recording flow proceed.
         answer(id, {
-          browserContextId: `context-${taskId}`,
+          browserContextId: `context-${chatId}`,
         } satisfies Protocol.Target.CreateBrowserContextResponse);
         return;
       }
@@ -476,7 +476,7 @@ export function handleTaskCdpClient(
 
   // A tab handed over, or taken back, while the agent is connected.
   const stopWatching = publisher.subscribe("record.changed", (change) => {
-    if (change.id === taskId && change.kind === "state" && !closed) {
+    if (change.id === chatId && change.kind === "state" && !closed) {
       queue = queue
         .then(async () => {
           await reconcile();

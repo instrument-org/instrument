@@ -31,7 +31,7 @@ afterEach(() => {
 
 describe("detectDateChange", () => {
   async function setup({ baselineAt }: { baselineAt?: Date }) {
-    const taskId = createMockChatConfig(ChatIdSchema.parse("mock"));
+    const chatId = createMockChatConfig(ChatIdSchema.parse("mock"));
     const sessionId = StoreId.newSessionId();
 
     await Store.saveSession(
@@ -40,7 +40,7 @@ describe("detectDateChange", () => {
         id: sessionId,
         title: "Test session",
       },
-      taskId,
+      chatId,
     );
 
     if (baselineAt) {
@@ -69,7 +69,7 @@ describe("detectDateChange", () => {
           ],
           role: "session-context",
         } satisfies SessionMessage.ContextWithParts,
-        taskId,
+        chatId,
       );
     }
 
@@ -78,7 +78,7 @@ describe("detectDateChange", () => {
         detectDateChange({
           messageId: StoreId.newMessageId(),
           sessionId,
-          taskId,
+          chatId,
         }),
       record: async (part: SessionMessagePart.Type) => {
         const messageId = part.metadata.messageId;
@@ -89,7 +89,7 @@ describe("detectDateChange", () => {
             parts: [part],
             role: "user",
           } satisfies SessionMessage.UserWithParts,
-          taskId,
+          chatId,
         );
       },
     };

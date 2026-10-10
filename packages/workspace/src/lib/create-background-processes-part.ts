@@ -37,15 +37,15 @@ export async function createBackgroundProcessesPart({
   createdAt,
   messageId,
   sessionId,
-  taskId,
+  chatId,
 }: {
   createdAt: Date;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
-    const storage = await getSessionsStoreStorage(taskId);
+    const storage = await getSessionsStoreStorage(chatId);
     if (storage.isErr()) {
       return undefined;
     }

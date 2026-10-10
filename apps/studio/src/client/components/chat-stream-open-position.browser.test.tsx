@@ -31,7 +31,7 @@ const VIEWPORT_HEIGHT = 320;
 
 const sessionId = StoreId.newSessionId();
 
-const task: ChatInfo = {
+const chatInfo: ChatInfo = {
   createdAt: new Date(0),
   id: ChatIdSchema.parse("quarterly-numbers"),
   title: "Quarterly numbers",
@@ -134,7 +134,7 @@ function Transcript() {
         onRetry={vi.fn()}
         onRunAgain={vi.fn()}
         renderAsItems
-        task={task}
+        chatInfo={chatInfo}
       />
     </TranscriptScrollContext>
   );

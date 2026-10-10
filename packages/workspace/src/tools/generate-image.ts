@@ -145,10 +145,10 @@ export const GenerateImage = setupTool({
       configs: getWorkspaceConfig().getAIProviderConfigs(),
     })}
   `,
-  async *execute({ input, model, sessionId, signal, taskId, taskState }) {
+  async *execute({ input, model, sessionId, signal, chatId, taskState }) {
     const layout = buildWorkspaceFsLayout({
-      attachedFolders: await folderReach(taskId, taskState),
-      taskHostRoot: workDir(taskId),
+      attachedFolders: await folderReach(chatId, taskState),
+      taskHostRoot: workDir(chatId),
     });
     const filePathResult = resolveWritableToolPath({
       inputPath: input.filePath,
@@ -182,7 +182,7 @@ export const GenerateImage = setupTool({
     );
     let renamedToAvoidOverwrite = false;
     if (!input.allowOverwrite) {
-      const dirAbsolute = absolutePathJoin(workDir(taskId), parsedPath.dir);
+      const dirAbsolute = absolutePathJoin(workDir(chatId), parsedPath.dir);
       // Match on name without extension: the output extension is model-derived,
       // so a prior foo.jpg must block a new foo.png.
       const existingNames = await readExistingBaseNames(dirAbsolute);
@@ -254,7 +254,7 @@ export const GenerateImage = setupTool({
               ? `${pathWithoutExt}-${index + 1}.${ext}`
               : `${pathWithoutExt}.${ext}`;
 
-          const absolutePath = absolutePathJoin(workDir(taskId), filename);
+          const absolutePath = absolutePathJoin(workDir(chatId), filename);
           const imageBuffer = Buffer.from(image.base64, "base64");
 
           await writeFileWithDir(absolutePath, imageBuffer, { signal });

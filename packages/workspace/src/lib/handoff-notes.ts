@@ -85,11 +85,11 @@ export function contextRolloverNotice(notes: string | undefined): string {
  * fail because a note the agent may never have written is not there.
  */
 export async function readHandoffNotes(
-  taskId: ChatId,
+  chatId: ChatId,
 ): Promise<string | undefined> {
   try {
     const contents = await fs.readFile(
-      path.join(workDir(taskId), HANDOFF_NOTES_RELATIVE_PATH),
+      path.join(workDir(chatId), HANDOFF_NOTES_RELATIVE_PATH),
       "utf8",
     );
     const trimmed = contents.trim();

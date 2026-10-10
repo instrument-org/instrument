@@ -24,12 +24,12 @@ const mockCtx = createCommandContext({
 });
 
 describe("createUvCommand", () => {
-  const taskId = createMockChatConfigForDir(
+  const chatId = createMockChatConfigForDir(
     `${MOCK_WORKSPACE_DIRS.chats}/uv-denylist`,
   );
 
   it("blocks `uv self update`", async () => {
-    const result = await createUvCommand(taskId, taskLayout(taskId)).execute(
+    const result = await createUvCommand(chatId, taskLayout(chatId)).execute(
       ["self", "update"],
       mockCtx,
     );
@@ -65,7 +65,7 @@ describe.skipIf(!runSmoke)("uv python/pip integration", () => {
       "uvsmoke",
     );
     mkdirSync(path.join(chatDir, "work"), { recursive: true });
-    const taskId = createMockChatConfigForDir(chatDir);
+    const chatId = createMockChatConfigForDir(chatDir);
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
       uvBinPath: AbsolutePathSchema.parse(uvBin),
@@ -74,13 +74,13 @@ describe.skipIf(!runSmoke)("uv python/pip integration", () => {
       ),
     });
 
-    const install = await createPipCommand(taskId, taskLayout(taskId)).execute(
+    const install = await createPipCommand(chatId, taskLayout(chatId)).execute(
       ["install", "cowsay"],
       mockCtx,
     );
     expect(install.exitCode).toBe(0);
 
-    const run = await createPythonCommand(taskId, taskLayout(taskId)).execute(
+    const run = await createPythonCommand(chatId, taskLayout(chatId)).execute(
       ["-c", "import cowsay; print('ok')"],
       mockCtx,
     );

@@ -28,7 +28,7 @@ const check = (...answers: string[]) =>
   keepsItsFormat?.check({
     childSessions: () => Promise.resolve([]),
     sessions: sessionsWithAnswers(...answers),
-    taskId: "task" as ChatId,
+    chatId: "task" as ChatId,
   });
 
 describe("context rollover: kept the format it chose", () => {

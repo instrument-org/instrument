@@ -38,7 +38,7 @@ const ACTIVITY = "Creating a blank draft";
 
 const sessionId = StoreId.newSessionId();
 
-const task: ChatInfo = {
+const chatInfo: ChatInfo = {
   createdAt: new Date(0),
   id: ChatIdSchema.parse("blank-draft"),
   title: "Blank draft",
@@ -224,7 +224,7 @@ function Transcript({ messages }: { messages: unknown[] }) {
         onRetry={vi.fn()}
         onRunAgain={vi.fn()}
         renderAsItems
-        task={task}
+        chatInfo={chatInfo}
       />
     </TranscriptScrollContext>
   );

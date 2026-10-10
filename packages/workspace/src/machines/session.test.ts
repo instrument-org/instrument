@@ -349,7 +349,7 @@ describe("sessionMachine", () => {
         queuedMessages,
         runRequested,
         sessionId,
-        taskId: testTaskConfig,
+        chatId: testTaskConfig,
       },
       // Uncomment to debug
       // inspect(event) {
@@ -394,21 +394,21 @@ describe("sessionMachine", () => {
       // },
     });
 
-    return { actor, sessionId, taskId: testTaskConfig };
+    return { actor, sessionId, chatId: testTaskConfig };
   }
 
   async function runTestMachine({
     actor,
     sessionId,
-    taskId,
+    chatId,
   }: {
     actor: ActorRefFrom<typeof sessionMachine>;
     sessionId: StoreId.Session;
-    taskId: ChatId;
+    chatId: ChatId;
   }) {
     actor.start();
     await waitFor(actor, (state) => state.status === "done");
-    return Store.getSessionWithMessagesAndParts(sessionId, taskId);
+    return Store.getSessionWithMessagesAndParts(sessionId, chatId);
   }
 
   async function createAndRunTestMachine(
@@ -1067,7 +1067,7 @@ describe("sessionMachine", () => {
     const result = await createActorAndTask({ chunkSets: [finishChunks] });
     const kinds = new Set<string>();
     const stop = publisher.subscribe("record.changed", (change) => {
-      if (change.id === result.taskId) {
+      if (change.id === result.chatId) {
         kinds.add(change.kind);
       }
     });
@@ -1437,7 +1437,7 @@ describe("sessionMachine", () => {
       async () => {
         const session = await Store.getSessionWithMessagesAndParts(
           result.sessionId,
-          result.taskId,
+          result.chatId,
         );
         expect(sessionToShorthand(session)).toContain(
           'state="input-streaming"',
@@ -1784,7 +1784,7 @@ describe("sessionMachine", () => {
           role: "user",
         };
         if (saved) {
-          await Store.saveMessageWithParts(steer, result.taskId);
+          await Store.saveMessageWithParts(steer, result.chatId);
         }
         result.actor.send({
           model: createMockAIGatewayModel(),
@@ -1875,7 +1875,7 @@ describe("sessionMachine", () => {
       it("joins the turn at its next step, marked as sent mid-turn", async () => {
         const result = await startChatTurn();
         const message = typed("b/c it's for the release notes");
-        await Store.saveMessageWithParts(message, result.taskId);
+        await Store.saveMessageWithParts(message, result.chatId);
         result.actor.send({
           model: createMockAIGatewayModel(),
           saved: true,
@@ -1955,10 +1955,10 @@ describe("sessionMachine", () => {
         queuedMessages: [],
         runRequested: true,
       });
-      await Store.saveMessageWithParts(defaultQueuedMessage, result.taskId);
+      await Store.saveMessageWithParts(defaultQueuedMessage, result.chatId);
       await Store.saveMessageWithParts(
         createFailedAssistantMessage(),
-        result.taskId,
+        result.chatId,
       );
 
       const session = await runTestMachine(result);
@@ -1997,10 +1997,10 @@ describe("sessionMachine", () => {
         queuedMessages: [],
         runRequested: true,
       });
-      await Store.saveMessageWithParts(defaultQueuedMessage, result.taskId);
+      await Store.saveMessageWithParts(defaultQueuedMessage, result.chatId);
       await Store.saveMessageWithParts(
         createFailedAssistantMessage(),
-        result.taskId,
+        result.chatId,
       );
 
       await runTestMachine(result);

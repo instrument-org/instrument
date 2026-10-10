@@ -123,9 +123,9 @@ async function installSkill({
     throw new Error(runtime.error);
   }
 
-  const taskId = ChatIdSchema.parse(ulid().toLowerCase());
+  const chatId = ChatIdSchema.parse(ulid().toLowerCase());
   // Put in the chat index, so every later lookup of the id finds its folder.
-  const dir = placeChat(taskId, StoreId.newSessionId());
+  const dir = placeChat(chatId, StoreId.newSessionId());
   await fs.mkdir(dir, { recursive: true });
   // The scaffold initializeTask lays down. `work/` has to arrive from the
   // template: its package.json and pnpm-workspace.yaml are what make the
@@ -158,7 +158,7 @@ async function installSkill({
       cwd: dir,
       layout: buildWorkspaceFsLayout({ taskHostRoot: dir }),
       signal,
-      taskId,
+      chatId,
     });
     result.node = { exitCode, output: stdout + stderr };
   }
@@ -167,7 +167,7 @@ async function installSkill({
     const installed = await installPythonSkill({
       signal,
       skillDir: destDir,
-      taskId,
+      chatId,
     });
     result.python =
       installed.state === "success"
@@ -182,7 +182,7 @@ async function installSkill({
       // install_name_tool, which is one of the stubs. Running the interpreter is
       // what proves the install survives that step being unavailable.
       const probe = await execa(
-        taskVenvPython(taskId),
+        taskVenvPython(chatId),
         ["-c", "import sys; print(sys.version.split()[0])"],
         { all: true, reject: false },
       );

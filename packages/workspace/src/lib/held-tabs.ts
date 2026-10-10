@@ -11,11 +11,11 @@ import { getChatState, updateChatState } from "./chat-record";
  * of the chat those that name its own.
  */
 export async function heldTabs(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<HeldTab[]> {
-  const driver = driverOf(taskId, sessionId);
-  return (await getChatState(chatDir(taskId))).browserTabs.filter(
+  const driver = driverOf(chatId, sessionId);
+  return (await getChatState(chatDir(chatId))).browserTabs.filter(
     (tab) => tab.sessionId === driver,
   );
 }
@@ -25,12 +25,12 @@ export async function heldTabs(
  * other session's where they are.
  */
 export async function updateHeldTabs(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
   change: (tabs: HeldTab[]) => HeldTab[],
 ): Promise<void> {
-  const driver = driverOf(taskId, sessionId);
-  await updateChatState(chatDir(taskId), ({ browserTabs }) => ({
+  const driver = driverOf(chatId, sessionId);
+  await updateChatState(chatDir(chatId), ({ browserTabs }) => ({
     browserTabs: [
       ...browserTabs.filter((tab) => tab.sessionId !== driver),
       ...change(browserTabs.filter((tab) => tab.sessionId === driver)).map(
@@ -43,8 +43,8 @@ export async function updateHeldTabs(
 
 /** The session a tab names as its driver: a task's own, none for the chat's. */
 function driverOf(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
 ): StoreId.Session | undefined {
-  return isTaskSession(taskId, sessionId) ? sessionId : undefined;
+  return isTaskSession(chatId, sessionId) ? sessionId : undefined;
 }

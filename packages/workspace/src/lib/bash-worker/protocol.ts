@@ -57,7 +57,7 @@ export type FromWorker =
   | { pid: number; state: "settled" | "started"; type: "tree" }
   /** A `js-exec` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
   | { argsJson: string; callId: number; id: number; path: string; type: "tool" }
-  | { requestId: number; taskId: ChatId; type: "venv" };
+  | { requestId: number; chatId: ChatId; type: "venv" };
 
 export type ToWorker =
   | {

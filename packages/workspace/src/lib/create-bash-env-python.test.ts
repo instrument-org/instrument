@@ -29,7 +29,7 @@ const sessionId = StoreId.newSessionId();
 let tmpDir: string;
 let attachedDir: string;
 let taskRoot: string;
-let taskId: ChatId;
+let chatId: ChatId;
 
 async function run(
   command: string,
@@ -47,7 +47,7 @@ async function run(
       },
     },
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(60_000) });
 }
@@ -70,7 +70,7 @@ beforeEach(async () => {
     "import sys\nimport helper\nprint('rows', helper.ROWS, sys.argv[1:])\n\ndef fail():\n    raise ValueError('boom')\n\nfail()\n",
   );
   await fs.writeFile(path.join(taskRoot, "work", "helper.py"), "ROWS = 3\n");
-  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
 });
 
 afterEach(async () => {

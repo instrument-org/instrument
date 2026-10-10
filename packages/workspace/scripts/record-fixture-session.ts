@@ -160,17 +160,17 @@ function assertNoLocalPaths(
 }
 
 async function readSession(
-  taskId: ReturnType<typeof ChatIdSchema.parse>,
+  chatId: ReturnType<typeof ChatIdSchema.parse>,
   preferred?: string,
 ): Promise<Session.WithMessagesAndParts> {
-  const sessionIdsResult = await Store.getStoreId(taskId);
+  const sessionIdsResult = await Store.getStoreId(chatId);
   if (sessionIdsResult.isErr()) {
     throw sessionIdsResult.error;
   }
   const sessionIds = sessionIdsResult.value;
 
   if (sessionIds.length === 0) {
-    throw new Error(`${taskId} has no sessions`);
+    throw new Error(`${chatId} has no sessions`);
   }
 
   const requested =
@@ -182,11 +182,11 @@ async function readSession(
   const sessionId = sessionIds.find((id) => id === requested);
   if (!sessionId) {
     throw new Error(
-      `No session ${String(requested)} in ${taskId}. Available:\n${sessionIds.map((id) => `  ${id}`).join("\n")}`,
+      `No session ${String(requested)} in ${chatId}. Available:\n${sessionIds.map((id) => `  ${id}`).join("\n")}`,
     );
   }
 
-  const result = await Store.getSessionWithMessagesAndParts(sessionId, taskId);
+  const result = await Store.getSessionWithMessagesAndParts(sessionId, chatId);
   if (result.isErr()) {
     throw result.error;
   }

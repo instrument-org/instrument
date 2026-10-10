@@ -87,7 +87,7 @@ function browserOfLiveTargets() {
 async function run(
   args: string[],
   sessionId = TASK_SESSION,
-  taskId: ChatId = CHAT_ID,
+  chatId: ChatId = CHAT_ID,
 ) {
   const { execa } = await import("execa");
   vi.mocked(execa).mockResolvedValue({
@@ -95,7 +95,7 @@ async function run(
     stderr: "",
     stdout: "",
   } as never);
-  return createAgentBrowserCommand({ sessionId, taskId }).execute(args, ctx);
+  return createAgentBrowserCommand({ sessionId, chatId }).execute(args, ctx);
 }
 
 /** Tabs the task drives, on the chat's record. */

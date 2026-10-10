@@ -89,7 +89,7 @@ function renderBlock(
           ? {
               assetVersion,
               isStreaming,
-              taskId: TASK_ID,
+              chatId: TASK_ID,
             }
           : { isStreaming }
       }

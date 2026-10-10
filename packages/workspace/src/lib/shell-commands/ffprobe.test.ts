@@ -27,8 +27,8 @@ async function mockExeca() {
 }
 
 describe("ffprobeCommand", () => {
-  const taskId = createMockChatConfig(ChatIdSchema.parse("test"));
-  const command = createFfprobeCommand(taskId, taskLayout(taskId));
+  const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
+  const command = createFfprobeCommand(chatId, taskLayout(chatId));
 
   afterEach(() => {
     vi.resetAllMocks();

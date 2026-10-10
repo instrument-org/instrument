@@ -10,7 +10,7 @@ import { taskStanding } from "./standing";
 vi.mock(import("../session-store-storage"));
 
 let counter = 0;
-const freshTask = () =>
+const freshChat = () =>
   createMockChatConfig(
     ChatIdSchema.parse(`standing-${Date.now()}-${(counter += 1)}`),
   );
@@ -59,19 +59,19 @@ const activity =
     type: "tool-request_folder",
   });
 
-async function withSession(taskId: ReturnType<typeof freshTask>) {
+async function withSession(chatId: ReturnType<typeof freshChat>) {
   const sessionId = StoreId.newSessionId();
   await Store.saveSession(
     { createdAt: new Date(), id: sessionId, title: "task" },
-    taskId,
+    chatId,
   );
   return sessionId;
 }
 
 describe("taskStanding", () => {
   it("says what a finished task said, in one line", async () => {
-    const taskId = freshTask();
-    const sessionId = await withSession(taskId);
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
     await Store.saveMessageWithParts(
       assistant(sessionId, [
         (ids) => ({
@@ -80,13 +80,13 @@ describe("taskStanding", () => {
           type: "text",
         }),
       ]),
-      taskId,
+      chatId,
     );
 
     const standing = await taskStanding({
       isRunning: false,
       sessionId,
-      taskId,
+      chatId,
     });
 
     expect(standing).toEqual({
@@ -96,8 +96,8 @@ describe("taskStanding", () => {
   });
 
   it("names what a finished task wrote when its reply was only the files it handed over", async () => {
-    const taskId = freshTask();
-    const sessionId = await withSession(taskId);
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
     await Store.saveMessageWithParts(
       assistant(sessionId, [
         (ids) => ({
@@ -106,21 +106,21 @@ describe("taskStanding", () => {
           type: "text",
         }),
       ]),
-      taskId,
+      chatId,
     );
 
     const standing = await taskStanding({
       isRunning: false,
       sessionId,
-      taskId,
+      chatId,
     });
 
     expect(standing).toEqual({ kind: "done", line: "Wrote compared.html" });
   });
 
   it("reads a reply past the files it opens with, and cuts the line after that", async () => {
-    const taskId = freshTask();
-    const sessionId = await withSession(taskId);
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
     const words = "The second quote is cheaper once delivery is in.".repeat(3);
     await Store.saveMessageWithParts(
       assistant(sessionId, [
@@ -130,21 +130,21 @@ describe("taskStanding", () => {
           type: "text",
         }),
       ]),
-      taskId,
+      chatId,
     );
 
     const standing = await taskStanding({
       isRunning: false,
       sessionId,
-      taskId,
+      chatId,
     });
 
     expect(standing.line).toBe(`${words.slice(0, 90)}…`);
   });
 
   it("says what a task is waiting for when its turn ended on an ask", async () => {
-    const taskId = freshTask();
-    const sessionId = await withSession(taskId);
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
     await Store.saveMessageWithParts(
       assistant(sessionId, [
         (ids) => ({
@@ -155,13 +155,13 @@ describe("taskStanding", () => {
           type: "tool-connect_app",
         }),
       ]),
-      taskId,
+      chatId,
     );
 
     const standing = await taskStanding({
       isRunning: false,
       sessionId,
-      taskId,
+      chatId,
     });
 
     expect(standing).toEqual({
@@ -171,13 +171,13 @@ describe("taskStanding", () => {
   });
 
   it("says what a task stopped in the middle of when the stop cut its reply off", async () => {
-    const taskId = freshTask();
-    const sessionId = await withSession(taskId);
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
     await Store.saveMessageWithParts(
       assistant(sessionId, [activity("Locating any bundled QuickJS runtime")], {
         finishReason: "tool-calls",
       }),
-      taskId,
+      chatId,
     );
     // The message the model was streaming when the stop landed: a step and
     // nothing after it.
@@ -195,13 +195,13 @@ describe("taskStanding", () => {
           finishReason: "aborted",
         },
       ),
-      taskId,
+      chatId,
     );
 
     const standing = await taskStanding({
       isRunning: false,
       sessionId,
-      taskId,
+      chatId,
     });
 
     expect(standing).toEqual({
@@ -211,8 +211,8 @@ describe("taskStanding", () => {
   });
 
   it("says what a task stopped in the middle of when the stop landed on a tool call", async () => {
-    const taskId = freshTask();
-    const sessionId = await withSession(taskId);
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
     await Store.saveMessageWithParts(
       assistant(
         sessionId,
@@ -232,61 +232,61 @@ describe("taskStanding", () => {
         ],
         { finishReason: "tool-calls" },
       ),
-      taskId,
+      chatId,
     );
 
     const standing = await taskStanding({
       isRunning: false,
       sessionId,
-      taskId,
+      chatId,
     });
 
     expect(standing.line).toBe("Stopped while completing repository copy");
   });
 
   it("keeps the case of a step that opens on an acronym", async () => {
-    const taskId = freshTask();
-    const sessionId = await withSession(taskId);
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
     await Store.saveMessageWithParts(
       assistant(sessionId, [activity("PDF export of the report")], {
         error: { kind: "aborted", message: "Aborted" },
         finishReason: "aborted",
       }),
-      taskId,
+      chatId,
     );
 
     const standing = await taskStanding({
       isRunning: false,
       sessionId,
-      taskId,
+      chatId,
     });
 
     expect(standing.line).toBe("Stopped while PDF export of the report");
   });
 
   it("says a task stopped when nothing says what it was doing", async () => {
-    const taskId = freshTask();
-    const sessionId = await withSession(taskId);
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
     await Store.saveMessageWithParts(
       assistant(sessionId, [], {
         error: { kind: "aborted", message: "Aborted" },
         finishReason: "aborted",
       }),
-      taskId,
+      chatId,
     );
 
     const standing = await taskStanding({
       isRunning: false,
       sessionId,
-      taskId,
+      chatId,
     });
 
     expect(standing).toEqual({ kind: "done", line: "Stopped" });
   });
 
   it("names a model error in the words the transcript uses", async () => {
-    const taskId = freshTask();
-    const sessionId = await withSession(taskId);
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
     await Store.saveMessageWithParts(
       assistant(sessionId, [activity("Reading the brief")], {
         error: {
@@ -296,21 +296,21 @@ describe("taskStanding", () => {
         },
         finishReason: "error",
       }),
-      taskId,
+      chatId,
     );
 
     const standing = await taskStanding({
       isRunning: false,
       sessionId,
-      taskId,
+      chatId,
     });
 
     expect(standing).toEqual({ kind: "failed", line: "Model is busy" });
   });
 
   it("names the step limit a task ran into", async () => {
-    const taskId = freshTask();
-    const sessionId = await withSession(taskId);
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
     await Store.saveMessageWithParts(
       assistant(
         sessionId,
@@ -328,13 +328,13 @@ describe("taskStanding", () => {
           synthetic: true,
         },
       ),
-      taskId,
+      chatId,
     );
 
     const standing = await taskStanding({
       isRunning: false,
       sessionId,
-      taskId,
+      chatId,
     });
 
     expect(standing).toEqual({
@@ -344,18 +344,18 @@ describe("taskStanding", () => {
   });
 
   it("says the step while it runs", async () => {
-    const taskId = freshTask();
-    const sessionId = await withSession(taskId);
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
 
-    const standing = await taskStanding({ isRunning: true, sessionId, taskId });
+    const standing = await taskStanding({ isRunning: true, sessionId, chatId });
 
     expect(standing.kind).toBe("running");
     expect(standing.line).toBe("Working");
   });
 
   it("says what a task at work has stopped to ask, rather than its step", async () => {
-    const taskId = freshTask();
-    const sessionId = await withSession(taskId);
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
     await Store.saveMessageWithParts(
       assistant(
         sessionId,
@@ -371,10 +371,10 @@ describe("taskStanding", () => {
         ],
         { finishReason: "tool-calls" },
       ),
-      taskId,
+      chatId,
     );
 
-    const standing = await taskStanding({ isRunning: true, sessionId, taskId });
+    const standing = await taskStanding({ isRunning: true, sessionId, chatId });
 
     expect(standing).toEqual({
       kind: "waiting",

@@ -27,12 +27,12 @@ import { taskHref } from "./tab-location";
  * row keeps its chevron. While the task works, a stop follows the row. In a chat it draws only in developer mode, since a chat
  * shows the user none of its tool calls; the chat's header carries the step.
  */
-export function CreatedTaskCard({ taskId }: { taskId: string }) {
+export function CreatedTaskCard({ chatId }: { chatId: string }) {
   const appWindow = useWindow();
-  const id = StoreId.SessionSchema.parse(taskId);
+  const id = StoreId.SessionSchema.parse(chatId);
   // The chat whose transcript this card is in, which started the task and
   // holds it.
-  const chat = ChatIdSchema.parse(useTaskSession().taskId);
+  const chat = ChatIdSchema.parse(useTaskSession().chatId);
   // Where it stands, from the list of the chat it was started in: the step
   // while it works, and once it is done the line it ended on: what it made,
   // what it asks for, or how it stopped.

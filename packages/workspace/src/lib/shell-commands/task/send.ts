@@ -44,7 +44,7 @@ async function runSend(
     prompt,
     task,
   });
-  recordHandOff({ kind: "sent", taskId: task.id });
+  recordHandOff({ kind: "sent", sessionId: task.id });
   const sent = running
     ? now
       ? `Sent to ${task.handle}. Its step in flight was stopped, and it takes this up as its next turn; you will be told when that turn finishes.`

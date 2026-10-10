@@ -25,7 +25,7 @@ const SHORTCUTS_PATH = "/usr/bin/shortcuts";
 const PATH_FLAGS = new Set(["-i", "--input-path", "-o", "--output-path"]);
 
 export function createShortcutsCommand(
-  taskId: ChatId,
+  chatId: ChatId,
   layout: WorkspaceFsLayout,
 ) {
   return defineCommand(SHORTCUTS_COMMAND.name, async (args, ctx) => {
@@ -51,9 +51,9 @@ export function createShortcutsCommand(
       return { exitCode: 1, stderr: unreachable, stdout: "" };
     }
     const bridgedArgs = args.flatMap((arg, index) =>
-      isPath[index] ? resolvePathArgs([arg], taskId, ctx) : [arg],
+      isPath[index] ? resolvePathArgs([arg], chatId, ctx) : [arg],
     );
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const result = await execShim(SHORTCUTS_PATH, bridgedArgs, {
       cancelSignal: ctx.signal,
       cwd: taskCwd,

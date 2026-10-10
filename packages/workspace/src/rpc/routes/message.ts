@@ -33,10 +33,10 @@ const listWithParts = base
   .output(z.array(SessionMessage.WithPartsSchema))
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
     const messages = await Store.getMessagesWithParts({
       sessionId,
-      taskId,
+      chatId,
     });
 
     if (messages.isErr()) {
@@ -99,7 +99,7 @@ const create = base
       },
     }) =>
       sendsInOrder(id, async () => {
-        const taskId = id;
+        const chatId = id;
 
         const modelResult = await fetchModel({
           captureException: context.workspaceConfig.captureException,
@@ -117,9 +117,8 @@ const create = base
         const model = modelResult.value;
 
         // A chat's record holds one session, the one its settings name.
-        const chatId = resolveChat(taskId);
-        const chatSession = chatId ? sessionOfChat(chatId) : undefined;
-        const isChat = chatId !== undefined;
+        const isChat = resolveChat(chatId) !== undefined;
+        const chatSession = isChat ? sessionOfChat(chatId) : undefined;
 
         let finalSessionId: StoreId.Session;
         // The other chats as they stand when a new one opens, read before
@@ -133,7 +132,7 @@ const create = base
           }
           const sessionResult = await createSession({
             sessionId: chatSession ?? newSessionId ?? StoreId.newSessionId(),
-            taskId,
+            chatId,
           });
           if (sessionResult.isErr()) {
             context.workspaceConfig.captureException(sessionResult.error);
@@ -147,7 +146,7 @@ const create = base
 
         const messageIdsBeforeResult = await Store.getMessageIds(
           finalSessionId,
-          taskId,
+          chatId,
         );
         if (messageIdsBeforeResult.isErr()) {
           context.workspaceConfig.captureException(
@@ -168,7 +167,7 @@ const create = base
           prompt,
           replyTo,
           sessionId: finalSessionId,
-          taskId,
+          chatId,
           viewing,
         });
 
@@ -191,7 +190,7 @@ const create = base
             if (title.isOk()) {
               await updateSessionTitle({
                 sessionId: message.metadata.sessionId,
-                taskId,
+                chatId,
                 title: title.value,
               });
             }
@@ -202,7 +201,7 @@ const create = base
 
         // Written now, so the conversation shows it the moment it was sent; the
         // session runs it when its turn comes and never writes it again.
-        const written = await Store.saveMessageWithParts(message, taskId);
+        const written = await Store.saveMessageWithParts(message, chatId);
         if (written.isErr()) {
           throw toORPCError(written.error, errors);
         }
@@ -219,7 +218,7 @@ const create = base
 
         // A settings write, which the record change feed reports: what moves
         // the task in the list.
-        await recordChatActivity(taskId);
+        await recordChatActivity(chatId);
 
         return { sessionId: message.metadata.sessionId };
       }),
@@ -244,7 +243,7 @@ const live = {
 
       try {
         const initial = await Store.getMessagesWithParts(
-          { sessionId: input.sessionId, taskId: input.id },
+          { sessionId: input.sessionId, chatId: input.id },
           { signal },
         );
         if (initial.isErr()) {
@@ -267,7 +266,7 @@ const live = {
             const messageIds = [...batch.updated];
             const readUpdated = () =>
               Store.getMessagesWithParts(
-                { messageIds, sessionId: input.sessionId, taskId: input.id },
+                { messageIds, sessionId: input.sessionId, chatId: input.id },
                 { signal },
               );
 
@@ -300,7 +299,7 @@ const live = {
               }
             } else {
               const reload = await Store.getMessagesWithParts(
-                { sessionId: input.sessionId, taskId: input.id },
+                { sessionId: input.sessionId, chatId: input.id },
                 { signal },
               );
               if (reload.isErr()) {

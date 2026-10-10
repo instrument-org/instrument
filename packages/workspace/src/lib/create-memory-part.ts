@@ -42,18 +42,18 @@ export async function createMemoryPart({
   createdAt,
   messageId,
   sessionId,
-  taskId,
+  chatId,
 }: {
   createdAt: Date;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
     const memories = await listMemories(memoryDir());
     const digests = memoryDigests(memories);
 
-    const storage = await getSessionsStoreStorage(taskId);
+    const storage = await getSessionsStoreStorage(chatId);
     if (storage.isErr()) {
       return undefined;
     }
@@ -126,15 +126,15 @@ export async function recordMemoryReported({
   memory,
   name,
   sessionId,
-  taskId,
+  chatId,
 }: {
   /** What the name holds now, or nothing once it is forgotten. */
   memory: Memory | undefined;
   name: string;
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<void> {
-  const storage = await getSessionsStoreStorage(taskId);
+  const storage = await getSessionsStoreStorage(chatId);
   if (storage.isErr()) {
     return;
   }
@@ -159,12 +159,12 @@ export async function recordMemoryReported({
  */
 export async function resetMemoryReported({
   sessionId,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<void> {
-  const storage = await getSessionsStoreStorage(taskId);
+  const storage = await getSessionsStoreStorage(chatId);
   if (storage.isErr()) {
     return;
   }

@@ -59,7 +59,7 @@ const INDENTED = '[class~="pl-6.5"]';
 const sessionId = StoreId.newSessionId();
 const messageId = StoreId.newMessageId();
 
-const task: ChatInfo = {
+const chatInfo: ChatInfo = {
   createdAt: new Date(0),
   id: ChatIdSchema.parse("quarterly-numbers"),
   title: "Quarterly numbers",
@@ -180,7 +180,7 @@ function chatStream(
         onRunAgain={vi.fn()}
         {...(presentation ? { presentation } : {})}
         renderAsItems={renderAsItems}
-        task={task}
+        chatInfo={chatInfo}
       />
     </TranscriptScrollContext>
   );

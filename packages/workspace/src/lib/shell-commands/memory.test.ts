@@ -23,12 +23,12 @@ vi.mock(import("../session-store-storage"));
 const id = ChatIdSchema.parse("memory-command-test");
 const sessionId = StoreId.newSessionId();
 
-let taskId: ChatId;
+let chatId: ChatId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "memory-command-test-"));
-  taskId = createMockChatConfig(id);
+  chatId = createMockChatConfig(id);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
@@ -41,7 +41,7 @@ beforeEach(async () => {
       title: "Roofer call",
       updatedAt: new Date(),
     },
-    taskId,
+    chatId,
   );
 });
 
@@ -51,7 +51,7 @@ afterEach(async () => {
 
 function run(args: string[], stdin = "") {
   return createMemoryCommand({
-    chatId: ChatIdSchema.parse(taskId),
+    chatId: ChatIdSchema.parse(chatId),
     sessionId,
   }).execute(
     args,

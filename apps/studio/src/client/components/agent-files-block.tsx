@@ -118,14 +118,14 @@ export function FilePathsGrid({
   paths: string[];
   pendingFilePath?: string;
 }) {
-  const { assetVersion, taskId } = useContext(MarkdownTaskContext);
+  const { assetVersion, chatId } = useContext(MarkdownTaskContext);
   const layout = useContext(FilesLayoutContext);
   const showTaskFile = useShowTaskFile();
   const [folderPaths, filePaths] = fork(paths, isFolderPath);
   // The reply names files as the task knows them; the screen shows them by
   // where they are. A file the task cannot reach, or one not yet translated,
   // is drawn as its line and nothing more.
-  const hostPaths = useHostPaths(taskId, filePaths);
+  const hostPaths = useHostPaths(chatId, filePaths);
   const messages = useMessageFiles(
     filePaths.flatMap((path) => {
       const hostPath = hostPaths[path];
@@ -141,7 +141,7 @@ export function FilePathsGrid({
   );
 
   if (
-    taskId === undefined ||
+    chatId === undefined ||
     (paths.length === 0 && pendingFilePath === undefined)
   ) {
     return null;
@@ -172,7 +172,7 @@ export function FilePathsGrid({
     return {
       filename: nameOfPath(filePath),
       hostPath,
-      taskFile: { filePath, taskId },
+      taskFile: { filePath, chatId },
       url: getComputerFileUrl({ hostPath, version: assetVersion }),
     };
   };

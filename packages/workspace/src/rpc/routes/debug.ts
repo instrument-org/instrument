@@ -49,7 +49,7 @@ const runBash = base
     z.object({
       command: z.string().min(1),
       sessionId: StoreId.SessionSchema,
-      taskId: ChatIdSchema,
+      chatId: ChatIdSchema,
       timeoutMs: z
         .number()
         .int()
@@ -70,12 +70,12 @@ const runBash = base
   .handler(async ({ input, signal }) => {
     // A chat's own shell, with the commands the chat runs, for the chat's
     // agent; a task's otherwise, the way the bash tool builds it.
-    const chatId = resolveChat(input.taskId);
+    const chatId = resolveChat(input.chatId);
     const bash = await createBashEnv({
-      attachedFolders: await folderReach(input.taskId),
+      attachedFolders: await folderReach(input.chatId),
       ...(chatId ? { chat: { id: chatId } } : {}),
       sessionId: input.sessionId,
-      taskId: input.taskId,
+      chatId: input.chatId,
     });
 
     const startedAt = performance.now();

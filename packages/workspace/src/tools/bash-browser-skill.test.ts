@@ -24,19 +24,19 @@ const createdAt = new Date("2026-01-01T00:00:00.000Z");
  */
 describe("bash attaches the agent-browser skill", () => {
   let root: string;
-  let taskId: ChatId;
+  let chatId: ChatId;
   let sessionId: StoreId.Session;
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "bash-browser-skill-"));
     const taskDirPath = path.join(root, "tasks", `01k${"abs".padEnd(23, "0")}`);
     await fs.mkdir(path.join(taskDirPath, "work"), { recursive: true });
-    taskId = createMockChatConfigForDir(taskDirPath, { model });
+    chatId = createMockChatConfigForDir(taskDirPath, { model });
     sessionId = StoreId.newSessionId();
   });
 
   afterEach(async () => {
-    await disposeSessionsStoreStorage(taskId);
+    await disposeSessionsStoreStorage(chatId);
     await fs.rm(root, { force: true, recursive: true });
   });
 
@@ -46,7 +46,7 @@ describe("bash attaches the agent-browser skill", () => {
       model,
       sessionId,
       signal: new AbortController().signal,
-      taskId,
+      chatId,
       taskState: { browserTabs: [] },
     });
     if (result.isErr()) {
@@ -70,7 +70,7 @@ describe("bash attaches the agent-browser skill", () => {
       },
       role: "assistant",
     };
-    (await Store.saveMessage(message, taskId))._unsafeUnwrap();
+    (await Store.saveMessage(message, chatId))._unsafeUnwrap();
     (
       await Store.savePart(
         {
@@ -87,7 +87,7 @@ describe("bash attaches the agent-browser skill", () => {
           toolCallId: "call-1",
           type: "tool-bash",
         },
-        taskId,
+        chatId,
         { publish: false },
       )
     )._unsafeUnwrap();
@@ -103,7 +103,7 @@ describe("bash attaches the agent-browser skill", () => {
           rolledOverAfterMessageId,
           title: "Browsing",
         },
-        taskId,
+        chatId,
       )
     )._unsafeUnwrap();
   }

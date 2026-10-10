@@ -29,7 +29,7 @@ const sessionId = StoreId.newSessionId();
 let tmpDir: string;
 let attachedDir: string;
 let lockedDir: string;
-let taskId: ChatId;
+let chatId: ChatId;
 
 async function run(command: string) {
   const bash = await createBashEnv({
@@ -44,7 +44,7 @@ async function run(command: string) {
       },
     },
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
 }
@@ -63,7 +63,7 @@ beforeEach(async () => {
     "# notes\n",
   );
   await fs.chmod(lockedDir, 0o000);
-  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
 });
 
 afterEach(async () => {

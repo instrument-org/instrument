@@ -8,10 +8,10 @@ import { truncateMiddle } from "../truncate-buffer";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
 
-const taskId = ChatIdSchema.parse("app-catalog-task");
+const chatId = ChatIdSchema.parse("app-catalog-task");
 
 async function catalog(...words: string[]) {
-  const result = await createAppCommand({ taskId }).execute(
+  const result = await createAppCommand({ chatId }).execute(
     ["catalog", ...words],
     createCommandContext({
       cwd: "/task",

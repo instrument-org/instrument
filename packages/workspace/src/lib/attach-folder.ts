@@ -19,14 +19,14 @@ export async function attachFolder({
   access,
   mountName,
   path,
-  taskId,
+  chatId,
 }: {
   access: FolderAttachment.Access;
   mountName?: string;
   path: string;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<FolderAttachment.Type> {
-  const dir = chatDir(taskId);
+  const dir = chatDir(chatId);
   const state = await getChatState(dir);
   const { folders, granted } = grantFolders(
     Object.values(state.attachedFolders ?? {}),
@@ -59,12 +59,12 @@ export async function attachFolder({
  */
 export async function detachFolder({
   path: folderPath,
-  taskId,
+  chatId,
 }: {
   path: string;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<void> {
-  const dir = chatDir(taskId);
+  const dir = chatDir(chatId);
   const state = await getChatState(dir);
   const wanted = AbsolutePathSchema.parse(folderPath);
   const remaining = Object.entries(state.attachedFolders ?? {}).filter(

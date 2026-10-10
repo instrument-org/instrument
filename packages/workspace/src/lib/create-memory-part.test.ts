@@ -20,14 +20,14 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 const id = ChatIdSchema.parse("memory-part-test");
 const sessionId = StoreId.newSessionId();
 
-let taskId: ChatId;
+let chatId: ChatId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "memory-part-test-"));
   const dir = path.join(root, TASKS_DIR_NAME, id);
   await fs.mkdir(dir, { recursive: true });
-  taskId = createMockChatConfigForDir(dir);
+  chatId = createMockChatConfigForDir(dir);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     rootDir: WorkspaceDirSchema.parse(root),
@@ -44,7 +44,7 @@ function build() {
     createdAt: new Date("2026-09-19T12:00:00.000Z"),
     messageId: StoreId.newMessageId(),
     sessionId,
-    taskId,
+    chatId,
   });
 }
 
@@ -125,7 +125,7 @@ describe("createMemoryPart", () => {
       memory,
       name: memory.name,
       sessionId,
-      taskId,
+      chatId,
     });
 
     expect(await build()).toBeUndefined();
@@ -144,7 +144,7 @@ describe("createMemoryPart", () => {
       memory,
       name: memory.name,
       sessionId,
-      taskId,
+      chatId,
     });
 
     expect(await build()).toMatchObject({
@@ -166,7 +166,7 @@ describe("createMemoryPart", () => {
       memory: undefined,
       name: "one",
       sessionId,
-      taskId,
+      chatId,
     });
 
     expect(await build()).toBeUndefined();
@@ -176,7 +176,7 @@ describe("createMemoryPart", () => {
     await saveMemory(memoryDir(), { name: "one", text: "One." });
     await build();
 
-    await resetMemoryReported({ sessionId, taskId });
+    await resetMemoryReported({ sessionId, chatId });
 
     expect(await build()).toMatchObject({
       data: { memories: [{ name: "one" }], tells: "whole" },

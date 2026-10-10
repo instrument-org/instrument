@@ -5,7 +5,7 @@ import { recordChanges } from "../../../lib/record-changes";
 import { changedMessageBatches } from "../../../lib/changed-message-batches";
 import { getChatInfo } from "../../../lib/chat-info";
 import {
-  getTaskUsageSummary,
+  getUsageSummary,
   UsageSummarySchema,
 } from "../../../lib/usage-summary";
 import { StoreId } from "../../../schemas/store-id";
@@ -13,13 +13,13 @@ import { ChatInfoSchema } from "../../../schemas/chat-info";
 import { ChatIdSchema } from "../../../schemas/chat-id";
 import { base, toORPCError } from "../../base";
 import { liveRead } from "../../live-read";
-import { liveTaskActivity } from "./activity";
-import { taskAgentStatus } from "./agent-status";
-import { taskBackgroundProcesses } from "./background-processes";
-import { taskFiles } from "./files";
-import { taskState } from "./state";
+import { liveChatActivity } from "./activity";
+import { agentStatus } from "./agent-status";
+import { chatBackgroundProcesses } from "./background-processes";
+import { chatFiles } from "./files";
+import { chatState } from "./state";
 
-const byId = base
+const info = base
   .input(z.object({ id: ChatIdSchema }))
   .output(ChatInfoSchema)
   .handler(async ({ errors, input }) => {
@@ -32,7 +32,7 @@ const byId = base
   });
 
 const live = {
-  byId: base
+  info: base
     .input(z.object({ id: ChatIdSchema }))
     .output(eventIterator(ChatInfoSchema))
     .handler(async function* ({ context, input, signal }) {
@@ -45,7 +45,7 @@ const live = {
               (change.kind === "settings" || change.kind === "removed"),
           ),
         ],
-        read: () => call(byId, input, { context, signal }),
+        read: () => call(info, input, { context, signal }),
       });
     }),
 };
@@ -60,7 +60,7 @@ const usageSummary = base
   .input(UsageOfSchema)
   .output(UsageSummarySchema)
   .handler(async ({ input, signal }) =>
-    getTaskUsageSummary(input.id, {
+    getUsageSummary(input.id, {
       signal,
       ...(input.sessionId ? { sessionId: input.sessionId } : {}),
     }),
@@ -83,15 +83,20 @@ const liveUsageSummary = base
     }
   });
 
-export const task = {
-  agentStatus: taskAgentStatus,
-  backgroundProcesses: taskBackgroundProcesses,
-  byId,
-  files: taskFiles,
+/**
+ * What is read of one chat beside its list row: its settings (`info`), its
+ * state, the files its agents name, its background processes and its spend,
+ * plus the agents alive across chats. Spread into `chats`.
+ */
+export const chatRoutes = {
+  agentStatus,
+  backgroundProcesses: chatBackgroundProcesses,
+  files: chatFiles,
+  info,
   live: {
     ...live,
-    activity: liveTaskActivity,
+    activity: liveChatActivity,
     usageSummary: liveUsageSummary,
   },
-  state: taskState,
+  state: chatState,
 };

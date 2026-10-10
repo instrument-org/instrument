@@ -26,17 +26,17 @@ export function detectDateChange({
   messageId,
   sessionId,
   signal,
-  taskId,
+  chatId,
 }: {
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
       const messages = yield* Store.getMessagesWithParts(
-        { sessionId, taskId },
+        { sessionId, chatId },
         { signal },
       );
 

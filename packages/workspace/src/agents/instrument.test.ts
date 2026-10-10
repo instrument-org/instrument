@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { ChatIdSchema } from "../schemas/chat-id";
 import { type HandOff } from "../lib/shell-commands/task-hand-off";
 import { TOOL_NAMES } from "../tools/name";
 import { instrumentAgent, shouldContinueAfterHandingOff } from "./instrument";
@@ -78,7 +77,9 @@ const wake = (messageId: StoreId.Message): SessionMessagePart.Type => ({
     events: [
       {
         status: "done",
-        taskId: ChatIdSchema.parse("lisbon-hotel"),
+        sessionId: StoreId.SessionSchema.parse(
+          "ses_01K4M8C2B5N7R0T3V6X9Z1D4F7",
+        ),
         title: "Lisbon hotel",
       },
     ],
@@ -90,7 +91,12 @@ const wake = (messageId: StoreId.Message): SessionMessagePart.Type => ({
 const taskNew = bash(
   "task new --name 'Lisbon' <<'EOF'\nFind a hotel.\nEOF",
   'Created lisbon-hotel ("Lisbon"). It is running now.\n',
-  [{ kind: "created", taskId: ChatIdSchema.parse("lisbon-hotel") }],
+  [
+    {
+      kind: "created",
+      sessionId: StoreId.SessionSchema.parse("ses_01K4M8C2B5N7R0T3V6X9Z1D4F7"),
+    },
+  ],
 );
 
 describe("shouldContinueAfterHandingOff", () => {
@@ -140,7 +146,14 @@ describe("shouldContinueAfterHandingOff", () => {
             bash(
               "task send lisbon-hotel <<'EOF'\nA submarine.\nEOF",
               "Sent to lisbon-hotel. It is busy and will hear this at its next step.\n",
-              [{ kind: "sent", taskId: ChatIdSchema.parse("lisbon-hotel") }],
+              [
+                {
+                  kind: "sent",
+                  sessionId: StoreId.SessionSchema.parse(
+                    "ses_01K4M8C2B5N7R0T3V6X9Z1D4F7",
+                  ),
+                },
+              ],
             ),
           ),
         ],

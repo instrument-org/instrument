@@ -26,8 +26,8 @@ const mockCtx = createCommandContext({
 });
 
 describe("nodeCommand", () => {
-  const taskId = createMockChatConfig(ChatIdSchema.parse("test"));
-  const command = createNodeCommand(taskId, taskLayout(taskId));
+  const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
+  const command = createNodeCommand(chatId, taskLayout(chatId));
 
   afterEach(() => {
     vi.resetAllMocks();
@@ -369,7 +369,7 @@ describe("nodeCommand", () => {
 
   it("blocks a script file that references /mnt without spawning node", async () => {
     const { execa } = await import("execa");
-    const workDir = path.join(chatDir(taskId), "work");
+    const workDir = path.join(chatDir(chatId), "work");
     await fs.mkdir(workDir, { recursive: true });
     const scriptPath = path.join(workDir, "bad.js");
     await fs.writeFile(
@@ -400,7 +400,7 @@ describe("nodeCommand", () => {
 
     const calledArgs = vi.mocked(execa).mock.calls.at(-1)?.[1];
     assert(Array.isArray(calledArgs), "expected args array");
-    expect(calledArgs[0]).not.toContain(chatDir(taskId));
+    expect(calledArgs[0]).not.toContain(chatDir(chatId));
     expect(calledArgs[0]).toBe("scripts/run.js");
   });
 });

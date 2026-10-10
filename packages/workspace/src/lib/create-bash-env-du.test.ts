@@ -25,7 +25,7 @@ const WIDE_FILES = 21_000;
 let tmpDir: string;
 let homeDir: string;
 let wideDir: string;
-let taskId: ChatId;
+let chatId: ChatId;
 
 async function run(command: string, { chat = false } = {}) {
   const attach = (name: string, folder: string) => ({
@@ -43,9 +43,9 @@ async function run(command: string, { chat = false } = {}) {
       Home: attach("Home", homeDir),
       Wide: attach("Wide", wideDir),
     },
-    chat: chat ? { id: ChatIdSchema.parse(taskId) } : undefined,
+    chat: chat ? { id: ChatIdSchema.parse(chatId) } : undefined,
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
 }
@@ -85,7 +85,7 @@ beforeAll(async () => {
     ),
   );
 
-  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
 });
 
 afterAll(async () => {

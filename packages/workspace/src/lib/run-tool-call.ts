@@ -16,13 +16,13 @@ export async function runToolCall({
   part,
   sessionId,
   signal,
-  taskId,
+  chatId,
 }: {
   model: AIGatewayModel.Type;
   part: SessionMessagePart.ToolPartInputAvailable;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   const tool = getToolByType(part.type);
   let preliminarySaved = false;
@@ -42,11 +42,11 @@ export async function runToolCall({
           ...current,
           metadata: { ...current.metadata, startedAt: getCurrentDate() },
         }) as SessionMessagePart.Type,
-      taskId,
+      chatId,
       { signal },
     );
 
-    const taskState = await getChatState(chatDir(taskId));
+    const taskState = await getChatState(chatDir(chatId));
 
     for await (const { output, type } of streamTool({
       execute: tool.execute,
@@ -57,7 +57,7 @@ export async function runToolCall({
         partId: part.metadata.id,
         sessionId,
         signal,
-        taskId,
+        chatId,
         taskState,
       },
     })) {
@@ -83,7 +83,7 @@ export async function runToolCall({
                 preliminary: true,
                 state: "output-available",
               }) as SessionMessagePart.Type,
-            taskId,
+            chatId,
             { signal },
           );
           preliminarySaved = true;
@@ -103,7 +103,7 @@ export async function runToolCall({
                   preliminary: false,
                   state: "output-available",
                 }) as SessionMessagePart.Type,
-              taskId,
+              chatId,
               { signal },
             )
           : Store.updatePart(
@@ -118,7 +118,7 @@ export async function runToolCall({
                   },
                   state: "output-error",
                 }) as SessionMessagePart.Type,
-              taskId,
+              chatId,
               { signal },
             ));
         getWorkspaceConfig().captureEvent("llm.tool_executed", {
@@ -149,7 +149,7 @@ export async function runToolCall({
           },
           state: "output-error",
         }) as SessionMessagePart.Type,
-      taskId,
+      chatId,
       { signal },
     );
   }

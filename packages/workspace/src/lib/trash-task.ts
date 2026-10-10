@@ -7,7 +7,7 @@ import { type WorkspaceActorRef } from "../machines/workspace";
 import { type ChatId } from "../schemas/chat-id";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
-import { killTaskBackgroundProcesses } from "./background-processes";
+import { killChatBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
 import { recordRemoved } from "./record-changes";
@@ -61,7 +61,7 @@ async function trashTask({
       // going away is what ends them. Wait for that here: their logs live inside
       // the directory about to be deleted, and an orphaned dev server would go on
       // writing into the trashed folder and holding its port.
-      const backgroundCleanedUp = killTaskBackgroundProcesses(id);
+      const backgroundCleanedUp = killChatBackgroundProcesses(id);
 
       // Awaited rather than raced, because it is already bounded and its logs are
       // about to be deleted. A process that will not confirm it stopped is still
@@ -77,14 +77,14 @@ async function trashTask({
       markStorageAsDisposing(id);
 
       try {
-        const taskId = id;
+        const chatId = id;
 
         // Delete node_modules folder before trashing to avoid issues with hard links.
         // On Windows (and potentially other OS) with PNPM hard links, trashing
         // node_modules will fail. Since node_modules can be recreated, we delete
         // it first using the fastest removal method available.
         const nodeModulesPath = absolutePathJoin(
-          chatDir(taskId),
+          chatDir(chatId),
           "node_modules",
         );
 
@@ -98,11 +98,11 @@ async function trashTask({
         }
 
         // Whether it was a chat, read before the index forgets it.
-        const known = resolveChat(taskId) !== undefined;
-        await workspaceConfig.trashItem(chatDir(taskId));
-        forgetChat(taskId);
+        const known = resolveChat(chatId) !== undefined;
+        await workspaceConfig.trashItem(chatDir(chatId));
+        forgetChat(chatId);
         if (known) {
-          recordRemoved(taskId);
+          recordRemoved(chatId);
         }
 
         // In the off chance that a future task with the same id is

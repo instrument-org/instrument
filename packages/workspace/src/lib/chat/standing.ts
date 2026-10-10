@@ -117,16 +117,16 @@ export function excerptOf(text: string, maxLength: number): string {
 export async function taskStanding({
   isRunning,
   sessionId,
-  taskId,
+  chatId,
 }: SessionRef & { isRunning: boolean }): Promise<TaskStanding> {
-  const ref = { sessionId, taskId };
+  const ref = { sessionId, chatId };
   if (isRunning) {
     const { step, waiting } = await runningLines(ref);
     return waiting
       ? { kind: "waiting", line: waiting }
       : { kind: "running", line: step ?? "Working" };
   }
-  return settledStanding(taskId, () => standingAtRest(ref), sessionId);
+  return settledStanding(chatId, () => standingAtRest(ref), sessionId);
 }
 
 /** The last segment of a path, which is how a file is named in a line. */

@@ -85,11 +85,11 @@ const GLOB_METACHARACTERS = /[*?[{}\\]/g;
 
 export function createRgCommand({
   layout,
-  taskId,
+  chatId,
 }: {
   /** The shell's own layout, so rg reaches exactly the mounts the shell has. */
   layout: WorkspaceFsLayout;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   return defineCommand(RG_COMMAND.name, async (args, ctx) => {
     const denied = args.map((arg) => deniedFlag(arg)).find(Boolean);
@@ -108,7 +108,7 @@ export function createRgCommand({
       return { exitCode: 2, stderr: `${bridged.error}\n`, stdout: "" };
     }
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const masked = maskSearchRoots(bridged.args, layout, taskCwd);
     if ("error" in masked) {
       return { exitCode: 2, stderr: `${masked.error}\n`, stdout: "" };

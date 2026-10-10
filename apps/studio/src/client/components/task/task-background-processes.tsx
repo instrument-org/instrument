@@ -26,13 +26,13 @@ const ELAPSED_TICK_MS = 1000;
  */
 export function TaskBackgroundProcesses({
   sessionId,
-  taskId,
+  chatId,
 }: {
   /** One session's of the record alone: a task's, in its chat's. */
   sessionId?: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
-  const running = useTaskBackgroundProcesses(taskId, sessionId);
+  const running = useTaskBackgroundProcesses(chatId, sessionId);
 
   if (running.length === 0) {
     return null;
@@ -53,7 +53,7 @@ export function TaskBackgroundProcesses({
         align="start"
         className="max-h-[min(420px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-88 overflow-y-auto p-0"
       >
-        <RunningList running={running} sessionId={sessionId} taskId={taskId} />
+        <RunningList running={running} sessionId={sessionId} chatId={chatId} />
       </PopoverContent>
     </Popover>
   );
@@ -118,14 +118,14 @@ function ProcessRow({
 function RunningList({
   running,
   sessionId,
-  taskId,
+  chatId,
 }: {
   running: RunningBackgroundProcess[];
   sessionId?: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   const now = useNow(ELAPSED_TICK_MS);
-  const { busy, stop, stopAll } = useStopBackgroundProcess(taskId, sessionId);
+  const { busy, stop, stopAll } = useStopBackgroundProcess(chatId, sessionId);
 
   return (
     <>

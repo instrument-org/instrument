@@ -104,11 +104,12 @@ export async function childTask(
  * the user anything, starts tasks, or hears the turn note.
  */
 export function chatConversation(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
 ): ChatId | undefined {
-  const chatId = resolveChat(taskId);
-  return chatId && sessionOfChat(chatId) === sessionId ? chatId : undefined;
+  return resolveChat(chatId) && sessionOfChat(chatId) === sessionId
+    ? chatId
+    : undefined;
 }
 
 /**
@@ -116,11 +117,12 @@ export function chatConversation(
  * that is not the chat's own conversation.
  */
 export function isTaskSession(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
 ): boolean {
-  const chatId = resolveChat(taskId);
-  return chatId !== undefined && sessionOfChat(chatId) !== sessionId;
+  return (
+    resolveChat(chatId) !== undefined && sessionOfChat(chatId) !== sessionId
+  );
 }
 
 /**

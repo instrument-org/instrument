@@ -30,7 +30,7 @@ import { listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { Store } from "../src/lib/store";
 import { updateChatSettings } from "../src/lib/chat-settings";
-import { getTaskUsageSummary } from "../src/lib/usage-summary";
+import { getUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { session as sessionRoute } from "../src/rpc/routes/session";
@@ -105,7 +105,7 @@ export const HOUSE_FLOOR = "zai-org/glm-5.3-flash";
 
 export interface CompletedRun {
   /** Every task this run's chat started, by its session. Empty unless it forked. */
-  childTaskIds: StoreId.Session[];
+  childSessionIds: StoreId.Session[];
   /** Approximate USD, when the model's price is known. See `formatCost`. */
   costUSD?: number;
   label: string;
@@ -130,7 +130,7 @@ export interface CompletedRun {
   /** Absent when the agent ended the turn itself. */
   stoppedBy?: RunStop;
   /** The chat the run is in. */
-  taskId: ChatId;
+  chatId: ChatId;
   /** This task plus every task it started. Equal to `usage` when it forked nothing. */
   treeUsage: { inputTokens: number; outputTokens: number; totalTokens: number };
   /** 1-based, and only meaningful when `repeat` asked for more than one. */
@@ -377,7 +377,7 @@ export interface EvalCase {
   setup?: () => Promise<void> | void;
   shouldStop?: (
     part: SessionMessagePart.Type,
-    taskId: ChatId,
+    chatId: ChatId,
   ) => boolean | Promise<boolean>;
   /**
    * Topics the chat is filed under from its first message, made before the
@@ -403,7 +403,7 @@ interface AssertionContext {
    */
   childSessions: () => Promise<ChildTaskSessions[]>;
   sessions: Session.WithMessagesAndParts[];
-  taskId: ChatId;
+  chatId: ChatId;
 }
 
 interface ChildTaskSessions {
@@ -411,8 +411,6 @@ interface ChildTaskSessions {
   sessionId: StoreId.Session;
   /** Its own messages, without the conversation it carries on from. */
   sessions: Session.WithMessagesAndParts[];
-  /** The chat it is in, whose folder it works in. */
-  taskId: ChatId;
   title: string;
 }
 
@@ -693,7 +691,7 @@ export async function runEvals(
         const stored = await Store.getMessages({
           messageIds: [messageId],
           sessionId: partSessionId,
-          taskId: id,
+          chatId: id,
         });
         const role = stored.isOk() ? stored.value[0]?.role : undefined;
         if (role) {
@@ -735,7 +733,7 @@ export async function runEvals(
       // The whole chat's spend, its tasks' included: a runaway task is as much
       // the run's as a runaway conversation.
       const enforcementTimer = setInterval(() => {
-        void getTaskUsageSummary(id).then((usage) => {
+        void getUsageSummary(id).then((usage) => {
           enforceCaps(usage.totalTokens);
         }, _.noop);
       }, ENFORCEMENT_INTERVAL_MS);
@@ -768,7 +766,7 @@ export async function runEvals(
               const stored = await Store.getMessages({
                 messageIds: [part.metadata.messageId],
                 sessionId: part.metadata.sessionId,
-                taskId: id,
+                chatId: id,
               });
               const role = stored.isOk() ? stored.value[0]?.role : undefined;
               if (role === undefined || role === "assistant") {
@@ -859,7 +857,7 @@ export async function runEvals(
             ) {
               const isError = part.state === "output-error";
               const stream = isError ? process.stderr : process.stdout;
-              const usage = await getTaskUsageSummary(id);
+              const usage = await getUsageSummary(id);
               const toolName = part.type.replace("tool-", "");
               const toolLabel = isError
                 ? `${c.red}${toolName} ERROR${c.reset}`
@@ -1034,14 +1032,14 @@ export async function runEvals(
         );
       }
 
-      const usage = await getTaskUsageSummary(id, { sessionId });
+      const usage = await getUsageSummary(id, { sessionId });
       // What a forking run actually spent is the conversation plus every
       // task it started; the conversation's own total is a fraction of it, and
       // reporting only that would make forking look free.
-      const childTaskIds = await childTasksOf(id, sessionId);
+      const childSessionIds = await childTasksOf(id, sessionId);
       const childUsages = await Promise.all(
-        childTaskIds.map((childId) =>
-          getTaskUsageSummary(id, { sessionId: childId }),
+        childSessionIds.map((childId) =>
+          getUsageSummary(id, { sessionId: childId }),
         ),
       );
       const treeUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
@@ -1070,7 +1068,7 @@ export async function runEvals(
         );
       }
       const metrics = {
-        ...(await metricsFor(id, sessionId, childTaskIds, {
+        ...(await metricsFor(id, sessionId, childSessionIds, {
           doneAt,
           firstTextAt,
           startedAt,
@@ -1097,11 +1095,11 @@ export async function runEvals(
 
       finishedRuns += 1;
       write(
-        `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(treeUsage.totalTokens)} tokens${childTaskIds.length > 0 ? ` across ${childTaskIds.length + 1} tasks` : ""}${costUSD === undefined ? "" : `, ~${formatCost(costUSD)}`})${c.reset}\n`,
+        `${evalPrefix(label)}${c.green}Done.${c.reset}${c.dim} (${finishedRuns}/${totalRuns} complete, ${formatNumber(treeUsage.totalTokens)} tokens${childSessionIds.length > 0 ? ` across ${childSessionIds.length + 1} tasks` : ""}${costUSD === undefined ? "" : `, ~${formatCost(costUSD)}`})${c.reset}\n`,
       );
 
       return {
-        childTaskIds,
+        childSessionIds,
         costUSD,
         label,
         metrics,
@@ -1112,7 +1110,7 @@ export async function runEvals(
         resolvedModelId: catalog.aliasTargets.get(uri.split("?")[0] ?? uri),
         sessionId,
         stoppedBy,
-        taskId: id,
+        chatId: id,
         treeUsage,
         trial,
         usage: {
@@ -1152,12 +1150,12 @@ export function runKey(run: {
  * runner had otherwise written this same function privately.
  */
 export async function sessionsFor(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId?: StoreId.Session,
 ): Promise<Session.WithMessagesAndParts[]> {
   const ids = sessionId
     ? [sessionId]
-    : (await Store.getSessions(taskId)).map((list) =>
+    : (await Store.getSessions(chatId)).map((list) =>
         list.map((session) => session.id),
       );
   if (!Array.isArray(ids) && ids.isErr()) {
@@ -1165,11 +1163,11 @@ export async function sessionsFor(
   }
   const sessions: Session.WithMessagesAndParts[] = [];
   for (const id of Array.isArray(ids) ? ids : ids.value) {
-    const session = await Store.getSession(id, taskId);
+    const session = await Store.getSession(id, chatId);
     const messages = await Store.getMessagesWithParts({
       inherited: false,
       sessionId: id,
-      taskId,
+      chatId,
     });
     if (session.isOk() && messages.isOk()) {
       sessions.push({ ...session.value, messages: messages.value });
@@ -1183,11 +1181,10 @@ export async function sessionsFor(
  * conversation, and none for a task case, whose session starts nothing.
  */
 async function childTasksOf(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<StoreId.Session[]> {
-  const chatId = resolveChat(taskId);
-  if (!chatId || sessionOfChat(chatId) !== sessionId) {
+  if (!resolveChat(chatId) || sessionOfChat(chatId) !== sessionId) {
     return [];
   }
   return (await listChildTasks(chatId)).map((task) => task.id);
@@ -1198,18 +1195,16 @@ async function childTasksOf(
  * case is scored on when the work happened in them.
  */
 export async function childSessionsOf(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<ChildTaskSessions[]> {
-  const chatId = resolveChat(taskId);
-  if (!chatId || sessionOfChat(chatId) !== sessionId) {
+  if (!resolveChat(chatId) || sessionOfChat(chatId) !== sessionId) {
     return [];
   }
   return Promise.all(
     (await listChildTasks(chatId)).map(async (child) => ({
       sessionId: child.id,
       sessions: await sessionsFor(chatId, child.id),
-      taskId: chatId,
       title: child.title,
     })),
   );
@@ -1319,9 +1314,9 @@ const REFUSED =
 
 /** See `RunMetrics`. */
 async function metricsFor(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
-  childTaskIds: StoreId.Session[],
+  childSessionIds: StoreId.Session[],
   {
     doneAt,
     firstTextAt,
@@ -1332,7 +1327,7 @@ async function metricsFor(
   const taskCommands = { new: 0 };
   const turns: NonNullable<RunMetrics["turns"]> = [];
   const turnShapes: TurnShape[] = [];
-  for (const session of await sessionsFor(taskId, sessionId)) {
+  for (const session of await sessionsFor(chatId, sessionId)) {
     turns.push(...turnsOf(session.messages));
     turnShapes.push(...turnShapesOf(session.messages));
     for (const message of session.messages) {
@@ -1354,8 +1349,8 @@ async function metricsFor(
   }
   let toolCalls = 0;
   const refusals = { all: 0, task: 0 };
-  for (const one of [sessionId, ...childTaskIds]) {
-    for (const session of await sessionsFor(taskId, one)) {
+  for (const one of [sessionId, ...childSessionIds]) {
+    for (const session of await sessionsFor(chatId, one)) {
       for (const message of session.messages) {
         toolCalls += message.parts.filter((part) => isToolPart(part)).length;
         for (const part of message.parts) {
@@ -1386,7 +1381,7 @@ async function metricsFor(
       firstTextAt === undefined ? undefined : firstTextAt - startedAt,
     refusals,
     taskCommands,
-    tasksCreated: childTaskIds.length,
+    tasksCreated: childSessionIds.length,
     toolCalls,
     turns,
     turnShapes,
@@ -1535,7 +1530,7 @@ async function standInForTasks(
             }
           : {}),
         handle: child.handle,
-        taskId: child.id,
+        sessionId: child.id,
         title: child.title,
       },
       workspaceRef,
@@ -1591,13 +1586,13 @@ async function waitForSessionDone(
  * run as long as the slowest.
  */
 async function waitForTreeQuiet(
-  rootTaskId: ChatId,
+  rootChatId: ChatId,
   { timeoutMs }: { timeoutMs: number },
 ): Promise<{ quietSince: number; status: "quiet" } | { status: "timeout" }> {
   const deadline = Date.now() + timeoutMs;
   let quietSince: number | undefined;
   while (Date.now() < deadline) {
-    const working = isWorking(rootTaskId);
+    const working = isWorking(rootChatId);
     if (working) {
       quietSince = undefined;
     } else {

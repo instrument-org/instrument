@@ -52,7 +52,7 @@ const HOSTILE_TOOL_CALL_ID = StoreId.ToolCallSchema.parse("call/01:abc.def");
 
 describe("prepareModelMessages", () => {
   let sessionId: StoreId.Session;
-  let taskId: ReturnType<typeof ChatIdSchema.parse>;
+  let chatId: ReturnType<typeof ChatIdSchema.parse>;
   let contextMessages: SessionMessage.ContextWithParts[];
   let getMessages: Mock<AnyAgent["getMessages"]>;
   let agent: AnyAgent;
@@ -236,7 +236,7 @@ describe("prepareModelMessages", () => {
 
   /** Store a message, failing the test loudly if the store refuses it. */
   async function save(message: SessionMessage.WithParts) {
-    const result = await Store.saveMessageWithParts(message, taskId);
+    const result = await Store.saveMessageWithParts(message, chatId);
     result._unsafeUnwrap();
   }
 
@@ -246,14 +246,14 @@ describe("prepareModelMessages", () => {
       model,
       sessionId,
       signal: AbortSignal.timeout(30_000),
-      taskId,
+      chatId,
     });
     return result._unsafeUnwrap();
   }
 
   beforeEach(async () => {
     sessionId = StoreId.newSessionId();
-    taskId = createMockChatConfig(ChatIdSchema.parse("mock"), {
+    chatId = createMockChatConfig(ChatIdSchema.parse("mock"), {
       model: anthropicModel,
     });
     contextMessages = [contextMessage(new Date(), "You are a helpful agent.")];
@@ -278,7 +278,7 @@ describe("prepareModelMessages", () => {
     };
     await Store.saveSession(
       { createdAt: new Date(), id: sessionId, title: "Test session" },
-      taskId,
+      chatId,
     );
   });
 
@@ -530,7 +530,7 @@ describe("prepareModelMessages", () => {
       );
       const storedResult = await Store.getMessagesWithParts({
         sessionId,
-        taskId,
+        chatId,
       });
       expect(storedResult._unsafeUnwrap().map((message) => message.id)).toEqual(
         [stored.id],
@@ -596,7 +596,7 @@ describe("prepareModelMessages", () => {
       // be sent alongside the new one for the rest of the session.
       const storedResult = await Store.getMessagesWithParts({
         sessionId,
-        taskId,
+        chatId,
       });
       expect(storedResult._unsafeUnwrap().map((message) => message.id)).toEqual(
         contextMessages.map((message) => message.id),
@@ -728,19 +728,19 @@ describe("prepareModelMessages", () => {
 
     /** The boundary the session records, or undefined if it has never reset. */
     beforeEach(async () => {
-      await fs.rm(path.join(chatDir(taskId), TASK_FOLDER_NAMES.work), {
+      await fs.rm(path.join(chatDir(chatId), TASK_FOLDER_NAMES.work), {
         force: true,
         recursive: true,
       });
     });
 
     async function storedBoundary() {
-      const result = await Store.getSession(sessionId, taskId);
+      const result = await Store.getSession(sessionId, chatId);
       return result._unsafeUnwrap().rolledOverAfterMessageId;
     }
 
     async function storedRolloverParts() {
-      const result = await Store.getMessagesWithParts({ sessionId, taskId });
+      const result = await Store.getMessagesWithParts({ sessionId, chatId });
       return result
         ._unsafeUnwrap()
         .flatMap((message) => message.parts)
@@ -795,7 +795,7 @@ describe("prepareModelMessages", () => {
         sessionId = StoreId.newSessionId();
         await Store.saveSession(
           { createdAt: new Date(), id: sessionId, title: "Test session" },
-          taskId,
+          chatId,
         );
         await save(userMessage("First question"));
         await save(assistantMessageWithUsage("tiny", 10_000_000));
@@ -842,7 +842,7 @@ describe("prepareModelMessages", () => {
 
         await prepare(smallWindowModel);
 
-        const stored = await Store.getMessagesWithParts({ sessionId, taskId });
+        const stored = await Store.getMessagesWithParts({ sessionId, chatId });
         expect(JSON.stringify(stored._unsafeUnwrap())).not.toContain(
           "<context-budget>",
         );
@@ -870,7 +870,7 @@ describe("prepareModelMessages", () => {
 
       it("records the boundary on the newest message once it can reclaim", async () => {
         await fillPast(4);
-        const before = await Store.getMessagesWithParts({ sessionId, taskId });
+        const before = await Store.getMessagesWithParts({ sessionId, chatId });
         const newestId = before._unsafeUnwrap().at(-1)?.id;
 
         await prepare(smallWindowModel);
@@ -898,7 +898,7 @@ describe("prepareModelMessages", () => {
         async function conversationIds() {
           const result = await Store.getMessagesWithParts({
             sessionId,
-            taskId,
+            chatId,
           });
           return result
             ._unsafeUnwrap()
@@ -925,11 +925,11 @@ describe("prepareModelMessages", () => {
       });
 
       it("hands back the notes the agent left, in the request itself", async () => {
-        await fs.mkdir(path.join(chatDir(taskId), TASK_FOLDER_NAMES.work), {
+        await fs.mkdir(path.join(chatDir(chatId), TASK_FOLDER_NAMES.work), {
           recursive: true,
         });
         await fs.writeFile(
-          path.join(chatDir(taskId), "work", "handoff-notes.md"),
+          path.join(chatDir(chatId), "work", "handoff-notes.md"),
           "Format: the number, then the English word.",
           "utf8",
         );
@@ -1023,7 +1023,7 @@ describe("prepareModelMessages", () => {
       }
 
       async function storedModelChangeParts() {
-        const result = await Store.getMessagesWithParts({ sessionId, taskId });
+        const result = await Store.getMessagesWithParts({ sessionId, chatId });
         return result
           ._unsafeUnwrap()
           .flatMap((message) => message.parts)

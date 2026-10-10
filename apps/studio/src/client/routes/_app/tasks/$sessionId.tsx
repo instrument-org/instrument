@@ -9,7 +9,7 @@ import { z } from "zod";
  * the conversation's shoulder. A task is a session in its chat's store, so
  * the address names both.
  */
-export const Route = createFileRoute("/_app/tasks/$id")({
+export const Route = createFileRoute("/_app/tasks/$sessionId")({
   component: TaskRoute,
   validateSearch: z.object({
     /** The chat the task was started in. */
@@ -18,9 +18,9 @@ export const Route = createFileRoute("/_app/tasks/$id")({
 });
 
 function TaskRoute() {
-  const { id } = Route.useParams();
+  const params = Route.useParams();
   const chat = chatOfTasksList(Route.useSearch().chat);
-  const sessionId = StoreId.SessionSchema.safeParse(id);
+  const sessionId = StoreId.SessionSchema.safeParse(params.sessionId);
   if (!sessionId.success || chat === undefined) {
     return (
       <p className="p-8 text-sm text-muted-foreground">

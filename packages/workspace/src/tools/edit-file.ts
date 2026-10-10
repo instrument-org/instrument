@@ -771,15 +771,15 @@ export const EditFile = setupTool({
     - The edit fails if \`${INPUT_PARAMS.oldString}\` is not unique in the file. Either provide a larger string with more surrounding context to make it unique, or use \`${INPUT_PARAMS.replaceAll}\` to change every instance. \`${INPUT_PARAMS.replaceAll}\` matches literal text, not symbols, so a rename also hits the name inside comments, strings, and longer identifiers -- check the returned diff.
     - Edits apply one at a time in the order you send them, so several edits to the same file in one response land cleanly.
   `,
-  execute: async ({ input, sessionId, signal, taskId, taskState }) => {
+  execute: async ({ input, sessionId, signal, chatId, taskState }) => {
     if (input.oldString === input.newString) {
       return executeError("oldString and newString must be different");
     }
 
     const layout = buildWorkspaceFsLayout({
-      apps: chatConversation(taskId, sessionId) !== undefined,
-      attachedFolders: await folderReach(taskId, taskState),
-      taskHostRoot: workDir(taskId),
+      apps: chatConversation(chatId, sessionId) !== undefined,
+      attachedFolders: await folderReach(chatId, taskState),
+      taskHostRoot: workDir(chatId),
     });
     const pathResult = resolveWritableToolPath({
       inputPath: input.filePath,

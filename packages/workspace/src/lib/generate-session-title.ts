@@ -9,14 +9,14 @@ const defaultUntitledChatPattern = /^Untitled chat(?: \d+)?$/;
 
 export async function generateSessionTitle({
   signal,
-  taskId,
+  chatId,
 }: {
   signal?: AbortSignal;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<string> {
   const baseTitle = DEFAULT_UNTITLED_BASE;
 
-  const sessionsResult = await Store.getSessions(taskId, {
+  const sessionsResult = await Store.getSessions(chatId, {
     includeChildSessions: true,
     signal,
   });
@@ -46,16 +46,16 @@ export async function generateSessionTitle({
 }
 
 export async function isSessionTitleAutoReplaceable({
-  taskId,
+  chatId,
   title,
 }: {
-  taskId: ChatId;
+  chatId: ChatId;
   title: string;
 }) {
   if (isUntitledChatSessionTitle(title)) {
     return true;
   }
-  const settings = await getChatSettings(chatDir(taskId));
+  const settings = await getChatSettings(chatDir(chatId));
   return settings?.name === title;
 }
 

@@ -12,14 +12,14 @@ import { readChatRecord, setChatState, updateChatRecord } from "./chat-record";
 
 const id = ChatIdSchema.parse("task-record-test");
 
-let taskId: ChatId;
+let chatId: ChatId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "task-record-test-"));
   const tasksDir = path.join(root, TASKS_DIR_NAME);
-  taskId = createMockChatConfigForDir(path.join(tasksDir, id));
-  await fs.mkdir(chatDir(taskId), { recursive: true });
+  chatId = createMockChatConfigForDir(path.join(tasksDir, id));
+  await fs.mkdir(chatDir(chatId), { recursive: true });
 });
 
 afterEach(async () => {
@@ -32,17 +32,17 @@ function heldFileError(code: string): Error {
 }
 
 function recordPath(): string {
-  return path.join(getTaskPrivateDir(chatDir(taskId)), "settings.json");
+  return path.join(getTaskPrivateDir(chatDir(chatId)), "settings.json");
 }
 
 async function writeRecordFile(record: unknown): Promise<void> {
-  await fs.mkdir(getTaskPrivateDir(chatDir(taskId)), { recursive: true });
+  await fs.mkdir(getTaskPrivateDir(chatDir(chatId)), { recursive: true });
   await fs.writeFile(recordPath(), JSON.stringify(record, null, 2), "utf8");
 }
 
 describe("readChatRecord", () => {
   it("answers empty for a task with no file", async () => {
-    const record = await readChatRecord(chatDir(taskId));
+    const record = await readChatRecord(chatDir(chatId));
 
     expect(record.settings).toBeUndefined();
     expect(record.state).toEqual({ browserTabs: [] });
@@ -58,7 +58,7 @@ describe("readChatRecord", () => {
       state: { attachedFolders: "not a record at all" },
     });
 
-    const record = await readChatRecord(chatDir(taskId));
+    const record = await readChatRecord(chatDir(chatId));
 
     expect(record.settings?.name).toBe("Still named");
     expect(record.state).toEqual({ browserTabs: [] });
@@ -72,23 +72,23 @@ describe("readChatRecord", () => {
       state: { selectedModelURI: "half a sentence" },
     });
 
-    const record = await readChatRecord(chatDir(taskId));
+    const record = await readChatRecord(chatDir(chatId));
 
     expect(record.settings).toBeUndefined();
     expect(record.state.selectedModelURI).toBe("half a sentence");
   });
 
   it("answers empty for a file that is not JSON, rather than throwing", async () => {
-    await fs.mkdir(getTaskPrivateDir(chatDir(taskId)), { recursive: true });
+    await fs.mkdir(getTaskPrivateDir(chatDir(chatId)), { recursive: true });
     await fs.writeFile(recordPath(), "{ truncated mid-wr", "utf8");
 
-    await expect(readChatRecord(chatDir(taskId))).resolves.toMatchObject({
+    await expect(readChatRecord(chatDir(chatId))).resolves.toMatchObject({
       settings: undefined,
     });
   });
 
   it("reports a task with no file as readable, since a write may create it", async () => {
-    const record = await readChatRecord(chatDir(taskId));
+    const record = await readChatRecord(chatDir(chatId));
 
     expect(record.unreadable).toBe(false);
   });
@@ -97,10 +97,10 @@ describe("readChatRecord", () => {
     ["truncated JSON", "{ truncated mid-wr"],
     ["JSON that is not an object", "[1, 2, 3]"],
   ])("reports %s as unreadable", async (_name, contents) => {
-    await fs.mkdir(getTaskPrivateDir(chatDir(taskId)), { recursive: true });
+    await fs.mkdir(getTaskPrivateDir(chatDir(chatId)), { recursive: true });
     await fs.writeFile(recordPath(), contents, "utf8");
 
-    const record = await readChatRecord(chatDir(taskId));
+    const record = await readChatRecord(chatDir(chatId));
 
     expect(record.unreadable).toBe(true);
   });
@@ -113,7 +113,7 @@ describe("updateChatRecord", () => {
       name: "Test task",
     });
 
-    await updateChatRecord(chatDir(taskId), "settings", (record) => ({
+    await updateChatRecord(chatDir(chatId), "settings", (record) => ({
       ...record.raw,
       name: "Renamed",
     }));
@@ -136,7 +136,7 @@ describe("updateChatRecord", () => {
       state: { futureNested: "keep me", selectedModelURI: "before" },
     });
 
-    await setChatState(chatDir(taskId), { selectedModelURI: "after" });
+    await setChatState(chatDir(chatId), { selectedModelURI: "after" });
 
     const written: unknown = JSON.parse(
       await fs.readFile(recordPath(), "utf8"),
@@ -156,11 +156,11 @@ describe("updateChatRecord", () => {
   // on it: the record read as though the task had nothing, so the write would
   // have been the title, the pin and the tabs replaced by one model choice.
   it("refuses to replace a record it could not read", async () => {
-    await fs.mkdir(getTaskPrivateDir(chatDir(taskId)), { recursive: true });
+    await fs.mkdir(getTaskPrivateDir(chatDir(chatId)), { recursive: true });
     await fs.writeFile(recordPath(), '{ "name": "Test task", "state', "utf8");
 
     await expect(
-      setChatState(chatDir(taskId), { selectedModelURI: "new draft" }),
+      setChatState(chatDir(chatId), { selectedModelURI: "new draft" }),
     ).rejects.toThrow(/unreadable/);
 
     expect(await fs.readFile(recordPath(), "utf8")).toBe(
@@ -171,35 +171,35 @@ describe("updateChatRecord", () => {
   // The other half of the same rule: nothing to lose is not the same as
   // something we cannot read, and a task's first write has to land.
   it("creates the record for a task that has no file yet", async () => {
-    await setChatState(chatDir(taskId), { selectedModelURI: "first draft" });
+    await setChatState(chatDir(chatId), { selectedModelURI: "first draft" });
 
-    const record = await readChatRecord(chatDir(taskId));
+    const record = await readChatRecord(chatDir(chatId));
 
     expect(record.state.selectedModelURI).toBe("first draft");
   });
 
   it("takes writes again once the unreadable record is repaired", async () => {
-    await fs.mkdir(getTaskPrivateDir(chatDir(taskId)), { recursive: true });
+    await fs.mkdir(getTaskPrivateDir(chatDir(chatId)), { recursive: true });
     await fs.writeFile(recordPath(), "{ truncated", "utf8");
     await expect(
-      setChatState(chatDir(taskId), { selectedModelURI: "refused" }),
+      setChatState(chatDir(chatId), { selectedModelURI: "refused" }),
     ).rejects.toThrow();
 
     await writeRecordFile({ name: "Repaired" });
-    await setChatState(chatDir(taskId), { selectedModelURI: "accepted" });
+    await setChatState(chatDir(chatId), { selectedModelURI: "accepted" });
 
-    const record = await readChatRecord(chatDir(taskId));
+    const record = await readChatRecord(chatDir(chatId));
 
     expect(record.settings?.name).toBe("Repaired");
     expect(record.state.selectedModelURI).toBe("accepted");
   });
 
   it("leaves no temporary file behind", async () => {
-    await updateChatRecord(chatDir(taskId), "settings", () => ({
+    await updateChatRecord(chatDir(chatId), "settings", () => ({
       name: "Test task",
     }));
 
-    const entries = await fs.readdir(getTaskPrivateDir(chatDir(taskId)));
+    const entries = await fs.readdir(getTaskPrivateDir(chatDir(chatId)));
 
     expect(entries).toEqual(["settings.json"]);
   });
@@ -212,7 +212,7 @@ describe("updateChatRecord", () => {
     const long = "x".repeat(200_000);
     const reads: Promise<string>[] = [];
 
-    const write = updateChatRecord(chatDir(taskId), "settings", (record) => ({
+    const write = updateChatRecord(chatDir(chatId), "settings", (record) => ({
       ...record.raw,
       state: { selectedModelURI: long },
     }));
@@ -243,9 +243,9 @@ describe("updateChatRecord", () => {
       await rename(from, to);
     });
 
-    await setChatState(chatDir(taskId), { selectedModelURI: "landed" });
+    await setChatState(chatDir(chatId), { selectedModelURI: "landed" });
 
-    const record = await readChatRecord(chatDir(taskId));
+    const record = await readChatRecord(chatDir(chatId));
 
     expect(record.state.selectedModelURI).toBe("landed");
   });
@@ -256,7 +256,7 @@ describe("updateChatRecord", () => {
       .mockRejectedValue(heldFileError("EXDEV"));
 
     await expect(
-      setChatState(chatDir(taskId), { selectedModelURI: "lost" }),
+      setChatState(chatDir(chatId), { selectedModelURI: "lost" }),
     ).rejects.toThrow(/EXDEV/);
 
     expect(rename).toHaveBeenCalledTimes(1);
@@ -264,17 +264,17 @@ describe("updateChatRecord", () => {
 
   it("serializes overlapping updates instead of losing one", async () => {
     await Promise.all([
-      updateChatRecord(chatDir(taskId), "settings", (record) => ({
+      updateChatRecord(chatDir(chatId), "settings", (record) => ({
         ...record.raw,
         name: "Named",
       })),
-      updateChatRecord(chatDir(taskId), "settings", (record) => ({
+      updateChatRecord(chatDir(chatId), "settings", (record) => ({
         ...record.raw,
         state: { selectedModelURI: "drafted" },
       })),
     ]);
 
-    const record = await readChatRecord(chatDir(taskId));
+    const record = await readChatRecord(chatDir(chatId));
 
     expect(record.settings?.name).toBe("Named");
     expect(record.state.selectedModelURI).toBe("drafted");

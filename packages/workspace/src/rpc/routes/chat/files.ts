@@ -16,14 +16,14 @@ const hostPaths = base
   .input(
     z.object({
       filePaths: z.array(WorkspaceFilePathSchema),
-      taskId: ChatIdSchema,
+      chatId: ChatIdSchema,
     }),
   )
   .output(z.record(z.string(), z.string().nullable()))
-  .handler(async ({ input: { filePaths, taskId } }) =>
-    Object.fromEntries(await resolveWorkspaceFilePaths({ filePaths, taskId })),
+  .handler(async ({ input: { filePaths, chatId } }) =>
+    Object.fromEntries(await resolveWorkspaceFilePaths({ filePaths, chatId })),
   );
 
-export const taskFiles = {
+export const chatFiles = {
   hostPaths,
 };

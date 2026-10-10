@@ -136,7 +136,7 @@ function connect() {
   } as unknown as WorkspaceConfig;
   handleTaskCdpClient(
     ws as unknown as WebSocket,
-    { sessionId: SESSION_ID, taskId: TASK_ID },
+    { sessionId: SESSION_ID, chatId: TASK_ID },
     config,
     { send: vi.fn() } as unknown as WorkspaceServerParentRef,
   );

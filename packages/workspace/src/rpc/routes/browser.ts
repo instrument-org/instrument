@@ -17,7 +17,7 @@ const PresenceSchema = z.object({ active: z.literal(true) });
 
 // Create (or reuse) the browser guest for this task/session so the user can open
 // it from the UI without waiting for the agent to run `agent-browser` first.
-// createTarget is idempotent per (taskId, sessionId): the agent's later commands
+// createTarget is idempotent per (chatId, sessionId): the agent's later commands
 // reuse the same guest (page, cookies, debugger). We register the target with the
 // taskBrowser lifecycle machine so a user-only browser (no agent CDP traffic) is
 // still tracked and reaped rather than leaking until app quit.
@@ -69,7 +69,7 @@ const open = base
       : await restoreLastPage({
           ...(restoreUrl === undefined ? {} : { fallbackUrl: restoreUrl }),
           targetId: target.targetId,
-          taskId: id,
+          chatId: id,
         });
     // The tab is open, which is what was asked for; it just came up blank. A
     // navigate that timed out is a slow server rather than a bug, and the load

@@ -345,7 +345,7 @@ const stoppedEverythingPromptly: Assertion = {
         session.messages.flatMap((message) =>
           message.role === "assistant" &&
           message.metadata.createdAt.getTime() > stopAt + 15_000
-            ? [child.taskId]
+            ? [child.sessionId]
             : [],
         ),
       ),
@@ -541,7 +541,7 @@ const forkReadTheCache: Assertion = {
         );
       return {
         first: usageOf(own[0]),
-        id: child.taskId,
+        id: child.sessionId,
         rest: own.slice(1).map(usageOf),
         startedAt: own[0]?.metadata.createdAt.getTime() ?? 0,
       };
@@ -632,7 +632,7 @@ async function seedOtherChat() {
   const sessionId = StoreId.newSessionId();
   const ask = `Keep this safe for me: my bank PIN is ${SECRET}`;
   const chatId = await ensureChat(sessionId, "Bank PIN");
-  (await createSession({ sessionId, taskId: chatId }))._unsafeUnwrap();
+  (await createSession({ sessionId, chatId }))._unsafeUnwrap();
   const now = new Date(Date.now() - 86_400_000);
   const userId = StoreId.newMessageId();
   (

@@ -93,7 +93,7 @@ async function runFork(
         from: chatSessionId,
         ids: jobs,
         to: forkSessionId,
-        toTaskId: context.chatId,
+        toChatId: context.chatId,
       });
     },
     assignment:
@@ -101,7 +101,7 @@ async function runFork(
         ? `${directive}\n\nStill running in the background, and yours now under the same ids: ${jobs.join(", ")}. Wait on them with \`fg\` rather than starting them again.`
         : directive,
   });
-  recordHandOff({ kind: "created", taskId: task.id });
+  recordHandOff({ kind: "created", sessionId: task.id });
   return `Started task ${task.handle} ("${name}"). It is running now, in this folder with your folders.\n${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`;
 }
 
@@ -148,7 +148,7 @@ async function forkPoint({
 }): Promise<StoreId.Message> {
   const messages = await Store.getMessagesWithParts({
     sessionId: chatSessionId,
-    taskId: chatId,
+    chatId,
   });
   if (messages.isErr()) {
     throw messages.error;
@@ -231,7 +231,7 @@ async function startFork({
     modelURI,
     prompt: "",
     sessionId,
-    taskId: chatId,
+    chatId,
   });
   if (message.isErr()) {
     throw message.error;

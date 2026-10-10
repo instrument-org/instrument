@@ -27,15 +27,15 @@ export function cutForNote(text: string, maxLength: number): string {
  */
 export async function lastAssistantText({
   sessionId,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<string | undefined> {
   const messages = await Store.getMessagesWithParts({
     inherited: false,
     sessionId,
-    taskId,
+    chatId,
   });
   if (messages.isErr()) {
     return undefined;
@@ -61,9 +61,9 @@ export function lastAssistantTextIn(
  * need before they can write.
  */
 export async function latestOrNewSessionId(
-  taskId: ChatId,
+  chatId: ChatId,
 ): Promise<Result<StoreId.Session, TypedError.Type>> {
-  const newest = await latestSessionId(taskId);
+  const newest = await latestSessionId(chatId);
   if (newest.isErr()) {
     return err(newest.error);
   }
@@ -72,7 +72,7 @@ export async function latestOrNewSessionId(
   }
   const created = await createSession({
     sessionId: StoreId.newSessionId(),
-    taskId,
+    chatId,
   });
   return created.map((session) => session.id);
 }
@@ -82,8 +82,8 @@ export async function latestOrNewSessionId(
  * none for a task that has never had a session. Session ids are ulids, so
  * alphabetical order is creation order.
  */
-export function latestSessionId(taskId: ChatId) {
-  return Store.getSessions(taskId).map(
+export function latestSessionId(chatId: ChatId) {
+  return Store.getSessions(chatId).map(
     (sessions) => alphabetical(sessions, (session) => session.id).at(-1)?.id,
   );
 }

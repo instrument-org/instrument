@@ -61,15 +61,15 @@ async function leaveTaskFolder(chat: string, name: string) {
 }
 
 async function makeChat(name: string, sessionId = SESSION) {
-  const taskId = ChatIdSchema.parse(name);
+  const chatId = ChatIdSchema.parse(name);
   const made = await initializeChat({
-    chatId: taskId,
+    chatId,
     initialSettings: { name: "Instrument" },
     sessionId,
     workspaceConfig: getWorkspaceConfig(),
   });
   expect(made.isOk()).toBe(true);
-  return taskId;
+  return chatId;
 }
 
 function relative(dir: string) {

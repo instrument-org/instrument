@@ -14,7 +14,7 @@ import { resolveChat, sessionOfChat, chatDir } from "../record-folders";
 import { Store } from "../store";
 import { getChatState } from "../chat-record";
 import { recordChatActivity } from "../chat-settings";
-import { getTaskUsageSummary } from "../usage-summary";
+import { getUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
 import { decodeBrowserTargetId } from "../../types";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
@@ -196,7 +196,7 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
   }
   for (const task of working) {
     const { chatId } = task;
-    const ref = { sessionId: task.id, taskId: chatId };
+    const ref = { sessionId: task.id, chatId };
     const reportedAt = overdueReportedAt.get(task.id);
     const turnStart = await turnStartedAt(ref);
     const startedAt = reportedAt ?? turnStart?.getTime();
@@ -226,12 +226,7 @@ async function deliver(
 ) {
   // A report is the task's latest activity: the list orders by it, and the
   // chat's line names a task that finished since the user last wrote by it.
-  await Promise.all(
-    events.flatMap((event) => {
-      const sessionId = StoreId.SessionSchema.safeParse(event.taskId);
-      return sessionId.success ? [touchTask(chatId, sessionId.data)] : [];
-    }),
-  );
+  await Promise.all(events.map((event) => touchTask(chatId, event.sessionId)));
   await wakeWith(
     chatId,
     { data: { events }, type: "data-taskEvent" },
@@ -256,7 +251,7 @@ async function onSessionDone(
   if (!chatId || !task) {
     return;
   }
-  const ref = { sessionId, taskId: chatId };
+  const ref = { sessionId, chatId };
   // Read as the turn ends rather than at delivery, a debounce later: a process
   // that exits in between was the task's own doing and is not news.
   const running = leftRunning(sessionId);
@@ -282,7 +277,7 @@ async function onSessionDone(
     return;
   }
 
-  const usage = await getTaskUsageSummary(chatId, { sessionId });
+  const usage = await getUsageSummary(chatId, { sessionId });
   // The task works in the chat's folder with the chat's folders, so what it
   // said names every path the way the chat reads it.
   const receipt = said;
@@ -310,8 +305,8 @@ async function onSessionDone(
       ...(running.length > 0 ? { running } : {}),
       status: ending?.failed ? "error" : "done",
       summary,
+      sessionId,
       ...(tabs.length > 0 ? { tabs } : {}),
-      taskId: sessionId,
       title: task.title,
       tokens: usage.inputTokens + usage.outputTokens,
     },
@@ -325,14 +320,14 @@ function schedule(
   workspaceRef: WorkspaceActorRef,
 ) {
   const existing = pending.get(chatId);
-  if (!replacesPendingEvent(existing?.events.get(event.taskId), event)) {
+  if (!replacesPendingEvent(existing?.events.get(event.sessionId), event)) {
     return;
   }
   if (existing) {
     clearTimeout(existing.timer);
   }
   const events = existing?.events ?? new Map<string, TaskEvent>();
-  events.set(event.taskId, event);
+  events.set(event.sessionId, event);
   const timer = setTimeout(() => {
     pending.delete(chatId);
     deliver(chatId, [...events.values()], workspaceRef).catch(
@@ -351,13 +346,13 @@ function schedule(
  */
 async function openTabsOf({
   sessionId,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<NonNullable<TaskEvent["tabs"]>> {
   const { browser } = getWorkspaceConfig();
-  return (await heldTabs(taskId, sessionId)).flatMap((tab) => {
+  return (await heldTabs(chatId, sessionId)).flatMap((tab) => {
     const decoded = decodeBrowserTargetId(tab.id);
     if (!decoded || !browser.getTargetMeta(tab.id)) {
       return [];
@@ -382,18 +377,18 @@ async function openTabsOf({
 async function stillWorkingEvent({
   handle,
   sessionId,
-  taskId,
+  chatId,
   title,
   turnStart,
 }: {
   handle: string;
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
   title: string;
   turnStart: Date | undefined;
 }): Promise<TaskEvent> {
-  const ref = { sessionId, taskId };
-  const usage = await getTaskUsageSummary(taskId, { sessionId });
+  const ref = { sessionId, chatId };
+  const usage = await getUsageSummary(chatId, { sessionId });
   const trajectory = await trajectorySince(ref, turnStart ?? new Date());
   return {
     activeMs: usage.activeMs,
@@ -402,8 +397,8 @@ async function stillWorkingEvent({
     inFlight: await stepInFlight(ref),
     status: "overdue",
     steps: trajectory.slice(-OVERDUE_STEPS),
+    sessionId,
     summary: await latestStep(ref),
-    taskId: sessionId,
     title,
     tokens: usage.inputTokens + usage.outputTokens,
   };

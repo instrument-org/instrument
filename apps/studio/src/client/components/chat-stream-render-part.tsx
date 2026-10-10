@@ -37,7 +37,7 @@ export interface RenderPartContext {
    * why can be seen.
    */
   presentation?: "chat";
-  task: ChatInfo;
+  chatInfo: ChatInfo;
 }
 
 /** A call whose card asks the user something, which the chat always shows. */
@@ -97,7 +97,7 @@ export function renderChatPart({
             bubble={ctx.presentation === "chat"}
             key={part.metadata.id}
             part={part}
-            taskId={ctx.task.id}
+            chatId={ctx.chatInfo.id}
           />
         );
         // The chat shows a reply a newer one cut off only in developer mode.
@@ -169,7 +169,7 @@ export function renderChatPart({
           key={part.metadata.id}
           onRetry={ctx.onRetry}
           part={part}
-          task={ctx.task}
+          chatInfo={ctx.chatInfo}
         />
       ) : null;
     }
@@ -198,7 +198,7 @@ export function renderChatPart({
         key={part.metadata.id}
         onRetry={ctx.onRetry}
         part={part}
-        task={ctx.task}
+        chatInfo={ctx.chatInfo}
       />
     );
     return isDevOnly ? (

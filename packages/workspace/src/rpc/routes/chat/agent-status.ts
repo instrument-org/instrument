@@ -20,6 +20,6 @@ const aliveAgentCount = base
     return { count };
   });
 
-export const taskAgentStatus = {
+export const agentStatus = {
   aliveAgentCount,
 };

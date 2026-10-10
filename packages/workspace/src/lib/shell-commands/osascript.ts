@@ -150,7 +150,7 @@ async function scriptFileSource(
 }
 
 export function createOsascriptCommand(
-  taskId: ChatId,
+  chatId: ChatId,
   layout: WorkspaceFsLayout,
 ) {
   return defineCommand(OSASCRIPT_COMMAND.name, async (args, ctx) => {
@@ -177,17 +177,17 @@ export function createOsascriptCommand(
     const bridgedArgs: string[] = [];
     for (const [index, arg] of args.entries()) {
       if (!isScript[index]) {
-        bridgedArgs.push(...resolvePathArgs([arg], taskId, ctx));
+        bridgedArgs.push(...resolvePathArgs([arg], chatId, ctx));
         continue;
       }
-      const bridged = bridgeAppleScriptPaths(arg, taskId);
+      const bridged = bridgeAppleScriptPaths(arg, chatId);
       if ("error" in bridged) {
         return { exitCode: 1, stderr: bridged.error, stdout: "" };
       }
       bridgedArgs.push(addressAppsById(bridged.code));
     }
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     // A script piped in is ASCII where it names an app, so the rewrite reads
     // it as the latin1 bytes it arrives as and leaves every other byte be.
     const stdin = piped

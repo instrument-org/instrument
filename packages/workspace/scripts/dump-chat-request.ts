@@ -39,7 +39,7 @@ const tools = await Promise.all(
         typeof agentTool.description === "function"
           ? await agentTool.description({
               model: undefined as never,
-              taskId: undefined as never,
+              chatId: undefined as never,
             })
           : agentTool.description,
       name: agentTool.name,

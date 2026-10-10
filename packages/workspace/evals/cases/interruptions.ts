@@ -53,7 +53,7 @@ async function agents(ctx: Context): Promise<Agent[]> {
   return [
     { name: "chat", sessions: ctx.sessions },
     ...children.map((child) => ({
-      name: child.title || child.taskId,
+      name: child.title || child.sessionId,
       sessions: child.sessions,
     })),
   ];

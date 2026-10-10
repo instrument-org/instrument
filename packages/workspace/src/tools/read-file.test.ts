@@ -66,7 +66,7 @@ cpSync(
   },
 );
 
-const taskId = createMockChatConfigForDir(fixturesPath, { model });
+const chatId = createMockChatConfigForDir(fixturesPath, { model });
 
 const attachedFolders: Record<string, FolderAttachment.Type> = {
   "test-folder": {
@@ -90,7 +90,7 @@ describe("ReadFile", () => {
       get signal() {
         return AbortSignal.timeout(30_000);
       },
-      taskId,
+      chatId,
       taskState: { browserTabs: [] },
     };
 
@@ -290,7 +290,7 @@ describe("ReadFile", () => {
       const mediaLine = async (features: AIGatewayModel.ModelFeatures[]) => {
         const tool = await ReadFile.aiSDKTool({
           model: createMockAIGatewayModel({ features }),
-          taskId,
+          chatId,
         });
         const description =
           typeof tool.description === "string" ? tool.description : "";
@@ -1030,7 +1030,7 @@ describe("ReadFile Unicode path fallbacks", () => {
         input: { explanation: "read", filePath: `./${inputName}` },
         model,
         signal: AbortSignal.timeout(10_000),
-        taskId: tmpTaskConfig,
+        chatId: tmpTaskConfig,
         taskState: { browserTabs: [] },
       })
     )._unsafeUnwrap();

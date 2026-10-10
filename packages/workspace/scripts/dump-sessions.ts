@@ -69,9 +69,9 @@ if (!selectedTask) {
 
 process.stdout.write(`\nLoading sessions for ${selectedTask.title}...\n`);
 
-const taskId = selectedTask.id;
+const chatId = selectedTask.id;
 
-const sessionIdsResult = await Store.getStoreId(taskId);
+const sessionIdsResult = await Store.getStoreId(chatId);
 
 if (sessionIdsResult.isErr()) {
   throw new Error(
@@ -88,7 +88,7 @@ const sessions = [];
 for (const sessionId of sessionIds) {
   const sessionResult = await Store.getSessionWithMessagesAndParts(
     sessionId,
-    taskId,
+    chatId,
   );
 
   if (sessionResult.isErr()) {

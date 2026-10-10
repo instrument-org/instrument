@@ -95,7 +95,7 @@ export type WorkspaceEvent =
         /** The message is already in the store; see `addMessage`. */
         saved?: boolean;
         sessionId: StoreId.Session;
-        taskId: ChatId;
+        chatId: ChatId;
       };
     }
   | {
@@ -183,24 +183,24 @@ export const workspaceMachine = setup({
 
     assignEventError: createAssignEventError(),
 
-    clearSessionRefsByTaskId: assign(({ context }, { id }: { id: ChatId }) => {
-      const newsessionRefsByTaskId = new Map<ChatId, SessionActorRef[]>();
+    clearSessionRefsByChatId: assign(({ context }, { id }: { id: ChatId }) => {
+      const nextSessionRefs = new Map<ChatId, SessionActorRef[]>();
 
       for (const [
-        sessionTaskId,
+        sessionChatId,
         refs,
       ] of context.sessionRefsByChatId.entries()) {
-        const shouldRemove = sessionTaskId === id;
+        const shouldRemove = sessionChatId === id;
 
         if (shouldRemove) {
           continue;
         }
 
-        newsessionRefsByTaskId.set(sessionTaskId, refs);
+        nextSessionRefs.set(sessionChatId, refs);
       }
 
       return {
-        sessionRefsByChatId: newsessionRefsByTaskId,
+        sessionRefsByChatId: nextSessionRefs,
       };
     }),
 
@@ -487,7 +487,7 @@ export const workspaceMachine = setup({
       {
         actions: raise(({ event }) => {
           const id = event.value.id;
-          const taskId = id;
+          const chatId = id;
           return {
             type: "internal.spawnSession",
             value: {
@@ -495,7 +495,7 @@ export const workspaceMachine = setup({
               model: event.value.model,
               saved: event.value.saved,
               sessionId: event.value.sessionId,
-              taskId,
+              chatId,
             },
           };
         }),
@@ -503,14 +503,14 @@ export const workspaceMachine = setup({
     ],
     createSession: {
       actions: raise(({ event }) => {
-        const taskId = event.value.id;
+        const chatId = event.value.id;
         return {
           type: "internal.spawnSession",
           value: {
             message: event.value.message,
             model: event.value.model,
             sessionId: event.value.sessionId,
-            taskId,
+            chatId,
           },
         };
       }),
@@ -518,7 +518,7 @@ export const workspaceMachine = setup({
     "internal.spawnSession": {
       actions: enqueueActions(({ enqueue, event, self }) => {
         enqueue.assign(({ spawn }) => {
-          const { message, model, runRequested, saved, sessionId, taskId } =
+          const { message, model, runRequested, saved, sessionId, chatId } =
             event.value;
 
           const sessionMachineRef = spawn("sessionMachine", {
@@ -532,13 +532,13 @@ export const workspaceMachine = setup({
               runRequested,
               savedMessageIds: saved && message ? [message.id] : [],
               sessionId,
-              taskId,
+              chatId,
             },
           });
 
           enqueue({
             params: {
-              id: taskId,
+              id: chatId,
               sessionRef: sessionMachineRef,
             },
             type: "trackSessionRef",
@@ -548,7 +548,7 @@ export const workspaceMachine = setup({
         });
       }),
       guard: ({ context, event }) => {
-        const id = event.value.taskId;
+        const id = event.value.chatId;
         return !context.tasksBeingTrashed.includes(id);
       },
     },
@@ -559,16 +559,16 @@ export const workspaceMachine = setup({
         });
 
         // Reap the trashed task's taskBrowser, if one exists.
-        const matchingTaskIds: ChatId[] = [];
+        const matchingChatIds: ChatId[] = [];
         const browserRef = context.taskBrowserRefs.get(event.value.id);
         if (browserRef) {
-          matchingTaskIds.push(event.value.id);
+          matchingChatIds.push(event.value.id);
           browserRef.send({ type: "forceReap" });
         }
 
         if (event.value.onBrowserReaped) {
           const resolver = event.value.onBrowserReaped;
-          if (matchingTaskIds.length === 0) {
+          if (matchingChatIds.length === 0) {
             // Nothing to wait for: resolve immediately so trash-task can
             // proceed without blocking.
             resolver();
@@ -577,14 +577,14 @@ export const workspaceMachine = setup({
             enqueue.assign({
               pendingBrowserReapResolvers: () => {
                 const next = new Map(context.pendingBrowserReapResolvers);
-                let remaining = matchingTaskIds.length;
+                let remaining = matchingChatIds.length;
                 const onceAll = () => {
                   remaining -= 1;
                   if (remaining === 0) {
                     resolver();
                   }
                 };
-                for (const sd of matchingTaskIds) {
+                for (const sd of matchingChatIds) {
                   const existing = next.get(sd) ?? [];
                   next.set(sd, [...existing, onceAll]);
                 }
@@ -636,7 +636,7 @@ export const workspaceMachine = setup({
             model: event.value.model,
             runRequested: true,
             sessionId: event.value.sessionId,
-            taskId: event.value.id,
+            chatId: event.value.id,
           },
         })),
       },
@@ -649,7 +649,7 @@ export const workspaceMachine = setup({
         enqueue({
           params: {
             actorId: event.value.actorId,
-            id: event.value.taskId,
+            id: event.value.chatId,
           },
           type: "dropSessionRef",
         });

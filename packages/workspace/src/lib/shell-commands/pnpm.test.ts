@@ -23,8 +23,8 @@ const mockCtx = createCommandContext({
 });
 
 describe("createPnpmCommand", () => {
-  const taskId = createMockChatConfig(ChatIdSchema.parse("test"));
-  const command = createPnpmCommand(taskId, taskLayout(taskId));
+  const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
+  const command = createPnpmCommand(chatId, taskLayout(chatId));
 
   // The agent runs pnpm from `work/`; seed a manifest at the cwd so the manifest
   // guard passes. The dedicated guard test below uses a fresh, empty fs.
@@ -111,7 +111,7 @@ describe("createPnpmCommand", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("0.28.1");
     expect(vi.mocked(execaNodeForTask)).toHaveBeenLastCalledWith(
-      taskId,
+      chatId,
       getWorkspaceConfig().pnpmBinPath,
       ["exec", "esbuild", "--version"],
       expect.any(Object),
@@ -223,7 +223,7 @@ describe("createPnpmCommand", () => {
       stdout: "1\n",
     });
 
-    const npxCommand = createNpxCommand(taskId, taskLayout(taskId));
+    const npxCommand = createNpxCommand(chatId, taskLayout(chatId));
     const result = await npxCommand.execute(
       ["-y", "node", "-e", "console.log(1)"],
       {
@@ -280,12 +280,12 @@ describe("createPnpmCommand", () => {
         stdout: "hello",
       });
 
-      const dlxCommand = createCommand(taskId, taskLayout(taskId));
+      const dlxCommand = createCommand(chatId, taskLayout(chatId));
       const result = await dlxCommand.execute(args, mockCtx);
 
       expect(result.exitCode).toBe(0);
       expect(vi.mocked(execaNodeForTask)).toHaveBeenLastCalledWith(
-        taskId,
+        chatId,
         getWorkspaceConfig().pnpmBinPath,
         expectedArgs,
         expect.any(Object),

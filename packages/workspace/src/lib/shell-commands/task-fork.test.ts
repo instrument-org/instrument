@@ -115,7 +115,7 @@ beforeEach(async () => {
   });
   const session = await createSession({
     sessionId: chatSessionId,
-    taskId: chatId,
+    chatId,
   });
   if (session.isErr()) {
     throw session.error;
@@ -274,7 +274,7 @@ async function fork(args: string[] = []) {
 }
 
 function forkId(handOffs: HandOff[]): StoreId.Session {
-  return StoreId.SessionSchema.parse(handOffs[0]?.taskId);
+  return StoreId.SessionSchema.parse(handOffs[0]?.sessionId);
 }
 
 function started() {
@@ -351,7 +351,7 @@ describe("task new", () => {
     const history = (
       await Store.getMessagesWithParts({
         sessionId: id,
-        taskId: context.chatId,
+        chatId: context.chatId,
       })
     )._unsafeUnwrap();
     expect(history.map((message) => message.id)).toEqual([
@@ -368,7 +368,7 @@ describe("task new", () => {
       await Store.getMessagesWithParts({
         inherited: false,
         sessionId: id,
-        taskId: context.chatId,
+        chatId: context.chatId,
       })
     )._unsafeUnwrap();
     expect(own.map((message) => message.id)).toEqual([started().message.id]);
@@ -462,7 +462,7 @@ describe("task new", () => {
     const { handOffs } = await fork(["--job", "%1"]);
     const id = forkId(handOffs);
     expect(jobs.handed).toMatchObject([
-      { from: chatSessionId, ids: ["bg_1"], to: id, toTaskId: context.chatId },
+      { from: chatSessionId, ids: ["bg_1"], to: id, toChatId: context.chatId },
     ]);
     const start = JSON.stringify(sent.events.at(-1));
     expect(start).toContain("yours now under the same ids: bg_1");
@@ -492,7 +492,7 @@ describe("task new", () => {
           model,
           sessionId,
           signal: new AbortController().signal,
-          taskId: context.chatId,
+          chatId: context.chatId,
         })
       )
         ._unsafeUnwrap()

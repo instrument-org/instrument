@@ -60,16 +60,16 @@ export async function prepareModelMessages({
   model,
   sessionId,
   signal,
-  taskId,
+  chatId,
 }: {
   agent: AnyAgent;
   model: AIGatewayModel.Type;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   const messageResults = await Store.getMessagesWithParts(
-    { sessionId, taskId },
+    { sessionId, chatId },
     { signal },
   );
 
@@ -101,7 +101,7 @@ export async function prepareModelMessages({
   // window: a reported count from before a reset describes a request that is no
   // longer being sent, and taking it at face value would roll the session over
   // again on every turn, eating another slice of history each time.
-  const sessionResult = await Store.getSession(sessionId, taskId, { signal });
+  const sessionResult = await Store.getSession(sessionId, chatId, { signal });
   const session = sessionResult.isOk() ? sessionResult.value : undefined;
 
   const contextLength = effectiveContextLength(model);
@@ -132,7 +132,7 @@ export async function prepareModelMessages({
         },
         type: "data-modelChange",
       },
-      taskId,
+      chatId,
       { signal },
     );
   }
@@ -215,7 +215,7 @@ export async function prepareModelMessages({
           rolledOverAfterMessageId: newest.id,
           rolledOverUnderUsableTokens: usable,
         },
-        taskId,
+        chatId,
         { signal },
       );
 
@@ -250,13 +250,13 @@ export async function prepareModelMessages({
             },
             type: "data-contextRollover",
           },
-          taskId,
+          chatId,
           { signal },
         );
 
         // The whole of memory was told on a message the cut just dropped, so
         // the chat's next message tells it again.
-        await resetMemoryReported({ sessionId, taskId });
+        await resetMemoryReported({ sessionId, chatId });
       }
     }
   }
@@ -298,7 +298,7 @@ export async function prepareModelMessages({
       const removeResult = await Store.removeMessage(
         message.id,
         message.metadata.sessionId,
-        taskId,
+        chatId,
         { signal },
       );
 
@@ -309,7 +309,7 @@ export async function prepareModelMessages({
 
     const builtContextMessages = await agent.getMessages({
       sessionId,
-      taskId,
+      chatId,
     });
 
     const newContextMessages = builtContextMessages.map((message) => ({
@@ -322,7 +322,7 @@ export async function prepareModelMessages({
 
     const saveResults = await Promise.all(
       newContextMessages.map((message) =>
-        Store.saveMessageWithParts(message, taskId, { signal }),
+        Store.saveMessageWithParts(message, chatId, { signal }),
       ),
     );
 
@@ -416,7 +416,7 @@ export async function prepareModelMessages({
   // the first one after.
   if (nonContextMessages.length < allNonContextMessages.length) {
     preparedMessages.push({
-      content: contextRolloverNotice(await readHandoffNotes(taskId)),
+      content: contextRolloverNotice(await readHandoffNotes(chatId)),
       providerOptions: TRANSIENT,
       role: "user",
     });

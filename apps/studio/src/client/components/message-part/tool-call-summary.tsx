@@ -38,12 +38,12 @@ export function ToolCallSummary({
   children,
   isDeadDevMode = false,
   part,
-  taskId,
+  chatId,
 }: {
   children?: ReactNode;
   isDeadDevMode?: boolean;
   part: SessionMessagePart.ToolPart;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   const features = useAtomValue(featuresAtom);
   const { backgroundProcess, isRunning, isStreaming } = useToolCallSession();
@@ -164,7 +164,7 @@ export function ToolCallSummary({
         )
       )}
       <WebSearchChip part={part} />
-      <SourceImagesChip id={taskId} part={part} />
+      <SourceImagesChip id={chatId} part={part} />
       <FileChip part={part} />
       <RunRowChevron
         isOpen={groupHead === null ? isExpanded : groupHead.isExpanded}

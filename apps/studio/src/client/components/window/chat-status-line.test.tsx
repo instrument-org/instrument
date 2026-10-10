@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { statusLine } from "./chat-status-line";
 
 const sessionId = StoreId.newSessionId();
-const taskId = StoreId.newSessionId();
+const chatId = StoreId.newSessionId();
 
 function user(at: number, text = "Plan a trip"): SessionMessage.WithParts {
   const id = StoreId.newMessageId();
@@ -120,7 +120,7 @@ describe("statusLine", () => {
       {
         chat: {
           runningTasks: [
-            { id: taskId, step: "Writing day three", title: "Itinerary" },
+            { id: chatId, step: "Writing day three", title: "Itinerary" },
           ],
           state: "working",
           title,
@@ -135,7 +135,7 @@ describe("statusLine", () => {
       "a running task's name before it names a step",
       {
         chat: {
-          runningTasks: [{ id: taskId, title: "Itinerary" }],
+          runningTasks: [{ id: chatId, title: "Itinerary" }],
           state: "working",
           title,
         },
@@ -150,7 +150,7 @@ describe("statusLine", () => {
       {
         chat: {
           runningTasks: [
-            { id: taskId, title: "Itinerary", waiting: "Needs your dates" },
+            { id: chatId, title: "Itinerary", waiting: "Needs your dates" },
           ],
           state: "waiting",
           title,

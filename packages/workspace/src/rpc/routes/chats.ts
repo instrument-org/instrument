@@ -28,6 +28,7 @@ import {
 import { trashChat } from "../../lib/trash-task";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
+import { chatRoutes } from "./chat";
 import { base, toORPCError } from "../base";
 import { distinct, liveRead } from "../live-read";
 
@@ -51,7 +52,7 @@ async function childTasks(id: ChatId) {
   const tasks = await listChildTasks(id);
   return await Promise.all(
     tasks.map(async (task) => {
-      const ref = { sessionId: task.id, taskId: id };
+      const ref = { sessionId: task.id, chatId: id };
       const running = isWorking(id, task.id);
       const step = await latestStep(ref);
       return {
@@ -265,10 +266,15 @@ const trashChatRoute = base
   });
 
 export const chats = {
+  ...chatRoutes,
   archive: archiveChatRoute,
   byId: chatByIdRoute,
   ensure: ensureChatRoute,
-  live: { list: liveListChatsRoute, tasks: liveChildTasksRoute },
+  live: {
+    ...chatRoutes.live,
+    list: liveListChatsRoute,
+    tasks: liveChildTasksRoute,
+  },
   ofSession: chatOfSessionRoute,
   read: readChatRoute,
   rename: renameChatRoute,

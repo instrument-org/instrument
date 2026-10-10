@@ -12,19 +12,19 @@ export async function runUvCommand({
   cwd,
   signal,
   stdin,
-  taskId,
+  chatId,
 }: {
   args: string[];
   cwd?: AbsolutePath;
   signal?: AbortSignal;
   stdin?: string;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   const result = await execa(getUvBinPath(), args, {
     all: true,
     cancelSignal: signal,
     cwd,
-    env: uvSubprocessEnv({ taskId }),
+    env: uvSubprocessEnv({ chatId }),
     reject: false,
     ...(stdin === undefined ? { stdin: "ignore" } : { input: stdin }),
   });
@@ -36,7 +36,7 @@ export async function runUvCommand({
       result.all ||
         result.shortMessage ||
         "uv failed without diagnostic output.",
-      buildWorkspaceFsLayout({ taskHostRoot: workDir(taskId) }),
+      buildWorkspaceFsLayout({ taskHostRoot: workDir(chatId) }),
     ),
     exitCode: result.exitCode ?? 1,
     stdout: result.stdout,

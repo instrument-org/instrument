@@ -58,7 +58,7 @@ interface LLMRequestInput {
   self: ActorRef<AnyMachineSnapshot, { type: "llmRequest.chunkReceived" }>;
   sessionId: StoreId.Session;
   stepCount: number;
-  taskId: ChatId;
+  chatId: ChatId;
   toolChoice?: "auto" | "none" | "required";
 }
 
@@ -89,7 +89,7 @@ export const llmRequestLogic = fromPromise<
 
   const scopedStore = {
     saveMessage: (message: Parameters<typeof Store.saveMessage>[0]) =>
-      Store.saveMessage(message, input.taskId, { signal }).then((result) => {
+      Store.saveMessage(message, input.chatId, { signal }).then((result) => {
         if (result.isErr()) {
           reportStorageError(result.error);
           return;
@@ -103,7 +103,7 @@ export const llmRequestLogic = fromPromise<
       if (storageFullError !== undefined) {
         return false;
       }
-      const result = await Store.savePart(part, input.taskId, { signal });
+      const result = await Store.savePart(part, input.chatId, { signal });
       if (result.isErr()) {
         reportStorageError(result.error);
         return false;
@@ -212,7 +212,7 @@ export const llmRequestLogic = fromPromise<
     const partsResult = await Store.getParts(
       input.sessionId,
       assistantMessage.id,
-      input.taskId,
+      input.chatId,
       { signal },
     );
     if (partsResult.isErr()) {
@@ -229,7 +229,7 @@ export const llmRequestLogic = fromPromise<
   for (const tool of agentTools) {
     tools[tool.name as string] = await tool.aiSDKTool({
       model: input.model,
-      taskId: input.taskId,
+      chatId: input.chatId,
     });
   }
 
@@ -238,7 +238,7 @@ export const llmRequestLogic = fromPromise<
     model: input.model,
     sessionId: input.sessionId,
     signal,
-    taskId: input.taskId,
+    chatId: input.chatId,
   });
 
   if (messagesResult.isErr()) {
@@ -252,7 +252,7 @@ export const llmRequestLogic = fromPromise<
   const turnNote = await turnNoteFor({
     sessionId: input.sessionId,
     signal,
-    taskId: input.taskId,
+    chatId: input.chatId,
   });
   if (turnNote !== undefined) {
     // After the cache breakpoints, like the budget notice: for this request
@@ -340,7 +340,7 @@ export const llmRequestLogic = fromPromise<
     // level changed on a task takes effect on its next turn: the context
     // baseline is immutable for the life of the session, and a request
     // parameter is not part of it.
-    const taskSettings = await getChatSettings(chatDir(input.taskId));
+    const taskSettings = await getChatSettings(chatDir(input.chatId));
 
     // A Claude account searches with Claude Code's own WebSearch, inside the
     // agent's step, rather than through our web_search tool, whose search on
@@ -389,7 +389,7 @@ export const llmRequestLogic = fromPromise<
       headers: {
         [CLIENT_SESSION_ID_HEADER]: cacheSessionFor({
           sessionId: input.sessionId,
-          taskId: input.taskId,
+          chatId: input.chatId,
         }),
       },
       maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,

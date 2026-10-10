@@ -14,14 +14,14 @@ import { debug } from "./debug";
 const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
-let taskId: ReturnType<typeof createMockChatConfigForDir>;
+let chatId: ReturnType<typeof createMockChatConfigForDir>;
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "run-bash-route-"));
   const taskRoot = path.join(tmpDir, "tasks", "test");
   await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
   await fs.mkdir(path.join(taskRoot, ".instrument"), { recursive: true });
-  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
 });
 
 afterAll(async () => {
@@ -41,7 +41,7 @@ describe("workspace.debug.runBash", () => {
   it("runs a command with no timeoutMs and reports both streams", async () => {
     const result = await call(
       debug.runBash,
-      { command: "echo out; echo err >&2", sessionId, taskId },
+      { command: "echo out; echo err >&2", sessionId, chatId },
       { context: createContext() },
     );
 
@@ -57,7 +57,7 @@ describe("workspace.debug.runBash", () => {
     const startedAt = performance.now();
     const result = await call(
       debug.runBash,
-      { command: "sleep 30", sessionId, taskId, timeoutMs: 500 },
+      { command: "sleep 30", sessionId, chatId, timeoutMs: 500 },
       { context: createContext() },
     );
 

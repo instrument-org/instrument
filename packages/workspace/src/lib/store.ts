@@ -17,11 +17,11 @@ import { StorageKey } from "./storage-key";
 export namespace Store {
   export function getMessageIds(
     sessionId: StoreId.Session,
-    taskId: ChatId,
+    chatId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
 
       const messageKeys = yield* storage.getKeys(
         StorageKey.messages(sessionId),
@@ -35,11 +35,11 @@ export namespace Store {
   export function getMessageIdsAfter(
     sessionId: StoreId.Session,
     parentMessageId: StoreId.Message,
-    taskId: ChatId,
+    chatId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const messageIdsResult = yield* getMessageIds(sessionId, taskId, {
+      const messageIdsResult = yield* getMessageIds(sessionId, chatId, {
         signal,
       });
       const sortedMessageIds = alphabetical(messageIdsResult, (id) => id);
@@ -61,18 +61,18 @@ export namespace Store {
     {
       messageIds,
       sessionId,
-      taskId,
+      chatId,
     }: {
       messageIds?: StoreId.Message[];
       sessionId: StoreId.Session;
-      taskId: ChatId;
+      chatId: ChatId;
     },
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
       const messageIdsResult =
-        messageIds ?? (yield* getMessageIds(sessionId, taskId, { signal }));
+        messageIds ?? (yield* getMessageIds(sessionId, chatId, { signal }));
 
       const messageResults = await parallel(
         { limit: 10, signal },
@@ -108,12 +108,12 @@ export namespace Store {
       inherited = true,
       messageIds,
       sessionId,
-      taskId,
+      chatId,
     }: {
       inherited?: boolean;
       messageIds?: StoreId.Message[];
       sessionId: StoreId.Session;
-      taskId: ChatId;
+      chatId: ChatId;
     },
     { signal }: { signal?: AbortSignal } = {},
   ): ResultAsync<
@@ -123,23 +123,23 @@ export namespace Store {
     return safeTry(async function* () {
       const forkedFrom =
         inherited && messageIds === undefined
-          ? yield* forkPoint(sessionId, taskId, { signal })
+          ? yield* forkPoint(sessionId, chatId, { signal })
           : undefined;
       const before = forkedFrom
         ? (yield* getMessagesWithParts(
-            { sessionId: forkedFrom.parentId, taskId },
+            { sessionId: forkedFrom.parentId, chatId },
             { signal },
           )).filter((message) => message.id <= forkedFrom.messageId)
         : [];
       const messageIdsResult =
-        messageIds ?? (yield* getMessageIds(sessionId, taskId, { signal }));
+        messageIds ?? (yield* getMessageIds(sessionId, chatId, { signal }));
 
       const messageResults = await parallel(
         { limit: 10, signal },
         alphabetical(messageIdsResult, (id) => id),
         async (messageId) => {
           return getMessageWithParts(
-            { messageId, sessionId, taskId },
+            { messageId, sessionId, chatId },
             { signal },
           );
         },
@@ -164,10 +164,10 @@ export namespace Store {
    */
   function forkPoint(
     sessionId: StoreId.Session,
-    taskId: ChatId,
+    chatId: ChatId,
     { signal }: { signal?: AbortSignal },
   ) {
-    return getSession(sessionId, taskId, { signal })
+    return getSession(sessionId, chatId, { signal })
       .map((session) =>
         session.parentId && session.forkedAtMessageId
           ? {
@@ -185,16 +185,16 @@ export namespace Store {
     {
       messageId,
       sessionId,
-      taskId,
+      chatId,
     }: {
       messageId: StoreId.Message;
       sessionId: StoreId.Session;
-      taskId: ChatId;
+      chatId: ChatId;
     },
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
 
       const parseResult = yield* getParsedStorageItem(
         StorageKey.message(sessionId, messageId),
@@ -207,7 +207,7 @@ export namespace Store {
       const partsResult = yield* getParts(
         message.metadata.sessionId,
         message.id,
-        taskId,
+        chatId,
         { signal },
       );
 
@@ -219,11 +219,11 @@ export namespace Store {
     sessionId: StoreId.Session,
     messageId: StoreId.Message,
     partId: StoreId.Part,
-    taskId: ChatId,
+    chatId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
       const part = yield* getParsedStorageItem(
         StorageKey.part(sessionId, messageId, partId),
         SessionMessagePart.FromStorageSchema,
@@ -237,11 +237,11 @@ export namespace Store {
   export function getPartIds(
     sessionId: StoreId.Session,
     messageId: StoreId.Message,
-    taskId: ChatId,
+    chatId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
 
       const partKeys = yield* storage.getKeys(
         StorageKey.parts(sessionId, messageId),
@@ -255,13 +255,13 @@ export namespace Store {
   export function getParts(
     sessionId: StoreId.Session,
     messageId: StoreId.Message,
-    taskId: ChatId,
+    chatId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
 
-      const partIdsResult = yield* getPartIds(sessionId, messageId, taskId, {
+      const partIdsResult = yield* getPartIds(sessionId, messageId, chatId, {
         signal,
       });
 
@@ -287,11 +287,11 @@ export namespace Store {
 
   export function getSession(
     sessionId: StoreId.Session,
-    taskId: ChatId,
+    chatId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
 
       const parseResult = yield* getParsedStorageItem(
         StorageKey.session(sessionId),
@@ -305,20 +305,20 @@ export namespace Store {
   }
 
   export function getSessions(
-    taskId: ChatId,
+    chatId: ChatId,
     {
       includeChildSessions = false,
       signal,
     }: { includeChildSessions?: boolean; signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const sessionIds = yield* getStoreId(taskId, { signal });
+      const sessionIds = yield* getStoreId(chatId, { signal });
 
       const sessionResults = await parallel(
         { limit: 10, signal },
         alphabetical(sessionIds, (id) => id),
         async (sessionId) => {
-          return getSession(sessionId, taskId, { signal });
+          return getSession(sessionId, chatId, { signal });
         },
       );
 
@@ -334,11 +334,11 @@ export namespace Store {
 
   export function getSessionWithMessagesAndParts(
     sessionId: StoreId.Session,
-    taskId: ChatId,
+    chatId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
 
       const parseResult = yield* getParsedStorageItem(
         StorageKey.session(sessionId),
@@ -350,7 +350,7 @@ export namespace Store {
       const messagesResult = yield* getMessagesWithParts(
         {
           sessionId,
-          taskId,
+          chatId,
         },
         { signal },
       );
@@ -361,11 +361,11 @@ export namespace Store {
 
   // Helper functions to retrieve IDs from storage keys
   export function getStoreId(
-    taskId: ChatId,
+    chatId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
 
       const sessionKeys = yield* storage.getKeys(StorageKey.sessions(), {
         signal,
@@ -378,13 +378,13 @@ export namespace Store {
   export function removeMessage(
     messageId: StoreId.Message,
     sessionId: StoreId.Session,
-    taskId: ChatId,
+    chatId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
 
-      const partIds = yield* getPartIds(sessionId, messageId, taskId, {
+      const partIds = yield* getPartIds(sessionId, messageId, chatId, {
         signal,
       });
       for (const partId of partIds) {
@@ -397,7 +397,7 @@ export namespace Store {
         signal,
       });
       publisher.publish("message.removed", {
-        id: taskId,
+        id: chatId,
         messageId,
         sessionId,
       });
@@ -407,11 +407,11 @@ export namespace Store {
 
   export function saveMessage(
     message: SessionMessage.Type,
-    taskId: ChatId,
+    chatId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
 
       const savedMessage = yield* setParsedStorageItem(
         StorageKey.message(message.metadata.sessionId, message.id),
@@ -422,7 +422,7 @@ export namespace Store {
       );
 
       publisher.publish("message.updated", {
-        id: taskId,
+        id: chatId,
         messageId: savedMessage.id,
         sessionId: savedMessage.metadata.sessionId,
       });
@@ -433,7 +433,7 @@ export namespace Store {
 
   export async function saveMessages(
     messages: SessionMessage.Type[],
-    taskId: ChatId,
+    chatId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     const [firstMessage, ...rest] = messages;
@@ -456,7 +456,7 @@ export namespace Store {
       { limit: 10, signal },
       messages,
       async (message) => {
-        return saveMessage(message, taskId, { signal });
+        return saveMessage(message, chatId, { signal });
       },
     );
 
@@ -465,7 +465,7 @@ export namespace Store {
 
   export function saveMessageWithParts(
     message: SessionMessage.WithParts,
-    taskId: ChatId,
+    chatId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
@@ -496,13 +496,13 @@ export namespace Store {
       const { parts, ...rest } = message;
       // Save parts first without publishing part.updated events to avoid race condition
       // where live queries try to read the message before it's saved
-      yield* await saveParts(parts, taskId, { publish: false, signal });
+      yield* await saveParts(parts, chatId, { publish: false, signal });
       // Save message - this will publish message.updated after everything is committed
-      yield* saveMessage(rest, taskId, { signal });
+      yield* saveMessage(rest, chatId, { signal });
       // Now it's safe to publish part.updated for all parts
       for (const part of parts) {
         publisher.publish("part.updated", {
-          id: taskId,
+          id: chatId,
           part,
         });
       }
@@ -512,14 +512,14 @@ export namespace Store {
 
   export function savePart(
     part: SessionMessagePart.Type,
-    taskId: ChatId,
+    chatId: ChatId,
     {
       publish = true,
       signal,
     }: { publish?: boolean; signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
 
       const savedPart = yield* setParsedStorageItem(
         StorageKey.part(
@@ -535,7 +535,7 @@ export namespace Store {
 
       if (publish) {
         publisher.publish("part.updated", {
-          id: taskId,
+          id: chatId,
           part: savedPart,
         });
       }
@@ -546,7 +546,7 @@ export namespace Store {
 
   export async function saveParts(
     parts: SessionMessagePart.Type[],
-    taskId: ChatId,
+    chatId: ChatId,
     {
       publish = true,
       signal,
@@ -581,7 +581,7 @@ export namespace Store {
       { limit: 10, signal },
       parts,
       async (part) => {
-        return savePart(part, taskId, { publish, signal });
+        return savePart(part, chatId, { publish, signal });
       },
     );
 
@@ -590,11 +590,11 @@ export namespace Store {
 
   export function saveSession(
     session: Session.Type,
-    taskId: ChatId,
+    chatId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
 
       const savedSession = yield* setParsedStorageItem(
         StorageKey.session(session.id),
@@ -618,7 +618,7 @@ export namespace Store {
       sessionId: StoreId.Session;
     },
     updater: (part: SessionMessagePart.Type) => SessionMessagePart.Type,
-    taskId: ChatId,
+    chatId: ChatId,
     {
       publish = true,
       signal,
@@ -629,14 +629,14 @@ export namespace Store {
         ids.sessionId,
         ids.messageId,
         ids.partId,
-        taskId,
+        chatId,
         { signal },
       );
       const next = updater(current);
       if (next === current) {
         return ok(current);
       }
-      const saved = yield* savePart(next, taskId, { publish, signal });
+      const saved = yield* savePart(next, chatId, { publish, signal });
       return ok(saved);
     });
   }

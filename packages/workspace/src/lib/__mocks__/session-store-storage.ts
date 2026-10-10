@@ -21,21 +21,21 @@ const wrappedMockStorage = wrapStorage(mockStorage);
  * The shared storage, counting each write against the task it was made for
  * and saying what it changed, as the real one does.
  */
-export function getSessionsStoreStorage(taskId: ChatId) {
+export function getSessionsStoreStorage(chatId: ChatId) {
   const counted: WrappedStorage = {
     ...wrappedMockStorage,
     removeItem: (key, options) => {
-      bumpStoreGeneration(taskId);
+      bumpStoreGeneration(chatId);
       return wrappedMockStorage.removeItem(key, options).andTee(() => {
-        bumpStoreGeneration(taskId);
-        recordChanged(taskId, storeKeyChange(key));
+        bumpStoreGeneration(chatId);
+        recordChanged(chatId, storeKeyChange(key));
       });
     },
     setItemRaw: (key, value, options) => {
-      bumpStoreGeneration(taskId);
+      bumpStoreGeneration(chatId);
       return wrappedMockStorage.setItemRaw(key, value, options).andTee(() => {
-        bumpStoreGeneration(taskId);
-        recordChanged(taskId, storeKeyChange(key));
+        bumpStoreGeneration(chatId);
+        recordChanged(chatId, storeKeyChange(key));
       });
     },
   };
@@ -43,8 +43,8 @@ export function getSessionsStoreStorage(taskId: ChatId) {
 }
 
 /** Nothing to close: every task shares the one in-memory storage. */
-export function disposeSessionsStoreStorage(taskId: ChatId) {
-  bumpStoreGeneration(taskId);
+export function disposeSessionsStoreStorage(chatId: ChatId) {
+  bumpStoreGeneration(chatId);
   return okAsync(undefined);
 }
 

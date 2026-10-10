@@ -78,14 +78,14 @@ export function continuesOwnReply(
 export async function turnNoteFor({
   sessionId,
   signal,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<string | undefined> {
   const messages = await Store.getMessagesWithParts(
-    { sessionId, taskId },
+    { sessionId, chatId },
     { signal },
   );
   if (messages.isErr()) {
@@ -94,7 +94,7 @@ export async function turnNoteFor({
   if (continuesOwnReply(messages.value)) {
     return PROMISED_NOTE;
   }
-  return chatConversation(taskId, sessionId) !== undefined &&
+  return chatConversation(chatId, sessionId) !== undefined &&
     opensTypedTurn(messages.value)
     ? TURN_NOTE
     : undefined;

@@ -13,12 +13,12 @@ const HOUR = 60 * 60 * 1000;
 
 describe("detectMessageGap", () => {
   async function setup() {
-    const taskId = createMockChatConfig(ChatIdSchema.parse("mock"));
+    const chatId = createMockChatConfig(ChatIdSchema.parse("mock"));
     const sessionId = StoreId.newSessionId();
 
     await Store.saveSession(
       { createdAt: new Date(0), id: sessionId, title: "Test session" },
-      taskId,
+      chatId,
     );
 
     /** A message the user typed. */
@@ -42,7 +42,7 @@ describe("detectMessageGap", () => {
           ],
           role: "user",
         } satisfies SessionMessage.UserWithParts,
-        taskId,
+        chatId,
       );
     }
 
@@ -67,7 +67,7 @@ describe("detectMessageGap", () => {
           ],
           role: "user",
         } satisfies SessionMessage.UserWithParts,
-        taskId,
+        chatId,
       );
     }
 
@@ -77,7 +77,7 @@ describe("detectMessageGap", () => {
           messageId: StoreId.newMessageId(),
           sentAt,
           sessionId,
-          taskId,
+          chatId,
         }),
       typed,
       wake,

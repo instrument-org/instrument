@@ -10,7 +10,7 @@ import { buildReportWorkspaceConfig } from "../evals/utils";
 import { getChatInfos } from "../src/lib/chat-info";
 import { sessionOfChat } from "../src/lib/record-folders";
 import { WAKE_SUMMARY_MAX_LENGTH } from "../src/lib/chat/wake-summary";
-import { getTaskUsageSummary } from "../src/lib/usage-summary";
+import { getUsageSummary } from "../src/lib/usage-summary";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 
 /**
@@ -64,7 +64,7 @@ for (const chat of chats) {
           part.type === "tool-write_file" || part.type === "tool-edit_file",
       ),
     ).length;
-    const usage = await getTaskUsageSummary(chat.id, {
+    const usage = await getUsageSummary(chat.id, {
       sessionId: session.id,
     });
     const last = texts.at(-1) ?? "";

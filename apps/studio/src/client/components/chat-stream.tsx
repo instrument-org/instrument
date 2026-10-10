@@ -175,7 +175,7 @@ interface ChatStreamProps {
   // anchor turns. Only the top-level transcript sets this; nested tool-agent
   // streams render flat.
   renderAsItems?: boolean;
-  task: ChatInfo;
+  chatInfo: ChatInfo;
 }
 
 interface MessageRow {
@@ -200,7 +200,7 @@ export function ChatStream({
   onRunAgain,
   presentation,
   renderAsItems = false,
-  task,
+  chatInfo,
 }: ChatStreamProps) {
   const releaseAutoScroll = useReleaseAutoScroll();
   const holdRowInPlace = useHoldRowInPlace();
@@ -386,7 +386,7 @@ export function ChatStream({
     lastMessageId,
     onRetry,
     presentation,
-    task,
+    chatInfo,
   };
 
   // Ids of everything this task still has running, so a folded group can say
@@ -395,7 +395,9 @@ export function ChatStream({
   // calls costs no extra request.
   const { sessionId } = useTaskSession();
   const runningProcessIds = new Set(
-    useTaskBackgroundProcesses(task.id, sessionId).map((process) => process.id),
+    useTaskBackgroundProcesses(chatInfo.id, sessionId).map(
+      (process) => process.id,
+    ),
   );
 
   // A group's head line copies the step the agent is on, which lives in some
@@ -737,7 +739,7 @@ export function ChatStream({
             <AttachmentsCard
               files={files}
               key={`attachments-${message.id}`}
-              taskId={task.id}
+              chatId={chatInfo.id}
             />,
           );
         }

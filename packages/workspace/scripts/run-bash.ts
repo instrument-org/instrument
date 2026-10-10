@@ -55,7 +55,7 @@ function parseArgs(argv: string[]) {
   let mountName: string | undefined;
   let bail = false;
   const commands: string[] = [];
-  let taskId: string | undefined;
+  let chatId: string | undefined;
   let chatsDir: string | undefined;
 
   const remaining = [...argv];
@@ -99,7 +99,7 @@ function parseArgs(argv: string[]) {
         break;
       }
       case "--task": {
-        taskId = remaining.shift();
+        chatId = remaining.shift();
 
         break;
       }
@@ -116,7 +116,7 @@ function parseArgs(argv: string[]) {
     }
   }
 
-  return { attach, bail, chatsDir, commands, taskId };
+  return { attach, bail, chatsDir, commands, chatId };
 }
 
 const args = parseArgs(process.argv.slice(2));
@@ -178,9 +178,9 @@ if (process.env.INSTRUMENT_BASH_WORKER === "1") {
   setBashWorkerFactory(createTsxBashWorker);
 }
 
-const taskId = ChatIdSchema.parse(args.taskId ?? ulid().toLowerCase());
+const chatId = ChatIdSchema.parse(args.chatId ?? ulid().toLowerCase());
 
-const chatDir = path.join(chatsDir, taskId);
+const chatDir = path.join(chatsDir, chatId);
 await fs.mkdir(chatDir, { recursive: true });
 // Match initializeTask's guarantee: the agent-visible pair always exists
 // (the repl skips the template copy that normally scaffolds `work/`).
@@ -190,8 +190,8 @@ for (const dirName of [TASK_FOLDER_NAMES.attachments, TASK_FOLDER_NAMES.work]) {
 const sessionId = StoreId.newSessionId();
 // The shell finds its folder through the chat index, which the repl's folder,
 // made by hand, is put in.
-if (resolveChat(taskId) === undefined) {
-  placeChat(taskId, sessionId);
+if (resolveChat(chatId) === undefined) {
+  placeChat(chatId, sessionId);
 }
 
 const attachedFolders = grantFolders(
@@ -208,11 +208,11 @@ const attachedFolders = grantFolders(
 const bash = await createBashEnv({
   attachedFolders,
   sessionId,
-  taskId,
+  chatId,
 });
 
 process.stderr.write(
-  `task dir: ${chatDir}\ntask: ${taskId}  session: ${sessionId}\n\n`,
+  `task dir: ${chatDir}\ntask: ${chatId}  session: ${sessionId}\n\n`,
 );
 
 // The exit is explicit, so nothing a command left running (a background job,

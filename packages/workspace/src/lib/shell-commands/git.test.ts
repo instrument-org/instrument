@@ -32,8 +32,8 @@ const mockCtx = createCommandContext({
 
 describe("createGitCommand arg policy", () => {
   const chatDir = `${MOCK_WORKSPACE_DIRS.chats}/git-policy`;
-  const taskId = createMockChatConfigForDir(chatDir);
-  const command = createGitCommand({ layout: taskLayout(taskId), taskId });
+  const chatId = createMockChatConfigForDir(chatDir);
+  const command = createGitCommand({ layout: taskLayout(chatId), chatId });
   // The later blocks point the workspace elsewhere as they are collected.
   beforeAll(() => {
     createMockChatConfigForDir(chatDir);
@@ -148,10 +148,10 @@ describe("createGitCommand", () => {
     "git-smoke",
   );
   mkdirSync(dir, { recursive: true });
-  const smokeTaskId = createMockChatConfigForDir(dir);
+  const smokeChatId = createMockChatConfigForDir(dir);
   const command = createGitCommand({
-    layout: taskLayout(smokeTaskId),
-    taskId: smokeTaskId,
+    layout: taskLayout(smokeChatId),
+    chatId: smokeChatId,
   });
   beforeAll(() => {
     createMockChatConfigForDir(dir);
@@ -300,9 +300,9 @@ describe("createGitCommand over attached folders", () => {
   let command: ReturnType<typeof createGitCommand>;
 
   beforeAll(async () => {
-    const mountedTaskId = createMockChatConfigForDir(taskRoot);
+    const mountedChatId = createMockChatConfigForDir(taskRoot);
     command = createGitCommand({
-      layout: taskLayout(mountedTaskId, {
+      layout: taskLayout(mountedChatId, {
         repo: {
           access: "read-only",
           createdAt: Date.now(),
@@ -320,7 +320,7 @@ describe("createGitCommand over attached folders", () => {
           source: "user",
         },
       }),
-      taskId: mountedTaskId,
+      chatId: mountedChatId,
     });
     // Seeded with the real binary directly: the command under test may not
     // write into the read-only mount, and that is the point of the test.

@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 
 export function ModelPreview({ id }: { id: ChatId }) {
   const { data: taskState } = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({
+    rpcClient.workspace.chats.state.get.queryOptions({
       input: { id },
     }),
   );

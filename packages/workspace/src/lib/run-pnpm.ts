@@ -21,7 +21,7 @@ export async function runPnpmCommand({
   pnpmLogLevel,
   signal,
   stdin,
-  taskId,
+  chatId,
 }: {
   args: string[];
   cwd?: AbsolutePath;
@@ -33,11 +33,11 @@ export async function runPnpmCommand({
   signal?: AbortSignal;
   /** Raw bytes; a string would be UTF-8 re-encoded by execa (see subprocessStdin). */
   stdin?: Buffer;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   const sink = currentShellOutputSink();
   const subprocess = execaNodeForTask(
-    taskId,
+    chatId,
     getWorkspaceConfig().pnpmBinPath,
     args,
     {

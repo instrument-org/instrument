@@ -92,8 +92,8 @@ const FILE_BASE = vi.hoisted(() => "instrument://computer-test");
 // Where the task's files are, answered without a task: every path under the
 // task's own folder, which is what a message's image needs to be drawn at all.
 vi.mock("@/client/hooks/use-host-paths", () => ({
-  useHostPaths: (taskId: unknown, filePaths: readonly string[]) =>
-    taskId === undefined
+  useHostPaths: (chatId: unknown, filePaths: readonly string[]) =>
+    chatId === undefined
       ? {}
       : Object.fromEntries(
           filePaths.map((filePath) => [
@@ -116,7 +116,7 @@ const RAW_HTML_TIMEOUT = 10_000;
 const TASK_ID = ChatIdSchema.parse("a-task");
 
 function renderMarkdown(markdown: string) {
-  return renderWithProviders(<Markdown markdown={markdown} taskId={TASK_ID} />);
+  return renderWithProviders(<Markdown markdown={markdown} chatId={TASK_ID} />);
 }
 
 /**
@@ -289,7 +289,7 @@ describe("Markdown links", () => {
       <WindowContext value={context}>
         <Markdown
           markdown="I started [the hotel search](instrument://task/lisbon-hotel)."
-          taskId={TASK_ID}
+          chatId={TASK_ID}
         />
       </WindowContext>,
     );
@@ -453,7 +453,7 @@ describe("Markdown images", () => {
       <Markdown
         isStreaming
         markdown="![The chart](output/chart.png)"
-        taskId={TASK_ID}
+        chatId={TASK_ID}
       />,
     );
 
@@ -498,7 +498,7 @@ describe("Markdown half-written constructs", () => {
 describe("Markdown streaming words", () => {
   const streamingWords = (markdown: string) => {
     const { container } = renderWithProviders(
-      <Markdown isStreaming markdown={markdown} taskId={TASK_ID} />,
+      <Markdown isStreaming markdown={markdown} chatId={TASK_ID} />,
     );
     return [...container.querySelectorAll("[data-stream-word]")].map(
       (word) => word.textContent,
@@ -1265,7 +1265,7 @@ describe("Markdown file chips", () => {
     };
     const { store } = renderWithProviders(
       <ComposerDraftContext value={draftKey}>
-        <Markdown markdown={CHIP} taskId={TASK_ID} />
+        <Markdown markdown={CHIP} chatId={TASK_ID} />
       </ComposerDraftContext>,
     );
 

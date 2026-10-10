@@ -164,14 +164,14 @@ export const BashTool = setupTool({
   // Built per call: the command list it renders describes capabilities that a
   // feature flag can turn on and off while the app is running.
   description: () => createBashDescription(),
-  async execute({ input, partId, sessionId, signal, taskId }) {
-    const attachedFolders = await folderReach(taskId);
+  async execute({ input, partId, sessionId, signal, chatId }) {
+    const attachedFolders = await folderReach(chatId);
     const yieldMs = clampYieldMs(input.yieldMs);
     const startedAt = performance.now();
     // The chat's own commands are its conversation's: a task of the chat's
     // runs in the same folder with a task's shell.
-    const chatId = chatConversation(taskId, sessionId);
-    const chat = chatId ? { id: chatId } : undefined;
+    const conversation = chatConversation(chatId, sessionId);
+    const chat = conversation ? { id: conversation } : undefined;
     const bash = await createBashEnv({
       attachedFolders,
       callPartId: partId,
@@ -181,12 +181,12 @@ export const BashTool = setupTool({
       // makes it return sooner than it strictly has to.
       remainingYieldMs: () => yieldMs - (performance.now() - startedAt),
       sessionId,
-      taskId,
+      chatId,
     });
     // The layout the native shims write their own output's host paths back
     // against, so the live copy a promoted command streams names them the way
     // the foreground copy does.
-    const layout = shellLayout({ attachedFolders, chat, taskId });
+    const layout = shellLayout({ attachedFolders, chat, chatId });
     // Interpreter metadata, only available once the run finishes. A promoted
     // command reports none, which is what the empty default stands for.
     let commands: string[] = [];
@@ -228,14 +228,14 @@ export const BashTool = setupTool({
         }
       },
       layout,
-      taskId,
+      chatId,
     });
 
     const outcome = await raceYield(handle.completion, yieldMs);
     const durationMs = Math.round(performance.now() - startedAt);
 
     if (outcome === "still-running") {
-      const promoted = promoteBackgroundProcess({ handle, sessionId, taskId });
+      const promoted = promoteBackgroundProcess({ handle, sessionId, chatId });
       if ("error" in promoted) {
         handle.abort();
         return executeError(promoted.error);
@@ -269,7 +269,7 @@ export const BashTool = setupTool({
       spillFilePath = RelativePathSchema.parse(
         path.posix.join(TASK_FOLDER_NAMES.toolOutput, `${partId}.log`),
       );
-      const absPath = absolutePathJoin(workDir(taskId), spillFilePath);
+      const absPath = absolutePathJoin(workDir(chatId), spillFilePath);
       await fs.mkdir(path.dirname(absPath), { recursive: true });
       await fs.writeFile(absPath, outcome.output, {
         encoding: "utf8",
@@ -279,7 +279,7 @@ export const BashTool = setupTool({
 
     const pageAfter = await browserFollowUp.take(signal);
     const browserSkill = commands.includes(AGENT_BROWSER_COMMAND.name)
-      ? await browserSkillToDeliver({ sessionId, signal, taskId })
+      ? await browserSkillToDeliver({ sessionId, signal, chatId })
       : undefined;
 
     return ok({

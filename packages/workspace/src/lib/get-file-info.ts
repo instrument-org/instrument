@@ -10,10 +10,10 @@ import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
 
 export async function getCurrentFileInfo({
   filePath,
-  taskId,
+  chatId,
 }: {
   filePath: WorkspaceFilePath;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   const filename = path.basename(filePath);
   const mimeType = getMimeType(filename);
@@ -22,7 +22,7 @@ export async function getCurrentFileInfo({
     return err(new TypedError.NotFound("File path has no filename"));
   }
 
-  const resolvedPath = await resolveWorkspaceFilePath({ filePath, taskId });
+  const resolvedPath = await resolveWorkspaceFilePath({ filePath, chatId });
   if (!resolvedPath) {
     return err(new TypedError.NotFound(`File not found: ${filePath}`));
   }

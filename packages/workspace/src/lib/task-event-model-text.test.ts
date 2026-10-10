@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { ChatIdSchema } from "../schemas/chat-id";
+import { StoreId } from "../schemas/store-id";
 import { taskEventModelNote } from "./task-event-model-text";
 
-const TASK_ID = ChatIdSchema.parse("2026-09-08-find-the-vault");
+const TASK_ID = StoreId.SessionSchema.parse("ses_01K4M7V0A7T2B9S6QH4Z3X1C5D");
 
 describe("taskEventModelNote", () => {
   it("carries the receipt as a block, and names what the task left running with each command cut to fit", () => {
@@ -32,7 +32,7 @@ describe("taskEventModelNote", () => {
           status: "done",
           summary:
             "Located the note and wrote the report beside it.\n\n```files\n/mnt/Instrument/report.md\n```",
-          taskId: TASK_ID,
+          sessionId: TASK_ID,
           title: "Find project status note",
           tokens: 424_546,
         },
@@ -42,14 +42,14 @@ describe("taskEventModelNote", () => {
       "
       <instrument-system-note>
       A task you created has finished:
-      - 2026-09-08-find-the-vault ("Find project status note") finished a turn (3 minutes of work, 425K tokens so far). It said:
+      - ses_01K4M7V0A7T2B9S6QH4Z3X1C5D ("Find project status note") finished a turn (3 minutes of work, 425K tokens so far). It said:
             Located the note and wrote the report beside it.
 
             \`\`\`files
             /mnt/Instrument/report.md
             \`\`\`
-        Its folder /tasks/2026-09-08-find-the-vault holds: work/ 3 files, 1 file at the root.
-        It left running in the background: bg_1 \`rg -l --hidden --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/Li…\` (7 minutes), bg_2 \`node work/server.js\` (1 minute). Stop what the user does not need with \`task stop 2026-09-08-find-the-vault <bg id>\`, or all of it with \`task stop 2026-09-08-find-the-vault --all\`; a server they are using stays.
+        Its folder /tasks/ses_01K4M7V0A7T2B9S6QH4Z3X1C5D holds: work/ 3 files, 1 file at the root.
+        It left running in the background: bg_1 \`rg -l --hidden --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/Li…\` (7 minutes), bg_2 \`node work/server.js\` (1 minute). Stop what the user does not need with \`task stop ses_01K4M7V0A7T2B9S6QH4Z3X1C5D <bg id>\`, or all of it with \`task stop ses_01K4M7V0A7T2B9S6QH4Z3X1C5D --all\`; a server they are using stays.
       Nobody typed anything; this note is why you are awake.
       </instrument-system-note>"
     `);
@@ -62,20 +62,24 @@ describe("taskEventModelNote", () => {
           activeMs: 120_000,
           ended: "Stopped while locating any bundled QuickJS runtime",
           status: "done",
-          taskId: TASK_ID,
+          sessionId: TASK_ID,
           title: "Demonstrate the JavaScript runner",
           tokens: 40_000,
         },
         {
           ended: "Stopped at the 200-step limit",
           status: "done",
-          taskId: ChatIdSchema.parse("2026-09-11-audit-the-vault"),
+          sessionId: StoreId.SessionSchema.parse(
+            "ses_01K4W2N8E5G0P3R7KJ6Y1T9M4F",
+          ),
           title: "Audit the vault",
         },
         {
           ended: "Model is busy",
           status: "error",
-          taskId: ChatIdSchema.parse("2026-09-11-draft-the-brief"),
+          sessionId: StoreId.SessionSchema.parse(
+            "ses_01K4W2Q3H6D8V5C1NX0B7R2T9A",
+          ),
           title: "Draft the brief",
         },
       ],
@@ -84,9 +88,9 @@ describe("taskEventModelNote", () => {
       "
       <instrument-system-note>
       Tasks you created have finished:
-      - 2026-09-08-find-the-vault ("Demonstrate the JavaScript runner") was stopped while locating any bundled QuickJS runtime (2 minutes of work, 40K tokens so far).
-      - 2026-09-11-audit-the-vault ("Audit the vault") was stopped at the 200-step limit.
-      - 2026-09-11-draft-the-brief ("Draft the brief") stopped with an error, "Model is busy".
+      - ses_01K4M7V0A7T2B9S6QH4Z3X1C5D ("Demonstrate the JavaScript runner") was stopped while locating any bundled QuickJS runtime (2 minutes of work, 40K tokens so far).
+      - ses_01K4W2N8E5G0P3R7KJ6Y1T9M4F ("Audit the vault") was stopped at the 200-step limit.
+      - ses_01K4W2Q3H6D8V5C1NX0B7R2T9A ("Draft the brief") stopped with an error, "Model is busy".
       Nobody typed anything; this note is why you are awake.
       </instrument-system-note>"
     `);
@@ -95,7 +99,7 @@ describe("taskEventModelNote", () => {
 
   it("says nothing about the background when nothing was left there", () => {
     const note = taskEventModelNote({
-      events: [{ status: "done", taskId: TASK_ID, title: "hey" }],
+      events: [{ status: "done", sessionId: TASK_ID, title: "hey" }],
     });
     expect(note).not.toContain("background");
   });
@@ -114,7 +118,7 @@ describe("taskEventModelNote", () => {
             },
             { id: "ses_01M48PS7HWJZEM6M3D3PA0CS90", openedBy: "handed" },
           ],
-          taskId: TASK_ID,
+          sessionId: TASK_ID,
           title: "Optimize the cart",
         },
       ],
@@ -123,7 +127,7 @@ describe("taskEventModelNote", () => {
       "
       <instrument-system-note>
       A task you created has finished:
-      - 2026-09-08-find-the-vault ("Optimize the cart") finished a turn. It said:
+      - ses_01K4M7V0A7T2B9S6QH4Z3X1C5D ("Optimize the cart") finished a turn. It said:
             The cart is ready.
         Its pages still open in the window: https://unscentedco.com/cart (tab ses_01M48PS7HWJZEM6M3D3PA0CS8Z), a blank page (tab ses_01M48PS7HWJZEM6M3D3PA0CS90, handed to it).
       Nobody typed anything; this note is why you are awake.
@@ -148,7 +152,7 @@ describe("taskEventModelNote", () => {
             "Checking whether the shell exposes worker cleanup",
           ],
           summary: "Checking whether the shell exposes worker cleanup",
-          taskId: TASK_ID,
+          sessionId: TASK_ID,
           title: "Audit execution environment changes",
           tokens: 3_271_239,
         },
@@ -158,8 +162,8 @@ describe("taskEventModelNote", () => {
       "
       <instrument-system-note>
       A task you created is taking a while:
-      - 2026-09-08-find-the-vault ("Audit execution environment changes") is still working (7 minutes of work, 3271K tokens so far, 90% of them cached reads). Its steps this turn, latest last: "Scoping commits without running runtime tests", "Tracing runtime commits, entry points, and policy", "Checking whether the shell exposes worker cleanup".
-        Its folder /tasks/2026-09-08-find-the-vault holds so far: work/ at least 100,000 files.
+      - ses_01K4M7V0A7T2B9S6QH4Z3X1C5D ("Audit execution environment changes") is still working (7 minutes of work, 3271K tokens so far, 90% of them cached reads). Its steps this turn, latest last: "Scoping commits without running runtime tests", "Tracing runtime commits, entry points, and policy", "Checking whether the shell exposes worker cleanup".
+        Its folder /tasks/ses_01K4M7V0A7T2B9S6QH4Z3X1C5D holds so far: work/ at least 100,000 files.
       Nothing has gone wrong that anyone has said; this is the clock. Nobody typed anything; this note is why you are awake.
       </instrument-system-note>"
     `);
@@ -171,7 +175,7 @@ describe("taskEventModelNote", () => {
         {
           status: "overdue",
           summary: "Reading the sandbox environment factory",
-          taskId: TASK_ID,
+          sessionId: TASK_ID,
           title: "Audit",
         },
       ],
@@ -192,7 +196,7 @@ describe("taskEventModelNote", () => {
             "working 6m · last tool call 5m 40s ago · writing for 5m 35s: ~4.1K tokens, no tool call",
           status: "overdue",
           steps: ["bash: Searching pnpm source"],
-          taskId: TASK_ID,
+          sessionId: TASK_ID,
           title: "Find the pnpm store",
         },
       ],
@@ -201,7 +205,7 @@ describe("taskEventModelNote", () => {
       "
       <instrument-system-note>
       A task you created is taking a while:
-      - 2026-09-08-find-the-vault ("Find the pnpm store") is still working (6 minutes of work). Its steps this turn, latest last: "bash: Searching pnpm source".
+      - ses_01K4M7V0A7T2B9S6QH4Z3X1C5D ("Find the pnpm store") is still working (6 minutes of work). Its steps this turn, latest last: "bash: Searching pnpm source".
         Now: working 6m · last tool call 5m 40s ago · writing for 5m 35s: ~4.1K tokens, no tool call.
       Nothing has gone wrong that anyone has said; this is the clock. Nobody typed anything; this note is why you are awake.
       </instrument-system-note>"
@@ -219,7 +223,7 @@ describe("taskEventModelNote", () => {
           ],
           status: "done",
           summary: "I found both hotels but cannot book without a choice.",
-          taskId: TASK_ID,
+          sessionId: TASK_ID,
           title: "Book the Lisbon hotel",
           tokens: 61_000,
         },
@@ -229,7 +233,7 @@ describe("taskEventModelNote", () => {
       "
       <instrument-system-note>
       A task you created is waiting on you:
-      - 2026-09-08-find-the-vault ("Book the Lisbon hotel") is waiting on you (2 minutes of work, 61K tokens so far). It said:
+      - ses_01K4M7V0A7T2B9S6QH4Z3X1C5D ("Book the Lisbon hotel") is waiting on you (2 minutes of work, 61K tokens so far). It said:
             I found both hotels but cannot book without a choice.
         It cannot go on without:
             folder: Desktop, to save the confirmation there

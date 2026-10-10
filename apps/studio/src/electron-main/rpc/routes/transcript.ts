@@ -25,7 +25,7 @@ import { z } from "zod";
  * reach us.
  */
 
-async function buildSystemFrontMatter(taskId: ChatId) {
+async function buildSystemFrontMatter(chatId: ChatId) {
   const platform = os.platform();
   const osName =
     platform === "darwin"
@@ -38,7 +38,7 @@ async function buildSystemFrontMatter(taskId: ChatId) {
 
   const env = app.isPackaged ? "production" : "development";
 
-  const taskDirPath = chatDir(taskId);
+  const taskDirPath = chatDir(chatId);
   const settings = await getChatSettings(taskDirPath);
 
   return {

@@ -15,14 +15,14 @@ import { unique } from "radashi";
  * a larger one is asked for, so a transcript that grows does not blink.
  */
 export function useHostPaths(
-  taskId: ChatId | undefined,
+  chatId: ChatId | undefined,
   filePaths: readonly string[],
 ): Record<string, null | string> {
   const asked = unique(filePaths).toSorted();
   const { data } = useQuery(
-    taskId !== undefined && asked.length > 0
-      ? rpcClient.workspace.task.files.hostPaths.queryOptions({
-          input: { filePaths: asked, taskId },
+    chatId !== undefined && asked.length > 0
+      ? rpcClient.workspace.chats.files.hostPaths.queryOptions({
+          input: { filePaths: asked, chatId },
           placeholderData: keepPreviousData,
           refetchOnWindowFocus: false,
         })

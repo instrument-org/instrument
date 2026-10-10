@@ -22,7 +22,7 @@ import { chatDir } from "./record-folders";
 const id = ChatIdSchema.parse("interrupted-tool-calls-test");
 const createdAt = new Date("2025-01-01T00:00:00.000Z");
 
-let taskId: ChatId;
+let chatId: ChatId;
 let root: string;
 let sessionId: StoreId.Session;
 
@@ -30,8 +30,8 @@ beforeEach(async () => {
   root = await fs.mkdtemp(
     path.join(os.tmpdir(), "interrupted-tool-calls-test-"),
   );
-  taskId = createMockChatConfigForDir(path.join(root, TASKS_DIR_NAME, id));
-  await fs.mkdir(chatDir(taskId), { recursive: true });
+  chatId = createMockChatConfigForDir(path.join(root, TASKS_DIR_NAME, id));
+  await fs.mkdir(chatDir(chatId), { recursive: true });
   sessionId = StoreId.newSessionId();
 });
 
@@ -63,7 +63,7 @@ async function endProcess() {
 
 async function readParts(message: SessionMessage.Type) {
   return unwrap(
-    await Store.getParts(message.metadata.sessionId, message.id, taskId),
+    await Store.getParts(message.metadata.sessionId, message.id, chatId),
   );
 }
 
@@ -72,9 +72,9 @@ async function seed(
   message: SessionMessage.Type,
   parts: SessionMessagePart.Type[],
 ) {
-  unwrap(await Store.saveMessage(message, taskId));
+  unwrap(await Store.saveMessage(message, chatId));
   for (const part of parts) {
-    unwrap(await Store.savePart(part, taskId, { publish: false }));
+    unwrap(await Store.savePart(part, chatId, { publish: false }));
   }
 }
 
@@ -222,7 +222,7 @@ describe("sweepInterruptedToolCalls", () => {
     await endProcess();
 
     // The first thing this process does with the task.
-    const storage = unwrap(await getSessionsStoreStorage(taskId));
+    const storage = unwrap(await getSessionsStoreStorage(chatId));
     const keys = unwrap(await storage.getKeys("parts"));
     const stored = unwrap(await storage.getItemRaw<string>(keys[0] ?? ""));
 

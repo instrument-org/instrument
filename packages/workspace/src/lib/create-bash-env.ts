@@ -341,7 +341,7 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
  */
 interface CustomCommandContext {
   layout: WorkspaceFsLayout;
-  taskId: ChatId;
+  chatId: ChatId;
 }
 
 interface CustomCommandDef {
@@ -387,13 +387,13 @@ const SESSION_COMMAND_DEFS: {
 const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
     description: FFMPEG_COMMAND.description,
-    factory: ({ layout, taskId }) => createFfmpegCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createFfmpegCommand(chatId, layout),
     listInDescription: true,
     name: FFMPEG_COMMAND.name,
   },
   {
     description: FFPROBE_COMMAND.description,
-    factory: ({ layout, taskId }) => createFfprobeCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createFfprobeCommand(chatId, layout),
     listInDescription: true,
     name: FFPROBE_COMMAND.name,
   },
@@ -411,14 +411,14 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   },
   {
     description: NODE_COMMAND.description,
-    factory: ({ layout, taskId }) => createNodeCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createNodeCommand(chatId, layout),
     listInDescription: true,
     name: NODE_COMMAND.name,
   },
   {
     available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
     description: CALENDAR_COMMAND.description,
-    factory: ({ taskId }) => createMacHelperCommand(CALENDAR_COMMAND, taskId),
+    factory: ({ chatId }) => createMacHelperCommand(CALENDAR_COMMAND, chatId),
     listInDescription: true,
     name: CALENDAR_COMMAND.name,
     platforms: ["darwin"],
@@ -426,21 +426,21 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
     available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
     description: CONTACTS_COMMAND.description,
-    factory: ({ taskId }) => createMacHelperCommand(CONTACTS_COMMAND, taskId),
+    factory: ({ chatId }) => createMacHelperCommand(CONTACTS_COMMAND, chatId),
     listInDescription: true,
     name: CONTACTS_COMMAND.name,
     platforms: ["darwin"],
   },
   {
     description: SHORTCUTS_COMMAND.description,
-    factory: ({ layout, taskId }) => createShortcutsCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createShortcutsCommand(chatId, layout),
     listInDescription: true,
     name: SHORTCUTS_COMMAND.name,
     platforms: ["darwin"],
   },
   {
     description: OSASCRIPT_COMMAND.description,
-    factory: ({ layout, taskId }) => createOsascriptCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createOsascriptCommand(chatId, layout),
     listInDescription: true,
     name: OSASCRIPT_COMMAND.name,
     platforms: ["darwin"],
@@ -454,62 +454,62 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
 
   {
     description: PNPM_COMMAND.description,
-    factory: ({ layout, taskId }) => createPnpmCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createPnpmCommand(chatId, layout),
     listInDescription: true,
     name: PNPM_COMMAND.name,
   },
   {
     description: NPX_COMMAND.description,
-    factory: ({ layout, taskId }) => createNpxCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createNpxCommand(chatId, layout),
     listInDescription: false,
     name: NPX_COMMAND.name,
   },
   {
     description: PNPX_COMMAND.description,
-    factory: ({ layout, taskId }) => createPnpxCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createPnpxCommand(chatId, layout),
     listInDescription: false,
     name: PNPX_COMMAND.name,
   },
   {
     description: PNX_COMMAND.description,
-    factory: ({ layout, taskId }) => createPnxCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createPnxCommand(chatId, layout),
     listInDescription: true,
     name: PNX_COMMAND.name,
   },
   {
     description: UV_COMMAND.description,
-    factory: ({ layout, taskId }) => createUvCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createUvCommand(chatId, layout),
     listInDescription: true,
     name: UV_COMMAND.name,
   },
   {
     description: PYTHON_COMMAND.description,
-    factory: ({ layout, taskId }) => createPythonCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createPythonCommand(chatId, layout),
     listInDescription: true,
     name: PYTHON_COMMAND.name,
   },
   {
     description: PYTHON3_COMMAND.description,
-    factory: ({ layout, taskId }) => createPython3Command(taskId, layout),
+    factory: ({ layout, chatId }) => createPython3Command(chatId, layout),
     // Alias of python; omitted from the description to avoid redundancy.
     listInDescription: false,
     name: PYTHON3_COMMAND.name,
   },
   {
     description: PYTHON_NATIVE_COMMAND.description,
-    factory: ({ layout, taskId }) => createPythonNativeCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createPythonNativeCommand(chatId, layout),
     listInDescription: true,
     name: PYTHON_NATIVE_COMMAND.name,
   },
   {
     description: PIP_COMMAND.description,
-    factory: ({ layout, taskId }) => createPipCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createPipCommand(chatId, layout),
     listInDescription: true,
     name: PIP_COMMAND.name,
   },
   {
     description: PIP3_COMMAND.description,
-    factory: ({ layout, taskId }) => createPip3Command(taskId, layout),
+    factory: ({ layout, chatId }) => createPip3Command(chatId, layout),
     // Alias of pip; omitted from the description to avoid redundancy.
     listInDescription: false,
     name: PIP3_COMMAND.name,
@@ -546,7 +546,7 @@ export interface BashEnvOptions {
   callPartId?: StoreId.Part;
   remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }
 
 /** What callers of `createBashEnv` get, wherever the interpreter runs. */
@@ -660,14 +660,14 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
 export function shellLayout({
   attachedFolders,
   chat,
-  taskId,
-}: Pick<BashEnvOptions, "attachedFolders" | "chat" | "taskId">) {
+  chatId,
+}: Pick<BashEnvOptions, "attachedFolders" | "chat" | "chatId">) {
   return buildWorkspaceFsLayout({
     // The chat authors apps, so it gets their folders; a task reaches
     // the apps it was handed through the command alone.
     apps: chat !== undefined,
     attachedFolders,
-    taskHostRoot: workDir(taskId),
+    taskHostRoot: workDir(chatId),
   });
 }
 
@@ -692,8 +692,8 @@ export async function createLocalBashEnv({
   remainingYieldMs = () => Number.POSITIVE_INFINITY,
   sessionId,
   standIn,
-  taskId,
-  invokeTool = appToolHook(taskId),
+  chatId,
+  invokeTool = appToolHook(chatId),
 }: BashEnvOptions & {
   /**
    * Answers a `js-exec` script's `tools.<slug>.<tool>()`; the bash worker
@@ -703,7 +703,7 @@ export async function createLocalBashEnv({
   /** Replaces each of `MAIN_THREAD_COMMANDS`; set by the bash worker. */
   standIn?: (name: string) => Command;
 }) {
-  const layout = shellLayout({ attachedFolders, chat, taskId });
+  const layout = shellLayout({ attachedFolders, chat, chatId });
   // The working folder walks at the sandbox's budget, and the home folder at
   // its own, smaller one.
   const homeWalkBudget = createWalkBudget(HOME_MAX_TRAVERSAL);
@@ -722,7 +722,7 @@ export async function createLocalBashEnv({
   // thing on the user's screen is the chat's `tab`: a task's reply is read
   // by the chat, and a pane of the task's own has nobody looking.
   const nativeCommands = customCommandDefs().map((cmd) =>
-    cmd.factory({ layout, taskId }),
+    cmd.factory({ layout, chatId }),
   );
   const nativeCommandNames = customCommandDefs().map((cmd) => cmd.name);
   const specializedCommands = [
@@ -739,7 +739,7 @@ export async function createLocalBashEnv({
           createTabCommand({ chatId: chat.id }),
         ]
       : []),
-    createAppCommand({ taskId }),
+    createAppCommand({ chatId }),
     ...nativeCommands,
   ];
   const specializedCommandNames = [
@@ -760,12 +760,12 @@ export async function createLocalBashEnv({
     customCommands: [
       // The tabs the chat or task holds, opening its own behind whatever the
       // user has up.
-      createAgentBrowserCommand({ sessionId, taskId }),
+      createAgentBrowserCommand({ sessionId, chatId }),
       // Registered after the bundled commands, which is what lets it shadow
       // just-bash's own `rg`. The built-in is a TypeScript reimplementation;
       // the real binary is orders of magnitude faster on a large tree and does
       // not carry its `(?i)` and root-level-glob bugs.
-      createRgCommand({ layout, taskId }),
+      createRgCommand({ layout, chatId }),
       createDuCommand({ layout }),
       ...specializedCommands,
       // After the bundled commands so these shadow just-bash's own `kill` and

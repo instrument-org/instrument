@@ -16,8 +16,8 @@ describe("runUvCommand", () => {
       stdout: "",
     } as never);
 
-    const taskId = createMockChatConfig(ChatIdSchema.parse("missing-uv"));
-    const result = await runUvCommand({ args: ["--version"], taskId });
+    const chatId = createMockChatConfig(ChatIdSchema.parse("missing-uv"));
+    const result = await runUvCommand({ args: ["--version"], chatId });
 
     expect(result).toMatchObject({
       combined: "Command failed with ENOENT: uv --version",

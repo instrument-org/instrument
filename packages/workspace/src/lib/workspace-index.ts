@@ -95,13 +95,13 @@ export function indexedByStore<Value>(table: IndexTable) {
     (derived) => derived.keep,
   );
   const read =
-    (taskId: ChatId, key: string, compute: () => Promise<Derived<Value>>) =>
+    (chatId: ChatId, key: string, compute: () => Promise<Derived<Value>>) =>
     async (): Promise<Derived<Value>> => {
       // Taken before the value is computed: a write that lands meanwhile
       // leaves a stamp older than the store, which only costs a recompute.
       const stamp = await stampOf([
-        sessionStorePath(chatDir(taskId)),
-        `${sessionStorePath(chatDir(taskId))}-wal`,
+        sessionStorePath(chatDir(chatId)),
+        `${sessionStorePath(chatDir(chatId))}-wal`,
       ]);
       if (stamp !== undefined) {
         const row = guarded(() => openIndex()?.read.get(table)?.get(key));
@@ -127,11 +127,11 @@ export function indexedByStore<Value>(table: IndexTable) {
     };
   /** `key` tells apart values derived from one store: a task's, by its session. */
   return async (
-    taskId: ChatId,
+    chatId: ChatId,
     compute: () => Promise<Derived<Value>>,
-    key: string = taskId,
+    key: string = chatId,
   ): Promise<Value> => {
-    const derived = await memory(taskId, read(taskId, key, compute), key);
+    const derived = await memory(chatId, read(chatId, key, compute), key);
     return derived.value;
   };
 }

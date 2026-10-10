@@ -132,7 +132,7 @@ function findChat(
 async function lines(chat: Chat): Promise<string[]> {
   const messages = await Store.getMessagesWithParts({
     sessionId: chat.sessionId,
-    taskId: chat.id,
+    chatId: chat.id,
   });
   if (messages.isErr()) {
     return [];

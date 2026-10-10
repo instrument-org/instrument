@@ -112,12 +112,8 @@ function handedOverAMessage(kinds?: MessageKind[]): Assertion {
 async function messageFiles(
   context: Context,
 ): Promise<{ file: string; message: MessageDraft }[]> {
-  const children = await context.childSessions();
-  const roots = [
-    os.homedir(),
-    chatDir(context.taskId),
-    ...children.map((child) => chatDir(child.taskId)),
-  ];
+  // The chat's tasks work in its folder.
+  const roots = [os.homedir(), chatDir(context.chatId)];
   const found = new Map<string, MessageDraft>();
   for (const root of roots) {
     if (!fs.existsSync(root)) {

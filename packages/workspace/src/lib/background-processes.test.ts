@@ -16,7 +16,7 @@ import {
   killBackgroundProcess,
   killSessionBackgroundProcesses,
   listBackgroundProcesses,
-  listTaskBackgroundProcesses,
+  listChatBackgroundProcesses,
   MAX_RUNNING_BACKGROUND_PROCESSES,
   nextStatus,
   promoteBackgroundProcess,
@@ -99,17 +99,17 @@ function controllableRun({
  * from what is on disk, so every run would start further along than the last.
  */
 function makeOwner(name: string) {
-  const taskId = ChatIdSchema.parse(
+  const chatId = ChatIdSchema.parse(
     `01k${name
       .replaceAll(/[^a-z0-9]/g, "")
       .padEnd(23, "0")
       .slice(0, 23)}`,
   );
-  createMockChatConfig(taskId);
-  rmSync(chatDir(taskId), { force: true, recursive: true });
+  createMockChatConfig(chatId);
+  rmSync(chatDir(chatId), { force: true, recursive: true });
   const sessionId = StoreId.newSessionId();
   usedSessionIds.push(sessionId);
-  return { sessionId, taskId };
+  return { sessionId, chatId };
 }
 
 function promote(
@@ -127,7 +127,7 @@ function promote(
     command,
     explanation: options?.explanation,
     run: controllable.run,
-    taskId: owner.taskId,
+    chatId: owner.chatId,
     ...(options?.layout ? { layout: options.layout } : {}),
   });
   const promoted = promoteBackgroundProcess({ handle, ...owner });
@@ -295,10 +295,10 @@ describe("background processes", () => {
     // A regular file where the log directory belongs, so creating it fails the
     // way a permission or layout problem on the real disk would.
     const toolOutput = absolutePathJoin(
-      chatDir(owner.taskId),
+      chatDir(owner.chatId),
       TASK_FOLDER_NAMES.toolOutput,
     );
-    await fs.mkdir(chatDir(owner.taskId), { recursive: true });
+    await fs.mkdir(chatDir(owner.chatId), { recursive: true });
     await fs.writeFile(toolOutput, "not a directory", "utf8");
 
     const controllable = controllableRun();
@@ -307,7 +307,7 @@ describe("background processes", () => {
       callerSignal: caller.signal,
       command: "node work/server.js",
       run: controllable.run,
-      taskId: owner.taskId,
+      chatId: owner.chatId,
     });
     const promoted = promoteBackgroundProcess({ handle, ...owner });
 
@@ -332,7 +332,7 @@ describe("background processes", () => {
     });
 
     expect(info.explanation).toBe("Starting the Node static server");
-    expect(listTaskBackgroundProcesses(owner.taskId)[0]?.explanation).toBe(
+    expect(listChatBackgroundProcesses(owner.chatId)[0]?.explanation).toBe(
       "Starting the Node static server",
     );
   });
@@ -373,7 +373,7 @@ describe("background processes", () => {
       callerSignal: new AbortController().signal,
       command: "node work/one-too-many.js",
       run: controllableRun().run,
-      taskId: owner.taskId,
+      chatId: owner.chatId,
     });
     const promoted = promoteBackgroundProcess({ handle, ...owner });
 
@@ -387,13 +387,13 @@ describe("background processes", () => {
   });
 
   it("applies the running cap across sessions in one task", () => {
-    const taskId = makeOwner("sharedcap").taskId;
+    const chatId = makeOwner("sharedcap").chatId;
     const sessions = Array.from(
       { length: MAX_RUNNING_BACKGROUND_PROCESSES },
       () => {
         const sessionId = StoreId.newSessionId();
         usedSessionIds.push(sessionId);
-        return { sessionId, taskId };
+        return { sessionId, chatId };
       },
     );
     for (const [index, session] of sessions.entries()) {
@@ -402,14 +402,14 @@ describe("background processes", () => {
 
     const extraSession = {
       sessionId: StoreId.newSessionId(),
-      taskId,
+      chatId,
     };
     usedSessionIds.push(extraSession.sessionId);
     const handle = startBackgroundRun({
       callerSignal: new AbortController().signal,
       command: "node work/one-too-many.js",
       run: controllableRun().run,
-      taskId,
+      chatId,
     });
 
     const promoted = promoteBackgroundProcess({ handle, ...extraSession });
@@ -423,20 +423,20 @@ describe("background processes", () => {
   });
 
   it("names only the processes the refused session can kill", () => {
-    const taskId = makeOwner("mixedcap").taskId;
+    const chatId = makeOwner("mixedcap").chatId;
     const others = Array.from(
       { length: MAX_RUNNING_BACKGROUND_PROCESSES - 1 },
       () => {
         const sessionId = StoreId.newSessionId();
         usedSessionIds.push(sessionId);
-        return { sessionId, taskId };
+        return { sessionId, chatId };
       },
     );
     for (const [index, session] of others.entries()) {
       promote(session, `node work/theirs-${index}.js`);
     }
 
-    const owner = { sessionId: StoreId.newSessionId(), taskId };
+    const owner = { sessionId: StoreId.newSessionId(), chatId };
     usedSessionIds.push(owner.sessionId);
     promote(owner, "node work/mine.js");
 
@@ -444,7 +444,7 @@ describe("background processes", () => {
       callerSignal: new AbortController().signal,
       command: "node work/one-too-many.js",
       run: controllableRun().run,
-      taskId,
+      chatId,
     });
     const promoted = promoteBackgroundProcess({ handle, ...owner });
 
@@ -462,7 +462,7 @@ describe("background processes", () => {
       callerSignal: controller.signal,
       command: "node work/server.js",
       run: controllable.run,
-      taskId: owner.taskId,
+      chatId: owner.chatId,
     });
     const promoted = promoteBackgroundProcess({ handle, ...owner });
     if ("error" in promoted) {
@@ -490,7 +490,7 @@ describe("background processes", () => {
       callerSignal: controller.signal,
       command: "node work/short.js",
       run: controllable.run,
-      taskId: owner.taskId,
+      chatId: owner.chatId,
     });
 
     controller.abort();
@@ -510,7 +510,7 @@ describe("background processes", () => {
     });
 
     const log = await fs.readFile(
-      absolutePathJoin(chatDir(owner.taskId), info.logFilePath),
+      absolutePathJoin(chatDir(owner.chatId), info.logFilePath),
       "utf8",
     );
     expect(log).toMatchInlineSnapshot(`
@@ -616,7 +616,7 @@ describe("background processes", () => {
           // Never settles; the assertion is on the signal it was handed.
         });
       },
-      taskId: owner.taskId,
+      chatId: owner.chatId,
     });
 
     // What a real shim reads: execa rejects an already-aborted cancelSignal,
@@ -668,7 +668,7 @@ describe("background processes", () => {
     };
     const layout = buildWorkspaceFsLayout({
       attachedFolders,
-      taskHostRoot: chatDir(owner.taskId),
+      taskHostRoot: chatDir(owner.chatId),
     });
     const { controllable, info } = promote(
       owner,
@@ -714,9 +714,9 @@ describe("background processes", () => {
   });
 
   it("isolates one session's processes from another in the same task", async () => {
-    const taskId = makeOwner("shared").taskId;
-    const sessionA = { sessionId: StoreId.newSessionId(), taskId };
-    const sessionB = { sessionId: StoreId.newSessionId(), taskId };
+    const chatId = makeOwner("shared").chatId;
+    const sessionA = { sessionId: StoreId.newSessionId(), chatId };
+    const sessionB = { sessionId: StoreId.newSessionId(), chatId };
     usedSessionIds.push(sessionA.sessionId, sessionB.sessionId);
 
     const a = promote(sessionA, "node work/a.js");
@@ -756,14 +756,14 @@ describe("background processes", () => {
       from: chat.sessionId,
       ids: [handed.info.id],
       to: fork.sessionId,
-      toTaskId: fork.taskId,
+      toChatId: fork.chatId,
     });
 
     expect(listBackgroundProcesses(chat.sessionId).map(({ id }) => id)).toEqual(
       [kept.info.id],
     );
     expect(
-      listTaskBackgroundProcesses(fork.taskId).map(({ id }) => id),
+      listChatBackgroundProcesses(fork.chatId).map(({ id }) => id),
     ).toEqual([handed.info.id]);
     const forkRead = await readBackgroundProcess({
       id: handed.info.id,
@@ -788,7 +788,7 @@ describe("background processes", () => {
             };
           });
         }),
-      taskId: owner.taskId,
+      chatId: owner.chatId,
     });
     const first = promoteBackgroundProcess({ handle, ...owner });
     if ("error" in first) {
@@ -801,7 +801,7 @@ describe("background processes", () => {
       callerSignal: new AbortController().signal,
       command: "node work/second.js",
       run: controllableRun().run,
-      taskId: owner.taskId,
+      chatId: owner.chatId,
     });
     const promoted = promoteBackgroundProcess({
       handle: second,
@@ -818,9 +818,9 @@ describe("background processes", () => {
   });
 
   it("does not reuse an id after a session's processes are killed", async () => {
-    const taskId = makeOwner("reuse").taskId;
-    const first = { sessionId: StoreId.newSessionId(), taskId };
-    const second = { sessionId: StoreId.newSessionId(), taskId };
+    const chatId = makeOwner("reuse").chatId;
+    const first = { sessionId: StoreId.newSessionId(), chatId };
+    const second = { sessionId: StoreId.newSessionId(), chatId };
     usedSessionIds.push(first.sessionId, second.sessionId);
 
     const before = promote(first, "node work/a.js");
@@ -838,7 +838,7 @@ describe("background processes", () => {
     // The counter lives in memory, so a task it has never seen is the state every
     // task is in right after the app restarts.
     const outputDir = absolutePathJoin(
-      chatDir(owner.taskId),
+      chatDir(owner.chatId),
       TASK_FOLDER_NAMES.toolOutput,
     );
     await fs.mkdir(outputDir, { recursive: true });
@@ -912,7 +912,7 @@ describe("background processes", () => {
     const handle = startBackgroundRun({
       callerSignal: new AbortController().signal,
       command: "node work/stubborn.js",
-      taskId: owner.taskId,
+      chatId: owner.chatId,
       // Never settles, even once aborted: stands in for a child that ignores
       // SIGTERM and outlives execa's escalation.
       run: () =>
@@ -960,7 +960,7 @@ describe("background processes", () => {
         new Promise<{ exitCode: number; output: string }>(() => {
           // Never settles, even once aborted, so the kill cannot confirm it.
         }),
-      taskId: owner.taskId,
+      chatId: owner.chatId,
     });
     const promoted = promoteBackgroundProcess({ handle, ...owner });
     if ("error" in promoted) {

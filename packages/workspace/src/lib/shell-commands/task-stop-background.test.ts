@@ -112,12 +112,12 @@ function leave(command: string) {
           reject(new Error("aborted"));
         });
       }),
-    taskId: CHAT_ID,
+    chatId: CHAT_ID,
   });
   const promoted = promoteBackgroundProcess({
     handle,
     sessionId: CHILD_ID,
-    taskId: CHAT_ID,
+    chatId: CHAT_ID,
   });
   if ("error" in promoted) {
     throw new Error(promoted.error);

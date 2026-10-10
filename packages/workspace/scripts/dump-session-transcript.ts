@@ -55,9 +55,9 @@ setWorkspaceConfig(
     tasksDir: path.join(rootDir, TASKS_DIR_NAME),
   }),
 );
-const taskId = id;
+const chatId = id;
 
-const sessionsResult = await Store.getSessions(taskId, {
+const sessionsResult = await Store.getSessions(chatId, {
   includeChildSessions: true,
 });
 if (sessionsResult.isErr()) {
@@ -95,7 +95,7 @@ const markdown = await getSessionMarkdown({
     transcriptGeneratedAt: new Date().toISOString(),
   },
   sessionId: rootSession.id,
-  taskId,
+  chatId,
 });
 
 if (outputPath) {

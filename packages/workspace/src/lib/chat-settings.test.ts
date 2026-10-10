@@ -13,14 +13,14 @@ import { getChatSettings, updateChatSettings } from "./chat-settings";
 
 const id = ChatIdSchema.parse("task-settings-test");
 
-let taskId: ChatId;
+let chatId: ChatId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "task-settings-test-"));
   const tasksDir = path.join(root, TASKS_DIR_NAME);
-  taskId = createMockChatConfigForDir(path.join(tasksDir, id));
-  await fs.mkdir(chatDir(taskId), { recursive: true });
+  chatId = createMockChatConfigForDir(path.join(tasksDir, id));
+  await fs.mkdir(chatDir(chatId), { recursive: true });
 });
 
 afterEach(async () => {
@@ -29,17 +29,17 @@ afterEach(async () => {
 
 describe("updateChatSettings", () => {
   it("keeps both fields when two updates overlap", async () => {
-    await updateChatSettings(taskId, { name: "Untitled task" });
+    await updateChatSettings(chatId, { name: "Untitled task" });
 
     // The real pair: a generated title landing while a sent message records
     // activity. Read-modify-write without a queue loses whichever wrote first.
     const activityAt = new Date("2026-02-03T04:05:06.000Z");
     await Promise.all([
-      updateChatSettings(taskId, { name: "Generated title" }),
-      updateChatSettings(taskId, { lastActivityAt: activityAt }),
+      updateChatSettings(chatId, { name: "Generated title" }),
+      updateChatSettings(chatId, { lastActivityAt: activityAt }),
     ]);
 
-    const settings = await getChatSettings(chatDir(taskId));
+    const settings = await getChatSettings(chatDir(chatId));
 
     expect(settings?.name).toBe("Generated title");
     expect(settings?.lastActivityAt).toEqual(activityAt);
@@ -47,11 +47,11 @@ describe("updateChatSettings", () => {
 
   it("applies overlapping updates to the same field in call order", async () => {
     const [first, second] = await Promise.all([
-      updateChatSettings(taskId, { name: "First" }),
-      updateChatSettings(taskId, { name: "Second" }),
+      updateChatSettings(chatId, { name: "First" }),
+      updateChatSettings(chatId, { name: "Second" }),
     ]);
 
-    const settings = await getChatSettings(chatDir(taskId));
+    const settings = await getChatSettings(chatDir(chatId));
 
     expect(first.isOk()).toBe(true);
     expect(second.isOk()).toBe(true);
@@ -60,29 +60,29 @@ describe("updateChatSettings", () => {
 
   // The two views share one file, so each has to leave the other's half alone.
   it("leaves the state alone", async () => {
-    await setChatState(chatDir(taskId), { selectedModelURI: "half typed" });
+    await setChatState(chatDir(chatId), { selectedModelURI: "half typed" });
 
-    await updateChatSettings(taskId, { name: "Renamed" });
+    await updateChatSettings(chatId, { name: "Renamed" });
 
-    const state = await getChatState(chatDir(taskId));
-    const settings = await getChatSettings(chatDir(taskId));
+    const state = await getChatState(chatDir(chatId));
+    const settings = await getChatSettings(chatDir(chatId));
 
     expect(state.selectedModelURI).toBe("half typed");
     expect(settings?.name).toBe("Renamed");
   });
 
   it("survives a state half the schema cannot read", async () => {
-    await updateChatSettings(taskId, { name: "Named" });
+    await updateChatSettings(chatId, { name: "Named" });
     await fs.writeFile(
-      path.join(getTaskPrivateDir(chatDir(taskId)), "settings.json"),
+      path.join(getTaskPrivateDir(chatDir(chatId)), "settings.json"),
       JSON.stringify({ name: "Named", state: { attachedFolders: "broken" } }),
       "utf8",
     );
 
-    const stamped = await updateChatSettings(taskId, {
+    const stamped = await updateChatSettings(chatId, {
       lastActivityAt: new Date("2026-02-03T04:05:06.000Z"),
     });
-    const settings = await getChatSettings(chatDir(taskId));
+    const settings = await getChatSettings(chatDir(chatId));
 
     expect(stamped.isOk()).toBe(true);
     expect(settings?.name).toBe("Named");
@@ -97,17 +97,17 @@ describe("updateChatSettings", () => {
   // newer build -- or a hand edit -- left one bad field in.
   it("keeps the fields a malformed sibling makes unreadable", async () => {
     const recordPath = path.join(
-      getTaskPrivateDir(chatDir(taskId)),
+      getTaskPrivateDir(chatDir(chatId)),
       "settings.json",
     );
-    await fs.mkdir(getTaskPrivateDir(chatDir(taskId)), { recursive: true });
+    await fs.mkdir(getTaskPrivateDir(chatDir(chatId)), { recursive: true });
     await fs.writeFile(
       recordPath,
       JSON.stringify({ name: "Keep this name", reasoningEffort: "loud" }),
       "utf8",
     );
 
-    const stamped = await updateChatSettings(taskId, {
+    const stamped = await updateChatSettings(chatId, {
       lastActivityAt: new Date("2026-02-03T04:05:06.000Z"),
     });
 

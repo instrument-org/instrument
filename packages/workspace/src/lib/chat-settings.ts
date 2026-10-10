@@ -34,8 +34,8 @@ export async function getChatSettings(
  * filesystem fallback, which is worse but not wrong, and losing the turn over
  * it would be.
  */
-export async function recordChatActivity(taskId: ChatId): Promise<void> {
-  const result = await updateChatSettings(taskId, {
+export async function recordChatActivity(chatId: ChatId): Promise<void> {
+  const result = await updateChatSettings(chatId, {
     lastActivityAt: getCurrentDate(),
   });
   if (result.isErr()) {
@@ -44,7 +44,7 @@ export async function recordChatActivity(taskId: ChatId): Promise<void> {
 }
 
 export function updateChatSettings(
-  taskId: ChatId,
+  chatId: ChatId,
   updates: ChatSettingsUpdate,
 ) {
   return safeTry(async function* () {
@@ -59,7 +59,7 @@ export function updateChatSettings(
     }
 
     yield* ResultAsync.fromPromise(
-      writeMergedSettings(taskId, parseResult.data),
+      writeMergedSettings(chatId, parseResult.data),
       (error) =>
         new TypedError.FileSystem(
           `Failed to write task settings: ${error instanceof Error ? error.message : String(error)}`,
@@ -72,10 +72,10 @@ export function updateChatSettings(
 }
 
 async function writeMergedSettings(
-  taskId: ChatId,
+  chatId: ChatId,
   updates: ChatSettingsUpdate,
 ): Promise<void> {
-  await updateChatRecord(chatDir(taskId), "settings", (record) => {
+  await updateChatRecord(chatDir(chatId), "settings", (record) => {
     // Raw first so `state` and anything this build cannot read survive the
     // write, then the parsed settings so their defaults apply, then the change.
     //

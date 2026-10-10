@@ -44,7 +44,7 @@ interface DestroyAndCloseInput {
   browser: BrowserConfig;
   destroyedExternallyTargets: Set<BrowserTargetId>;
   knownTargets: Map<StoreId.Session, BrowserTargetId | undefined>;
-  taskId: ChatId;
+  chatId: ChatId;
 }
 
 interface TaskBrowserContext {
@@ -411,7 +411,7 @@ export const taskBrowserMachine = setup({
           browser: context.browser,
           destroyedExternallyTargets: context.destroyedExternallyTargets,
           knownTargets: context.knownTargets,
-          taskId: context.id,
+          chatId: context.id,
         }),
         onDone: { target: "Stopped" },
         onError: { target: "Stopped" },

@@ -450,7 +450,7 @@ const FILE_OPERAND_SUBCOMMANDS = new Set([
  */
 export async function resolveAgentBrowserPathArgs(
   args: string[],
-  taskId: ChatId,
+  chatId: ChatId,
   ctx: {
     cwd: string;
     fs: {
@@ -468,13 +468,13 @@ export async function resolveAgentBrowserPathArgs(
   const resolved = args.map((arg, index) =>
     textOperands.has(index)
       ? arg
-      : (resolvePathArgs([arg], taskId, ctx)[0] ?? arg),
+      : (resolvePathArgs([arg], chatId, ctx)[0] ?? arg),
   );
   if (subcommand !== "upload") {
     return { args: resolved };
   }
 
-  const layout = buildWorkspaceFsLayout({ taskHostRoot: workDir(taskId) });
+  const layout = buildWorkspaceFsLayout({ taskHostRoot: workDir(chatId) });
   for (const { index, value } of subArgs.slice(2)) {
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, value);
 
@@ -498,7 +498,7 @@ export async function resolveAgentBrowserPathArgs(
       return { error: `Upload file not found: "${value}".` };
     }
 
-    resolved[index] = resolveNativeHostPath(workDir(taskId), virtualPath);
+    resolved[index] = resolveNativeHostPath(workDir(chatId), virtualPath);
   }
   return { args: resolved };
 }
@@ -620,16 +620,16 @@ interface SpawnAgentBrowserOptions {
 
 export function createAgentBrowserCommand({
   sessionId,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   return defineCommand(AGENT_BROWSER_COMMAND.name, async (args, ctx) => {
     const workspaceConfig = getWorkspaceConfig();
     const serverPort = getWorkspaceServerPort();
 
-    if (!isChatId(taskId)) {
+    if (!isChatId(chatId)) {
       return {
         exitCode: 1,
         stderr: "agent-browser: browser is only available in task contexts.\n",
@@ -637,7 +637,7 @@ export function createAgentBrowserCommand({
       };
     }
 
-    const id = taskId;
+    const id = chatId;
 
     const isWorkspaceHelp = args.some((a) => a === "--help" || a === "-h");
     if (isWorkspaceHelp) {
@@ -717,9 +717,9 @@ export function createAgentBrowserCommand({
       };
     }
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
-    const layout = await taskFsLayout(taskId);
+    const layout = await taskFsLayout(chatId);
     const navigationArgs = await rewriteNavigationArgToFileUrl(
       strippedArgs,
       layout,
@@ -734,7 +734,7 @@ export function createAgentBrowserCommand({
     }
     const bridgedArgs = await resolveAgentBrowserPathArgs(
       navigationArgs.args,
-      taskId,
+      chatId,
       ctx,
     );
     if ("error" in bridgedArgs) {
@@ -751,7 +751,7 @@ export function createAgentBrowserCommand({
     // download path); this is a per-task sink for anything that falls back
     // to $HOME, and holds the managed config and provider plugin script.
     const homeDir = absolutePathJoin(
-      chatDir(taskId),
+      chatDir(chatId),
       TASK_FOLDER_NAMES.private,
       "agent-browser-home",
     );
@@ -841,7 +841,7 @@ export function createAgentBrowserCommand({
       await fs.mkdir(externalTmpDir, { recursive: true });
     }
 
-    const screenshotDir = getScreenshotsDir(workDir(taskId));
+    const screenshotDir = getScreenshotsDir(workDir(chatId));
     // Managed browser only. The CLI applies this at launch as a browser-wide
     // `Browser.setDownloadBehavior`, so on an external browser it would capture
     // every download that browser makes for the rest of its life: ones the user
@@ -850,7 +850,7 @@ export function createAgentBrowserCommand({
     // user expects them, and get reported as the agent's own file changes.
     const downloadPath = isExternal
       ? undefined
-      : getDownloadsDir(workDir(taskId));
+      : getDownloadsDir(workDir(chatId));
     const agentBrowserStateDir = screenshotDir;
     // Relative so agent-browser outputs screenshot paths the agent sees as
     // relative to its cwd (e.g. "work/screenshots/shot.png"), not host
@@ -929,7 +929,7 @@ export function createAgentBrowserCommand({
       });
     } finally {
       if (drivesHeldTabs) {
-        await recordHeldTabHosts({ sessionId, taskId });
+        await recordHeldTabHosts({ sessionId, chatId });
       }
     }
 
@@ -1054,18 +1054,18 @@ export function isExternalLocalLaunch(args: string[]): boolean {
  */
 async function recordHeldTabHosts({
   sessionId,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   const { browser } = getWorkspaceConfig();
   try {
-    const urls = (await heldTabs(taskId, sessionId)).flatMap((tab) => {
+    const urls = (await heldTabs(chatId, sessionId)).flatMap((tab) => {
       const url = browser.getTargetUrl(tab.id);
       return url ? [url] : [];
     });
-    const result = await recordVisitedHosts({ sessionId, taskId, urls });
+    const result = await recordVisitedHosts({ sessionId, chatId, urls });
     if (result.isErr()) {
       getWorkspaceConfig().captureException(result.error);
     }

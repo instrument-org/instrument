@@ -12,20 +12,20 @@ import { toast } from "sonner";
  * asking a process that is already being stopped to stop.
  */
 export function useStopBackgroundProcess(
-  taskId: ChatId | undefined,
+  chatId: ChatId | undefined,
   /** One session's of the record alone: the chat's own, or a task's. */
   sessionId?: StoreId.Session,
 ) {
   const owner = sessionId ? { sessionId } : {};
   const { isPending: isStopping, mutate: stopOne } = useMutation(
-    rpcClient.workspace.task.backgroundProcesses.stop.mutationOptions({
+    rpcClient.workspace.chats.backgroundProcesses.stop.mutationOptions({
       onError: (error) => {
         toast.error("Couldn't stop it", { description: error.message });
       },
     }),
   );
   const { isPending: isStoppingAll, mutate: stopEvery } = useMutation(
-    rpcClient.workspace.task.backgroundProcesses.stopAll.mutationOptions({
+    rpcClient.workspace.chats.backgroundProcesses.stopAll.mutationOptions({
       onError: (error) => {
         toast.error("Couldn't stop them", { description: error.message });
       },
@@ -35,13 +35,13 @@ export function useStopBackgroundProcess(
   return {
     busy: isStopping || isStoppingAll,
     stop: (processId: string) => {
-      if (taskId) {
-        stopOne({ id: taskId, processId, ...owner });
+      if (chatId) {
+        stopOne({ id: chatId, processId, ...owner });
       }
     },
     stopAll: () => {
-      if (taskId) {
-        stopEvery({ id: taskId, ...owner });
+      if (chatId) {
+        stopEvery({ id: chatId, ...owner });
       }
     },
   };

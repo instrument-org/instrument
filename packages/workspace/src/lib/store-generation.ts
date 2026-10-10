@@ -32,11 +32,11 @@ export function cacheByStoreGeneration<Value>(
   >();
   /** `key` tells apart values derived from one store, one per session say. */
   return (
-    taskId: ChatId,
+    chatId: ChatId,
     compute: () => Promise<Value>,
-    key: string = taskId,
+    key: string = chatId,
   ): Promise<Value> => {
-    const generation = storeGeneration(taskId);
+    const generation = storeGeneration(chatId);
     const known = entries.get(key);
     if (known?.generation === generation) {
       return known.value;
@@ -49,7 +49,7 @@ export function cacheByStoreGeneration<Value>(
       }
     };
     void value.then((settled) => {
-      if (storeGeneration(taskId) !== generation || !keepWhen(settled)) {
+      if (storeGeneration(chatId) !== generation || !keepWhen(settled)) {
         forget();
       }
     }, forget);

@@ -54,7 +54,7 @@ export function ChildTranscript({
 }) {
   // The chat's record, which the task runs in: its folder, model and apps.
   const record = useQuery(
-    rpcClient.workspace.task.live.byId.experimental_liveOptions({
+    rpcClient.workspace.chats.live.info.experimental_liveOptions({
       input: { id: chat },
     }),
   );
@@ -66,8 +66,8 @@ export function ChildTranscript({
 
   const openFile = useOpenFileNamedByTask(chat);
 
-  const task = record.data;
-  if (!task || !messages.data) {
+  const chatInfo = record.data;
+  if (!chatInfo || !messages.data) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-5" />
@@ -76,7 +76,7 @@ export function ChildTranscript({
   }
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <TaskBrief task={task} taskSession={sessionId} />
+      <TaskBrief chatInfo={chatInfo} taskSession={sessionId} />
       <MessageScrollerProvider
         autoScroll={isWorking}
         defaultScrollPosition="end"
@@ -93,7 +93,7 @@ export function ChildTranscript({
             <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
               {/* Names the task and session for the links inside, so a page
                   the task names offers its browser as well as the user's. */}
-              <TaskSessionProvider sessionId={sessionId} taskId={task.id}>
+              <TaskSessionProvider sessionId={sessionId} chatId={chatInfo.id}>
                 {/* Task paths are placed on the computer through the task's own layout before navigation. */}
                 <FileOpenContext value={openFile}>
                   <ChatStream
@@ -103,7 +103,7 @@ export function ChildTranscript({
                     onContinue={noop}
                     onRetry={noop}
                     renderAsItems
-                    task={task}
+                    chatInfo={chatInfo}
                   />
                 </FileOpenContext>
               </TaskSessionProvider>
@@ -177,18 +177,20 @@ function Chip({
  * own catalog default, so the chip resolves it the same way the request does
  * rather than reading as though nothing were set.
  */
-function EffortChip({ task }: { task: ChatInfo }) {
+function EffortChip({ chatInfo }: { chatInfo: ChatInfo }) {
   const models = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
   const state = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({ input: { id: task.id } }),
+    rpcClient.workspace.chats.state.get.queryOptions({
+      input: { id: chatInfo.id },
+    }),
   );
   const model = models.data?.models.find(
     (entry) => entry.uri === state.data?.selectedModelURI,
   );
   const fromModel = model ? catalogEffort(model) : undefined;
-  const effort = task.reasoningEffort ?? fromModel;
+  const effort = chatInfo.reasoningEffort ?? fromModel;
   if (!effort) {
     return (
       <Chip label="Effort" title="This task uses the model’s default effort.">
@@ -200,11 +202,11 @@ function EffortChip({ task }: { task: ChatInfo }) {
     <Chip
       label="Effort"
       title={
-        task.reasoningEffort
+        chatInfo.reasoningEffort
           ? "The level this task was created with"
           : "No level chosen; this model reasons by default"
       }
-      {...(task.reasoningEffort ? {} : { note: "model default" })}
+      {...(chatInfo.reasoningEffort ? {} : { note: "model default" })}
     >
       {effort}
     </Chip>
@@ -242,16 +244,16 @@ function HeldTabChip({ sessionId }: { sessionId: string }) {
  * value on hover.
  */
 function TaskBrief({
-  task,
+  chatInfo,
   taskSession,
 }: {
-  task: ChatInfo;
-  /** The task's session, in the chat's record `task` is. */
+  chatInfo: ChatInfo;
+  /** The task's session, in the chat's store. */
   taskSession: StoreId.Session;
 }) {
-  const taskId = task.id;
+  const chatId = chatInfo.id;
   const state = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({ input: { id: taskId } }),
+    rpcClient.workspace.chats.state.get.queryOptions({ input: { id: chatId } }),
   );
   // The workspace folder is every task's, so only the ones its chat was
   // handed besides are worth a chip.
@@ -269,9 +271,9 @@ function TaskBrief({
         className="flex h-6 items-center rounded-md bg-foreground/5 px-1.5"
         title="The model the task runs on"
       >
-        <ModelPreview id={taskId} />
+        <ModelPreview id={chatId} />
       </span>
-      <EffortChip task={task} />
+      <EffortChip chatInfo={chatInfo} />
       {folders.map((folder) => (
         <span
           className="flex h-6 max-w-64 items-center gap-1.5 rounded-md bg-foreground/5 px-1.5"
@@ -285,7 +287,7 @@ function TaskBrief({
           </span>
         </span>
       ))}
-      <AppsChip apps={task.apps} />
+      <AppsChip apps={chatInfo.apps} />
       {heldTabs.map((sessionId) => (
         <HeldTabChip key={sessionId} sessionId={sessionId} />
       ))}
@@ -303,16 +305,16 @@ function TaskBrief({
  * task's own layout before a tab is asked for it. A path the task cannot
  * reach opens nothing, and says so.
  */
-function useOpenFileNamedByTask(taskId: ChatInfo["id"]) {
+function useOpenFileNamedByTask(chatId: ChatInfo["id"]) {
   const { openScreen } = useWindow();
   return (filePath: string, options?: OpenOptions) => {
     const isFolder = isFolderPath(filePath);
     const bare = isFolder ? filePath.slice(0, -1) : filePath;
     void (async () => {
       const [error, hostPaths] = await safe(
-        rpcClient.workspace.task.files.hostPaths.call({
+        rpcClient.workspace.chats.files.hostPaths.call({
           filePaths: [bare],
-          taskId,
+          chatId,
         }),
       );
       const hostPath = hostPaths?.[bare];

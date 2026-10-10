@@ -49,12 +49,12 @@ async function readSeededSession(seeded: SeededTask) {
     );
     return { session: loaded._unsafeUnwrap(), sessionIds: [sessionId] };
   }
-  const taskId = ChatIdSchema.parse(seeded.id);
-  const sessions = await Store.getSessions(taskId);
+  const chatId = ChatIdSchema.parse(seeded.id);
+  const sessions = await Store.getSessions(chatId);
   const sessionIds = sessions._unsafeUnwrap().map((session) => session.id);
   const loaded = await Store.getSessionWithMessagesAndParts(
     at(sessionIds, 0),
-    taskId,
+    chatId,
   );
   return { session: loaded._unsafeUnwrap(), sessionIds };
 }

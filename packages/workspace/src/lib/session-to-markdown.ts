@@ -127,18 +127,18 @@ export async function getSessionMarkdown({
   frontMatter,
   includeContextMessages = true,
   sessionId,
-  taskId,
+  chatId,
 }: {
   frontMatter?: Record<string, unknown>;
   includeContextMessages?: boolean;
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<string> {
-  const result = await Store.getSessionWithMessagesAndParts(sessionId, taskId);
+  const result = await Store.getSessionWithMessagesAndParts(sessionId, chatId);
   if (result.isErr()) {
     throw new Error(`Session ${sessionId} not found`);
   }
-  const settings = await getChatSettings(chatDir(taskId));
+  const settings = await getChatSettings(chatDir(chatId));
 
   return sessionToMarkdown(result.value, {
     frontMatter,

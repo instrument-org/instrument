@@ -77,7 +77,7 @@ export async function askWindow({
  * launch. A tab the window no longer has stays out: it was closed.
  */
 export async function liveHeldTabs(
-  taskId: ChatId,
+  chatId: ChatId,
   heldTabs: HeldTab[],
 ): Promise<HeldTab[]> {
   const { browser } = getWorkspaceConfig();
@@ -93,8 +93,8 @@ export async function liveHeldTabs(
     }
     const answer = await askWindow({
       action: { kind: "restore", tabId: decoded.sessionId },
-      askedBy: taskId,
-      group: resolveChat(taskId),
+      askedBy: chatId,
+      group: resolveChat(chatId),
     });
     if (answer?.tabId === undefined) {
       continue;

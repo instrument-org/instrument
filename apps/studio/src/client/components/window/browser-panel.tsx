@@ -105,7 +105,7 @@ export function BrowserPanel({
   restoreUrl,
   sessionId,
   sliding,
-  taskId,
+  chatId,
 }: {
   active: boolean;
   /**
@@ -158,9 +158,9 @@ export function BrowserPanel({
   // The pane is sliding open or shut, so the slot is moving under a guest that
   // only follows it while something is watching. See useBrowserSlot.
   sliding?: boolean;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
-  const targetId = encodeBrowserTargetId(taskId, sessionId);
+  const targetId = encodeBrowserTargetId(chatId, sessionId);
   const inputRef = useRef<HTMLInputElement>(null);
   const isVisible = useIsTaskPageVisible();
   const [draftUrl, setDraftUrl] = useState("");
@@ -268,13 +268,13 @@ export function BrowserPanel({
     }
     autoOpenedRef.current.add(targetId);
     openBrowser({
-      id: taskId,
+      id: chatId,
       sessionId,
       ...(restoreUrl && restoreUrl !== "about:blank" ? { restoreUrl } : {}),
     });
     // Once per target: the address is only where a blank guest goes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, openBrowser, sessionId, sliding, targetId, taskId]);
+  }, [active, openBrowser, sessionId, sliding, targetId, chatId]);
 
   // Track main-frame load failures so we can show a light error state.
   const guest = useGuest(active ? targetId : null);
@@ -845,7 +845,7 @@ export function BrowserPanel({
               <Button
                 onClick={() => {
                   openBrowser({
-                    id: taskId,
+                    id: chatId,
                     sessionId,
                   });
                 }}
@@ -859,7 +859,7 @@ export function BrowserPanel({
             <Button
               onClick={() => {
                 openBrowser({
-                  id: taskId,
+                  id: chatId,
                   sessionId,
                 });
               }}

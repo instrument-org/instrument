@@ -130,7 +130,7 @@ export const WebFetch = setupTool({
 
     This is a lightweight, read-only fetch of the page's server-returned HTML, far faster and cheaper than driving a browser, so prefer it whenever you only need to read a page. It does NOT run JavaScript, log in, or interact with the page. Use the browser instead for client-rendered apps, pages behind a login, anything needing clicks/forms/scrolling, visual verification, or sites that block simple fetches. It also does not read binary files: for a PDF or office document, download it into the task folder (\`curl -L -o\`) and use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to read it.
   `,
-  async execute({ input, partId, signal, taskId }) {
+  async execute({ input, partId, signal, chatId }) {
     const parsedUrl = parseHttpUrl(input.url);
     if (!parsedUrl) {
       return ok({
@@ -158,7 +158,7 @@ export const WebFetch = setupTool({
           path.posix.join(TASK_FOLDER_NAMES.toolOutput, `${partId}.txt`),
         );
         const absoluteSpillPath = absolutePathJoin(
-          workDir(taskId),
+          workDir(chatId),
           spillFilePath,
         );
         await fs.mkdir(path.dirname(absoluteSpillPath), { recursive: true });

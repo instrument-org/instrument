@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { ChatIdSchema } from "../../schemas/chat-id";
+import { StoreId } from "../../schemas/store-id";
 import { replacesPendingEvent } from "./wake-event";
 
-const taskId = ChatIdSchema.parse("task");
+const sessionId = StoreId.newSessionId();
 const event = (status: "done" | "error" | "overdue") => ({
   status,
-  taskId,
+  sessionId,
   title: "Task",
 });
 

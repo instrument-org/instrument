@@ -31,7 +31,7 @@ const attachFolder = base
     const attached = await attachFolderToTask({
       access: "read-write",
       path: input.path,
-      taskId: input.id,
+      chatId: input.id,
     });
     // Named the way the agent reaches it, beside the folders a chat reaches
     // without holding.
@@ -41,7 +41,7 @@ const attachFolder = base
     return reached ?? attached;
   });
 
-export const taskState = {
+export const chatState = {
   attachFolder,
   get,
 };

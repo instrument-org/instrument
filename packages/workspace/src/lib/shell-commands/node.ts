@@ -29,7 +29,7 @@ const BLOCKED_FLAGS = new Set(["--interactive", "-i"]);
 const BLOCKED_FLAG_PREFIXES = ["--inspect", "--debug", "--watch"];
 
 function execNode(
-  taskId: ChatId,
+  chatId: ChatId,
   args: string[],
   signal?: AbortSignal,
   cwd?: AbsolutePath,
@@ -38,7 +38,7 @@ function execNode(
 ) {
   return execShim(process.execPath, args, {
     cancelSignal: signal,
-    cwd: cwd ?? workDir(taskId),
+    cwd: cwd ?? workDir(chatId),
     env: {
       ...getWorkspaceConfig().nodeExecEnv,
       ...env,
@@ -82,9 +82,9 @@ const SANDBOXED_ALTERNATIVE = {
   alternative: `Run it with \`js-exec\` instead, which reads attached folders directly, if the code imports no package.`,
 };
 
-export function createNodeCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
+export function createNodeCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
   return defineCommand(NODE_COMMAND.name, async (args, ctx) => {
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const stdinProgram = latin1FromBytes(ctx.stdin);
 
     if (args.length === 0 && !stdinProgram) {
@@ -115,7 +115,7 @@ export function createNodeCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
 
     if (isVersion) {
       const execResult = await execNode(
-        taskId,
+        chatId,
         ["--version"],
         ctx.signal,
         taskCwd,
@@ -146,7 +146,7 @@ export function createNodeCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
     // silently changing what the script does (a dropped `--env-file` left the
     // script running against the wrong environment, exit code 0).
     const nodeFlags = unknownFlags.map((flag) =>
-      bridgeFlagValuePath(flag, taskId, taskCwd, (p) =>
+      bridgeFlagValuePath(flag, chatId, taskCwd, (p) =>
         ctx.fs.resolvePath(ctx.cwd, p),
       ),
     );
@@ -169,7 +169,7 @@ export function createNodeCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
     if (evalCode !== undefined) {
       const bridged = bridgeInlineCodePaths(
         evalCode,
-        taskId,
+        chatId,
         taskCwd,
         SANDBOXED_ALTERNATIVE,
       );
@@ -177,7 +177,7 @@ export function createNodeCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
         return { exitCode: 1, stderr: bridged.error, stdout: "" };
       }
       const execResult = await execNode(
-        taskId,
+        chatId,
         [...nodeFlags, wantsPrint ? "-p" : "-e", bridged.code],
         ctx.signal,
         taskCwd,
@@ -201,7 +201,7 @@ export function createNodeCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
       if (stdinProgram) {
         const bridged = bridgeInlineCodePaths(
           stdinProgram,
-          taskId,
+          chatId,
           taskCwd,
           SANDBOXED_ALTERNATIVE,
         );
@@ -209,7 +209,7 @@ export function createNodeCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
           return { exitCode: 1, stderr: bridged.error, stdout: "" };
         }
         const execResult = await execNode(
-          taskId,
+          chatId,
           nodeFlags,
           ctx.signal,
           taskCwd,
@@ -234,7 +234,7 @@ export function createNodeCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
     const fileAndArgs = extractFileAndScriptArgs(
       positionals,
       args,
-      taskId,
+      chatId,
       taskCwd,
       (p) => ctx.fs.resolvePath(ctx.cwd, p),
     );
@@ -259,7 +259,7 @@ export function createNodeCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
     }
 
     const execResult = await execNode(
-      taskId,
+      chatId,
       [...nodeFlags, filePath, ...scriptArgs],
       ctx.signal,
       taskCwd,

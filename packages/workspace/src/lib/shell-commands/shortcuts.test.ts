@@ -18,8 +18,8 @@ const ctx = createCommandContext({
 });
 
 describe("shortcuts", () => {
-  const taskId = createMockChatConfig(ChatIdSchema.parse("shortcuts-test"));
-  const command = createShortcutsCommand(taskId, taskLayout(taskId));
+  const chatId = createMockChatConfig(ChatIdSchema.parse("shortcuts-test"));
+  const command = createShortcutsCommand(chatId, taskLayout(chatId));
 
   afterEach(() => {
     vi.resetAllMocks();
@@ -50,7 +50,7 @@ describe("shortcuts", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       "/usr/bin/shortcuts",
-      ["run", "Resize", "-o", path.join(chatDir(taskId), "out.png")],
+      ["run", "Resize", "-o", path.join(chatDir(chatId), "out.png")],
       expect.anything(),
     );
   });

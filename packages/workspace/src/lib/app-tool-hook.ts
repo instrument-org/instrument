@@ -17,7 +17,7 @@ export type AppToolInvoker = (
  * The hook for a task's shell: `tools.<slug>.<tool>(args)` calls that app's
  * MCP tool through the same checks `app call` makes for this task.
  */
-export function appToolHook(taskId: ChatId): AppToolInvoker {
+export function appToolHook(chatId: ChatId): AppToolInvoker {
   return (path, argsJson, signal) =>
-    invokeAppTool({ taskId }, path, argsJson, signal);
+    invokeAppTool({ chatId }, path, argsJson, signal);
 }

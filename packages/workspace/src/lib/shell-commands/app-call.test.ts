@@ -29,7 +29,7 @@ vi.mock("../apps/preflight", () => ({
   packageExists: vi.fn(() => Promise.resolve("unknown")),
 }));
 
-const taskId = ChatIdSchema.parse("app-call-task");
+const chatId = ChatIdSchema.parse("app-call-task");
 const slug = "tracker";
 let server: http.Server;
 let fs = new InMemoryFs();
@@ -90,7 +90,7 @@ beforeAll(async () => {
     throw new Error("Expected a TCP address");
   }
 
-  knowChat(taskId);
+  knowChat(chatId);
   const created = await app(
     "new",
     slug,
@@ -120,13 +120,13 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  knowChat(taskId);
+  knowChat(chatId);
   fs = new InMemoryFs();
   await fs.mkdir("/task", { recursive: true });
 });
 
 async function app(...args: string[]) {
-  return createAppCommand({ taskId }).execute(
+  return createAppCommand({ chatId }).execute(
     args,
     createCommandContext({
       cwd: "/task",
@@ -179,10 +179,10 @@ describe("app call --out", () => {
 
 describe("app call in a pipeline", () => {
   it("hands jq the service's JSON", async () => {
-    await mkdir(chatDir(taskId), { recursive: true });
+    await mkdir(chatDir(chatId), { recursive: true });
     const bash = await createLocalBashEnv({
       sessionId: StoreId.newSessionId(),
-      taskId,
+      chatId,
     });
     const result = await bash.exec(`app call ${slug} json_text | jq 'length'`);
     expect(result.stderr).toBe("");
@@ -191,11 +191,11 @@ describe("app call in a pipeline", () => {
 });
 
 describe("js-exec tools.*", () => {
-  async function script(code: string, id = taskId) {
+  async function script(code: string, id = chatId) {
     await mkdir(chatDir(id), { recursive: true });
     const bash = await createLocalBashEnv({
       sessionId: StoreId.newSessionId(),
-      taskId: id,
+      chatId: id,
     });
     return bash.exec(`js-exec <<'EOF'
 ${code}

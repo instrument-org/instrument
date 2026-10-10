@@ -8,7 +8,7 @@ import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { Favicon } from "../favicon";
 import { StopProcessButton } from "../task/stop-process-button";
-import { createdTaskId } from "../window/created-task";
+import { createdTaskSession } from "../window/created-task";
 import { CreatedTaskCard } from "../window/created-task-card";
 import { BashCommandSection } from "./bash-command-section";
 import { isFailedBashExitCode } from "./bash-exit-status";
@@ -73,9 +73,9 @@ export function BrowserChip({ info }: { info: BrowserInfo }) {
 export function ToolBash({ part }: { part: BashPart }) {
   const { backgroundProcess, isStreaming } = useToolCallSession();
   const now = useNow(ELAPSED_TICK_MS);
-  const { taskId } = useTaskSession();
+  const { chatId } = useTaskSession();
   const { busy, stop } = useStopBackgroundProcess(
-    taskId,
+    chatId,
     part.metadata.sessionId,
   );
   const command = part.input?.command ?? "";
@@ -105,7 +105,7 @@ export function ToolBash({ part }: { part: BashPart }) {
   // The chat's `task new`: the task it made follows the command as a
   // card, so the work handed off stays in view here rather than only in a
   // note when it ends.
-  const createdTask = createdTaskId(part);
+  const createdTask = createdTaskSession(part);
 
   return (
     <ToolCard>
@@ -177,7 +177,7 @@ export function ToolBash({ part }: { part: BashPart }) {
       )}
       {createdTask ? (
         <div className="px-3 pb-3">
-          <CreatedTaskCard taskId={createdTask} />
+          <CreatedTaskCard chatId={createdTask} />
         </div>
       ) : null}
     </ToolCard>

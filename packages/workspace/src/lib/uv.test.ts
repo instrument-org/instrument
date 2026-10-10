@@ -6,11 +6,11 @@ import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { taskVenvDir, taskVenvPython, uvSubprocessEnv } from "./uv";
 
 const isWindows = process.platform === "win32";
-const taskId = createMockChatConfig(ChatIdSchema.parse("test"));
+const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
 
 describe("taskVenvDir", () => {
   it("resolves to .venv at the task root", () => {
-    expect(taskVenvDir(taskId).replaceAll("\\", "/")).toBe(
+    expect(taskVenvDir(chatId).replaceAll("\\", "/")).toBe(
       "/tmp/workspace/chats/test/.venv",
     );
   });
@@ -21,12 +21,12 @@ describe("taskVenvPython", () => {
     const expected = isWindows
       ? "chats/test/.venv/Scripts/python.exe"
       : "chats/test/.venv/bin/python";
-    expect(taskVenvPython(taskId).replaceAll("\\", "/")).toContain(expected);
+    expect(taskVenvPython(chatId).replaceAll("\\", "/")).toContain(expected);
   });
 });
 
 describe("uvSubprocessEnv", () => {
-  const env = uvSubprocessEnv({ taskId });
+  const env = uvSubprocessEnv({ chatId });
 
   it("isolates uv's cache/python/tool dirs under uvDataDir", () => {
     expect(env.UV_CACHE_DIR).toBe(path.join("/tmp/workspace/uv-data", "cache"));
@@ -43,7 +43,7 @@ describe("uvSubprocessEnv", () => {
   });
 
   it("points VIRTUAL_ENV at the task venv", () => {
-    expect(env.VIRTUAL_ENV).toBe(taskVenvDir(taskId));
+    expect(env.VIRTUAL_ENV).toBe(taskVenvDir(chatId));
   });
 
   it("redirects model/data caches to app-managed dirs without overriding HOME", () => {

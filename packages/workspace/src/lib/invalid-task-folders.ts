@@ -113,12 +113,12 @@ export async function trashInvalidTaskFolder(
     return err(new TypedError.Parse("Folder is outside the tasks directory"));
   }
 
-  const taskId = ChatIdSchema.safeParse(name);
+  const chatId = ChatIdSchema.safeParse(name);
   return ResultAsync.fromPromise(
     (async () => {
       // A store something opened is closed before its folder goes.
-      if (taskId.success) {
-        const disposed = await disposeSessionsStoreStorage(taskId.data);
+      if (chatId.success) {
+        const disposed = await disposeSessionsStoreStorage(chatId.data);
         if (disposed.isErr()) {
           throw disposed.error;
         }

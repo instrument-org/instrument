@@ -1,7 +1,7 @@
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { isTaskSession } from "./chat/children";
-import { resolveChat, sessionOfChat } from "./record-folders";
+import { sessionOfChat } from "./record-folders";
 
 /**
  * The session a request names to the provider, which is what its prompt
@@ -12,14 +12,13 @@ import { resolveChat, sessionOfChat } from "./record-folders";
  */
 export function cacheSessionFor({
   sessionId,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }): StoreId.Session {
-  if (!isTaskSession(taskId, sessionId)) {
+  if (!isTaskSession(chatId, sessionId)) {
     return sessionId;
   }
-  const chatId = resolveChat(taskId);
-  return (chatId && sessionOfChat(chatId)) ?? sessionId;
+  return sessionOfChat(chatId) ?? sessionId;
 }

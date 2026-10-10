@@ -41,7 +41,7 @@ const list = base
   .output(ComputerFolderSchema)
   .handler(async ({ errors, input }) => {
     try {
-      return await listComputerFolder({ path: input.path, taskId: input.id });
+      return await listComputerFolder({ path: input.path, chatId: input.id });
     } catch (error) {
       if (errorCode(error) === "ENOTDIR") {
         throw errors.NOT_A_FOLDER({ data: { path: input.path } });

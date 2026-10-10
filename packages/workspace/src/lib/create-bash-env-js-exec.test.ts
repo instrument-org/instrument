@@ -24,7 +24,7 @@ const sessionId = StoreId.newSessionId();
 let tmpDir: string;
 let attachedDir: string;
 let taskRoot: string;
-let taskId: ChatId;
+let chatId: ChatId;
 
 async function run(
   command: string,
@@ -42,7 +42,7 @@ async function run(
       },
     },
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(60_000) });
 }
@@ -60,7 +60,7 @@ beforeEach(async () => {
     path.join(attachedDir, "big.bin"),
     Buffer.alloc(9 * 1024 * 1024, 65),
   );
-  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
 });
 
 afterEach(async () => {

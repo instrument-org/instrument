@@ -11,10 +11,10 @@ export interface Agent<T extends AgentTools> {
   agentTools: T;
   getMessages: ({
     sessionId,
-    taskId,
+    chatId,
   }: {
     sessionId: StoreId.Session;
-    taskId: ChatId;
+    chatId: ChatId;
   }) =>
     | Promise<SessionMessage.ContextWithParts[]>
     | SessionMessage.ContextWithParts[];
@@ -25,12 +25,12 @@ export interface Agent<T extends AgentTools> {
     parentMessageId: StoreId.Message;
     sessionId: StoreId.Session;
     signal: AbortSignal;
-    taskId: ChatId;
+    chatId: ChatId;
   }) => Promise<void>;
   onStart: (options: {
     sessionId: StoreId.Session;
     signal: AbortSignal;
-    taskId: ChatId;
+    chatId: ChatId;
   }) => Promise<void>;
   shouldContinue: (options: {
     messages: SessionMessage.WithParts[];

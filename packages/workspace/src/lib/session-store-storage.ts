@@ -98,20 +98,20 @@ export function disposeSessionsStoreStorage(id: ChatId) {
   return closingResult(closing);
 }
 
-export function getSessionsStoreStorage(taskId: ChatId) {
+export function getSessionsStoreStorage(chatId: ChatId) {
   return ResultAsync.fromPromise(
-    fs.access(chatDir(taskId)),
+    fs.access(chatDir(chatId)),
     (error) =>
-      new TypedError.NotFound(`Folder ${chatDir(taskId)} does not exist`, {
+      new TypedError.NotFound(`Folder ${chatDir(chatId)} does not exist`, {
         cause: error,
       }),
   ).andThen(() => {
     // Opened here rather than on first use, so a database that cannot be
     // opened or migrated fails the caller that asked for it.
-    if (STORES.get(taskId)?.phase === "open" && !DELETING.has(taskId)) {
-      return ok(handleFor(taskId));
+    if (STORES.get(chatId)?.phase === "open" && !DELETING.has(chatId)) {
+      return ok(handleFor(chatId));
     }
-    return openStore(taskId).map(() => handleFor(taskId));
+    return openStore(chatId).map(() => handleFor(chatId));
   });
 }
 
@@ -148,8 +148,8 @@ async function close(open: OpenStore) {
 function closeIdle() {
   sweepTimer = undefined;
   const now = Date.now();
-  const open = [...STORES].flatMap(([taskId, entry]) =>
-    entry.phase === "open" ? [{ store: entry.store, taskId }] : [],
+  const open = [...STORES].flatMap(([chatId, entry]) =>
+    entry.phase === "open" ? [{ store: entry.store, chatId }] : [],
   );
   const idle = open
     .filter(
@@ -157,16 +157,16 @@ function closeIdle() {
     )
     .sort((a, b) => a.store.lastUsed - b.store.lastUsed);
   let excess = open.length - MAX_IDLE_OPEN;
-  for (const { store, taskId } of idle) {
+  for (const { store, chatId } of idle) {
     if (excess <= 0) {
       break;
     }
-    STORES.set(taskId, { phase: "closed" });
+    STORES.set(chatId, { phase: "closed" });
     excess -= 1;
     void close(store).catch((error: unknown) => {
       if (hasWorkspaceConfig()) {
         getWorkspaceConfig().captureException(
-          new TypedError.Storage(`Failed to close the database of ${taskId}`, {
+          new TypedError.Storage(`Failed to close the database of ${chatId}`, {
             cause: error,
           }),
         );
@@ -206,8 +206,8 @@ function openCount() {
 }
 
 /** The storage a task's callers hold: each call reaches its open database, reopening it if it was closed for being idle. */
-function handleFor(taskId: ChatId): WrappedStorage {
-  const known = HANDLES.get(taskId);
+function handleFor(chatId: ChatId): WrappedStorage {
+  const known = HANDLES.get(chatId);
   if (known) {
     return known;
   }
@@ -220,13 +220,13 @@ function handleFor(taskId: ChatId): WrappedStorage {
       // Counted before the write lands as well as after, so a reader that
       // overlaps the write sees a change either way.
       if (written !== undefined) {
-        bumpStoreGeneration(taskId);
+        bumpStoreGeneration(chatId);
       }
       const settle = () => {
         open.inFlight -= 1;
         open.lastUsed = Date.now();
         if (written !== undefined) {
-          bumpStoreGeneration(taskId);
+          bumpStoreGeneration(chatId);
         }
         if (open.inFlight === 0) {
           open.onIdle?.();
@@ -237,20 +237,20 @@ function handleFor(taskId: ChatId): WrappedStorage {
           settle();
           // Once the write has landed, so whoever re-reads on it reads it.
           if (written !== undefined) {
-            recordChanged(taskId, storeKeyChange(written));
+            recordChanged(chatId, storeKeyChange(written));
           }
         })
         .orTee(settle);
     };
     // Claimed in the same tick as the lookup, so neither the sweep nor a
     // dispose can close it between the two.
-    const entry = STORES.get(taskId);
+    const entry = STORES.get(chatId);
     if (entry?.phase === "open") {
       entry.store.inFlight += 1;
       entry.store.lastUsed = Date.now();
       return run(entry.store);
     }
-    return openStore(taskId).andThen((reopened) => {
+    return openStore(chatId).andThen((reopened) => {
       reopened.inFlight += 1;
       reopened.lastUsed = Date.now();
       return run(reopened);
@@ -258,7 +258,7 @@ function handleFor(taskId: ChatId): WrappedStorage {
   };
   const handle: WrappedStorage = {
     dispose: async () => {
-      await disposeSessionsStoreStorage(taskId);
+      await disposeSessionsStoreStorage(chatId);
     },
     getItemRaw: (key, options) =>
       use(undefined, (storage) => storage.getItemRaw(key, options)),
@@ -269,16 +269,16 @@ function handleFor(taskId: ChatId): WrappedStorage {
     setItemRaw: (key, value, options) =>
       use(key, (storage) => storage.setItemRaw(key, value, options)),
   };
-  HANDLES.set(taskId, handle);
+  HANDLES.set(chatId, handle);
   return handle;
 }
 
-function openStore(taskId: ChatId): ResultAsync<OpenStore, TypedError.Storage> {
-  const entry = STORES.get(taskId);
-  if (DELETING.has(taskId) || entry?.phase === "disposing") {
+function openStore(chatId: ChatId): ResultAsync<OpenStore, TypedError.Storage> {
+  const entry = STORES.get(chatId);
+  if (DELETING.has(chatId) || entry?.phase === "disposing") {
     return errAsync(
       new TypedError.Storage(
-        `Cannot create storage for ${taskId} while it is being deleted`,
+        `Cannot create storage for ${chatId} while it is being deleted`,
       ),
     );
   }
@@ -288,12 +288,12 @@ function openStore(taskId: ChatId): ResultAsync<OpenStore, TypedError.Storage> {
   const opening =
     entry?.phase === "opening"
       ? entry.opening
-      : startOpen(taskId, { prepared: entry?.phase === "closed" });
+      : startOpen(chatId, { prepared: entry?.phase === "closed" });
   return ResultAsync.fromPromise(opening, (error) =>
     error instanceof TypedError.Storage
       ? error
       : new TypedError.Storage(
-          `Failed to open session database at ${sessionStorePath(chatDir(taskId))}`,
+          `Failed to open session database at ${sessionStorePath(chatDir(chatId))}`,
           { cause: error },
         ),
   );
@@ -308,11 +308,11 @@ function scheduleCloseIdle() {
 }
 
 function startOpen(
-  taskId: ChatId,
+  chatId: ChatId,
   { prepared }: { prepared: boolean },
 ): Promise<OpenStore> {
   const database = createDatabase(
-    sqlite({ path: sessionStorePath(chatDir(taskId)) }),
+    sqlite({ path: sessionStorePath(chatDir(chatId)) }),
   );
 
   const storage = createStorage({
@@ -327,7 +327,7 @@ function startOpen(
     storage.getItem(`__canary__`),
     (error) =>
       new TypedError.Storage(
-        `Failed to read session database at ${sessionStorePath(chatDir(taskId))}`,
+        `Failed to read session database at ${sessionStorePath(chatDir(chatId))}`,
         { cause: error },
       ),
   )
@@ -366,7 +366,7 @@ function startOpen(
       error instanceof TypedError.Storage
         ? error
         : new TypedError.Storage(
-            `Failed to migrate session database at ${sessionStorePath(chatDir(taskId))}`,
+            `Failed to migrate session database at ${sessionStorePath(chatDir(chatId))}`,
             { cause: error },
           ),
     )
@@ -386,14 +386,14 @@ function startOpen(
     const result = await opened;
     // Kept only while this open is still the task's: a dispose that began
     // meanwhile closes it rather than leaving it open on a folder going away.
-    const current = STORES.get(taskId);
+    const current = STORES.get(chatId);
     const isCurrent = current === entry;
     if (result.isErr()) {
       if (isCurrent) {
         if (prepared) {
-          STORES.set(taskId, { phase: "closed" });
+          STORES.set(chatId, { phase: "closed" });
         } else {
-          STORES.delete(taskId);
+          STORES.delete(chatId);
         }
       }
       throw result.error;
@@ -401,14 +401,14 @@ function startOpen(
     if (!isCurrent) {
       await close(result.value);
       throw new TypedError.Storage(
-        `Cannot create storage for ${taskId} while it is being deleted`,
+        `Cannot create storage for ${chatId} while it is being deleted`,
       );
     }
-    STORES.set(taskId, { phase: "open", store: result.value });
+    STORES.set(chatId, { phase: "open", store: result.value });
     scheduleCloseIdle();
     return result.value;
   })();
   entry = { opening, phase: "opening" };
-  STORES.set(taskId, entry);
+  STORES.set(chatId, entry);
   return opening;
 }

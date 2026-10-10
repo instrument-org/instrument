@@ -63,21 +63,21 @@ describe("recordChanges", () => {
 describe("the record writer on the feed", () => {
   it("says a settings write moved the settings and a state write the state", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "record-changes-"));
-    const taskId = createMockChatConfigForDir(
+    const chatId = createMockChatConfigForDir(
       path.join(root, TASKS_DIR_NAME, "record-changes-task"),
     );
-    await fs.mkdir(chatDir(taskId), { recursive: true });
-    const changes = recordChanges(undefined, (change) => change.id === taskId);
+    await fs.mkdir(chatDir(chatId), { recursive: true });
+    const changes = recordChanges(undefined, (change) => change.id === chatId);
 
-    expect((await updateChatSettings(taskId, { name: "Named" })).isOk()).toBe(
+    expect((await updateChatSettings(chatId, { name: "Named" })).isOk()).toBe(
       true,
     );
     expect((await changes.next()).value).toEqual([
-      { id: taskId, kind: "settings" },
+      { id: chatId, kind: "settings" },
     ]);
-    await setChatState(chatDir(taskId), { selectedModelURI: undefined });
+    await setChatState(chatDir(chatId), { selectedModelURI: undefined });
     expect((await changes.next()).value).toEqual([
-      { id: taskId, kind: "state" },
+      { id: chatId, kind: "state" },
     ]);
 
     await changes.return();

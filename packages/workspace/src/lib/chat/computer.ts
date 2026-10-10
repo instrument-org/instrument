@@ -180,10 +180,10 @@ export function accessIn(
  */
 export async function listComputerFolder({
   path: input,
-  taskId,
+  chatId,
 }: {
   path: string;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<ComputerFolder> {
   const hostPath = await resolveICloudPath(expandHomePath(input), exists);
   let dirents: Dirent[];
@@ -238,7 +238,7 @@ export async function listComputerFolder({
   entries.sort(compareEntries);
 
   return {
-    access: await computerAccess(taskId, hostPath),
+    access: await computerAccess(chatId, hostPath),
     ...(appFolders?.access === "refused" ? { appFoldersLocked: true } : {}),
     display: displayHostPath(hostPath),
     entries,
@@ -345,10 +345,10 @@ function compareEntries(
  * in, and the virtual path the agent reaches it by through that grant.
  */
 async function computerAccess(
-  taskId: ChatId,
+  chatId: ChatId,
   hostPath: string,
 ): Promise<ComputerAccess | undefined> {
-  const { roots } = await chatView(taskId);
+  const { roots } = await chatView(chatId);
   return accessIn(roots, hostPath);
 }
 
@@ -466,9 +466,9 @@ async function exists(hostPath: string) {
  * attached. Beside the layout, the same mounts as host roots with the grant
  * each carries, which is what a folder's access is judged from.
  */
-async function chatView(taskId: ChatId) {
-  const taskHostRoot = chatDir(taskId);
-  const attachedFolders = await folderReach(taskId);
+async function chatView(chatId: ChatId) {
+  const taskHostRoot = chatDir(chatId);
+  const attachedFolders = await folderReach(chatId);
   const layout = buildWorkspaceFsLayout({ attachedFolders, taskHostRoot });
   return { layout, roots: reachableRoots(layout, attachedFolders) };
 }

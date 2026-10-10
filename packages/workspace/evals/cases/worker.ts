@@ -53,10 +53,10 @@ const MIN_DOCUMENT_BYTES = 4000;
  * Every file this task could have written: its own folder, and the workspace
  * folder, since a prompt naming one is answered in the other about as often.
  */
-async function deliverables(taskId: ChatId): Promise<string[]> {
+async function deliverables(chatId: ChatId): Promise<string[]> {
   const home = process.env.HOME ?? "";
   return [
-    ...(await filesUnder(chatDir(taskId))),
+    ...(await filesUnder(chatDir(chatId))),
     ...(home
       ? await filesUnder(path.join(home, "Documents", "Instrument"))
       : []),
@@ -108,8 +108,8 @@ function pass(text: string, evidence: string): AssertionResult {
 export function wroteADocument(extension: string): Assertion {
   const text = `wrote a ${extension} that is a real document`;
   return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
+    check: async ({ chatId }) => {
+      const written = await deliverables(chatId);
       const candidates = written.filter((file) =>
         file.toLowerCase().endsWith(extension),
       );
@@ -192,10 +192,10 @@ function zipMembers(archive: Buffer, matches: (name: string) => boolean) {
  * with no model near the line.
  */
 const deckWasDesigned: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text =
       "designed the deck rather than leaving it on the blank default";
-    const written = await deliverables(taskId);
+    const written = await deliverables(chatId);
     const decks = written.filter(
       (file) =>
         file.toLowerCase().endsWith(".pptx") && !file.includes("templates"),
@@ -314,8 +314,8 @@ const MIN_IMAGE_BYTES = 8000;
 function reportContains(label: string, value: number): Assertion {
   const text = `got ${label} right`;
   return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
+    check: async ({ chatId }) => {
+      const written = await deliverables(chatId);
       const readable = written.filter((file) =>
         /\.(?:md|txt|csv|html)$/i.test(file),
       );
@@ -352,8 +352,8 @@ function reportContains(label: string, value: number): Assertion {
 function wroteAnImage(): Assertion {
   const text = "wrote a PNG that is a real rendered image";
   return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
+    check: async ({ chatId }) => {
+      const written = await deliverables(chatId);
       const images = written.filter((file) =>
         file.toLowerCase().endsWith(".png"),
       );
@@ -383,9 +383,9 @@ function wroteAnImage(): Assertion {
 
 /** Something a browser would render, rather than a stub. */
 const wroteAWebPage: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text = "wrote an HTML page with its styling inside it";
-    const written = await deliverables(taskId);
+    const written = await deliverables(chatId);
     for (const file of written.filter((one) => /\.html?$/i.test(one))) {
       const body = await fs.readFile(file, "utf8").catch(() => "");
       const styled = /<style[\s>]/i.test(body) || /style="/i.test(body);
@@ -411,8 +411,8 @@ const wroteAWebPage: Assertion = {
 function documentContains(label: string, value: number): Assertion {
   const text = `got ${label} right`;
   return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
+    check: async ({ chatId }) => {
+      const written = await deliverables(chatId);
       const docs = written.filter((file) =>
         file.toLowerCase().endsWith(".docx"),
       );
@@ -472,8 +472,8 @@ function wroteSomethingToLookAt(
 ): Assertion {
   const text = `wrote a ${extension} worth opening`;
   return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
+    check: async ({ chatId }) => {
+      const written = await deliverables(chatId);
       const matches = written.filter(
         (file) =>
           file.toLowerCase().endsWith(extension) && !file.includes("templates"),
@@ -507,9 +507,9 @@ function wroteSomethingToLookAt(
  * answers this without opening the document.
  */
 const embeddedAnImage: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text = "put the chart inside the document";
-    const written = await deliverables(taskId);
+    const written = await deliverables(chatId);
     const docs = written.filter((file) => /\.(?:docx|pptx)$/i.test(file));
     for (const doc of docs) {
       const archive = await fs.readFile(doc).catch(() => null);
@@ -550,9 +550,9 @@ const embeddedAnImage: Assertion = {
  * failing side.
  */
 export const sheetRecomputes: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text = "built a workbook that recomputes when an input changes";
-    const written = await deliverables(taskId);
+    const written = await deliverables(chatId);
     for (const book of written.filter((one) => /\.xlsx$/i.test(one))) {
       const archive = await fs.readFile(book).catch(() => null);
       if (!archive) {
@@ -588,9 +588,9 @@ export const sheetRecomputes: Assertion = {
  * spreadsheet doing its job, so the evidence says which.
  */
 export const sheetHasAChart: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text = "put a chart in the workbook";
-    const written = await deliverables(taskId);
+    const written = await deliverables(chatId);
     for (const book of written.filter((one) => /\.xlsx$/i.test(one))) {
       const archive = await fs.readFile(book).catch(() => null);
       if (!archive) {
@@ -616,8 +616,8 @@ export const sheetHasAChart: Assertion = {
 function comparedEvery(names: string[]): Assertion {
   const text = `compared all ${names.length} of them`;
   return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
+    check: async ({ chatId }) => {
+      const written = await deliverables(chatId);
       for (const file of written.filter((one) =>
         /\.(?:html?|md)$/i.test(one),
       )) {
@@ -662,8 +662,8 @@ function firstNamed(window: string, names: string[]): string | undefined {
 function recommended(allowed: string[], rejected: string[]): Assertion {
   const text = `recommended one the constraints allow`;
   return {
-    check: async ({ taskId }) => {
-      const written = await deliverables(taskId);
+    check: async ({ chatId }) => {
+      const written = await deliverables(chatId);
       for (const file of written.filter((one) =>
         /\.(?:html?|md)$/i.test(one),
       )) {

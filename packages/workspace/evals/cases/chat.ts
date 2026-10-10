@@ -226,7 +226,7 @@ function landedInAppFolder(slug: string, file: string): Assertion {
  * failure the fence's paths exist to prevent.
  */
 const linkedAFileThatExists: Assertion = {
-  check: async ({ sessions, taskId }) => {
+  check: async ({ sessions, chatId }) => {
     const text = "the conversation's reply links files that exist";
     const named = filesNamedIn(assistantTexts(sessions).at(-1) ?? "");
     if (named.length === 0) {
@@ -236,7 +236,7 @@ const linkedAFileThatExists: Assertion = {
       named.map(async (name) => {
         const filePath = WorkspaceFilePathSchema.safeParse(name);
         const info = filePath.success
-          ? await getCurrentFileInfo({ filePath: filePath.data, taskId })
+          ? await getCurrentFileInfo({ filePath: filePath.data, chatId })
           : undefined;
         return { exists: info?.isOk() ?? false, name };
       }),
@@ -283,13 +283,11 @@ function wroteInto(folder: string): Assertion {
 function madeDocuments(extensions: string[]): Assertion {
   const text = `made a ${extensions.join(", ")} file`;
   return {
-    check: async ({ childSessions, taskId }) => {
-      const children = await childSessions();
-      const written = [
-        os.homedir(),
-        chatDir(taskId),
-        ...children.map((child) => chatDir(child.taskId)),
-      ].flatMap((dir) => recentFilesUnder(dir));
+    check: async ({ chatId }) => {
+      // The chat's tasks work in its folder.
+      const written = [os.homedir(), chatDir(chatId)].flatMap((dir) =>
+        recentFilesUnder(dir),
+      );
       const missing = extensions.filter(
         (extension) => !written.some((file) => file.endsWith(extension)),
       );

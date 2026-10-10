@@ -41,7 +41,7 @@ const mockImageModel: ImageModelV4 = {
 const model = createMockAIGatewayModel();
 const root = withTempDir("generate-image");
 
-let taskId: ChatId;
+let chatId: ChatId;
 let photosDir: string;
 let photos: FolderAttachment.Type;
 let attachedFolders: Record<string, FolderAttachment.Type>;
@@ -52,7 +52,7 @@ beforeEach(async () => {
   await fs.mkdir(photosDir, { recursive: true });
   await fs.mkdir(chatDir, { recursive: true });
 
-  taskId = createMockChatConfigForDir(chatDir, {
+  chatId = createMockChatConfigForDir(chatDir, {
     imageModel: mockImageModel,
     model,
   });
@@ -74,7 +74,7 @@ function makeExecuteArgs(
     input,
     model,
     signal: AbortSignal.timeout(30_000),
-    taskId,
+    chatId,
     taskState: { attachedFolders, browserTabs: [] },
   };
 }

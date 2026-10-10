@@ -19,10 +19,10 @@ const TASK_SEGMENT = "/devtools/task/";
  */
 export function cdpBridgeUrl(
   port: number,
-  taskId: string,
+  chatId: string,
   sessionId: string,
 ): string {
-  return `ws://127.0.0.1:${port}${CDP_BASE_PATH}/${CDP_BRIDGE_SECRET}${TASK_SEGMENT}${taskId}/${sessionId}`;
+  return `ws://127.0.0.1:${port}${CDP_BASE_PATH}/${CDP_BRIDGE_SECRET}${TASK_SEGMENT}${chatId}/${sessionId}`;
 }
 
 /**
@@ -33,7 +33,7 @@ export function cdpBridgeUrl(
  */
 export function parseCdpBridgePath(
   url: string | undefined,
-): { sessionId: string; taskId: string } | "refused" | undefined {
+): { sessionId: string; chatId: string } | "refused" | undefined {
   const pathname = url?.split("?")[0];
   if (!pathname?.startsWith(`${CDP_BASE_PATH}/`)) {
     return undefined;
@@ -47,11 +47,11 @@ export function parseCdpBridgePath(
   if (!after.startsWith(TASK_SEGMENT)) {
     return "refused";
   }
-  const [taskId, sessionId, ...extra] = after
+  const [chatId, sessionId, ...extra] = after
     .slice(TASK_SEGMENT.length)
     .split("/");
-  return taskId && sessionId && extra.length === 0
-    ? { sessionId, taskId }
+  return chatId && sessionId && extra.length === 0
+    ? { sessionId, chatId }
     : "refused";
 }
 

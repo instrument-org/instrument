@@ -45,7 +45,7 @@ export async function newMessage({
   prompt,
   replyTo,
   sessionId,
-  taskId,
+  chatId,
   viewing,
 }: {
   /** Places in files the user marked, with what to change at each; see the asks part. */
@@ -75,7 +75,7 @@ export async function newMessage({
   /** The earlier message this one answers; see the reply part. */
   replyTo?: SessionMessageDataPart.ReplyDataPart;
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
   /** What the sending surface had on screen; see the view-context part. */
   viewing?: SessionMessageDataPart.ViewContextDataPart;
 }) {
@@ -137,7 +137,7 @@ export async function newMessage({
 
   if (viewing) {
     parts.push({
-      data: await withTabHolders(taskId, viewing),
+      data: await withTabHolders(chatId, viewing),
       metadata: {
         createdAt,
         id: StoreId.newPartId(),
@@ -176,8 +176,8 @@ export async function newMessage({
 
   if ((files && files.length > 0) || (folders && folders.length > 0)) {
     const uploadResult = await writeUploadedAttachments({
-      dir: chatDir(taskId),
-      filesDir: workDir(taskId),
+      dir: chatDir(chatId),
+      filesDir: workDir(chatId),
       files,
       folders,
       messageId,
@@ -188,7 +188,7 @@ export async function newMessage({
       return uploadResult;
     }
 
-    parts.push(await namedByReach(taskId, uploadResult.value.part));
+    parts.push(await namedByReach(chatId, uploadResult.value.part));
   }
 
   if (chatContext) {
@@ -208,7 +208,7 @@ export async function newMessage({
     createdAt,
     messageId,
     sessionId,
-    taskId,
+    chatId,
   });
   if (backgroundProcessesPart) {
     parts.push(backgroundProcessesPart);
@@ -219,14 +219,14 @@ export async function newMessage({
   // so the open-and-closed bookkeeping of a task's browser would only tell
   // it tales about tabs it never owned. A task of the chat's, in the same
   // store, is told as a task.
-  const isChat = chatConversation(taskId, sessionId) !== undefined;
+  const isChat = chatConversation(chatId, sessionId) !== undefined;
   const browserStatusPart = isChat
     ? undefined
     : await createBrowserStatusPart({
         createdAt,
         messageId,
         sessionId,
-        taskId,
+        chatId,
       });
   if (browserStatusPart) {
     parts.push(browserStatusPart);
@@ -234,7 +234,7 @@ export async function newMessage({
 
   // The session context states the date the session started and is never
   // rewritten, so a session that ran overnight is corrected here instead.
-  const dateChange = await detectDateChange({ messageId, sessionId, taskId });
+  const dateChange = await detectDateChange({ messageId, sessionId, chatId });
   if (dateChange.isErr()) {
     // Awareness of the date is best-effort; never block sending.
     getWorkspaceConfig().captureException(dateChange.error);
@@ -255,7 +255,7 @@ export async function newMessage({
       messageId,
       sentAt: createdAt,
       sessionId,
-      taskId,
+      chatId,
     });
     if (messageGap.isErr()) {
       // Awareness of the gap is best-effort; never block sending.
@@ -270,7 +270,7 @@ export async function newMessage({
       createdAt,
       messageId,
       sessionId,
-      taskId,
+      chatId,
     });
     if (chatTopicsPart) {
       parts.push(chatTopicsPart);
@@ -282,7 +282,7 @@ export async function newMessage({
       createdAt,
       messageId,
       sessionId,
-      taskId,
+      chatId,
     });
     if (memoryPart) {
       parts.push(memoryPart);
@@ -294,7 +294,7 @@ export async function newMessage({
   const appChanges = await detectTaskAppChanges({
     messageId,
     sessionId,
-    taskId,
+    chatId,
   });
   if (appChanges.isErr()) {
     // Awareness of app changes is best-effort; never block sending.
@@ -309,7 +309,7 @@ export async function newMessage({
     const chatAppChanges = await detectChatAppChanges({
       messageId,
       sessionId,
-      taskId,
+      chatId,
     });
     if (chatAppChanges.isErr()) {
       getWorkspaceConfig().captureException(chatAppChanges.error);
@@ -327,7 +327,7 @@ export async function newMessage({
     announced: folders?.map((folder) => folder.path) ?? [],
     messageId,
     sessionId,
-    taskId,
+    chatId,
   });
   if (folderChanges.isErr()) {
     // Awareness of folder changes is best-effort; never block sending.
@@ -343,7 +343,7 @@ export async function newMessage({
     role: "user",
   };
 
-  await setChatState(chatDir(taskId), { selectedModelURI: modelURI });
+  await setChatState(chatDir(chatId), { selectedModelURI: modelURI });
 
   getWorkspaceConfig().captureEvent("message.created", {
     files_count: files?.length ?? 0,
@@ -363,20 +363,20 @@ async function createChatTopicsPart({
   createdAt,
   messageId,
   sessionId,
-  taskId,
+  chatId,
 }: {
   createdAt: Date;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
-  const session = await Store.getSession(sessionId, taskId);
+  const session = await Store.getSession(sessionId, chatId);
   if (session.isErr()) {
     return undefined;
   }
   const tagged = session.value.topics ?? [];
   if (tagged.length === 0) {
-    const messages = await Store.getMessagesWithParts({ sessionId, taskId });
+    const messages = await Store.getMessagesWithParts({ sessionId, chatId });
     const toldBefore =
       messages.isOk() &&
       messages.value.some((message) =>
@@ -387,7 +387,7 @@ async function createChatTopicsPart({
     }
   }
   const known = await listTopics();
-  const reach = await folderReach(taskId);
+  const reach = await folderReach(chatId);
   const topics = [];
   for (const id of tagged) {
     const topic = known.find((entry) => entry.id === id);
@@ -416,13 +416,13 @@ async function createChatTopicsPart({
  * (folder-reach.ts), and a namesake there can move one to a qualified name.
  */
 async function namedByReach(
-  taskId: ChatId,
+  chatId: ChatId,
   part: SessionMessagePart.Type,
 ): Promise<SessionMessagePart.Type> {
   if (part.type !== "data-attachments" || !part.data.folders) {
     return part;
   }
-  const reach = Object.values(await folderReach(taskId));
+  const reach = Object.values(await folderReach(chatId));
   return {
     ...part,
     data: {
@@ -460,14 +460,13 @@ function topicFolderMounts(
  * from what is stored and must say the same thing every time it is read.
  */
 async function withTabHolders(
-  taskId: ChatId,
+  chatId: ChatId,
   viewing: SessionMessageDataPart.ViewContextDataPart,
 ): Promise<SessionMessageDataPart.ViewContextDataPart> {
   if (!viewing.tabs?.length && !viewing.page?.tabs?.length) {
     return viewing;
   }
-  const chatId = resolveChat(taskId);
-  if (!chatId) {
+  if (!resolveChat(chatId)) {
     return viewing;
   }
   const holders = await tabHolders(chatId);

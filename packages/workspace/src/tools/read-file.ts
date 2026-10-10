@@ -498,12 +498,12 @@ export const ReadFile = setupTool({
     - Reading an image tells you the size you are shown it at, and, when the file is too large to render whole, the larger dimensions it has on disk.
     - Seeing an image is not the same as reading it: small text, closely spaced lines, and dense chart or table values are unreliable at whole-image scale, and a confident first impression of one is often simply wrong. So when an answer turns on a detail that small -- a chart label, a value in a dense table, which of two lines sits higher, text in a screenshot -- read the image again with ${INPUT_PARAMS.region} set to the corners of the area in question. It comes back cropped from the full-resolution file and magnified, so what was a few pixels becomes legible. Coordinates are pixels in the space the image was shown to you at, which is the first size the read states and is smaller than the file's own dimensions whenever the file is large. Never the file's dimensions, and never pixels in a magnified crop you got back. To narrow further, give a smaller rectangle in those same shown-at coordinates; each response repeats the rectangle it used, so subdivide that. Trust what you read magnified over your first impression of the whole image.
   `,
-  execute: async ({ input, model, sessionId, signal, taskId, taskState }) => {
+  execute: async ({ input, model, sessionId, signal, chatId, taskState }) => {
     const region = input.region;
     const layout = buildWorkspaceFsLayout({
-      apps: chatConversation(taskId, sessionId) !== undefined,
-      attachedFolders: await folderReach(taskId, taskState),
-      taskHostRoot: workDir(taskId),
+      apps: chatConversation(chatId, sessionId) !== undefined,
+      attachedFolders: await folderReach(chatId, taskState),
+      taskHostRoot: workDir(chatId),
     });
     const pathResult = resolveExistingFilePath({
       inputPath: input.filePath,
@@ -538,7 +538,7 @@ export const ReadFile = setupTool({
           // The private dir is masked from the shell too, so listing it here
           // would advertise a path every read of it rejects.
           exclude:
-            path.resolve(absolutePath) === path.resolve(workDir(taskId))
+            path.resolve(absolutePath) === path.resolve(workDir(chatId))
               ? [TASK_FOLDER_NAMES.private]
               : undefined,
           hidden: true,
@@ -617,7 +617,7 @@ export const ReadFile = setupTool({
         // dir into the file; keep it out of the model context and the persisted
         // tool result. Task-dir only: a home path in file contents can be
         // legitimate, so redacting it risks mangling a path the agent edits.
-        content: redactTaskDir(rawContent, workDir(taskId)),
+        content: redactTaskDir(rawContent, workDir(chatId)),
         displayedLines: selectedLines.length,
         filePath: displayPath,
         hasMoreLines,

@@ -59,7 +59,7 @@ async function runFolder(input: SubcommandInput, context: TaskCommandContext) {
     await attachFolder({
       access: folder.access,
       path: folder.path,
-      taskId: context.chatId,
+      chatId: context.chatId,
     });
     const reach = await folderReach(context.chatId);
     const mounted = Object.values(reach).find(

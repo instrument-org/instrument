@@ -43,13 +43,13 @@ export async function currentChatApps(): Promise<ChatAppsBaseline> {
 
 /** Records the apps as the chat's agent now knows them, so the next message diffs from here. */
 export function setChatAppsBaseline(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
   apps: ChatAppsBaseline,
   { signal }: { signal?: AbortSignal } = {},
 ) {
   return safeTry(async function* () {
-    const storage = yield* getSessionsStoreStorage(taskId);
+    const storage = yield* getSessionsStoreStorage(chatId);
     yield* setParsedStorageItem(
       StorageKey.chatAppsBaseline(sessionId),
       apps,
@@ -76,16 +76,16 @@ export function detectChatAppChanges({
   messageId,
   sessionId,
   signal,
-  taskId,
+  chatId,
 }: {
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
       const stored = await getParsedStorageItem(
         StorageKey.chatAppsBaseline(sessionId),
         ChatAppsBaselineSchema,
@@ -93,7 +93,7 @@ export function detectChatAppChanges({
         { signal },
       );
       const current = await currentChatApps();
-      yield* setChatAppsBaseline(taskId, sessionId, current, { signal });
+      yield* setChatAppsBaseline(chatId, sessionId, current, { signal });
       // Missing on the first message of a session, whose context already
       // lists the apps as they stand.
       if (stored.isErr()) {

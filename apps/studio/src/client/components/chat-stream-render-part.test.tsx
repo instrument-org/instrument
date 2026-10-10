@@ -82,7 +82,7 @@ function chatPartNode(
       // Nothing to do: these tests assert on the reasoning row, not on retry.
     },
     // Never read for a reasoning part, so the fixture stops at the boundary.
-    task: undefined as never,
+    chatInfo: undefined as never,
   } satisfies RenderPartContext;
 
   return renderChatPart({
@@ -111,7 +111,7 @@ function renderReasoning(parts: SessionMessagePart.Type[]) {
       // Nothing to do: these tests assert on the reasoning row, not on retry.
     },
     // Never read for a reasoning part, so the fixture stops at the boundary.
-    task: undefined as never,
+    chatInfo: undefined as never,
   } satisfies RenderPartContext;
 
   renderWithProviders(
@@ -199,7 +199,7 @@ describe("renderChatPart in the chat", () => {
         },
         presentation: "chat",
         // Handed to the row, never read while building it.
-        task: undefined as never,
+        chatInfo: undefined as never,
       },
       message,
       part,

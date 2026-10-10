@@ -60,7 +60,7 @@ function drawFence(
       <MarkdownTaskContext
         value={{
           isStreaming,
-          taskId: ChatIdSchema.parse("quarterly-numbers"),
+          chatId: ChatIdSchema.parse("quarterly-numbers"),
         }}
       >
         <FilesLayoutContext.Provider value={layout}>

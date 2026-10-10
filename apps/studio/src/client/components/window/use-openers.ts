@@ -306,9 +306,9 @@ export function useOpeners({
     const isFolder = isFolderPath(path);
     const filePath = isFolder ? path.slice(0, -1) : path;
     const [error, hostPaths] = await safe(
-      rpcClient.workspace.task.files.hostPaths.call({
+      rpcClient.workspace.chats.files.hostPaths.call({
         filePaths: [filePath],
-        taskId: chatOfGroup(group ?? windowTabs.groupOnScreen) ?? WINDOW_ID,
+        chatId: chatOfGroup(group ?? windowTabs.groupOnScreen) ?? WINDOW_ID,
       }),
     );
     const hostPath = hostPaths?.[filePath];

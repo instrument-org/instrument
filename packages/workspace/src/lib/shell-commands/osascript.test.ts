@@ -32,8 +32,8 @@ async function mockExeca() {
 }
 
 describe("osascriptCommand", () => {
-  const taskId = createMockChatConfig(ChatIdSchema.parse("test"));
-  const command = createOsascriptCommand(taskId, taskLayout(taskId));
+  const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
+  const command = createOsascriptCommand(chatId, taskLayout(chatId));
 
   afterEach(() => {
     vi.resetAllMocks();
@@ -152,7 +152,7 @@ describe("osascriptCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       "/usr/bin/osascript",
-      ["-e", `read POSIX file "${chatDir(taskId)}/invite.ics"`],
+      ["-e", `read POSIX file "${chatDir(chatId)}/invite.ics"`],
       expect.anything(),
     );
   });

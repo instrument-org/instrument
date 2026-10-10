@@ -19,7 +19,7 @@ import { runTool } from "../test/helpers/run-tool";
 import { WriteFile } from "./write-file";
 
 const model = createMockAIGatewayModel();
-const taskId = createMockChatConfig(ChatIdSchema.parse("test"), {
+const chatId = createMockChatConfig(ChatIdSchema.parse("test"), {
   model,
 });
 
@@ -30,7 +30,7 @@ function makeExecuteArgs(
     input,
     model,
     signal: AbortSignal.timeout(10_000),
-    taskId,
+    chatId,
     taskState: { browserTabs: [] },
   };
 }
@@ -41,7 +41,7 @@ describe("WriteFile - toModelOutput", () => {
   });
 
   it("returns a bare success line for a new file", async () => {
-    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [taskId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} } });
 
     const input = {
       content: "const x = 2;",
@@ -62,7 +62,7 @@ describe("WriteFile - toModelOutput", () => {
   it("returns a bare success line for an overwritten file", async () => {
     mockFs({
       [MOCK_WORKSPACE_DIRS.chats]: {
-        [taskId]: { "index.ts": "const x = 1;" },
+        [chatId]: { "index.ts": "const x = 1;" },
       },
     });
 
@@ -89,7 +89,7 @@ describe("WriteFile - path policy", () => {
   });
 
   it("writes /task/... virtual paths to the real task location", async () => {
-    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [taskId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} } });
 
     const result = await runTool(
       WriteFile,
@@ -106,11 +106,11 @@ describe("WriteFile - path policy", () => {
     mockFs({
       "/tmp/workspace": {
         skills: {},
-        tasks: { [taskId]: {} },
+        tasks: { [chatId]: {} },
       },
     });
     const sessionId = StoreId.newSessionId();
-    const turn = { id: taskId, sessionId };
+    const turn = { id: chatId, sessionId };
     await beginSkillChangeTracking(turn);
 
     const result = await runTool(WriteFile, {
@@ -133,7 +133,7 @@ describe("WriteFile - path policy", () => {
   it("writes into a read-write mount at its real location", async () => {
     mockFs({
       "/ext/Docs": {},
-      [MOCK_WORKSPACE_DIRS.chats]: { [taskId]: {} },
+      [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} },
     });
 
     const result = await runTool(WriteFile, {

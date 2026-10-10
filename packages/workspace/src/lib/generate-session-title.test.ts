@@ -34,7 +34,7 @@ describe("isUntitledChatSessionTitle", () => {
 });
 
 describe("isSessionTitleAutoReplaceable", () => {
-  const taskId = createMockChatConfigForDir("/tmp/instrument-test-task");
+  const chatId = createMockChatConfigForDir("/tmp/instrument-test-task");
 
   beforeEach(() => {
     mockGetTaskSettings.mockReset();
@@ -43,7 +43,7 @@ describe("isSessionTitleAutoReplaceable", () => {
   it("is true for Untitled chat without reading settings", async () => {
     await expect(
       isSessionTitleAutoReplaceable({
-        taskId,
+        chatId,
         title: "Untitled chat",
       }),
     ).resolves.toBe(true);
@@ -54,7 +54,7 @@ describe("isSessionTitleAutoReplaceable", () => {
     mockGetTaskSettings.mockResolvedValue({ name: "Fix login bug" });
     await expect(
       isSessionTitleAutoReplaceable({
-        taskId,
+        chatId,
         title: "Fix login bug",
       }),
     ).resolves.toBe(true);
@@ -64,7 +64,7 @@ describe("isSessionTitleAutoReplaceable", () => {
     mockGetTaskSettings.mockResolvedValue({ name: "Other" });
     await expect(
       isSessionTitleAutoReplaceable({
-        taskId,
+        chatId,
         title: "Fix login bug",
       }),
     ).resolves.toBe(false);

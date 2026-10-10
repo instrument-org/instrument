@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { ChatIdSchema } from "../schemas/chat-id";
 import { MID_TURN_NOTE } from "./chat/mid-turn";
 import { systemNoteBody } from "./system-note";
 import { continuesOwnReply, opensTypedTurn, TURN_NOTE } from "./turn-note";
@@ -58,7 +57,9 @@ function message(
             events: [
               {
                 status: "done",
-                taskId: ChatIdSchema.parse("lisbon-hotel"),
+                sessionId: StoreId.SessionSchema.parse(
+                  "ses_01K4M8C2B5N7R0T3V6X9Z1D4F7",
+                ),
                 title: "Lisbon hotel",
               },
             ],

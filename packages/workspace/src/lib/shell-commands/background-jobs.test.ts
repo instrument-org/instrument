@@ -24,14 +24,14 @@ const model = createMockAIGatewayModel();
  */
 describe("background job commands", () => {
   let taskDirPath: string;
-  let taskId: ChatId;
+  let chatId: ChatId;
   let sessionId: StoreId.Session;
 
   beforeEach(async () => {
     const tasksDir = await fs.mkdtemp(path.join(os.tmpdir(), "bg-cmd-"));
     taskDirPath = path.join(tasksDir, `01k${"cmd".padEnd(23, "0")}`);
     await fs.mkdir(path.join(taskDirPath, "work"), { recursive: true });
-    taskId = createMockChatConfigForDir(taskDirPath);
+    chatId = createMockChatConfigForDir(taskDirPath);
     sessionId = StoreId.newSessionId();
     await fs.writeFile(
       path.join(taskDirPath, "work", "tick.js"),
@@ -51,7 +51,7 @@ describe("background job commands", () => {
       model,
       sessionId,
       signal: new AbortController().signal,
-      taskId,
+      chatId,
       taskState: { browserTabs: [] },
     });
     return result._unsafeUnwrap();

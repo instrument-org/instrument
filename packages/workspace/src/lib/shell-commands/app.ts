@@ -75,7 +75,7 @@ export { APP_COMMAND } from "./app-command";
 /** What `app` needs from the `bash` call it runs inside. */
 export interface AppCommandContext {
   /** The task the call belongs to: which apps it may reach, and whose state the guide gate lives in. */
-  taskId: ChatId;
+  chatId: ChatId;
 }
 
 const REQUEST_TIMEOUT_MS = ms("2 minutes");
@@ -249,8 +249,8 @@ const runApp = defineSubcommands<AppCommandContext>({
  * every app for a task nobody scoped (the chat itself, a task a person
  * made). Undefined means every app.
  */
-async function allowedSlugs(taskId: ChatId): Promise<Set<string> | undefined> {
-  const settings = await getChatSettings(chatDir(taskId));
+async function allowedSlugs(chatId: ChatId): Promise<Set<string> | undefined> {
+  const settings = await getChatSettings(chatDir(chatId));
   return settings?.apps ? new Set(settings.apps) : undefined;
 }
 
@@ -359,8 +359,8 @@ function jsonFrom(
   return parsed as Record<string, unknown>;
 }
 
-async function markGuideRead(taskId: ChatId, slug: string) {
-  const dir = chatDir(taskId);
+async function markGuideRead(chatId: ChatId, slug: string) {
+  const dir = chatDir(chatId);
   const state = await getChatState(dir);
   const read = state.appGuidesRead ?? [];
   if (!read.includes(slug)) {
@@ -401,7 +401,7 @@ async function requireApp(
       `an app slug is required. See \`${APP_COMMAND.name} list\`.`,
     );
   }
-  const allowed = await allowedSlugs(context.taskId);
+  const allowed = await allowedSlugs(context.chatId);
   if (allowed && !allowed.has(rawSlug)) {
     const yours = [...allowed].join(", ") || "none";
     throw new Error(
@@ -675,7 +675,7 @@ async function runCatalog(args: string[], signal: AbortSignal | undefined) {
 }
 
 async function runDisconnect(args: string[], context: AppCommandContext) {
-  if (await allowedSlugs(context.taskId)) {
+  if (await allowedSlugs(context.chatId)) {
     throw new Error(
       "only the conversation disconnects apps; a task uses them.",
     );
@@ -695,7 +695,7 @@ async function runGuide(
   const app = await requireApp(args[0], context, { connected: false });
   const written = subprocessStdin(stdin)?.toString("utf8").trim();
   if (written) {
-    if (await allowedSlugs(context.taskId)) {
+    if (await allowedSlugs(context.chatId)) {
       throw new Error("only the conversation sets apps up; a task uses them.");
     }
     await writeAppGuide(app.dir, written);
@@ -712,7 +712,7 @@ async function runGuide(
       `"${app.slug}" has no ${APP_GUIDE_FILE_NAME}. Write one at ${MOUNT.apps}/${app.slug}/${APP_GUIDE_FILE_NAME}.`,
     );
   }
-  await markGuideRead(context.taskId, app.slug);
+  await markGuideRead(context.chatId, app.slug);
   return ok(`${guide.trimEnd()}\n`);
 }
 
@@ -721,7 +721,7 @@ async function runIcon(
   context: AppCommandContext,
   ctx: SubcommandShell,
 ) {
-  if (await allowedSlugs(context.taskId)) {
+  if (await allowedSlugs(context.chatId)) {
     throw new Error("only the conversation sets apps up; a task uses them.");
   }
   const app = await requireApp(args[0], context, { connected: false });
@@ -780,7 +780,7 @@ async function runList(context: AppCommandContext) {
   const [{ apps, invalid }, connections, allowed] = await Promise.all([
     listApps(config.appsDir),
     config.apps.connections.list(),
-    allowedSlugs(context.taskId),
+    allowedSlugs(context.chatId),
   ]);
   const visible = apps.filter((app) => !allowed || allowed.has(app.slug));
   if (visible.length === 0 && invalid.length === 0) {
@@ -812,7 +812,7 @@ async function runNew(input: SubcommandInput, context: AppCommandContext) {
     );
   }
   const slug = slugResult.data;
-  const allowed = await allowedSlugs(context.taskId);
+  const allowed = await allowedSlugs(context.chatId);
   if (allowed) {
     throw new Error("only the conversation sets apps up; a task uses them.");
   }
@@ -1068,7 +1068,7 @@ async function runRequest(
   }
   // The guide is the app's only documentation, so it enters the context
   // before the first real request in this task.
-  const state = await getChatState(chatDir(context.taskId));
+  const state = await getChatState(chatDir(context.chatId));
   if (!(state.appGuidesRead ?? []).includes(app.slug)) {
     const guide = await readAppGuide(app.dir);
     if (guide === null) {
@@ -1076,7 +1076,7 @@ async function runRequest(
         `"${app.slug}" has no ${APP_GUIDE_FILE_NAME}. Write one at ${MOUNT.apps}/${app.slug}/${APP_GUIDE_FILE_NAME}: the endpoints and conventions a request needs.`,
       );
     }
-    await markGuideRead(context.taskId, app.slug);
+    await markGuideRead(context.chatId, app.slug);
     return ok(
       `Before the first request to "${app.slug}", its guide. Read it, then repeat the request.\n\n${guide.trimEnd()}\n`,
     );

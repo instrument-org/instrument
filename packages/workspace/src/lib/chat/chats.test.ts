@@ -87,8 +87,8 @@ let counter = 0;
  * A workspace of its own: chats, topics and the window's state all live
  * under the root, so each test gets one.
  */
-const freshTask = async () => {
-  const taskId = createMockChatConfig(
+const freshChat = async () => {
+  const chatId = createMockChatConfig(
     ChatIdSchema.parse(`chats-${Date.now()}-${(counter += 1)}`),
   );
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chats-root-"));
@@ -98,7 +98,7 @@ const freshTask = async () => {
     rootDir: WorkspaceDirSchema.parse(root),
     tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
   });
-  return taskId;
+  return chatId;
 };
 
 /** A task started in a chat: a session in that chat's store. */
@@ -265,15 +265,15 @@ async function userSays(
 
 describe("listChats", () => {
   it("lists the chats oldest first, with their roots, counts and latest lines", async () => {
-    const taskId = await freshTask();
-    const groceries = await session(taskId, "Groceries for the week", 1);
-    await userSays(taskId, groceries, "make me a grocery list", 1);
-    await agentSays(taskId, groceries, "Starting the list.\nMore below.", {
+    const chatId = await freshChat();
+    const groceries = await session(chatId, "Groceries for the week", 1);
+    await userSays(chatId, groceries, "make me a grocery list", 1);
+    await agentSays(chatId, groceries, "Starting the list.\nMore below.", {
       minute: 2,
     });
-    await agentSays(taskId, groceries, "", { minute: 3 });
-    const trip = await session(taskId, "Trip to Lisbon", 4);
-    await userSays(taskId, trip, "plan a trip to lisbon", 4);
+    await agentSays(chatId, groceries, "", { minute: 3 });
+    const trip = await session(chatId, "Trip to Lisbon", 4);
+    await userSays(chatId, trip, "plan a trip to lisbon", 4);
 
     const chats = await listChats();
 
@@ -311,19 +311,19 @@ describe("listChats", () => {
   });
 
   it("lets the ask stand for a chat the agent has not named yet", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Untitled chat 3");
-    await userSays(taskId, sessionId, "plan a trip to lisbon\nin october", 1);
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Untitled chat 3");
+    await userSays(chatId, sessionId, "plan a trip to lisbon\nin october", 1);
 
     const [chat] = await listChats();
     expect(chat?.title).toBe("plan a trip to lisbon");
   });
 
   it("holds a long ask standing for the title to a title's length", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Untitled chat 5");
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Untitled chat 5");
     await userSays(
-      taskId,
+      chatId,
       sessionId,
       "plan a trip to lisbon in october with a day in sintra and a night of fado",
       1,
@@ -334,8 +334,8 @@ describe("listChats", () => {
   });
 
   it("lists a chat whose first message has not been saved yet", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Untitled chat 4", 2);
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Untitled chat 4", 2);
 
     const [chat] = await listChats();
     expect(chat?.sessionId).toBe(sessionId);
@@ -343,8 +343,8 @@ describe("listChats", () => {
   });
 
   it("lists a chat started with only an ask marked on a file", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Make page 1 red");
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Make page 1 red");
     const messageId = StoreId.newMessageId();
     const file = { name: "digest.docx", path: "/Users/me/digest.docx" };
     const saved = await Store.saveMessageWithParts(
@@ -378,19 +378,19 @@ describe("listChats", () => {
   });
 
   it("reads what was said since the last list, and a part rewritten in place", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
     const [asked] = await listChats();
     expect(asked?.latest).toBeUndefined();
 
-    await agentSays(taskId, sessionId, "Here is the list.", { minute: 2 });
+    await agentSays(chatId, sessionId, "Here is the list.", { minute: 2 });
     const [replied] = await listChats();
     expect(replied?.latest?.text).toBe("Here is the list.");
 
     const read = await Store.getMessagesWithParts({
       sessionId,
-      taskId: chatFor(sessionId),
+      chatId: chatFor(sessionId),
     });
     const reply = read
       ._unsafeUnwrap()
@@ -408,9 +408,9 @@ describe("listChats", () => {
   });
 
   it("marks any chat unread and read again, whatever it holds", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
 
     await markChatUnread(chatFor(sessionId), { byUser: true });
     const [marked] = await listChats();
@@ -422,12 +422,17 @@ describe("listChats", () => {
   });
 
   it("marks a chat unread once it settles, and not while something of it still works", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
     const child = StoreId.newSessionId();
     running.value = [
-      { chat: sessionId, taskId: child, title: "Bake", updatedAt: Date.now() },
+      {
+        chat: sessionId,
+        sessionId: child,
+        title: "Bake",
+        updatedAt: Date.now(),
+      },
     ];
     startChatUnreadOnSettle();
 
@@ -444,9 +449,9 @@ describe("listChats", () => {
   });
 
   it("keeps a mark the user set theirs when the chat settles under it", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
 
     await markChatUnread(chatFor(sessionId), { byUser: true });
     await markChatUnread(chatFor(sessionId), { byUser: false });
@@ -455,34 +460,34 @@ describe("listChats", () => {
   });
 
   it("says a chat failed while its last turn ended in an error, until it answers", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "hru");
-    await userSays(taskId, sessionId, "hru", 1);
-    await agentSays(taskId, sessionId, "", { failed: true, minute: 2 });
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "hru");
+    await userSays(chatId, sessionId, "hru", 1);
+    await agentSays(chatId, sessionId, "", { failed: true, minute: 2 });
     const [failed] = await listChats();
     expect(failed?.state).toBe("failed");
 
-    await agentSays(taskId, sessionId, "Doing well!", { minute: 3 });
+    await agentSays(chatId, sessionId, "Doing well!", { minute: 3 });
     const [answered] = await listChats();
     expect(answered?.state).toBe("idle");
   });
 
   it("leaves a failed turn behind once the user sends again", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "hru");
-    await userSays(taskId, sessionId, "hru", 1);
-    await agentSays(taskId, sessionId, "", { failed: true, minute: 2 });
-    await userSays(taskId, sessionId, "hello?", 3);
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "hru");
+    await userSays(chatId, sessionId, "hru", 1);
+    await agentSays(chatId, sessionId, "", { failed: true, minute: 2 });
+    await userSays(chatId, sessionId, "hello?", 3);
 
     const [chat] = await listChats();
     expect(chat?.state).not.toBe("failed");
   });
 
   it("carries the topics a chat is tagged with, dropping ids that are not topics", async () => {
-    const taskId = await freshTask();
+    const chatId = await freshChat();
     const home = await createTopic({ name: "Home" });
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list");
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list");
 
     await setChatTopics(chatFor(sessionId), [home.id, "top_nothing"]);
 
@@ -491,10 +496,10 @@ describe("listChats", () => {
   });
 
   it("puts a chat away and brings it back, without moving its stamp", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries", 1);
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
-    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries", 1);
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    await agentSays(chatId, sessionId, "Here it is.", { minute: 2 });
     const [before] = await listChats();
     expect(before?.archived).toBe(false);
 
@@ -509,10 +514,10 @@ describe("listChats", () => {
   });
 
   it("stars a chat and takes the star off, without moving its stamp", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries", 1);
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
-    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries", 1);
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    await agentSays(chatId, sessionId, "Here it is.", { minute: 2 });
     const [before] = await listChats();
     expect(before?.starred).toBe(false);
 
@@ -527,10 +532,10 @@ describe("listChats", () => {
   });
 
   it("takes the name the user typed, without moving its stamp", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries", 1);
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
-    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries", 1);
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    await agentSays(chatId, sessionId, "Here it is.", { minute: 2 });
     const [before] = await listChats();
 
     await renameChat(chatFor(sessionId), "Weekly shop");
@@ -542,16 +547,16 @@ describe("listChats", () => {
   });
 
   it("is working while a task filed from it runs, and says its step", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
-    await agentSays(taskId, sessionId, "Starting the list.", { minute: 2 });
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    await agentSays(chatId, sessionId, "Starting the list.", { minute: 2 });
     const child = await fileTask(sessionId);
     running.value = [
       {
         chat: sessionId,
         step: "Checking the pantry",
-        taskId: child,
+        sessionId: child,
         title: "Grocery list",
         updatedAt: at(3).getTime(),
       },
@@ -571,16 +576,16 @@ describe("listChats", () => {
   });
 
   it("waits, rather than works, while a task filed from it is stopped on an ask", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
-    await agentSays(taskId, sessionId, "Starting the list.", { minute: 2 });
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    await agentSays(chatId, sessionId, "Starting the list.", { minute: 2 });
     const child = await fileTask(sessionId);
     running.value = [
       {
         chat: sessionId,
         step: "Picking a store",
-        taskId: child,
+        sessionId: child,
         title: "Grocery list",
         updatedAt: at(3).getTime(),
         waiting: "Which one?",
@@ -611,7 +616,7 @@ describe("listChats", () => {
       {
         chat: sessionId,
         step: "Checking the pantry",
-        taskId: await fileTask(sessionId, "Pantry"),
+        sessionId: await fileTask(sessionId, "Pantry"),
         title: "Pantry",
         updatedAt: at(4).getTime(),
       },
@@ -622,10 +627,10 @@ describe("listChats", () => {
   });
 
   it("is working while its own agent is alive, saying what it is doing", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
-    await agentSays(taskId, sessionId, "", {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    await agentSays(chatId, sessionId, "", {
       commands: ["task list"],
       minute: 2,
     });
@@ -643,11 +648,11 @@ describe("listChats", () => {
   it("is working while a message it was just sent waits for its agent, for a while", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
-      const taskId = await freshTask();
-      const sessionId = await session(taskId, "Groceries", 1);
-      await userSays(taskId, sessionId, "make me a grocery list", 1);
-      await agentSays(taskId, sessionId, "Starting the list.", { minute: 2 });
-      await userSays(taskId, sessionId, "add eggs", 3);
+      const chatId = await freshChat();
+      const sessionId = await session(chatId, "Groceries", 1);
+      await userSays(chatId, sessionId, "make me a grocery list", 1);
+      await agentSays(chatId, sessionId, "Starting the list.", { minute: 2 });
+      await userSays(chatId, sessionId, "add eggs", 3);
 
       vi.setSystemTime(at(3).getTime() + 5000);
       const soon = await listChats();
@@ -662,10 +667,10 @@ describe("listChats", () => {
   });
 
   it("is working while a task filed from it has finished and its wake waits to be written", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
-    await agentSays(taskId, sessionId, "Starting the list.", { minute: 2 });
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    await agentSays(chatId, sessionId, "Starting the list.", { minute: 2 });
     await fileTask(sessionId);
     pendingWakes.value = new Set([chatFor(sessionId)]);
 
@@ -675,10 +680,10 @@ describe("listChats", () => {
   });
 
   it("is waiting while its last turn ended on a question", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
-    await agentAsks(taskId, sessionId);
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    await agentAsks(chatId, sessionId);
 
     const [chat] = await listChats();
 
@@ -691,10 +696,10 @@ describe("listChats", () => {
   });
 
   it("is waiting, not working, while its own agent stands on the question it asked", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
-    await agentAsks(taskId, sessionId);
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    await agentAsks(chatId, sessionId);
     // The agent is alive to the machine: its turn is open on the tool call.
     alive.value = new Set([sessionId]);
     try {
@@ -707,11 +712,11 @@ describe("listChats", () => {
   });
 
   it("reads a reply that is only the files it handed over by what it wrote", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Compare");
-    await userSays(taskId, sessionId, "compare the two quotes", 1);
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Compare");
+    await userSays(chatId, sessionId, "compare the two quotes", 1);
     await agentSays(
-      taskId,
+      chatId,
       sessionId,
       "```files\n/mnt/Instrument/quotes/compared.html\n```",
       { minute: 2 },
@@ -725,7 +730,7 @@ describe("listChats", () => {
     });
 
     await agentSays(
-      taskId,
+      chatId,
       sessionId,
       "```files\n/mnt/Instrument/quotes/a.md\n/mnt/Instrument/quotes/b.png\n/mnt/Instrument/quotes/c.html\n```",
       { minute: 3 },
@@ -735,11 +740,11 @@ describe("listChats", () => {
   });
 
   it("reads what the chat made and used out of its replies", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
     await agentSays(
-      taskId,
+      chatId,
       sessionId,
       "Here it is.\n\n```files\n/mnt/Instrument/groceries/list.md\n```",
       {
@@ -751,7 +756,7 @@ describe("listChats", () => {
       },
     );
     await agentSays(
-      taskId,
+      chatId,
       sessionId,
       "Updated.\n\n```files\n/mnt/Instrument/groceries/list.md\n/mnt/Instrument/groceries/prices.csv\n```",
       { minute: 3 },
@@ -770,9 +775,9 @@ describe("listChats", () => {
   });
 
   it("holds what was selected in a folder the user sent from, in place of the folder", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Recipes");
-    await userSays(taskId, sessionId, "tidy these", 1, {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Recipes");
+    await userSays(chatId, sessionId, "tidy these", 1, {
       viewing: {
         folder: {
           display: "~/Recipes",
@@ -793,9 +798,9 @@ describe("listChats", () => {
   });
 
   it("holds what the user sent behind what the chat made, and none of the tabs merely open", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "price out this cart", 1, {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "price out this cart", 1, {
       attachments: ["attachments/receipt.png"],
       viewing: {
         chosen: [
@@ -825,13 +830,13 @@ describe("listChats", () => {
       },
     });
     await agentSays(
-      taskId,
+      chatId,
       sessionId,
       "Priced.\n\n```files\n/mnt/Instrument/groceries/prices.csv\n```",
       { commands: ["tab open https://www.costco.com/"], minute: 2 },
     );
     await userSays(
-      taskId,
+      chatId,
       sessionId,
       "and this one, then file it in [Linear](instrument://app/linear)",
       3,
@@ -862,9 +867,9 @@ describe("listChats", () => {
   });
 
   it("holds a page chipped beside the one in view", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "compare these", 1, {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "compare these", 1, {
       viewing: {
         attached: [
           { kind: "page", title: "Cart", url: "https://www.amazon.com/cart" },
@@ -921,11 +926,11 @@ describe("liveChatList", () => {
   }
 
   it("drops a deleted chat's row, though the index forgot the chat before anything heard", async () => {
-    const taskId = await freshTask();
-    const kept = await session(taskId, "Groceries", 1);
-    await userSays(taskId, kept, "make me a grocery list", 1);
-    const deleted = await session(taskId, "Taxes", 2);
-    await userSays(taskId, deleted, "file my taxes", 2);
+    const chatId = await freshChat();
+    const kept = await session(chatId, "Groceries", 1);
+    await userSays(chatId, kept, "make me a grocery list", 1);
+    const deleted = await session(chatId, "Taxes", 2);
+    await userSays(chatId, deleted, "file my taxes", 2);
     const { first, next, stop } = await open();
     expect(first?.map((chat) => chat.sessionId)).toEqual([kept, deleted]);
 
@@ -938,10 +943,10 @@ describe("liveChatList", () => {
   });
 
   it("says a chat is idle once its turn ends, which writes nothing", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
-    await agentSays(taskId, sessionId, "Here it is.", { minute: 2 });
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    await agentSays(chatId, sessionId, "Here it is.", { minute: 2 });
     alive.value = new Set([sessionId]);
     const { first, next, stop } = await open();
     expect(first?.[0]?.state).toBe("working");
@@ -954,15 +959,15 @@ describe("liveChatList", () => {
   });
 
   it("moves a row's apps when the workspace's apps change", async () => {
-    const taskId = await freshTask();
+    const chatId = await freshChat();
     const appsDir = path.join(getWorkspaceConfig().rootDir, "apps");
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
       appsDir: AbsolutePathSchema.parse(appsDir),
     });
-    const sessionId = await session(taskId, "Groceries");
+    const sessionId = await session(chatId, "Groceries");
     await userSays(
-      taskId,
+      chatId,
       sessionId,
       "file it in [Linear](instrument://app/linear)",
       1,
@@ -989,9 +994,9 @@ describe("liveChatList", () => {
   });
 
   it("reads a rename and a star into the row", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
     const { next, stop } = await open();
 
     await renameChat(chatFor(sessionId), "Weekly shop");
@@ -1002,9 +1007,9 @@ describe("liveChatList", () => {
   });
 
   it("reads a filed task's step into its chat's row, and sends nothing for a change no row shows", async () => {
-    const taskId = await freshTask();
-    const sessionId = await session(taskId, "Groceries");
-    await userSays(taskId, sessionId, "make me a grocery list", 1);
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
     const child = await fileTask(sessionId);
     const { next, stop } = await open();
 
@@ -1015,7 +1020,7 @@ describe("liveChatList", () => {
       {
         chat: sessionId,
         step: "Checking the pantry",
-        taskId: child,
+        sessionId: child,
         title: "Grocery list",
         updatedAt: at(3).getTime(),
       },

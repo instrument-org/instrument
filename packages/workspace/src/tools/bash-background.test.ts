@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   killSessionBackgroundProcesses,
-  listTaskBackgroundProcesses,
+  listChatBackgroundProcesses,
 } from "../lib/background-processes";
 import { chatDir } from "../lib/record-folders";
 import { StoreId } from "../schemas/store-id";
@@ -28,7 +28,7 @@ const model = createMockAIGatewayModel();
  */
 describe("bash background processes, end to end", () => {
   let taskDirPath: string;
-  let taskId: ChatId;
+  let chatId: ChatId;
   let sessionId: StoreId.Session;
 
   beforeEach(async () => {
@@ -36,7 +36,7 @@ describe("bash background processes, end to end", () => {
     // The task id is the directory name, so it must look like one.
     taskDirPath = path.join(tasksDir, `01k${"e2e".padEnd(23, "0")}`);
     await fs.mkdir(path.join(taskDirPath, "work"), { recursive: true });
-    taskId = createMockChatConfigForDir(taskDirPath);
+    chatId = createMockChatConfigForDir(taskDirPath);
     sessionId = StoreId.newSessionId();
   });
 
@@ -51,7 +51,7 @@ describe("bash background processes, end to end", () => {
       model,
       sessionId,
       signal: new AbortController().signal,
-      taskId,
+      chatId,
       taskState: { browserTabs: [] },
     };
   }
@@ -118,7 +118,7 @@ describe("bash background processes, end to end", () => {
     const processId = started._unsafeUnwrap().processId ?? "";
     expect(processId).not.toBe("");
 
-    const listed = listTaskBackgroundProcesses(taskId).find(
+    const listed = listChatBackgroundProcesses(chatId).find(
       (process) => process.id === processId,
     );
     expect(listed?.explanation).toBe("Starting the Node static server");
@@ -251,7 +251,7 @@ describe("bash background processes, end to end", () => {
     // file rather than however much had flushed.
     await kill(processId);
     const log = await fs.readFile(
-      path.join(chatDir(taskId), started.logFilePath ?? ""),
+      path.join(chatDir(chatId), started.logFilePath ?? ""),
       "utf8",
     );
     expect(log).not.toContain(os.homedir());

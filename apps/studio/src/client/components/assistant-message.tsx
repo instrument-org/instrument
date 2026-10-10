@@ -26,7 +26,7 @@ interface AssistantMessageProps {
    */
   bubble?: boolean;
   part: SessionMessagePart.TextPart;
-  taskId: ChatId;
+  chatId: ChatId;
 }
 
 /**
@@ -94,7 +94,7 @@ export function hasBubbleWords(text: string): boolean {
 export const AssistantMessage = memo(function AssistantMessage({
   bubble = false,
   part,
-  taskId,
+  chatId,
 }: AssistantMessageProps) {
   const messageText = part.text;
   const startReply = useContext(ReplyContext);
@@ -139,7 +139,7 @@ export const AssistantMessage = memo(function AssistantMessage({
                   className="text-sm/[1.5]"
                   isStreaming={isStreaming}
                   markdown={segment.text}
-                  taskId={taskId}
+                  chatId={chatId}
                 />
               </div>
               <BubbleActions
@@ -169,7 +169,7 @@ export const AssistantMessage = memo(function AssistantMessage({
             value={{
               assetVersion: part.metadata.id,
               isStreaming,
-              taskId,
+              chatId,
             }}
           >
             {/* Within what a bubble reaches at its widest, spaced from the
@@ -200,7 +200,7 @@ export const AssistantMessage = memo(function AssistantMessage({
         className="w-full text-[15px]/[1.5]"
         isStreaming={part.state === "streaming"}
         markdown={messageText}
-        taskId={taskId}
+        chatId={chatId}
       />
     </div>
   );

@@ -17,14 +17,14 @@ import { setChatState } from "./chat-record";
 describe("getCurrentFileInfo", () => {
   let mountedModifiedAt: number;
   let root: string;
-  let taskId: ChatId;
+  let chatId: ChatId;
   let taskModifiedAt: number;
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "file-info-"));
     const taskRoot = path.join(root, "tasks", "file-info-task");
     const photosRoot = path.join(root, "Photos");
-    taskId = createMockChatConfigForDir(taskRoot);
+    chatId = createMockChatConfigForDir(taskRoot);
 
     await fs.mkdir(taskRoot, { recursive: true });
     await fs.mkdir(photosRoot);
@@ -73,7 +73,7 @@ describe("getCurrentFileInfo", () => {
     async (filePath, filename, mimeType, expectedModifiedAt, hostPath) => {
       const result = await getCurrentFileInfo({
         filePath: WorkspaceFilePathSchema.parse(filePath),
-        taskId,
+        chatId,
       });
 
       expect(result._unsafeUnwrap()).toEqual({
@@ -89,7 +89,7 @@ describe("getCurrentFileInfo", () => {
   it("rejects a missing file", async () => {
     const result = await getCurrentFileInfo({
       filePath: WorkspaceFilePathSchema.parse("/mnt/Photos/missing.png"),
-      taskId,
+      chatId,
     });
 
     expect(result._unsafeUnwrapErr().message).toBe(

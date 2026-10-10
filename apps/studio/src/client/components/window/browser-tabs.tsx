@@ -795,7 +795,7 @@ export function BrowserTabs({
               })}
           restoreUrl={active.url}
           sessionId={StoreId.SessionSchema.parse(active.id)}
-          taskId={WINDOW_ID}
+          chatId={WINDOW_ID}
         />
       ) : null}
       {/* A page's file keeps its asks at its foot while viewed; in Edit the
@@ -817,7 +817,7 @@ export function BrowserTabs({
             host={host}
             key={host.group}
             tab={hostUp}
-            taskId={WINDOW_ID}
+            chatId={WINDOW_ID}
           />
         ) : null;
       })}
@@ -858,12 +858,12 @@ function ComposePagePanel({
   attached,
   host,
   tab,
-  taskId,
+  chatId,
 }: {
   attached: boolean;
   host: ComposeHost;
   tab: BrowserTab;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   if (!host.into) {
     return null;
@@ -883,7 +883,7 @@ function ComposePagePanel({
         relayoutKey={host.place}
         restoreUrl={tab.url}
         sessionId={StoreId.SessionSchema.parse(tab.id)}
-        taskId={taskId}
+        chatId={chatId}
       />
     </ActiveTabProvider>,
     host.into,

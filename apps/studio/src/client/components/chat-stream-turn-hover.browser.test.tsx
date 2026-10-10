@@ -26,7 +26,7 @@ import {
 
 const sessionId = StoreId.newSessionId();
 
-const task: ChatInfo = {
+const chatInfo: ChatInfo = {
   createdAt: new Date(0),
   id: ChatIdSchema.parse("quarterly-numbers"),
   title: "Quarterly numbers",
@@ -100,7 +100,7 @@ async function renderTranscript() {
                 onRetry={vi.fn()}
                 onRunAgain={vi.fn()}
                 renderAsItems
-                task={task}
+                chatInfo={chatInfo}
               />
             </MessageScrollerContent>
           </MessageScrollerViewport>

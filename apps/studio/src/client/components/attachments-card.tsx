@@ -18,16 +18,16 @@ const LEGACY_ATTACHMENT_DIR_PREFIXES = ["user-provided/", "agent-retrieved/"];
 
 interface FileAttachmentsCardProps {
   files: SessionMessageDataPart.FileAttachmentDataPart[];
-  taskId: ChatId;
+  chatId: ChatId;
 }
 
-export function AttachmentsCard({ files, taskId }: FileAttachmentsCardProps) {
+export function AttachmentsCard({ files, chatId }: FileAttachmentsCardProps) {
   const attachments = files.map((file) => ({
     ...file,
     filePath: normalizeAttachmentFilePath(file.filePath),
   }));
   const hostPaths = useHostPaths(
-    taskId,
+    chatId,
     attachments.map((file) => file.filePath),
   );
   const fileItems = attachments.flatMap((file) => {
@@ -41,7 +41,7 @@ export function AttachmentsCard({ files, taskId }: FileAttachmentsCardProps) {
         hostPath,
         mimeType: file.mimeType,
         modifiedAt: file.modifiedAt,
-        taskFile: { filePath: file.filePath, taskId },
+        taskFile: { filePath: file.filePath, chatId },
         url: getComputerFileUrl({ hostPath, version: file.modifiedAt }),
       },
     ];

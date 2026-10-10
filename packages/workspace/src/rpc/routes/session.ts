@@ -26,10 +26,10 @@ const byIdWithMessagesAndParts = base
   .output(Session.WithMessagesAndPartsSchema)
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
     const session = await Store.getSessionWithMessagesAndParts(
       sessionId,
-      taskId,
+      chatId,
     );
 
     if (session.isErr()) {
@@ -49,8 +49,8 @@ const list = base
   .output(z.array(Session.Schema))
   .handler(async ({ errors, input }) => {
     const { id, includeChildSessions } = input;
-    const taskId = id;
-    const sessions = await Store.getSessions(taskId, {
+    const chatId = id;
+    const sessions = await Store.getSessions(chatId, {
       includeChildSessions,
     });
     if (sessions.isErr()) {
@@ -78,7 +78,7 @@ const run = base
   .output(z.void())
   .handler(async ({ context, errors, input }) => {
     const { id, modelURI, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
 
     const modelResult = await fetchModel({
       captureException: context.workspaceConfig.captureException,
@@ -104,7 +104,7 @@ const run = base
     });
 
     // A settings write, which the record change feed reports: what moves the task in the list.
-    await recordChatActivity(taskId);
+    await recordChatActivity(chatId);
 
     context.workspaceConfig.captureEvent("session.run");
   });
@@ -151,12 +151,12 @@ const toMarkdown = base
   .output(z.object({ markdown: z.string() }))
   .handler(async ({ input }) => {
     const { frontMatter, id, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
 
     const markdown = await getSessionMarkdown({
       frontMatter,
       sessionId,
-      taskId,
+      chatId,
     });
     return { markdown };
   });
@@ -171,9 +171,9 @@ const contextTokens = base
   .output(z.object({ inputTokens: z.number() }))
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
 
-    const messages = await Store.getMessages({ sessionId, taskId });
+    const messages = await Store.getMessages({ sessionId, chatId });
     if (messages.isErr()) {
       throw toORPCError(messages.error, errors);
     }

@@ -13,14 +13,14 @@ import { UsageStatsTooltip, UsageSummaryText } from "../usage-stats-tooltip";
  */
 export function TaskUsageSummary({
   sessionId,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   const { data } = useQuery(
-    rpcClient.workspace.task.live.usageSummary.experimental_liveOptions({
-      input: { id: taskId, sessionId },
+    rpcClient.workspace.chats.live.usageSummary.experimental_liveOptions({
+      input: { id: chatId, sessionId },
     }),
   );
 

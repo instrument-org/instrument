@@ -45,7 +45,7 @@ export function ChatStatusLine({
 }: {
   chat: Chat;
   /** Opens one of the chat's tasks beside it. */
-  onOpenTask: (taskId: StoreId.Session) => void;
+  onOpenTask: (sessionId: StoreId.Session) => void;
 }) {
   const { isAgentRunning } = useAgentSessionStatus({
     id: chat.id,

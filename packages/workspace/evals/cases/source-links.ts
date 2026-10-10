@@ -58,7 +58,7 @@ function assistantText(sessions: Session.WithMessagesAndParts[]): string {
 /** The text of every readable file the reply's files fences name. */
 async function deliverableText(
   sessions: Session.WithMessagesAndParts[],
-  taskId: ChatId,
+  chatId: ChatId,
 ): Promise<{ names: string[]; text: string }> {
   const names = filesNamedIn(assistantText(sessions)).filter((name) =>
     TEXT_DELIVERABLE.test(name),
@@ -69,7 +69,7 @@ async function deliverableText(
         // The fence line is the path the task reached the file at; one that
         // does not resolve simply contributes no links.
         filePath: name as WorkspaceFilePath,
-        taskId,
+        chatId,
       });
       return resolved === null
         ? ""
@@ -129,10 +129,10 @@ function linkedUrls(text: string): string[] {
 
 async function findingsLinks(
   sessions: Session.WithMessagesAndParts[],
-  taskId: ChatId,
+  chatId: ChatId,
 ): Promise<{ files: string[]; reply: string[]; urls: string[] }> {
   const reply = linkedUrls(assistantText(sessions));
-  const deliverables = await deliverableText(sessions, taskId);
+  const deliverables = await deliverableText(sessions, chatId);
   const inFiles = linkedUrls(deliverables.text);
   return {
     files: deliverables.names,
@@ -156,8 +156,8 @@ function whereLinked(found: { files: string[]; reply: string[] }): string {
  * and a pass/fail column cannot show that.
  */
 const assertLinkedSeveral: Assertion = {
-  check: async ({ sessions, taskId }) => {
-    const found = await findingsLinks(sessions, taskId);
+  check: async ({ sessions, chatId }) => {
+    const found = await findingsLinks(sessions, chatId);
     return {
       evidence:
         found.urls.length === 0
@@ -176,9 +176,9 @@ const assertLinkedSeveral: Assertion = {
  * a missing link is one from a result, never a plausible address.
  */
 const assertLinksAreGrounded: Assertion = {
-  check: async ({ sessions, taskId }) => {
+  check: async ({ sessions, chatId }) => {
     const seen = retrievedText(sessions).toLowerCase();
-    const { urls } = await findingsLinks(sessions, taskId);
+    const { urls } = await findingsLinks(sessions, chatId);
     const ungrounded = urls.filter((url) => {
       const key = comparable(url);
       return key === null || !seen.includes(key);
@@ -200,8 +200,8 @@ const assertLinksAreGrounded: Assertion = {
  * read it.
  */
 const assertSourcesLinked: Assertion = {
-  check: async ({ sessions, taskId }) => {
-    const found = await findingsLinks(sessions, taskId);
+  check: async ({ sessions, chatId }) => {
+    const found = await findingsLinks(sessions, chatId);
     return {
       evidence:
         found.urls.length > 0

@@ -82,11 +82,11 @@ setSubprocessTreeObserver({
   },
 });
 setTaskVenvCreator(
-  (taskId: ChatId) =>
+  (chatId: ChatId) =>
     new Promise((resolve) => {
       const requestId = nextVenvRequestId++;
       venvRequests.set(requestId, resolve);
-      post({ requestId, taskId, type: "venv" });
+      post({ requestId, chatId, type: "venv" });
     }),
 );
 

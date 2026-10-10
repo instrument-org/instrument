@@ -5,7 +5,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { listBackgroundProcesses } from "../background-processes";
-import { getTaskAgentStatus } from "../get-task-agent-status";
+import { getChatAgentStatus } from "../get-chat-agent-status";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
@@ -18,7 +18,7 @@ const RunningTaskSchema = z.object({
   /** What the task is doing this moment, in its agent's own label, when it gave one. */
   step: z.string().optional(),
   /** The task's session in the chat's store, which is its id. */
-  taskId: StoreId.SessionSchema,
+  sessionId: StoreId.SessionSchema,
   /** The chat it was filed from, by session id; absent for a task filed outside a turn. */
   chat: z.string().optional(),
   title: z.string(),
@@ -75,16 +75,16 @@ export function askIn(
 /** A session, in the store of the record that holds it. */
 export interface SessionRef {
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }
 
 /**
  * Whether an agent of the record is alive: of the one session named, or of
  * any of its sessions, a chat's tasks included.
  */
-export function isWorking(taskId: ChatId, sessionId?: StoreId.Session) {
-  const status = getTaskAgentStatus({
-    id: taskId,
+export function isWorking(chatId: ChatId, sessionId?: StoreId.Session) {
+  const status = getChatAgentStatus({
+    id: chatId,
     workspaceRef: getWorkspaceActorRef(),
   });
   return (
@@ -133,9 +133,9 @@ export async function latestStep(ref: SessionRef): Promise<string | undefined> {
  */
 async function* newestFirst({
   sessionId,
-  taskId,
+  chatId,
 }: SessionRef): AsyncGenerator<SessionMessage.WithParts> {
-  const ids = await Store.getMessageIds(sessionId, taskId);
+  const ids = await Store.getMessageIds(sessionId, chatId);
   if (ids.isErr()) {
     return;
   }
@@ -143,7 +143,7 @@ async function* newestFirst({
     const message = await Store.getMessageWithParts({
       messageId,
       sessionId,
-      taskId,
+      chatId,
     });
     if (message.isOk()) {
       yield message.value;
@@ -182,8 +182,8 @@ export async function chatActivity(chatId: ChatId): Promise<ChatActivity> {
     children.map(async (child) => {
       const chat = sessionOfChat(child.chatId);
       return {
-        ...(await runningLines({ sessionId: child.id, taskId: chatId })),
-        taskId: child.id,
+        ...(await runningLines({ sessionId: child.id, chatId })),
+        sessionId: child.id,
         ...(chat ? { chat } : {}),
         title: child.title,
         updatedAt: child.updatedAt.getTime(),

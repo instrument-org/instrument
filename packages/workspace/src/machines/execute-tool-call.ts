@@ -41,7 +41,7 @@ export async function saveStoppedToolCallPart(
   input: {
     part: SessionMessagePart.ToolPart;
     reason: CancellationReason;
-    taskId: ChatId;
+    chatId: ChatId;
   },
   { signal }: { signal?: AbortSignal } = {},
 ) {
@@ -72,7 +72,7 @@ export async function saveStoppedToolCallPart(
         state: "output-error",
       } as SessionMessagePart.Type;
     },
-    input.taskId,
+    input.chatId,
     { signal },
   );
 }
@@ -83,15 +83,15 @@ const executeToolLogic = fromPromise<
     model: AIGatewayModel.Type;
     part: SessionMessagePart.ToolPartInputAvailable;
     sessionId: StoreId.Session;
-    taskId: ChatId;
+    chatId: ChatId;
   }
->(async ({ input: { model, part, sessionId, taskId }, signal }) => {
+>(async ({ input: { model, part, sessionId, chatId }, signal }) => {
   return runToolCall({
     model,
     part,
     sessionId,
     signal,
-    taskId,
+    chatId,
   });
 });
 
@@ -102,7 +102,7 @@ export const executeToolCallMachine = setup({
       {
         part: SessionMessagePart.ToolPartInputAvailable;
         reason: CancellationReason;
-        taskId: ChatId;
+        chatId: ChatId;
       }
     >(async ({ input, signal }) => {
       await saveStoppedToolCallPart(input, { signal });
@@ -117,7 +117,7 @@ export const executeToolCallMachine = setup({
       return typeof tool.timeoutMs === "function"
         ? tool.timeoutMs({
             input: context.part.input as never,
-            taskId: context.taskId,
+            chatId: context.chatId,
           })
         : tool.timeoutMs;
     },
@@ -129,14 +129,14 @@ export const executeToolCallMachine = setup({
       model: AIGatewayModel.Type;
       part: SessionMessagePart.ToolPartInputAvailable;
       sessionId: StoreId.Session;
-      taskId: ChatId;
+      chatId: ChatId;
     },
     events: {} as { reason?: StopReason; type: "stop" },
     input: {} as {
       model: AIGatewayModel.Type;
       part: SessionMessagePart.ToolPartInputAvailable;
       sessionId: StoreId.Session;
-      taskId: ChatId;
+      chatId: ChatId;
     },
   },
 }).createMachine({
@@ -145,7 +145,7 @@ export const executeToolCallMachine = setup({
     model: input.model,
     part: input.part,
     sessionId: input.sessionId,
-    taskId: input.taskId,
+    chatId: input.chatId,
   }),
   id: "executeToolCall",
   initial: "Executing",
@@ -155,7 +155,7 @@ export const executeToolCallMachine = setup({
         input: ({ context }) => ({
           part: context.part,
           reason: context.cancellationReason,
-          taskId: context.taskId,
+          chatId: context.chatId,
         }),
         onDone: "Done",
         onError: { actions: log(({ event }) => event.error), target: "Done" },
@@ -177,7 +177,7 @@ export const executeToolCallMachine = setup({
           model: context.model,
           part: context.part,
           sessionId: context.sessionId,
-          taskId: context.taskId,
+          chatId: context.chatId,
         }),
         onDone: [
           {

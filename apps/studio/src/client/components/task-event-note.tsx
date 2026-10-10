@@ -17,7 +17,7 @@ export function TaskEventNote({
       {data.events.map((event) => (
         <p
           className="flex items-center gap-1.5 text-xs text-muted-foreground"
-          key={event.taskId}
+          key={event.sessionId}
         >
           <CheckCircleIcon className="size-3.5 shrink-0" />
           <span>

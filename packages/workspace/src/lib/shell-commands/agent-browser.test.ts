@@ -34,14 +34,14 @@ const mockCtx = createCommandContext({
 });
 
 describe("createAgentBrowserCommand", () => {
-  const taskId = ChatIdSchema.parse("test");
+  const chatId = ChatIdSchema.parse("test");
   const command = createAgentBrowserCommand({
     sessionId: StoreId.newSessionId(),
-    taskId,
+    chatId,
   });
 
   beforeEach(() => {
-    createMockChatConfig(taskId, { externalBrowser: true });
+    createMockChatConfig(chatId, { externalBrowser: true });
   });
 
   it("returns managed help with read guidance", async () => {
@@ -160,7 +160,7 @@ describe("createAgentBrowserCommand", () => {
         Reload the page (\`agent-browser reload\`) for the change to apply.
         "
       `);
-      expect(unblocked.has(taskId)).toBe(true);
+      expect(unblocked.has(chatId)).toBe(true);
 
       const status = await command.execute(["adblock"], mockCtx);
       expect(status.stdout).toContain("off in this task's tabs");
@@ -171,7 +171,7 @@ describe("createAgentBrowserCommand", () => {
         Reload the page (\`agent-browser reload\`) for the change to apply.
         "
       `);
-      expect(unblocked.has(taskId)).toBe(false);
+      expect(unblocked.has(chatId)).toBe(false);
     });
 
     it("says the user's own setting wins when they turned blocking off", async () => {
@@ -250,12 +250,12 @@ describe("browserFreeReadEnv", () => {
 });
 
 describe("resolveAgentBrowserPathArgs", () => {
-  const taskId = ChatIdSchema.parse("upload-paths");
+  const chatId = ChatIdSchema.parse("upload-paths");
   const taskDirPath = `${MOCK_WORKSPACE_DIRS.chats}/upload-paths`;
   let fs = new InMemoryFs();
 
   beforeEach(async () => {
-    createMockChatConfig(taskId);
+    createMockChatConfig(chatId);
     fs = new InMemoryFs();
     await fs.mkdir("/task/attachments", { recursive: true });
     await fs.mkdir("/task/output", { recursive: true });
@@ -283,7 +283,7 @@ describe("resolveAgentBrowserPathArgs", () => {
     async ({ expected, path }) => {
       const result = await resolveAgentBrowserPathArgs(
         ["upload", "@e1", path],
-        taskId,
+        chatId,
         {
           cwd: "/task",
           fs,
@@ -304,7 +304,7 @@ describe("resolveAgentBrowserPathArgs", () => {
         "--quiet",
         "../attachments/back.png",
       ],
-      taskId,
+      chatId,
       {
         cwd: "/task/work",
         fs,
@@ -363,7 +363,7 @@ describe("resolveAgentBrowserPathArgs", () => {
   ])("refuses an upload $name", async ({ cwd, error, path }) => {
     const result = await resolveAgentBrowserPathArgs(
       ["upload", "@e1", path],
-      taskId,
+      chatId,
       { cwd, fs },
     );
 
@@ -377,7 +377,7 @@ describe("resolveAgentBrowserPathArgs", () => {
   it("leaves non-upload relative arguments unchanged", async () => {
     const result = await resolveAgentBrowserPathArgs(
       ["fill", "@e1", "attachments/image.png"],
-      taskId,
+      chatId,
       {
         cwd: "/task",
         fs,
@@ -400,7 +400,7 @@ describe("resolveAgentBrowserPathArgs", () => {
       name: "a wait function opening with a regex",
     },
   ])("passes $name through as typed", async ({ args }) => {
-    const result = await resolveAgentBrowserPathArgs(args, taskId, {
+    const result = await resolveAgentBrowserPathArgs(args, chatId, {
       cwd: "/task",
       fs,
     });
@@ -411,7 +411,7 @@ describe("resolveAgentBrowserPathArgs", () => {
   it("resolves a screenshot path given as a /task path", async () => {
     const result = await resolveAgentBrowserPathArgs(
       ["screenshot", "/task/work/page.png"],
-      taskId,
+      chatId,
       { cwd: "/task", fs },
     );
 
@@ -422,16 +422,16 @@ describe("resolveAgentBrowserPathArgs", () => {
 });
 
 describe("agent-browser routing", () => {
-  const taskId = ChatIdSchema.parse("routing");
+  const chatId = ChatIdSchema.parse("routing");
   const sessionId = StoreId.newSessionId();
-  const command = createAgentBrowserCommand({ sessionId, taskId });
+  const command = createAgentBrowserCommand({ sessionId, chatId });
   const taskDirPath = `${MOCK_WORKSPACE_DIRS.chats}/routing`;
   let commandCtx = mockCtx;
 
   // Per test, not once at collection: the config is a process singleton, so a
   // describe that sets it in its body loses to whichever describe runs last.
   beforeEach(async () => {
-    createMockChatConfig(taskId, { externalBrowser: true });
+    createMockChatConfig(chatId, { externalBrowser: true });
     const fs = new InMemoryFs();
     await fs.mkdir("/task/attachments", { recursive: true });
     await fs.writeFile("/task/attachments/image.png", "image");
@@ -782,12 +782,12 @@ describe("agent-browser routing", () => {
 });
 
 describe("agent-browser with external browsers disabled", () => {
-  const taskId = ChatIdSchema.parse("gated");
+  const chatId = ChatIdSchema.parse("gated");
   const sessionId = StoreId.newSessionId();
-  const command = createAgentBrowserCommand({ sessionId, taskId });
+  const command = createAgentBrowserCommand({ sessionId, chatId });
 
   beforeEach(() => {
-    createMockChatConfig(taskId, { externalBrowser: false });
+    createMockChatConfig(chatId, { externalBrowser: false });
   });
 
   afterEach(() => {

@@ -11,7 +11,7 @@ import { detectTaskAppChanges } from "./task-app-changes";
 import { setTaskAppsBaseline } from "./task-apps-baseline";
 import { updateChatSettings } from "./chat-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
-import { initializeTaskInChat } from "../test/helpers/initialize-task-in-chat";
+import { initializeTestChat } from "../test/helpers/initialize-test-chat";
 
 // A task of its own per test: the session store is cached by task id, so a
 // second task under one name in a fresh temp directory reuses the handle on the
@@ -30,7 +30,7 @@ async function changesSince(baseline: string[]) {
   const result = await detectTaskAppChanges({
     messageId: StoreId.newMessageId(),
     sessionId,
-    taskId: TASK_ID,
+    chatId: TASK_ID,
   });
   if (result.isErr()) {
     throw result.error;
@@ -52,8 +52,8 @@ async function nowHolds(apps: string[]) {
  * replaces the whole config, so anything set before it is gone and every caller
  * of it has to follow with this.
  */
-function useWorkspace(taskId: string) {
-  createMockChatConfigForDir(path.join(rootDir, "tasks", taskId), {
+function useWorkspace(chatId: string) {
+  createMockChatConfigForDir(path.join(rootDir, "tasks", chatId), {
     unplaced: true,
   });
   setWorkspaceConfig({
@@ -74,9 +74,9 @@ beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-app-changes-"));
   TASK_ID = ChatIdSchema.parse(`file-the-issue-${++taskCount}`);
   useWorkspace(TASK_ID);
-  await initializeTaskInChat({
+  await initializeTestChat({
     initialSettings: { apps: [], name: "File the issue" },
-    taskId: TASK_ID,
+    chatId: TASK_ID,
   });
   sessionId = StoreId.newSessionId();
 });
@@ -112,15 +112,15 @@ describe("detectTaskAppChanges", () => {
   it("says nothing to a task a person made, which reaches every app", async () => {
     const personMade = ChatIdSchema.parse(`someones-own-task-${taskCount}`);
     useWorkspace(personMade);
-    await initializeTaskInChat({
+    await initializeTestChat({
       initialSettings: { name: "Theirs" },
-      taskId: personMade,
+      chatId: personMade,
     });
 
     const result = await detectTaskAppChanges({
       messageId: StoreId.newMessageId(),
       sessionId,
-      taskId: personMade,
+      chatId: personMade,
     });
 
     expect(result.isOk() && result.value).toBeUndefined();

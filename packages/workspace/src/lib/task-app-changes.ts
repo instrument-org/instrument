@@ -28,27 +28,27 @@ export function detectTaskAppChanges({
   messageId,
   sessionId,
   signal,
-  taskId,
+  chatId,
 }: {
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
-      const settings = await getChatSettings(chatDir(taskId));
+      const settings = await getChatSettings(chatDir(chatId));
       const current = settings?.apps;
       if (current === undefined) {
         return ok(undefined);
       }
 
-      const baseline = yield* getTaskAppsBaseline(taskId, sessionId, {
+      const baseline = yield* getTaskAppsBaseline(chatId, sessionId, {
         signal,
       });
       // Re-baselined whatever the outcome, so the next message diffs against
       // the set as it stands now.
-      yield* setTaskAppsBaseline(taskId, sessionId, current, { signal });
+      yield* setTaskAppsBaseline(chatId, sessionId, current, { signal });
 
       if (!baseline) {
         return ok(undefined);

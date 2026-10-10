@@ -22,7 +22,7 @@ const sessionId = StoreId.newSessionId();
 const WIDE_FILES = 21_000;
 
 let tmpDir: string;
-let taskId: ChatId;
+let chatId: ChatId;
 
 function shell() {
   return createBashEnv({
@@ -37,7 +37,7 @@ function shell() {
       },
     },
     sessionId,
-    taskId,
+    chatId,
   });
 }
 
@@ -61,7 +61,7 @@ beforeAll(async () => {
       ]),
     ),
   );
-  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
   // The home folder holds the workspace, which is what marks it as home.
   setWorkspaceConfig({
     ...getWorkspaceConfig(),

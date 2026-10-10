@@ -10,7 +10,7 @@ import { type WorkspaceServerParentRef } from "../types";
 import { setupCdpWebSocketBridge } from "./cdp-sockets";
 
 const handled = vi.hoisted(() => ({
-  task: [] as { sessionId: string; taskId: string }[],
+  task: [] as { sessionId: string; chatId: string }[],
 }));
 
 vi.mock(import("./cdp-task-bridge"), () => ({
@@ -64,7 +64,7 @@ function connect(url: string, headers: Record<string, string> = {}) {
 describe("setupCdpWebSocketBridge", () => {
   it("accepts a session's path carrying the launch's secret", async () => {
     expect(await connect(cdpBridgeUrl(port, TASK_ID, SESSION_ID))).toBe("open");
-    expect(handled.task).toEqual([{ sessionId: SESSION_ID, taskId: TASK_ID }]);
+    expect(handled.task).toEqual([{ sessionId: SESSION_ID, chatId: TASK_ID }]);
   });
 
   it.each([

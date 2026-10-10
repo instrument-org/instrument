@@ -103,12 +103,9 @@ function lastReply(sessions: Session.WithMessagesAndParts[]): string {
   return said(sessions).at(-1)?.text ?? "";
 }
 
-/** Every task folder in the run's tree, the run's own first. */
-async function treeDirs({ childSessions, taskId }: Context): Promise<string[]> {
-  const children = await childSessions();
-  return [taskId, ...children.map((child) => child.taskId)].map((id) =>
-    chatDir(id),
-  );
+/** The run's working folder, which the chat's tasks work in too. */
+function treeDirs({ chatId }: Context): string[] {
+  return [chatDir(chatId)];
 }
 
 /**
@@ -167,7 +164,7 @@ export function recentFilesUnder(dir: string, since: number, depth = 6): string[
 
 /** Every file the run could have written, wherever it put it. */
 async function writtenFiles(ctx: Context): Promise<string[]> {
-  const dirs = [HOME, ...(await treeDirs(ctx))];
+  const dirs = [HOME, ...treeDirs(ctx)];
   const since = runStartedAt(ctx.sessions);
   return [...new Set(dirs.flatMap((dir) => recentFilesUnder(dir, since)))];
 }
@@ -182,10 +179,10 @@ export function readText(file: string): string {
 
 /** Where a folder the case sent was attached for this run. */
 async function attachedFolder(
-  taskId: ChatId,
+  chatId: ChatId,
   name: string,
 ): Promise<string | undefined> {
-  const state = await getChatState(chatDir(taskId));
+  const state = await getChatState(chatDir(chatId));
   return Object.values(state.attachedFolders ?? {}).find(
     (folder) => path.basename(folder.path) === name,
   )?.path;
@@ -726,10 +723,10 @@ const namedTheProducts: Assertion = {
 };
 
 const renamedToKebabCase: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text =
       "renamed every file but the README to kebab case, contents intact";
-    const dir = await attachedFolder(taskId, "Field Notes");
+    const dir = await attachedFolder(chatId, "Field Notes");
     if (!dir) {
       return fail(text, "the Field Notes folder is not attached");
     }
@@ -754,10 +751,10 @@ const renamedToKebabCase: Assertion = {
 };
 
 const listedOldNamesInReadme: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text =
       "the README is untouched but for a list of the old names at the bottom";
-    const dir = await attachedFolder(taskId, "Field Notes");
+    const dir = await attachedFolder(chatId, "Field Notes");
     const readme = dir ? readText(path.join(dir, "README.md")) : "";
     if (!readme) {
       return fail(text, "no README.md");
@@ -911,9 +908,9 @@ const totaledTheExpenses: Assertion = {
 };
 
 const convertedTheNotes: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text = "converted notes.md to an HTML file in the folder";
-    const dir = await attachedFolder(taskId, "Q3 Books");
+    const dir = await attachedFolder(chatId, "Q3 Books");
     const pages = dir
       ? fs.readdirSync(dir).filter((name) => /\.html?$/i.test(name))
       : [];
@@ -936,10 +933,10 @@ const convertedTheNotes: Assertion = {
 };
 
 const steppedOnlyThroughTheCorrection: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text =
       "the step table holds exactly the 2025 days, with their counts";
-    const dir = await attachedFolder(taskId, "Step Logs");
+    const dir = await attachedFolder(chatId, "Step Logs");
     const tables = dir
       ? fs
           .readdirSync(dir)
@@ -1027,10 +1024,10 @@ function sentAtOr(sessions: Session.WithMessagesAndParts[], words: string) {
 }
 
 /** The times `EvalCase.marks` recorded for this run, by name. */
-function marksFor(taskId: ChatId): Record<string, null | number> {
+function marksFor(chatId: ChatId): Record<string, null | number> {
   try {
     const read: unknown = JSON.parse(
-      fs.readFileSync(path.join(HOME, ".eval-marks", `${taskId}.json`), "utf8"),
+      fs.readFileSync(path.join(HOME, ".eval-marks", `${chatId}.json`), "utf8"),
     );
     return typeof read === "object" && read !== null
       ? Object.fromEntries(
@@ -1190,9 +1187,9 @@ export const QUICK_ANSWER = /\b43\.20?(?!\d)/;
 
 /** The quick question, answered within 20 seconds of being asked. */
 export const answeredTheQuickQuestion: Assertion = {
-  check: ({ sessions, taskId }) => {
+  check: ({ sessions, chatId }) => {
     const text = "answered 18% of 240 (43.2) within 20 seconds of being asked";
-    const waited = marksFor(taskId)["quick answer"];
+    const waited = marksFor(chatId)["quick answer"];
     if (typeof waited === "number") {
       return waited <= 20_000
         ? pass(text, `${(waited / 1000).toFixed(1)}s`)
@@ -1491,28 +1488,6 @@ const wroteNoFile: Assertion = {
   },
   text: "wrote no file for a question that asked for none",
 };
-
-/**
- * Checks a worker document assertion against every task folder in the run's
- * tree, since the file may be made by the chat or by a fork of it. Passes
- * when any folder passes.
- */
-function inAnyTask(assertion: Assertion): Assertion {
-  return {
-    check: async (ctx) => {
-      const children = await ctx.childSessions();
-      let last: AssertionResult | undefined;
-      for (const taskId of [ctx.taskId, ...children.map((one) => one.taskId)]) {
-        last = await assertion.check({ ...ctx, taskId });
-        if (last.passed) {
-          return last;
-        }
-      }
-      return last ?? fail(assertion.text, "no task to look in");
-    },
-    text: assertion.text,
-  };
-}
 
 /** The sign-up page this run serves, once `setup` has started it. */
 let signupAddress = "";
@@ -2217,7 +2192,7 @@ const stayedTerse: Assertion = {
 const noStrayFiles: Assertion = {
   check: async (ctx) => {
     const text = "wrote nothing outside the workspace folder and its own";
-    const own = await treeDirs(ctx);
+    const own = treeDirs(ctx);
     const stray = recentFilesUnder(HOME, runStartedAt(ctx.sessions))
       .filter(
         (file) =>
@@ -2742,11 +2717,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     // worker-data-workbook, asked of the chat.
-    assertions: [
-      inAnyTask(wroteADocument(".xlsx")),
-      inAnyTask(sheetRecomputes),
-      inAnyTask(sheetHasAChart),
-    ],
+    assertions: [wroteADocument(".xlsx"), sheetRecomputes, sheetHasAChart],
     prompt:
       "Can you turn the regional-sales.csv in this folder into a workbook I can actually work in? Revenue worked out per row (units times unit price), a summary of revenue by region and by month that totals with real formulas rather than pasted numbers, and a chart of the monthly trend. Save it as sales.xlsx in the workspace folder.",
     sentReadOnly: [DATA_FIXTURE],

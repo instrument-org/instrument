@@ -13,14 +13,14 @@ const SessionTagSchema = z.enum([
 
 export type SessionTag = z.output<typeof SessionTagSchema>;
 
-export const TaskAgentStatusSchema = z.object({
+export const ChatAgentStatusSchema = z.object({
   sessionActors: z.array(
     z.object({
       sessionId: StoreId.SessionSchema,
       tags: z.array(SessionTagSchema),
     }),
   ),
-  taskId: ChatIdSchema,
+  chatId: ChatIdSchema,
 });
 
-export type TaskAgentStatus = z.output<typeof TaskAgentStatusSchema>;
+export type ChatAgentStatus = z.output<typeof ChatAgentStatusSchema>;

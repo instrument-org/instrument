@@ -13,19 +13,19 @@ export async function createBrowserStatusPart({
   createdAt,
   messageId,
   sessionId,
-  taskId,
+  chatId,
 }: {
   createdAt: Date;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
     // The model hears a page on this computer by its own path for it, never
     // by where the file sits on the person's disk.
-    const layout = await taskFsLayout(taskId);
+    const layout = await taskFsLayout(chatId);
     const spell = (url: string) => agentSpellingOfFileUrls(url, layout);
-    const held = await heldTabsStatus({ sessionId, taskId }, spell);
+    const held = await heldTabsStatus({ sessionId, chatId }, spell);
     return held !== null && held.length > 0
       ? createPart({
           createdAt,
@@ -73,14 +73,14 @@ function createPart({
  * own whatever it holds, so there is nothing true to tell it.
  */
 async function heldTabsStatus(
-  { sessionId, taskId }: { sessionId: StoreId.Session; taskId: ChatId },
+  { sessionId, chatId }: { sessionId: StoreId.Session; chatId: ChatId },
   spell: (url: string) => string,
 ): Promise<
   | null
   | { id: string; openedBy: "handed" | "task"; title?: string; url: string }[]
 > {
   const { browser } = getWorkspaceConfig();
-  const held = await heldTabs(taskId, sessionId);
+  const held = await heldTabs(chatId, sessionId);
   if (held.length === 0 || browser.hasNoWindow) {
     return null;
   }

@@ -19,7 +19,7 @@ export function taskEventModelNote(
 ) {
   const lines = data.events.map((event) => {
     // What the `task` command takes for it.
-    const id = event.handle ?? event.taskId;
+    const id = event.handle ?? event.sessionId;
     const outcome =
       event.status === "error"
         ? `stopped with an error${event.ended ? `, "${event.ended}"` : ""}`
@@ -83,7 +83,7 @@ export function taskEventModelNote(
     // Only a briefed task has a folder of its own to describe; a fork works
     // in the chat's, and its event carries no holdings.
     const holds = event.holds
-      ? `\n  Its folder ${MOUNT.tasks}/${event.taskId} holds${event.status === "overdue" ? " so far" : ""}: ${describeHoldings(event.holds)}.`
+      ? `\n  Its folder ${MOUNT.tasks}/${event.sessionId} holds${event.status === "overdue" ? " so far" : ""}: ${describeHoldings(event.holds)}.`
       : "";
     // Where a result that lives on a page is: the tab, by the id `tab show`
     // takes, since the task's transcript holds only its account of the page.

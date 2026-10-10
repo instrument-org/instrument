@@ -40,8 +40,8 @@ let counter = 0;
  * A workspace of its own: chats, topics and the window's state all live
  * under the root, so each test gets one.
  */
-const freshTask = async () => {
-  const taskId = createMockChatConfig(
+const freshChat = async () => {
+  const chatId = createMockChatConfig(
     ChatIdSchema.parse(`window-${Date.now()}-${(counter += 1)}`),
   );
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chat-root-"));
@@ -51,16 +51,16 @@ const freshTask = async () => {
     rootDir: WorkspaceDirSchema.parse(root),
     tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
   });
-  return taskId;
+  return chatId;
 };
 
 /** A chat: its record and session, the user's opening message, and one reply. */
 async function chat(title: string, ask: string, reply?: string) {
   const sessionId = StoreId.newSessionId();
-  const taskId = chatFor(sessionId);
+  const chatId = chatFor(sessionId);
   await Store.saveSession(
     { createdAt: new Date(), id: sessionId, title, updatedAt: new Date() },
-    taskId,
+    chatId,
   );
   const userId = StoreId.newMessageId();
   const user: SessionMessage.UserWithParts = {
@@ -80,7 +80,7 @@ async function chat(title: string, ask: string, reply?: string) {
     ],
     role: "user",
   };
-  await Store.saveMessageWithParts(user, taskId);
+  await Store.saveMessageWithParts(user, chatId);
   if (reply) {
     const replyId = StoreId.newMessageId();
     const assistant: SessionMessage.AssistantWithParts = {
@@ -107,9 +107,9 @@ async function chat(title: string, ask: string, reply?: string) {
       ],
       role: "assistant",
     };
-    await Store.saveMessageWithParts(assistant, taskId);
+    await Store.saveMessageWithParts(assistant, chatId);
   }
-  return { chatId: taskId, sessionId };
+  return { chatId, sessionId };
 }
 
 function run(...args: string[]) {
@@ -126,7 +126,7 @@ function run(...args: string[]) {
 
 describe("chat list", () => {
   it("lists each chat with its state, title, topics and latest line", async () => {
-    await freshTask();
+    await freshChat();
     await createTopic({ name: "Home" });
     const groceries = await chat(
       "Groceries for the week",
@@ -151,7 +151,7 @@ describe("chat list", () => {
 
 describe("chat read", () => {
   it("reads a chat by words from its title", async () => {
-    await freshTask();
+    await freshChat();
     await chat(
       "Groceries for the week",
       "make me a grocery list",
@@ -168,7 +168,7 @@ describe("chat read", () => {
   });
 
   it("lists the matches when the words fit more than one chat", async () => {
-    await freshTask();
+    await freshChat();
     await chat("Trip to Lisbon", "plan a trip");
     await chat("Trip to Porto", "plan another trip");
 
@@ -181,7 +181,7 @@ describe("chat read", () => {
   });
 
   it("reads a chat by its whole id when another chat's id begins with it", async () => {
-    await freshTask();
+    await freshChat();
     const id = (await chat("Weather page", "make me a weather page")).chatId;
     const sessionId = StoreId.newSessionId();
     await Store.saveSession(
@@ -209,7 +209,7 @@ describe("chat read by an older name", () => {
     ["a whole session", (sessionId: string) => sessionId],
     ["the start of one", (sessionId: string) => sessionId.slice(0, 20)],
   ])("reads a chat named by %s", async (_case, nameOf) => {
-    await freshTask();
+    await freshChat();
     const { chatId, sessionId } = await chat("Trip to Lisbon", "plan a trip");
 
     const result = await run("read", nameOf(sessionId));
@@ -223,7 +223,7 @@ describe("chat read by an older name", () => {
 
 describe("chat search", () => {
   it("finds a line across every chat", async () => {
-    await freshTask();
+    await freshChat();
     await chat("Groceries", "make me a grocery list", "Added Zevia.");
     await chat("Trip to Lisbon", "plan a trip");
 
@@ -237,7 +237,7 @@ describe("chat search", () => {
 
 describe("chat tag", () => {
   it("refuses a topic that does not exist and names the ones that do", async () => {
-    await freshTask();
+    await freshChat();
     await createTopic({ name: "Home" });
     await chat("Groceries", "make me a grocery list");
 
@@ -250,7 +250,7 @@ describe("chat tag", () => {
   });
 
   it("files the chat under the topic", async () => {
-    await freshTask();
+    await freshChat();
     const home = await createTopic({ name: "Home" });
     const { chatId, sessionId } = await chat(
       "Groceries",
@@ -267,7 +267,7 @@ describe("chat tag", () => {
 
 describe("chat topics", () => {
   it("names the topics in use", async () => {
-    await freshTask();
+    await freshChat();
     await createTopic({
       about: "the house",
       emoji: "🏠",

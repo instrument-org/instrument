@@ -16,8 +16,8 @@ export { UsageSummarySchema } from "./usage-summary-compute";
 // task's own spend without what its chat spent before it. Client callers that
 // already hold the messages should use getUsageSummaryFromMessages directly
 // instead.
-export async function getTaskUsageSummary(
-  taskId: ChatId,
+export async function getUsageSummary(
+  chatId: ChatId,
   {
     sessionId,
     signal,
@@ -25,7 +25,7 @@ export async function getTaskUsageSummary(
 ) {
   const sessionIdsResult = sessionId
     ? ok([sessionId])
-    : await Store.getStoreId(taskId, { signal });
+    : await Store.getStoreId(chatId, { signal });
   if (sessionIdsResult.isErr()) {
     return emptyUsageSummary();
   }
@@ -34,7 +34,7 @@ export async function getTaskUsageSummary(
     { limit: 5, signal },
     sessionIdsResult.value,
     async (each) => {
-      const messageIdsResult = await Store.getMessageIds(each, taskId, {
+      const messageIdsResult = await Store.getMessageIds(each, chatId, {
         signal,
       });
       if (messageIdsResult.isErr()) {
@@ -46,7 +46,7 @@ export async function getTaskUsageSummary(
         messageIdsResult.value,
         async (messageId) => {
           const result = await Store.getMessageWithParts(
-            { messageId, sessionId: each, taskId },
+            { messageId, sessionId: each, chatId },
             { signal },
           );
           return result.isOk() ? result.value : null;

@@ -35,16 +35,16 @@ export function setupCdpWebSocketBridge(
       return;
     }
 
-    const taskId = ChatIdSchema.safeParse(target.taskId);
+    const chatId = ChatIdSchema.safeParse(target.chatId);
     const sessionId = StoreId.SessionSchema.safeParse(target.sessionId);
-    if (!taskId.success || !sessionId.success) {
+    if (!chatId.success || !sessionId.success) {
       socket.destroy();
       return;
     }
     wss.handleUpgrade(req, socket, head, (clientWs) => {
       handleTaskCdpClient(
         clientWs,
-        { sessionId: sessionId.data, taskId: taskId.data },
+        { sessionId: sessionId.data, chatId: chatId.data },
         workspaceConfig,
         workspaceRef,
       );

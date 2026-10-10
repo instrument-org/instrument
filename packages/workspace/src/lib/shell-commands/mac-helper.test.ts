@@ -21,7 +21,7 @@ const ctx = createCommandContext({
 });
 
 describe("mac helper commands", () => {
-  const taskId = createMockChatConfig(ChatIdSchema.parse("calendar-test"));
+  const chatId = createMockChatConfig(ChatIdSchema.parse("calendar-test"));
   const config = getWorkspaceConfig();
 
   afterEach(() => {
@@ -39,7 +39,7 @@ describe("mac helper commands", () => {
 
     const result = await createMacHelperCommand(
       CALENDAR_COMMAND,
-      taskId,
+      chatId,
     ).execute(["events", "--from", "tomorrow"], ctx);
 
     expect(result.exitCode).toBe(0);
@@ -58,7 +58,7 @@ describe("mac helper commands", () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({ all: "[]", exitCode: 0 } as never);
 
-    await createMacHelperCommand(CONTACTS_COMMAND, taskId).execute(
+    await createMacHelperCommand(CONTACTS_COMMAND, chatId).execute(
       ["--search", "neil"],
       ctx,
     );
@@ -76,7 +76,7 @@ describe("mac helper commands", () => {
 
     const result = await createMacHelperCommand(
       CALENDAR_COMMAND,
-      taskId,
+      chatId,
     ).execute(["events"], ctx);
 
     expect(result.exitCode).toBe(1);

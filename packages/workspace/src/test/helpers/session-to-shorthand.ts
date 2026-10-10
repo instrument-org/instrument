@@ -218,7 +218,7 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     }
     case "data-taskEvent": {
       const events = part.data.events
-        .map((event) => `${event.taskId}:${event.status}`)
+        .map((event) => `${event.sessionId}:${event.status}`)
         .join(",");
       return `<data-taskEvent>${events}</data-taskEvent>`;
     }

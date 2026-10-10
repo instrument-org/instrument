@@ -3,7 +3,7 @@ import { createContext, type ReactNode, useContext } from "react";
 
 interface TaskSession {
   sessionId?: StoreId.Session;
-  taskId?: ChatId;
+  chatId?: ChatId;
 }
 
 const TaskSessionContext = createContext<TaskSession>({});
@@ -22,10 +22,10 @@ const TaskSessionContext = createContext<TaskSession>({});
 export function TaskSessionProvider({
   children,
   sessionId,
-  taskId,
+  chatId,
 }: TaskSession & { children: ReactNode }) {
   return (
-    <TaskSessionContext value={{ sessionId, taskId }}>
+    <TaskSessionContext value={{ sessionId, chatId }}>
       {children}
     </TaskSessionContext>
   );

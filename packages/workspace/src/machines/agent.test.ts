@@ -18,7 +18,7 @@ vi.mock(import("../lib/session-store-storage"));
 
 describe("agentMachine", () => {
   const model = createMockAIGatewayModel();
-  const taskId = createMockChatConfig(ChatIdSchema.parse("test"), { model });
+  const chatId = createMockChatConfig(ChatIdSchema.parse("test"), { model });
   const sessionId = StoreId.newSessionId();
   const messageId = StoreId.newMessageId();
   const createdAt = new Date("2025-01-01T00:00:00.000Z");
@@ -87,7 +87,7 @@ describe("agentMachine", () => {
           parentMessageId: messageId,
           parentRef: { send: noop } as unknown as AnyActorRef,
           sessionId,
-          taskId,
+          chatId,
         },
       },
     );
@@ -112,7 +112,7 @@ describe("agentMachine", () => {
       maxStepCount: 1,
       model,
       parentRef: { send: noop } as unknown as AnyActorRef,
-      taskId,
+      chatId,
       ...ids,
     };
   }
@@ -182,7 +182,7 @@ describe("agentMachine", () => {
   async function readToolParts(runSessionId: StoreId.Session) {
     const messagesResult = await Store.getMessagesWithParts({
       sessionId: runSessionId,
-      taskId,
+      chatId,
     });
     return messagesResult
       ._unsafeUnwrap()
@@ -354,7 +354,7 @@ describe("agentMachine", () => {
           llmRequestLogic: fromPromise(async () => {
             const savedResult = await Store.saveMessageWithParts(
               { ...runMessage, parts: queuedParts },
-              taskId,
+              chatId,
             );
             savedResult._unsafeUnwrap();
             return { message: runMessage, parts: queuedParts };
@@ -432,7 +432,7 @@ describe("agentMachine", () => {
           llmRequestLogic: fromPromise(async () => {
             const savedResult = await Store.saveMessageWithParts(
               { ...runMessage, parts: queuedParts },
-              taskId,
+              chatId,
             );
             savedResult._unsafeUnwrap();
             return { message: runMessage, parts: queuedParts };
@@ -508,7 +508,7 @@ describe("agentMachine", () => {
           llmRequestLogic: fromPromise(async () => {
             const savedResult = await Store.saveMessageWithParts(
               { ...runMessage, parts: savedParts },
-              taskId,
+              chatId,
             );
             savedResult._unsafeUnwrap();
             resolveSaved();
@@ -582,7 +582,7 @@ describe("agentMachine", () => {
           llmRequestLogic: fromPromise(async () => {
             const runResult = await Store.saveMessageWithParts(
               { ...runMessage, parts: runParts },
-              taskId,
+              chatId,
             );
             runResult._unsafeUnwrap();
             return { message: runMessage, parts: runParts };
@@ -651,12 +651,12 @@ describe("agentMachine", () => {
           llmRequestLogic: fromPromise(async () => {
             const earlierResult = await Store.saveMessageWithParts(
               { ...earlierMessage, parts: earlierParts },
-              taskId,
+              chatId,
             );
             earlierResult._unsafeUnwrap();
             const runResult = await Store.saveMessageWithParts(
               { ...runMessage, parts: runParts },
-              taskId,
+              chatId,
             );
             runResult._unsafeUnwrap();
             return { message: runMessage, parts: runParts };

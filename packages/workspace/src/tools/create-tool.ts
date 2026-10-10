@@ -78,9 +78,9 @@ function buildTool<
   return {
     ...setup,
     ...options,
-    aiSDKTool: async ({ model, taskId }) => {
+    aiSDKTool: async ({ model, chatId }) => {
       const description = await (typeof options.description === "function"
-        ? options.description({ model, taskId })
+        ? options.description({ model, chatId })
         : options.description);
 
       return (

@@ -30,7 +30,7 @@ import { Route as AppChatsIndexRouteImport } from './routes/_app/chats/index'
 import { Route as AppChatsIdRouteImport } from './routes/_app/chats/$id'
 import { Route as AppSitesIdRouteImport } from './routes/_app/sites/$id'
 import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
-import { Route as AppTasksIdRouteImport } from './routes/_app/tasks/$id'
+import { Route as AppTasksSessionIdRouteImport } from './routes/_app/tasks/$sessionId'
 import { Route as DebugBrowserViewTargetIdRouteImport } from './routes/debug/browser-view.$targetId'
 import { Route as DebugComponentsIndexRouteImport } from './routes/debug/components/index'
 import { Route as DebugComponentsAlertsRouteImport } from './routes/debug/components/alerts'
@@ -156,9 +156,9 @@ const AppTasksIndexRoute = AppTasksIndexRouteImport.update({
   path: '/tasks/',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppTasksIdRoute = AppTasksIdRouteImport.update({
-  id: '/tasks/$id',
-  path: '/tasks/$id',
+const AppTasksSessionIdRoute = AppTasksSessionIdRouteImport.update({
+  id: '/tasks/$sessionId',
+  path: '/tasks/$sessionId',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const DebugBrowserViewTargetIdRoute =
@@ -294,7 +294,7 @@ export interface FileRoutesByFullPath {
   '/apps/$slug': typeof AppAppsSlugRoute
   '/chats/$id': typeof AppChatsIdRoute
   '/sites/$id': typeof AppSitesIdRoute
-  '/tasks/$id': typeof AppTasksIdRoute
+  '/tasks/$sessionId': typeof AppTasksSessionIdRoute
   '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
@@ -334,7 +334,7 @@ export interface FileRoutesByTo {
   '/apps/$slug': typeof AppAppsSlugRoute
   '/chats/$id': typeof AppChatsIdRoute
   '/sites/$id': typeof AppSitesIdRoute
-  '/tasks/$id': typeof AppTasksIdRoute
+  '/tasks/$sessionId': typeof AppTasksSessionIdRoute
   '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
@@ -378,7 +378,7 @@ export interface FileRoutesById {
   '/_app/apps/$slug': typeof AppAppsSlugRoute
   '/_app/chats/$id': typeof AppChatsIdRoute
   '/_app/sites/$id': typeof AppSitesIdRoute
-  '/_app/tasks/$id': typeof AppTasksIdRoute
+  '/_app/tasks/$sessionId': typeof AppTasksSessionIdRoute
   '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
@@ -423,7 +423,7 @@ export interface FileRouteTypes {
     | '/apps/$slug'
     | '/chats/$id'
     | '/sites/$id'
-    | '/tasks/$id'
+    | '/tasks/$sessionId'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
@@ -463,7 +463,7 @@ export interface FileRouteTypes {
     | '/apps/$slug'
     | '/chats/$id'
     | '/sites/$id'
-    | '/tasks/$id'
+    | '/tasks/$sessionId'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
@@ -506,7 +506,7 @@ export interface FileRouteTypes {
     | '/_app/apps/$slug'
     | '/_app/chats/$id'
     | '/_app/sites/$id'
-    | '/_app/tasks/$id'
+    | '/_app/tasks/$sessionId'
     | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
@@ -688,11 +688,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTasksIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/tasks/$id': {
-      id: '/_app/tasks/$id'
-      path: '/tasks/$id'
-      fullPath: '/tasks/$id'
-      preLoaderRoute: typeof AppTasksIdRouteImport
+    '/_app/tasks/$sessionId': {
+      id: '/_app/tasks/$sessionId'
+      path: '/tasks/$sessionId'
+      fullPath: '/tasks/$sessionId'
+      preLoaderRoute: typeof AppTasksSessionIdRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/debug/browser-view/$targetId': {
@@ -845,7 +845,7 @@ interface AppRouteRouteChildren {
   AppAppsSlugRoute: typeof AppAppsSlugRoute
   AppChatsIdRoute: typeof AppChatsIdRoute
   AppSitesIdRoute: typeof AppSitesIdRoute
-  AppTasksIdRoute: typeof AppTasksIdRoute
+  AppTasksSessionIdRoute: typeof AppTasksSessionIdRoute
   AppAppsIndexRoute: typeof AppAppsIndexRoute
   AppChatsIndexRoute: typeof AppChatsIndexRoute
   AppTasksIndexRoute: typeof AppTasksIndexRoute
@@ -858,7 +858,7 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppAppsSlugRoute: AppAppsSlugRoute,
   AppChatsIdRoute: AppChatsIdRoute,
   AppSitesIdRoute: AppSitesIdRoute,
-  AppTasksIdRoute: AppTasksIdRoute,
+  AppTasksSessionIdRoute: AppTasksSessionIdRoute,
   AppAppsIndexRoute: AppAppsIndexRoute,
   AppChatsIndexRoute: AppChatsIndexRoute,
   AppTasksIndexRoute: AppTasksIndexRoute,

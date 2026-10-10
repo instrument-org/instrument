@@ -139,7 +139,7 @@ interface MarkdownProps {
   // Present only when rendered inside a task chat. Enables the task-file
   // right-click menu (Open in {App} / Save as… / Reveal / …); a left click
   // opens the file without it.
-  taskId?: ChatId;
+  chatId?: ChatId;
 }
 
 type PluginList = NonNullable<Options["rehypePlugins"]>;
@@ -412,7 +412,7 @@ const TaskFileLink = ({
   className?: string;
   href: string;
 }) => {
-  const { taskId } = useContext(MarkdownTaskContext);
+  const { chatId } = useContext(MarkdownTaskContext);
   const filePath = taskFilePathFromHref(href);
   const filename = filePath.split("/").at(-1) ?? filePath;
   const showTaskFile = useShowTaskFile();
@@ -425,7 +425,7 @@ const TaskFileLink = ({
   // Before the guard below, so the chip that turns out not to name a task file
   // still asks in the same order every render.
   const isAddressable = isAddressableTaskFilePath(filePath);
-  const hostPath = useHostPaths(taskId, isAddressable ? [filePath] : [])[
+  const hostPath = useHostPaths(chatId, isAddressable ? [filePath] : [])[
     filePath
   ];
   const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
@@ -462,14 +462,14 @@ const TaskFileLink = ({
   // ambient task context (e.g. reasoning or a previewed markdown file), or
   // before the place is known, the chip still opens the file on a left click,
   // just without a right-click menu.
-  if (!taskId || !hostPath) {
+  if (!chatId || !hostPath) {
     return chip;
   }
 
   const viewerFile: ViewerFile = {
     filename,
     hostPath,
-    taskFile: { filePath, taskId },
+    taskFile: { filePath, chatId },
     url: getComputerFileUrl({ hostPath }),
   };
 
@@ -867,9 +867,9 @@ const MarkdownImage = ({
     hostPath?: string,
   ) => void;
 }) => {
-  const { assetVersion, isStreaming, taskId } = useContext(MarkdownTaskContext);
+  const { assetVersion, isStreaming, chatId } = useContext(MarkdownTaskContext);
   const [failedSrc, setFailedSrc] = useState<null | string>(null);
-  const hostPath = useHostPaths(taskId, filePath ? [filePath] : [])[
+  const hostPath = useHostPaths(chatId, filePath ? [filePath] : [])[
     filePath ?? ""
   ];
   const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
@@ -1013,7 +1013,7 @@ export const Markdown = memo(
     imageKinds = MARKDOWN_IMAGE_KINDS,
     isStreaming,
     markdown,
-    taskId,
+    chatId,
   }: MarkdownProps) => {
     const openFilePreview = useSetAtom(openFilePreviewAtom);
     const [rehypePlugins, setRehypePlugins] =
@@ -1205,7 +1205,7 @@ export const Markdown = memo(
     );
 
     return (
-      <MarkdownTaskContext value={{ assetVersion, isStreaming, taskId }}>
+      <MarkdownTaskContext value={{ assetVersion, isStreaming, chatId }}>
         {blocks === undefined ? (
           <MarkdownBlock
             components={components}

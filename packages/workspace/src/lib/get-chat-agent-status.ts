@@ -3,11 +3,11 @@ import { ok } from "neverthrow";
 import { type WorkspaceActorRef } from "../machines/workspace";
 import {
   type SessionTag,
-  type TaskAgentStatus,
-} from "../schemas/task-agent-status";
+  type ChatAgentStatus,
+} from "../schemas/chat-agent-status";
 import { type ChatId } from "../schemas/chat-id";
 
-export function getTaskAgentStatus({
+export function getChatAgentStatus({
   id,
   workspaceRef,
 }: {
@@ -27,9 +27,9 @@ export function getTaskAgentStatus({
     };
   });
 
-  const taskAgentStatus: TaskAgentStatus = {
+  const taskAgentStatus: ChatAgentStatus = {
     sessionActors,
-    taskId: id,
+    chatId: id,
   };
 
   return ok(taskAgentStatus);

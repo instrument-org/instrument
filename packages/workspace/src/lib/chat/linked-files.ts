@@ -57,17 +57,17 @@ export async function linkedFiles(): Promise<LinkedFile[]> {
 const shownByChat = indexedByStore<LinkedFile[]>("linked_files");
 
 async function readShownIn(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<Derived<LinkedFile[]>> {
-  const ids = await Store.getMessageIds(sessionId, taskId);
+  const ids = await Store.getMessageIds(sessionId, chatId);
   if (ids.isErr()) {
     return unkept([]);
   }
   const messages = await Store.getMessagesWithParts({
     messageIds: ids.value.slice(-MESSAGES_READ),
     sessionId,
-    taskId,
+    chatId,
   });
   if (messages.isErr()) {
     return unkept([]);
@@ -77,7 +77,7 @@ async function readShownIn(
       message.role === "assistant"
         ? [...pathsNamedInMessage(message)].map((path) => ({
             at: message.metadata.createdAt.getTime(),
-            chatId: taskId,
+            chatId,
             path,
           }))
         : [],
@@ -87,8 +87,8 @@ async function readShownIn(
 
 /** What one chat's replies showed. */
 function shownIn(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<LinkedFile[]> {
-  return shownByChat(taskId, () => readShownIn(taskId, sessionId));
+  return shownByChat(chatId, () => readShownIn(chatId, sessionId));
 }

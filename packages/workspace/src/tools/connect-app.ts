@@ -65,10 +65,9 @@ export const ConnectApp = setupTool({
   description: dedent`
     Ask the user to connect an app whose folder you have written under ${MOUNT.apps}/<slug>/. A card appears in the conversation: a sign-in button for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a button that opens its sign-in in the window's browser. It returns at once; say one line and end your turn. You are woken with a note when the user has signed in, saved a key, or declined. Never ask for a key in prose instead.
   `,
-  execute: async ({ input, sessionId, taskId }) => {
+  execute: async ({ input, sessionId, chatId }) => {
     // A task runs the chat's agent where no card is seen.
-    const chatId = chatConversation(taskId, sessionId);
-    if (!chatId) {
+    if (!chatConversation(chatId, sessionId)) {
       return ok({
         message:
           "You are running in the background, where nobody sees a card: only the chat asks the user to connect an app. End your last message with a needs fence naming the app.",

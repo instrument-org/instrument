@@ -27,7 +27,7 @@ const sessionId = StoreId.newSessionId();
 let tmpDir: string;
 let attachedDir: string;
 let taskRoot: string;
-let taskId: ChatId;
+let chatId: ChatId;
 
 async function run(access: FolderAttachment.Access, command: string) {
   const bash = await createBashEnv({
@@ -42,7 +42,7 @@ async function run(access: FolderAttachment.Access, command: string) {
       },
     },
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
 }
@@ -58,7 +58,7 @@ beforeEach(async () => {
   await fs.symlink("readme.txt", path.join(attachedDir, "link.txt"));
   await fs.symlink("../readme.txt", path.join(attachedDir, "sub", "up"));
   await fs.writeFile(path.join(attachedDir, "zed.txt"), "zed");
-  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
 });
 
 afterEach(async () => {

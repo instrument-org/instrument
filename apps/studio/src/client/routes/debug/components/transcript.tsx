@@ -86,7 +86,7 @@ const ROW_HEIGHT = 28;
 // still runs as fast as it is pushed.
 const WHEEL_STEP = 24;
 
-const task: ChatInfo = {
+const chatInfo: ChatInfo = {
   createdAt: new Date(0),
   id: ChatIdSchema.parse("debug-transcript"),
   title: "Transcript",
@@ -432,7 +432,7 @@ function Viewer({ scenarioId }: { scenarioId: string }) {
                     onModelChange={noop}
                     onRetry={noop}
                     onRunAgain={noop}
-                    task={task}
+                    chatInfo={chatInfo}
                   />
                 </Profiler>
               </MessageScrollerContent>

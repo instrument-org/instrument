@@ -21,7 +21,7 @@ const mockGetSession = vi.mocked(Store.getSession);
 const mockSaveSession = vi.mocked(Store.saveSession);
 const mockIsAutoReplaceable = vi.mocked(isSessionTitleAutoReplaceable);
 
-const taskId = createMockChatConfigForDir("/tmp/instrument-test-task");
+const chatId = createMockChatConfigForDir("/tmp/instrument-test-task");
 const sessionId = StoreId.newSessionId();
 
 function storedSession(title: string): Session.Type {
@@ -41,14 +41,14 @@ describe("updateSessionTitle", () => {
       updateSessionTitle({
         expectedCurrentTitle: "Fix login bug",
         sessionId,
-        taskId,
+        chatId,
         title: "Login bug fix",
       }),
     ).resolves.toBe(true);
 
     expect(mockSaveSession).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Login bug fix" }),
-      taskId,
+      chatId,
     );
     // Snapshot check short-circuits the settings-name heuristic entirely.
     expect(mockIsAutoReplaceable).not.toHaveBeenCalled();
@@ -61,7 +61,7 @@ describe("updateSessionTitle", () => {
       updateSessionTitle({
         expectedCurrentTitle: "Fix login bug",
         sessionId,
-        taskId,
+        chatId,
         title: "Login bug fix",
       }),
     ).resolves.toBe(false);
@@ -74,11 +74,11 @@ describe("updateSessionTitle", () => {
     mockIsAutoReplaceable.mockResolvedValue(true);
 
     await expect(
-      updateSessionTitle({ sessionId, taskId, title: "Weather inquiry" }),
+      updateSessionTitle({ sessionId, chatId, title: "Weather inquiry" }),
     ).resolves.toBe(true);
 
     expect(mockIsAutoReplaceable).toHaveBeenCalledWith({
-      taskId,
+      chatId,
       title: "Untitled chat",
     });
     expect(mockSaveSession).toHaveBeenCalled();
@@ -89,7 +89,7 @@ describe("updateSessionTitle", () => {
     mockIsAutoReplaceable.mockResolvedValue(false);
 
     await expect(
-      updateSessionTitle({ sessionId, taskId, title: "Weather inquiry" }),
+      updateSessionTitle({ sessionId, chatId, title: "Weather inquiry" }),
     ).resolves.toBe(false);
 
     expect(mockSaveSession).not.toHaveBeenCalled();
@@ -108,7 +108,7 @@ describe("updateSessionTitle", () => {
       updateSessionTitle({
         expectedCurrentTitle: "Fix login bug",
         sessionId,
-        taskId,
+        chatId,
         title: "Login bug fix",
       }),
     ).resolves.toBe(false);

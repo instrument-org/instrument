@@ -1,24 +1,23 @@
 import { initializeChat } from "../../lib/initialize-task";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
-import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatSettingsUpdate } from "../../schemas/chat-settings";
 
 /**
  * Makes a record the way the product does, which is always a chat: one
- * named by `taskId`, with these settings. Returns it.
+ * named by `chatId`, with these settings. Returns it.
  */
-export async function initializeTaskInChat({
+export async function initializeTestChat({
   initialSettings,
-  taskId,
+  chatId,
 }: {
   initialSettings: Omit<
     ChatSettingsUpdate,
     "chatSessionId" | "createdWithAppVersion"
   >;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<ChatId> {
-  const chatId = ChatIdSchema.parse(taskId);
   (
     await initializeChat({
       chatId,

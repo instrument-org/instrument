@@ -10,7 +10,7 @@ import { workDir } from "./work-dir";
 export function execaNodeForTask<
   OptionsType extends Omit<Options, "cwd"> = Omit<Options, "cwd">,
 >(
-  taskId: ChatId,
+  chatId: ChatId,
   file: string | URL,
   arguments_?: readonly string[],
   options?: OptionsType,
@@ -22,7 +22,7 @@ export function execaNodeForTask<
   };
   return execa(file, arguments_, {
     ...options,
-    cwd: cwd ?? workDir(taskId),
+    cwd: cwd ?? workDir(chatId),
     env: {
       ...baseEnv,
       // Covers what resolveCommandContext cannot: the user's own app processes

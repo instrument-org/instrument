@@ -21,13 +21,13 @@ import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOut
  */
 export function TaskMenu({
   sessionId,
-  taskId,
+  chatId,
 }: {
   /** The session the transcript on screen is showing. */
   sessionId: StoreId.Session | undefined;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
-  const transcript = useTranscriptActions({ id: taskId, sessionId });
+  const transcript = useTranscriptActions({ id: chatId, sessionId });
   const isDeveloperMode = useDeveloperMode();
 
   return (
@@ -65,7 +65,7 @@ export function TaskMenu({
           only way to see what it wrote that it never mentioned. */}
         <DropdownMenuItem
           onSelect={() => {
-            void showTaskFolder(taskId);
+            void showTaskFolder(chatId);
           }}
         >
           <ShowInFolderIcon className="size-4" kind="folder" />

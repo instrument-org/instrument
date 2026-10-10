@@ -21,14 +21,14 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 const id = ChatIdSchema.parse("browser-state-test");
 const sessionId = StoreId.newSessionId();
 
-let taskId: ChatId;
+let chatId: ChatId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "browser-state-test-"));
   const tasksDir = path.join(root, TASKS_DIR_NAME);
-  taskId = createMockChatConfigForDir(path.join(tasksDir, id));
-  await fs.mkdir(chatDir(taskId), { recursive: true });
+  chatId = createMockChatConfigForDir(path.join(tasksDir, id));
+  await fs.mkdir(chatDir(chatId), { recursive: true });
 });
 
 afterEach(async () => {
@@ -38,17 +38,17 @@ afterEach(async () => {
 
 describe("browser state", () => {
   it("adds the hosts of a chat task's tabs, once each, newest last", async () => {
-    expect((await getBrowserState(taskId, sessionId))._unsafeUnwrap()).toBe(
+    expect((await getBrowserState(chatId, sessionId))._unsafeUnwrap()).toBe(
       undefined,
     );
     await recordVisitedHosts({
       sessionId,
-      taskId,
+      chatId,
       urls: ["https://example.com/a"],
     });
     await recordVisitedHosts({
       sessionId,
-      taskId,
+      chatId,
       urls: [
         "https://example.org/a",
         BLANK_PAGE_URL,
@@ -58,7 +58,7 @@ describe("browser state", () => {
       ],
     });
 
-    expect(await getBrowserState(taskId, sessionId)).toMatchObject({
+    expect(await getBrowserState(chatId, sessionId)).toMatchObject({
       value: {
         lastUsedAt: expect.any(Date),
         visitedHosts: ["example.com", "example.org"],
@@ -96,7 +96,7 @@ describe("restoring a reopened tab", () => {
     const result = await restoreLastPage({
       fallbackUrl: "https://example.org/remembered",
       targetId,
-      taskId,
+      chatId,
     });
 
     expect(result.isOk()).toBe(true);
@@ -113,7 +113,7 @@ describe("restoring a reopened tab", () => {
     await restoreLastPage({
       fallbackUrl: "https://example.com",
       targetId,
-      taskId,
+      chatId,
     });
 
     expect(sendCommand).not.toHaveBeenCalled();
@@ -131,7 +131,7 @@ describe("restoring a reopened tab", () => {
     const result = await restoreLastPage({
       fallbackUrl: "https://example.com",
       targetId,
-      taskId,
+      chatId,
     });
 
     expect(result._unsafeUnwrapErr().message).toBe("guest is gone");

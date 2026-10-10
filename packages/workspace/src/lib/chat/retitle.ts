@@ -51,7 +51,7 @@ export async function retitleChat({
   keep?: boolean;
   sessionId: StoreId.Session;
 }): Promise<string | undefined> {
-  const messages = await Store.getMessagesWithParts({ sessionId, taskId: id });
+  const messages = await Store.getMessagesWithParts({ sessionId, chatId: id });
   if (messages.isErr()) {
     return undefined;
   }
@@ -118,7 +118,7 @@ export async function retitleChat({
   await updateSessionTitle({
     expectedCurrentTitle: session.value.title,
     sessionId,
-    taskId: id,
+    chatId: id,
     title: title.value,
   });
   return title.value;

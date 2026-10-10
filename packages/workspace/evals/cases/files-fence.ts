@@ -119,7 +119,7 @@ const assertNoFence: Assertion = {
 
 /** Every line is a bare path, and every path resolves to a real file. */
 const assertLinesResolve: Assertion = {
-  check: async ({ sessions, taskId }) => {
+  check: async ({ sessions, chatId }) => {
     const lines = fenceBodies(assistantText(sessions)).flatMap(fenceLines);
     if (lines.length === 0) {
       return {
@@ -134,7 +134,7 @@ const assertLinesResolve: Assertion = {
         // The syntax says the line IS the path, so it is handed over as
         // written. A line needing repair is exactly the failure being counted.
         filePath: line as WorkspaceFilePath,
-        taskId,
+        chatId,
       });
       if (resolved.isErr()) {
         failures.push(line);
@@ -243,14 +243,14 @@ function namesEditedNote(text: string): string[] {
  * assertions could pass on a note nobody changed.
  */
 const assertNoteEdited: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text = "Added the items at the bottom of the first section";
     // Read at the mount the conversation sees, whatever it said, so the edit
     // is scored apart from whether anyone handed it over.
     const resolved = await getCurrentFileInfo({
       filePath:
         `${MOUNT.attachedFolders}/Journal/${EDITED_NOTE}` as WorkspaceFilePath,
-      taskId,
+      chatId,
     });
     if (resolved.isErr()) {
       return { evidence: resolved.error.message, passed: false, text };
@@ -283,7 +283,7 @@ const NOTE_LINK = new RegExp(
  * because the carrier a model reaches for is part of what is measured.
  */
 const assertConversationHandedBackNote: Assertion = {
-  check: async ({ sessions, taskId }) => {
+  check: async ({ sessions, chatId }) => {
     const text = "The closing reply handed back the note that changed";
     const reply = lastAssistantText(sessions);
     const handed = [
@@ -305,7 +305,7 @@ const assertConversationHandedBackNote: Assertion = {
         const filePath = `/${line.replace(/^.*?:\/\/file\//u, "").replace(/^\/+/u, "")}`;
         const resolved = await getCurrentFileInfo({
           filePath: filePath as WorkspaceFilePath,
-          taskId,
+          chatId,
         });
         return `${carrier} ${line}${resolved.isErr() ? " (does not resolve)" : ""}`;
       }),

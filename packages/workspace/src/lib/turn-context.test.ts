@@ -10,10 +10,10 @@ import {
   withTurnContext,
 } from "./turn-context";
 
-const taskId = ChatIdSchema.parse("turn-context");
+const chatId = ChatIdSchema.parse("turn-context");
 
 function newTurn(): TurnKey {
-  return { id: taskId, sessionId: StoreId.newSessionId() };
+  return { id: chatId, sessionId: StoreId.newSessionId() };
 }
 
 describe("withTurnContext", () => {

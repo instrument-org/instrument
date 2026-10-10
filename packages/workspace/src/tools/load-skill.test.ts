@@ -54,7 +54,7 @@ function baseExecuteArgs() {
   return {
     model,
     signal: AbortSignal.timeout(10_000),
-    taskId: createTaskConfigWithDirs(),
+    chatId: createTaskConfigWithDirs(),
     taskState: { browserTabs: [] },
   };
 }
@@ -115,7 +115,7 @@ describe("LoadSkill", () => {
     const description = await (typeof LoadSkill.description === "function"
       ? LoadSkill.description({
           model,
-          taskId: createTaskConfigWithDirs(),
+          chatId: createTaskConfigWithDirs(),
         })
       : LoadSkill.description);
     expect(description).not.toContain("invisible-skill");
@@ -717,7 +717,7 @@ describe("LoadSkill", () => {
     expect(installPythonSkill).toHaveBeenCalledWith({
       signal: args.signal,
       skillDir: copiedSkillDir("python-skill"),
-      taskId: args.taskId,
+      chatId: args.chatId,
     });
     expect(result).toMatchObject({
       installResults: [{ runtime: "python", state: "success" }],

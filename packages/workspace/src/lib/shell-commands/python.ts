@@ -55,22 +55,22 @@ export const PYTHON_NATIVE_COMMAND = {
 const SKILL_COPIES_DIR = `${MOUNT.task}/${TASK_FOLDER_NAMES.work}/${TASK_FOLDER_NAMES.skills}`;
 
 export function createPython3Command(
-  taskId: ChatId,
+  chatId: ChatId,
   layout: WorkspaceFsLayout,
 ) {
-  return createSandboxedPythonCommand(taskId, layout, PYTHON3_COMMAND.name);
+  return createSandboxedPythonCommand(chatId, layout, PYTHON3_COMMAND.name);
 }
 
-export function createPythonCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
-  return createSandboxedPythonCommand(taskId, layout, PYTHON_COMMAND.name);
+export function createPythonCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
+  return createSandboxedPythonCommand(chatId, layout, PYTHON_COMMAND.name);
 }
 
 export function createPythonNativeCommand(
-  taskId: ChatId,
+  chatId: ChatId,
   layout: WorkspaceFsLayout,
 ) {
   return defineCommand(PYTHON_NATIVE_COMMAND.name, (args, ctx) =>
-    runNativePython(taskId, layout, PYTHON_NATIVE_COMMAND.name, args, ctx),
+    runNativePython(chatId, layout, PYTHON_NATIVE_COMMAND.name, args, ctx),
   );
 }
 
@@ -87,7 +87,7 @@ const STDLIB_MODULE_NAMES = new Set(
 );
 
 function createSandboxedPythonCommand(
-  taskId: ChatId,
+  chatId: ChatId,
   layout: WorkspaceFsLayout,
   name: string,
 ) {
@@ -101,14 +101,14 @@ function createSandboxedPythonCommand(
     }
 
     if (isSkillScriptInvocation(args, ctx)) {
-      return runNativePython(taskId, layout, name, args, ctx, {
+      return runNativePython(chatId, layout, name, args, ctx, {
         skillScript: true,
       });
     }
 
-    const installed = await installedPackagesImported(taskId, args, ctx);
+    const installed = await installedPackagesImported(chatId, args, ctx);
     if (installed.length > 0) {
-      return runNativePython(taskId, layout, name, args, ctx, {
+      return runNativePython(chatId, layout, name, args, ctx, {
         importsInstalled: installed,
       });
     }
@@ -216,7 +216,7 @@ function explainSandboxedPythonFailure(stderr: string): string {
  * sandbox's error is the one that says to install it.
  */
 async function installedPackagesImported(
-  taskId: ChatId,
+  chatId: ChatId,
   args: string[],
   ctx: Parameters<Parameters<typeof defineCommand>[1]>[1],
 ): Promise<string[]> {
@@ -230,7 +230,7 @@ async function installedPackagesImported(
   if (packages.length === 0) {
     return [];
   }
-  const installed = await sitePackagesEntries(taskId);
+  const installed = await sitePackagesEntries(chatId);
   return packages.filter((module) =>
     installed.some(
       (entry) =>
@@ -364,7 +364,7 @@ function pythonScriptArgIndex(args: string[]): number | undefined {
  * told that the sandboxed `python` reads the folder directly.
  */
 async function runNativePython(
-  taskId: ChatId,
+  chatId: ChatId,
   layout: WorkspaceFsLayout,
   name: string,
   args: string[],
@@ -404,7 +404,7 @@ async function runNativePython(
     return fail(unreachable);
   }
 
-  const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+  const { env, taskCwd } = resolveCommandContext(chatId, ctx);
 
   // Inline program text (`-c` code, or a heredoc program when python reads
   // the script from stdin) resolves paths against the host filesystem, so
@@ -418,7 +418,7 @@ async function runNativePython(
   if (codeIndex > 0 && codeIndex < bridgedArgs.length) {
     const bridged = bridgeInlineCodePaths(
       bridgedArgs[codeIndex] ?? "",
-      taskId,
+      chatId,
       taskCwd,
       { alternative: sandboxedAlternative },
     );
@@ -427,7 +427,7 @@ async function runNativePython(
     }
     bridgedArgs[codeIndex] = bridged.code;
   } else if (stdin && readsProgramFromStdin) {
-    const bridged = bridgeInlineCodePaths(stdin, taskId, taskCwd, {
+    const bridged = bridgeInlineCodePaths(stdin, chatId, taskCwd, {
       alternative: sandboxedAlternative,
     });
     if ("error" in bridged) {
@@ -436,7 +436,7 @@ async function runNativePython(
     stdin = bridged.code;
   }
 
-  const finalArgs = resolvePathArgs(bridgedArgs, taskId, ctx);
+  const finalArgs = resolvePathArgs(bridgedArgs, chatId, ctx);
 
   // Scan the entry script for sandbox-virtual path literals a real interpreter
   // can't resolve, so it fails with copy-first / use-relative-paths guidance
@@ -454,12 +454,12 @@ async function runNativePython(
   }
 
   // After the path checks, so a run they refuse costs no virtualenv.
-  const venvError = await ensureTaskVenv({ ctx, taskId });
+  const venvError = await ensureTaskVenv({ ctx, chatId });
   if (venvError !== undefined) {
     return { exitCode: 1, stderr: venvError, stdout: "" };
   }
 
-  const result = await execShim(taskVenvPython(taskId), finalArgs, {
+  const result = await execShim(taskVenvPython(chatId), finalArgs, {
     cancelSignal: ctx.signal,
     cwd: taskCwd,
     env,
@@ -477,8 +477,8 @@ async function runNativePython(
 }
 
 /** What the task's virtualenv has installed, by file name, or none. */
-async function sitePackagesEntries(taskId: ChatId): Promise<string[]> {
-  const venv = taskVenvDir(taskId);
+async function sitePackagesEntries(chatId: ChatId): Promise<string[]> {
+  const venv = taskVenvDir(chatId);
   const libDirs =
     process.platform === "win32"
       ? [path.join(venv, "Lib")]

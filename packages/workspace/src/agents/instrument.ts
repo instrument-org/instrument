@@ -80,7 +80,7 @@ export const instrumentAgent = setupAgent({
   ]),
   name: "instrument",
 }).create(({ agentTools, name }) => ({
-  getMessages: async ({ sessionId, taskId }) => {
+  getMessages: async ({ sessionId, chatId }) => {
     const now = getCurrentDate();
 
     const systemMessage = createSystemMessage({
@@ -90,7 +90,7 @@ export const instrumentAgent = setupAgent({
       text: systemPrompt(),
     });
 
-    const attached = assignAttachedMounts(await folderReach(taskId));
+    const attached = assignAttachedMounts(await folderReach(chatId));
     const foldersText =
       attached.length > 0
         ? buildAttachedFoldersText({
@@ -128,8 +128,8 @@ export const instrumentAgent = setupAgent({
 
     return [systemMessage, userMessage];
   },
-  onFinish: async ({ parentMessageId, sessionId, signal, taskId }) => {
-    const skillChanges = await consumeSkillChanges({ id: taskId, sessionId });
+  onFinish: async ({ parentMessageId, sessionId, signal, chatId }) => {
+    const skillChanges = await consumeSkillChanges({ id: chatId, sessionId });
 
     // Skills live outside the working folder, in the shared writable
     // `/skills/workspace` mount, so a turn that only authored a skill leaves
@@ -147,7 +147,7 @@ export const instrumentAgent = setupAgent({
       const messageIds = yield* Store.getMessageIdsAfter(
         sessionId,
         parentMessageId,
-        taskId,
+        chatId,
         { signal },
       );
 
@@ -155,7 +155,7 @@ export const instrumentAgent = setupAgent({
         {
           messageIds: [parentMessageId, ...messageIds],
           sessionId,
-          taskId,
+          chatId,
         },
         { signal },
       );
@@ -189,7 +189,7 @@ export const instrumentAgent = setupAgent({
           },
           type: "data-skillChanges",
         },
-        taskId,
+        chatId,
         { signal },
       );
 
@@ -199,9 +199,9 @@ export const instrumentAgent = setupAgent({
       getWorkspaceConfig().captureException(result.error);
     }
   },
-  onStart: async ({ sessionId, taskId }) => {
-    await ensureWorkFolder(taskId, getWorkspaceConfig());
-    await beginSkillChangeTracking({ id: taskId, sessionId });
+  onStart: async ({ sessionId, chatId }) => {
+    await ensureWorkFolder(chatId, getWorkspaceConfig());
+    await beginSkillChangeTracking({ id: chatId, sessionId });
   },
   shouldContinue: shouldContinueAfterHandingOff,
   systemPrompt,

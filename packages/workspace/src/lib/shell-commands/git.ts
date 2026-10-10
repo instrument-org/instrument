@@ -198,10 +198,10 @@ const CONFIG_READ_FLAGS = new Set([
 
 export function createGitCommand({
   layout,
-  taskId,
+  chatId,
 }: {
   layout: WorkspaceFsLayout;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   return defineCommand(GIT_COMMAND.name, async (args, ctx) => {
     const rejection = rejectUnsafeArgs(args);
@@ -209,7 +209,7 @@ export function createGitCommand({
       return fail(rejection);
     }
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const resolveVirtual = (p: string) => ctx.fs.resolvePath(ctx.cwd, p);
 
     // Where git runs. A mount is a real directory the user attached, so unlike
@@ -233,7 +233,7 @@ export function createGitCommand({
         layout,
         resolveVirtual,
         taskCwd,
-        taskId,
+        chatId,
       });
       if ("error" in bridged) {
         return fail(bridged.error);
@@ -303,7 +303,7 @@ function bridgeArg(
     layout,
     resolveVirtual,
     taskCwd,
-    taskId,
+    chatId,
   }: {
     ctx: {
       cwd: string;
@@ -312,7 +312,7 @@ function bridgeArg(
     layout: WorkspaceFsLayout;
     resolveVirtual: (p: string) => string;
     taskCwd: string;
-    taskId: ChatId;
+    chatId: ChatId;
   },
 ): { arg: string; mount?: WorkspaceFsMount } | { error: string } {
   const eqIndex = arg.indexOf("=");
@@ -339,8 +339,8 @@ function bridgeArg(
   // containment check as a literal `/task/...` and is reported as escaping,
   // while the space-separated spelling of the same thing works.
   const [bridged] = inline
-    ? [bridgeFlagValuePath(arg, taskId, taskCwd, resolveVirtual)]
-    : resolvePathArgs([arg], taskId, ctx);
+    ? [bridgeFlagValuePath(arg, chatId, taskCwd, resolveVirtual)]
+    : resolvePathArgs([arg], chatId, ctx);
   return { arg: bridged ?? arg };
 }
 

@@ -20,14 +20,14 @@ const id = ChatIdSchema.parse("background-processes-part-test");
 
 let root: string;
 let sessionId: StoreId.Session;
-let taskId: ChatId;
+let chatId: ChatId;
 
 async function makePart() {
   return createBackgroundProcessesPart({
     createdAt: new Date(),
     messageId: StoreId.newMessageId(),
     sessionId,
-    taskId,
+    chatId,
   });
 }
 
@@ -49,9 +49,9 @@ function startRunning(command: string) {
           { once: true },
         );
       }),
-    taskId,
+    chatId,
   });
-  const promoted = promoteBackgroundProcess({ handle, sessionId, taskId });
+  const promoted = promoteBackgroundProcess({ handle, sessionId, chatId });
   if ("error" in promoted) {
     throw new Error(promoted.error);
   }
@@ -60,8 +60,8 @@ function startRunning(command: string) {
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "bg-part-test-"));
-  taskId = createMockChatConfigForDir(path.join(root, TASKS_DIR_NAME, id));
-  await fs.mkdir(chatDir(taskId), { recursive: true });
+  chatId = createMockChatConfigForDir(path.join(root, TASKS_DIR_NAME, id));
+  await fs.mkdir(chatDir(chatId), { recursive: true });
   sessionId = StoreId.newSessionId();
 });
 

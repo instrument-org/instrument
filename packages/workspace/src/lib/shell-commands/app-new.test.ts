@@ -24,11 +24,11 @@ vi.mock("../apps/preflight", () => ({
   packageExists: vi.fn(() => Promise.resolve("unknown")),
 }));
 
-const taskId = ChatIdSchema.parse("app-new-task");
+const chatId = ChatIdSchema.parse("app-new-task");
 const apps = getWorkspaceConfig().apps;
 
 beforeEach(() => {
-  knowChat(taskId);
+  knowChat(chatId);
 });
 
 afterEach(() => {
@@ -40,7 +40,7 @@ async function app(...args: string[]) {
 }
 
 async function appWithStdin(stdin: string | undefined, ...args: string[]) {
-  return createAppCommand({ taskId }).execute(
+  return createAppCommand({ chatId }).execute(
     args,
     createCommandContext({
       cwd: "/task",
@@ -388,7 +388,7 @@ describe("app icon", () => {
   async function setIcon(slug: string, file: string, svg: string) {
     const taskFs = new InMemoryFs();
     await taskFs.writeFile(`/task/${file}`, svg);
-    return createAppCommand({ taskId }).execute(
+    return createAppCommand({ chatId }).execute(
       ["icon", slug, file],
       createCommandContext({
         cwd: "/task",

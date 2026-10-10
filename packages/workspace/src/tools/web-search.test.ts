@@ -314,7 +314,7 @@ describe("WebSearch model output", () => {
 
 describe("WebSearch execution", () => {
   const model = createMockAIGatewayModel();
-  const taskId = createMockChatConfig(ChatIdSchema.parse("web-search-test"), {
+  const chatId = createMockChatConfig(ChatIdSchema.parse("web-search-test"), {
     model,
   });
 
@@ -325,7 +325,7 @@ describe("WebSearch execution", () => {
         input: { query },
         model,
         signal: new AbortController().signal,
-        taskId,
+        chatId,
         taskState: { browserTabs: [] },
       });
 

@@ -20,14 +20,14 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 describe("resolveWorkspaceFilePath", () => {
   let photosRoot: string;
   let root: string;
-  let taskId: ChatId;
+  let chatId: ChatId;
   let taskRoot: string;
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-workspace-path-"));
     taskRoot = path.join(root, "tasks", "resolve-path-task");
     photosRoot = path.join(root, "Photos");
-    taskId = createMockChatConfigForDir(taskRoot);
+    chatId = createMockChatConfigForDir(taskRoot);
 
     await fs.mkdir(taskRoot, { recursive: true });
     await fs.mkdir(photosRoot);
@@ -59,7 +59,7 @@ describe("resolveWorkspaceFilePath", () => {
   ] as const)("resolves %s", async (filePath, expected) => {
     const resolved = await resolveWorkspaceFilePath({
       filePath: WorkspaceFilePathSchema.parse(filePath),
-      taskId,
+      chatId,
     });
 
     expect(resolved).toBe(expected());
@@ -78,7 +78,7 @@ describe("resolveWorkspaceFilePath", () => {
       filePath: WorkspaceFilePathSchema.parse(
         `${WORKSPACE_SKILLS_MOUNT}/csv-table/SKILL.md`,
       ),
-      taskId,
+      chatId,
     });
 
     expect(resolved).toBe(skillFile);
@@ -90,7 +90,7 @@ describe("resolveWorkspaceFilePath", () => {
   ])("returns null for $label", async ({ filePath }) => {
     const resolved = await resolveWorkspaceFilePath({
       filePath: WorkspaceFilePathSchema.parse(filePath),
-      taskId,
+      chatId,
     });
 
     expect(resolved).toBeNull();

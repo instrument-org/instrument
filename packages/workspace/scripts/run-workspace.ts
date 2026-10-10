@@ -189,7 +189,7 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
-let taskId: ChatId | undefined;
+let chatId: ChatId | undefined;
 
 const FAKE_FILES = {
   audio: {
@@ -262,12 +262,12 @@ rl.on("line", (input) => {
       workspaceRef: actor,
     };
 
-    if (taskId) {
+    if (chatId) {
       void call(
         messageRoute.create,
         {
           files,
-          id: taskId,
+          id: chatId,
           modelURI: MODEL_URI,
           prompt,
           sessionId: savedSessionId,
@@ -287,7 +287,7 @@ rl.on("line", (input) => {
         },
         context,
       ).then((newTask) => {
-        taskId = newTask.id;
+        chatId = newTask.id;
         savedSessionId = newTask.sessionId;
       });
     }

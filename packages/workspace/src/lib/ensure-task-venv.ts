@@ -27,30 +27,30 @@ let createTaskVenv = runUvVenv;
 
 export async function ensureTaskVenvForTask({
   signal,
-  taskId,
+  chatId,
 }: {
   signal?: AbortSignal;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<TaskVenvError | undefined> {
-  if (hasUsableVenv(taskId)) {
+  if (hasUsableVenv(chatId)) {
     return undefined;
   }
 
-  const existing = inFlightVenvCreation.get(taskId);
+  const existing = inFlightVenvCreation.get(chatId);
   if (existing) {
     return awaitVenvCreation({ creation: existing, signal });
   }
 
-  const creation = createTaskVenv(taskId).finally(() =>
-    inFlightVenvCreation.delete(taskId),
+  const creation = createTaskVenv(chatId).finally(() =>
+    inFlightVenvCreation.delete(chatId),
   );
 
-  inFlightVenvCreation.set(taskId, creation);
+  inFlightVenvCreation.set(chatId, creation);
   return awaitVenvCreation({ creation, signal });
 }
 
 export function setTaskVenvCreator(
-  next: (taskId: ChatId) => Promise<TaskVenvError | undefined>,
+  next: (chatId: ChatId) => Promise<TaskVenvError | undefined>,
 ): void {
   createTaskVenv = next;
 }
@@ -94,14 +94,14 @@ function cancelledVenvCreation(): TaskVenvError {
   };
 }
 
-function hasUsableVenv(taskId: ChatId) {
+function hasUsableVenv(chatId: ChatId) {
   return (
-    existsSync(taskVenvPython(taskId)) &&
-    existsSync(path.join(taskVenvDir(taskId), "pyvenv.cfg"))
+    existsSync(taskVenvPython(chatId)) &&
+    existsSync(path.join(taskVenvDir(chatId), "pyvenv.cfg"))
   );
 }
 
-function runUvVenv(taskId: ChatId): Promise<TaskVenvError | undefined> {
+function runUvVenv(chatId: ChatId): Promise<TaskVenvError | undefined> {
   // `--clear` because we only get here when the venv is missing or unusable,
   // so replacing whatever is there is the intent. Without it uv refuses to
   // touch an existing venv, which would strand a task whose interpreter went
@@ -114,10 +114,10 @@ function runUvVenv(taskId: ChatId): Promise<TaskVenvError | undefined> {
       "--clear",
       "--python",
       MANAGED_PYTHON_VERSION,
-      taskVenvDir(taskId),
+      taskVenvDir(chatId),
     ],
-    cwd: workDir(taskId),
-    taskId,
+    cwd: workDir(chatId),
+    chatId,
   })
     .then((result) =>
       result.exitCode === 0

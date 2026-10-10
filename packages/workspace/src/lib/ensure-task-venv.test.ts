@@ -21,9 +21,9 @@ describe("ensureTaskVenvForTask", () => {
       stdout: "",
     });
 
-    const taskId = createMockChatConfig(ChatIdSchema.parse("incomplete-venv"));
+    const chatId = createMockChatConfig(ChatIdSchema.parse("incomplete-venv"));
 
-    await expect(ensureTaskVenvForTask({ taskId })).resolves.toBeUndefined();
+    await expect(ensureTaskVenvForTask({ chatId })).resolves.toBeUndefined();
     expect(runUvCommand).toHaveBeenCalledTimes(1);
     // `--clear` is what lets uv replace the unusable venv rather than refuse.
     expect(vi.mocked(runUvCommand).mock.calls[0]?.[0].args).toContain(
@@ -43,16 +43,16 @@ describe("ensureTaskVenvForTask", () => {
         }),
     );
 
-    const taskId = createMockChatConfig(ChatIdSchema.parse("venv-race"));
+    const chatId = createMockChatConfig(ChatIdSchema.parse("venv-race"));
     const firstSignal = new AbortController();
     const secondSignal = new AbortController();
     const first = ensureTaskVenvForTask({
       signal: firstSignal.signal,
-      taskId,
+      chatId,
     });
     const second = ensureTaskVenvForTask({
       signal: secondSignal.signal,
-      taskId,
+      chatId,
     });
 
     expect(runUvCommand).toHaveBeenCalledTimes(1);

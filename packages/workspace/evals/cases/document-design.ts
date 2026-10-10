@@ -42,8 +42,8 @@ function pass(text: string, evidence: string): AssertionResult {
 }
 
 /** The newest PDF under the task's work folder, the skills it copied aside. */
-async function newestPdf(taskId: ChatId) {
-  const work = path.join(chatDir(taskId), "work");
+async function newestPdf(chatId: ChatId) {
+  const work = path.join(chatDir(chatId), "work");
   const found: { file: string; mtime: number }[] = [];
   const walk = async (at: string, depth: number) => {
     const entries = await fs.promises
@@ -77,9 +77,9 @@ async function newestPdf(taskId: ChatId) {
 }
 
 const wrotePrintedPdf: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text = "wrote a PDF printed by the browser";
-    const pdf = await newestPdf(taskId);
+    const pdf = await newestPdf(chatId);
     if (!pdf) {
       return fail(text, "no PDF under work/");
     }
@@ -94,8 +94,8 @@ const wrotePrintedPdf: Assertion = {
 function cameBackAs(pages: number): Assertion {
   const text = `came back as ${pages} page${pages === 1 ? "" : "s"}`;
   return {
-    check: async ({ taskId }) => {
-      const pdf = await newestPdf(taskId);
+    check: async ({ chatId }) => {
+      const pdf = await newestPdf(chatId);
       if (!pdf) {
         return fail(text, "no PDF under work/");
       }
@@ -172,9 +172,9 @@ const ranThePreview: Assertion = {
 };
 
 const wroteADeck: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text = "wrote a .pptx";
-    const work = path.join(chatDir(taskId), "work");
+    const work = path.join(chatDir(chatId), "work");
     const decks = (
       await fs.promises.readdir(work, { recursive: true }).catch(() => [])
     ).filter((name) => String(name).toLowerCase().endsWith(".pptx"));

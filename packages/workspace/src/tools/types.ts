@@ -18,12 +18,12 @@ export interface AgentTool<
 > {
   aiSDKTool: (options: {
     model: AIGatewayModel.Type;
-    taskId: ChatId;
+    chatId: ChatId;
   }) => Promise<Tool<z.output<TInputSchema>, z.output<TOutputSchema>>>;
   description:
     | ((options: {
         model: AIGatewayModel.Type;
-        taskId: ChatId;
+        chatId: ChatId;
       }) => Promise<string> | string)
     | string;
   execute: (options: {
@@ -33,7 +33,7 @@ export interface AgentTool<
     partId: StoreId.Part;
     sessionId: StoreId.Session;
     signal: AbortSignal;
-    taskId: ChatId;
+    chatId: ChatId;
     taskState: ChatState;
   }) =>
     | AsyncGenerator<ExecuteResult<z.output<TOutputSchema>>>
@@ -43,10 +43,10 @@ export interface AgentTool<
   outputSchema: TOutputSchema;
   readOnly: boolean;
   // Description-free variant used for static type inference and toModelOutput mapping.
-  // Does not call description(), so it is safe to call synchronously without taskId.
+  // Does not call description(), so it is safe to call synchronously without chatId.
   staticAISDKTool: () => Tool<z.output<TInputSchema>, z.output<TOutputSchema>>;
   timeoutMs:
-    | ((options: { input: z.output<TInputSchema>; taskId: ChatId }) => number)
+    | ((options: { input: z.output<TInputSchema>; chatId: ChatId }) => number)
     | number;
   toModelOutput: (options: {
     input: z.output<TInputSchema>;

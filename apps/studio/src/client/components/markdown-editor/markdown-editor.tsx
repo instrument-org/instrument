@@ -205,7 +205,7 @@ function FenceView({
   // reach is what can place them on this computer.
   const appWindow = useContext(WindowContext);
   return (
-    <MarkdownTaskContext value={{ taskId: appWindow ? WINDOW_ID : undefined }}>
+    <MarkdownTaskContext value={{ chatId: appWindow ? WINDOW_ID : undefined }}>
       <div className="group/fence relative">
         {language === AGENT_MESSAGE_LANGUAGE ? (
           <MessageCard message={parseMessage(content)} />

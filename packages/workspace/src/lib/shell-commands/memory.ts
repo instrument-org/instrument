@@ -117,7 +117,7 @@ async function rememberTold(
   name: string,
   memory: Memory | undefined,
 ) {
-  await recordMemoryReported({ memory, name, sessionId, taskId: chatId });
+  await recordMemoryReported({ memory, name, sessionId, chatId });
 }
 
 async function runForget(args: string[], context: MemoryCommandContext) {

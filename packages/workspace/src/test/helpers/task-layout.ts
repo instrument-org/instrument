@@ -5,11 +5,11 @@ import { buildWorkspaceFsLayout } from "../../lib/workspace-fs-layout";
 
 /** The layout a task's shell has, with the folders given mounted beside it. */
 export function taskLayout(
-  taskId: ChatId,
+  chatId: ChatId,
   attachedFolders?: Record<string, FolderAttachment.Type>,
 ) {
   return buildWorkspaceFsLayout({
     ...(attachedFolders ? { attachedFolders } : {}),
-    taskHostRoot: chatDir(taskId),
+    taskHostRoot: chatDir(chatId),
   });
 }

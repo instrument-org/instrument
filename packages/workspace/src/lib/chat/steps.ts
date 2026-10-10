@@ -59,15 +59,15 @@ export function renderSteps(steps: Step[]): string {
  */
 export async function sessionSteps({
   sessionId,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }): Promise<Step[]> {
   const messages = await Store.getMessagesWithParts({
     inherited: false,
     sessionId,
-    taskId,
+    chatId,
   });
   if (messages.isErr()) {
     return [];
@@ -144,7 +144,7 @@ export async function sessionSteps({
  * step, so the conversation reads a trajectory rather than a snapshot.
  */
 export async function trajectorySince(
-  ref: { sessionId: StoreId.Session; taskId: ChatId },
+  ref: { sessionId: StoreId.Session; chatId: ChatId },
   since: Date,
 ): Promise<string[]> {
   const allSteps = await sessionSteps(ref);

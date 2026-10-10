@@ -92,7 +92,7 @@ export function TaskChat({
   selectedSessionId,
   sendContext,
   sentPrompt,
-  task,
+  chatInfo,
   transcriptTrailing,
 }: {
   /**
@@ -132,12 +132,12 @@ export function TaskChat({
    * reads as empty on the way.
    */
   sentPrompt?: string;
-  task: ChatInfo;
+  chatInfo: ChatInfo;
   /** Drawn under the transcript's last turn, inside the scroller: what is going on past the conversation. */
   transcriptTrailing?: ReactNode;
 }) {
   const appWindow = useContext(WindowContext);
-  const id = task.id;
+  const id = chatInfo.id;
 
   const promptInputRef = useRef<PromptInputRef>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -502,7 +502,7 @@ export function TaskChat({
                         onRetry={handleRetry}
                         onRunAgain={handleRunAgain}
                         presentation="chat"
-                        task={task}
+                        chatInfo={chatInfo}
                       />
                     )
                   ) : (

@@ -17,12 +17,12 @@ type TaskAppsBaseline = z.output<typeof TaskAppsBaselineSchema>;
  * undefined when none is stored yet.
  */
 export function getTaskAppsBaseline(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
   { signal }: { signal?: AbortSignal } = {},
 ) {
   return safeTry<TaskAppsBaseline | undefined, Error>(async function* () {
-    const storage = yield* getSessionsStoreStorage(taskId);
+    const storage = yield* getSessionsStoreStorage(chatId);
     const result = await getParsedStorageItem(
       StorageKey.taskAppsBaseline(sessionId),
       TaskAppsBaselineSchema,
@@ -39,13 +39,13 @@ export function getTaskAppsBaseline(
 
 /** Persists the apps baseline for the session. */
 export function setTaskAppsBaseline(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
   slugs: TaskAppsBaseline,
   { signal }: { signal?: AbortSignal } = {},
 ) {
   return safeTry(async function* () {
-    const storage = yield* getSessionsStoreStorage(taskId);
+    const storage = yield* getSessionsStoreStorage(chatId);
     yield* setParsedStorageItem(
       StorageKey.taskAppsBaseline(sessionId),
       slugs,

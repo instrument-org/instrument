@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import {
   killBackgroundProcess,
-  listTaskBackgroundProcesses,
+  listChatBackgroundProcesses,
 } from "../../../lib/background-processes";
 import { StoreId } from "../../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../../schemas/chat-id";
@@ -36,7 +36,7 @@ function processesOf({
   id: ChatId;
   sessionId?: StoreId.Session;
 }) {
-  return listTaskBackgroundProcesses(id).filter(
+  return listChatBackgroundProcesses(id).filter(
     (process) => sessionId === undefined || process.sessionId === sessionId,
   );
 }
@@ -130,7 +130,7 @@ const changed = base
     }
   });
 
-export const taskBackgroundProcesses = {
+export const chatBackgroundProcesses = {
   events: { changed },
   list,
   stop,

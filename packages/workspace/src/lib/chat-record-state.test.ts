@@ -13,14 +13,14 @@ import { getChatSettings, updateChatSettings } from "./chat-settings";
 
 const id = ChatIdSchema.parse("task-record-state-test");
 
-let taskId: ChatId;
+let chatId: ChatId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "task-record-state-test-"));
   const tasksDir = path.join(root, TASKS_DIR_NAME);
-  taskId = createMockChatConfigForDir(path.join(tasksDir, id));
-  await fs.mkdir(chatDir(taskId), { recursive: true });
+  chatId = createMockChatConfigForDir(path.join(tasksDir, id));
+  await fs.mkdir(chatDir(chatId), { recursive: true });
 });
 
 afterEach(async () => {
@@ -28,11 +28,11 @@ afterEach(async () => {
 });
 
 function recordFilePath(): string {
-  return path.join(getTaskPrivateDir(chatDir(taskId)), "settings.json");
+  return path.join(getTaskPrivateDir(chatDir(chatId)), "settings.json");
 }
 
 async function writeStateFile(state: unknown): Promise<void> {
-  const privateDir = getTaskPrivateDir(chatDir(taskId));
+  const privateDir = getTaskPrivateDir(chatDir(chatId));
   await fs.mkdir(privateDir, { recursive: true });
   await fs.writeFile(
     recordFilePath(),
@@ -61,7 +61,7 @@ describe("getChatState", () => {
       selectedModelURI: "instrument/auto",
     });
 
-    const state = await getChatState(chatDir(taskId));
+    const state = await getChatState(chatDir(chatId));
 
     expect(state.attachedFolders?.["Home-Downloads"]).toMatchObject({
       access: "read-write",
@@ -71,7 +71,7 @@ describe("getChatState", () => {
   });
 
   it("reads back what it writes", async () => {
-    await setChatState(chatDir(taskId), {
+    await setChatState(chatDir(chatId), {
       attachedFolders: {
         Downloads: {
           access: "read-only",
@@ -84,7 +84,7 @@ describe("getChatState", () => {
       },
     });
 
-    const state = await getChatState(chatDir(taskId));
+    const state = await getChatState(chatDir(chatId));
 
     expect(state.attachedFolders?.Downloads?.mountName).toBe("Downloads");
   });
@@ -105,7 +105,7 @@ describe("getChatState", () => {
       },
     });
 
-    await setChatState(chatDir(taskId), { selectedModelURI: "anything" });
+    await setChatState(chatDir(chatId), { selectedModelURI: "anything" });
 
     const written = await fs.readFile(recordFilePath(), "utf8");
     expect(written).toContain('"mountName": "Home-Downloads"');
@@ -120,15 +120,15 @@ describe("the state beside the settings", () => {
    * other has not written, and whichever lands second erases the other's half.
    */
   it("does not lose a generated title to a state write at the same time", async () => {
-    await updateChatSettings(taskId, { name: "Untitled task" });
+    await updateChatSettings(chatId, { name: "Untitled task" });
 
     await Promise.all([
-      updateChatSettings(taskId, { name: "Generated title" }),
-      setChatState(chatDir(taskId), { selectedModelURI: "half a thought" }),
+      updateChatSettings(chatId, { name: "Generated title" }),
+      setChatState(chatDir(chatId), { selectedModelURI: "half a thought" }),
     ]);
 
-    const settings = await getChatSettings(chatDir(taskId));
-    const state = await getChatState(chatDir(taskId));
+    const settings = await getChatSettings(chatDir(chatId));
+    const state = await getChatState(chatDir(chatId));
 
     expect(settings?.name).toBe("Generated title");
     expect(state.selectedModelURI).toBe("half a thought");

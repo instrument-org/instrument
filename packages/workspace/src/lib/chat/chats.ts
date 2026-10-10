@@ -445,14 +445,14 @@ function behind(given: string[], made: string[]): string[] {
 
 async function chatFor(
   digest: ChatDigest,
-  taskId: ChatId,
+  chatId: ChatId,
   shared: Shared,
 ): Promise<Chat> {
   const { root, session } = digest;
-  const filedTasks = (await listChildTasks(taskId)).map((task) => task.id);
-  const { running: filed } = await chatActivity(taskId);
+  const filedTasks = (await listChildTasks(chatId)).map((task) => task.id);
+  const { running: filed } = await chatActivity(chatId);
   const runningTasks = filed.map((task) => ({
-    id: task.taskId,
+    id: task.sessionId,
     ...(task.step ? { step: task.step } : {}),
     title: task.title,
     ...(task.waiting ? { waiting: task.waiting } : {}),
@@ -464,10 +464,10 @@ async function chatFor(
   // on an ask of its own is the same: alive to the machine, waiting to the
   // user.
   const ownWorking =
-    (chatIsAlive(taskId) && digest.ownAsk === undefined) ||
+    (chatIsAlive(chatId) && digest.ownAsk === undefined) ||
     turnIsStarting(digest);
   const working =
-    ownWorking || filed.some((task) => !task.waiting) || hasPendingWake(taskId);
+    ownWorking || filed.some((task) => !task.waiting) || hasPendingWake(chatId);
   const ask = working ? undefined : askOf(digest, filed);
   const state = working
     ? "working"
@@ -492,7 +492,7 @@ async function chatFor(
   const made = {
     apps: unique(knownAmong(digest.calledApps, shared.knownApps)),
     files: digest.madeFiles,
-    sites: await sitesHeld(taskId, digest.openedHosts, filedTasks),
+    sites: await sitesHeld(chatId, digest.openedHosts, filedTasks),
   };
 
   return {
@@ -508,7 +508,7 @@ async function chatFor(
       files: behind(sent.files, made.files),
       sites: behind(sent.sites, made.sites),
     },
-    id: taskId,
+    id: chatId,
     starred: session.starredAt !== undefined,
     ...(digest.lastAsk ? { lastAsk: digest.lastAsk } : {}),
     ...(latest ? { latest } : {}),
@@ -543,15 +543,15 @@ const chatDigests = indexedByStore<ChatDigest | undefined>("chat_digests");
 
 /** A chat's digest, or none when its record or its messages cannot be read. */
 function chatDigest(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<ChatDigest | undefined> {
-  return chatDigests(taskId, async () => {
-    const session = await Store.getSession(sessionId, taskId);
+  return chatDigests(chatId, async () => {
+    const session = await Store.getSession(sessionId, chatId);
     if (session.isErr()) {
       return unkept(undefined);
     }
-    const messages = await Store.getMessagesWithParts({ sessionId, taskId });
+    const messages = await Store.getMessagesWithParts({ sessionId, chatId });
     return messages.isOk()
       ? kept(digestOf(session.value, messages.value))
       : unkept(undefined);

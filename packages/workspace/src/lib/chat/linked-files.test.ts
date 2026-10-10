@@ -19,8 +19,8 @@ vi.mock(import("../session-store-storage"));
 // id reused across runs would read the last run's conversation.
 let counter = 0;
 // Chats live under the workspace root, so each test gets a root of its own.
-const freshTask = () => {
-  const taskId = createMockChatConfig(
+const freshChat = () => {
+  const chatId = createMockChatConfig(
     ChatIdSchema.parse(`linked-${Date.now()}-${(counter += 1)}`),
   );
   setWorkspaceConfig({
@@ -35,7 +35,7 @@ const freshTask = () => {
       fs.mkdtempSync(path.join(os.tmpdir(), "linked-root-")),
     ),
   });
-  return taskId;
+  return chatId;
 };
 
 /** A chat of the conversation: a session under a title. */
@@ -87,16 +87,16 @@ const at = (minute: number) => new Date(Date.UTC(2026, 8, 7, 12, minute));
 
 describe("linkedFiles", () => {
   it("names what a reply put on screen, newest first", async () => {
-    const taskId = freshTask();
-    const sessionId = await chat(taskId, "General");
+    const chatId = freshChat();
+    const sessionId = await chat(chatId, "General");
     await said(
-      taskId,
+      chatId,
       sessionId,
       "Here is the draft.\n\n```files\noutput/report.md\n```",
       at(1),
     );
     await said(
-      taskId,
+      chatId,
       sessionId,
       "And the chart: [chart](output/chart.png)",
       at(2),
@@ -111,11 +111,11 @@ describe("linkedFiles", () => {
   });
 
   it("reads every chat, since the user saw all of them", async () => {
-    const taskId = freshTask();
-    const work = await chat(taskId, "Work");
-    const home = await chat(taskId, "Home");
-    await said(taskId, work, "```files\noutput/deck.pdf\n```", at(1));
-    await said(taskId, home, "```files\n/mnt/Documents/plan.md\n```", at(2));
+    const chatId = freshChat();
+    const work = await chat(chatId, "Work");
+    const home = await chat(chatId, "Home");
+    await said(chatId, work, "```files\noutput/deck.pdf\n```", at(1));
+    await said(chatId, home, "```files\n/mnt/Documents/plan.md\n```", at(2));
 
     const shown = await linkedFiles();
 
@@ -126,10 +126,10 @@ describe("linkedFiles", () => {
   });
 
   it("leaves a path the reply only talked about out of it", async () => {
-    const taskId = freshTask();
-    const sessionId = await chat(taskId, "General");
+    const chatId = freshChat();
+    const sessionId = await chat(chatId, "General");
     await said(
-      taskId,
+      chatId,
       sessionId,
       "I read output/notes.md and wrote this one.\n\n```files\noutput/report.md\n```",
       at(1),
@@ -141,27 +141,27 @@ describe("linkedFiles", () => {
   });
 
   it("names a file shown twice once, at the last time it was shown", async () => {
-    const taskId = freshTask();
-    const sessionId = await chat(taskId, "General");
-    await said(taskId, sessionId, "```files\noutput/report.md\n```", at(1));
-    await said(taskId, sessionId, "```files\noutput/chart.png\n```", at(2));
-    await said(taskId, sessionId, "```files\noutput/report.md\n```", at(3));
+    const chatId = freshChat();
+    const sessionId = await chat(chatId, "General");
+    await said(chatId, sessionId, "```files\noutput/report.md\n```", at(1));
+    await said(chatId, sessionId, "```files\noutput/chart.png\n```", at(2));
+    await said(chatId, sessionId, "```files\noutput/report.md\n```", at(3));
 
     const shown = await linkedFiles();
 
-    const chatId = chatFor(sessionId);
+    const shownIn = chatFor(sessionId);
     expect(shown).toEqual([
-      { at: at(3).getTime(), chatId, path: "output/report.md" },
-      { at: at(2).getTime(), chatId, path: "output/chart.png" },
+      { at: at(3).getTime(), chatId: shownIn, path: "output/report.md" },
+      { at: at(2).getTime(), chatId: shownIn, path: "output/chart.png" },
     ]);
   });
 
   it("names the same path once for each chat that showed it", async () => {
-    const taskId = freshTask();
-    const first = await chat(taskId, "First");
-    const second = await chat(taskId, "Second");
-    await said(taskId, first, "```files\n/task/work/notes.md\n```", at(1));
-    await said(taskId, second, "```files\n/task/work/notes.md\n```", at(2));
+    const chatId = freshChat();
+    const first = await chat(chatId, "First");
+    const second = await chat(chatId, "Second");
+    await said(chatId, first, "```files\n/task/work/notes.md\n```", at(1));
+    await said(chatId, second, "```files\n/task/work/notes.md\n```", at(2));
 
     const shown = await linkedFiles();
 
@@ -172,7 +172,7 @@ describe("linkedFiles", () => {
   });
 
   it("has nothing to show for a conversation with no chats", async () => {
-    freshTask();
+    freshChat();
 
     await expect(linkedFiles()).resolves.toEqual([]);
   });

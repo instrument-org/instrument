@@ -64,10 +64,9 @@ export async function startRun(
   const model = modelResult.value;
 
   const chatSession = StoreId.newSessionId();
-  const chatId = await ensureChat(chatSession, prompt);
-  const taskId: ChatId = chatId;
+  const chatId: ChatId = await ensureChat(chatSession, prompt);
   let sessionId = chatSession;
-  (await createSession({ sessionId: chatSession, taskId }))._unsafeUnwrap();
+  (await createSession({ sessionId: chatSession, chatId }))._unsafeUnwrap();
   if (kind === "task") {
     // The chat's apps are the task's, so the case's are handed to the chat.
     if (apps) {
@@ -92,7 +91,7 @@ export async function startRun(
     modelURI: uri,
     prompt,
     sessionId,
-    taskId,
+    chatId,
     ...(viewing ? { viewing } : {}),
   });
   if (sent.isErr()) {
@@ -100,22 +99,22 @@ export async function startRun(
   }
   const message = sent.value;
 
-  const session = (await Store.getSession(sessionId, taskId))._unsafeUnwrap();
+  const session = (await Store.getSession(sessionId, chatId))._unsafeUnwrap();
   (
     await Store.saveSession(
       { ...session, title: name, updatedAt: new Date() },
-      taskId,
+      chatId,
     )
   )._unsafeUnwrap();
 
   workspaceRef.send({
     type: "createSession",
     value: {
-      id: taskId,
+      id: chatId,
       message,
       model,
       sessionId,
     },
   });
-  return { id: taskId, sessionId };
+  return { id: chatId, sessionId };
 }

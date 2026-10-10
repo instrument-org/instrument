@@ -24,13 +24,13 @@ type AttachedFoldersBaseline = z.output<typeof AttachedFoldersBaselineSchema>;
 
 /** Reads the session's persisted attached-folders baseline, or undefined when none is stored yet. */
 export function getAttachedFoldersBaseline(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
   { signal }: { signal?: AbortSignal } = {},
 ) {
   return safeTry<AttachedFoldersBaseline | undefined, Error>(
     async function* () {
-      const storage = yield* getSessionsStoreStorage(taskId);
+      const storage = yield* getSessionsStoreStorage(chatId);
       const result = await getParsedStorageItem(
         StorageKey.attachedFoldersBaseline(sessionId),
         AttachedFoldersBaselineSchema,
@@ -48,13 +48,13 @@ export function getAttachedFoldersBaseline(
 
 /** Persists the attached-folders baseline for the session. */
 export function setAttachedFoldersBaseline(
-  taskId: ChatId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
   folders: AttachedFoldersBaseline,
   { signal }: { signal?: AbortSignal } = {},
 ) {
   return safeTry(async function* () {
-    const storage = yield* getSessionsStoreStorage(taskId);
+    const storage = yield* getSessionsStoreStorage(chatId);
     yield* setParsedStorageItem(
       StorageKey.attachedFoldersBaseline(sessionId),
       folders,

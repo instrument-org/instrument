@@ -1149,7 +1149,7 @@ export async function snapshotTree(cdp, { depth = 12, selector } = {}) {
 export async function waitIdle(cdp, { settleMs, taskId, timeoutMs }) {
   // Reads the task first so a wrong id fails saying so, rather than waiting out
   // the whole timeout on a task that was never going to report anything.
-  await callRpc(cdp, "workspace.task.byId", { id: taskId });
+  await callRpc(cdp, "workspace.chats.info", { id: taskId });
 
   const startedAt = Date.now();
   const deadline = startedAt + timeoutMs;

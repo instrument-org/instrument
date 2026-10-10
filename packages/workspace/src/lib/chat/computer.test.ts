@@ -67,7 +67,7 @@ describe("accessIn", () => {
 });
 
 describe("listComputerFolder", () => {
-  const taskId = createMockChatConfig(ChatIdSchema.parse("computer-listing"));
+  const chatId = createMockChatConfig(ChatIdSchema.parse("computer-listing"));
   let folder: string | undefined;
 
   afterEach(async () => {
@@ -88,7 +88,7 @@ describe("listComputerFolder", () => {
       ),
     );
 
-    const listing = await listComputerFolder({ path: folder, taskId });
+    const listing = await listComputerFolder({ path: folder, chatId });
     if (listing.kind !== "listing") {
       throw new Error(`refused: ${listing.reason}`);
     }
@@ -106,7 +106,7 @@ describe("listComputerFolder", () => {
     await fs.mkdir(shut, { mode: 0o000 });
 
     try {
-      expect(await listComputerFolder({ path: shut, taskId })).toMatchObject({
+      expect(await listComputerFolder({ path: shut, chatId })).toMatchObject({
         kind: "refused",
         path: shut,
         reason: "account",
@@ -140,10 +140,10 @@ describe("listComputerFolder", () => {
       });
 
       try {
-        const top = await listComputerFolder({ path: drive, taskId });
+        const top = await listComputerFolder({ path: drive, chatId });
         const inside = await listComputerFolder({
           path: path.join(drive, "Obsidian"),
-          taskId,
+          chatId,
         });
         if (top.kind !== "listing" || inside.kind !== "listing") {
           throw new Error("refused");
@@ -191,7 +191,7 @@ describe("listComputerFolder", () => {
       });
 
       try {
-        expect(await listComputerFolder({ path: drive, taskId })).toMatchObject(
+        expect(await listComputerFolder({ path: drive, chatId })).toMatchObject(
           {
             appFoldersLocked: true,
             entries: [{ name: "Books" }],

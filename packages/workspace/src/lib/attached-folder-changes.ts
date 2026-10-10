@@ -32,7 +32,7 @@ export function detectAttachedFolderChanges({
   messageId,
   sessionId,
   signal,
-  taskId,
+  chatId,
 }: {
   /**
    * Folders this same message already introduces in full, by host path: the
@@ -44,11 +44,11 @@ export function detectAttachedFolderChanges({
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
-      const taskState = await getChatState(chatDir(taskId));
+      const taskState = await getChatState(chatDir(chatId));
       const current = Object.values(taskState.attachedFolders ?? {}).map(
         (folder) => ({
           // The access the mount ended up with, not the grant on record, so a
@@ -60,13 +60,13 @@ export function detectAttachedFolderChanges({
         }),
       );
 
-      const baseline = yield* getAttachedFoldersBaseline(taskId, sessionId, {
+      const baseline = yield* getAttachedFoldersBaseline(chatId, sessionId, {
         signal,
       });
 
       // Re-baseline regardless of the outcome so the next message diffs against
       // the set as it stands now.
-      yield* setAttachedFoldersBaseline(taskId, sessionId, current, { signal });
+      yield* setAttachedFoldersBaseline(chatId, sessionId, current, { signal });
 
       if (!baseline) {
         return ok(undefined);

@@ -22,7 +22,7 @@ const part = (input?: { choices: string[]; question: string }) =>
     type: "tool-choose",
   }) as unknown as Parameters<typeof ToolChoose>[0]["part"];
 
-const taskId = ChatIdSchema.parse("test-task");
+const chatId = ChatIdSchema.parse("test-task");
 
 describe("ToolChoose", () => {
   // Every row draws a chevron, because whether a body has anything in it is
@@ -31,7 +31,7 @@ describe("ToolChoose", () => {
   // open, and the reader has no way to tell those apart or report either.
   it("says so rather than drawing nothing when the input has not arrived", () => {
     const { container } = renderWithProviders(
-      <ToolChoose part={part()} taskId={taskId} />,
+      <ToolChoose part={part()} chatId={chatId} />,
     );
 
     expect(container.textContent).toBe("The question has not arrived yet.");
@@ -41,7 +41,7 @@ describe("ToolChoose", () => {
     const { container } = renderWithProviders(
       <ToolChoose
         part={part({ choices: ["React", "Vue"], question: "Which one?" })}
-        taskId={taskId}
+        chatId={chatId}
       />,
     );
 
@@ -53,7 +53,7 @@ describe("ToolChoose", () => {
     const { container } = renderWithProviders(
       <ToolChoose
         part={part({ choices: ["React", "Vue"], question: "Which one?" })}
-        taskId={taskId}
+        chatId={chatId}
       />,
     );
 
@@ -69,12 +69,12 @@ describe("ToolChoose", () => {
     const { container, queryClient } = renderWithProviders(
       <ToolChoose
         part={part({ choices: ["React", "Vue"], question: "Which one?" })}
-        taskId={taskId}
+        chatId={chatId}
       />,
     );
 
     queryClient.setQueryData(
-      rpcClient.workspace.task.live.activity.experimental_liveOptions()
+      rpcClient.workspace.chats.live.activity.experimental_liveOptions()
         .queryKey,
       [],
     );

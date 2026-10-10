@@ -82,7 +82,7 @@ const buildUserMessage = (): SessionMessage.UserWithParts => {
 
 const spawnSession = (
   actor: ReturnType<typeof createWorkspaceActor>,
-  taskId: ChatId,
+  chatId: ChatId,
 ) => {
   actor.send({
     type: "internal.spawnSession",
@@ -90,7 +90,7 @@ const spawnSession = (
       message: buildUserMessage(),
       model: createMockAIGatewayModel(),
       sessionId: StoreId.newSessionId(),
-      taskId,
+      chatId,
     },
   });
 };
@@ -145,30 +145,30 @@ describe("workspaceMachine task trashing", () => {
 
 describe("workspaceMachine session ref lifecycle", () => {
   it("drops a session ref when that session finishes", () => {
-    const taskId = ChatIdSchema.parse("gc-task");
+    const chatId = ChatIdSchema.parse("gc-task");
 
     const actor = createWorkspaceActor();
     actor.start();
 
-    spawnSession(actor, taskId);
+    spawnSession(actor, chatId);
 
     const sessionRef = actor
       .getSnapshot()
-      .context.sessionRefsByChatId.get(taskId)?.[0];
+      .context.sessionRefsByChatId.get(chatId)?.[0];
     expect(sessionRef).toBeDefined();
 
     actor.send({
       type: "session.done",
       value: {
         actorId: sessionRef?.id ?? "",
-        taskId,
+        chatId,
         usedNonReadOnlyTools: false,
       },
     });
 
     // The finished session's ref is gone, and with no refs left the task key is
     // removed so it stops counting as active.
-    expect(actor.getSnapshot().context.sessionRefsByChatId.has(taskId)).toBe(
+    expect(actor.getSnapshot().context.sessionRefsByChatId.has(chatId)).toBe(
       false,
     );
 
@@ -176,15 +176,15 @@ describe("workspaceMachine session ref lifecycle", () => {
   });
 
   it("keeps other session refs when one of several finishes", () => {
-    const taskId = ChatIdSchema.parse("gc-multi-task");
+    const chatId = ChatIdSchema.parse("gc-multi-task");
 
     const actor = createWorkspaceActor();
     actor.start();
 
-    spawnSession(actor, taskId);
-    spawnSession(actor, taskId);
+    spawnSession(actor, chatId);
+    spawnSession(actor, chatId);
 
-    const refs = actor.getSnapshot().context.sessionRefsByChatId.get(taskId);
+    const refs = actor.getSnapshot().context.sessionRefsByChatId.get(chatId);
     expect(refs).toHaveLength(2);
     const [first, second] = refs ?? [];
 
@@ -192,14 +192,14 @@ describe("workspaceMachine session ref lifecycle", () => {
       type: "session.done",
       value: {
         actorId: first?.id ?? "",
-        taskId,
+        chatId,
         usedNonReadOnlyTools: false,
       },
     });
 
     const remaining = actor
       .getSnapshot()
-      .context.sessionRefsByChatId.get(taskId);
+      .context.sessionRefsByChatId.get(chatId);
     expect(remaining).toHaveLength(1);
     expect(remaining?.[0]?.id).toBe(second?.id);
 

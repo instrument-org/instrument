@@ -36,7 +36,7 @@ const WORKER_TIMEOUT_MS = 60_000;
 
 const workers: Worker[] = [];
 let root: string;
-let taskId: ChatId;
+let chatId: ChatId;
 
 beforeAll(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "bash-worker-"));
@@ -49,7 +49,7 @@ beforeAll(async () => {
     path.join(taskPath, ".instrument", "settings.json"),
     JSON.stringify({ chatSessionId: StoreId.newSessionId() }),
   );
-  taskId = createMockChatConfigForDir(taskPath);
+  chatId = createMockChatConfigForDir(taskPath);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
@@ -102,7 +102,7 @@ function nextTreePid() {
 }
 
 function options(): BashEnvOptions {
-  return { sessionId: StoreId.newSessionId(), taskId };
+  return { sessionId: StoreId.newSessionId(), chatId };
 }
 
 /** Answers a script's `tools.*` with what it was called with, or refuses `tools.no.*`. */
@@ -160,7 +160,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
 
   it("credits a skill written from the shell to the turn that wrote it", async () => {
     const bashOptions = options();
-    const turn = { id: taskId, sessionId: bashOptions.sessionId };
+    const turn = { id: chatId, sessionId: bashOptions.sessionId };
     await beginSkillChangeTracking(turn);
     const skill = `${MOUNT.skills}/workspace/tracked`;
 
@@ -176,31 +176,31 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
   });
 
   it("finds a chat made after the worker started", async () => {
-    const chatId = chatFor();
-    const dir = chatDir(chatId);
+    const made = chatFor();
+    const dir = chatDir(made);
     await fs.mkdir(path.join(dir, "work"), { recursive: true });
     await fs.writeFile(path.join(dir, "work", "here.txt"), "inside the chat\n");
 
     const result = await remoteBash({
       sessionId: StoreId.newSessionId(),
-      taskId: chatId,
+      chatId: made,
     }).exec("cat work/here.txt");
     expect(result.stdout).toBe("inside the chat\n");
   });
 
   it("runs in the record main resolved, without reading the index itself", async () => {
-    const chatId = chatFor();
-    const dir = chatDir(chatId);
+    const made = chatFor();
+    const dir = chatDir(made);
     await fs.mkdir(path.join(dir, "work"), { recursive: true });
     await fs.writeFile(path.join(dir, "work", "here.txt"), "handed\n");
     // A scan of the disk now skips the chat, whose settings name no session;
     // only main's index, read before they went, still knows where it is.
-    expect(resolveChat(chatId)).toBe(chatId);
+    expect(resolveChat(made)).toBe(made);
     await fs.rm(path.join(dir, ".instrument", "settings.json"));
 
     const result = await remoteBash({
       sessionId: StoreId.newSessionId(),
-      taskId: chatId,
+      chatId: made,
     }).exec("cat work/here.txt");
     expect(result.stdout).toBe("handed\n");
   });
@@ -210,7 +210,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
   // must not reach it through /task/tasks/<id>.
   describe("a chat's tasks", () => {
     const childId = ChatIdSchema.parse(`01k${"nestedchild".padEnd(23, "0")}`);
-    let chatId: ChatId;
+    let nestedChat: ChatId;
     let childDir: string;
     let chatFolder: string;
     let chatBash: (command: string) => ReturnType<BashRunner["exec"]>;
@@ -219,8 +219,8 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
       fs.readFile(path.join(childDir, ".instrument", "settings.json"), "utf8");
 
     beforeAll(async () => {
-      chatId = chatFor();
-      chatFolder = chatDir(chatId);
+      nestedChat = chatFor();
+      chatFolder = chatDir(nestedChat);
       childDir = path.join(chatFolder, "tasks", childId);
       await fs.mkdir(path.join(childDir, ".instrument"), { recursive: true });
       await fs.writeFile(
@@ -236,9 +236,9 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
         '{"private":"overwritten"}',
       );
       const bashOptions: BashEnvOptions = {
-        chat: { id: chatId },
+        chat: { id: nestedChat },
         sessionId: StoreId.newSessionId(),
-        taskId: chatId,
+        chatId: nestedChat,
       };
       const bash = remoteBash(bashOptions);
       chatBash = (command) => bash.exec(command);
@@ -376,7 +376,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
 
   it("ends a dead worker's process trees and starts a fresh worker", async () => {
     await fs.writeFile(
-      path.join(root, "chats", taskId, "work", "idle.js"),
+      path.join(root, "chats", chatId, "work", "idle.js"),
       "setInterval(() => {}, 1000);\n",
     );
     const treePid = nextTreePid();

@@ -56,8 +56,8 @@ function renderCard() {
       }}
     >
       {/* The chat's transcript, which the card is drawn in. */}
-      <TaskSessionProvider sessionId={CHAT_SESSION} taskId={CHAT_ID}>
-        <CreatedTaskCard taskId={TASK_ID} />
+      <TaskSessionProvider sessionId={CHAT_SESSION} chatId={CHAT_ID}>
+        <CreatedTaskCard chatId={TASK_ID} />
       </TaskSessionProvider>
     </WindowContext>,
   );

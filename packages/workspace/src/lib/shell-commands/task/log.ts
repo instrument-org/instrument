@@ -32,7 +32,7 @@ async function runLog(input: SubcommandInput, context: TaskCommandContext) {
   if (!Number.isFinite(tail) || tail <= 0) {
     throw new Error("--tail takes a number of lines.");
   }
-  const ref = { sessionId: task.id, taskId: task.chatId };
+  const ref = { sessionId: task.id, chatId: task.chatId };
   const rendered = input.has("steps")
     ? // The outline rather than the transcript: one line per thing the task
       // set out to do or called, with tool output left out. The transcript's
@@ -61,10 +61,10 @@ async function runLog(input: SubcommandInput, context: TaskCommandContext) {
 
 async function renderTranscript({
   sessionId,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   // Loaded here rather than at the top: the renderer imports the tool registry,
   // which imports the bash tool, which imports this command, so a static import
@@ -73,6 +73,6 @@ async function renderTranscript({
   return getSessionMarkdown({
     includeContextMessages: false,
     sessionId,
-    taskId,
+    chatId,
   });
 }

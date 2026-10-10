@@ -35,7 +35,7 @@ export const CONTACTS_COMMAND = {
  */
 export function createMacHelperCommand(
   command: typeof CALENDAR_COMMAND | typeof CONTACTS_COMMAND,
-  taskId: ChatId,
+  chatId: ChatId,
 ) {
   return defineCommand(command.name, async (args, ctx) => {
     const binPath = getWorkspaceConfig().macHelperBinPath;
@@ -46,7 +46,7 @@ export function createMacHelperCommand(
         stdout: "",
       };
     }
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const result = await execShim(
       binPath,
       command.name === CONTACTS_COMMAND.name ? ["contacts", ...args] : args,

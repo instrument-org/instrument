@@ -127,12 +127,12 @@ export const agentMachine = setup({
         parentMessageId: StoreId.Message;
         sessionId: StoreId.Session;
         stopReason?: StopReason;
-        taskId: ChatId;
+        chatId: ChatId;
       }
     >(async ({ input, signal }) => {
       const messageIdsResult = await Store.getMessageIds(
         input.sessionId,
-        input.taskId,
+        input.chatId,
         { signal },
       );
 
@@ -153,7 +153,7 @@ export const agentMachine = setup({
 
       const partsResults = await Promise.all(
         runMessageIds.map((messageId) =>
-          Store.getParts(input.sessionId, messageId, input.taskId, { signal }),
+          Store.getParts(input.sessionId, messageId, input.chatId, { signal }),
         ),
       );
 
@@ -183,7 +183,7 @@ export const agentMachine = setup({
             {
               part,
               reason: input.stopReason ?? "unknown",
-              taskId: input.taskId,
+              chatId: input.chatId,
             },
             { signal },
           ),
@@ -200,7 +200,7 @@ export const agentMachine = setup({
         model: AIGatewayModel.Type;
         parentMessageId: StoreId.Message;
         sessionId: StoreId.Session;
-        taskId: ChatId;
+        chatId: ChatId;
       }
     >(async ({ input, signal }) => {
       await input.agent.onFinish({
@@ -208,7 +208,7 @@ export const agentMachine = setup({
         parentMessageId: input.parentMessageId,
         sessionId: input.sessionId,
         signal,
-        taskId: input.taskId,
+        chatId: input.chatId,
       });
     }),
 
@@ -217,13 +217,13 @@ export const agentMachine = setup({
       {
         agent: AnyAgent;
         sessionId: StoreId.Session;
-        taskId: ChatId;
+        chatId: ChatId;
       }
     >(async ({ input, signal }) => {
       return input.agent.onStart({
         sessionId: input.sessionId,
         signal,
-        taskId: input.taskId,
+        chatId: input.chatId,
       });
     }),
 
@@ -232,7 +232,7 @@ export const agentMachine = setup({
       {
         maxStepCount: number;
         sessionId: StoreId.Session;
-        taskId: ChatId;
+        chatId: ChatId;
       }
     >(async ({ input, signal }) => {
       const now = getCurrentDate();
@@ -268,7 +268,7 @@ export const agentMachine = setup({
           ],
           role: "assistant",
         },
-        input.taskId,
+        input.chatId,
         { signal },
       );
 
@@ -289,7 +289,7 @@ export const agentMachine = setup({
       {
         messages: SessionMessage.UserWithParts[];
         savedIds: StoreId.Message[];
-        taskId: ChatId;
+        chatId: ChatId;
       }
     >(async ({ input, signal }) => {
       const ids: StoreId.Message[] = [];
@@ -298,7 +298,7 @@ export const agentMachine = setup({
           ids.push(message.id);
           continue;
         }
-        const saved = await Store.saveMessageWithParts(message, input.taskId, {
+        const saved = await Store.saveMessageWithParts(message, input.chatId, {
           signal,
         });
         if (saved.isErr()) {
@@ -314,13 +314,13 @@ export const agentMachine = setup({
       {
         agent: AnyAgent;
         sessionId: StoreId.Session;
-        taskId: ChatId;
+        chatId: ChatId;
       }
     >(async ({ input, signal }) => {
       const messageResults = await Store.getMessagesWithParts(
         {
           sessionId: input.sessionId,
-          taskId: input.taskId,
+          chatId: input.chatId,
         },
         { signal },
       );
@@ -369,7 +369,7 @@ export const agentMachine = setup({
       stepCount: number;
       /** Set when a stop, rather than an error or the end of the turn, ends the run. */
       stopReason?: StopReason;
-      taskId: ChatId;
+      chatId: ChatId;
       toolCallQueue: SessionMessagePart.ToolPartInputAvailable[];
       toolChoice?: "auto" | "none" | "required";
       // Streams whose tool parts no queue has taken over: raised when a
@@ -388,7 +388,7 @@ export const agentMachine = setup({
       parentMessageId: StoreId.Message;
       parentRef: ParentActorRef;
       sessionId: StoreId.Session;
-      taskId: ChatId;
+      chatId: ChatId;
       toolChoice?: "auto" | "none" | "required";
     },
     output: {} as AgentResult,
@@ -411,7 +411,7 @@ export const agentMachine = setup({
     sessionId: input.sessionId,
     steeringMessages: [],
     stepCount: 0,
-    taskId: input.taskId,
+    chatId: input.chatId,
     toolCallQueue: [],
     toolChoice: input.toolChoice,
     unaccountedStreamCount: 0,
@@ -470,7 +470,7 @@ export const agentMachine = setup({
             ],
           };
         }
-        saveToolCallUpdate(pendingToolCall, value, context.taskId);
+        saveToolCallUpdate(pendingToolCall, value, context.chatId);
         return {
           pendingToolCalls: context.pendingToolCalls.filter(
             (call) => call.toolCallId !== value.toolCallId,
@@ -520,7 +520,7 @@ export const agentMachine = setup({
               model: context.model,
               part,
               sessionId: context.sessionId,
-              taskId: context.taskId,
+              chatId: context.chatId,
             },
           });
         }
@@ -575,7 +575,7 @@ export const agentMachine = setup({
               parentMessageId: context.parentMessageId,
               sessionId: context.sessionId,
               stopReason: context.stopReason,
-              taskId: context.taskId,
+              chatId: context.chatId,
             }),
             onDone: "#agent.Done",
             onError: { actions: "assignEventError", target: "#agent.Done" },
@@ -606,7 +606,7 @@ export const agentMachine = setup({
               model: context.model,
               parentMessageId: context.parentMessageId,
               sessionId: context.sessionId,
-              taskId: context.taskId,
+              chatId: context.chatId,
             }),
             onDone: "MaybeFinalizingDanglingToolCalls",
             onError: {
@@ -633,7 +633,7 @@ export const agentMachine = setup({
             self,
             sessionId: context.sessionId,
             stepCount: context.stepCount,
-            taskId: context.taskId,
+            chatId: context.chatId,
             toolChoice: context.toolChoice,
           };
         },
@@ -675,7 +675,7 @@ export const agentMachine = setup({
                 // nobody answers: its question runs, and says so.
                 if (
                   isInteractiveTool(tool.name) &&
-                  chatConversation(context.taskId, context.sessionId) !==
+                  chatConversation(context.chatId, context.sessionId) !==
                     undefined
                 ) {
                   pendingToolCalls.push(part);
@@ -691,7 +691,7 @@ export const agentMachine = setup({
                   (call) => call.toolCallId === update.toolCallId,
                 );
                 if (pendingToolCall) {
-                  saveToolCallUpdate(pendingToolCall, update, context.taskId);
+                  saveToolCallUpdate(pendingToolCall, update, context.chatId);
                   answered.add(update.toolCallId);
                 }
               }
@@ -758,7 +758,7 @@ export const agentMachine = setup({
         input: ({ context }) => ({
           agent: context.agent,
           sessionId: context.sessionId,
-          taskId: context.taskId,
+          chatId: context.chatId,
         }),
         onDone: [
           {
@@ -855,7 +855,7 @@ export const agentMachine = setup({
         input: ({ context }) => ({
           maxStepCount: context.maxStepCount,
           sessionId: context.sessionId,
-          taskId: context.taskId,
+          chatId: context.chatId,
         }),
         onDone: "Finishing",
         onError: { actions: "assignEventError", target: "Finishing" },
@@ -868,7 +868,7 @@ export const agentMachine = setup({
         input: ({ context }) => ({
           agent: context.agent,
           sessionId: context.sessionId,
-          taskId: context.taskId,
+          chatId: context.chatId,
         }),
         onDone: "MaybeStartingLLMRequest",
         onError: { actions: "assignEventError", target: "Finishing" },
@@ -885,7 +885,7 @@ export const agentMachine = setup({
         input: ({ context }) => ({
           messages: context.steeringMessages,
           savedIds: context.savedSteerIds,
-          taskId: context.taskId,
+          chatId: context.chatId,
         }),
         onDone: {
           actions: [
@@ -991,7 +991,7 @@ function withoutFinishedToolCall(
 function saveToolCallUpdate(
   pendingToolCall: SessionMessagePart.ToolPartInputAvailable,
   value: ToolCallUpdate,
-  taskId: ChatId,
+  chatId: ChatId,
 ) {
   // TODO Save these promises and handle them async in the state machine
   void Store.updatePart(
@@ -1020,6 +1020,6 @@ function saveToolCallUpdate(
             },
             state: "output-error",
           }) as SessionMessagePart.Type,
-    taskId,
+    chatId,
   );
 }

@@ -112,7 +112,7 @@ export const LoadSkill = setupTool({
 
     Note: skills with declared Node.js or Python dependencies install them automatically after being copied into the task.
   `.trim(),
-  execute: async ({ input, signal, taskId }) => {
+  execute: async ({ input, signal, chatId }) => {
     const workspaceConfig = getWorkspaceConfig();
     const all = await findSkills(getSkillSources(workspaceConfig));
     const resolved = resolveSkillName(all, input.name);
@@ -140,7 +140,7 @@ export const LoadSkill = setupTool({
     // filesystem-safe string would let distinct skills collapse onto one copy.
     const directory = normalizedPathJoin(skill.sourceId, skill.name);
     const { alreadyLoaded, destDir } = await copySkill({
-      dir: workDir(taskId),
+      dir: workDir(chatId),
       signal,
       skillDir: skill.skillDir,
       skillName: skill.name,
@@ -172,10 +172,10 @@ export const LoadSkill = setupTool({
       if (provenance.installDependencies) {
         const { exitCode, stderr, stdout } = await runPnpmCommand({
           args: ["install"],
-          cwd: workDir(taskId),
-          layout: buildWorkspaceFsLayout({ taskHostRoot: workDir(taskId) }),
+          cwd: workDir(chatId),
+          layout: buildWorkspaceFsLayout({ taskHostRoot: workDir(chatId) }),
           signal,
-          taskId,
+          chatId,
         });
         installResults.push(
           exitCode === 0
@@ -197,7 +197,7 @@ export const LoadSkill = setupTool({
         const installResult = await installPythonSkill({
           signal,
           skillDir: destDir,
-          taskId,
+          chatId,
         });
         installResults.push({ ...installResult, runtime: "python" });
       } else {

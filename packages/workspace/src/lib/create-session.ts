@@ -7,15 +7,15 @@ import { getWorkspaceConfig } from "./workspace-config";
 export async function createSession({
   sessionId,
   signal,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: ChatId;
+  chatId: ChatId;
 }) {
   const title = await generateSessionTitle({
     signal,
-    taskId,
+    chatId,
   });
   const now = new Date();
   const result = await Store.saveSession(
@@ -25,7 +25,7 @@ export async function createSession({
       title,
       updatedAt: now,
     },
-    taskId,
+    chatId,
     { signal },
   );
 

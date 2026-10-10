@@ -88,7 +88,7 @@ export function bashWorkerEnabled(): boolean {
 export function createRemoteBash(
   options: BashEnvOptions,
   mainBashFactory: () => Promise<BashRunner>,
-  invokeTool: AppToolInvoker = appToolHook(options.taskId),
+  invokeTool: AppToolInvoker = appToolHook(options.chatId),
 ): BashRunner {
   return {
     exec: (command, { signal, ...execOptions }: ExecOptions = {}) =>
@@ -128,7 +128,7 @@ export function createRemoteBash(
         // one with a call in flight must: an awaited result is not a handle.
         instance.worker.ref();
         try {
-          const chatId = resolveChat(options.taskId);
+          const chatId = resolveChat(options.chatId);
           instance.post({
             bashEnv: omit(options, ["remainingYieldMs"]),
             command,
@@ -278,7 +278,7 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       return;
     }
     case "venv": {
-      const result = await ensureTaskVenvForTask({ taskId: message.taskId });
+      const result = await ensureTaskVenvForTask({ chatId: message.chatId });
       instance.post({
         requestId: message.requestId,
         result,

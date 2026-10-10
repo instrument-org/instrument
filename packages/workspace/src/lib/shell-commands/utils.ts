@@ -92,7 +92,7 @@ function copyableMountFile(source: string): string | undefined {
  */
 export function bridgeFlagValuePath(
   flag: string,
-  taskId: ChatId,
+  chatId: ChatId,
   taskCwd: string,
   resolvePath: (p: string) => string,
 ): string {
@@ -101,7 +101,7 @@ export function bridgeFlagValuePath(
   if (!value.startsWith("/")) {
     return flag;
   }
-  const bridged = virtualToRealRelative(value, taskId, taskCwd, resolvePath);
+  const bridged = virtualToRealRelative(value, chatId, taskCwd, resolvePath);
   return `${flag.slice(0, eqIndex)}=${bridged}`;
 }
 
@@ -119,7 +119,7 @@ export function bridgeFlagValuePath(
  */
 export function bridgeInlineCodePaths(
   code: string,
-  taskId: ChatId,
+  chatId: ChatId,
   taskCwd: string,
   alternative: MountAlternative = {},
 ): { code: string } | { error: string } {
@@ -138,7 +138,7 @@ export function bridgeInlineCodePaths(
   }
 
   const relativeTaskRoot =
-    path.relative(taskCwd, workDir(taskId)).replaceAll("\\", "/") || ".";
+    path.relative(taskCwd, workDir(chatId)).replaceAll("\\", "/") || ".";
   return {
     code: code.replaceAll(
       quotedMountPattern(MOUNT.task),
@@ -155,13 +155,13 @@ export function bridgeInlineCodePaths(
  */
 export function bridgeAppleScriptPaths(
   code: string,
-  taskId: ChatId,
+  chatId: ChatId,
 ): { code: string } | { error: string } {
-  const checked = bridgeInlineCodePaths(code, taskId, workDir(taskId));
+  const checked = bridgeInlineCodePaths(code, chatId, workDir(chatId));
   if ("error" in checked) {
     return checked;
   }
-  const taskRoot = workDir(taskId);
+  const taskRoot = workDir(chatId);
   return {
     code: code.replaceAll(
       quotedMountPattern(MOUNT.task),
@@ -179,7 +179,7 @@ export function bridgeAppleScriptPaths(
 export function extractFileAndScriptArgs(
   positionals: string[],
   args: string[],
-  taskId: ChatId,
+  chatId: ChatId,
   taskCwd: string,
   resolvePath: (path: string) => string,
 ): undefined | { filePath: string; scriptArgs: string[] } {
@@ -190,7 +190,7 @@ export function extractFileAndScriptArgs(
 
   const filePath = virtualToRealRelative(
     rawFilePath,
-    taskId,
+    chatId,
     taskCwd,
     resolvePath,
   );
@@ -198,7 +198,7 @@ export function extractFileAndScriptArgs(
   const rawScriptArgs = args.slice(filePathIndex + 1);
   const scriptArgs = rawScriptArgs.map((arg) =>
     looksLikePath(arg)
-      ? virtualToRealRelative(arg, taskId, taskCwd, resolvePath)
+      ? virtualToRealRelative(arg, chatId, taskCwd, resolvePath)
       : arg,
   );
 
@@ -273,20 +273,20 @@ export function privateDirLiteralError(subject: string): string {
 
 /** Resolve the effective cwd and env for a shell command. */
 export function resolveCommandContext(
-  taskId: ChatId,
+  chatId: ChatId,
   ctx: {
     cwd: string;
     env: Map<string, string>;
     fs: { resolvePath(cwd: string, path: string): string };
   },
 ) {
-  const uvEnv = uvSubprocessEnv({ taskId });
+  const uvEnv = uvSubprocessEnv({ chatId });
   const shellEnv = { ...Object.fromEntries(ctx.env), ...uvEnv };
   // A task-local temp dir keeps tempfile, os.tmpdir(), and mktemp inside the
   // sandbox instead of the host temp dir; created here if absent (recursive
   // mkdir is a no-op when it exists) because interpreters fail if TMPDIR points
   // at a missing dir.
-  const tmpDir = getTaskTmpDir(workDir(taskId));
+  const tmpDir = getTaskTmpDir(workDir(chatId));
   mkdirSync(tmpDir, { recursive: true });
   return {
     // Overlay the uv/python env so the real-binary escape hatches (tsx, node,
@@ -305,7 +305,7 @@ export function resolveCommandContext(
       TMPDIR: tmpDir,
     },
     taskCwd: resolveNativeHostPath(
-      workDir(taskId),
+      workDir(chatId),
       ctx.fs.resolvePath(ctx.cwd, "."),
     ),
   };
@@ -321,7 +321,7 @@ export function resolveCommandContext(
  */
 export function resolvePathArgs(
   args: string[],
-  taskId: ChatId,
+  chatId: ChatId,
   ctx: {
     cwd: string;
     fs: { resolvePath(cwd: string, path: string): string };
@@ -334,7 +334,7 @@ export function resolvePathArgs(
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
     return (
       resolveHostDevicePath(virtualPath) ??
-      resolveNativeHostPath(workDir(taskId), virtualPath)
+      resolveNativeHostPath(workDir(chatId), virtualPath)
     );
   });
 }
@@ -538,7 +538,7 @@ function quotedMountPattern(mountPoint: string): RegExp {
  */
 function virtualToRealRelative(
   virtualPath: string,
-  taskId: ChatId,
+  chatId: ChatId,
   taskCwd: string,
   resolvePath: (p: string) => string,
 ): string {
@@ -548,6 +548,6 @@ function virtualToRealRelative(
   if (device !== undefined) {
     return device;
   }
-  const realAbs = resolveNativeHostPath(workDir(taskId), resolved);
+  const realAbs = resolveNativeHostPath(workDir(chatId), resolved);
   return path.relative(taskCwd, realAbs);
 }

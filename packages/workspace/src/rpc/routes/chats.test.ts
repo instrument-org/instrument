@@ -20,7 +20,7 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 
 // A chat, and a record that is not one. The chat is a folder under a
 // workspace root of this file's own.
-let taskId = ChatIdSchema.parse("2026-09-26-conversation");
+let chatId = ChatIdSchema.parse("2026-09-26-conversation");
 beforeAll(() => {
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
@@ -34,9 +34,9 @@ beforeAll(() => {
       fs.mkdtempSync(path.join(os.tmpdir(), "chat-routes-")),
     ),
   });
-  taskId = chatFor(StoreId.newSessionId(), taskId);
+  chatId = chatFor(StoreId.newSessionId(), chatId);
 });
-const otherTaskId = ChatIdSchema.parse("chat-other");
+const otherChatId = ChatIdSchema.parse("chat-other");
 
 describe("chats.tasks", () => {
   const context: WorkspaceRPCContext = {
@@ -47,7 +47,7 @@ describe("chats.tasks", () => {
   };
 
   it("refuses the window and a record that is no chat, since nothing lists every chat's tasks", async () => {
-    for (const id of [WINDOW_ID, otherTaskId]) {
+    for (const id of [WINDOW_ID, otherChatId]) {
       await expect(call(chats.tasks, { id }, { context })).rejects.toThrow(
         "That chat is not there any more.",
       );
@@ -68,12 +68,12 @@ describe("chats.live.tasks", () => {
     const controller = new AbortController();
     const live = await call(
       chats.live.tasks,
-      { id: taskId },
+      { id: chatId },
       { context, signal: controller.signal },
     );
     expect((await live.next()).value).toEqual([]);
 
-    await chatTaskFor(taskId, { title: "Child" });
+    await chatTaskFor(chatId, { title: "Child" });
 
     const next = await live.next();
     expect(

@@ -69,7 +69,7 @@ function listRowsOf(tasks: ChatTask[]): Promise<TaskListRow[]> {
       const standing = await taskStanding({
         isRunning,
         sessionId: task.id,
-        taskId: task.chatId,
+        chatId: task.chatId,
       });
       return {
         id: task.handle,

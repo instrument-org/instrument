@@ -670,18 +670,18 @@ describe.skipIf(!captureDir)("llm request wire capture", () => {
   describe.each(TARGETS)("$name", (target) => {
     it.each(Object.keys(SCENARIOS))("%s", async (scenario) => {
       const model = modelFor(target);
-      const taskId = createMockChatConfig(ChatIdSchema.parse("wire"), {
+      const chatId = createMockChatConfig(ChatIdSchema.parse("wire"), {
         catalog: [model],
         model,
       });
       const sessionId = StoreId.newSessionId();
       await Store.saveSession(
         { createdAt: new Date(0), id: sessionId, title: "Wire" },
-        taskId,
+        chatId,
       );
       const build = SCENARIOS[scenario];
       for (const message of build?.({ model, sessionId, target }) ?? []) {
-        const saved = await Store.saveMessageWithParts(message, taskId);
+        const saved = await Store.saveMessageWithParts(message, chatId);
         saved._unsafeUnwrap();
       }
 
@@ -729,7 +729,7 @@ describe.skipIf(!captureDir)("llm request wire capture", () => {
           self: { send: vi.fn() } as unknown as AnyActorRef,
           sessionId,
           stepCount: 1,
-          taskId,
+          chatId,
         },
       });
       actor.start();

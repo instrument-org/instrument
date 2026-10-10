@@ -1,7 +1,7 @@
 import { StoreId } from "@instrument-org/workspace/client";
 
 /** The task a `task new` created, by its session, read off the command's output. */
-export function createdTaskId(part: {
+export function createdTaskSession(part: {
   input?: undefined | { command?: string };
   output?: undefined | { output?: string };
   state: string;

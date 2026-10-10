@@ -434,11 +434,22 @@ jobs:
         env:
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
         with:
-          draft: false
+          # Releases here are immutable, so the source maps go up while it is a
+          # draft and the next step publishes it.
+          draft: true
           prerelease: true
           generate_release_notes: false
           body_path: /tmp/release-body.md
           files: artifacts/sourcemaps-*.tar.gz
+
+      - name: Publish GitHub Prerelease
+        id: prerelease_published
+        if: steps.prerelease_release.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+          echo "url=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json url -q .url)" >> "$GITHUB_OUTPUT"
 
       - name: GitHub Stable Release
         id: stable_release
@@ -455,7 +466,7 @@ jobs:
 
       - name: Capture release URL
         id: release
-        run: echo "url=${{ steps.prerelease_release.outputs.url || steps.stable_release.outputs.url }}" >> "$GITHUB_OUTPUT"
+        run: echo "url=${{ steps.prerelease_published.outputs.url || steps.stable_release.outputs.url }}" >> "$GITHUB_OUTPUT"
 
       - name: Delete workflow artifacts
         uses: geekyeggo/delete-artifact@176a747ab7e287e3ff4787bf8a148716375ca118 # v6.0.0

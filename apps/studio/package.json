@@ -73,7 +73,6 @@
     "@tanstack/query-core": "^5.104.0",
     "@vscode/ripgrep": "^1.18.0",
     "@zkochan/cmd-shim": "^7.0.0",
-    "arctic": "^3.6.0",
     "better-auth": "catalog:",
     "dugite": "3.0.0-rc11",
     "electron-context-menu": "^4.1.2",

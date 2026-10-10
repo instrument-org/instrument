@@ -97,7 +97,10 @@ const probe = () => {
   attempt("nativeToString", () => ({
     fetch: Function.prototype.toString.call(window.fetch),
     getParameter: Function.prototype.toString.call(
-      WebGLRenderingContext.prototype.getParameter,
+      Object.getOwnPropertyDescriptor(
+        WebGLRenderingContext.prototype,
+        "getParameter",
+      )?.value,
     ),
   }));
 
@@ -109,30 +112,24 @@ const probe = () => {
       if (pending === 0) finish();
     };
 
-    try {
-      Promise.all([
-        navigator.permissions
-          .query({ name: "notifications" })
-          .then((s) => s.state),
-        Promise.resolve(Notification.permission),
-      ]).then(
-        ([queried, declared]) => {
-          out.permissions = {
-            queried,
-            declared,
-            contradiction: declared === "denied" && queried === "prompt",
-          };
-          done();
-        },
-        (error) => {
-          out.permissions = { error: String(error) };
-          done();
-        },
-      );
-    } catch (error) {
-      out.permissions = { error: String(error) };
+    void (async () => {
+      try {
+        const [queried, declared] = await Promise.all([
+          navigator.permissions
+            .query({ name: "notifications" })
+            .then((s) => s.state),
+          Promise.resolve(Notification.permission),
+        ]);
+        out.permissions = {
+          queried,
+          declared,
+          contradiction: declared === "denied" && queried === "prompt",
+        };
+      } catch (error) {
+        out.permissions = { error: String(error) };
+      }
       done();
-    }
+    })();
 
     try {
       const source =

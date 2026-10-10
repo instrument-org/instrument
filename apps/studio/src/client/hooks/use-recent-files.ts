@@ -43,8 +43,6 @@ export function useRecentFiles({
   return { files, isPending: opened.isPending || described.isPending };
 }
 
-export type RecentFile = ReturnType<typeof useRecentFiles>["files"][number];
-
 /**
  * Tells history the person opened a file in one of the app's tabs. Said each
  * time a file comes up in the tab they are looking at.

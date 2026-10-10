@@ -128,6 +128,11 @@ export async function seedWorkspace({
   }
   setWorkspaceConfig(workspaceConfig);
   for (const { chat, folders, session, tasks } of fixture.chats) {
+    // A chat's parts name its tasks by session (a task event, a hand-off), so
+    // each task's fresh id is settled before the chat is written.
+    for (const { session: taskSession } of tasks) {
+      freshIds.set(taskSession.id, StoreId.newSessionId());
+    }
     // The record `seedTask` made from a chat's fixture is a chat.
     const chatId = ChatIdSchema.parse(
       await seedTask({
@@ -450,11 +455,38 @@ function seedLegacyTaskFolder({
  * orders by key -- so reusing the recorded ids would order a transcript by when
  * it was captured while its timestamps claim something else.
  */
+/**
+ * The fresh id each recorded session took, by the recorded one, so a part
+ * naming another session (a task event, a hand-off) names the one seeded.
+ */
+const freshIds = new Map<string, string>();
+
+/** A part's data with every recorded session id in it swapped for its fresh one. */
+function withFreshSessionIds(value: unknown): unknown {
+  if (typeof value === "string") {
+    return freshIds.get(value) ?? value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(withFreshSessionIds);
+  }
+  if (typeof value === "object" && value !== null && !(value instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        withFreshSessionIds(entry),
+      ]),
+    );
+  }
+  return value;
+}
+
 function withFreshIdsAndTimes(
   session: Session.WithMessagesAndParts,
   { deltaMs, title }: { deltaMs: number; title: string },
 ) {
-  const sessionId = StoreId.newSessionId();
+  const sessionId = StoreId.SessionSchema.parse(
+    freshIds.get(session.id) ?? StoreId.newSessionId(),
+  );
 
   const messages = session.messages.map((message) => {
     const messageId = StoreId.newMessageId();
@@ -462,6 +494,10 @@ function withFreshIdsAndTimes(
       (part) =>
         ({
           ...part,
+          ...("data" in part ? { data: withFreshSessionIds(part.data) } : {}),
+          ...("output" in part && part.output
+            ? { output: withFreshSessionIds(part.output) }
+            : {}),
           metadata: {
             ...rebaseTimestamps(part.metadata, deltaMs),
             id: StoreId.newPartId(),

@@ -6,9 +6,9 @@ Focus on correctness and user impact. The rules below only calibrate what the re
 
 Use 🔴 Important for concrete defects that should be fixed before merging. Preserve the default bar for correctness bugs, security vulnerabilities, and regressions, and pay particular attention to:
 
-- **Containment regressions.** The agent must stay within the `/task`, `/skills`, `/mnt`, `/apps`, and `/tasks` layout, with each attached folder held to the access the user granted it (read-only or read-write). Widening the real-binary path bridge, `agent-browser` allowlist, or git argv/env policy is Important.
+- **Containment regressions.** The agent must stay within the `/task`, `/skills`, `/mnt`, and `/apps` layout, reaching only the folders its chat reaches (the home folder, the output folder, the chat's grants and its topics' folders), with anything overlapping the workspace root kept read-only. Widening the real-binary path bridge, `agent-browser` allowlist, or git argv/env policy is Important.
 - **Packaging and release breakage.** Main-process runtime packages belong in `dependencies`, renderer-only packages in `devDependencies`, and native binaries may require `asarUnpack`. Flag changes that work locally but break or materially bloat the packaged app.
-- **Data loss or incompatibility.** Changes must preserve `.instrument/{task.db,settings.json}` under `chats/<id>/`, `chats/<id>/tasks/<id>/`, and `tasks/<id>/`, a topic's `topics/<Name>/` folder, and the window's `.instrument/window.json` at the workspace root, and continue loading data written by the previous release unless they include a migration.
+- **Data loss or incompatibility.** Changes must preserve a chat's `.instrument/{chat.db,settings.json}` under `chats/<id>/` (its tasks are sessions in that `chat.db`), the 1.x `tasks/<id>/` folders the layout migration reads, a topic's `topics/<Name>/` folder, and the window's `.instrument/window.json` at the workspace root, and continue loading data written by the previous release unless they include a migration.
 - **Privacy leaks.** Prompts, agent messages, file contents, user paths, API keys, and `.env` values must not reach telemetry, logs, or unintended network destinations.
 - **Agent-turn correctness.** Flag deterministic tool, prompt, message-assembly, or state-management defects that make turns fail, hang, or silently drop state.
 

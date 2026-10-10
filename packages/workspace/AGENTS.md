@@ -35,7 +35,7 @@ A commit that adds, drops, or reverses a rule for how an agent behaves (its prom
 `scripts/seed-workspace.ts` builds a throwaway app workspace from a committed
 description in `fixtures/workspaces/` at the **repo root** (this package's own
 `fixtures/` is something else), for `ELECTRON_USER_DATA_DIR`.
-`scripts/record-fixture-session.ts` captures a real chat (with every task in it) or a lone task into one.
+`scripts/record-fixture-session.ts` captures a real chat (with every task in it, each a session in its `chat.db`) or a lone 1.x task folder into one.
 
 ```bash
 pnpm workspace:seed --list                                # from the repo root
@@ -44,8 +44,8 @@ pnpm --filter @instrument-org/workspace script:record-fixture-session <chat-dir>
 pnpm --filter @instrument-org/workspace script:record-fixture-session <task-dir> --fixture <name> --task <key>
 ```
 
-The seeder goes through `initializeTask` and `Store`, never the filesystem: task
-storage is moving, and a seeder that lays out `tasks/<id>/.instrument` itself
-would keep producing workspaces the app can no longer read.
+The seeder goes through `initializeChat` and `Store`, never the filesystem: a
+seeder that lays out `chats/<id>/.instrument` itself would keep producing
+workspaces the app can no longer read once storage changes.
 
 The repo-root `fixtures/workspaces/README.md` covers what a fixture holds and how to add one.

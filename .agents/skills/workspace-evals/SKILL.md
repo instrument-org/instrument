@@ -1,6 +1,6 @@
 ---
 name: workspace-evals
-description: Run, write, or read Instrument agent evals (`pnpm eval`) against real models, including chat evals whose work runs in forked tasks. Use once an eval is the chosen check (the validate-changes skill decides that), or when adding a case under packages/workspace/evals/cases/ or reading eval-results.local.
+description: Run, write, or read Instrument agent evals (`pnpm eval`) against real models, including chat evals that hand work to tasks. Use once an eval is the chosen check (the validate-changes skill decides that), or when adding a case under packages/workspace/evals/cases/ or reading eval-results.local.
 ---
 
 # Workspace evals
@@ -27,7 +27,7 @@ The ChatGPT account, the provider most users sign in with and the cheapest one t
 
 A run stops itself at `--max-run-tokens` (1M) or `--max-run-seconds` (1800), both of which take `0` to disable. Neither is a failure and both are reported apart from one: a stopped run is `Stopped`, only a refused request is `Failed`. The seconds cap is one deadline for the whole run rather than one per wait, so a case with follow-ups cannot quietly take three times the number you set.
 
-Every run gets a home directory of its own under `$TMPDIR`, or wherever `INSTRUMENT_EVAL_HOME` points (`evals/lib/sandbox-home.ts`). This is not optional tidiness: a chat attaches the user's real home and their real `~/Documents/Instrument` to its conversation, and every task it forks reaches the same folders, so an unsandboxed suite is several agents at once holding read-write on your actual files. Both folders derive from one `$HOME` for the whole process, so chat cases want `--concurrency 1` and a separate process per model when two runs must not see each other's output.
+Every run gets a home directory of its own under `$TMPDIR`, or wherever `INSTRUMENT_EVAL_HOME` points (`evals/lib/sandbox-home.ts`). This is not optional tidiness: every chat reaches the user's real home and their real `~/Documents/Instrument` without being sent either, and every task it starts reaches the same folders, so an unsandboxed suite is several agents at once holding read-write on your actual files. Both folders derive from one `$HOME` for the whole process, so chat cases want `--concurrency 1` and a separate process per model when two runs must not see each other's output.
 
 ## Choosing models
 
@@ -49,11 +49,11 @@ The workspace a run used is a temp directory, so `report <dir>` is only good unt
 
 ## Chat evals
 
-`kind: "chat"` (or `--chat` with `--prompt`) runs a case through the agent the user talks to, which does quick work itself and forks the rest into tasks with `task new`. Write assertions that pass either way: score what landed and what the user was told, reading the chat's own sessions beside its forks'. These things differ from an ordinary case:
+`kind: "chat"` (or `--chat` with `--prompt`) runs a case through the agent the user talks to, which does quick work itself and hands the rest to tasks with `task new`, each a child session in the chat's `chat.db`. Write assertions that pass either way: score what landed and what the user was told, reading the chat's own session beside its tasks'. These things differ from an ordinary case:
 
-- The run is not over when the conversation's turn ends. If it forked work, the tasks are still running and the wake that carries their results back is 1.5s behind them. The harness waits for the whole tree to go quiet, so `usage` is the conversation alone and `treeUsage` is what the run actually cost.
-- The conversation is created with the two folders `window.ensure` gives it in the app. Without them it cannot read back what its own tasks wrote: measured, that is ten tool calls and 240K tokens hunting a file, against two and 96K when it can see it.
-- Assertions get `childSessions()` alongside `sessions`, because the work being scored may have happened in a fork rather than in the conversation.
+- The run is not over when the conversation's turn ends. If it started tasks, they are still running and the wake that carries their results back is 1.5s behind them. The harness waits for the whole tree to go quiet, so `usage` is the conversation alone and `treeUsage` is what the run actually cost.
+- The harness makes the `~/Documents/Instrument` output folder the way `window.ensure` does in the app, and the chat reaches it and the home folder without being sent either. Without them it cannot read back what its own tasks wrote: measured, that is ten tool calls and 240K tokens hunting a file, against two and 96K when it can see it.
+- Assertions get `childSessions()` alongside `sessions`, because the work being scored may have happened in a task rather than in the conversation.
 - `finishesAs` stands in for the tasks when only the conversation's reply to a finish is being scored: each task it starts is stopped once the first turn settles, and the conversation is woken through the real wake path with the receipt and the window tabs the case scripts. It is also the only way a finish note names a window tab, since a run's tasks browse in a Chrome of their own.
 
 `packages/workspace/scripts/chat-handoff-report.ts <workspace-dir>` prints what each task handed back and whether the wake note's ceiling cut it, which is the number to watch: a task's last message travels whole up to that ceiling, and everything past it was composed, paid for, and dropped.

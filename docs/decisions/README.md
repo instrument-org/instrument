@@ -10,6 +10,7 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-10 | [One chat, one database: a task is a child session, not a record](2026-10-10-one-chat-one-database.md) |
 | 2026-10-09 | [Outside content arrives last and unmarked](2026-10-09-outside-content-arrives-last-and-unmarked.md) |
 | 2026-10-07 | [The chat and its tasks are one agent that does quick work itself and forks the rest](2026-10-07-one-agent-that-forks.md) |
 | 2026-10-07 | [The CDP bridge refuses any `Target.*` command its table does not list](2026-10-07-cdp-bridge-refuses-unlisted-target-commands.md) |

@@ -1,6 +1,6 @@
 # Plan: one chat, one database
 
-Status: accepted, in progress. Replaces the earlier plan to fold fork sessions into the chat's `task.db`, which kept forks as records.
+Status: done, steps 1-6 landed (`b834385c7` through the docs commit). Replaces the earlier plan to fold fork sessions into the chat's `task.db`, which kept forks as records. Decision record: [one chat, one database](../../decisions/2026-10-10-one-chat-one-database.md).
 
 The user talks to one agent in a chat. A chat is the only record: one folder, one settings file, one database. Inside the database are sessions, each a thread of messages and tool calls. The chat's own conversation is the session with no parent; a task is a session the chat started in the background, with the chat's session as its parent. "Task" is a word for that child session in the agent's `task` command and in the UI, and nowhere in storage, so the hierarchy can change later (a task with its own model, a fork of a fork, an edited message as a branch) without a schema change.
 
@@ -68,3 +68,17 @@ Only Jeremy's and Neil's beta data has 2.0 records. A layout sweep renames each 
 4. The `task.db` to `chat.db` sweep, and the 1.x migration writing `chat.db`.
 5. Evals on GLM 5.3 Flash: a one-case smoke run first, then cases that start, message, stop, and hand a tab and a running command to a task, a task finishing mid-turn, and the eight interruption cases.
 6. CLAUDE.md's terminology and the architecture docs.
+
+## As built
+
+Where the code differs from the plan above:
+
+- **Model and effort are top-level settings.** `modelURI` and `reasoningEffort` sit at the top of the chat's `settings.json` beside `name` and `grants`, not under `state`; `selectedModelURI` is gone from state. The composer's send writes `modelURI`; a task's message writes nothing, and the `task` command, the wake, retitling and Studio read it from the chat (`ChatInfo.modelURI`). Nothing writes `reasoningEffort` yet.
+- **Topics and the chat's marks stay on its session row.** Starred, archived, unread and the topics a chat is filed under live on the chat's session row in `chat.db`, as they did before, not in `settings.json` as the model section lists them.
+- **Tabs are held tabs naming a driver.** The chat's `state.browserTabs` lists `{ id, openedBy: "handed" | "task", driver? }`, where `driver` is the task session driving the tab and absent means the chat's own conversation. `task new --tab` takes a tab from the chat and is refused while another working task drives it; when a task's turn ends its tabs go back to the chat, and a returned tab the user closed no longer blocks the chat's browsing. The CDP bridge path carries the chat and the session (`/devtools/task/<chat>/<session>`).
+- **`task stop` takes several tasks.** `task stop t1 t2` stops each; with short handles that is how a model wrote "stop everything", and reading the second handle as a process id left the first running.
+- **`task folder --add` stays** until the permission card owns folder requests: it grants the folder to the chat with `source: "card"`, the same as an answered `request_folder` card. `task list` also takes `--until` and `--all`.
+- **The old `tasks/` dir is masked.** A chat's leftover `tasks/` folder stays on disk, read by nothing, and masked from the agent's `/task` mount so its folders do not sit there writable with their private dirs in view. The `/tasks` mount and everything that pointed the agent at it are gone.
+- **What the reach includes.** `folderReach` derives the chat's mounts on every read: the home folder and `~/Documents/Instrument` first, then the grants by `grantedAt`, then the folders of the chat's topics. Home stays read-only whole through `effectiveFolderAccess`, which keeps any folder overlapping the workspace root read-only. Global rules and deepest-path-wins precedence were not built; they belong to the permissions work.
+- **A task's handle and status are on its row**, stored once at creation so a handle never changes, rather than derived from creation order.
+- **Evals.** Step 5 ran on GLM 5.3 Flash: task-session-start, task-session-steer, handoff-steer, handoff-stop-all, files-fence-shared-folder-deliverable and a new task-session-tab case, plus the eight interruption cases (8/8). A case's folders lost `access`: a committed fixture is copied for every run and only an `inPlace` folder is attached where it is.

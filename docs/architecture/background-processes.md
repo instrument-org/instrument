@@ -81,14 +81,14 @@ The agent-facing surface is one file: [`lib/shell-commands/background-jobs.ts`](
 
 ## Ownership and what ends a process
 
-The registry is keyed by **session**, not task ([`recordsBySession`](../../packages/workspace/src/lib/background-processes.ts)). One task can have several live sessions — parallel turns, and every subagent gets its own session id from `spawnAgent` — so a task-keyed registry would let one session read and kill another's work.
+The registry is keyed by **session**, not chat ([`recordsBySession`](../../packages/workspace/src/lib/background-processes.ts)). One chat holds several sessions, its own conversation and each task it started, all working in the same folder, so a chat-keyed registry would let one session read and kill another's work.
 
 Ownership moves in one case: when the chat hands work to a task partway, `task new --job bg_1` ([`task/fork.ts`](../../packages/workspace/src/lib/shell-commands/task/fork.ts)) moves that command to the task's session under the same id (`handOverBackgroundProcesses`), so the task waits on it with `fg` instead of starting it a second time. The task works in the chat's folder, so the logs stay put.
 
 | Trigger | Reaches | Where |
 |---|---|---|
 | `kill bg_1` | one process | [`background-jobs.ts`](../../packages/workspace/src/lib/shell-commands/background-jobs.ts) |
-| Task trashed | the whole task's processes | [`lib/trash-task.ts:89`](../../packages/workspace/src/lib/trash-task.ts#L89) |
+| Chat trashed | every process of the chat and its tasks | `killChatBackgroundProcesses` in [`lib/trash-task.ts`](../../packages/workspace/src/lib/trash-task.ts) |
 | App quits | everything | [`create-workspace-actor.ts:349`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts#L349) |
 | 2 hours old | that process | `ageTimer` in `promoteBackgroundProcess` |
 | **Turn ends** | **nothing — deliberate** | — |
@@ -102,7 +102,7 @@ Ownership moves in one case: when the chat hands work to a task partway, `task n
 
 | Bound | Value | Why |
 |---|---|---|
-| Running per task | 8 | Refusing the ninth names the eight that are live |
+| Running per chat | 8 | Counted across the chat and its tasks; refusing the ninth names the ones the asking session owns and counts the rest |
 | Pending output per process | 256 KB | Held in memory between reads |
 | Process log | 16 MB | On disk at `.tool-output/bg_N.log` |
 | One `fg` wait | the call's remaining `yieldMs`, 10 min ceiling | A wait that outlived its call would promote the call itself, answering with a second id instead of output. An explicit `--timeout` can only lower it. A message arriving for the session ends the wait early (`lib/wait-interrupts.ts`), since a steer is heard at the next step and a step spent waiting would hold it for the whole window |

@@ -5,21 +5,21 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASK_FOLDER_NAMES } from "../constants";
 import { FileUpload } from "../schemas/file-upload";
-import { type TaskDir, TaskDirSchema } from "../schemas/paths";
+import { type ChatDir, ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { getTaskState } from "./task-record";
+import { getChatState } from "./chat-record";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 
 const CONTENT = "a photo, as far as the copy is concerned";
 
 let root: string;
-let dir: TaskDir;
+let dir: ChatDir;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(
     path.join(os.tmpdir(), "write-uploaded-attachments-"),
   );
-  dir = TaskDirSchema.parse(path.join(root, "task"));
+  dir = ChatDirSchema.parse(path.join(root, "task"));
   await fs.mkdir(dir, { recursive: true });
 });
 
@@ -54,7 +54,7 @@ async function attachFolder(folderPath: string) {
 }
 
 async function folderState() {
-  const state = await getTaskState(dir);
+  const state = await getChatState(dir);
   return Object.values(state.attachedFolders ?? {});
 }
 

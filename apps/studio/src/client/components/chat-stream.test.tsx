@@ -3,8 +3,7 @@ import {
   ChatIdSchema,
   type SessionMessage,
   StoreId,
-  type Task,
-  TaskIdSchema,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { act, fireEvent, screen } from "@testing-library/react";
 import { noop } from "radashi";
@@ -60,11 +59,9 @@ const INDENTED = '[class~="pl-6.5"]';
 const sessionId = StoreId.newSessionId();
 const messageId = StoreId.newMessageId();
 
-const task: Task = {
+const task: ChatInfo = {
   createdAt: new Date(0),
-  id: TaskIdSchema.parse("quarterly-numbers"),
-  chatId: ChatIdSchema.parse("a-chat"),
-  isChat: false,
+  id: ChatIdSchema.parse("quarterly-numbers"),
   title: "Quarterly numbers",
   updatedAt: new Date(0),
 };

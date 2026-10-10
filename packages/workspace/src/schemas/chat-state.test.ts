@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { TaskStateSchema } from "./task-state";
+import { ChatStateSchema } from "./chat-state";
 
-describe("TaskStateSchema", () => {
+describe("ChatStateSchema", () => {
   // The chat screen waits on this answer, so failing it left the chat
   // spinning instead of opening on the default model.
   it("answers a stored model URI it cannot parse as no pick", () => {
-    const state = TaskStateSchema.parse({
+    const state = ChatStateSchema.parse({
       selectedModelURI:
         "openai/gpt-5.6-sol?provider=retired-provider&providerConfigId=gone",
     });

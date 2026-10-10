@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { type WorkspaceFilePath } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { TypedError } from "./errors";
 import { getMimeType } from "./get-mime-type";
 import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
@@ -13,7 +13,7 @@ export async function getCurrentFileInfo({
   taskId,
 }: {
   filePath: WorkspaceFilePath;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   const filename = path.basename(filePath);
   const mimeType = getMimeType(filename);

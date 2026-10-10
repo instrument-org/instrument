@@ -1,6 +1,6 @@
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { rpcClient, type RPCInput } from "@/client/rpc/client";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId, type ChatId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -9,7 +9,7 @@ export type TranscriptFormat = RPCInput["transcript"]["save"]["format"];
 /** Which session a call is about, when it is not the one the hook was given. */
 interface Target {
   /** The record the session is in, where it is not the hook's: a chat's, say. */
-  id?: TaskId;
+  id?: ChatId;
   label?: string;
   sessionId: StoreId.Session;
 }
@@ -29,7 +29,7 @@ export function useTranscriptActions({
   sessionId,
 }: {
   /** The record the session is in; absent where every call names its own. */
-  id?: TaskId;
+  id?: ChatId;
   /** What the saved file is named after, where the task's name is not it: a chat's title, say. */
   label?: string;
   sessionId: StoreId.Session | undefined;

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { getToolNameByType } from "../get-tool-name-by-type";
 import { isInteractiveTool } from "../is-interactive-tool";
 import { isToolPart } from "../is-tool-part";
@@ -62,7 +62,7 @@ export async function sessionSteps({
   taskId,
 }: {
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<Step[]> {
   const messages = await Store.getMessagesWithParts({
     inherited: false,
@@ -144,7 +144,7 @@ export async function sessionSteps({
  * step, so the conversation reads a trajectory rather than a snapshot.
  */
 export async function trajectorySince(
-  ref: { sessionId: StoreId.Session; taskId: TaskId },
+  ref: { sessionId: StoreId.Session; taskId: ChatId },
   since: Date,
 ): Promise<string[]> {
   const allSteps = await sessionSteps(ref);

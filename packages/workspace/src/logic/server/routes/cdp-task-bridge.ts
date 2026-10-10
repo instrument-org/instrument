@@ -3,7 +3,7 @@ import type { Protocol } from "devtools-protocol";
 import { WebSocket } from "ws";
 
 import { isLocalAddress } from "../../../lib/local-page-address";
-import { chatOf } from "../../../lib/record-folders";
+import { resolveChat } from "../../../lib/record-folders";
 import { WINDOW_ID } from "../../../schemas/window-id";
 import { askWindow, requestWindowTab } from "../../../lib/chat/window-tab";
 import { taskFsLayout } from "../../../lib/resolve-workspace-file-path";
@@ -11,8 +11,8 @@ import { heldTabs, updateHeldTabs } from "../../../lib/held-tabs";
 import { getBrowserSessionDir } from "../../../lib/task-dir-utils";
 import { publisher } from "../../../rpc/publisher";
 import { type StoreId } from "../../../schemas/store-id";
-import { type TaskId } from "../../../schemas/task-id";
-import { type HeldTab } from "../../../schemas/task-state";
+import { type ChatId } from "../../../schemas/chat-id";
+import { type HeldTab } from "../../../schemas/chat-state";
 import {
   type BrowserTargetId,
   decodeBrowserTargetId,
@@ -64,7 +64,7 @@ interface Held {
  */
 export function handleTaskCdpClient(
   clientWs: WebSocket,
-  { sessionId, taskId }: { sessionId: StoreId.Session; taskId: TaskId },
+  { sessionId, taskId }: { sessionId: StoreId.Session; taskId: ChatId },
   workspaceConfig: WorkspaceConfig,
   workspaceRef: WorkspaceServerParentRef,
 ) {
@@ -273,7 +273,7 @@ export function handleTaskCdpClient(
     }
     const tabId = await requestWindowTab({
       askedBy: taskId,
-      group: chatOf(taskId),
+      group: resolveChat(taskId),
       show: false,
       ...(address === undefined ? {} : { url: address }),
     });
@@ -317,7 +317,7 @@ export function handleTaskCdpClient(
       await askWindow({
         action: { kind: "close", tabId: tab.tabId },
         askedBy: taskId,
-        group: chatOf(taskId),
+        group: resolveChat(taskId),
       });
     }
     answer(id, { success: true } satisfies Protocol.Target.CloseTargetResponse);

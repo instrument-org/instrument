@@ -8,9 +8,9 @@ import { FolderAttachment } from "../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { generateTitleFromUserMessage } from "./generate-title-from-user-message";
 import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -84,7 +84,7 @@ function setupTest(
 ) {
   const mockLanguageModel = createMockLanguageModel(generatedText, options);
   const model = createMockAIGatewayModel();
-  createMockTaskConfig(TaskIdSchema.parse("mock"), {
+  createMockChatConfig(ChatIdSchema.parse("mock"), {
     aiSDKModel: mockLanguageModel,
     model,
   });
@@ -112,7 +112,7 @@ function setupTestWithModel(
   options: { captureException?: (...args: unknown[]) => void } = {},
 ) {
   const model = createMockAIGatewayModel();
-  createMockTaskConfig(TaskIdSchema.parse("mock"), {
+  createMockChatConfig(ChatIdSchema.parse("mock"), {
     aiSDKModel: languageModel,
     model,
   });
@@ -486,7 +486,7 @@ describe("generateTitleFromUserMessage with a current title", () => {
   async function callWith(currentTitle?: string) {
     const mockLanguageModel = createMockLanguageModel("Lentil soup for dinner");
     const model = createMockAIGatewayModel();
-    createMockTaskConfig(TaskIdSchema.parse("mock"), {
+    createMockChatConfig(ChatIdSchema.parse("mock"), {
       aiSDKModel: mockLanguageModel,
       model,
     });

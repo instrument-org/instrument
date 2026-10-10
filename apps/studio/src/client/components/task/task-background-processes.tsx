@@ -1,6 +1,6 @@
 import { Button } from "@/client/components/ui/button";
 import { APP_NAME } from "@instrument-org/shared";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId, type ChatId } from "@instrument-org/workspace/client";
 
 import { useNow } from "../../hooks/use-now";
 import { useStopBackgroundProcess } from "../../hooks/use-stop-background-process";
@@ -30,7 +30,7 @@ export function TaskBackgroundProcesses({
 }: {
   /** One session's of the record alone: a task's, in its chat's. */
   sessionId?: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   const running = useTaskBackgroundProcesses(taskId, sessionId);
 
@@ -122,7 +122,7 @@ function RunningList({
 }: {
   running: RunningBackgroundProcess[];
   sessionId?: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   const now = useNow(ELAPSED_TICK_MS);
   const { busy, stop, stopAll } = useStopBackgroundProcess(taskId, sessionId);

@@ -3,7 +3,6 @@ import { z } from "zod";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
 import { createWriteQueue } from "../create-write-queue";
 import { resolveChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
@@ -105,7 +104,7 @@ export async function childTask(
  * the user anything, starts tasks, or hears the turn note.
  */
 export function chatConversation(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
 ): ChatId | undefined {
   const chatId = resolveChat(taskId);
@@ -117,7 +116,7 @@ export function chatConversation(
  * that is not the chat's own conversation.
  */
 export function isTaskSession(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
 ): boolean {
   const chatId = resolveChat(taskId);

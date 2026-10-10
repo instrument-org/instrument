@@ -7,13 +7,15 @@ import { parseArgs } from "node:util";
 
 import { sessionsFor } from "../evals/harness";
 import { buildReportWorkspaceConfig } from "../evals/utils";
-import { getTasks } from "../src/lib/get-tasks";
+import { getChatInfos } from "../src/lib/chat-info";
+import { sessionOfChat } from "../src/lib/record-folders";
 import { WAKE_SUMMARY_MAX_LENGTH } from "../src/lib/chat/wake-summary";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 
 /**
- * What each task in a workspace handed back, and what that hand-off cost.
+ * What each chat's conversation and each task it started handed back, and
+ * what that hand-off cost.
  *
  * The thing worth watching is the last assistant message of every task the
  * conversation started: what reaches the conversation stops at the wake's
@@ -30,7 +32,7 @@ if (!workspaceRootDir) {
 const absolute = path.resolve(workspaceRootDir);
 setWorkspaceConfig(buildReportWorkspaceConfig(absolute));
 
-const { tasks } = await getTasks({
+const { chats } = await getChatInfos({
   direction: "asc",
   sortBy: "createdAt",
 });
@@ -44,35 +46,38 @@ const rows: {
   truncated: boolean;
 }[] = [];
 
-for (const task of tasks) {
-  const sessions = await sessionsFor(task.id);
-  const texts = sessions.flatMap((session) =>
-    session.messages
+// Each chat's own conversation, then every task it started, which are the
+// other sessions in its store; each read on its own, without what it forked.
+for (const chat of chats) {
+  const conversation = sessionOfChat(chat.id);
+  for (const session of await sessionsFor(chat.id)) {
+    const texts = session.messages
       .filter((message) => message.role === "assistant")
       .flatMap((message) =>
         message.parts.flatMap((part) =>
           part.type === "text" && part.text.trim() !== "" ? [part.text] : [],
         ),
-      ),
-  );
-  const fileWrites = sessions.flatMap((session) =>
-    session.messages.flatMap((message) =>
+      );
+    const fileWrites = session.messages.flatMap((message) =>
       message.parts.filter(
         (part) =>
           part.type === "tool-write_file" || part.type === "tool-edit_file",
       ),
-    ),
-  ).length;
-  const usage = await getTaskUsageSummary(task.id);
-  const last = texts.at(-1) ?? "";
-  rows.push({
-    files: fileWrites,
-    kind: task.isChat ? "conversation" : "task",
-    lastReply: last.length,
-    name: task.title,
-    outputTokens: usage.outputTokens,
-    truncated: last.length > WAKE_SUMMARY_MAX_LENGTH,
-  });
+    ).length;
+    const usage = await getTaskUsageSummary(chat.id, {
+      sessionId: session.id,
+    });
+    const last = texts.at(-1) ?? "";
+    const isConversation = session.id === conversation;
+    rows.push({
+      files: fileWrites,
+      kind: isConversation ? "conversation" : "task",
+      lastReply: last.length,
+      name: isConversation ? chat.title : (session.title ?? session.id),
+      outputTokens: usage.outputTokens,
+      truncated: last.length > WAKE_SUMMARY_MAX_LENGTH,
+    });
+  }
 }
 
 const pad = (value: string, width: number) => value.padEnd(width);

@@ -18,7 +18,7 @@ import {
   isAddressableTaskFilePath,
   isTaskFileHref,
   taskFilePathFromHref,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { ImageIcon } from "@phosphor-icons/react/Image";
@@ -139,7 +139,7 @@ interface MarkdownProps {
   // Present only when rendered inside a task chat. Enables the task-file
   // right-click menu (Open in {App} / Save as… / Reveal / …); a left click
   // opens the file without it.
-  taskId?: TaskId;
+  taskId?: ChatId;
 }
 
 type PluginList = NonNullable<Options["rehypePlugins"]>;

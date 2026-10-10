@@ -13,11 +13,11 @@ import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { FolderAttachment } from "../../schemas/folder-attachment";
-import { TaskDirSchema } from "../../schemas/paths";
+import { ChatDirSchema } from "../../schemas/paths";
 import {
-  createMockTaskConfigForDir,
+  createMockChatConfigForDir,
   MOCK_WORKSPACE_DIRS,
-} from "../../test/helpers/mock-task-config";
+} from "../../test/helpers/mock-chat-config";
 import { gitBinaryPath, gitSubprocessEnv } from "../git";
 import { collapseProgress } from "./exec-shim";
 import { createGitCommand } from "./git";
@@ -31,12 +31,12 @@ const mockCtx = createCommandContext({
 });
 
 describe("createGitCommand arg policy", () => {
-  const taskDir = `${MOCK_WORKSPACE_DIRS.tasks}/git-policy`;
-  const taskId = createMockTaskConfigForDir(taskDir);
+  const chatDir = `${MOCK_WORKSPACE_DIRS.chats}/git-policy`;
+  const taskId = createMockChatConfigForDir(chatDir);
   const command = createGitCommand({ layout: taskLayout(taskId), taskId });
   // The later blocks point the workspace elsewhere as they are collected.
   beforeAll(() => {
-    createMockTaskConfigForDir(taskDir);
+    createMockChatConfigForDir(chatDir);
   });
 
   it.each([
@@ -148,13 +148,13 @@ describe("createGitCommand", () => {
     "git-smoke",
   );
   mkdirSync(dir, { recursive: true });
-  const smokeTaskId = createMockTaskConfigForDir(dir);
+  const smokeTaskId = createMockChatConfigForDir(dir);
   const command = createGitCommand({
     layout: taskLayout(smokeTaskId),
     taskId: smokeTaskId,
   });
   beforeAll(() => {
-    createMockTaskConfigForDir(dir);
+    createMockChatConfigForDir(dir);
   });
 
   it("commits as the agent, ignoring the user's git identity", async () => {
@@ -300,7 +300,7 @@ describe("createGitCommand over attached folders", () => {
   let command: ReturnType<typeof createGitCommand>;
 
   beforeAll(async () => {
-    const mountedTaskId = createMockTaskConfigForDir(taskRoot);
+    const mountedTaskId = createMockChatConfigForDir(taskRoot);
     command = createGitCommand({
       layout: taskLayout(mountedTaskId, {
         repo: {
@@ -308,7 +308,7 @@ describe("createGitCommand over attached folders", () => {
           createdAt: Date.now(),
           id: FolderAttachment.IdSchema.parse("repo-id"),
           mountName: "Repo",
-          path: TaskDirSchema.parse(repoDir),
+          path: ChatDirSchema.parse(repoDir),
           source: "user",
         },
         work: {
@@ -316,7 +316,7 @@ describe("createGitCommand over attached folders", () => {
           createdAt: Date.now(),
           id: FolderAttachment.IdSchema.parse("work-id"),
           mountName: "Work",
-          path: TaskDirSchema.parse(workDir),
+          path: ChatDirSchema.parse(workDir),
           source: "user",
         },
       }),

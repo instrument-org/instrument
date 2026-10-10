@@ -1,8 +1,8 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   createNpxCommand,
@@ -23,7 +23,7 @@ const mockCtx = createCommandContext({
 });
 
 describe("createPnpmCommand", () => {
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
+  const taskId = createMockChatConfig(ChatIdSchema.parse("test"));
   const command = createPnpmCommand(taskId, taskLayout(taskId));
 
   // The agent runs pnpm from `work/`; seed a manifest at the cwd so the manifest

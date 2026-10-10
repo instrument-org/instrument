@@ -6,7 +6,7 @@ import { isPlainObject } from "radashi";
 
 import { MOUNT } from "../../mount-points";
 import { appChanged } from "../apps/changed";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import {
   type AppCatalogEntry,
   catalogEndpointNeedsClient,
@@ -54,9 +54,9 @@ import { checkAppIcon, writeAppIcon } from "../apps/icon";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
 import { catalogWayIn, parseAuth } from "../apps/way-in";
 import { formatAppTestReport, runAppTest } from "../apps/test-app";
-import { taskDir } from "../task-dir-utils";
-import { getTaskState, setTaskState } from "../task-record";
-import { getTaskSettings } from "../task-settings";
+import { chatDir } from "../record-folders";
+import { getChatState, setChatState } from "../chat-record";
+import { getChatSettings } from "../chat-settings";
 import { truncateMiddle } from "../truncate-buffer";
 import { getWorkspaceConfig } from "../workspace-config";
 import { APP_COMMAND } from "./app-command";
@@ -75,7 +75,7 @@ export { APP_COMMAND } from "./app-command";
 /** What `app` needs from the `bash` call it runs inside. */
 export interface AppCommandContext {
   /** The task the call belongs to: which apps it may reach, and whose state the guide gate lives in. */
-  taskId: TaskId;
+  taskId: ChatId;
 }
 
 const REQUEST_TIMEOUT_MS = ms("2 minutes");
@@ -249,8 +249,8 @@ const runApp = defineSubcommands<AppCommandContext>({
  * every app for a task nobody scoped (the chat itself, a task a person
  * made). Undefined means every app.
  */
-async function allowedSlugs(taskId: TaskId): Promise<Set<string> | undefined> {
-  const settings = await getTaskSettings(taskDir(taskId));
+async function allowedSlugs(taskId: ChatId): Promise<Set<string> | undefined> {
+  const settings = await getChatSettings(chatDir(taskId));
   return settings?.apps ? new Set(settings.apps) : undefined;
 }
 
@@ -359,12 +359,12 @@ function jsonFrom(
   return parsed as Record<string, unknown>;
 }
 
-async function markGuideRead(taskId: TaskId, slug: string) {
-  const dir = taskDir(taskId);
-  const state = await getTaskState(dir);
+async function markGuideRead(taskId: ChatId, slug: string) {
+  const dir = chatDir(taskId);
+  const state = await getChatState(dir);
   const read = state.appGuidesRead ?? [];
   if (!read.includes(slug)) {
-    await setTaskState(dir, { appGuidesRead: [...read, slug] });
+    await setChatState(dir, { appGuidesRead: [...read, slug] });
   }
 }
 
@@ -1068,7 +1068,7 @@ async function runRequest(
   }
   // The guide is the app's only documentation, so it enters the context
   // before the first real request in this task.
-  const state = await getTaskState(taskDir(context.taskId));
+  const state = await getChatState(chatDir(context.taskId));
   if (!(state.appGuidesRead ?? []).includes(app.slug)) {
     const guide = await readAppGuide(app.dir);
     if (guide === null) {

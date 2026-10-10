@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { z } from "zod";
 
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 
 /**
  * A task the `task` command handed work to in a bash call: one it created
@@ -20,7 +20,7 @@ export const HandOffSchema = z.object({
    * The task, by its session in the chat's store. A task id on a call made
    * before tasks were sessions.
    */
-  taskId: z.union([StoreId.SessionSchema, TaskIdSchema]),
+  taskId: z.union([StoreId.SessionSchema, ChatIdSchema]),
 });
 
 export type HandOff = z.output<typeof HandOffSchema>;

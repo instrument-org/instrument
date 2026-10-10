@@ -6,12 +6,12 @@ import { addChildTask } from "../../src/lib/chat/children";
 import { createSession } from "../../src/lib/create-session";
 import { newMessage } from "../../src/lib/new-message";
 import { Store } from "../../src/lib/store";
-import { updateTaskSettings } from "../../src/lib/task-settings";
+import { updateChatSettings } from "../../src/lib/chat-settings";
 import { type FileUpload } from "../../src/schemas/file-upload";
 import { type FolderAttachment } from "../../src/schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../../src/schemas/session/message-data-part";
 import { StoreId } from "../../src/schemas/store-id";
-import { type TaskId } from "../../src/schemas/task-id";
+import { type ChatId } from "../../src/schemas/chat-id";
 import { type WorkspaceConfig } from "../../src/types";
 
 /**
@@ -50,7 +50,7 @@ export async function startRun(
     workspaceConfig,
     workspaceRef,
   }: { workspaceConfig: WorkspaceConfig; workspaceRef: WorkspaceActorRef },
-): Promise<{ id: TaskId; sessionId: StoreId.Session }> {
+): Promise<{ id: ChatId; sessionId: StoreId.Session }> {
   const uri = AIGatewayModelURI.Schema.parse(modelURI);
   const modelResult = await fetchModel({
     captureException: workspaceConfig.captureException,
@@ -65,13 +65,13 @@ export async function startRun(
 
   const chatSession = StoreId.newSessionId();
   const chatId = await ensureChat(chatSession, prompt);
-  const taskId: TaskId = chatId;
+  const taskId: ChatId = chatId;
   let sessionId = chatSession;
   (await createSession({ sessionId: chatSession, taskId }))._unsafeUnwrap();
   if (kind === "task") {
     // The chat's apps are the task's, so the case's are handed to the chat.
     if (apps) {
-      (await updateTaskSettings(chatId, { apps }))._unsafeUnwrap();
+      (await updateChatSettings(chatId, { apps }))._unsafeUnwrap();
     }
     const now = new Date();
     sessionId = (

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MOUNT } from "../mount-points";
 import { FolderAttachment } from "../schemas/folder-attachment";
-import { AbsolutePathSchema, TaskDirSchema } from "../schemas/paths";
+import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
 import { chatsDir } from "./record-folders";
 import {
   applyUnicodeFallbacks,
@@ -123,7 +123,7 @@ describe("applyUnicodeFallbacks", () => {
 });
 
 describe("resolveToolPath", () => {
-  const dir = TaskDirSchema.parse(path.join("/tmp", "task"));
+  const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
   const layout = buildWorkspaceFsLayout({ taskHostRoot: dir });
 
   it.each([
@@ -176,7 +176,7 @@ describe("resolveToolPath", () => {
 });
 
 describe("private-dir (.instrument) restriction", () => {
-  const dir = TaskDirSchema.parse(path.join("/tmp", "task"));
+  const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
   const layout = buildWorkspaceFsLayout({ taskHostRoot: dir });
 
   it.each([
@@ -239,9 +239,9 @@ describe("private-dir (.instrument) restriction", () => {
 // private dirs masked, so none of these resolvers may reach them through the
 // chat's own folder.
 describe("a chat's tasks dir", () => {
-  const chat = TaskDirSchema.parse(path.join(chatsDir(), "2026-09-26-chat"));
+  const chat = ChatDirSchema.parse(path.join(chatsDir(), "2026-09-26-chat"));
   const childId = "2026-09-26-child";
-  const child = TaskDirSchema.parse(path.join(chat, "tasks", childId));
+  const child = ChatDirSchema.parse(path.join(chat, "tasks", childId));
   const layout = buildWorkspaceFsLayout({
     extraMounts: [
       {
@@ -320,7 +320,7 @@ describe("a chat's tasks dir", () => {
   // ordinary one of its own.
   it("leaves a task's own tasks folder alone", () => {
     const task = buildWorkspaceFsLayout({
-      taskHostRoot: TaskDirSchema.parse(path.join("/tmp", "task")),
+      taskHostRoot: ChatDirSchema.parse(path.join("/tmp", "task")),
     });
     expect(
       resolveWritableToolPath({
@@ -332,7 +332,7 @@ describe("a chat's tasks dir", () => {
 });
 
 describe("resolveAgentPath (virtual layout paths)", () => {
-  const dir = TaskDirSchema.parse(path.join("/tmp", "task"));
+  const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
   const layout = buildWorkspaceFsLayout({
     attachedFolders: {
       a: attachment("id-a", "Docs", "/ext/one/Docs"),
@@ -408,7 +408,7 @@ describe("resolveAgentPath (virtual layout paths)", () => {
 });
 
 describe("resolveWritableToolPath", () => {
-  const dir = TaskDirSchema.parse(path.join("/tmp", "task"));
+  const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
   const layout = buildWorkspaceFsLayout({
     attachedFolders: { a: attachment("id-a", "Docs", "/ext/one/Docs") },
     taskHostRoot: dir,
@@ -471,7 +471,7 @@ describe("symlink containment on a read-write mount", () => {
           "read-write",
         ),
       },
-      taskHostRoot: TaskDirSchema.parse(path.join(tmpDir, "task")),
+      taskHostRoot: ChatDirSchema.parse(path.join(tmpDir, "task")),
     });
   });
 

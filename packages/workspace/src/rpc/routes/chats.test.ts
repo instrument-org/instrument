@@ -9,9 +9,8 @@ import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../../lib/workspace-config";
-import { WorkspaceDirSchema } from "../../schemas/paths";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
@@ -25,13 +24,19 @@ let taskId = ChatIdSchema.parse("2026-09-26-conversation");
 beforeAll(() => {
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
+    chatsDir: AbsolutePathSchema.parse(
+      path.join(
+        fs.mkdtempSync(path.join(os.tmpdir(), "chat-routes-")),
+        "chats",
+      ),
+    ),
     rootDir: WorkspaceDirSchema.parse(
       fs.mkdtempSync(path.join(os.tmpdir(), "chat-routes-")),
     ),
   });
   taskId = chatFor(StoreId.newSessionId(), taskId);
 });
-const otherTaskId = TaskIdSchema.parse("chat-other");
+const otherTaskId = ChatIdSchema.parse("chat-other");
 
 describe("chats.tasks", () => {
   const context: WorkspaceRPCContext = {
@@ -54,7 +59,7 @@ describe("chats.live.tasks", () => {
   it("answers again when the chat starts a task", async () => {
     // No agent is alive in a test; the list asks the machine whether one is.
     setWorkspaceActorRef({
-      getSnapshot: () => ({ context: { sessionRefsByTaskId: new Map() } }),
+      getSnapshot: () => ({ context: { sessionRefsByChatId: new Map() } }),
     } as never);
     const context: WorkspaceRPCContext = {
       workspaceConfig: getWorkspaceConfig(),

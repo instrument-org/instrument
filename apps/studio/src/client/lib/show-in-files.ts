@@ -6,7 +6,7 @@ import { addTab } from "@/client/lib/tabs-model";
 import { getFileManagerName, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { getDefaultStore } from "jotai";
 import { toast } from "sonner";
@@ -87,7 +87,7 @@ export function showInFolderLabel(kind: "file" | "folder") {
 }
 
 /** Shows a task's own folder, which is where what it made lands, as `showInFolder` shows any folder. */
-export async function showTaskFolder(taskId: TaskId) {
+export async function showTaskFolder(taskId: ChatId) {
   const [error, hostPath] = await safe(
     rpcClient.utils.taskFolderPath.call({ id: taskId }),
   );

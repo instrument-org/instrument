@@ -7,17 +7,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { publisher } from "../../rpc/publisher";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
-import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { type BrowserTargetId, encodeBrowserTargetId } from "../../types";
-import { taskDir } from "../task-dir-utils";
-import { getTaskState, setTaskState } from "../task-record";
+import { chatDir } from "../record-folders";
+import { getChatState, setChatState } from "../chat-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAgentBrowserCommand } from "./agent-browser";
-import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
 vi.mock("execa");
 
@@ -88,7 +87,7 @@ function browserOfLiveTargets() {
 async function run(
   args: string[],
   sessionId = TASK_SESSION,
-  taskId: TaskId = CHAT_ID,
+  taskId: ChatId = CHAT_ID,
 ) {
   const { execa } = await import("execa");
   vi.mocked(execa).mockResolvedValue({
@@ -103,7 +102,7 @@ async function run(
 async function holdTabs(
   tabs: { id: BrowserTargetId; openedBy: "handed" | "task" }[],
 ) {
-  await setTaskState(taskDir(CHAT_ID), {
+  await setChatState(chatDir(CHAT_ID), {
     browserTabs: tabs.map((tab) => ({ ...tab, sessionId: TASK_SESSION })),
   });
 }
@@ -122,13 +121,16 @@ async function spawnedCdpUrl() {
 
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "agent-browser-tabs-"));
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", "unused"), {
+  createMockChatConfigForDir(path.join(rootDir, "tasks", "unused"), {
     unplaced: true,
   });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../../templates/default"),
+    ),
+    chatsDir: AbsolutePathSchema.parse(
+      path.join(path.join(rootDir, "workspace"), "chats"),
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
@@ -195,8 +197,8 @@ describe("a task's tab", () => {
       },
     ]);
     // A tab the chat's own conversation holds is none of the task's.
-    const held = await getTaskState(taskDir(CHAT_ID));
-    await setTaskState(taskDir(CHAT_ID), {
+    const held = await getChatState(chatDir(CHAT_ID));
+    await setChatState(chatDir(CHAT_ID), {
       browserTabs: [...held.browserTabs, { id: chats, openedBy: "task" }],
     });
 
@@ -206,7 +208,7 @@ describe("a task's tab", () => {
     expect(told.exitCode).toBe(1);
     expect(told.stderr).toContain("the tab this task opened was closed");
     expect(next.exitCode).toBe(0);
-    const state = await getTaskState(taskDir(CHAT_ID));
+    const state = await getChatState(chatDir(CHAT_ID));
     expect(state.browserTabs).toEqual([{ id: chats, openedBy: "task" }]);
   });
 

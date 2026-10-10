@@ -51,16 +51,16 @@ import { copySkill } from "../src/lib/copy-skill";
 import { installPythonSkill } from "../src/lib/install-python-skill";
 import { runPnpmCommand } from "../src/lib/run-pnpm";
 import { getSkillRuntime } from "../src/lib/skill-runtime";
-import { placeTaskAt } from "../src/lib/record-folders";
+import { placeChat } from "../src/lib/record-folders";
 import { taskVenvPython } from "../src/lib/uv";
 import { buildWorkspaceFsLayout } from "../src/lib/workspace-fs-layout";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../src/lib/workspace-config";
+import { AbsolutePathSchema } from "../src/schemas/paths";
+import { StoreId } from "../src/schemas/store-id";
 import { ChatIdSchema } from "../src/schemas/chat-id";
-import { AbsolutePathSchema, TaskDirSchema } from "../src/schemas/paths";
-import { TaskIdSchema } from "../src/schemas/task-id";
 import {
   CLT_SHIM_NAMES,
   findUnlistedHostShims,
@@ -123,12 +123,9 @@ async function installSkill({
     throw new Error(runtime.error);
   }
 
-  const taskId = TaskIdSchema.parse(ulid().toLowerCase());
-  // Recorded at a folder of its own, so every later lookup of the id finds it.
-  const dir = TaskDirSchema.parse(
-    path.join(getWorkspaceConfig().tasksDir, taskId),
-  );
-  placeTaskAt(taskId, ChatIdSchema.parse("clt-shim-audit"), dir);
+  const taskId = ChatIdSchema.parse(ulid().toLowerCase());
+  // Put in the chat index, so every later lookup of the id finds its folder.
+  const dir = placeChat(taskId, StoreId.newSessionId());
   await fs.mkdir(dir, { recursive: true });
   // The scaffold initializeTask lays down. `work/` has to arrive from the
   // template: its package.json and pnpm-workspace.yaml are what make the

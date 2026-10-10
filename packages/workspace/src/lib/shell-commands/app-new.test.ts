@@ -8,14 +8,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { AppManifestSchema } from "../apps/manifest";
 import { createMemoryAppsConfig } from "../apps/memory-config";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
 import { loadApp } from "../apps/store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
-import { knowTask } from "../../test/helpers/mock-task-config";
+import { knowChat } from "../../test/helpers/mock-chat-config";
 
 // The checks that ask a server or a registry answer "can't tell" unless a
 // case says otherwise, so no test reaches the network.
@@ -24,11 +24,11 @@ vi.mock("../apps/preflight", () => ({
   packageExists: vi.fn(() => Promise.resolve("unknown")),
 }));
 
-const taskId = TaskIdSchema.parse("app-new-task");
+const taskId = ChatIdSchema.parse("app-new-task");
 const apps = getWorkspaceConfig().apps;
 
 beforeEach(() => {
-  knowTask(taskId);
+  knowChat(taskId);
 });
 
 afterEach(() => {

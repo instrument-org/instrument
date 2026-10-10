@@ -26,7 +26,7 @@ import path from "node:path";
 
 import { getCurrentFileInfo } from "../../src/lib/get-file-info";
 import { filesNamedIn } from "../../src/lib/parse-files-block";
-import { taskDir } from "../../src/lib/task-dir-utils";
+import { chatDir } from "../../src/lib/record-folders";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { MOUNT } from "../../src/mount-points";
 import { WorkspaceFilePathSchema } from "../../src/schemas/paths";
@@ -287,8 +287,8 @@ function madeDocuments(extensions: string[]): Assertion {
       const children = await childSessions();
       const written = [
         os.homedir(),
-        taskDir(taskId),
-        ...children.map((child) => taskDir(child.taskId)),
+        chatDir(taskId),
+        ...children.map((child) => chatDir(child.taskId)),
       ].flatMap((dir) => recentFilesUnder(dir));
       const missing = extensions.filter(
         (extension) => !written.some((file) => file.endsWith(extension)),

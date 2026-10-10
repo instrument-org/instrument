@@ -4,11 +4,11 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { FolderAttachment } from "../schemas/folder-attachment";
-import { TaskDirSchema } from "../schemas/paths";
+import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 
 /**
@@ -27,7 +27,7 @@ const sessionId = StoreId.newSessionId();
 let tmpDir: string;
 let attachedDir: string;
 let taskRoot: string;
-let taskId: TaskId;
+let taskId: ChatId;
 
 async function run(access: FolderAttachment.Access, command: string) {
   const bash = await createBashEnv({
@@ -37,7 +37,7 @@ async function run(access: FolderAttachment.Access, command: string) {
         createdAt: Date.now(),
         id: FolderAttachment.IdSchema.parse("docs-id"),
         mountName: "Docs",
-        path: TaskDirSchema.parse(attachedDir),
+        path: ChatDirSchema.parse(attachedDir),
         source: "user",
       },
     },
@@ -58,7 +58,7 @@ beforeEach(async () => {
   await fs.symlink("readme.txt", path.join(attachedDir, "link.txt"));
   await fs.symlink("../readme.txt", path.join(attachedDir, "sub", "up"));
   await fs.writeFile(path.join(attachedDir, "zed.txt"), "zed");
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot), { model });
+  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
 });
 
 afterEach(async () => {

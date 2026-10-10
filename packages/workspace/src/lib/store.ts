@@ -7,7 +7,7 @@ import { SessionMessage } from "../schemas/session/message";
 import { SessionMessagePart } from "../schemas/session/message-part";
 import { SessionMessageRelaxedPart } from "../schemas/session/message-relaxed-part";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { TypedError } from "./errors";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { getSessionsStoreStorage } from "./session-store-storage";
@@ -17,7 +17,7 @@ import { StorageKey } from "./storage-key";
 export namespace Store {
   export function getMessageIds(
     sessionId: StoreId.Session,
-    taskId: TaskId,
+    taskId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
@@ -35,7 +35,7 @@ export namespace Store {
   export function getMessageIdsAfter(
     sessionId: StoreId.Session,
     parentMessageId: StoreId.Message,
-    taskId: TaskId,
+    taskId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
@@ -65,7 +65,7 @@ export namespace Store {
     }: {
       messageIds?: StoreId.Message[];
       sessionId: StoreId.Session;
-      taskId: TaskId;
+      taskId: ChatId;
     },
     { signal }: { signal?: AbortSignal } = {},
   ) {
@@ -113,7 +113,7 @@ export namespace Store {
       inherited?: boolean;
       messageIds?: StoreId.Message[];
       sessionId: StoreId.Session;
-      taskId: TaskId;
+      taskId: ChatId;
     },
     { signal }: { signal?: AbortSignal } = {},
   ): ResultAsync<
@@ -164,7 +164,7 @@ export namespace Store {
    */
   function forkPoint(
     sessionId: StoreId.Session,
-    taskId: TaskId,
+    taskId: ChatId,
     { signal }: { signal?: AbortSignal },
   ) {
     return getSession(sessionId, taskId, { signal })
@@ -189,7 +189,7 @@ export namespace Store {
     }: {
       messageId: StoreId.Message;
       sessionId: StoreId.Session;
-      taskId: TaskId;
+      taskId: ChatId;
     },
     { signal }: { signal?: AbortSignal } = {},
   ) {
@@ -219,7 +219,7 @@ export namespace Store {
     sessionId: StoreId.Session,
     messageId: StoreId.Message,
     partId: StoreId.Part,
-    taskId: TaskId,
+    taskId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
@@ -237,7 +237,7 @@ export namespace Store {
   export function getPartIds(
     sessionId: StoreId.Session,
     messageId: StoreId.Message,
-    taskId: TaskId,
+    taskId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
@@ -255,7 +255,7 @@ export namespace Store {
   export function getParts(
     sessionId: StoreId.Session,
     messageId: StoreId.Message,
-    taskId: TaskId,
+    taskId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
@@ -287,7 +287,7 @@ export namespace Store {
 
   export function getSession(
     sessionId: StoreId.Session,
-    taskId: TaskId,
+    taskId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
@@ -305,7 +305,7 @@ export namespace Store {
   }
 
   export function getSessions(
-    taskId: TaskId,
+    taskId: ChatId,
     {
       includeChildSessions = false,
       signal,
@@ -334,7 +334,7 @@ export namespace Store {
 
   export function getSessionWithMessagesAndParts(
     sessionId: StoreId.Session,
-    taskId: TaskId,
+    taskId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
@@ -361,7 +361,7 @@ export namespace Store {
 
   // Helper functions to retrieve IDs from storage keys
   export function getStoreId(
-    taskId: TaskId,
+    taskId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
@@ -378,7 +378,7 @@ export namespace Store {
   export function removeMessage(
     messageId: StoreId.Message,
     sessionId: StoreId.Session,
-    taskId: TaskId,
+    taskId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
@@ -407,7 +407,7 @@ export namespace Store {
 
   export function saveMessage(
     message: SessionMessage.Type,
-    taskId: TaskId,
+    taskId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
@@ -433,7 +433,7 @@ export namespace Store {
 
   export async function saveMessages(
     messages: SessionMessage.Type[],
-    taskId: TaskId,
+    taskId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     const [firstMessage, ...rest] = messages;
@@ -465,7 +465,7 @@ export namespace Store {
 
   export function saveMessageWithParts(
     message: SessionMessage.WithParts,
-    taskId: TaskId,
+    taskId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
@@ -512,7 +512,7 @@ export namespace Store {
 
   export function savePart(
     part: SessionMessagePart.Type,
-    taskId: TaskId,
+    taskId: ChatId,
     {
       publish = true,
       signal,
@@ -546,7 +546,7 @@ export namespace Store {
 
   export async function saveParts(
     parts: SessionMessagePart.Type[],
-    taskId: TaskId,
+    taskId: ChatId,
     {
       publish = true,
       signal,
@@ -590,7 +590,7 @@ export namespace Store {
 
   export function saveSession(
     session: Session.Type,
-    taskId: TaskId,
+    taskId: ChatId,
     { signal }: { signal?: AbortSignal } = {},
   ) {
     return safeTry(async function* () {
@@ -618,7 +618,7 @@ export namespace Store {
       sessionId: StoreId.Session;
     },
     updater: (part: SessionMessagePart.Type) => SessionMessagePart.Type,
-    taskId: TaskId,
+    taskId: ChatId,
     {
       publish = true,
       signal,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { ensureTaskVenvForTask } from "./ensure-task-venv";
 
 vi.mock(import("node:fs"), () => ({
@@ -21,7 +21,7 @@ describe("ensureTaskVenvForTask", () => {
       stdout: "",
     });
 
-    const taskId = createMockTaskConfig(TaskIdSchema.parse("incomplete-venv"));
+    const taskId = createMockChatConfig(ChatIdSchema.parse("incomplete-venv"));
 
     await expect(ensureTaskVenvForTask({ taskId })).resolves.toBeUndefined();
     expect(runUvCommand).toHaveBeenCalledTimes(1);
@@ -43,7 +43,7 @@ describe("ensureTaskVenvForTask", () => {
         }),
     );
 
-    const taskId = createMockTaskConfig(TaskIdSchema.parse("venv-race"));
+    const taskId = createMockChatConfig(ChatIdSchema.parse("venv-race"));
     const firstSignal = new AbortController();
     const secondSignal = new AbortController();
     const first = ensureTaskVenvForTask({

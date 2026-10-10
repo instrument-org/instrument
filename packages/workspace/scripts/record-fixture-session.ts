@@ -41,13 +41,13 @@ import { Store } from "../src/lib/store";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import {
   AbsolutePathSchema,
-  type TaskDir,
-  TaskDirSchema,
+  type ChatDir,
+  ChatDirSchema,
 } from "../src/schemas/paths";
 import { type Session } from "../src/schemas/session";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { StoreId } from "../src/schemas/store-id";
-import { TaskIdSchema } from "../src/schemas/task-id";
+import { ChatIdSchema } from "../src/schemas/chat-id";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 import {
   fixtureChatSessionPath,
@@ -83,25 +83,25 @@ if (values.chat) {
 }
 await recordTask({
   fixture: values.fixture,
-  taskDir: TaskDirSchema.parse(path.resolve(inputPath)),
+  chatDir: ChatDirSchema.parse(path.resolve(inputPath)),
   taskKey: values.task ?? "",
 });
 
 /** Record a lone task's conversation as one fixture transcript. */
 async function recordTask({
   fixture,
-  taskDir,
+  chatDir,
   taskKey,
 }: {
   fixture: string;
-  taskDir: TaskDir;
+  chatDir: ChatDir;
   taskKey: string;
 }) {
   setWorkspaceConfig(
-    createStubWorkspaceConfig({ tasksDir: path.dirname(taskDir) }),
+    createStubWorkspaceConfig({ tasksDir: path.dirname(chatDir) }),
   );
   const recorded = await readSession(
-    TaskIdSchema.parse(path.basename(taskDir)),
+    ChatIdSchema.parse(path.basename(chatDir)),
   );
   assertNoLocalPaths(recorded);
 
@@ -160,7 +160,7 @@ function assertNoLocalPaths(
 }
 
 async function readSession(
-  taskId: ReturnType<typeof TaskIdSchema.parse>,
+  taskId: ReturnType<typeof ChatIdSchema.parse>,
   preferred?: string,
 ): Promise<Session.WithMessagesAndParts> {
   const sessionIdsResult = await Store.getStoreId(taskId);
@@ -226,7 +226,7 @@ async function recordChat({
       tasksDir: AbsolutePathSchema.parse(path.join(rootDir, TASKS_DIR_NAME)),
     }),
   );
-  const chatId = TaskIdSchema.parse(path.basename(chatDir));
+  const chatId = ChatIdSchema.parse(path.basename(chatDir));
   const settings = JSON.parse(
     await fs.readFile(
       path.join(chatDir, TASK_PRIVATE_FOLDER_NAME, TASK_SETTINGS_FILE_NAME),
@@ -253,7 +253,7 @@ async function recordChat({
   });
   const taskIds = entries
     .filter((entry) => entry.isDirectory())
-    .map((entry) => TaskIdSchema.parse(entry.name));
+    .map((entry) => ChatIdSchema.parse(entry.name));
 
   // Longest first, so an id that contains another is renamed whole.
   const renames = [...keys].toSorted(([a], [b]) => b.length - a.length);

@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TASKS_DIR_NAME } from "../constants";
 import { WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
   createMemoryPart,
   recordMemoryReported,
@@ -17,17 +17,17 @@ import { forgetMemory, memoryDir, saveMemory } from "./memory/store";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
-const id = TaskIdSchema.parse("memory-part-test");
+const id = ChatIdSchema.parse("memory-part-test");
 const sessionId = StoreId.newSessionId();
 
-let taskId: TaskId;
+let taskId: ChatId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "memory-part-test-"));
   const dir = path.join(root, TASKS_DIR_NAME, id);
   await fs.mkdir(dir, { recursive: true });
-  taskId = createMockTaskConfigForDir(dir);
+  taskId = createMockChatConfigForDir(dir);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     rootDir: WorkspaceDirSchema.parse(root),

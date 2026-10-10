@@ -33,14 +33,14 @@ import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call"
 import { cacheSessionFor } from "../lib/fork-cache-session";
 import { Store } from "../lib/store";
 import { turnNoteFor } from "../lib/turn-note";
-import { taskDir } from "../lib/task-dir-utils";
-import { getTaskSettings } from "../lib/task-settings";
+import { chatDir } from "../lib/record-folders";
+import { getChatSettings } from "../lib/chat-settings";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { TOOL_NAMES, ToolNameSchema } from "../tools/name";
 
 // A streaming save writes the part's entire accumulated text through a full
@@ -58,7 +58,7 @@ interface LLMRequestInput {
   self: ActorRef<AnyMachineSnapshot, { type: "llmRequest.chunkReceived" }>;
   sessionId: StoreId.Session;
   stepCount: number;
-  taskId: TaskId;
+  taskId: ChatId;
   toolChoice?: "auto" | "none" | "required";
 }
 
@@ -340,7 +340,7 @@ export const llmRequestLogic = fromPromise<
     // level changed on a task takes effect on its next turn: the context
     // baseline is immutable for the life of the session, and a request
     // parameter is not part of it.
-    const taskSettings = await getTaskSettings(taskDir(input.taskId));
+    const taskSettings = await getChatSettings(chatDir(input.taskId));
 
     // A Claude account searches with Claude Code's own WebSearch, inside the
     // agent's step, rather than through our web_search tool, whose search on

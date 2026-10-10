@@ -3,7 +3,7 @@ import { renderInBrowser } from "@/tests/render-browser";
 import {
   type SessionMessagePart,
   StoreId,
-  TaskIdSchema,
+  ChatIdSchema,
 } from "@instrument-org/workspace/client";
 import { afterEach, expect, test, vi } from "vitest";
 
@@ -23,7 +23,7 @@ vi.mock(import("@/client/lib/computer-file-url"), async (importOriginal) => ({
     `http://files.example.test${hostPath}`,
 }));
 
-const taskId = TaskIdSchema.parse("dishwasher");
+const taskId = ChatIdSchema.parse("dishwasher");
 
 const EMAIL = [
   "Here's a note for Marcy.",

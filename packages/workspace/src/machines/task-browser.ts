@@ -13,7 +13,7 @@ import { z } from "zod";
 import { closeAgentBrowserSessionsForSessions } from "../lib/agent-browser-cleanup";
 import { type AbsolutePath } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { type BrowserConfig, type BrowserTargetId } from "../types";
 
 export const AGENT_IDLE_TIMEOUT_MS = ms("1 hour");
@@ -37,14 +37,14 @@ export type BrowserPresenceLevel = z.output<typeof BrowserPresenceLevelSchema>;
 
 export interface TaskBrowserParentEvent {
   type: "taskBrowser.stopped";
-  value: { id: TaskId };
+  value: { id: ChatId };
 }
 
 interface DestroyAndCloseInput {
   browser: BrowserConfig;
   destroyedExternallyTargets: Set<BrowserTargetId>;
   knownTargets: Map<StoreId.Session, BrowserTargetId | undefined>;
-  taskId: TaskId;
+  taskId: ChatId;
 }
 
 interface TaskBrowserContext {
@@ -52,7 +52,7 @@ interface TaskBrowserContext {
   // Set when an entry was destroyed by the host (renderer crash, window
   // close) so the reap path skips closeTarget but still cleans daemons.
   destroyedExternallyTargets: Set<BrowserTargetId>;
-  id: TaskId;
+  id: ChatId;
   // Per-task map of (sessionId -> live target id). Value is undefined
   // for sessions seeded by `attachAgentSession` before any updateCdpHeartbeat
   // observed a real target id; the next updateCdpHeartbeat fills it in. We still
@@ -249,7 +249,7 @@ export const taskBrowserMachine = setup({
   types: {
     context: {} as TaskBrowserContext,
     events: {} as TaskBrowserEvent,
-    input: {} as { browser: BrowserConfig; id: TaskId },
+    input: {} as { browser: BrowserConfig; id: ChatId },
   },
 }).createMachine({
   context: ({ input }) => ({

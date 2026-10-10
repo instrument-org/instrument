@@ -4,41 +4,42 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
-import { type TaskId, TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
-import { getTaskPrivateDir, taskDir } from "./task-dir-utils";
-import { getTaskState, setTaskState } from "./task-record";
-import { getTaskSettings, updateTaskSettings } from "./task-settings";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
+import { getTaskPrivateDir } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
+import { getChatState, setChatState } from "./chat-record";
+import { getChatSettings, updateChatSettings } from "./chat-settings";
 
-const id = TaskIdSchema.parse("task-settings-test");
+const id = ChatIdSchema.parse("task-settings-test");
 
-let taskId: TaskId;
+let taskId: ChatId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "task-settings-test-"));
   const tasksDir = path.join(root, TASKS_DIR_NAME);
-  taskId = createMockTaskConfigForDir(path.join(tasksDir, id));
-  await fs.mkdir(taskDir(taskId), { recursive: true });
+  taskId = createMockChatConfigForDir(path.join(tasksDir, id));
+  await fs.mkdir(chatDir(taskId), { recursive: true });
 });
 
 afterEach(async () => {
   await fs.rm(root, { force: true, recursive: true });
 });
 
-describe("updateTaskSettings", () => {
+describe("updateChatSettings", () => {
   it("keeps both fields when two updates overlap", async () => {
-    await updateTaskSettings(taskId, { name: "Untitled task" });
+    await updateChatSettings(taskId, { name: "Untitled task" });
 
     // The real pair: a generated title landing while a sent message records
     // activity. Read-modify-write without a queue loses whichever wrote first.
     const activityAt = new Date("2026-02-03T04:05:06.000Z");
     await Promise.all([
-      updateTaskSettings(taskId, { name: "Generated title" }),
-      updateTaskSettings(taskId, { lastActivityAt: activityAt }),
+      updateChatSettings(taskId, { name: "Generated title" }),
+      updateChatSettings(taskId, { lastActivityAt: activityAt }),
     ]);
 
-    const settings = await getTaskSettings(taskDir(taskId));
+    const settings = await getChatSettings(chatDir(taskId));
 
     expect(settings?.name).toBe("Generated title");
     expect(settings?.lastActivityAt).toEqual(activityAt);
@@ -46,11 +47,11 @@ describe("updateTaskSettings", () => {
 
   it("applies overlapping updates to the same field in call order", async () => {
     const [first, second] = await Promise.all([
-      updateTaskSettings(taskId, { name: "First" }),
-      updateTaskSettings(taskId, { name: "Second" }),
+      updateChatSettings(taskId, { name: "First" }),
+      updateChatSettings(taskId, { name: "Second" }),
     ]);
 
-    const settings = await getTaskSettings(taskDir(taskId));
+    const settings = await getChatSettings(chatDir(taskId));
 
     expect(first.isOk()).toBe(true);
     expect(second.isOk()).toBe(true);
@@ -59,29 +60,29 @@ describe("updateTaskSettings", () => {
 
   // The two views share one file, so each has to leave the other's half alone.
   it("leaves the state alone", async () => {
-    await setTaskState(taskDir(taskId), { selectedModelURI: "half typed" });
+    await setChatState(chatDir(taskId), { selectedModelURI: "half typed" });
 
-    await updateTaskSettings(taskId, { name: "Renamed" });
+    await updateChatSettings(taskId, { name: "Renamed" });
 
-    const state = await getTaskState(taskDir(taskId));
-    const settings = await getTaskSettings(taskDir(taskId));
+    const state = await getChatState(chatDir(taskId));
+    const settings = await getChatSettings(chatDir(taskId));
 
     expect(state.selectedModelURI).toBe("half typed");
     expect(settings?.name).toBe("Renamed");
   });
 
   it("survives a state half the schema cannot read", async () => {
-    await updateTaskSettings(taskId, { name: "Named" });
+    await updateChatSettings(taskId, { name: "Named" });
     await fs.writeFile(
-      path.join(getTaskPrivateDir(taskDir(taskId)), "settings.json"),
+      path.join(getTaskPrivateDir(chatDir(taskId)), "settings.json"),
       JSON.stringify({ name: "Named", state: { attachedFolders: "broken" } }),
       "utf8",
     );
 
-    const stamped = await updateTaskSettings(taskId, {
+    const stamped = await updateChatSettings(taskId, {
       lastActivityAt: new Date("2026-02-03T04:05:06.000Z"),
     });
-    const settings = await getTaskSettings(taskDir(taskId));
+    const settings = await getChatSettings(chatDir(taskId));
 
     expect(stamped.isOk()).toBe(true);
     expect(settings?.name).toBe("Named");
@@ -96,17 +97,17 @@ describe("updateTaskSettings", () => {
   // newer build -- or a hand edit -- left one bad field in.
   it("keeps the fields a malformed sibling makes unreadable", async () => {
     const recordPath = path.join(
-      getTaskPrivateDir(taskDir(taskId)),
+      getTaskPrivateDir(chatDir(taskId)),
       "settings.json",
     );
-    await fs.mkdir(getTaskPrivateDir(taskDir(taskId)), { recursive: true });
+    await fs.mkdir(getTaskPrivateDir(chatDir(taskId)), { recursive: true });
     await fs.writeFile(
       recordPath,
       JSON.stringify({ name: "Keep this name", reasoningEffort: "loud" }),
       "utf8",
     );
 
-    const stamped = await updateTaskSettings(taskId, {
+    const stamped = await updateChatSettings(taskId, {
       lastActivityAt: new Date("2026-02-03T04:05:06.000Z"),
     });
 

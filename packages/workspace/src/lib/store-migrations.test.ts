@@ -7,28 +7,28 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
   disposeSessionsStoreStorage,
   getSessionsStoreStorage,
 } from "./session-store-storage";
 import { StorageKey } from "./storage-key";
 import { Store } from "./store";
-import { taskDir } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
 
-const id = TaskIdSchema.parse("store-migrations-test");
+const id = ChatIdSchema.parse("store-migrations-test");
 const VERSION_KEY = "__migration_version__";
 
-let taskId: TaskId;
+let taskId: ChatId;
 let root: string;
 let sessionId: StoreId.Session;
 let messageId: StoreId.Message;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "store-migrations-test-"));
-  taskId = createMockTaskConfigForDir(path.join(root, TASKS_DIR_NAME, id));
-  await fs.mkdir(taskDir(taskId), { recursive: true });
+  taskId = createMockChatConfigForDir(path.join(root, TASKS_DIR_NAME, id));
+  await fs.mkdir(chatDir(taskId), { recursive: true });
   sessionId = StoreId.newSessionId();
   messageId = StoreId.newMessageId();
 });

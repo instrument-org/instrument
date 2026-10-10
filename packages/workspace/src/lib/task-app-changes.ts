@@ -2,11 +2,11 @@ import { ok, safeTry } from "neverthrow";
 
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { listApps } from "./apps/store";
 import { getTaskAppsBaseline, setTaskAppsBaseline } from "./task-apps-baseline";
-import { taskDir } from "./task-dir-utils";
-import { getTaskSettings } from "./task-settings";
+import { chatDir } from "./record-folders";
+import { getChatSettings } from "./chat-settings";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -33,11 +33,11 @@ export function detectTaskAppChanges({
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
-      const settings = await getTaskSettings(taskDir(taskId));
+      const settings = await getChatSettings(chatDir(taskId));
       const current = settings?.apps;
       if (current === undefined) {
         return ok(undefined);

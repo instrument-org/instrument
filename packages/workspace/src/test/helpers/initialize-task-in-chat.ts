@@ -2,8 +2,7 @@ import { initializeChat } from "../../lib/initialize-task";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
-import { type TaskSettingsUpdate } from "../../schemas/task-settings";
+import { type ChatSettingsUpdate } from "../../schemas/chat-settings";
 
 /**
  * Makes a record the way the product does, which is always a chat: one
@@ -14,10 +13,10 @@ export async function initializeTaskInChat({
   taskId,
 }: {
   initialSettings: Omit<
-    TaskSettingsUpdate,
+    ChatSettingsUpdate,
     "chatSessionId" | "createdWithAppVersion"
   >;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<ChatId> {
   const chatId = ChatIdSchema.parse(taskId);
   (

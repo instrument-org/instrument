@@ -4,7 +4,6 @@ import { z } from "zod";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
 import { listBackgroundProcesses } from "../background-processes";
 import { getTaskAgentStatus } from "../get-task-agent-status";
 import { sessionOfChat } from "../record-folders";
@@ -76,14 +75,14 @@ export function askIn(
 /** A session, in the store of the record that holds it. */
 export interface SessionRef {
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }
 
 /**
  * Whether an agent of the record is alive: of the one session named, or of
  * any of its sessions, a chat's tasks included.
  */
-export function isWorking(taskId: TaskId, sessionId?: StoreId.Session) {
+export function isWorking(taskId: ChatId, sessionId?: StoreId.Session) {
   const status = getTaskAgentStatus({
     id: taskId,
     workspaceRef: getWorkspaceActorRef(),

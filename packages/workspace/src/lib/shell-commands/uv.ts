@@ -1,7 +1,7 @@
 import { type CommandContext, defineCommand } from "just-bash";
 
 import { type AbsolutePath } from "../../schemas/paths";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { ensureTaskVenvForTask } from "../ensure-task-venv";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
@@ -20,7 +20,7 @@ export const UV_COMMAND = {
   name: "uv",
 } as const;
 
-export function createUvCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createUvCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
   return defineCommand(UV_COMMAND.name, async (args, ctx) => {
     const blocked = blockedSelfUpdate(args);
     if (blocked) {
@@ -65,7 +65,7 @@ export async function ensureTaskVenv({
   taskId,
 }: {
   ctx: CommandContext;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<string | undefined> {
   const result = await ensureTaskVenvForTask({ signal: ctx.signal, taskId });
   return result?.output;

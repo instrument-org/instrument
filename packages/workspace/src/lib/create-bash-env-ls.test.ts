@@ -5,10 +5,10 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { FolderAttachment } from "../schemas/folder-attachment";
-import { TaskDirSchema } from "../schemas/paths";
+import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 
 /**
@@ -33,7 +33,7 @@ const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
 let attachedDir: string;
-let taskId: TaskId;
+let taskId: ChatId;
 
 /** Smaller than the tree, which holds `DIRECTORIES * FILES_PER_DIRECTORY` entries. */
 const BUDGET = 20_000;
@@ -46,7 +46,7 @@ async function run(command: string) {
         createdAt: Date.now(),
         id: FolderAttachment.IdSchema.parse("home-id"),
         mountName: "Home",
-        path: TaskDirSchema.parse(attachedDir),
+        path: ChatDirSchema.parse(attachedDir),
         source: "user",
       },
     },
@@ -83,7 +83,7 @@ beforeAll(async () => {
       ),
     );
   }
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot));
+  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
 });
 
 afterAll(async () => {

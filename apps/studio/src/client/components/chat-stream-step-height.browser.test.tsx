@@ -3,8 +3,7 @@ import {
   ChatIdSchema,
   type SessionMessage,
   StoreId,
-  type Task,
-  TaskIdSchema,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
@@ -39,11 +38,9 @@ const ACTIVITY = "Creating a blank draft";
 
 const sessionId = StoreId.newSessionId();
 
-const task: Task = {
+const task: ChatInfo = {
   createdAt: new Date(0),
-  id: TaskIdSchema.parse("blank-draft"),
-  chatId: ChatIdSchema.parse("a-chat"),
-  isChat: false,
+  id: ChatIdSchema.parse("blank-draft"),
   title: "Blank draft",
   updatedAt: new Date(0),
 };

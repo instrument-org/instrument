@@ -5,23 +5,23 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { getWorkspaceConfig } from "../../lib/workspace-config";
-import { TaskDirSchema } from "../../schemas/paths";
+import { ChatDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
-import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { type WorkspaceRPCContext } from "../base";
 import { debug } from "./debug";
 
 const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
-let taskId: ReturnType<typeof createMockTaskConfigForDir>;
+let taskId: ReturnType<typeof createMockChatConfigForDir>;
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "run-bash-route-"));
   const taskRoot = path.join(tmpDir, "tasks", "test");
   await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
   await fs.mkdir(path.join(taskRoot, ".instrument"), { recursive: true });
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot));
+  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
 });
 
 afterAll(async () => {

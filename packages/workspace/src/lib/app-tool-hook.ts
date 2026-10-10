@@ -1,4 +1,4 @@
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { invokeAppTool } from "./shell-commands/app";
 
 /**
@@ -17,7 +17,7 @@ export type AppToolInvoker = (
  * The hook for a task's shell: `tools.<slug>.<tool>(args)` calls that app's
  * MCP tool through the same checks `app call` makes for this task.
  */
-export function appToolHook(taskId: TaskId): AppToolInvoker {
+export function appToolHook(taskId: ChatId): AppToolInvoker {
   return (path, argsJson, signal) =>
     invokeAppTool({ taskId }, path, argsJson, signal);
 }

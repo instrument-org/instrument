@@ -6,10 +6,10 @@ const aliveAgentCount = base
   .input(z.void())
   .output(z.object({ count: z.number() }))
   .handler(({ context }) => {
-    const { sessionRefsByTaskId } = context.workspaceRef.getSnapshot().context;
+    const { sessionRefsByChatId } = context.workspaceRef.getSnapshot().context;
     let count = 0;
 
-    for (const sessionRefs of sessionRefsByTaskId.values()) {
+    for (const sessionRefs of sessionRefsByChatId.values()) {
       for (const sessionRef of sessionRefs) {
         if (sessionRef.getSnapshot().hasTag("agent.alive")) {
           count += 1;

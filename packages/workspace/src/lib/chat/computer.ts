@@ -6,12 +6,12 @@ import { unique } from "radashi";
 import { z } from "zod";
 
 import { type FolderAttachment } from "../../schemas/folder-attachment";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { getMimeType } from "../get-mime-type";
 import { pathIsWithin } from "../path-is-within";
 import { type ReadRefusal, readRefusalOf } from "../read-refusal";
 import { resolveExistingFilePath } from "../resolve-agent-path";
-import { taskDir } from "../task-dir-utils";
+import { chatDir } from "../record-folders";
 import {
   buildWorkspaceFsLayout,
   effectiveFolderAccess,
@@ -183,7 +183,7 @@ export async function listComputerFolder({
   taskId,
 }: {
   path: string;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<ComputerFolder> {
   const hostPath = await resolveICloudPath(expandHomePath(input), exists);
   let dirents: Dirent[];
@@ -288,8 +288,8 @@ async function iCloudAppEntries(
 export async function recentComputerFiles(): Promise<ComputerRecent[]> {
   // Each path is read the way the chat that named it reads it: `/task` is
   // that chat's own folder, and its tasks are the ones mounted for it.
-  const views = new Map<TaskId, ReturnType<typeof chatView>>();
-  const viewOf = (chatId: TaskId) => {
+  const views = new Map<ChatId, ReturnType<typeof chatView>>();
+  const viewOf = (chatId: ChatId) => {
     const known = views.get(chatId);
     if (known) {
       return known;
@@ -345,7 +345,7 @@ function compareEntries(
  * in, and the virtual path the agent reaches it by through that grant.
  */
 async function computerAccess(
-  taskId: TaskId,
+  taskId: ChatId,
   hostPath: string,
 ): Promise<ComputerAccess | undefined> {
   const { roots } = await chatView(taskId);
@@ -466,8 +466,8 @@ async function exists(hostPath: string) {
  * attached. Beside the layout, the same mounts as host roots with the grant
  * each carries, which is what a folder's access is judged from.
  */
-async function chatView(taskId: TaskId) {
-  const taskHostRoot = taskDir(taskId);
+async function chatView(taskId: ChatId) {
+  const taskHostRoot = chatDir(taskId);
   const attachedFolders = await folderReach(taskId);
   const layout = buildWorkspaceFsLayout({ attachedFolders, taskHostRoot });
   return { layout, roots: reachableRoots(layout, attachedFolders) };

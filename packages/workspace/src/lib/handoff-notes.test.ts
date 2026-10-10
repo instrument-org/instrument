@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
   contextRolloverNotice,
   HANDOFF_NOTES_PATH,
@@ -82,7 +82,7 @@ describe("readHandoffNotes", () => {
       path.join(dir, "work", "handoff-notes.md"),
       `${"x".repeat(7999)}🙈${"y".repeat(100)}`,
     );
-    const taskId = createMockTaskConfigForDir(dir);
+    const taskId = createMockChatConfigForDir(dir);
 
     const notes = await readHandoffNotes(taskId);
 

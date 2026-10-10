@@ -7,7 +7,7 @@ import {
   WorkspaceDirSchema,
 } from "../../src/schemas/paths";
 import { unavailableWebSearchClient } from "../../src/schemas/web-search";
-import { createStubBrowserConfig } from "../../src/test/helpers/mock-task-config";
+import { createStubBrowserConfig } from "../../src/test/helpers/mock-chat-config";
 import { type WorkspaceConfig } from "../../src/types";
 
 export function createStubWorkspaceConfig({
@@ -56,6 +56,7 @@ export function createStubWorkspaceConfig({
     systemSkillsDir: AbsolutePathSchema.parse(
       path.join(absoluteRootDir, "system-skills"),
     ),
+    chatsDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "chats")),
     tasksDir: WorkspaceDirSchema.parse(absoluteTasksDir),
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),

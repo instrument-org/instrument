@@ -19,7 +19,7 @@ import {
   type SessionMessageDataPart,
   type SessionMessagePart,
   StoreId,
-  type Task,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
@@ -132,7 +132,7 @@ export function TaskChat({
    * reads as empty on the way.
    */
   sentPrompt?: string;
-  task: Task;
+  task: ChatInfo;
   /** Drawn under the transcript's last turn, inside the scroller: what is going on past the conversation. */
   transcriptTrailing?: ReactNode;
 }) {

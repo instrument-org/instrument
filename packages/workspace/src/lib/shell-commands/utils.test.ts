@@ -1,9 +1,9 @@
 import { InMemoryFs } from "just-bash";
 import { describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { taskDir } from "../task-dir-utils";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { chatDir } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   bridgeInlineCodePaths,
@@ -14,8 +14,8 @@ import {
   unreachablePathArgError,
 } from "./utils";
 
-const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
-const dir = taskDir(taskId);
+const taskId = createMockChatConfig(ChatIdSchema.parse("test"));
+const dir = chatDir(taskId);
 const fs = new InMemoryFs();
 
 function resolvePath(cwd: string) {

@@ -1,7 +1,7 @@
 import { execa } from "execa";
 
 import { type AbsolutePath } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { filterShellOutput } from "./filter-shell-output";
 import { getUvBinPath, uvSubprocessEnv } from "./uv";
 import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
@@ -18,7 +18,7 @@ export async function runUvCommand({
   cwd?: AbsolutePath;
   signal?: AbortSignal;
   stdin?: string;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   const result = await execa(getUvBinPath(), args, {
     all: true,

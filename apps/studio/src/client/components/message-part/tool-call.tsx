@@ -1,7 +1,7 @@
 import { useRunningBackgroundProcess } from "@/client/hooks/use-task-background-processes";
 import {
   type SessionMessagePart,
-  type Task,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 
 import { ToolBash } from "./tool-bash";
@@ -38,7 +38,7 @@ export function ToolCall({
   isStreaming: boolean;
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
-  task: Task;
+  task: ChatInfo;
 }) {
   // Read for every call rather than only for bash, because a hook cannot sit
   // behind the visibility check below. One query key backs the whole transcript,
@@ -112,7 +112,7 @@ export function ToolCallBody({
 }: {
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
-  task: Task;
+  task: ChatInfo;
 }) {
   if (part.state === "output-error") {
     return <ToolCallError part={part} />;

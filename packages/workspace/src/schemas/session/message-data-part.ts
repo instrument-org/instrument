@@ -4,7 +4,7 @@ import { FolderAttachment } from "../folder-attachment";
 import { RelativePathSchema } from "../paths";
 import { ProjectIdSchema } from "../project-id";
 import { StoreId } from "../store-id";
-import { TaskIdSchema } from "../task-id";
+import { ChatIdSchema } from "../chat-id";
 
 export namespace SessionMessageDataPart {
   /**
@@ -523,7 +523,7 @@ export namespace SessionMessageDataPart {
            * The task, by its session in the chat's store, which `task` takes.
            * A task id on an event written before tasks were sessions.
            */
-          taskId: z.union([StoreId.SessionSchema, TaskIdSchema]),
+          taskId: z.union([StoreId.SessionSchema, ChatIdSchema]),
           title: z.string(),
           /** Input and output tokens the child has spent in total. */
           tokens: z.number().nonnegative().optional(),

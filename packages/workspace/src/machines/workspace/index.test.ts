@@ -6,13 +6,13 @@ import { type AnyActorLogic, createActor, fromCallback } from "xstate";
 import { createMemoryAppsConfig } from "../../lib/apps/memory-config";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { unavailableWebSearchClient } from "../../schemas/web-search";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import {
   createStubBrowserConfig,
   MOCK_WORKSPACE_DIRS,
-} from "../../test/helpers/mock-task-config";
+} from "../../test/helpers/mock-chat-config";
 import { workspaceMachine } from "./index";
 
 // Long-running no-op actor used to stand in for every spawned child machine.
@@ -82,7 +82,7 @@ const buildUserMessage = (): SessionMessage.UserWithParts => {
 
 const spawnSession = (
   actor: ReturnType<typeof createWorkspaceActor>,
-  taskId: TaskId,
+  taskId: ChatId,
 ) => {
   actor.send({
     type: "internal.spawnSession",
@@ -97,9 +97,9 @@ const spawnSession = (
 
 describe("workspaceMachine task trashing", () => {
   it("trashing a task does not stop a sibling whose id contains the trashed id", () => {
-    const trashedId = TaskIdSchema.parse("2026-06-26-task");
+    const trashedId = ChatIdSchema.parse("2026-06-26-task");
     // Sibling id contains the trashed id as a substring (same prompt twice).
-    const siblingId = TaskIdSchema.parse("2026-06-26-task-2");
+    const siblingId = ChatIdSchema.parse("2026-06-26-task-2");
 
     const actor = createWorkspaceActor();
     actor.start();
@@ -109,25 +109,25 @@ describe("workspaceMachine task trashing", () => {
 
     const siblingRef = actor
       .getSnapshot()
-      .context.sessionRefsByTaskId.get(siblingId)?.[0];
+      .context.sessionRefsByChatId.get(siblingId)?.[0];
     expect(siblingRef).toBeDefined();
 
     actor.send({ type: "prepareToTrashTask", value: { id: trashedId } });
 
-    const { sessionRefsByTaskId, tasksBeingTrashed } =
+    const { sessionRefsByChatId, tasksBeingTrashed } =
       actor.getSnapshot().context;
     expect(tasksBeingTrashed).toEqual([trashedId]);
-    expect(sessionRefsByTaskId.has(siblingId)).toBe(true);
+    expect(sessionRefsByChatId.has(siblingId)).toBe(true);
     expect(siblingRef?.getSnapshot().status).toBe("active");
 
     actor.stop();
   });
 
   it("spawning a session whose task id ends with a trashed id is not blocked", () => {
-    const trashedId = TaskIdSchema.parse("task");
+    const trashedId = ChatIdSchema.parse("task");
     // New id has the trashed id as a suffix; an endsWith guard would wrongly
     // treat it as a child of the task being trashed.
-    const newId = TaskIdSchema.parse("my-task");
+    const newId = ChatIdSchema.parse("my-task");
 
     const actor = createWorkspaceActor();
     actor.start();
@@ -135,7 +135,7 @@ describe("workspaceMachine task trashing", () => {
     actor.send({ type: "prepareToTrashTask", value: { id: trashedId } });
     spawnSession(actor, newId);
 
-    expect(actor.getSnapshot().context.sessionRefsByTaskId.has(newId)).toBe(
+    expect(actor.getSnapshot().context.sessionRefsByChatId.has(newId)).toBe(
       true,
     );
 
@@ -145,7 +145,7 @@ describe("workspaceMachine task trashing", () => {
 
 describe("workspaceMachine session ref lifecycle", () => {
   it("drops a session ref when that session finishes", () => {
-    const taskId = TaskIdSchema.parse("gc-task");
+    const taskId = ChatIdSchema.parse("gc-task");
 
     const actor = createWorkspaceActor();
     actor.start();
@@ -154,7 +154,7 @@ describe("workspaceMachine session ref lifecycle", () => {
 
     const sessionRef = actor
       .getSnapshot()
-      .context.sessionRefsByTaskId.get(taskId)?.[0];
+      .context.sessionRefsByChatId.get(taskId)?.[0];
     expect(sessionRef).toBeDefined();
 
     actor.send({
@@ -168,7 +168,7 @@ describe("workspaceMachine session ref lifecycle", () => {
 
     // The finished session's ref is gone, and with no refs left the task key is
     // removed so it stops counting as active.
-    expect(actor.getSnapshot().context.sessionRefsByTaskId.has(taskId)).toBe(
+    expect(actor.getSnapshot().context.sessionRefsByChatId.has(taskId)).toBe(
       false,
     );
 
@@ -176,7 +176,7 @@ describe("workspaceMachine session ref lifecycle", () => {
   });
 
   it("keeps other session refs when one of several finishes", () => {
-    const taskId = TaskIdSchema.parse("gc-multi-task");
+    const taskId = ChatIdSchema.parse("gc-multi-task");
 
     const actor = createWorkspaceActor();
     actor.start();
@@ -184,7 +184,7 @@ describe("workspaceMachine session ref lifecycle", () => {
     spawnSession(actor, taskId);
     spawnSession(actor, taskId);
 
-    const refs = actor.getSnapshot().context.sessionRefsByTaskId.get(taskId);
+    const refs = actor.getSnapshot().context.sessionRefsByChatId.get(taskId);
     expect(refs).toHaveLength(2);
     const [first, second] = refs ?? [];
 
@@ -199,7 +199,7 @@ describe("workspaceMachine session ref lifecycle", () => {
 
     const remaining = actor
       .getSnapshot()
-      .context.sessionRefsByTaskId.get(taskId);
+      .context.sessionRefsByChatId.get(taskId);
     expect(remaining).toHaveLength(1);
     expect(remaining?.[0]?.id).toBe(second?.id);
 

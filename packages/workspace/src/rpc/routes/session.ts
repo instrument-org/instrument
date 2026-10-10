@@ -8,10 +8,10 @@ import { runningForks, stopFork } from "../../lib/shell-commands/task/fork";
 import { resolveChat } from "../../lib/record-folders";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
-import { recordTaskActivity } from "../../lib/task-settings";
+import { recordChatActivity } from "../../lib/chat-settings";
 import { Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { type ToolOutputByName, TOOLS_BY_NAME } from "../../tools/all";
 import { ToolNameSchema } from "../../tools/name";
 import { base, toORPCError } from "../base";
@@ -19,7 +19,7 @@ import { base, toORPCError } from "../base";
 const byIdWithMessagesAndParts = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       sessionId: StoreId.SessionSchema,
     }),
   )
@@ -42,7 +42,7 @@ const byIdWithMessagesAndParts = base
 const list = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       includeChildSessions: z.boolean().default(false),
     }),
   )
@@ -70,7 +70,7 @@ const list = base
 const run = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       modelURI: AIGatewayModelURI.Schema,
       sessionId: StoreId.SessionSchema,
     }),
@@ -104,7 +104,7 @@ const run = base
     });
 
     // A settings write, which the record change feed reports: what moves the task in the list.
-    await recordTaskActivity(taskId);
+    await recordChatActivity(taskId);
 
     context.workspaceConfig.captureEvent("session.run");
   });
@@ -117,7 +117,7 @@ const run = base
 const stop = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       sessionId: StoreId.SessionSchema.optional(),
     }),
   )
@@ -144,7 +144,7 @@ const toMarkdown = base
   .input(
     z.object({
       frontMatter: z.record(z.string(), z.unknown()).optional(),
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       sessionId: StoreId.SessionSchema,
     }),
   )
@@ -164,7 +164,7 @@ const toMarkdown = base
 const contextTokens = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       sessionId: StoreId.SessionSchema,
     }),
   )
@@ -197,7 +197,7 @@ const live = {
   contextTokens: base
     .input(
       z.object({
-        id: TaskIdSchema,
+        id: ChatIdSchema,
         sessionId: StoreId.SessionSchema,
       }),
     )
@@ -226,7 +226,7 @@ const live = {
 const answerToolCall = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       output: z.unknown(),
       toolCallId: z.string(),
       toolName: ToolNameSchema,
@@ -249,7 +249,7 @@ const answerToolCall = base
     const sessions =
       context.workspaceRef
         .getSnapshot()
-        .context.sessionRefsByTaskId.get(input.id) ?? [];
+        .context.sessionRefsByChatId.get(input.id) ?? [];
     if (sessions.length === 0) {
       throw new ORPCError("CONFLICT", {
         message: "That request ended before the answer reached it.",

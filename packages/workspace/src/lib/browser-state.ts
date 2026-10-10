@@ -2,7 +2,7 @@ import { err, ok, type Result, ResultAsync, safeTry } from "neverthrow";
 import { z } from "zod";
 
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { type BrowserTargetId } from "../types";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { getSessionsStoreStorage } from "./session-store-storage";
@@ -51,7 +51,7 @@ function withVisit(hosts: string[] | undefined, url: string): string[] {
 }
 
 export function getBrowserState(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
   { signal }: { signal?: AbortSignal } = {},
 ) {
@@ -111,7 +111,7 @@ export function recordVisitedHosts({
 }: {
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: TaskId;
+  taskId: ChatId;
   urls: string[];
 }) {
   return safeTry(async function* () {
@@ -159,7 +159,7 @@ export function restoreLastPage({
   /** Where the tab goes. */
   fallbackUrl?: string;
   targetId: BrowserTargetId;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   return new ResultAsync(
     (async (): Promise<Result<undefined, Error>> => {

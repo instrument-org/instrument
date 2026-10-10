@@ -5,7 +5,7 @@ import { alphabetical } from "radashi";
 import { type AnyAgent } from "../agents/types";
 import { SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { addCacheControlToMessages } from "./add-cache-control";
 import {
@@ -66,7 +66,7 @@ export async function prepareModelMessages({
   model: AIGatewayModel.Type;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   const messageResults = await Store.getMessagesWithParts(
     { sessionId, taskId },

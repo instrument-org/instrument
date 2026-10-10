@@ -2,10 +2,10 @@ import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { taskLayout } from "../../test/helpers/task-layout";
-import { taskDir } from "../task-dir-utils";
+import { chatDir } from "../record-folders";
 import { createShortcutsCommand } from "./shortcuts";
 
 vi.mock("execa");
@@ -18,7 +18,7 @@ const ctx = createCommandContext({
 });
 
 describe("shortcuts", () => {
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("shortcuts-test"));
+  const taskId = createMockChatConfig(ChatIdSchema.parse("shortcuts-test"));
   const command = createShortcutsCommand(taskId, taskLayout(taskId));
 
   afterEach(() => {
@@ -50,7 +50,7 @@ describe("shortcuts", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       "/usr/bin/shortcuts",
-      ["run", "Resize", "-o", path.join(taskDir(taskId), "out.png")],
+      ["run", "Resize", "-o", path.join(chatDir(taskId), "out.png")],
       expect.anything(),
     );
   });

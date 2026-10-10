@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
+import { StoreId, ChatIdSchema } from "@instrument-org/workspace/client";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -22,7 +22,7 @@ const part = (input?: { choices: string[]; question: string }) =>
     type: "tool-choose",
   }) as unknown as Parameters<typeof ToolChoose>[0]["part"];
 
-const taskId = TaskIdSchema.parse("test-task");
+const taskId = ChatIdSchema.parse("test-task");
 
 describe("ToolChoose", () => {
   // Every row draws a chevron, because whether a body has anything in it is

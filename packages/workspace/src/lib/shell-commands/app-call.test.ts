@@ -15,21 +15,21 @@ import {
 import { z } from "zod";
 
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { loadApp } from "../apps/store";
 import { createLocalBashEnv } from "../create-bash-env";
-import { taskDir } from "../task-dir-utils";
-import { updateTaskSettings } from "../task-settings";
+import { chatDir } from "../record-folders";
+import { updateChatSettings } from "../chat-settings";
 import { getWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
-import { knowTask } from "../../test/helpers/mock-task-config";
+import { knowChat } from "../../test/helpers/mock-chat-config";
 
 vi.mock("../apps/preflight", () => ({
   mcpSignInSupport: vi.fn(() => Promise.resolve("unknown")),
   packageExists: vi.fn(() => Promise.resolve("unknown")),
 }));
 
-const taskId = TaskIdSchema.parse("app-call-task");
+const taskId = ChatIdSchema.parse("app-call-task");
 const slug = "tracker";
 let server: http.Server;
 let fs = new InMemoryFs();
@@ -90,7 +90,7 @@ beforeAll(async () => {
     throw new Error("Expected a TCP address");
   }
 
-  knowTask(taskId);
+  knowChat(taskId);
   const created = await app(
     "new",
     slug,
@@ -120,7 +120,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  knowTask(taskId);
+  knowChat(taskId);
   fs = new InMemoryFs();
   await fs.mkdir("/task", { recursive: true });
 });
@@ -179,7 +179,7 @@ describe("app call --out", () => {
 
 describe("app call in a pipeline", () => {
   it("hands jq the service's JSON", async () => {
-    await mkdir(taskDir(taskId), { recursive: true });
+    await mkdir(chatDir(taskId), { recursive: true });
     const bash = await createLocalBashEnv({
       sessionId: StoreId.newSessionId(),
       taskId,
@@ -192,7 +192,7 @@ describe("app call in a pipeline", () => {
 
 describe("js-exec tools.*", () => {
   async function script(code: string, id = taskId) {
-    await mkdir(taskDir(id), { recursive: true });
+    await mkdir(chatDir(id), { recursive: true });
     const bash = await createLocalBashEnv({
       sessionId: StoreId.newSessionId(),
       taskId: id,
@@ -236,9 +236,9 @@ ${use}`,
   });
 
   it("refuses an app the task was not handed", async () => {
-    const scoped = TaskIdSchema.parse("app-call-scoped-task");
-    knowTask(scoped);
-    (await updateTaskSettings(scoped, { apps: ["notes"] }))._unsafeUnwrap();
+    const scoped = ChatIdSchema.parse("app-call-scoped-task");
+    knowChat(scoped);
+    (await updateChatSettings(scoped, { apps: ["notes"] }))._unsafeUnwrap();
     const result = await script(`await tools.${slug}.issues();`, scoped);
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toMatchInlineSnapshot(`

@@ -6,13 +6,14 @@ import { type DatabaseSync } from "node:sqlite";
 import { createStorage } from "unstorage";
 import dbDriver from "unstorage/drivers/db0";
 
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { TypedError } from "./errors";
 import { sweepInterruptedToolCalls } from "./interrupted-tool-calls";
 import { recordChanged, storeKeyChange } from "./record-changes";
 import { bumpStoreGeneration } from "./store-generation";
 import { runStoreMigrations } from "./store-migrations";
-import { sessionStorePath, taskDir } from "./task-dir-utils";
+import { sessionStorePath } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 import { type WrappedStorage, wrapStorage } from "./wrap-storage";
 import { STORE_TABLE } from "./store-table";
@@ -57,13 +58,13 @@ type StoreEntry =
   | { phase: "closed" }
   | { phase: "open"; store: OpenStore };
 
-const STORES = new Map<TaskId, StoreEntry>();
+const STORES = new Map<ChatId, StoreEntry>();
 
 /** The storage each task's callers hold, which outlives any one open of its database. */
-const HANDLES = new Map<TaskId, WrappedStorage>();
+const HANDLES = new Map<ChatId, WrappedStorage>();
 
 /** Tasks being deleted, which no open may recreate until the deletion is over. */
-const DELETING = new Set<TaskId>();
+const DELETING = new Set<ChatId>();
 
 /** How long a dispose waits for operations under way before closing anyway. */
 const DRAIN_TIMEOUT_MS = 5000;
@@ -71,7 +72,7 @@ const DRAIN_TIMEOUT_MS = 5000;
 let sweepTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Closes a task's database as a process ending would: the next open migrates and sweeps again. */
-export function disposeSessionsStoreStorage(id: TaskId) {
+export function disposeSessionsStoreStorage(id: ChatId) {
   bumpStoreGeneration(id);
   HANDLES.delete(id);
   const entry = STORES.get(id);
@@ -97,11 +98,11 @@ export function disposeSessionsStoreStorage(id: TaskId) {
   return closingResult(closing);
 }
 
-export function getSessionsStoreStorage(taskId: TaskId) {
+export function getSessionsStoreStorage(taskId: ChatId) {
   return ResultAsync.fromPromise(
-    fs.access(taskDir(taskId)),
+    fs.access(chatDir(taskId)),
     (error) =>
-      new TypedError.NotFound(`Folder ${taskDir(taskId)} does not exist`, {
+      new TypedError.NotFound(`Folder ${chatDir(taskId)} does not exist`, {
         cause: error,
       }),
   ).andThen(() => {
@@ -114,11 +115,11 @@ export function getSessionsStoreStorage(taskId: TaskId) {
   });
 }
 
-export function markStorageAsDisposing(id: TaskId) {
+export function markStorageAsDisposing(id: ChatId) {
   DELETING.add(id);
 }
 
-export function unmarkStorageAsDisposing(id: TaskId) {
+export function unmarkStorageAsDisposing(id: ChatId) {
   DELETING.delete(id);
 }
 
@@ -205,7 +206,7 @@ function openCount() {
 }
 
 /** The storage a task's callers hold: each call reaches its open database, reopening it if it was closed for being idle. */
-function handleFor(taskId: TaskId): WrappedStorage {
+function handleFor(taskId: ChatId): WrappedStorage {
   const known = HANDLES.get(taskId);
   if (known) {
     return known;
@@ -272,7 +273,7 @@ function handleFor(taskId: TaskId): WrappedStorage {
   return handle;
 }
 
-function openStore(taskId: TaskId): ResultAsync<OpenStore, TypedError.Storage> {
+function openStore(taskId: ChatId): ResultAsync<OpenStore, TypedError.Storage> {
   const entry = STORES.get(taskId);
   if (DELETING.has(taskId) || entry?.phase === "disposing") {
     return errAsync(
@@ -292,7 +293,7 @@ function openStore(taskId: TaskId): ResultAsync<OpenStore, TypedError.Storage> {
     error instanceof TypedError.Storage
       ? error
       : new TypedError.Storage(
-          `Failed to open session database at ${sessionStorePath(taskDir(taskId))}`,
+          `Failed to open session database at ${sessionStorePath(chatDir(taskId))}`,
           { cause: error },
         ),
   );
@@ -307,11 +308,11 @@ function scheduleCloseIdle() {
 }
 
 function startOpen(
-  taskId: TaskId,
+  taskId: ChatId,
   { prepared }: { prepared: boolean },
 ): Promise<OpenStore> {
   const database = createDatabase(
-    sqlite({ path: sessionStorePath(taskDir(taskId)) }),
+    sqlite({ path: sessionStorePath(chatDir(taskId)) }),
   );
 
   const storage = createStorage({
@@ -326,7 +327,7 @@ function startOpen(
     storage.getItem(`__canary__`),
     (error) =>
       new TypedError.Storage(
-        `Failed to read session database at ${sessionStorePath(taskDir(taskId))}`,
+        `Failed to read session database at ${sessionStorePath(chatDir(taskId))}`,
         { cause: error },
       ),
   )
@@ -365,7 +366,7 @@ function startOpen(
       error instanceof TypedError.Storage
         ? error
         : new TypedError.Storage(
-            `Failed to migrate session database at ${sessionStorePath(taskDir(taskId))}`,
+            `Failed to migrate session database at ${sessionStorePath(chatDir(taskId))}`,
             { cause: error },
           ),
     )

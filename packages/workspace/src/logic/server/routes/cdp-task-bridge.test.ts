@@ -4,8 +4,8 @@ import { WebSocket } from "ws";
 import { cdpMethodsHandled } from "../../../lib/cdp-methods";
 import { publisher } from "../../../rpc/publisher";
 import { StoreId } from "../../../schemas/store-id";
-import { TaskIdSchema } from "../../../schemas/task-id";
-import { type HeldTab } from "../../../schemas/task-state";
+import { ChatIdSchema } from "../../../schemas/chat-id";
+import { type HeldTab } from "../../../schemas/chat-state";
 import { WINDOW_ID } from "../../../schemas/window-id";
 import { type WindowTabAction } from "../../../schemas/window-tab";
 import {
@@ -16,7 +16,7 @@ import {
 import { type WorkspaceServerParentRef } from "../types";
 import { handleTaskCdpClient, TASK_TAB_CAP } from "./cdp-task-bridge";
 
-const TASK_ID = TaskIdSchema.parse("read-the-pages");
+const TASK_ID = ChatIdSchema.parse("read-the-pages");
 
 const SESSION_ID = StoreId.SessionSchema.parse(
   "ses_01M3AX9RF3C2E9RTATMB602W0C",
@@ -37,17 +37,17 @@ vi.mock("../../../lib/held-tabs", () => ({
 }));
 vi.mock("../../../lib/task-dir-utils", () => ({
   getBrowserSessionDir: () => "/tmp/profile",
-  taskDir: (id: string) => `/tmp/tasks/${id}`,
+  chatDir: (id: string) => `/tmp/tasks/${id}`,
 }));
 vi.mock("../../../lib/resolve-workspace-file-path", async () => {
   const { buildWorkspaceFsLayout } =
     await import("../../../lib/workspace-fs-layout");
-  const { TaskDirSchema } = await import("../../../schemas/paths");
+  const { ChatDirSchema } = await import("../../../schemas/paths");
   return {
     taskFsLayout: () =>
       Promise.resolve(
         buildWorkspaceFsLayout({
-          taskHostRoot: TaskDirSchema.parse("/tmp/tasks/read-the-pages"),
+          taskHostRoot: ChatDirSchema.parse("/tmp/tasks/read-the-pages"),
         }),
       ),
   };

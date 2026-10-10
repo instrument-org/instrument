@@ -2,13 +2,13 @@ import { ok, safeTry } from "neverthrow";
 
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import {
   getAttachedFoldersBaseline,
   setAttachedFoldersBaseline,
 } from "./attached-folders-baseline";
-import { taskDir } from "./task-dir-utils";
-import { getTaskState } from "./task-record";
+import { chatDir } from "./record-folders";
+import { getChatState } from "./chat-record";
 import { effectiveFolderAccess } from "./workspace-fs-layout";
 
 /**
@@ -44,11 +44,11 @@ export function detectAttachedFolderChanges({
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
-      const taskState = await getTaskState(taskDir(taskId));
+      const taskState = await getChatState(chatDir(taskId));
       const current = Object.values(taskState.attachedFolders ?? {}).map(
         (folder) => ({
           // The access the mount ended up with, not the grant on record, so a

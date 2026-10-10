@@ -7,7 +7,7 @@ import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import {
   FILES_FENCE,
   type StoreId,
-  type TaskId,
+  type ChatId,
   type WorkspaceActorRef,
   type WorkspaceConfig,
   sessionEnds,
@@ -66,7 +66,7 @@ export function showAgentCompletionTestNotification() {
 
 export function startAgentCompletionNotifications({
   hasAppWindow,
-  revealTask,
+  revealChat,
   workspaceConfig,
   workspaceRef,
 }: {
@@ -74,14 +74,10 @@ export function startAgentCompletionNotifications({
   hasAppWindow: () => boolean;
   /**
    * What a click on a notification does. Supplied by the caller: which window
-   * a task is shown in is the app's business, and reaching the modules that
+   * a chat is shown in is the app's business, and reaching the modules that
    * answer that from here would pull every window's machinery in behind them.
    */
-  revealTask: (task: {
-    id: TaskId;
-    /** A chat of the conversation, which the inbox lists by its id. */
-    isChat: boolean;
-  }) => void;
+  revealChat: (id: ChatId) => void;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }) {
@@ -89,7 +85,7 @@ export function startAgentCompletionNotifications({
     id,
     sessionId,
   }: {
-    id: TaskId;
+    id: ChatId;
     sessionId: StoreId.Session;
   }) {
     if (!canShowAgentCompletionNotification({ hasAppWindow })) {
@@ -98,24 +94,6 @@ export function startAgentCompletionNotifications({
 
     const context = { workspaceConfig, workspaceRef };
 
-    let taskTitle = "Task complete";
-    let isChat = false;
-    try {
-      const task = await call(workspaceRouter.task.byId, { id }, { context });
-      // A task the conversation started reports into its chat, and the
-      // chat's reply is the news; a notification for each would say the
-      // same thing twice, the first time in words meant for the conversation.
-      if (!task.isChat) {
-        return;
-      }
-      isChat = task.isChat;
-      taskTitle = task.title;
-    } catch (error) {
-      logger
-        .scope("agentCompletionNotifications")
-        .warn("Failed to read completed task for notification", error);
-    }
-
     let body: string | undefined;
     try {
       const messages = await call(
@@ -123,34 +101,31 @@ export function startAgentCompletionNotifications({
         { id, sessionId },
         { context },
       );
-      body = isChat ? latestTurnText(messages) : latestAssistantText(messages);
+      body = latestTurnText(messages);
     } catch (error) {
       logger
         .scope("agentCompletionNotifications")
         .warn("Failed to read agent response for notification", error);
     }
-    if (isChat) {
-      // A chat's turn that said nothing (a task steered, a note read) is not
-      // a reply, and the user was not waiting on it.
-      if (body === undefined) {
-        return;
-      }
-      const chat = await chatOf({ context, id });
-      // A task of the chat's runs in its record, and its turn ending is news
-      // the chat's own reply carries. A reply while a task of the chat's is
-      // still at work is a step on the way: the line said before a hand-off,
-      // a task sent back. The news is the reply that leaves the chat at
-      // rest, with nothing of its own running and the next move the user's.
-      if (
-        chat?.state === "working" ||
-        (chat !== undefined && chat.sessionId !== sessionId)
-      ) {
-        return;
-      }
-      taskTitle = chat?.title ?? taskTitle;
+    // A chat's turn that said nothing (a task steered, a note read) is not
+    // a reply, and the user was not waiting on it.
+    if (body === undefined) {
+      return;
+    }
+    const chat = await chatOf({ context, id });
+    // A task of the chat's runs in its store, and its turn ending is news
+    // the chat's own reply carries. A reply while a task of the chat's is
+    // still at work is a step on the way: the line said before a hand-off,
+    // a task sent back. The news is the reply that leaves the chat at
+    // rest, with nothing of its own running and the next move the user's.
+    if (
+      chat?.state === "working" ||
+      (chat !== undefined && chat.sessionId !== sessionId)
+    ) {
+      return;
     }
 
-    // Reading the task is asynchronous, so the window may have regained
+    // Reading the chat is asynchronous, so the window may have regained
     // focus while it was in flight.
     if (!canShowAgentCompletionNotification({ hasAppWindow })) {
       return;
@@ -159,9 +134,9 @@ export function startAgentCompletionNotifications({
     presentNotification({
       body,
       onClick: () => {
-        revealTask({ id, isChat });
+        revealChat(id);
       },
-      title: taskTitle,
+      title: chat?.title ?? "Task complete",
     });
   }
 
@@ -178,7 +153,7 @@ export function startAgentCompletionNotifications({
       workspaceConfig: WorkspaceConfig;
       workspaceRef: WorkspaceActorRef;
     };
-    id: TaskId;
+    id: ChatId;
   }): Promise<Chat | undefined> {
     try {
       return await call(workspaceRouter.chats.byId, { id }, { context });
@@ -247,13 +222,6 @@ function canShowAgentCompletionNotification({
     isSupported: Notification.isSupported(),
     mode: getWorkspacePreferences().get("agentCompletionNotifications"),
   });
-}
-
-// Reduces the last assistant message to a short plain-text body. Notifications
-// render a couple of lines, so collapse whitespace and truncate.
-function latestAssistantText(messages: Messages): string | undefined {
-  const latest = messages.findLast((message) => message.role === "assistant");
-  return latest ? bodyOf([latest]) : undefined;
 }
 
 /**

@@ -16,14 +16,14 @@ import readline from "node:readline";
 import { ulid } from "ulid";
 import { createActor } from "xstate";
 
-import { type TaskId } from "../src/client";
+import { type ChatId } from "../src/client";
 import { workspaceMachine } from "../src/electron";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { defaultTaskName } from "../src/lib/default-task-name";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { type StoreId } from "../src/schemas/store-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
-import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
+import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { startRun } from "../evals/lib/start-run";
 import { env } from "./lib/env";
 
@@ -189,7 +189,7 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
-let taskId: TaskId | undefined;
+let taskId: ChatId | undefined;
 
 const FAKE_FILES = {
   audio: {

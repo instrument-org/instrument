@@ -3,12 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { WorkspaceDirSchema } from "../../schemas/paths";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { linkedFiles } from "./linked-files";
@@ -20,11 +20,17 @@ vi.mock(import("../session-store-storage"));
 let counter = 0;
 // Chats live under the workspace root, so each test gets a root of its own.
 const freshTask = () => {
-  const taskId = createMockTaskConfig(
-    TaskIdSchema.parse(`linked-${Date.now()}-${(counter += 1)}`),
+  const taskId = createMockChatConfig(
+    ChatIdSchema.parse(`linked-${Date.now()}-${(counter += 1)}`),
   );
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
+    chatsDir: AbsolutePathSchema.parse(
+      path.join(
+        fs.mkdtempSync(path.join(os.tmpdir(), "linked-root-")),
+        "chats",
+      ),
+    ),
     rootDir: WorkspaceDirSchema.parse(
       fs.mkdtempSync(path.join(os.tmpdir(), "linked-root-")),
     ),
@@ -33,7 +39,7 @@ const freshTask = () => {
 };
 
 /** A chat of the conversation: a session under a title. */
-async function chat(_taskId: TaskId, title: string) {
+async function chat(_taskId: ChatId, title: string) {
   const sessionId = StoreId.newSessionId();
   chatFor(sessionId);
   await Store.saveSession(
@@ -45,7 +51,7 @@ async function chat(_taskId: TaskId, title: string) {
 
 /** A reply in a chat, said at a given moment. */
 async function said(
-  _taskId: TaskId,
+  _taskId: ChatId,
   sessionId: StoreId.Session,
   text: string,
   at: Date,

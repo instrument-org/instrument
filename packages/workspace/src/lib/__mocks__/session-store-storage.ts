@@ -3,7 +3,7 @@ import { createStorage } from "unstorage";
 import memoryDriver from "unstorage/drivers/memory";
 import { beforeEach } from "vitest";
 
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { recordChanged, storeKeyChange } from "../record-changes";
 import {
   bumpEveryStoreGeneration,
@@ -21,7 +21,7 @@ const wrappedMockStorage = wrapStorage(mockStorage);
  * The shared storage, counting each write against the task it was made for
  * and saying what it changed, as the real one does.
  */
-export function getSessionsStoreStorage(taskId: TaskId) {
+export function getSessionsStoreStorage(taskId: ChatId) {
   const counted: WrappedStorage = {
     ...wrappedMockStorage,
     removeItem: (key, options) => {
@@ -43,7 +43,7 @@ export function getSessionsStoreStorage(taskId: TaskId) {
 }
 
 /** Nothing to close: every task shares the one in-memory storage. */
-export function disposeSessionsStoreStorage(taskId: TaskId) {
+export function disposeSessionsStoreStorage(taskId: ChatId) {
   bumpStoreGeneration(taskId);
   return okAsync(undefined);
 }

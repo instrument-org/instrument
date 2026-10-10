@@ -86,15 +86,15 @@ function legacyTask(
     settings?: Record<string, unknown>;
   },
 ) {
-  const taskDir = path.join(root, "tasks", name);
-  writeJson(path.join(taskDir, ".instrument", "settings.json"), {
+  const chatDir = path.join(root, "tasks", name);
+  writeJson(path.join(chatDir, ".instrument", "settings.json"), {
     createdAt: new Date(JUNE_23).toISOString(),
     createdWithAppVersion: "1.2.0",
     lastActivityAt: new Date(JUNE_23 + 60_000).toISOString(),
     name: "Rotating red square video",
     ...settings,
   });
-  const db = new DatabaseSync(path.join(taskDir, ".instrument", "task.db"));
+  const db = new DatabaseSync(path.join(chatDir, ".instrument", "task.db"));
   db.exec(
     "CREATE TABLE sessions (key TEXT PRIMARY KEY, value TEXT, blob BLOB, created_at TEXT, updated_at TEXT)",
   );
@@ -138,7 +138,7 @@ function legacyTask(
     at += 60_000;
   }
   db.close();
-  return taskDir;
+  return chatDir;
 }
 
 function readJson(...segments: string[]): Record<string, unknown> {
@@ -250,9 +250,9 @@ const ONE_ASK: { messages: FixtureMessage[] }[] = [
 
 describe("migrateLegacyTasks", () => {
   it("makes a 1.x task into a chat, in its own folder, holding what the user saw", () => {
-    const taskDir = legacyTask("2026-06-23-use-ffmpeg", { sessions: ONE_ASK });
-    fs.mkdirSync(path.join(taskDir, "output"));
-    fs.writeFileSync(path.join(taskDir, "output", "square.mp4"), "video");
+    const chatDir = legacyTask("2026-06-23-use-ffmpeg", { sessions: ONE_ASK });
+    fs.mkdirSync(path.join(chatDir, "output"));
+    fs.writeFileSync(path.join(chatDir, "output", "square.mp4"), "video");
 
     expect(migrateLegacyTasks(root)).toEqual({
       adoptedCount: 1,
@@ -462,7 +462,7 @@ describe("migrateLegacyTasks", () => {
   });
 
   it("keeps the files the user sent where its messages name them", () => {
-    const taskDir = legacyTask("2026-06-23-photo", {
+    const chatDir = legacyTask("2026-06-23-photo", {
       sessions: [
         {
           messages: [
@@ -489,8 +489,8 @@ describe("migrateLegacyTasks", () => {
         },
       ],
     });
-    fs.mkdirSync(path.join(taskDir, "attachments"));
-    fs.writeFileSync(path.join(taskDir, "attachments", "cat.png"), "cat");
+    fs.mkdirSync(path.join(chatDir, "attachments"));
+    fs.writeFileSync(path.join(chatDir, "attachments", "cat.png"), "cat");
 
     migrateLegacyTasks(root);
 
@@ -706,10 +706,10 @@ describe("migrateLegacyTasks", () => {
   });
 
   it("leaves a task whose move fails where it was, lists no chat for it, and adopts it next boot", () => {
-    const taskDir = legacyTask("2026-06-23-use-ffmpeg", { sessions: ONE_ASK });
+    const chatDir = legacyTask("2026-06-23-use-ffmpeg", { sessions: ONE_ASK });
     const rename = fs.renameSync.bind(fs);
     const spy = vi.spyOn(fs, "renameSync").mockImplementation((from, to) => {
-      if (String(from) === taskDir) {
+      if (String(from) === chatDir) {
         throw Object.assign(new Error("EBUSY"), { code: "EBUSY" });
       }
       rename(from, to);
@@ -721,7 +721,7 @@ describe("migrateLegacyTasks", () => {
     });
     expect(fs.readdirSync(path.join(root, "chats"))).toEqual([]);
     expect(
-      fs.readdirSync(path.join(taskDir, ".instrument")).toSorted(),
+      fs.readdirSync(path.join(chatDir, ".instrument")).toSorted(),
     ).toEqual(["settings.json", "task.db"]);
 
     spy.mockRestore();

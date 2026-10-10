@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { runUvCommand } from "./run-uv";
 import { MANAGED_PYTHON_VERSION, taskVenvDir, taskVenvPython } from "./uv";
 import { workDir } from "./work-dir";
@@ -14,7 +14,7 @@ export interface TaskVenvError {
 // Tool calls can come from concurrent sessions for the same task. Reuse the
 // in-flight creation so two `uv venv` processes cannot race on the venv.
 const inFlightVenvCreation = new Map<
-  TaskId,
+  ChatId,
   Promise<TaskVenvError | undefined>
 >();
 
@@ -30,7 +30,7 @@ export async function ensureTaskVenvForTask({
   taskId,
 }: {
   signal?: AbortSignal;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<TaskVenvError | undefined> {
   if (hasUsableVenv(taskId)) {
     return undefined;
@@ -50,7 +50,7 @@ export async function ensureTaskVenvForTask({
 }
 
 export function setTaskVenvCreator(
-  next: (taskId: TaskId) => Promise<TaskVenvError | undefined>,
+  next: (taskId: ChatId) => Promise<TaskVenvError | undefined>,
 ): void {
   createTaskVenv = next;
 }
@@ -94,14 +94,14 @@ function cancelledVenvCreation(): TaskVenvError {
   };
 }
 
-function hasUsableVenv(taskId: TaskId) {
+function hasUsableVenv(taskId: ChatId) {
   return (
     existsSync(taskVenvPython(taskId)) &&
     existsSync(path.join(taskVenvDir(taskId), "pyvenv.cfg"))
   );
 }
 
-function runUvVenv(taskId: TaskId): Promise<TaskVenvError | undefined> {
+function runUvVenv(taskId: ChatId): Promise<TaskVenvError | undefined> {
   // `--clear` because we only get here when the venv is missing or unusable,
   // so replacing whatever is there is the intent. Without it uv refuses to
   // touch an existing venv, which would strand a task whose interpreter went

@@ -4,22 +4,23 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
-import { type TaskId, TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
-import { getTaskPrivateDir, taskDir } from "./task-dir-utils";
-import { getTaskState, setTaskState } from "./task-record";
-import { getTaskSettings, updateTaskSettings } from "./task-settings";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
+import { getTaskPrivateDir } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
+import { getChatState, setChatState } from "./chat-record";
+import { getChatSettings, updateChatSettings } from "./chat-settings";
 
-const id = TaskIdSchema.parse("task-record-state-test");
+const id = ChatIdSchema.parse("task-record-state-test");
 
-let taskId: TaskId;
+let taskId: ChatId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "task-record-state-test-"));
   const tasksDir = path.join(root, TASKS_DIR_NAME);
-  taskId = createMockTaskConfigForDir(path.join(tasksDir, id));
-  await fs.mkdir(taskDir(taskId), { recursive: true });
+  taskId = createMockChatConfigForDir(path.join(tasksDir, id));
+  await fs.mkdir(chatDir(taskId), { recursive: true });
 });
 
 afterEach(async () => {
@@ -27,11 +28,11 @@ afterEach(async () => {
 });
 
 function recordFilePath(): string {
-  return path.join(getTaskPrivateDir(taskDir(taskId)), "settings.json");
+  return path.join(getTaskPrivateDir(chatDir(taskId)), "settings.json");
 }
 
 async function writeStateFile(state: unknown): Promise<void> {
-  const privateDir = getTaskPrivateDir(taskDir(taskId));
+  const privateDir = getTaskPrivateDir(chatDir(taskId));
   await fs.mkdir(privateDir, { recursive: true });
   await fs.writeFile(
     recordFilePath(),
@@ -40,7 +41,7 @@ async function writeStateFile(state: unknown): Promise<void> {
   );
 }
 
-describe("getTaskState", () => {
+describe("getChatState", () => {
   // A task attached before the rename has `name` on disk. This read swallows
   // every parse failure and answers with empty state, so getting it wrong would
   // not raise anything: the folders would simply stop being mounted, in a task
@@ -60,7 +61,7 @@ describe("getTaskState", () => {
       selectedModelURI: "instrument/auto",
     });
 
-    const state = await getTaskState(taskDir(taskId));
+    const state = await getChatState(chatDir(taskId));
 
     expect(state.attachedFolders?.["Home-Downloads"]).toMatchObject({
       access: "read-write",
@@ -70,7 +71,7 @@ describe("getTaskState", () => {
   });
 
   it("reads back what it writes", async () => {
-    await setTaskState(taskDir(taskId), {
+    await setChatState(chatDir(taskId), {
       attachedFolders: {
         Downloads: {
           access: "read-only",
@@ -83,7 +84,7 @@ describe("getTaskState", () => {
       },
     });
 
-    const state = await getTaskState(taskDir(taskId));
+    const state = await getChatState(chatDir(taskId));
 
     expect(state.attachedFolders?.Downloads?.mountName).toBe("Downloads");
   });
@@ -104,7 +105,7 @@ describe("getTaskState", () => {
       },
     });
 
-    await setTaskState(taskDir(taskId), { selectedModelURI: "anything" });
+    await setChatState(chatDir(taskId), { selectedModelURI: "anything" });
 
     const written = await fs.readFile(recordFilePath(), "utf8");
     expect(written).toContain('"mountName": "Home-Downloads"');
@@ -119,15 +120,15 @@ describe("the state beside the settings", () => {
    * other has not written, and whichever lands second erases the other's half.
    */
   it("does not lose a generated title to a state write at the same time", async () => {
-    await updateTaskSettings(taskId, { name: "Untitled task" });
+    await updateChatSettings(taskId, { name: "Untitled task" });
 
     await Promise.all([
-      updateTaskSettings(taskId, { name: "Generated title" }),
-      setTaskState(taskDir(taskId), { selectedModelURI: "half a thought" }),
+      updateChatSettings(taskId, { name: "Generated title" }),
+      setChatState(chatDir(taskId), { selectedModelURI: "half a thought" }),
     ]);
 
-    const settings = await getTaskSettings(taskDir(taskId));
-    const state = await getTaskState(taskDir(taskId));
+    const settings = await getChatSettings(chatDir(taskId));
+    const state = await getChatState(chatDir(taskId));
 
     expect(settings?.name).toBe("Generated title");
     expect(state.selectedModelURI).toBe("half a thought");

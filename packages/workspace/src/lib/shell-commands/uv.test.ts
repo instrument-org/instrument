@@ -7,9 +7,9 @@ import { describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema } from "../../schemas/paths";
 import {
-  createMockTaskConfigForDir,
+  createMockChatConfigForDir,
   MOCK_WORKSPACE_DIRS,
-} from "../../test/helpers/mock-task-config";
+} from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createPipCommand } from "./pip";
 import { createPythonCommand } from "./python";
@@ -24,8 +24,8 @@ const mockCtx = createCommandContext({
 });
 
 describe("createUvCommand", () => {
-  const taskId = createMockTaskConfigForDir(
-    `${MOCK_WORKSPACE_DIRS.tasks}/uv-denylist`,
+  const taskId = createMockChatConfigForDir(
+    `${MOCK_WORKSPACE_DIRS.chats}/uv-denylist`,
   );
 
   it("blocks `uv self update`", async () => {
@@ -58,14 +58,14 @@ const runSmoke = process.env.RUN_UV_SMOKE === "1" && uvBin !== undefined;
 
 describe.skipIf(!runSmoke)("uv python/pip integration", () => {
   it("installs a package with pip and imports it with python (shared venv)", async () => {
-    // The dir basename must be a valid TaskId, so use a fixed name under a
+    // The dir basename must be a valid ChatId, so use a fixed name under a
     // random temp root.
-    const taskDir = path.join(
+    const chatDir = path.join(
       mkdtempSync(path.join(tmpdir(), "uv-smoke-")),
       "uvsmoke",
     );
-    mkdirSync(path.join(taskDir, "work"), { recursive: true });
-    const taskId = createMockTaskConfigForDir(taskDir);
+    mkdirSync(path.join(chatDir, "work"), { recursive: true });
+    const taskId = createMockChatConfigForDir(chatDir);
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
       uvBinPath: AbsolutePathSchema.parse(uvBin),

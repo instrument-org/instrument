@@ -5,23 +5,21 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 
 import { type WorkspaceActorRef } from "../machines/workspace";
 import { type ChatId } from "../schemas/chat-id";
-import { type TaskId } from "../schemas/task-id";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { killTaskBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
 import { recordRemoved } from "./record-changes";
-import { forgetRecord, resolveRecord } from "./record-folders";
+import { forgetChat, resolveChat, chatDir } from "./record-folders";
 import {
   disposeSessionsStoreStorage,
   markStorageAsDisposing,
   unmarkStorageAsDisposing,
 } from "./session-store-storage";
-import { taskDir } from "./task-dir-utils";
 
 interface RemoveTaskOptions {
-  id: TaskId;
+  id: ChatId;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }
@@ -86,7 +84,7 @@ async function trashTask({
         // node_modules will fail. Since node_modules can be recreated, we delete
         // it first using the fastest removal method available.
         const nodeModulesPath = absolutePathJoin(
-          taskDir(taskId),
+          chatDir(taskId),
           "node_modules",
         );
 
@@ -99,12 +97,12 @@ async function trashTask({
           return err(disposeResult.error);
         }
 
-        // What it was, read before the index forgets it.
-        const ref = resolveRecord(taskId);
-        await workspaceConfig.trashItem(taskDir(taskId));
-        forgetRecord(taskId);
-        if (ref.isOk()) {
-          recordRemoved(ref.value);
+        // Whether it was a chat, read before the index forgets it.
+        const known = resolveChat(taskId) !== undefined;
+        await workspaceConfig.trashItem(chatDir(taskId));
+        forgetChat(taskId);
+        if (known) {
+          recordRemoved(taskId);
         }
 
         // In the off chance that a future task with the same id is

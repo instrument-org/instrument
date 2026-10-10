@@ -10,7 +10,7 @@ import {
   listComputerFolder,
   recentComputerFiles,
 } from "../../lib/chat/computer";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { base } from "../base";
 
 /**
@@ -37,7 +37,7 @@ const list = base
       message: "Nothing is at the path",
     },
   })
-  .input(z.object({ id: TaskIdSchema, path: z.string() }))
+  .input(z.object({ id: ChatIdSchema, path: z.string() }))
   .output(ComputerFolderSchema)
   .handler(async ({ errors, input }) => {
     try {

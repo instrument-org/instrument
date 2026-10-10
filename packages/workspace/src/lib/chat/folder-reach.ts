@@ -2,15 +2,13 @@ import os from "node:os";
 
 import { FolderAttachment } from "../../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { type TaskId } from "../../schemas/task-id";
-import { type TaskState } from "../../schemas/task-state";
+import { type ChatState } from "../../schemas/chat-state";
 import { assignMountNames } from "../assign-mount-names";
 import { pathExists } from "../path-exists";
 import { WINDOW_ID } from "../../schemas/window-id";
-import { resolveChat, sessionOfChat } from "../record-folders";
+import { resolveChat, sessionOfChat, chatDir } from "../record-folders";
 import { Store } from "../store";
-import { taskDir } from "../task-dir-utils";
-import { getTaskState } from "../task-record";
+import { getChatState } from "../chat-record";
 import { outputFolderPath } from "./output-folder";
 import { listTopics } from "./topics";
 import { type ChatId } from "../../schemas/chat-id";
@@ -33,13 +31,13 @@ import { type ChatId } from "../../schemas/chat-id";
  * keeps its name while a later one comes and goes.
  */
 export async function folderReach(
-  taskId: TaskId,
-  state?: TaskState,
+  taskId: ChatId,
+  state?: ChatState,
 ): Promise<Record<string, FolderAttachment.Type>> {
   const isWindow = taskId === WINDOW_ID;
   const held = isWindow
     ? undefined
-    : (state ?? (await getTaskState(taskDir(taskId)))).attachedFolders;
+    : (state ?? (await getChatState(chatDir(taskId)))).attachedFolders;
   const chatId = isWindow ? undefined : resolveChat(taskId);
   if (!isWindow && !chatId) {
     return held ?? {};

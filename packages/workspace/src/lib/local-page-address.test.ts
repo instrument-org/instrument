@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { FolderAttachment } from "../schemas/folder-attachment";
-import { AbsolutePathSchema, TaskDirSchema } from "../schemas/paths";
+import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
 import {
   agentPathOfFileUrl,
   agentSpellingOfFileUrls,
@@ -25,7 +25,7 @@ function layoutFor(taskRoot: string, docsRoot: string) {
         source: "user",
       },
     },
-    taskHostRoot: TaskDirSchema.parse(taskRoot),
+    taskHostRoot: ChatDirSchema.parse(taskRoot),
   });
 }
 

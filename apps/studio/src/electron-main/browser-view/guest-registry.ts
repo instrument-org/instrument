@@ -1,4 +1,4 @@
-import type { TaskId } from "@instrument-org/workspace/electron";
+import type { ChatId } from "@instrument-org/workspace/electron";
 
 import { app, type Session, type WebContents, webFrameMain } from "electron";
 
@@ -85,7 +85,7 @@ export function createGuestRegistry() {
       roleOf: (contents: WebContents) => GuestRole;
     }
   >();
-  const unblockedTasks = new Set<TaskId>();
+  const unblockedTasks = new Set<ChatId>();
   let listening = false;
 
   function track(contents: WebContents, role: GuestRole): GuestRecord {
@@ -155,7 +155,7 @@ export function createGuestRegistry() {
      * Turns ad blocking off (`false`) or on (`true`) for a task's own tabs,
      * or with `undefined` only asks; answers whether it blocks for them.
      */
-    setAdBlocking(task: TaskId, blocking: boolean | undefined): boolean {
+    setAdBlocking(task: ChatId, blocking: boolean | undefined): boolean {
       if (blocking === false) {
         unblockedTasks.add(task);
       } else if (blocking === true) {

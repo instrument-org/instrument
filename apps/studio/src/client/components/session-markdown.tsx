@@ -1,6 +1,6 @@
 import { type ImageSourceKind } from "@/client/lib/image-policy";
 import { cn } from "@/client/lib/utils";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { type Ref } from "react";
 
 import { Markdown } from "./markdown";
@@ -24,7 +24,7 @@ export const SessionMarkdown = ({
   isStreaming?: boolean;
   markdown: string;
   ref?: Ref<HTMLDivElement>;
-  taskId?: TaskId;
+  taskId?: ChatId;
 }) => {
   return (
     <div

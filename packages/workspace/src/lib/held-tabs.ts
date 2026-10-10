@@ -1,9 +1,9 @@
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { type HeldTab } from "../schemas/task-state";
+import { type ChatId } from "../schemas/chat-id";
+import { type HeldTab } from "../schemas/chat-state";
 import { isTaskSession } from "./chat/children";
-import { taskDir } from "./task-dir-utils";
-import { getTaskState, updateTaskState } from "./task-record";
+import { chatDir } from "./record-folders";
+import { getChatState, updateChatState } from "./chat-record";
 
 /**
  * The tabs a session of a record drives, first one first: a chat's
@@ -11,11 +11,11 @@ import { getTaskState, updateTaskState } from "./task-record";
  * of the chat those that name its own.
  */
 export async function heldTabs(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<HeldTab[]> {
   const driver = driverOf(taskId, sessionId);
-  return (await getTaskState(taskDir(taskId))).browserTabs.filter(
+  return (await getChatState(chatDir(taskId))).browserTabs.filter(
     (tab) => tab.sessionId === driver,
   );
 }
@@ -25,12 +25,12 @@ export async function heldTabs(
  * other session's where they are.
  */
 export async function updateHeldTabs(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
   change: (tabs: HeldTab[]) => HeldTab[],
 ): Promise<void> {
   const driver = driverOf(taskId, sessionId);
-  await updateTaskState(taskDir(taskId), ({ browserTabs }) => ({
+  await updateChatState(chatDir(taskId), ({ browserTabs }) => ({
     browserTabs: [
       ...browserTabs.filter((tab) => tab.sessionId !== driver),
       ...change(browserTabs.filter((tab) => tab.sessionId === driver)).map(
@@ -43,7 +43,7 @@ export async function updateHeldTabs(
 
 /** The session a tab names as its driver: a task's own, none for the chat's. */
 function driverOf(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
 ): StoreId.Session | undefined {
   return isTaskSession(taskId, sessionId) ? sessionId : undefined;

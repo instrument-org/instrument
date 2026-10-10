@@ -26,7 +26,7 @@ export type HeldTab = z.output<typeof HeldTabSchema>;
 // attached. Per-task and read on open, never queried across tasks -- which is
 // what separates it from the settings around it, and why it is one nested key
 // rather than a flat spread.
-export const StoredTaskStateSchema = z
+export const StoredChatStateSchema = z
   .object({
     // The apps whose guide this task has read, so `app request` hands the
     // guide over once and then gets out of the way.
@@ -38,7 +38,7 @@ export const StoredTaskStateSchema = z
   .default(() => ({ browserTabs: [] }));
 
 // The RPC-facing shape.
-export const TaskStateSchema = z.object({
+export const ChatStateSchema = z.object({
   attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
   /**
    * The window's tabs the chat's agents drive, first one first: tabs the
@@ -52,7 +52,7 @@ export const TaskStateSchema = z.object({
   selectedModelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
 });
 
-export type TaskState = z.output<typeof StoredTaskStateSchema>;
+export type ChatState = z.output<typeof StoredChatStateSchema>;
 
 /**
  * Brings the stored state up to what the schema above expects.
@@ -66,7 +66,7 @@ export type TaskState = z.output<typeof StoredTaskStateSchema>;
  * Applied on read and saved by the next write rather than rewritten here, since
  * every caller either writes back or does not care.
  */
-export function migrateTaskState(state: unknown): unknown {
+export function migrateChatState(state: unknown): unknown {
   if (!isRecord(state)) {
     return state;
   }

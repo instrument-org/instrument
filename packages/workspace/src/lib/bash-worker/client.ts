@@ -23,7 +23,7 @@ import {
   type WireResult,
   WORKER_CONFIG_KEYS,
 } from "./protocol";
-import { dirOf, resolveRecord } from "../record-folders";
+import { chatDir, resolveChat } from "../record-folders";
 
 /**
  * Starts the worker. The host supplies it because only the host knows where
@@ -128,16 +128,14 @@ export function createRemoteBash(
         // one with a call in flight must: an awaited result is not a handle.
         instance.worker.ref();
         try {
-          const ref = resolveRecord(options.taskId);
+          const chatId = resolveChat(options.taskId);
           instance.post({
             bashEnv: omit(options, ["remainingYieldMs"]),
             command,
             config: pick(getWorkspaceConfig(), WORKER_CONFIG_KEYS),
             execOptions,
             id,
-            record: ref.isOk()
-              ? { dir: dirOf(ref.value), ref: ref.value }
-              : undefined,
+            chat: chatId ? { dir: chatDir(chatId), id: chatId } : undefined,
             stream: sink !== undefined,
             type: "exec",
             workspaceServerPort: getWorkspaceServerPort(),

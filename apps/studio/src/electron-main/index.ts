@@ -30,7 +30,7 @@ import {
   openOnboardingWindow,
   updateOnboardingWindowBackgroundColor,
 } from "@/electron-main/windows/onboarding";
-import { revealTask } from "@/electron-main/windows/reveal-task";
+import { revealChat } from "@/electron-main/windows/reveal-chat";
 import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_FLAVOR, APP_PROTOCOL } from "@instrument-org/shared";
@@ -252,7 +252,7 @@ async function bootstrapPrimaryInstance() {
 
   startAgentCompletionNotifications({
     hasAppWindow: () => getAppWindow() !== null,
-    revealTask,
+    revealChat,
     workspaceConfig,
     workspaceRef,
   });

@@ -6,7 +6,7 @@ import { initializeChat } from "../initialize-task";
 import {
   chatIds,
   chatOfSession,
-  recordIdTaken,
+  chatIdTaken,
   sessionOfChat,
 } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -35,7 +35,7 @@ export async function ensureChat(
   const chatId = ChatIdSchema.parse(
     chatFolderName({
       date: getCurrentDate(),
-      isTaken: recordIdTaken,
+      isTaken: chatIdTaken,
       title: firstWords,
     }),
   );

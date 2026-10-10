@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { Store } from "../store";
 import { taskStanding } from "./standing";
 
@@ -11,8 +11,8 @@ vi.mock(import("../session-store-storage"));
 
 let counter = 0;
 const freshTask = () =>
-  createMockTaskConfig(
-    TaskIdSchema.parse(`standing-${Date.now()}-${(counter += 1)}`),
+  createMockChatConfig(
+    ChatIdSchema.parse(`standing-${Date.now()}-${(counter += 1)}`),
   );
 
 interface PartIds {

@@ -10,7 +10,7 @@ import {
   AbsolutePathSchema,
   type RelativePath,
   RelativePathSchema,
-  type TaskDir,
+  type ChatDir,
 } from "../schemas/paths";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
@@ -25,7 +25,7 @@ import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 import { sanitizeFilename } from "./sanitize-filename";
 import { getTaskAttachmentsDir } from "./task-dir-utils";
-import { getTaskState, setTaskState } from "./task-record";
+import { getChatState, setChatState } from "./chat-record";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
 interface PreparedUploadedFile {
@@ -48,13 +48,13 @@ export async function writeUploadedAttachments({
   sessionId,
 }: {
   /** The task's record folder, whose state the folders are granted in. */
-  dir: TaskDir;
+  dir: ChatDir;
   files?: FileUpload.Type[];
   /**
    * The folder its files land in, under `attachments/`: the one it works in,
    * which for a fork is its chat's (`workDir`).
    */
-  filesDir?: TaskDir;
+  filesDir?: ChatDir;
   folders?: {
     access?: FolderAttachment.Access;
     mountName?: string;
@@ -137,7 +137,7 @@ export async function writeUploadedAttachments({
     }
 
     if (folders && folders.length > 0) {
-      const taskState = await getTaskState(dir);
+      const taskState = await getChatState(dir);
       const held = Object.values(taskState.attachedFolders ?? {});
 
       // A path already attached is not attached twice: two mounts over one
@@ -160,7 +160,7 @@ export async function writeUploadedAttachments({
       }
 
       const granted = grantFolders(held, grants, getCurrentDate().getTime());
-      await setTaskState(dir, { attachedFolders: granted.folders });
+      await setChatState(dir, { attachedFolders: granted.folders });
       folderAttachments.push(...granted.granted);
     }
 
@@ -212,7 +212,7 @@ function prepareUploadedFiles({
   dir,
   files,
 }: {
-  dir: TaskDir;
+  dir: ChatDir;
   files: FileUpload.Type[];
 }) {
   return safeTry(async function* () {
@@ -281,7 +281,7 @@ function taskAttachmentPath({
   dir,
   filePath,
 }: {
-  dir: TaskDir;
+  dir: ChatDir;
   filePath: AbsolutePath;
 }): RelativePath | undefined {
   const relative = normalizePath(path.relative(dir, filePath));

@@ -41,7 +41,7 @@ import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import {
   type FileUpload,
   type StoreId,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
@@ -151,7 +151,7 @@ interface PromptInputProps {
   draftKey: PromptDraftKey;
   /** Whether `attachmentsLead` holds anything, which is enough to send with no words. */
   hasAttachmentsLead?: boolean;
-  id?: TaskId;
+  id?: ChatId;
   isLoading: boolean;
   /** A chip at the head of the box, before any attached file: what goes with the prompt besides its words. */
   lead?: React.ReactNode;

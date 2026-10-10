@@ -6,7 +6,7 @@ import {
   listTaskBackgroundProcesses,
 } from "../../../lib/background-processes";
 import { StoreId } from "../../../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../../../schemas/task-id";
+import { type ChatId, ChatIdSchema } from "../../../schemas/chat-id";
 import { base } from "../../base";
 import { publisher } from "../../publisher";
 
@@ -20,7 +20,7 @@ const RunningProcessSchema = z.object({
 
 /** Which processes a call names: a record's, or one session's of it. */
 const OwnerSchema = z.object({
-  id: TaskIdSchema,
+  id: ChatIdSchema,
   /** A task's session, or the chat's own, for that session's alone. */
   sessionId: StoreId.SessionSchema.optional(),
 });
@@ -33,7 +33,7 @@ function processesOf({
   id,
   sessionId,
 }: {
-  id: TaskId;
+  id: ChatId;
   sessionId?: StoreId.Session;
 }) {
   return listTaskBackgroundProcesses(id).filter(
@@ -113,7 +113,7 @@ const stopAll = base
  * what keeps the stream valid and the consumer's resync point.
  */
 const changed = base
-  .input(z.object({ id: TaskIdSchema }))
+  .input(z.object({ id: ChatIdSchema }))
   .output(eventIterator(z.object({ revision: z.number() })))
   .handler(async function* ({ input, signal }) {
     const changes = publisher.subscribe("backgroundProcesses.changed", {

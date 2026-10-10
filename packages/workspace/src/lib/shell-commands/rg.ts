@@ -4,7 +4,7 @@ import nodePath from "node:path";
 
 import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
 import { MOUNT } from "../../mount-points";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { hostPathWithin } from "../host-path";
 import { normalizePath } from "../normalize-path";
@@ -89,7 +89,7 @@ export function createRgCommand({
 }: {
   /** The shell's own layout, so rg reaches exactly the mounts the shell has. */
   layout: WorkspaceFsLayout;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   return defineCommand(RG_COMMAND.name, async (args, ctx) => {
     const denied = args.map((arg) => deniedFlag(arg)).find(Boolean);

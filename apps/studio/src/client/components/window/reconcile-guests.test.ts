@@ -2,7 +2,7 @@ import {
   type BrowserTargetId,
   encodeBrowserTargetId,
   StoreId,
-  TaskIdSchema,
+  ChatIdSchema,
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
@@ -21,7 +21,7 @@ const other = StoreId.SessionSchema.parse("ses_01M3G55N35541T2M6SWPS72GMJ");
 const windowGuest = (session: StoreId.Session) =>
   encodeBrowserTargetId(WINDOW_ID, session);
 const notTheWindows = encodeBrowserTargetId(
-  TaskIdSchema.parse("some-task"),
+  ChatIdSchema.parse("some-task"),
   other,
 );
 

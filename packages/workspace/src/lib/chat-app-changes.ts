@@ -4,7 +4,7 @@ import { z } from "zod";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { isConnected } from "./apps/connection";
 import { listApps } from "./apps/store";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
@@ -43,7 +43,7 @@ export async function currentChatApps(): Promise<ChatAppsBaseline> {
 
 /** Records the apps as the chat's agent now knows them, so the next message diffs from here. */
 export function setChatAppsBaseline(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
   apps: ChatAppsBaseline,
   { signal }: { signal?: AbortSignal } = {},
@@ -81,7 +81,7 @@ export function detectChatAppChanges({
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {

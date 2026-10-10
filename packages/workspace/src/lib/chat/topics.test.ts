@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { WorkspaceDirSchema } from "../../schemas/paths";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
   createTopic,
@@ -21,6 +21,9 @@ import {
 beforeEach(async () => {
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
+    chatsDir: AbsolutePathSchema.parse(
+      path.join(await fs.mkdtemp(path.join(os.tmpdir(), "topics-")), "chats"),
+    ),
     rootDir: WorkspaceDirSchema.parse(
       await fs.mkdtemp(path.join(os.tmpdir(), "topics-")),
     ),

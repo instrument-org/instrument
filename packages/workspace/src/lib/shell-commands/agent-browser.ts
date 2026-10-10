@@ -11,7 +11,7 @@ import { cdpBridgeUrl } from "../../logic/server/cdp-bridge-path";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { MOUNT } from "../../mount-points";
 import { type StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { type BrowserConfig } from "../../types";
 import { WebSearch } from "../../tools/web-search";
 import { absolutePathJoin } from "../absolute-path-join";
@@ -29,7 +29,7 @@ import {
 import { agentBrowserGuide } from "../agent-browser-guide";
 import { recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
-import { isTaskId } from "../is-task-id";
+import { isChatId } from "../is-chat-id";
 import { virtualizeHostPaths } from "../filter-shell-output";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import { liveHeldTabs } from "../chat/window-tab";
@@ -39,8 +39,8 @@ import {
   getDownloadsDir,
   getExternalBrowserTmpDir,
   getScreenshotsDir,
-  taskDir,
 } from "../task-dir-utils";
+import { chatDir } from "../record-folders";
 import { heldTabs, updateHeldTabs } from "../held-tabs";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
@@ -226,7 +226,7 @@ function skills(
  */
 function adblock(
   browser: BrowserConfig,
-  id: TaskId,
+  id: ChatId,
   mode: string | undefined,
 ): { exitCode: number; stderr: string; stdout: string } {
   if (mode !== undefined && mode !== "on" && mode !== "off") {
@@ -450,7 +450,7 @@ const FILE_OPERAND_SUBCOMMANDS = new Set([
  */
 export async function resolveAgentBrowserPathArgs(
   args: string[],
-  taskId: TaskId,
+  taskId: ChatId,
   ctx: {
     cwd: string;
     fs: {
@@ -623,13 +623,13 @@ export function createAgentBrowserCommand({
   taskId,
 }: {
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   return defineCommand(AGENT_BROWSER_COMMAND.name, async (args, ctx) => {
     const workspaceConfig = getWorkspaceConfig();
     const serverPort = getWorkspaceServerPort();
 
-    if (!isTaskId(taskId)) {
+    if (!isChatId(taskId)) {
       return {
         exitCode: 1,
         stderr: "agent-browser: browser is only available in task contexts.\n",
@@ -751,7 +751,7 @@ export function createAgentBrowserCommand({
     // download path); this is a per-task sink for anything that falls back
     // to $HOME, and holds the managed config and provider plugin script.
     const homeDir = absolutePathJoin(
-      taskDir(taskId),
+      chatDir(taskId),
       TASK_FOLDER_NAMES.private,
       "agent-browser-home",
     );
@@ -1057,7 +1057,7 @@ async function recordHeldTabHosts({
   taskId,
 }: {
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   const { browser } = getWorkspaceConfig();
   try {
@@ -1083,7 +1083,7 @@ async function recordHeldTabHosts({
  * them. A page the user has open is handed to a task (`task new --tab`).
  */
 async function refuseBrowserFor(
-  id: TaskId,
+  id: ChatId,
   sessionId: StoreId.Session,
 ): Promise<string | undefined> {
   const held = await heldTabs(id, sessionId);

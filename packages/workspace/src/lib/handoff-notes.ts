@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { TASK_FOLDER_NAMES } from "../constants";
 import { MOUNT } from "../mount-points";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { truncateWithoutSplitting } from "./sanitize-model-text";
 import { workDir } from "./work-dir";
 
@@ -85,7 +85,7 @@ export function contextRolloverNotice(notes: string | undefined): string {
  * fail because a note the agent may never have written is not there.
  */
 export async function readHandoffNotes(
-  taskId: TaskId,
+  taskId: ChatId,
 ): Promise<string | undefined> {
   try {
     const contents = await fs.readFile(

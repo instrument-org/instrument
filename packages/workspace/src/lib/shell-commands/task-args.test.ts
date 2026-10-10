@@ -6,8 +6,8 @@ import { noop } from "radashi";
 import { describe, expect, it, vi } from "vitest";
 
 import { FolderAttachment } from "../../schemas/folder-attachment";
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   awaitAnswers,
@@ -44,7 +44,7 @@ describe("parseFolderSpec", () => {
 });
 
 describe("resolveFolders", () => {
-  createMockTaskConfig(TaskIdSchema.parse("chat"));
+  createMockChatConfig(ChatIdSchema.parse("chat"));
 
   const attached = {
     Home: FolderAttachment.Schema.parse({

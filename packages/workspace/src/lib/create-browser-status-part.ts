@@ -1,6 +1,6 @@
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { decodeBrowserTargetId } from "../types";
 import { BLANK_PAGE_URL } from "./browser-state";
 import { agentSpellingOfFileUrls } from "./local-page-address";
@@ -18,7 +18,7 @@ export async function createBrowserStatusPart({
   createdAt: Date;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
     // The model hears a page on this computer by its own path for it, never
@@ -73,7 +73,7 @@ function createPart({
  * own whatever it holds, so there is nothing true to tell it.
  */
 async function heldTabsStatus(
-  { sessionId, taskId }: { sessionId: StoreId.Session; taskId: TaskId },
+  { sessionId, taskId }: { sessionId: StoreId.Session; taskId: ChatId },
   spell: (url: string) => string,
 ): Promise<
   | null

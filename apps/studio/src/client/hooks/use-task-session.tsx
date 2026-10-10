@@ -1,9 +1,9 @@
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId, type ChatId } from "@instrument-org/workspace/client";
 import { createContext, type ReactNode, useContext } from "react";
 
 interface TaskSession {
   sessionId?: StoreId.Session;
-  taskId?: TaskId;
+  taskId?: ChatId;
 }
 
 const TaskSessionContext = createContext<TaskSession>({});

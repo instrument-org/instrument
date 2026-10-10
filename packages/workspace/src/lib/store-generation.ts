@@ -1,4 +1,4 @@
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 
 /**
  * How many times each task's store has been written since this process
@@ -6,7 +6,7 @@ import { type TaskId } from "../schemas/task-id";
  * back unchanged means nothing in that task's store has changed since: what
  * a reader derived from it then is still true.
  */
-const GENERATIONS = new Map<TaskId, number>();
+const GENERATIONS = new Map<ChatId, number>();
 let epoch = 0;
 
 /** Every task's store changed at once: a test clearing the storage it shares. */
@@ -14,7 +14,7 @@ export function bumpEveryStoreGeneration() {
   epoch += 1;
 }
 
-export function bumpStoreGeneration(id: TaskId) {
+export function bumpStoreGeneration(id: ChatId) {
   GENERATIONS.set(id, (GENERATIONS.get(id) ?? 0) + 1);
 }
 
@@ -32,7 +32,7 @@ export function cacheByStoreGeneration<Value>(
   >();
   /** `key` tells apart values derived from one store, one per session say. */
   return (
-    taskId: TaskId,
+    taskId: ChatId,
     compute: () => Promise<Value>,
     key: string = taskId,
   ): Promise<Value> => {
@@ -58,6 +58,6 @@ export function cacheByStoreGeneration<Value>(
 }
 
 /** A task's store's write count, comparable only for equality. */
-function storeGeneration(id: TaskId): string {
+function storeGeneration(id: ChatId): string {
   return `${epoch}:${GENERATIONS.get(id) ?? 0}`;
 }

@@ -7,9 +7,9 @@ import { disposeSessionsStoreStorage } from "../lib/session-store-storage";
 import { Store } from "../lib/store";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { BashTool } from "./bash";
 
@@ -24,14 +24,14 @@ const createdAt = new Date("2026-01-01T00:00:00.000Z");
  */
 describe("bash attaches the agent-browser skill", () => {
   let root: string;
-  let taskId: TaskId;
+  let taskId: ChatId;
   let sessionId: StoreId.Session;
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "bash-browser-skill-"));
     const taskDirPath = path.join(root, "tasks", `01k${"abs".padEnd(23, "0")}`);
     await fs.mkdir(path.join(taskDirPath, "work"), { recursive: true });
-    taskId = createMockTaskConfigForDir(taskDirPath, { model });
+    taskId = createMockChatConfigForDir(taskDirPath, { model });
     sessionId = StoreId.newSessionId();
   });
 

@@ -3,7 +3,7 @@ import { type ActorRef, type MachineSnapshot } from "xstate";
 import { type WorkspaceContext } from "../../machines/workspace/types";
 import { type AbsolutePath } from "../../schemas/paths";
 import { type StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { type BrowserTargetId } from "../../types";
 
 export type WorkspaceServerParentEvent =
@@ -12,7 +12,7 @@ export type WorkspaceServerParentEvent =
   // for daemon-close fan-out at reap time.
   | {
       type: "workspaceServer.attachAgentSession";
-      value: { id: TaskId; sessionId: StoreId.Session };
+      value: { id: ChatId; sessionId: StoreId.Session };
     }
   // Surfaced by the CDP bridge for every non-intercepted CDP command sent by
   // agent-browser. Acts as the agent-activity heartbeat that resets the
@@ -22,7 +22,7 @@ export type WorkspaceServerParentEvent =
   | {
       type: "workspaceServer.updateCdpHeartbeat";
       value: {
-        id: TaskId;
+        id: ChatId;
         partitionDir: AbsolutePath;
         sessionId: StoreId.Session;
         targetId: BrowserTargetId;

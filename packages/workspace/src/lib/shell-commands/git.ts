@@ -2,7 +2,7 @@ import { defineCommand } from "just-bash";
 import path from "node:path";
 
 import { MOUNT } from "../../mount-points";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { gitBinaryPath } from "../git";
 import {
@@ -201,7 +201,7 @@ export function createGitCommand({
   taskId,
 }: {
   layout: WorkspaceFsLayout;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   return defineCommand(GIT_COMMAND.name, async (args, ctx) => {
     const rejection = rejectUnsafeArgs(args);
@@ -312,7 +312,7 @@ function bridgeArg(
     layout: WorkspaceFsLayout;
     resolveVirtual: (p: string) => string;
     taskCwd: string;
-    taskId: TaskId;
+    taskId: ChatId;
   },
 ): { arg: string; mount?: WorkspaceFsMount } | { error: string } {
   const eqIndex = arg.indexOf("=");

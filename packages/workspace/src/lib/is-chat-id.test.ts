@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { isTaskId } from "./is-task-id";
+import { isChatId } from "./is-chat-id";
 
-describe("isTaskId", () => {
+describe("isChatId", () => {
   it.each([
     ["my-app", true],
     ["test123", true],
@@ -12,6 +12,6 @@ describe("isTaskId", () => {
     ["sandbox-test.my-app", false],
     ["version-abc.my-app", false],
   ])("should return %s for %s", (id, expected) => {
-    expect(isTaskId(id)).toBe(expected);
+    expect(isChatId(id)).toBe(expected);
   });
 });

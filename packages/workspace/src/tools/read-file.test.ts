@@ -1,6 +1,7 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { type AIProviderType, APP_NAME_SLUG } from "@instrument-org/shared";
 import { execa } from "execa";
+import { cpSync, mkdtempSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -9,10 +10,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FFMPEG_PATH } from "../lib/ffmpeg";
 import { measureImage } from "../lib/render-image";
 import { FolderAttachment } from "../schemas/folder-attachment";
-import { TaskDirSchema } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { pngHeaderBytes } from "../test/helpers/png-header";
 import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
@@ -52,12 +53,20 @@ async function drawPngFixture(destination: string, size: string) {
   ]);
 }
 
+// A copy, since the chat the tests read in keeps its store in its folder.
 const fixturesPath = path.join(
-  import.meta.dirname,
-  "../../fixtures/file-system",
+  mkdtempSync(path.join(os.tmpdir(), "read-file-")),
+  "file-system",
+);
+cpSync(
+  path.join(import.meta.dirname, "../../fixtures/file-system"),
+  fixturesPath,
+  {
+    recursive: true,
+  },
 );
 
-const taskId = createMockTaskConfigForDir(fixturesPath, { model });
+const taskId = createMockChatConfigForDir(fixturesPath, { model });
 
 const attachedFolders: Record<string, FolderAttachment.Type> = {
   "test-folder": {
@@ -65,7 +74,7 @@ const attachedFolders: Record<string, FolderAttachment.Type> = {
     createdAt: Date.now(),
     id: FolderAttachment.IdSchema.parse("test-folder-id"),
     mountName: "Test Folder",
-    path: TaskDirSchema.parse(fixturesPath),
+    path: ChatDirSchema.parse(fixturesPath),
     source: "user",
   },
 };
@@ -959,16 +968,32 @@ describe("ReadFile", () => {
     });
 
     it("steers a host path inside an attached folder to its mount path", async () => {
+      // Outside the home folder, which a chat reaches too and which would
+      // own a path in the repository's fixtures first.
+      const outside = await fs.mkdtemp(path.join(os.tmpdir(), "attached-"));
       const error = (
         await runTool(TOOLS.ReadFile, {
           ...baseInput,
           input: {
             explanation: "read",
-            filePath: path.join(fixturesPath, "grep-test.txt"),
+            filePath: path.join(outside, "grep-test.txt"),
           },
-          taskState: { attachedFolders, browserTabs: [] },
+          taskState: {
+            attachedFolders: {
+              "test-folder": {
+                access: "read-only",
+                createdAt: Date.now(),
+                id: FolderAttachment.IdSchema.parse("test-folder-id"),
+                mountName: "Test Folder",
+                path: AbsolutePathSchema.parse(outside),
+                source: "user",
+              },
+            },
+            browserTabs: [],
+          },
         })
       )._unsafeUnwrapErr();
+      await fs.rm(outside, { force: true, recursive: true });
 
       expect(error.message).toContain("Test Folder");
       expect(error.message).toContain("mount path");
@@ -980,7 +1005,7 @@ describe("ReadFile", () => {
 describe("ReadFile Unicode path fallbacks", () => {
   let tmpDir: string;
   let taskRoot: string;
-  let tmpTaskConfig: TaskId;
+  let tmpTaskConfig: ChatId;
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(
@@ -988,7 +1013,7 @@ describe("ReadFile Unicode path fallbacks", () => {
     );
     taskRoot = path.join(tmpDir, "test");
     await fs.mkdir(taskRoot, { recursive: true });
-    tmpTaskConfig = createMockTaskConfigForDir(taskRoot, { model });
+    tmpTaskConfig = createMockChatConfigForDir(taskRoot, { model });
   });
 
   afterEach(async () => {

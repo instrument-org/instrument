@@ -1,6 +1,6 @@
 import { defineCommand } from "just-bash";
 
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { FFMPEG_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
@@ -23,7 +23,7 @@ export const FFMPEG_COMMAND = {
   name: "ffmpeg",
 } as const;
 
-export function createFfmpegCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createFfmpegCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
   return defineCommand(FFMPEG_COMMAND.name, async (args, ctx) => {
     const unreachable = unreachablePathArgError(
       FFMPEG_COMMAND.name,

@@ -7,7 +7,7 @@ import { TASK_FOLDER_NAMES } from "../constants";
 import { publisher } from "../rpc/publisher";
 import { type RelativePath, RelativePathSchema } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { BackgroundOutputBuffer } from "./background-output-buffer";
 import { BoundedLogWriter } from "./bounded-log-writer";
@@ -163,7 +163,7 @@ interface BackgroundProcessRecord {
   stoppedBy?: StoppedBy;
   /** Set once a stop was asked for, and by what, so the outcome is labeled. */
   stopReason?: StopReason;
-  taskId: TaskId;
+  taskId: ChatId;
   waiters: Set<() => void>;
 }
 
@@ -314,7 +314,7 @@ export function killSessionBackgroundProcesses(
 
 /** Kills everything running for a task; for trashing one. */
 export async function killTaskBackgroundProcesses(
-  taskId: TaskId,
+  taskId: ChatId,
 ): Promise<void> {
   await Promise.all(
     [...recordsBySession.entries()].map(async ([sessionId, records]) => {
@@ -340,7 +340,7 @@ export function handOverBackgroundProcesses({
   from: StoreId.Session;
   ids: string[];
   to: StoreId.Session;
-  toTaskId: TaskId;
+  toTaskId: ChatId;
 }): void {
   const source = recordsBySession.get(from);
   if (!source) {
@@ -349,7 +349,7 @@ export function handOverBackgroundProcesses({
   const target =
     recordsBySession.get(to) ?? new Map<string, BackgroundProcessRecord>();
   recordsBySession.set(to, target);
-  const changed = new Set<TaskId>([toTaskId]);
+  const changed = new Set<ChatId>([toTaskId]);
   for (const id of ids) {
     const record = source.get(id);
     if (!record) {
@@ -386,7 +386,7 @@ export function listBackgroundProcesses(
  * show it and the cap that bounds it are both task-wide.
  */
 export function listTaskBackgroundProcesses(
-  taskId: TaskId,
+  taskId: ChatId,
 ): (BackgroundProcessInfo & { sessionId: StoreId.Session })[] {
   return [...recordsBySession.entries()]
     .flatMap(([sessionId, records]) =>
@@ -411,7 +411,7 @@ export function promoteBackgroundProcess({
   /** Owns the process: reads, kills, and turn cleanup are all scoped to it. */
   sessionId: StoreId.Session;
   /** Only locates the log file; ownership is the session's. */
-  taskId: TaskId;
+  taskId: ChatId;
 }): { error: string } | { info: BackgroundProcessInfo } {
   if (cleanupBySession.has(sessionId)) {
     return {
@@ -620,7 +620,7 @@ export function startBackgroundRun({
    */
   layout?: WorkspaceFsLayout;
   /** The task the run belongs to. */
-  taskId: TaskId;
+  taskId: ChatId;
 }): BackgroundRunHandle {
   const outputLayout =
     layout ?? buildWorkspaceFsLayout({ taskHostRoot: workDir(taskId) });
@@ -736,7 +736,7 @@ export function startBackgroundRun({
  * missing file: the log would then hold some later command's output under the
  * earlier one's name.
  */
-function allocateId(taskId: TaskId): string {
+function allocateId(taskId: ChatId): string {
   const outputDir = absolutePathJoin(
     workDir(taskId),
     TASK_FOLDER_NAMES.toolOutput,
@@ -891,7 +891,7 @@ function notify(record: BackgroundProcessRecord) {
  * signal is detached, so a throw here would leave a detached process that
  * nothing lists, nothing can stop, and quit cleanup cannot reach.
  */
-function openLogFile({ id, taskId }: { id: string; taskId: TaskId }):
+function openLogFile({ id, taskId }: { id: string; taskId: ChatId }):
   | { error: string }
   | {
       logFileAbsolutePath: ReturnType<typeof absolutePathJoin>;
@@ -919,7 +919,7 @@ function openLogFile({ id, taskId }: { id: string; taskId: TaskId }):
  * viewer needs is only whether the process is still there. Appearing, ending
  * and being removed are the only three moments that answer that.
  */
-function publishChanged(taskId: TaskId) {
+function publishChanged(taskId: ChatId) {
   publisher.publish("backgroundProcesses.changed", { id: taskId });
 }
 

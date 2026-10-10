@@ -1,5 +1,5 @@
 import { type WorkspaceServerActorRef } from "../../logic/server";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { type SessionActorRef } from "../session";
 import { type TaskBrowserActorRef } from "../task-browser";
@@ -12,12 +12,12 @@ export interface WorkspaceContext {
   // before trash-task deletes the directory. Drained when the matching
   // taskBrowser.stopped event arrives (or immediately if no machine
   // existed when prepareToTrashTask ran).
-  pendingBrowserReapResolvers: Map<TaskId, (() => void)[]>;
-  sessionRefsByTaskId: Map<TaskId, SessionActorRef[]>;
+  pendingBrowserReapResolvers: Map<ChatId, (() => void)[]>;
+  sessionRefsByChatId: Map<ChatId, SessionActorRef[]>;
   // One taskBrowser actor per task id with browser activity or an
   // active task-page presence subscription. Spawned lazily and reaped on
   // taskBrowser.stopped.
-  taskBrowserRefs: Map<TaskId, TaskBrowserActorRef>;
-  tasksBeingTrashed: TaskId[];
+  taskBrowserRefs: Map<ChatId, TaskBrowserActorRef>;
+  tasksBeingTrashed: ChatId[];
   workspaceServerRef: WorkspaceServerActorRef;
 }

@@ -6,7 +6,7 @@ import {
   parseMessage,
   replyExcerpt,
   type SessionMessagePart,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { memo, useContext } from "react";
 
@@ -26,7 +26,7 @@ interface AssistantMessageProps {
    */
   bubble?: boolean;
   part: SessionMessagePart.TextPart;
-  taskId: TaskId;
+  taskId: ChatId;
 }
 
 /**

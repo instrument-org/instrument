@@ -12,7 +12,7 @@ import {
 } from "../lib/workspace-config";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { LoadSkill } from "./load-skill";
 
@@ -92,9 +92,9 @@ async function createSkill({
 }
 
 function createTaskConfigWithDirs() {
-  // Point the singleton's tasksDir at dir's parent so taskDir(id) ===
+  // Point the singleton's tasksDir at dir's parent so chatDir(id) ===
   // dir, then also override registryDir for skill resolution.
-  const id = createMockTaskConfigForDir(dir, { model });
+  const id = createMockChatConfigForDir(dir, { model });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     registryDir: AbsolutePathSchema.parse(registryDir),

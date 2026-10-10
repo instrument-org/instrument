@@ -3,8 +3,7 @@ import {
   ChatIdSchema,
   type SessionMessage,
   StoreId,
-  type Task,
-  TaskIdSchema,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
@@ -27,11 +26,9 @@ import {
 
 const sessionId = StoreId.newSessionId();
 
-const task: Task = {
+const task: ChatInfo = {
   createdAt: new Date(0),
-  id: TaskIdSchema.parse("quarterly-numbers"),
-  chatId: ChatIdSchema.parse("a-chat"),
-  isChat: false,
+  id: ChatIdSchema.parse("quarterly-numbers"),
   title: "Quarterly numbers",
   updatedAt: new Date(0),
 };

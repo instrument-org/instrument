@@ -2,18 +2,18 @@ import { z } from "zod";
 
 import { attachFolder as attachFolderToTask } from "../../../lib/attach-folder";
 import { folderReach } from "../../../lib/chat/folder-reach";
-import { taskDir } from "../../../lib/task-dir-utils";
-import { getTaskState } from "../../../lib/task-record";
+import { chatDir } from "../../../lib/record-folders";
+import { getChatState } from "../../../lib/chat-record";
 import { FolderAttachment } from "../../../schemas/folder-attachment";
-import { TaskIdSchema } from "../../../schemas/task-id";
-import { TaskStateSchema } from "../../../schemas/task-state";
+import { ChatIdSchema } from "../../../schemas/chat-id";
+import { ChatStateSchema } from "../../../schemas/chat-state";
 import { base } from "../../base";
 
 const get = base
-  .input(z.object({ id: TaskIdSchema }))
-  .output(TaskStateSchema)
+  .input(z.object({ id: ChatIdSchema }))
+  .output(ChatStateSchema)
   .handler(async ({ input }) => {
-    const state = await getTaskState(taskDir(input.id));
+    const state = await getChatState(chatDir(input.id));
     // A chat's folders as it reaches them, which is more than it holds.
     return { ...state, attachedFolders: await folderReach(input.id, state) };
   });
@@ -25,7 +25,7 @@ const get = base
  * there is the agent's to say when it hands the folder over.
  */
 const attachFolder = base
-  .input(z.object({ id: TaskIdSchema, path: z.string() }))
+  .input(z.object({ id: ChatIdSchema, path: z.string() }))
   .output(FolderAttachment.Schema)
   .handler(async ({ input }) => {
     const attached = await attachFolderToTask({

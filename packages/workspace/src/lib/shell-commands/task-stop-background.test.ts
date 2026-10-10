@@ -7,7 +7,7 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
-import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import {
   killSessionBackgroundProcesses,
   listBackgroundProcesses,
@@ -66,7 +66,7 @@ beforeEach(async () => {
   CHAT_ID = ChatIdSchema.parse(`2026-09-26-conversation-${counter}`);
   context = { chatId: CHAT_ID, remainingYieldMs: () => 0 };
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-stop-background-"));
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", "unused"), {
+  createMockChatConfigForDir(path.join(rootDir, "tasks", "unused"), {
     unplaced: true,
   });
   setWorkspaceConfig({
@@ -75,6 +75,9 @@ beforeEach(async () => {
     // the test attaches.
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../../templates/default"),
+    ),
+    chatsDir: AbsolutePathSchema.parse(
+      path.join(path.join(rootDir, "workspace"), "chats"),
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });

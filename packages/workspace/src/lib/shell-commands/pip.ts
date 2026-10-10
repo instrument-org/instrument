@@ -1,6 +1,6 @@
 import { defineCommand } from "just-bash";
 
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { PYTHON_COMMAND, PYTHON_NATIVE_COMMAND } from "./python";
 import {
@@ -30,16 +30,16 @@ export const PIP3_COMMAND = {
   name: "pip3",
 } as const;
 
-export function createPip3Command(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createPip3Command(taskId: ChatId, layout: WorkspaceFsLayout) {
   return createPipCommandNamed(taskId, layout, PIP3_COMMAND.name);
 }
 
-export function createPipCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createPipCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
   return createPipCommandNamed(taskId, layout, PIP_COMMAND.name);
 }
 
 function createPipCommandNamed(
-  taskId: TaskId,
+  taskId: ChatId,
   layout: WorkspaceFsLayout,
   name: string,
 ) {

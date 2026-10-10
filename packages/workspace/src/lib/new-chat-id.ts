@@ -1,12 +1,12 @@
 import { type SubdomainPart } from "../schemas/subdomain-part";
-import { type TaskId, TaskIdSchema } from "../schemas/task-id";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { generateTaskFolderName } from "./generate-task-folder-name";
 import { pathExists } from "./path-exists";
-import { recordIdTaken } from "./record-folders";
+import { chatIdTaken } from "./record-folders";
 
-export async function newTaskId({
+export async function newChatId({
   preferredFolderName,
   prompt,
   workspaceConfig,
@@ -14,15 +14,15 @@ export async function newTaskId({
   preferredFolderName?: SubdomainPart;
   prompt?: string;
   workspaceConfig: WorkspaceConfig;
-}): Promise<TaskId> {
+}): Promise<ChatId> {
   if (
     preferredFolderName &&
-    !recordIdTaken(preferredFolderName) &&
+    !chatIdTaken(preferredFolderName) &&
     !(await pathExists(
       absolutePathJoin(workspaceConfig.tasksDir, preferredFolderName),
     ))
   ) {
-    return TaskIdSchema.parse(preferredFolderName);
+    return ChatIdSchema.parse(preferredFolderName);
   }
 
   const rawId = await generateTaskFolderName({
@@ -30,5 +30,5 @@ export async function newTaskId({
     tasksDir: workspaceConfig.tasksDir,
   });
 
-  return TaskIdSchema.parse(rawId);
+  return ChatIdSchema.parse(rawId);
 }

@@ -7,34 +7,34 @@ import { WORKSPACE_SKILLS_MOUNT } from "../mount-points";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import {
   AbsolutePathSchema,
-  TaskDirSchema,
+  ChatDirSchema,
   WorkspaceDirSchema,
   WorkspaceFilePathSchema,
 } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
-import { setTaskState } from "./task-record";
+import { setChatState } from "./chat-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 describe("resolveWorkspaceFilePath", () => {
   let photosRoot: string;
   let root: string;
-  let taskId: TaskId;
+  let taskId: ChatId;
   let taskRoot: string;
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-workspace-path-"));
     taskRoot = path.join(root, "tasks", "resolve-path-task");
     photosRoot = path.join(root, "Photos");
-    taskId = createMockTaskConfigForDir(taskRoot);
+    taskId = createMockChatConfigForDir(taskRoot);
 
     await fs.mkdir(taskRoot, { recursive: true });
     await fs.mkdir(photosRoot);
     await fs.writeFile(path.join(taskRoot, "notes.txt"), "task file");
     await fs.writeFile(path.join(photosRoot, "cat.png"), "mounted file");
 
-    await setTaskState(TaskDirSchema.parse(taskRoot), {
+    await setChatState(ChatDirSchema.parse(taskRoot), {
       attachedFolders: {
         photos: {
           access: "read-only",

@@ -1,4 +1,4 @@
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { createContext } from "react";
 
 /**
@@ -21,5 +21,5 @@ export const MarkdownTaskContext = createContext<{
   // is indistinguishable from a file that is genuinely gone, and only one of
   // those should be drawn.
   isStreaming?: boolean;
-  taskId?: TaskId;
+  taskId?: ChatId;
 }>({});

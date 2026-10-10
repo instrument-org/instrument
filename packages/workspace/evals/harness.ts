@@ -29,7 +29,7 @@ import { expectStop, wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { Store } from "../src/lib/store";
-import { updateTaskSettings } from "../src/lib/task-settings";
+import { updateChatSettings } from "../src/lib/chat-settings";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
@@ -39,9 +39,9 @@ import { type FolderAttachment } from "../src/schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
-import { type TaskId } from "../src/schemas/task-id";
+import { type ChatId } from "../src/schemas/chat-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
-import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
+import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type Choose } from "../src/tools/choose";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import { createStandInWindow } from "./lib/stand-in-window";
@@ -130,7 +130,7 @@ export interface CompletedRun {
   /** Absent when the agent ended the turn itself. */
   stoppedBy?: RunStop;
   /** The chat the run is in. */
-  taskId: TaskId;
+  taskId: ChatId;
   /** This task plus every task it started. Equal to `usage` when it forked nothing. */
   treeUsage: { inputTokens: number; outputTokens: number; totalTokens: number };
   /** 1-based, and only meaningful when `repeat` asked for more than one. */
@@ -377,7 +377,7 @@ export interface EvalCase {
   setup?: () => Promise<void> | void;
   shouldStop?: (
     part: SessionMessagePart.Type,
-    taskId: TaskId,
+    taskId: ChatId,
   ) => boolean | Promise<boolean>;
   /**
    * Topics the chat is filed under from its first message, made before the
@@ -403,7 +403,7 @@ interface AssertionContext {
    */
   childSessions: () => Promise<ChildTaskSessions[]>;
   sessions: Session.WithMessagesAndParts[];
-  taskId: TaskId;
+  taskId: ChatId;
 }
 
 interface ChildTaskSessions {
@@ -412,7 +412,7 @@ interface ChildTaskSessions {
   /** Its own messages, without the conversation it carries on from. */
   sessions: Session.WithMessagesAndParts[];
   /** The chat it is in, whose folder it works in. */
-  taskId: TaskId;
+  taskId: ChatId;
   title: string;
 }
 
@@ -647,7 +647,7 @@ export async function runEvals(
       // which has no input for it: every turn of this run then reads it, the
       // conversation's and each of its tasks'.
       if (reasoningEffort) {
-        await updateTaskSettings(id, { reasoningEffort });
+        await updateChatSettings(id, { reasoningEffort });
       }
 
       write(
@@ -1152,7 +1152,7 @@ export function runKey(run: {
  * runner had otherwise written this same function privately.
  */
 export async function sessionsFor(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId?: StoreId.Session,
 ): Promise<Session.WithMessagesAndParts[]> {
   const ids = sessionId
@@ -1183,7 +1183,7 @@ export async function sessionsFor(
  * conversation, and none for a task case, whose session starts nothing.
  */
 async function childTasksOf(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<StoreId.Session[]> {
   const chatId = resolveChat(taskId);
@@ -1198,7 +1198,7 @@ async function childTasksOf(
  * case is scored on when the work happened in them.
  */
 export async function childSessionsOf(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<ChildTaskSessions[]> {
   const chatId = resolveChat(taskId);
@@ -1284,7 +1284,7 @@ async function openChatUnderTopics(
     folders: { path: string }[];
     uri: string;
   },
-): Promise<{ id: TaskId; sessionId: StoreId.Session }> {
+): Promise<{ id: ChatId; sessionId: StoreId.Session }> {
   const topicIds: string[] = [];
   for (const { instructions, name } of topics) {
     const topic = await createTopic({ name });
@@ -1319,7 +1319,7 @@ const REFUSED =
 
 /** See `RunMetrics`. */
 async function metricsFor(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
   childTaskIds: StoreId.Session[],
   {
@@ -1497,7 +1497,7 @@ function sanitizeCanonicalId(canonicalId: string): string {
  * expects, so it wakes nothing of its own.
  */
 async function standInForTasks(
-  chatId: TaskId,
+  chatId: ChatId,
   { leavesOpen = [], said }: NonNullable<EvalCase["finishesAs"]>,
   {
     standInWindow,
@@ -1591,7 +1591,7 @@ async function waitForSessionDone(
  * run as long as the slowest.
  */
 async function waitForTreeQuiet(
-  rootTaskId: TaskId,
+  rootTaskId: ChatId,
   { timeoutMs }: { timeoutMs: number },
 ): Promise<{ quietSince: number; status: "quiet" } | { status: "timeout" }> {
   const deadline = Date.now() + timeoutMs;

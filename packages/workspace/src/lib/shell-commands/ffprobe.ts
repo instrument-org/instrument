@@ -1,6 +1,6 @@
 import { defineCommand } from "just-bash";
 
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { FFPROBE_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
@@ -19,7 +19,7 @@ export const FFPROBE_COMMAND = {
 } as const;
 
 export function createFfprobeCommand(
-  taskId: TaskId,
+  taskId: ChatId,
   layout: WorkspaceFsLayout,
 ) {
   return defineCommand(FFPROBE_COMMAND.name, async (args, ctx) => {

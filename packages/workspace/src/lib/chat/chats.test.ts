@@ -12,12 +12,12 @@ import {
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { recordChanged, recordRemoved } from "../record-changes";
-import { forgetRecord, sessionOfChat } from "../record-folders";
+import { forgetChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type ChatActivity } from "./activity";
@@ -35,7 +35,6 @@ import {
 } from "./chats";
 import { liveChatList } from "./live-chat-list";
 import { createTopic } from "./topics";
-import { type ChatId } from "../../schemas/chat-id";
 
 vi.mock(import("../session-store-storage"));
 
@@ -66,7 +65,7 @@ vi.mock(import("../workspace-actor-ref"), () => ({
     ({
       getSnapshot: () => ({
         context: {
-          sessionRefsByTaskId: {
+          sessionRefsByChatId: {
             get: () =>
               [...alive.value].map((sessionId) => ({
                 getSnapshot: () => ({
@@ -89,12 +88,13 @@ let counter = 0;
  * under the root, so each test gets one.
  */
 const freshTask = async () => {
-  const taskId = createMockTaskConfig(
-    TaskIdSchema.parse(`chats-${Date.now()}-${(counter += 1)}`),
+  const taskId = createMockChatConfig(
+    ChatIdSchema.parse(`chats-${Date.now()}-${(counter += 1)}`),
   );
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chats-root-"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
+    chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
     tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
   });
@@ -114,7 +114,7 @@ beforeEach(() => {
 
 const at = (minute: number) => new Date(Date.UTC(2026, 8, 16, 12, minute));
 
-async function agentAsks(_taskId: TaskId, sessionId: StoreId.Session) {
+async function agentAsks(_taskId: ChatId, sessionId: StoreId.Session) {
   const messageId = StoreId.newMessageId();
   const message: SessionMessage.AssistantWithParts = {
     id: messageId,
@@ -143,7 +143,7 @@ async function agentAsks(_taskId: TaskId, sessionId: StoreId.Session) {
 
 /** A finished reply, with words and whatever tool calls it made. */
 async function agentSays(
-  _taskId: TaskId,
+  _taskId: ChatId,
   sessionId: StoreId.Session,
   text: string,
   {
@@ -206,7 +206,7 @@ function partMetadata(ids: {
 }
 
 /** A chat: a chat's folder and its one session. */
-async function session(_taskId: TaskId, title: string, minute = 0) {
+async function session(_taskId: ChatId, title: string, minute = 0) {
   const id = StoreId.newSessionId();
   chatFor(id);
   await Store.saveSession(
@@ -217,7 +217,7 @@ async function session(_taskId: TaskId, title: string, minute = 0) {
 }
 
 async function userSays(
-  _taskId: TaskId,
+  _taskId: ChatId,
   sessionId: StoreId.Session,
   text: string,
   minute = 0,
@@ -930,8 +930,8 @@ describe("liveChatList", () => {
     expect(first?.map((chat) => chat.sessionId)).toEqual([kept, deleted]);
 
     const gone = chatFor(deleted);
-    forgetRecord(gone);
-    recordRemoved({ id: gone, kind: "chat" });
+    forgetChat(gone);
+    recordRemoved(gone);
 
     expect((await next())?.map((chat) => chat.sessionId)).toEqual([kept]);
     stop();

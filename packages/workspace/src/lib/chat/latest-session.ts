@@ -3,7 +3,7 @@ import { alphabetical } from "radashi";
 
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { createSession } from "../create-session";
 import { type TypedError } from "../errors";
 import { Store } from "../store";
@@ -30,7 +30,7 @@ export async function lastAssistantText({
   taskId,
 }: {
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<string | undefined> {
   const messages = await Store.getMessagesWithParts({
     inherited: false,
@@ -61,7 +61,7 @@ export function lastAssistantTextIn(
  * need before they can write.
  */
 export async function latestOrNewSessionId(
-  taskId: TaskId,
+  taskId: ChatId,
 ): Promise<Result<StoreId.Session, TypedError.Type>> {
   const newest = await latestSessionId(taskId);
   if (newest.isErr()) {
@@ -82,7 +82,7 @@ export async function latestOrNewSessionId(
  * none for a task that has never had a session. Session ids are ulids, so
  * alphabetical order is creation order.
  */
-export function latestSessionId(taskId: TaskId) {
+export function latestSessionId(taskId: ChatId) {
   return Store.getSessions(taskId).map(
     (sessions) => alphabetical(sessions, (session) => session.id).at(-1)?.id,
   );

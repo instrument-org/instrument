@@ -6,7 +6,7 @@ import type {
 import {
   encodeBrowserTargetId,
   StoreId,
-  TaskIdSchema,
+  ChatIdSchema,
 } from "@instrument-org/workspace/electron";
 import { describe, expect, it, vi } from "vitest";
 
@@ -21,7 +21,7 @@ import {
   subscribeEvents,
 } from "./entry";
 
-const SUBDOMAIN = TaskIdSchema.parse("agent-browser-test");
+const SUBDOMAIN = ChatIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
 const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
 

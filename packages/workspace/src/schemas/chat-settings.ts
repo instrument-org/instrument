@@ -7,7 +7,7 @@ import { StoreId } from "./store-id";
 // whole task record, whose `state` key it is meant to ignore rather than reject.
 // Making it strict would fail every task's settings at once and take every title
 // in the workspace with them.
-export const TaskSettingsSchema = z.object({
+export const ChatSettingsSchema = z.object({
   // The apps this task may reach through the `app` command, by slug: set on
   // a briefed task, possibly to none. Absent on a chat, which reaches every
   // app.
@@ -36,10 +36,10 @@ export const TaskSettingsSchema = z.object({
   reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
 });
 
-export const TaskSettingsUpdateSchema = TaskSettingsSchema.partial().extend({
+export const ChatSettingsUpdateSchema = ChatSettingsSchema.partial().extend({
   lastActivityAt: z.coerce.date().optional(),
   name: z.string().trim().min(1).optional(),
 });
 
-export type TaskSettings = z.output<typeof TaskSettingsSchema>;
-export type TaskSettingsUpdate = z.output<typeof TaskSettingsUpdateSchema>;
+export type ChatSettings = z.output<typeof ChatSettingsSchema>;
+export type ChatSettingsUpdate = z.output<typeof ChatSettingsUpdateSchema>;

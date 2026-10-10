@@ -4,13 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { ChatIdSchema } from "../../schemas/chat-id";
-import { WorkspaceDirSchema } from "../../schemas/paths";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { createTopic } from "../chat/topics";
 import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -28,7 +27,7 @@ vi.mock(import("../workspace-actor-ref"), () => ({
   getWorkspaceActorRef: () =>
     ({
       getSnapshot: () => ({
-        context: { sessionRefsByTaskId: new Map() },
+        context: { sessionRefsByChatId: new Map() },
       }),
     }) as never,
   setWorkspaceActorRef: vi.fn(),
@@ -42,12 +41,13 @@ let counter = 0;
  * under the root, so each test gets one.
  */
 const freshTask = async () => {
-  const taskId = createMockTaskConfig(
-    TaskIdSchema.parse(`window-${Date.now()}-${(counter += 1)}`),
+  const taskId = createMockChatConfig(
+    ChatIdSchema.parse(`window-${Date.now()}-${(counter += 1)}`),
   );
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "chat-root-"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
+    chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
     tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
   });

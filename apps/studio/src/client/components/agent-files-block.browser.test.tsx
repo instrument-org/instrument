@@ -1,6 +1,6 @@
 import { ariaSnapshot } from "@/tests/aria-snapshot";
 import { renderInBrowser } from "@/tests/render-browser";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { AgentFilesBlock } from "./agent-files-block";
@@ -60,7 +60,7 @@ function drawFence(
       <MarkdownTaskContext
         value={{
           isStreaming,
-          taskId: TaskIdSchema.parse("quarterly-numbers"),
+          taskId: ChatIdSchema.parse("quarterly-numbers"),
         }}
       >
         <FilesLayoutContext.Provider value={layout}>

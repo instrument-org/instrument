@@ -6,12 +6,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FolderAttachment } from "../../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { WINDOW_ID } from "../../schemas/window-id";
-import { type TaskState } from "../../schemas/task-state";
+import { type ChatState } from "../../schemas/chat-state";
 import { folderReach } from "./folder-reach";
 import { type Topic } from "./topics";
-import { ChatIdSchema } from "../../schemas/chat-id";
 
 const world = vi.hoisted(() => ({
   isChat: true,
@@ -22,7 +21,7 @@ const world = vi.hoisted(() => ({
 
 vi.mock(import("../record-folders"), async (importOriginal) => ({
   ...(await importOriginal()),
-  resolveChat: (id: TaskId) =>
+  resolveChat: (id: string) =>
     world.isChat ? ChatIdSchema.parse(id) : undefined,
   sessionOfChat: () => StoreId.newSessionId(),
 }));
@@ -39,7 +38,7 @@ vi.mock(import("../path-exists"), () => ({
     Promise.resolve(!world.missing.has(folderPath)),
 }));
 
-const chatId = TaskIdSchema.parse("chat-reach");
+const chatId = ChatIdSchema.parse("chat-reach");
 const home = os.homedir();
 const workspace = path.join(home, "Documents", "Instrument");
 const elsewhere = path.resolve(path.sep, "Volumes", "Archive");
@@ -51,7 +50,7 @@ function held(
     mountName?: string;
     path: string;
   }[]
-): TaskState {
+): ChatState {
   return {
     browserTabs: [],
     attachedFolders: Object.fromEntries(
@@ -74,7 +73,7 @@ function held(
 }
 
 /** Each mount the agent sees, by name, with the folder behind it. */
-async function reach(state: TaskState) {
+async function reach(state: ChatState) {
   const folders = await folderReach(chatId, state);
   return Object.entries(folders).map(
     ([mountName, folder]) => `${mountName} ${folder.path}`,

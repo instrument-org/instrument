@@ -4,10 +4,10 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { FolderAttachment } from "../schemas/folder-attachment";
-import { TaskDirSchema, WorkspaceDirSchema } from "../schemas/paths";
+import { ChatDirSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -22,7 +22,7 @@ const sessionId = StoreId.newSessionId();
 const WIDE_FILES = 21_000;
 
 let tmpDir: string;
-let taskId: TaskId;
+let taskId: ChatId;
 
 function shell() {
   return createBashEnv({
@@ -32,7 +32,7 @@ function shell() {
         createdAt: Date.now(),
         id: FolderAttachment.IdSchema.parse("home-id"),
         mountName: "Home",
-        path: TaskDirSchema.parse(path.join(tmpDir, "Home")),
+        path: ChatDirSchema.parse(path.join(tmpDir, "Home")),
         source: "user",
       },
     },
@@ -61,7 +61,7 @@ beforeAll(async () => {
       ]),
     ),
   );
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot));
+  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
   // The home folder holds the workspace, which is what marks it as home.
   setWorkspaceConfig({
     ...getWorkspaceConfig(),

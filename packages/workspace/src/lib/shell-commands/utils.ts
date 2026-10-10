@@ -6,7 +6,7 @@ import { parseArgs, type ParseArgsConfig } from "node:util";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { gitSubprocessEnv } from "../git";
 import { normalizePath } from "../normalize-path";
 import { relativeWithin } from "../path-containment";
@@ -92,7 +92,7 @@ function copyableMountFile(source: string): string | undefined {
  */
 export function bridgeFlagValuePath(
   flag: string,
-  taskId: TaskId,
+  taskId: ChatId,
   taskCwd: string,
   resolvePath: (p: string) => string,
 ): string {
@@ -119,7 +119,7 @@ export function bridgeFlagValuePath(
  */
 export function bridgeInlineCodePaths(
   code: string,
-  taskId: TaskId,
+  taskId: ChatId,
   taskCwd: string,
   alternative: MountAlternative = {},
 ): { code: string } | { error: string } {
@@ -155,7 +155,7 @@ export function bridgeInlineCodePaths(
  */
 export function bridgeAppleScriptPaths(
   code: string,
-  taskId: TaskId,
+  taskId: ChatId,
 ): { code: string } | { error: string } {
   const checked = bridgeInlineCodePaths(code, taskId, workDir(taskId));
   if ("error" in checked) {
@@ -179,7 +179,7 @@ export function bridgeAppleScriptPaths(
 export function extractFileAndScriptArgs(
   positionals: string[],
   args: string[],
-  taskId: TaskId,
+  taskId: ChatId,
   taskCwd: string,
   resolvePath: (path: string) => string,
 ): undefined | { filePath: string; scriptArgs: string[] } {
@@ -273,7 +273,7 @@ export function privateDirLiteralError(subject: string): string {
 
 /** Resolve the effective cwd and env for a shell command. */
 export function resolveCommandContext(
-  taskId: TaskId,
+  taskId: ChatId,
   ctx: {
     cwd: string;
     env: Map<string, string>;
@@ -321,7 +321,7 @@ export function resolveCommandContext(
  */
 export function resolvePathArgs(
   args: string[],
-  taskId: TaskId,
+  taskId: ChatId,
   ctx: {
     cwd: string;
     fs: { resolvePath(cwd: string, path: string): string };
@@ -538,7 +538,7 @@ function quotedMountPattern(mountPoint: string): RegExp {
  */
 function virtualToRealRelative(
   virtualPath: string,
-  taskId: TaskId,
+  taskId: ChatId,
   taskCwd: string,
   resolvePath: (p: string) => string,
 ): string {

@@ -21,7 +21,7 @@ import {
   decodeBrowserTargetId,
   encodeBrowserTargetId,
   StoreId,
-  type TaskId,
+  type ChatId,
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
@@ -863,7 +863,7 @@ function ComposePagePanel({
   attached: boolean;
   host: ComposeHost;
   tab: BrowserTab;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   if (!host.into) {
     return null;

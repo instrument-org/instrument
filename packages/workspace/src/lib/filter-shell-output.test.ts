@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   AbsolutePathSchema,
-  type TaskDir,
-  TaskDirSchema,
+  type ChatDir,
+  ChatDirSchema,
 } from "../schemas/paths";
 import {
   filterShellOutput,
@@ -16,7 +16,7 @@ import { type WorkspaceFsLayout } from "./workspace-fs-layout";
 
 /** A shell's layout: the task folder, and any folders mounted beside it. */
 function layoutOf(
-  dir: TaskDir,
+  dir: ChatDir,
   mounts: Record<string, string> = {},
 ): WorkspaceFsLayout {
   return {
@@ -37,7 +37,7 @@ function layoutOf(
 }
 
 describe("filterShellOutput", () => {
-  const dir = TaskDirSchema.parse("/absolute/path/to/my task");
+  const dir = ChatDirSchema.parse("/absolute/path/to/my task");
 
   it("replaces absolute path with relative path", () => {
     const output = `$ pnpm lint
@@ -130,10 +130,10 @@ ${dir}\output\rainbow.pdf`;
   });
 
   it("redacts string-escaped Windows task dir paths from printed error objects", () => {
-    // Cast: TaskDirSchema rejects win32 absolute paths when the test runs on
+    // Cast: ChatDirSchema rejects win32 absolute paths when the test runs on
     // a posix host, but production Windows builds produce exactly this shape.
     const windowsDir =
-      String.raw`C:\Users\user\AppData\Roaming\Instrument\workspace\tasks\my-task` as TaskDir;
+      String.raw`C:\Users\user\AppData\Roaming\Instrument\workspace\tasks\my-task` as ChatDir;
     // Node prints error objects with escaped backslashes, e.g.
     // `path: 'C:\\Users\\...'`; that spelling must not leak the host dir.
     const output = String.raw`Error: ENOENT: no such file or directory {
@@ -264,7 +264,7 @@ ${dir}\output\rainbow.pdf`;
 
 describe("virtualizeHostPaths", () => {
   const home = os.homedir();
-  const dir = TaskDirSchema.parse(`${home}/Instrument/tasks/my task`);
+  const dir = ChatDirSchema.parse(`${home}/Instrument/tasks/my task`);
   const layout = layoutOf(dir, {
     "/mnt/Home/Downloads": `${home}/Downloads`,
     "/tasks/t1": "/var/folders/dj/abc/T/tasks/t1",
@@ -308,7 +308,7 @@ describe("virtualizeHostPaths", () => {
 });
 
 describe("redactTaskDir", () => {
-  const dir = TaskDirSchema.parse("/absolute/path/to/my task");
+  const dir = ChatDirSchema.parse("/absolute/path/to/my task");
 
   it("collapses the task dir but leaves an unrelated home path (file-content scope)", () => {
     const home = os.homedir();
@@ -322,7 +322,7 @@ describe("redactTaskDir", () => {
   });
 
   it("handles the /private firmlink spelling of the task dir", () => {
-    const varDir = TaskDirSchema.parse("/var/folders/dj/abc/T/tasks/my-task");
+    const varDir = ChatDirSchema.parse("/var/folders/dj/abc/T/tasks/my-task");
 
     expect(
       redactTaskDir(

@@ -8,7 +8,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import {
   encodeBrowserTargetId,
   StoreId,
-  TaskIdSchema,
+  ChatIdSchema,
 } from "@instrument-org/workspace/electron";
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
@@ -49,7 +49,7 @@ vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
   getWorkspaceFolder: () => home.workspace,
 }));
 
-const SUBDOMAIN = TaskIdSchema.parse("agent-browser-test");
+const SUBDOMAIN = ChatIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
 const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
 

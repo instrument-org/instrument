@@ -59,7 +59,7 @@ import {
   type BrowserTargetId,
   encodeBrowserTargetId,
   type StoreId,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
@@ -158,7 +158,7 @@ export function BrowserPanel({
   // The pane is sliding open or shut, so the slot is moving under a guest that
   // only follows it while something is watching. See useBrowserSlot.
   sliding?: boolean;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   const targetId = encodeBrowserTargetId(taskId, sessionId);
   const inputRef = useRef<HTMLInputElement>(null);

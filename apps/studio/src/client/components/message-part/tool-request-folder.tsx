@@ -3,7 +3,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import {
   MOUNT,
   type SessionMessagePart,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { useMutation } from "@tanstack/react-query";
@@ -33,7 +33,7 @@ export function ToolRequestFolder({
   taskId,
 }: {
   part: RequestFolderPart;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   const answer = useMutation(
     rpcClient.workspace.session.answerToolCall.mutationOptions({
@@ -151,7 +151,7 @@ export function ToolRequestFolder({
  * mounted at: the mount it sits in, and the rest of the path inside that.
  */
 async function refusedHostPath(
-  taskId: TaskId,
+  taskId: ChatId,
   mountPath: string,
 ): Promise<string | undefined> {
   const prefix = `${MOUNT.attachedFolders}/`;

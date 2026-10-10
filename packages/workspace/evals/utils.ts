@@ -19,12 +19,12 @@ import path from "node:path";
 import { z } from "zod";
 
 import { env } from "../scripts/lib/env";
-import { TASKS_DIR_NAME } from "../src/constants";
+import { CHATS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { type UsageSummary } from "../src/lib/usage-summary-compute";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
-import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
+import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type WorkspaceConfig } from "../src/types";
 
 /**
@@ -79,6 +79,9 @@ export function buildReportWorkspaceConfig(
     rootDir: WorkspaceDirSchema.parse(absoluteWorkspaceDir),
     systemSkillsDir: AbsolutePathSchema.parse(
       path.join(absoluteWorkspaceDir, "system-skills"),
+    ),
+    chatsDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, CHATS_DIR_NAME),
     ),
     tasksDir: WorkspaceDirSchema.parse(
       path.join(absoluteWorkspaceDir, TASKS_DIR_NAME),

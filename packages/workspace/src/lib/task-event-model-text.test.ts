@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { taskEventModelNote } from "./task-event-model-text";
 
-const TASK_ID = TaskIdSchema.parse("2026-09-08-find-the-vault");
+const TASK_ID = ChatIdSchema.parse("2026-09-08-find-the-vault");
 
 describe("taskEventModelNote", () => {
   it("carries the receipt as a block, and names what the task left running with each command cut to fit", () => {
@@ -69,13 +69,13 @@ describe("taskEventModelNote", () => {
         {
           ended: "Stopped at the 200-step limit",
           status: "done",
-          taskId: TaskIdSchema.parse("2026-09-11-audit-the-vault"),
+          taskId: ChatIdSchema.parse("2026-09-11-audit-the-vault"),
           title: "Audit the vault",
         },
         {
           ended: "Model is busy",
           status: "error",
-          taskId: TaskIdSchema.parse("2026-09-11-draft-the-brief"),
+          taskId: ChatIdSchema.parse("2026-09-11-draft-the-brief"),
           title: "Draft the brief",
         },
       ],

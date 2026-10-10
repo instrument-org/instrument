@@ -1,16 +1,16 @@
 import { err, ok, ResultAsync, safeTry } from "neverthrow";
 
-import { type TaskDir } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatDir } from "../schemas/paths";
+import { type ChatId } from "../schemas/chat-id";
 import {
-  type TaskSettings,
-  type TaskSettingsUpdate,
-  TaskSettingsUpdateSchema,
-} from "../schemas/task-settings";
+  type ChatSettings,
+  type ChatSettingsUpdate,
+  ChatSettingsUpdateSchema,
+} from "../schemas/chat-settings";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
-import { taskDir } from "./task-dir-utils";
-import { readTaskRecord, updateTaskRecord } from "./task-record";
+import { chatDir } from "./record-folders";
+import { readChatRecord, updateChatRecord } from "./chat-record";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -20,10 +20,10 @@ import { getWorkspaceConfig } from "./workspace-config";
  * One of the two views over the task record; the state beside it is the other.
  * See task-record.ts for what separates them.
  */
-export async function getTaskSettings(
-  dir: TaskDir,
-): Promise<TaskSettings | undefined> {
-  const record = await readTaskRecord(dir);
+export async function getChatSettings(
+  dir: ChatDir,
+): Promise<ChatSettings | undefined> {
+  const record = await readChatRecord(dir);
   return record.settings;
 }
 
@@ -34,8 +34,8 @@ export async function getTaskSettings(
  * filesystem fallback, which is worse but not wrong, and losing the turn over
  * it would be.
  */
-export async function recordTaskActivity(taskId: TaskId): Promise<void> {
-  const result = await updateTaskSettings(taskId, {
+export async function recordChatActivity(taskId: ChatId): Promise<void> {
+  const result = await updateChatSettings(taskId, {
     lastActivityAt: getCurrentDate(),
   });
   if (result.isErr()) {
@@ -43,12 +43,12 @@ export async function recordTaskActivity(taskId: TaskId): Promise<void> {
   }
 }
 
-export function updateTaskSettings(
-  taskId: TaskId,
-  updates: TaskSettingsUpdate,
+export function updateChatSettings(
+  taskId: ChatId,
+  updates: ChatSettingsUpdate,
 ) {
   return safeTry(async function* () {
-    const parseResult = TaskSettingsUpdateSchema.safeParse(updates);
+    const parseResult = ChatSettingsUpdateSchema.safeParse(updates);
     if (!parseResult.success) {
       return err(
         new TypedError.Parse(
@@ -72,10 +72,10 @@ export function updateTaskSettings(
 }
 
 async function writeMergedSettings(
-  taskId: TaskId,
-  updates: TaskSettingsUpdate,
+  taskId: ChatId,
+  updates: ChatSettingsUpdate,
 ): Promise<void> {
-  await updateTaskRecord(taskDir(taskId), "settings", (record) => {
+  await updateChatRecord(chatDir(taskId), "settings", (record) => {
     // Raw first so `state` and anything this build cannot read survive the
     // write, then the parsed settings so their defaults apply, then the change.
     //

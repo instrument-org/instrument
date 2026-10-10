@@ -20,7 +20,7 @@ import {
 } from "xstate";
 
 import { instrumentAgent } from "../../agents/instrument";
-import { APPS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
+import { APPS_DIR_NAME, CHATS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
 import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
@@ -34,7 +34,7 @@ import {
 } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { type WebSearchClient } from "../../schemas/web-search";
 import {
   type BrowserConfig,
@@ -61,12 +61,12 @@ export type WorkspaceEvent =
   | WorkspaceServerParentEvent
   | {
       type: "acquireBrowserPresence";
-      value: { id: TaskId; level: BrowserPresenceLevel };
+      value: { id: ChatId; level: BrowserPresenceLevel };
     }
   | {
       type: "addMessage";
       value: {
-        id: TaskId;
+        id: ChatId;
         /** Stop the step in flight so the message runs as the next turn. */
         interrupt?: boolean;
         message: SessionMessage.UserWithParts;
@@ -79,7 +79,7 @@ export type WorkspaceEvent =
   | {
       type: "createSession";
       value: {
-        id: TaskId;
+        id: ChatId;
         message: SessionMessage.UserWithParts;
         model: AIGatewayModel.Type;
         sessionId: StoreId.Session;
@@ -95,17 +95,17 @@ export type WorkspaceEvent =
         /** The message is already in the store; see `addMessage`. */
         saved?: boolean;
         sessionId: StoreId.Session;
-        taskId: TaskId;
+        taskId: ChatId;
       };
     }
   | {
       type: "prepareToTrashTask";
-      value: { id: TaskId; onBrowserReaped?: () => void };
+      value: { id: ChatId; onBrowserReaped?: () => void };
     }
   | {
       type: "registerBrowserTarget";
       value: {
-        id: TaskId;
+        id: ChatId;
         partitionDir: AbsolutePath;
         sessionId: StoreId.Session;
         targetId: BrowserTargetId;
@@ -113,13 +113,13 @@ export type WorkspaceEvent =
     }
   | {
       type: "releaseBrowserPresence";
-      value: { id: TaskId; level: BrowserPresenceLevel };
+      value: { id: ChatId; level: BrowserPresenceLevel };
     }
-  | { type: "removeTaskBeingTrashed"; value: { id: TaskId } }
+  | { type: "removeTaskBeingTrashed"; value: { id: ChatId } }
   | {
       type: "runTurn";
       value: {
-        id: TaskId;
+        id: ChatId;
         model: AIGatewayModel.Type;
         sessionId: StoreId.Session;
       };
@@ -127,12 +127,12 @@ export type WorkspaceEvent =
   | {
       type: "stopSessions";
       /** Every session of the record, or the one named. */
-      value: { id: TaskId; sessionId?: StoreId.Session };
+      value: { id: ChatId; sessionId?: StoreId.Session };
     }
   | {
       type: "updateInteractiveToolCall";
       value: {
-        id: TaskId;
+        id: ChatId;
         update: ToolCallUpdate;
       };
     };
@@ -142,9 +142,9 @@ export type WorkspaceEvent =
 // fresh actor over the same stored session rather than reaching for this one.
 function findLiveSessionRef(
   context: WorkspaceContext,
-  { id, sessionId }: { id: TaskId; sessionId: StoreId.Session },
+  { id, sessionId }: { id: ChatId; sessionId: StoreId.Session },
 ) {
-  return context.sessionRefsByTaskId
+  return context.sessionRefsByChatId
     .get(id)
     ?.find(
       (ref) =>
@@ -158,7 +158,7 @@ export const workspaceMachine = setup({
     acquireBrowserPresence: enqueueActions(
       (
         { enqueue },
-        { id, level }: { id: TaskId; level: BrowserPresenceLevel },
+        { id, level }: { id: ChatId; level: BrowserPresenceLevel },
       ) => {
         enqueue.assign(({ context, spawn }) => {
           const existing = context.taskBrowserRefs.get(id);
@@ -183,13 +183,13 @@ export const workspaceMachine = setup({
 
     assignEventError: createAssignEventError(),
 
-    clearSessionRefsByTaskId: assign(({ context }, { id }: { id: TaskId }) => {
-      const newsessionRefsByTaskId = new Map<TaskId, SessionActorRef[]>();
+    clearSessionRefsByTaskId: assign(({ context }, { id }: { id: ChatId }) => {
+      const newsessionRefsByTaskId = new Map<ChatId, SessionActorRef[]>();
 
       for (const [
         sessionTaskId,
         refs,
-      ] of context.sessionRefsByTaskId.entries()) {
+      ] of context.sessionRefsByChatId.entries()) {
         const shouldRemove = sessionTaskId === id;
 
         if (shouldRemove) {
@@ -200,14 +200,14 @@ export const workspaceMachine = setup({
       }
 
       return {
-        sessionRefsByTaskId: newsessionRefsByTaskId,
+        sessionRefsByChatId: newsessionRefsByTaskId,
       };
     }),
 
     forwardAttachAgentSession: enqueueActions(
       (
         { context },
-        { id, sessionId }: { id: TaskId; sessionId: StoreId.Session },
+        { id, sessionId }: { id: ChatId; sessionId: StoreId.Session },
       ) => {
         const ref = context.taskBrowserRefs.get(id);
         ref?.send({
@@ -232,7 +232,7 @@ export const workspaceMachine = setup({
           targetId,
         }: {
           event: "registerTarget" | "updateCdpHeartbeat";
-          id: TaskId;
+          id: ChatId;
           partitionDir: AbsolutePath;
           sessionId: StoreId.Session;
           targetId: BrowserTargetId;
@@ -263,7 +263,7 @@ export const workspaceMachine = setup({
     ),
 
     handleTaskBrowserStopped: enqueueActions(
-      ({ context, enqueue }, { id }: { id: TaskId }) => {
+      ({ context, enqueue }, { id }: { id: ChatId }) => {
         const ref = context.taskBrowserRefs.get(id);
         if (ref) {
           enqueue.stopChild(ref);
@@ -285,8 +285,8 @@ export const workspaceMachine = setup({
     ),
 
     dropSessionRef: assign(
-      ({ context }, { actorId, id }: { actorId: string; id: TaskId }) => {
-        const existingSessionActorRefs = context.sessionRefsByTaskId.get(id);
+      ({ context }, { actorId, id }: { actorId: string; id: ChatId }) => {
+        const existingSessionActorRefs = context.sessionRefsByChatId.get(id);
         if (!existingSessionActorRefs) {
           return {};
         }
@@ -295,15 +295,15 @@ export const workspaceMachine = setup({
           (ref) => ref.id !== actorId,
         );
 
-        const newSessionRefsByTaskId = new Map(context.sessionRefsByTaskId);
+        const newSessionRefsByChatId = new Map(context.sessionRefsByChatId);
         if (remaining.length > 0) {
-          newSessionRefsByTaskId.set(id, remaining);
+          newSessionRefsByChatId.set(id, remaining);
         } else {
-          newSessionRefsByTaskId.delete(id);
+          newSessionRefsByChatId.delete(id);
         }
 
         return {
-          sessionRefsByTaskId: newSessionRefsByTaskId,
+          sessionRefsByChatId: newSessionRefsByChatId,
         };
       },
     ),
@@ -311,7 +311,7 @@ export const workspaceMachine = setup({
     releaseBrowserPresence: enqueueActions(
       (
         { context },
-        { id, level }: { id: TaskId; level: BrowserPresenceLevel },
+        { id, level }: { id: ChatId; level: BrowserPresenceLevel },
       ) => {
         context.taskBrowserRefs
           .get(id)
@@ -326,22 +326,22 @@ export const workspaceMachine = setup({
           id,
           sessionRef,
         }: {
-          id: TaskId;
+          id: ChatId;
           sessionRef: SessionActorRef;
         },
       ) => {
         const existingSessionActorRefs =
-          context.sessionRefsByTaskId.get(id) ?? [];
+          context.sessionRefsByChatId.get(id) ?? [];
 
         const activeSessionActorRefs = existingSessionActorRefs.filter(
           (ref) => ref.getSnapshot().status !== "done",
         );
 
-        const newSessionRefsByTaskId = new Map(context.sessionRefsByTaskId);
-        newSessionRefsByTaskId.set(id, [...activeSessionActorRefs, sessionRef]);
+        const newSessionRefsByChatId = new Map(context.sessionRefsByChatId);
+        newSessionRefsByChatId.set(id, [...activeSessionActorRefs, sessionRef]);
 
         return {
-          sessionRefsByTaskId: newSessionRefsByTaskId,
+          sessionRefsByChatId: newSessionRefsByChatId,
         };
       },
     ),
@@ -421,6 +421,7 @@ export const workspaceMachine = setup({
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
+      chatsDir: absolutePathJoin(rootDir, CHATS_DIR_NAME),
       tasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
       trashItem: input.trashItem,
       uvBinPath: AbsolutePathSchema.parse(input.uvBinPath),
@@ -433,12 +434,12 @@ export const workspaceMachine = setup({
       webSearch: input.webSearch,
     };
     // Publish the single per-process config so code can read it via
-    // getWorkspaceConfig() instead of threading it through every TaskId.
+    // getWorkspaceConfig() instead of threading it through every ChatId.
     setWorkspaceConfig(workspaceConfig);
     return {
       config: workspaceConfig,
       pendingBrowserReapResolvers: new Map(),
-      sessionRefsByTaskId: new Map(),
+      sessionRefsByChatId: new Map(),
       taskBrowserRefs: new Map(),
       tasksBeingTrashed: [],
       workspaceServerRef: spawn("workspaceServerLogic", {
@@ -558,7 +559,7 @@ export const workspaceMachine = setup({
         });
 
         // Reap the trashed task's taskBrowser, if one exists.
-        const matchingTaskIds: TaskId[] = [];
+        const matchingTaskIds: ChatId[] = [];
         const browserRef = context.taskBrowserRefs.get(event.value.id);
         if (browserRef) {
           matchingTaskIds.push(event.value.id);
@@ -656,7 +657,7 @@ export const workspaceMachine = setup({
     },
     stopSessions: {
       actions: ({ context, event }) => {
-        const sessionActorRefs = context.sessionRefsByTaskId.get(
+        const sessionActorRefs = context.sessionRefsByChatId.get(
           event.value.id,
         );
         const { sessionId } = event.value;
@@ -682,7 +683,7 @@ export const workspaceMachine = setup({
       {
         actions: ({ context, event }) => {
           const id = event.value.id;
-          const sessionRefs = context.sessionRefsByTaskId.get(id);
+          const sessionRefs = context.sessionRefsByChatId.get(id);
           if (!sessionRefs) {
             return;
           }
@@ -696,7 +697,7 @@ export const workspaceMachine = setup({
         },
         guard: ({ context, event }) => {
           const id = event.value.id;
-          const sessionRefs = context.sessionRefsByTaskId.get(id);
+          const sessionRefs = context.sessionRefsByChatId.get(id);
           return !!sessionRefs && sessionRefs.length > 0;
         },
       },

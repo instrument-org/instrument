@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import { unique } from "radashi";
 
@@ -15,7 +15,7 @@ import { unique } from "radashi";
  * a larger one is asked for, so a transcript that grows does not blink.
  */
 export function useHostPaths(
-  taskId: TaskId | undefined,
+  taskId: ChatId | undefined,
   filePaths: readonly string[],
 ): Record<string, null | string> {
   const asked = unique(filePaths).toSorted();

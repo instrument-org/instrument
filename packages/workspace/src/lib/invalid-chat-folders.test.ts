@@ -3,14 +3,18 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type AbsolutePath, WorkspaceDirSchema } from "../schemas/paths";
+import {
+  type AbsolutePath,
+  AbsolutePathSchema,
+  WorkspaceDirSchema,
+} from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { chatFor } from "../test/helpers/chat-record";
 import {
   listInvalidChatFolders,
   trashInvalidChatFolder,
 } from "./invalid-chat-folders";
-import { chatDir, forgetRecordFolders } from "./record-folders";
+import { chatDir, forgetChatFolders } from "./record-folders";
 import { Store } from "./store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -24,6 +28,7 @@ beforeEach(() => {
   trashed = [];
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
+    chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
     tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
     trashItem: (target: AbsolutePath) => {
@@ -32,11 +37,11 @@ beforeEach(() => {
       return Promise.resolve();
     },
   });
-  forgetRecordFolders();
+  forgetChatFolders();
 });
 
 afterEach(() => {
-  forgetRecordFolders();
+  forgetChatFolders();
   fs.rmSync(root, { force: true, recursive: true });
 });
 

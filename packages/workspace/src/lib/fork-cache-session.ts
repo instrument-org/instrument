@@ -1,5 +1,5 @@
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { isTaskSession } from "./chat/children";
 import { resolveChat, sessionOfChat } from "./record-folders";
 
@@ -15,7 +15,7 @@ export function cacheSessionFor({
   taskId,
 }: {
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }): StoreId.Session {
   if (!isTaskSession(taskId, sessionId)) {
     return sessionId;

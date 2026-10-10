@@ -6,7 +6,7 @@ import {
 } from "@instrument-org/shared";
 import {
   type SessionMessagePart,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
@@ -58,7 +58,7 @@ export function SourceImagesChip({
   id,
   part,
 }: {
-  id: TaskId;
+  id: ChatId;
   part: SessionMessagePart.ToolPart;
 }) {
   // Once generation succeeds the output carries `modifiedAt` for cache-busting.
@@ -126,7 +126,7 @@ export function ToolGenerateImage({
   onRetry,
   part,
 }: {
-  id: TaskId;
+  id: ChatId;
   onRetry: (prompt: string) => void;
   part: GenerateImagePart;
 }) {
@@ -335,7 +335,7 @@ function GeneratedImage({
   onOpen,
 }: {
   filePath: string;
-  id: TaskId;
+  id: ChatId;
   modifiedAt: number;
   onOpen: (file: { filePath: string; modifiedAt: number }) => void;
 }) {
@@ -420,7 +420,7 @@ function humanizeParamKey(key: string): string {
     : key;
 }
 
-function ImageActions({ filePath, id }: { filePath: string; id: TaskId }) {
+function ImageActions({ filePath, id }: { filePath: string; id: ChatId }) {
   const showTaskFile = useShowTaskFile();
 
   const handleExpand = () => {
@@ -572,7 +572,7 @@ function SourceThumbnail({
   onOpen,
 }: {
   filePath: string;
-  id: TaskId;
+  id: ChatId;
   modifiedAt: number;
   onOpen: (file: { filePath: string; modifiedAt: number }) => void;
 }) {
@@ -620,7 +620,7 @@ function StreamingImagePreview({
   id,
   image,
 }: {
-  id: TaskId;
+  id: ChatId;
   image?: { filePath: string; modifiedAt: number };
 }) {
   const src = useTaskImageSrc(id, image?.filePath, image?.modifiedAt);
@@ -660,7 +660,7 @@ function StreamingImagePreview({
  * which the image draws as not yet arrived.
  */
 function useTaskImageSrc(
-  id: TaskId,
+  id: ChatId,
   filePath: string | undefined,
   modifiedAt: number | undefined,
 ) {

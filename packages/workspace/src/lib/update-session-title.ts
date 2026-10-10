@@ -1,5 +1,5 @@
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { isSessionTitleAutoReplaceable } from "./generate-session-title";
 import { Store } from "./store";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -16,7 +16,7 @@ export async function updateSessionTitle({
   // isSessionTitleAutoReplaceable can't tell it apart from the default.
   expectedCurrentTitle?: string;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
   title: string;
 }): Promise<boolean> {
   const storedSession = await Store.getSession(sessionId, taskId);

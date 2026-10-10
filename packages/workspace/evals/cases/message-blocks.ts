@@ -24,7 +24,7 @@ import {
   type MessageKind,
   parseMessage,
 } from "../../src/lib/parse-message";
-import { taskDir } from "../../src/lib/task-dir-utils";
+import { chatDir } from "../../src/lib/record-folders";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
@@ -115,8 +115,8 @@ async function messageFiles(
   const children = await context.childSessions();
   const roots = [
     os.homedir(),
-    taskDir(context.taskId),
-    ...children.map((child) => taskDir(child.taskId)),
+    chatDir(context.taskId),
+    ...children.map((child) => chatDir(child.taskId)),
   ];
   const found = new Map<string, MessageDraft>();
   for (const root of roots) {

@@ -28,7 +28,7 @@ import { publisher } from "../rpc/publisher";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { type SessionTag } from "../schemas/task-agent-status";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import {
   agentMachine,
   type AgentMachineActorRef,
@@ -42,7 +42,7 @@ export type SessionMachineParentEvent = {
   value: {
     actorId: string;
     error?: unknown;
-    taskId: TaskId;
+    taskId: ChatId;
     usedNonReadOnlyTools: boolean;
   };
 };
@@ -122,7 +122,7 @@ export const sessionMachine = setup({
     // the session is empty, which leaves the agent nothing to answer.
     getLastMessageId: fromPromise<
       StoreId.Message | undefined,
-      { sessionId: StoreId.Session; taskId: TaskId }
+      { sessionId: StoreId.Session; taskId: ChatId }
     >(async ({ input, signal }) => {
       const result = await Store.getMessageIds(input.sessionId, input.taskId, {
         signal,
@@ -140,7 +140,7 @@ export const sessionMachine = setup({
         message: SessionMessage.UserWithParts;
         saved: boolean;
         sessionId: StoreId.Session;
-        taskId: TaskId;
+        taskId: ChatId;
       }
     >(async ({ input, signal }) => {
       const hasMismatchedSessionId = input.message.parts.some(
@@ -169,7 +169,7 @@ export const sessionMachine = setup({
       void,
       {
         sessionId: StoreId.Session;
-        taskId: TaskId;
+        taskId: ChatId;
       }
     >(async ({ input: { sessionId, taskId }, signal }) => {
       const existingSession = await Store.getSession(sessionId, taskId, {
@@ -228,7 +228,7 @@ export const sessionMachine = setup({
       savedMessageIds: StoreId.Message[];
       sessionId: StoreId.Session;
       subscription?: { unsubscribe: () => void };
-      taskId: TaskId;
+      taskId: ChatId;
       usedNonReadOnlyTools: boolean;
     },
     events: {} as SessionMachineEvent,
@@ -244,7 +244,7 @@ export const sessionMachine = setup({
       /** Those of `queuedMessages` the sender wrote to the store on arrival. */
       savedMessageIds?: StoreId.Message[];
       sessionId: StoreId.Session;
-      taskId: TaskId;
+      taskId: ChatId;
     },
     tags: {} as SessionTag,
   },

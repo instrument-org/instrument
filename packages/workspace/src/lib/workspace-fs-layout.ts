@@ -11,7 +11,7 @@ import nodePath from "node:path";
 import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import { MOUNT } from "../mount-points";
 import { type FolderAttachment } from "../schemas/folder-attachment";
-import { type AbsolutePath, type TaskDir } from "../schemas/paths";
+import { type AbsolutePath, type ChatDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import {
   canonicalizeThroughMissing,
@@ -110,7 +110,7 @@ export interface WorkspaceFsLayout {
    * synchronously; `buildBashFs` skips the ones that are not there.
    */
   skills: WorkspaceFsMount[];
-  task: WorkspaceFsMount & { hostRoot: TaskDir; readOnly: false };
+  task: WorkspaceFsMount & { hostRoot: ChatDir; readOnly: false };
 }
 
 /** A single virtual->real mount in the workspace filesystem. */
@@ -294,7 +294,7 @@ export function buildWorkspaceFsLayout({
    * masking and containment.
    */
   extraMounts?: WorkspaceFsMount[];
-  taskHostRoot: TaskDir;
+  taskHostRoot: ChatDir;
 }): WorkspaceFsLayout {
   const attached: WorkspaceFsMount[] = [
     ...assignAttachedMounts(attachedFolders ?? {}).map(
@@ -496,7 +496,7 @@ export function resolveHostPath(
  * puts under the task's `work/skills/`.
  */
 export function resolveNativeHostPath(
-  taskHostRoot: TaskDir,
+  taskHostRoot: ChatDir,
   virtualAbsPath: string,
 ): AbsolutePath {
   const normalized = normalizePath(virtualAbsPath);
@@ -718,7 +718,7 @@ function masked(mount: WorkspaceFsMount, fs: IFileSystem): IFileSystem {
  * plain view. Decided by where the folder is rather than by an id so that it
  * holds for every consumer handed only the task's host root.
  */
-function taskMaskedEntries(taskHostRoot: TaskDir): MaskedEntry[] {
+function taskMaskedEntries(taskHostRoot: ChatDir): MaskedEntry[] {
   return nodePath.dirname(taskHostRoot) === chatsDir()
     ? [TASK_FOLDER_NAMES.private, TASKS_DIR_NAME]
     : [TASK_FOLDER_NAMES.private];

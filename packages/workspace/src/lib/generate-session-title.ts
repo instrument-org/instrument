@@ -1,7 +1,7 @@
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { Store } from "./store";
-import { taskDir } from "./task-dir-utils";
-import { getTaskSettings } from "./task-settings";
+import { chatDir } from "./record-folders";
+import { getChatSettings } from "./chat-settings";
 
 const DEFAULT_UNTITLED_BASE = "Untitled chat";
 
@@ -12,7 +12,7 @@ export async function generateSessionTitle({
   taskId,
 }: {
   signal?: AbortSignal;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<string> {
   const baseTitle = DEFAULT_UNTITLED_BASE;
 
@@ -49,13 +49,13 @@ export async function isSessionTitleAutoReplaceable({
   taskId,
   title,
 }: {
-  taskId: TaskId;
+  taskId: ChatId;
   title: string;
 }) {
   if (isUntitledChatSessionTitle(title)) {
     return true;
   }
-  const settings = await getTaskSettings(taskDir(taskId));
+  const settings = await getChatSettings(chatDir(taskId));
   return settings?.name === title;
 }
 

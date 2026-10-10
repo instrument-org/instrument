@@ -29,7 +29,7 @@ import { llmRequestLogic } from "../logic/llm-request";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { getToolByType, type ToolOutputByName } from "../tools/all";
 import { type AnyAgentTool } from "../tools/types";
 import {
@@ -127,7 +127,7 @@ export const agentMachine = setup({
         parentMessageId: StoreId.Message;
         sessionId: StoreId.Session;
         stopReason?: StopReason;
-        taskId: TaskId;
+        taskId: ChatId;
       }
     >(async ({ input, signal }) => {
       const messageIdsResult = await Store.getMessageIds(
@@ -200,7 +200,7 @@ export const agentMachine = setup({
         model: AIGatewayModel.Type;
         parentMessageId: StoreId.Message;
         sessionId: StoreId.Session;
-        taskId: TaskId;
+        taskId: ChatId;
       }
     >(async ({ input, signal }) => {
       await input.agent.onFinish({
@@ -217,7 +217,7 @@ export const agentMachine = setup({
       {
         agent: AnyAgent;
         sessionId: StoreId.Session;
-        taskId: TaskId;
+        taskId: ChatId;
       }
     >(async ({ input, signal }) => {
       return input.agent.onStart({
@@ -232,7 +232,7 @@ export const agentMachine = setup({
       {
         maxStepCount: number;
         sessionId: StoreId.Session;
-        taskId: TaskId;
+        taskId: ChatId;
       }
     >(async ({ input, signal }) => {
       const now = getCurrentDate();
@@ -289,7 +289,7 @@ export const agentMachine = setup({
       {
         messages: SessionMessage.UserWithParts[];
         savedIds: StoreId.Message[];
-        taskId: TaskId;
+        taskId: ChatId;
       }
     >(async ({ input, signal }) => {
       const ids: StoreId.Message[] = [];
@@ -314,7 +314,7 @@ export const agentMachine = setup({
       {
         agent: AnyAgent;
         sessionId: StoreId.Session;
-        taskId: TaskId;
+        taskId: ChatId;
       }
     >(async ({ input, signal }) => {
       const messageResults = await Store.getMessagesWithParts(
@@ -369,7 +369,7 @@ export const agentMachine = setup({
       stepCount: number;
       /** Set when a stop, rather than an error or the end of the turn, ends the run. */
       stopReason?: StopReason;
-      taskId: TaskId;
+      taskId: ChatId;
       toolCallQueue: SessionMessagePart.ToolPartInputAvailable[];
       toolChoice?: "auto" | "none" | "required";
       // Streams whose tool parts no queue has taken over: raised when a
@@ -388,7 +388,7 @@ export const agentMachine = setup({
       parentMessageId: StoreId.Message;
       parentRef: ParentActorRef;
       sessionId: StoreId.Session;
-      taskId: TaskId;
+      taskId: ChatId;
       toolChoice?: "auto" | "none" | "required";
     },
     output: {} as AgentResult,
@@ -991,7 +991,7 @@ function withoutFinishedToolCall(
 function saveToolCallUpdate(
   pendingToolCall: SessionMessagePart.ToolPartInputAvailable,
   value: ToolCallUpdate,
-  taskId: TaskId,
+  taskId: ChatId,
 ) {
   // TODO Save these promises and handle them async in the state machine
   void Store.updatePart(

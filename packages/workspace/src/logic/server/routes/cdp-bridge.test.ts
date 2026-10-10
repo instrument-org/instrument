@@ -6,8 +6,8 @@ import {
   isKnownCdpMethod,
 } from "../../../lib/cdp-methods";
 import { buildWorkspaceFsLayout } from "../../../lib/workspace-fs-layout";
-import { TaskDirSchema } from "../../../schemas/paths";
-import { TaskIdSchema } from "../../../schemas/task-id";
+import { ChatDirSchema } from "../../../schemas/paths";
+import { ChatIdSchema } from "../../../schemas/chat-id";
 import { BrowserTargetIdSchema, type WorkspaceConfig } from "../../../types";
 import { type WorkspaceServerParentRef } from "../types";
 import {
@@ -20,11 +20,11 @@ import {
 vi.mock("../../../lib/resolve-workspace-file-path", async () => {
   const { buildWorkspaceFsLayout: build } =
     await import("../../../lib/workspace-fs-layout");
-  const { TaskDirSchema: TaskDir } = await import("../../../schemas/paths");
+  const { ChatDirSchema: ChatDir } = await import("../../../schemas/paths");
   return {
     taskFsLayout: () =>
       Promise.resolve(
-        build({ taskHostRoot: TaskDir.parse("/Users/me/Tasks/t1") }),
+        build({ taskHostRoot: ChatDir.parse("/Users/me/Tasks/t1") }),
       ),
   };
 });
@@ -156,7 +156,7 @@ describe("createMainFrameLoadGate", () => {
 
 describe("createLocalFileGate", () => {
   const layout = buildWorkspaceFsLayout({
-    taskHostRoot: TaskDirSchema.parse("/Users/me/Tasks/t1"),
+    taskHostRoot: ChatDirSchema.parse("/Users/me/Tasks/t1"),
   });
   const own = "file:///Users/me/Tasks/t1/work/page.html";
   const outside = "file:///Users/me/Desktop/private.html";
@@ -255,7 +255,7 @@ describe("openTargetSession on a local page", () => {
     const config = {
       browser: {
         getTargetMeta: () => ({
-          id: TaskIdSchema.parse("t1"),
+          id: ChatIdSchema.parse("t1"),
           partitionDir: "/tmp/profile",
           sessionId: "ses_00000000018888888888888888",
         }),

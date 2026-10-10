@@ -2,13 +2,13 @@ import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { getToolByType } from "../tools/all";
 import { getCurrentDate } from "./get-current-date";
 import { Store } from "./store";
 import { streamTool } from "./stream-tool";
-import { taskDir } from "./task-dir-utils";
-import { getTaskState } from "./task-record";
+import { chatDir } from "./record-folders";
+import { getChatState } from "./chat-record";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function runToolCall({
@@ -22,7 +22,7 @@ export async function runToolCall({
   part: SessionMessagePart.ToolPartInputAvailable;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   const tool = getToolByType(part.type);
   let preliminarySaved = false;
@@ -46,7 +46,7 @@ export async function runToolCall({
       { signal },
     );
 
-    const taskState = await getTaskState(taskDir(taskId));
+    const taskState = await getChatState(chatDir(taskId));
 
     for await (const { output, type } of streamTool({
       execute: tool.execute,

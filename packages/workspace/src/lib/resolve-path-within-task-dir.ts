@@ -4,7 +4,7 @@ import {
   type AbsolutePath,
   AbsolutePathSchema,
   type RelativePath,
-  type TaskDir,
+  type ChatDir,
 } from "../schemas/paths";
 import { normalizePath } from "./normalize-path";
 
@@ -12,7 +12,7 @@ export function resolvePathWithinTaskDir({
   dir,
   filePath,
 }: {
-  dir: TaskDir;
+  dir: ChatDir;
   filePath: RelativePath;
 }): AbsolutePath | null {
   const normalizedFilePath = normalizePath(filePath);

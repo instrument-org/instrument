@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { runPnpmCommand } from "./run-pnpm";
 import { getWorkspaceConfig } from "./workspace-config";
 import { taskLayout } from "../test/helpers/task-layout";
@@ -16,7 +16,7 @@ describe("runPnpmCommand", () => {
       exitCode: 0,
     });
 
-    const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
+    const taskId = createMockChatConfig(ChatIdSchema.parse("test"));
     await runPnpmCommand({
       args: ["install"],
       layout: taskLayout(taskId),
@@ -56,7 +56,7 @@ describe("runPnpmCommand", () => {
       exitCode: 0,
     });
 
-    const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
+    const taskId = createMockChatConfig(ChatIdSchema.parse("test"));
     await runPnpmCommand({
       args: ["dlx", "jiti@2.6.1", "x.ts"],
       layout: taskLayout(taskId),

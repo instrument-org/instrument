@@ -16,7 +16,6 @@ import { dedent } from "radashi";
 import { MOUNT } from "../mount-points";
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
 import { TOOL_NAMES } from "../tools/name";
 import { bashWorkerEnabled, createRemoteBash } from "./bash-worker/client";
 import { createSandboxFetch } from "./sandbox-fetch";
@@ -342,7 +341,7 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
  */
 interface CustomCommandContext {
   layout: WorkspaceFsLayout;
-  taskId: TaskId;
+  taskId: ChatId;
 }
 
 interface CustomCommandDef {
@@ -547,7 +546,7 @@ export interface BashEnvOptions {
   callPartId?: StoreId.Part;
   remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }
 
 /** What callers of `createBashEnv` get, wherever the interpreter runs. */

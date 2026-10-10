@@ -10,7 +10,7 @@ import {
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { showInFolderLabel, showTaskFolder } from "@/client/lib/show-in-files";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId, type ChatId } from "@instrument-org/workspace/client";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 
@@ -25,7 +25,7 @@ export function TaskMenu({
 }: {
   /** The session the transcript on screen is showing. */
   sessionId: StoreId.Session | undefined;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   const transcript = useTranscriptActions({ id: taskId, sessionId });
   const isDeveloperMode = useDeveloperMode();

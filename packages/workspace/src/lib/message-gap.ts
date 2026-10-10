@@ -6,7 +6,7 @@ import { alphabetical } from "radashi";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { Store } from "./store";
 
 /**
@@ -51,7 +51,7 @@ export function detectMessageGap({
   sentAt: Date;
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {

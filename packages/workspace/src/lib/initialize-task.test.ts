@@ -8,9 +8,9 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
 import { chatFor } from "../test/helpers/chat-record";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { ensureWorkFolder, initializeChat } from "./initialize-task";
-import { taskDir } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 const ISO_TIMESTAMP = /\d{4}-\d{2}-\d{2}T[\d:.]+Z/g;
@@ -30,12 +30,15 @@ afterEach(async () => {
 describe("initializeChat", () => {
   it("creates a chat from the bundled default template", async () => {
     const taskId = ChatIdSchema.parse("test-task");
-    createMockTaskConfigForDir(path.join(rootDir, "tasks", "unused"), {
+    createMockChatConfigForDir(path.join(rootDir, "tasks", "unused"), {
       unplaced: true,
     });
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
       // Chats go under a workspace of the test's own, beside its folders.
+      chatsDir: AbsolutePathSchema.parse(
+        path.join(rootDir, "workspace", "chats"),
+      ),
       rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
       defaultTaskTemplateDir: AbsolutePathSchema.parse(
         path.resolve(import.meta.dirname, "../../templates/default"),
@@ -50,7 +53,7 @@ describe("initializeChat", () => {
     });
 
     expect(result.isOk()).toBe(true);
-    expect(await listPaths(taskDir(taskId))).toMatchInlineSnapshot(`
+    expect(await listPaths(chatDir(taskId))).toMatchInlineSnapshot(`
       [
         ".gitignore",
         ".instrument/",
@@ -63,13 +66,13 @@ describe("initializeChat", () => {
       ]
     `);
     await expect(
-      fs.readFile(path.join(taskDir(taskId), "instrument.json"), "utf8"),
+      fs.readFile(path.join(chatDir(taskId), "instrument.json"), "utf8"),
     ).rejects.toMatchObject({ code: "ENOENT" });
     // Stamps normalized rather than frozen: faking the clock for a snapshot
     // leaves every real timer in the file faked too, which is a flake waiting
     // for the suite to run under load.
     const settings = await fs.readFile(
-      path.join(taskDir(taskId), ".instrument", "settings.json"),
+      path.join(chatDir(taskId), ".instrument", "settings.json"),
       "utf8",
     );
     expect(settings.replaceAll(ISO_TIMESTAMP, "<when>")).toMatchInlineSnapshot(`
@@ -82,13 +85,13 @@ describe("initializeChat", () => {
       }"
     `);
     await expect(
-      fs.readFile(path.join(taskDir(taskId), "package.json"), "utf8"),
+      fs.readFile(path.join(chatDir(taskId), "package.json"), "utf8"),
     ).resolves.toContain('"name": "@instrument-org/task"');
     // Snapshotted in full so the supply-chain settings a task installs under
     // stay visible: weakening the age gate or the build allowlist has to show
     // up as a diff here.
     await expect(
-      fs.readFile(path.join(taskDir(taskId), "pnpm-workspace.yaml"), "utf8"),
+      fs.readFile(path.join(chatDir(taskId), "pnpm-workspace.yaml"), "utf8"),
     ).resolves.toMatchInlineSnapshot(`
       "minimumReleaseAge: 10080
       # Declared empty so the key resolves here rather than from a task-local .npmrc,
@@ -121,7 +124,7 @@ describe("initializeChat", () => {
       "
     `);
     await expect(
-      fs.access(path.join(taskDir(taskId), TASK_FOLDER_NAMES.private)),
+      fs.access(path.join(chatDir(taskId), TASK_FOLDER_NAMES.private)),
     ).resolves.toBeUndefined();
   });
 });
@@ -153,28 +156,31 @@ describe("ensureWorkFolder", () => {
       defaultTaskTemplateDir: AbsolutePathSchema.parse(
         path.resolve(import.meta.dirname, "../../templates/default"),
       ),
+      chatsDir: AbsolutePathSchema.parse(
+        path.join(rootDir, "workspace", "chats"),
+      ),
       rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
     });
     // A chat as one made before chats did their own work: its record alone.
     const chatId = chatFor();
-    expect(await listPaths(taskDir(chatId))).toEqual([
+    expect(await listPaths(chatDir(chatId))).toEqual([
       ".instrument/",
       ".instrument/settings.json",
     ]);
 
     await ensureWorkFolder(chatId, getWorkspaceConfig());
-    const scaffolded = await listPaths(taskDir(chatId));
+    const scaffolded = await listPaths(chatDir(chatId));
     expect(scaffolded).toEqual(
       expect.arrayContaining(["attachments/", "package.json", "work/"]),
     );
 
     await fs.writeFile(
-      path.join(taskDir(chatId), "package.json"),
+      path.join(chatDir(chatId), "package.json"),
       '{"name":"mine"}',
     );
     await ensureWorkFolder(chatId, getWorkspaceConfig());
     await expect(
-      fs.readFile(path.join(taskDir(chatId), "package.json"), "utf8"),
+      fs.readFile(path.join(chatDir(chatId), "package.json"), "utf8"),
     ).resolves.toBe('{"name":"mine"}');
   });
 });

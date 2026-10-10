@@ -1,5 +1,5 @@
 import { type AbsolutePath } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { ensureTaskVenvForTask } from "./ensure-task-venv";
 import { runUvCommand } from "./run-uv";
 import { taskVenvPython } from "./uv";
@@ -16,7 +16,7 @@ export async function installPythonSkill({
 }: {
   signal: AbortSignal;
   skillDir: AbsolutePath;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<PythonSkillInstallResult> {
   // The task root, so uv discovers the venv where it now lives rather than
   // relying on VIRTUAL_ENV alone.

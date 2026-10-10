@@ -5,11 +5,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { detectTaskAppChanges } from "./task-app-changes";
 import { setTaskAppsBaseline } from "./task-apps-baseline";
-import { updateTaskSettings } from "./task-settings";
+import { updateChatSettings } from "./chat-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { initializeTaskInChat } from "../test/helpers/initialize-task-in-chat";
 
@@ -17,7 +17,7 @@ import { initializeTaskInChat } from "../test/helpers/initialize-task-in-chat";
 // second task under one name in a fresh temp directory reuses the handle on the
 // database the last one deleted, which answers every write as readonly.
 let taskCount = 0;
-let TASK_ID: ReturnType<typeof TaskIdSchema.parse>;
+let TASK_ID: ReturnType<typeof ChatIdSchema.parse>;
 
 let rootDir: string;
 let sessionId: StoreId.Session;
@@ -41,24 +41,27 @@ async function changesSince(baseline: string[]) {
 }
 
 async function nowHolds(apps: string[]) {
-  const result = await updateTaskSettings(TASK_ID, { apps });
+  const result = await updateChatSettings(TASK_ID, { apps });
   if (result.isErr()) {
     throw result.error;
   }
 }
 
 /**
- * Points the workspace at this test's directories. `createMockTaskConfigForDir`
+ * Points the workspace at this test's directories. `createMockChatConfigForDir`
  * replaces the whole config, so anything set before it is gone and every caller
  * of it has to follow with this.
  */
 function useWorkspace(taskId: string) {
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId), {
+  createMockChatConfigForDir(path.join(rootDir, "tasks", taskId), {
     unplaced: true,
   });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     // Chats go under a workspace of the test's own, beside its folders.
+    chatsDir: AbsolutePathSchema.parse(
+      path.join(path.join(rootDir, "workspace"), "chats"),
+    ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
     appsDir: AbsolutePathSchema.parse(path.join(rootDir, "apps")),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
@@ -69,7 +72,7 @@ function useWorkspace(taskId: string) {
 
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-app-changes-"));
-  TASK_ID = TaskIdSchema.parse(`file-the-issue-${++taskCount}`);
+  TASK_ID = ChatIdSchema.parse(`file-the-issue-${++taskCount}`);
   useWorkspace(TASK_ID);
   await initializeTaskInChat({
     initialSettings: { apps: [], name: "File the issue" },
@@ -107,7 +110,7 @@ describe("detectTaskAppChanges", () => {
   });
 
   it("says nothing to a task a person made, which reaches every app", async () => {
-    const personMade = TaskIdSchema.parse(`someones-own-task-${taskCount}`);
+    const personMade = ChatIdSchema.parse(`someones-own-task-${taskCount}`);
     useWorkspace(personMade);
     await initializeTaskInChat({
       initialSettings: { name: "Theirs" },

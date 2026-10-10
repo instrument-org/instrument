@@ -1,4 +1,4 @@
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 
 /**
  * A file some surface is offering to show or act on, by where it is on the
@@ -20,6 +20,6 @@ export interface ViewerFile {
    * The task page addresses its panes by that path and a mention in the
    * composer names the file the way the agent knows it.
    */
-  taskFile?: { filePath: string; taskId: TaskId };
+  taskFile?: { filePath: string; taskId: ChatId };
   url: string;
 }

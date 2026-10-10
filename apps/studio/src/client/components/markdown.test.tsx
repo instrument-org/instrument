@@ -9,7 +9,7 @@ import {
   UNTRUSTED_TASK_FILE_IMAGE_KINDS,
 } from "@/client/lib/image-policy";
 import { renderWithProviders } from "@/tests/render";
-import { ChatIdSchema, TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { Profiler } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
@@ -113,7 +113,7 @@ vi.mock("@/client/lib/computer-file-url", () => ({
 // before the plugins arrived.
 const RAW_HTML_TIMEOUT = 10_000;
 
-const TASK_ID = TaskIdSchema.parse("a-task");
+const TASK_ID = ChatIdSchema.parse("a-task");
 
 function renderMarkdown(markdown: string) {
   return renderWithProviders(<Markdown markdown={markdown} taskId={TASK_ID} />);

@@ -2,8 +2,8 @@ import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
   CALENDAR_COMMAND,
@@ -21,7 +21,7 @@ const ctx = createCommandContext({
 });
 
 describe("mac helper commands", () => {
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("calendar-test"));
+  const taskId = createMockChatConfig(ChatIdSchema.parse("calendar-test"));
   const config = getWorkspaceConfig();
 
   afterEach(() => {

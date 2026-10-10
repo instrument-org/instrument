@@ -4,9 +4,9 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { runTool } from "../../test/helpers/run-tool";
 import { BashTool } from "../../tools/bash";
 import {
@@ -24,14 +24,14 @@ const model = createMockAIGatewayModel();
  */
 describe("background job commands", () => {
   let taskDirPath: string;
-  let taskId: TaskId;
+  let taskId: ChatId;
   let sessionId: StoreId.Session;
 
   beforeEach(async () => {
     const tasksDir = await fs.mkdtemp(path.join(os.tmpdir(), "bg-cmd-"));
     taskDirPath = path.join(tasksDir, `01k${"cmd".padEnd(23, "0")}`);
     await fs.mkdir(path.join(taskDirPath, "work"), { recursive: true });
-    taskId = createMockTaskConfigForDir(taskDirPath);
+    taskId = createMockChatConfigForDir(taskDirPath);
     sessionId = StoreId.newSessionId();
     await fs.writeFile(
       path.join(taskDirPath, "work", "tick.js"),

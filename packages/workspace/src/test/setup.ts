@@ -29,7 +29,7 @@ const rejectBrowserTarget = () => {
 // Install a workspace config for every test, the way the workspace machine does
 // at boot in production. Without it, code that reads getWorkspaceConfig() would
 // need an "if initialized" escape hatch just to survive tests. Tests that need
-// specific paths override it (createMockTaskConfig). Keep this setup free of
+// specific paths override it (createMockChatConfig). Keep this setup free of
 // runtime imports from `../types`, which would preload `store-id` before
 // `vi.mock(import("ulid"))` runs in snapshot tests.
 setWorkspaceConfig({
@@ -71,6 +71,7 @@ setWorkspaceConfig({
   systemSkillsDir: AbsolutePathSchema.parse(
     path.join(rootDir, "system-skills"),
   ),
+  chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
   tasksDir: WorkspaceDirSchema.parse(tasksDir),
   trashItem: () => Promise.resolve(),
   uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),

@@ -4,8 +4,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
-import { TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
   listInvalidTaskFolders,
   trashInvalidTaskFolder,
@@ -29,7 +29,7 @@ beforeEach(async () => {
     path.join(tasksDir, "valid-task", ".instrument", "settings.json"),
     JSON.stringify({ name: "Valid" }),
   );
-  createMockTaskConfigForDir(path.join(tasksDir, "valid-task"));
+  createMockChatConfigForDir(path.join(tasksDir, "valid-task"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     tasksDir: AbsolutePathSchema.parse(tasksDir),
@@ -125,7 +125,7 @@ describe("trashInvalidTaskFolder", () => {
 
   it("refuses to trash a valid task folder", async () => {
     const result = await trashInvalidTaskFolder(
-      TaskIdSchema.parse("valid-task"),
+      ChatIdSchema.parse("valid-task"),
       getWorkspaceConfig(),
     );
 

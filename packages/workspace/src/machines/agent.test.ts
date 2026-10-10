@@ -8,9 +8,9 @@ import { Store } from "../lib/store";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { agentMachine } from "./agent";
 import { executeToolCallMachine } from "./execute-tool-call";
 
@@ -18,7 +18,7 @@ vi.mock(import("../lib/session-store-storage"));
 
 describe("agentMachine", () => {
   const model = createMockAIGatewayModel();
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("test"), { model });
+  const taskId = createMockChatConfig(ChatIdSchema.parse("test"), { model });
   const sessionId = StoreId.newSessionId();
   const messageId = StoreId.newMessageId();
   const createdAt = new Date("2025-01-01T00:00:00.000Z");

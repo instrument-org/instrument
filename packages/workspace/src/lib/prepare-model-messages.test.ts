@@ -12,15 +12,15 @@ import { TASK_FOLDER_NAMES } from "../constants";
 import { RelativePathSchema } from "../schemas/paths";
 import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import {
   prepareModelMessages,
   SESSION_CONTEXT_VERSION,
 } from "./prepare-model-messages";
 import { Store } from "./store";
-import { taskDir } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
 
 vi.mock(import("./session-store-storage"));
 
@@ -52,7 +52,7 @@ const HOSTILE_TOOL_CALL_ID = StoreId.ToolCallSchema.parse("call/01:abc.def");
 
 describe("prepareModelMessages", () => {
   let sessionId: StoreId.Session;
-  let taskId: ReturnType<typeof TaskIdSchema.parse>;
+  let taskId: ReturnType<typeof ChatIdSchema.parse>;
   let contextMessages: SessionMessage.ContextWithParts[];
   let getMessages: Mock<AnyAgent["getMessages"]>;
   let agent: AnyAgent;
@@ -253,7 +253,7 @@ describe("prepareModelMessages", () => {
 
   beforeEach(async () => {
     sessionId = StoreId.newSessionId();
-    taskId = createMockTaskConfig(TaskIdSchema.parse("mock"), {
+    taskId = createMockChatConfig(ChatIdSchema.parse("mock"), {
       model: anthropicModel,
     });
     contextMessages = [contextMessage(new Date(), "You are a helpful agent.")];
@@ -728,7 +728,7 @@ describe("prepareModelMessages", () => {
 
     /** The boundary the session records, or undefined if it has never reset. */
     beforeEach(async () => {
-      await fs.rm(path.join(taskDir(taskId), TASK_FOLDER_NAMES.work), {
+      await fs.rm(path.join(chatDir(taskId), TASK_FOLDER_NAMES.work), {
         force: true,
         recursive: true,
       });
@@ -925,11 +925,11 @@ describe("prepareModelMessages", () => {
       });
 
       it("hands back the notes the agent left, in the request itself", async () => {
-        await fs.mkdir(path.join(taskDir(taskId), TASK_FOLDER_NAMES.work), {
+        await fs.mkdir(path.join(chatDir(taskId), TASK_FOLDER_NAMES.work), {
           recursive: true,
         });
         await fs.writeFile(
-          path.join(taskDir(taskId), "work", "handoff-notes.md"),
+          path.join(chatDir(taskId), "work", "handoff-notes.md"),
           "Format: the number, then the English word.",
           "utf8",
         );

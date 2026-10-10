@@ -5,12 +5,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { TASK_FOLDER_NAMES } from "../constants";
 import { FolderAttachment } from "../schemas/folder-attachment";
-import { TaskDirSchema } from "../schemas/paths";
+import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
-import { ChatIdSchema } from "../schemas/chat-id";
 
 /**
  * `du` walks the real directories behind the mounts in a worker thread rather
@@ -26,7 +25,7 @@ const WIDE_FILES = 21_000;
 let tmpDir: string;
 let homeDir: string;
 let wideDir: string;
-let taskId: TaskId;
+let taskId: ChatId;
 
 async function run(command: string, { chat = false } = {}) {
   const attach = (name: string, folder: string) => ({
@@ -34,7 +33,7 @@ async function run(command: string, { chat = false } = {}) {
     createdAt: Date.now(),
     id: FolderAttachment.IdSchema.parse(`${name}-id`),
     mountName: name,
-    path: TaskDirSchema.parse(folder),
+    path: ChatDirSchema.parse(folder),
     source: "user" as const,
   });
   const bash = await createBashEnv({
@@ -86,7 +85,7 @@ beforeAll(async () => {
     ),
   );
 
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot));
+  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
 });
 
 afterAll(async () => {

@@ -3,7 +3,7 @@ import { useTranscriptActions } from "@/client/components/task/transcript-action
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { showInFolderLabel, showTaskFolder } from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
-import { type ChatId, type TaskId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
@@ -65,7 +65,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
   const transcript = useTranscriptActions({ sessionId: undefined });
   const isDeveloperMode = useDeveloperMode();
   const queryClient = useQueryClient();
-  const paint = (id: TaskId, change: (chat: Chat) => Chat) => {
+  const paint = (id: ChatId, change: (chat: Chat) => Chat) => {
     paintChat(queryClient, { id }, change);
   };
   const repaint = () => {
@@ -199,7 +199,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
  */
 function paintChat(
   queryClient: QueryClient,
-  { id }: { id: TaskId },
+  { id }: { id: ChatId },
   change: (chat: Chat) => Chat,
 ) {
   queryClient.setQueryData<Chat[]>(chatListOptions().queryKey, (chats) =>

@@ -1,17 +1,17 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { taskVenvDir, taskVenvPython, uvSubprocessEnv } from "./uv";
 
 const isWindows = process.platform === "win32";
-const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
+const taskId = createMockChatConfig(ChatIdSchema.parse("test"));
 
 describe("taskVenvDir", () => {
   it("resolves to .venv at the task root", () => {
     expect(taskVenvDir(taskId).replaceAll("\\", "/")).toBe(
-      "/tmp/workspace/tasks/test/.venv",
+      "/tmp/workspace/chats/test/.venv",
     );
   });
 });
@@ -19,8 +19,8 @@ describe("taskVenvDir", () => {
 describe("taskVenvPython", () => {
   it("points at the venv interpreter for the platform layout", () => {
     const expected = isWindows
-      ? "tasks/test/.venv/Scripts/python.exe"
-      : "tasks/test/.venv/bin/python";
+      ? "chats/test/.venv/Scripts/python.exe"
+      : "chats/test/.venv/bin/python";
     expect(taskVenvPython(taskId).replaceAll("\\", "/")).toContain(expected);
   });
 });
@@ -61,6 +61,6 @@ describe("uvSubprocessEnv", () => {
   it("prepends the uv binary dir and venv bin dir to PATH", () => {
     const dirs = (env.PATH ?? "").split(path.delimiter);
     expect(dirs[0]).toBe(path.dirname("/tmp/uv"));
-    expect(dirs[1]).toContain(path.join("tasks", "test", ".venv"));
+    expect(dirs[1]).toContain(path.join("chats", "test", ".venv"));
   });
 });

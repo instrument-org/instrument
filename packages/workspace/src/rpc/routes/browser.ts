@@ -8,7 +8,7 @@ import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
 import { getBrowserSessionDir } from "../../lib/task-dir-utils";
 import { BrowserPresenceLevelSchema } from "../../machines/task-browser";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { BrowserTargetIdSchema, encodeBrowserTargetId } from "../../types";
 import { base } from "../base";
 import { publisher } from "../publisher";
@@ -35,7 +35,7 @@ const open = base
   })
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       /** Where a tab that comes up blank goes: the address the window remembers it at. */
       restoreUrl: z.string().min(1).optional(),
       sessionId: StoreId.SessionSchema,
@@ -99,7 +99,7 @@ const open = base
  * result. That is correct here and would be a bug on anything else under `live`.
  */
 const presence = base
-  .input(z.object({ id: TaskIdSchema, level: BrowserPresenceLevelSchema }))
+  .input(z.object({ id: ChatIdSchema, level: BrowserPresenceLevelSchema }))
   .output(eventIterator(PresenceSchema))
   .handler(async function* ({ context, input, signal }) {
     invariant(signal, "presence subscription requires an AbortSignal");
@@ -147,7 +147,7 @@ const presence = base
 const agentActivity = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       /** One guest of the task's rather than all of them: a tab of the window's, driven by whichever task was handed it. */
       targetId: BrowserTargetIdSchema.optional(),
     }),
@@ -190,7 +190,7 @@ const agentActivity = base
  * means, as against hiding the panel it is drawn in.
  */
 const close = base
-  .input(z.object({ id: TaskIdSchema, sessionId: StoreId.SessionSchema }))
+  .input(z.object({ id: ChatIdSchema, sessionId: StoreId.SessionSchema }))
   .handler(async ({ context, input }) => {
     await context.workspaceConfig.browser.closeTarget(
       encodeBrowserTargetId(input.id, input.sessionId),

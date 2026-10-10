@@ -1,17 +1,17 @@
 import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import path from "node:path";
 
-import { type AbsolutePath, type TaskDir } from "../schemas/paths";
-import { TaskIdSchema } from "../schemas/task-id";
+import { type AbsolutePath, type ChatDir } from "../schemas/paths";
+import { ChatIdSchema } from "../schemas/chat-id";
 import {
-  type TaskSettings,
-  TaskSettingsSchema,
-} from "../schemas/task-settings";
+  type ChatSettings,
+  ChatSettingsSchema,
+} from "../schemas/chat-settings";
 import {
-  migrateTaskState,
-  StoredTaskStateSchema,
-  type TaskState,
-} from "../schemas/task-state";
+  migrateChatState,
+  StoredChatStateSchema,
+  type ChatState,
+} from "../schemas/chat-state";
 import { absolutePathJoin } from "./absolute-path-join";
 import { readJsonRecord, updateJsonRecord } from "./json-record-file";
 import { recordChanged } from "./record-changes";
@@ -40,7 +40,7 @@ import { getTaskPrivateDir } from "./task-dir-utils";
  * model pick or a tab, and a reader of the state hears every write to it
  * without its writer having to announce it.
  */
-export interface TaskRecord {
+export interface ChatRecord {
   /**
    * The object as it was on disk.
    *
@@ -50,8 +50,8 @@ export interface TaskRecord {
    */
   raw: Record<string, unknown>;
   /** Undefined when the file is missing or its settings cannot be read. */
-  settings: TaskSettings | undefined;
-  state: TaskState;
+  settings: ChatSettings | undefined;
+  state: ChatState;
   /**
    * The file is there and could not be read: truncated JSON, something that is
    * not an object, a permission error.
@@ -72,8 +72,8 @@ export interface TaskRecord {
  * nothing has been set, where an absent settings means the file could not be
  * read. Both callers depend on their half's answer to that.
  */
-export async function getTaskState(dir: TaskDir): Promise<TaskState> {
-  const record = await readTaskRecord(dir);
+export async function getChatState(dir: ChatDir): Promise<ChatState> {
+  const record = await readChatRecord(dir);
   return record.state;
 }
 
@@ -85,7 +85,7 @@ export async function getTaskState(dir: TaskDir): Promise<TaskState> {
  * and its place in the list -- and a title that cannot be read must not cost the
  * attached folders that decide what the agent can reach.
  */
-export async function readTaskRecord(dir: TaskDir): Promise<TaskRecord> {
+export async function readChatRecord(dir: ChatDir): Promise<ChatRecord> {
   const read = await readJsonRecord(recordPath(dir));
   // A task nobody has written a record for yet is the one case a write may
   // create from nothing; anything else is a file we have but cannot read.
@@ -94,11 +94,11 @@ export async function readTaskRecord(dir: TaskDir): Promise<TaskRecord> {
     : emptyRecord(read.kind === "unreadable");
 }
 
-export async function setTaskState(
-  dir: TaskDir,
-  state: Partial<TaskState>,
+export async function setChatState(
+  dir: ChatDir,
+  state: Partial<ChatState>,
 ): Promise<void> {
-  await updateTaskRecord(dir, "state", (record) =>
+  await updateChatRecord(dir, "state", (record) =>
     recordWithState(record, state),
   );
 }
@@ -107,11 +107,11 @@ export async function setTaskState(
  * Changes the state half from what is on disk, read inside the write queue,
  * so two changes landing together each build on the other.
  */
-export async function updateTaskState(
-  dir: TaskDir,
-  change: (state: TaskState) => Partial<TaskState>,
+export async function updateChatState(
+  dir: ChatDir,
+  change: (state: ChatState) => Partial<ChatState>,
 ): Promise<void> {
-  await updateTaskRecord(dir, "state", (record) =>
+  await updateChatRecord(dir, "state", (record) =>
     recordWithState(record, change(record.state)),
   );
 }
@@ -125,12 +125,12 @@ export async function updateTaskState(
  * generated title landing on a message send, would otherwise each build on
  * the record the other had not written yet.
  */
-export async function updateTaskRecord(
-  dir: TaskDir,
+export async function updateChatRecord(
+  dir: ChatDir,
   /** Which half the change is to, which is what the change feed says moved. */
   half: "settings" | "state",
-  update: (record: TaskRecord) => Record<string, unknown>,
-): Promise<TaskRecord> {
+  update: (record: ChatRecord) => Record<string, unknown>,
+): Promise<ChatRecord> {
   // An unreadable record is refused rather than built on: the write would
   // build on an empty reading of it, and going ahead costs everything the
   // file holds where failing the caller costs a model pick or a tab.
@@ -138,18 +138,18 @@ export async function updateTaskRecord(
     await updateJsonRecord(recordPath(dir), (raw) => update(recordFrom(raw))),
   );
   // A record's folder is named by its id.
-  const id = TaskIdSchema.safeParse(path.basename(dir));
+  const id = ChatIdSchema.safeParse(path.basename(dir));
   if (id.success) {
     recordChanged(id.data, half);
   }
   return written;
 }
 
-function emptyRecord(unreadable: boolean): TaskRecord {
+function emptyRecord(unreadable: boolean): ChatRecord {
   return {
     raw: {},
     settings: undefined,
-    state: StoredTaskStateSchema.parse({}),
+    state: StoredChatStateSchema.parse({}),
     unreadable,
   };
 }
@@ -158,25 +158,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function recordFrom(parsed: unknown): TaskRecord {
+function recordFrom(parsed: unknown): ChatRecord {
   if (!isRecord(parsed)) {
     // Valid JSON holding an array, a number, `null`: a record we cannot merge
     // into, which is the same position a truncated file leaves us in.
     return emptyRecord(true);
   }
 
-  const settings = TaskSettingsSchema.safeParse(parsed);
-  const state = StoredTaskStateSchema.safeParse(migrateTaskState(parsed.state));
+  const settings = ChatSettingsSchema.safeParse(parsed);
+  const state = StoredChatStateSchema.safeParse(migrateChatState(parsed.state));
 
   return {
     raw: parsed,
     settings: settings.success ? settings.data : undefined,
-    state: state.success ? state.data : StoredTaskStateSchema.parse({}),
+    state: state.success ? state.data : StoredChatStateSchema.parse({}),
     unreadable: false,
   };
 }
 
-function recordPath(dir: TaskDir): AbsolutePath {
+function recordPath(dir: ChatDir): AbsolutePath {
   return absolutePathJoin(getTaskPrivateDir(dir), TASK_SETTINGS_FILE_NAME);
 }
 
@@ -184,22 +184,22 @@ function recordPath(dir: TaskDir): AbsolutePath {
  * A record with `changes` applied to its state half, ready to be written.
  *
  * The raw state is spread *under* the parsed one, which is the whole point of
- * this existing: `StoredTaskStateSchema` is a plain object schema and strips
+ * this existing: `StoredChatStateSchema` is a plain object schema and strips
  * keys it does not know, so writing the parsed view back would quietly delete a
  * field a newer build had written. The top level is protected by spreading
  * `raw`, and this is the same protection one level down -- which is where it
  * matters more, since the top level is a closed set and `state` is the half
  * that keeps growing.
  *
- * The raw state goes through `migrateTaskState` too, so a key it renamed is
+ * The raw state goes through `migrateChatState` too, so a key it renamed is
  * written under its new name only rather than kept beside it, and the parsed
  * view still wins over raw.
  */
 function recordWithState(
-  record: TaskRecord,
-  changes: Partial<TaskState>,
+  record: ChatRecord,
+  changes: Partial<ChatState>,
 ): Record<string, unknown> {
-  const raw = migrateTaskState(record.raw.state);
+  const raw = migrateChatState(record.raw.state);
   return {
     ...record.raw,
     state: {

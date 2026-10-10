@@ -3,11 +3,11 @@ import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import {
-  createMockTaskConfig,
+  createMockChatConfig,
   MOCK_WORKSPACE_DIRS,
-} from "../../test/helpers/mock-task-config";
+} from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
   agentBrowserCommandDescription,
@@ -34,14 +34,14 @@ const mockCtx = createCommandContext({
 });
 
 describe("createAgentBrowserCommand", () => {
-  const taskId = TaskIdSchema.parse("test");
+  const taskId = ChatIdSchema.parse("test");
   const command = createAgentBrowserCommand({
     sessionId: StoreId.newSessionId(),
     taskId,
   });
 
   beforeEach(() => {
-    createMockTaskConfig(taskId, { externalBrowser: true });
+    createMockChatConfig(taskId, { externalBrowser: true });
   });
 
   it("returns managed help with read guidance", async () => {
@@ -250,12 +250,12 @@ describe("browserFreeReadEnv", () => {
 });
 
 describe("resolveAgentBrowserPathArgs", () => {
-  const taskId = TaskIdSchema.parse("upload-paths");
-  const taskDirPath = `${MOCK_WORKSPACE_DIRS.tasks}/upload-paths`;
+  const taskId = ChatIdSchema.parse("upload-paths");
+  const taskDirPath = `${MOCK_WORKSPACE_DIRS.chats}/upload-paths`;
   let fs = new InMemoryFs();
 
   beforeEach(async () => {
-    createMockTaskConfig(taskId);
+    createMockChatConfig(taskId);
     fs = new InMemoryFs();
     await fs.mkdir("/task/attachments", { recursive: true });
     await fs.mkdir("/task/output", { recursive: true });
@@ -422,16 +422,16 @@ describe("resolveAgentBrowserPathArgs", () => {
 });
 
 describe("agent-browser routing", () => {
-  const taskId = TaskIdSchema.parse("routing");
+  const taskId = ChatIdSchema.parse("routing");
   const sessionId = StoreId.newSessionId();
   const command = createAgentBrowserCommand({ sessionId, taskId });
-  const taskDirPath = `${MOCK_WORKSPACE_DIRS.tasks}/routing`;
+  const taskDirPath = `${MOCK_WORKSPACE_DIRS.chats}/routing`;
   let commandCtx = mockCtx;
 
   // Per test, not once at collection: the config is a process singleton, so a
   // describe that sets it in its body loses to whichever describe runs last.
   beforeEach(async () => {
-    createMockTaskConfig(taskId, { externalBrowser: true });
+    createMockChatConfig(taskId, { externalBrowser: true });
     const fs = new InMemoryFs();
     await fs.mkdir("/task/attachments", { recursive: true });
     await fs.writeFile("/task/attachments/image.png", "image");
@@ -782,12 +782,12 @@ describe("agent-browser routing", () => {
 });
 
 describe("agent-browser with external browsers disabled", () => {
-  const taskId = TaskIdSchema.parse("gated");
+  const taskId = ChatIdSchema.parse("gated");
   const sessionId = StoreId.newSessionId();
   const command = createAgentBrowserCommand({ sessionId, taskId });
 
   beforeEach(() => {
-    createMockTaskConfig(taskId, { externalBrowser: false });
+    createMockChatConfig(taskId, { externalBrowser: false });
   });
 
   afterEach(() => {

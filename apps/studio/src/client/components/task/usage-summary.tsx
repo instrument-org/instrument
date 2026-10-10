@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId, type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 
 import { Skeleton } from "../ui/skeleton";
@@ -16,7 +16,7 @@ export function TaskUsageSummary({
   taskId,
 }: {
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   const { data } = useQuery(
     rpcClient.workspace.task.live.usageSummary.experimental_liveOptions({

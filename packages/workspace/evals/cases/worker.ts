@@ -30,8 +30,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { inflateRawSync } from "node:zlib";
 
-import { taskDir } from "../../src/lib/task-dir-utils";
-import { type TaskId } from "../../src/schemas/task-id";
+import { chatDir } from "../../src/lib/record-folders";
+import { type ChatId } from "../../src/schemas/chat-id";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
 /** The four bytes every OOXML file starts with, being a zip. */
@@ -53,10 +53,10 @@ const MIN_DOCUMENT_BYTES = 4000;
  * Every file this task could have written: its own folder, and the workspace
  * folder, since a prompt naming one is answered in the other about as often.
  */
-async function deliverables(taskId: TaskId): Promise<string[]> {
+async function deliverables(taskId: ChatId): Promise<string[]> {
   const home = process.env.HOME ?? "";
   return [
-    ...(await filesUnder(taskDir(taskId))),
+    ...(await filesUnder(chatDir(taskId))),
     ...(home
       ? await filesUnder(path.join(home, "Documents", "Instrument"))
       : []),

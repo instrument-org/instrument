@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { resolveWorkspaceFilePaths } from "../../../lib/resolve-workspace-file-path";
 import { WorkspaceFilePathSchema } from "../../../schemas/paths";
-import { TaskIdSchema } from "../../../schemas/task-id";
+import { ChatIdSchema } from "../../../schemas/chat-id";
 import { base } from "../../base";
 
 /**
@@ -16,7 +16,7 @@ const hostPaths = base
   .input(
     z.object({
       filePaths: z.array(WorkspaceFilePathSchema),
-      taskId: TaskIdSchema,
+      taskId: ChatIdSchema,
     }),
   )
   .output(z.record(z.string(), z.string().nullable()))

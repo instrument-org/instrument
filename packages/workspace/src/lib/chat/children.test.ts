@@ -8,7 +8,7 @@ import { StoreId } from "../../schemas/store-id";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
-import { forgetRecordFolders } from "../record-folders";
+import { forgetChatFolders } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
   addChildTask,
@@ -27,15 +27,16 @@ beforeEach(async () => {
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.join(rootDir, "template"),
     ),
+    chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
     rootDir: WorkspaceDirSchema.parse(rootDir),
     tasksDir: WorkspaceDirSchema.parse(path.join(rootDir, "tasks")),
   });
   await fs.mkdir(path.join(rootDir, "template"));
-  forgetRecordFolders();
+  forgetChatFolders();
 });
 
 afterEach(async () => {
-  forgetRecordFolders();
+  forgetChatFolders();
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
@@ -73,7 +74,7 @@ describe("listChildTasks", () => {
       path.join(left, "settings.json"),
       JSON.stringify({ fork: true, name: "A fork", workdir: chat }),
     );
-    forgetRecordFolders();
+    forgetChatFolders();
 
     const tasks = await listChildTasks(chat);
 

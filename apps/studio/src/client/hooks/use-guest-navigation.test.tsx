@@ -2,7 +2,7 @@ import {
   type BrowserTargetId,
   encodeBrowserTargetId,
   StoreId,
-  TaskIdSchema,
+  ChatIdSchema,
 } from "@instrument-org/workspace/client";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,7 +13,7 @@ const { useGuest } = vi.hoisted(() => ({ useGuest: vi.fn() }));
 
 vi.mock("@/client/hooks/use-browser-targets", () => ({ useGuest }));
 
-const TASK_ID = TaskIdSchema.parse("guest-navigation-test");
+const TASK_ID = ChatIdSchema.parse("guest-navigation-test");
 const FIRST = encodeBrowserTargetId(TASK_ID, StoreId.newSessionId());
 const SECOND = encodeBrowserTargetId(TASK_ID, StoreId.newSessionId());
 

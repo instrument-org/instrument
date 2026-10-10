@@ -5,19 +5,19 @@ import {
   type SessionTag,
   type TaskAgentStatus,
 } from "../schemas/task-agent-status";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 
 export function getTaskAgentStatus({
   id,
   workspaceRef,
 }: {
-  id: TaskId;
+  id: ChatId;
   workspaceRef: WorkspaceActorRef;
 }) {
   const snapshot = workspaceRef.getSnapshot();
   const context = snapshot.context;
 
-  const sessionRefs = context.sessionRefsByTaskId.get(id) ?? [];
+  const sessionRefs = context.sessionRefsByChatId.get(id) ?? [];
   const sessionActors = sessionRefs.map((sessionRef) => {
     const sessionSnapshot = sessionRef.getSnapshot();
     return {

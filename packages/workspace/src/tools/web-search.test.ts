@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { WebSearch } from "./web-search";
 
@@ -314,7 +314,7 @@ describe("WebSearch model output", () => {
 
 describe("WebSearch execution", () => {
   const model = createMockAIGatewayModel();
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("web-search-test"), {
+  const taskId = createMockChatConfig(ChatIdSchema.parse("web-search-test"), {
     model,
   });
 

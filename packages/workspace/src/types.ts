@@ -16,18 +16,18 @@ import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 import { type StoredAppCredential } from "./lib/apps/origin-bound";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
-import { type TaskId, TaskIdSchema } from "./schemas/task-id";
+import { type ChatId, ChatIdSchema } from "./schemas/chat-id";
 import { type WebSearchClient } from "./schemas/web-search";
 
 export interface BrowserConfig {
   closeTarget: (targetId: BrowserTargetId) => Promise<void>;
   createTarget: (
-    id: TaskId,
+    id: ChatId,
     sessionId: StoreId.Session,
     partitionDir: AbsolutePath,
   ) => Promise<{ targetId: BrowserTargetId }>;
   getTargetMeta: (targetId: BrowserTargetId) => null | {
-    id: TaskId;
+    id: ChatId;
     partitionDir: AbsolutePath;
     sessionId: StoreId.Session;
   };
@@ -49,7 +49,7 @@ export interface BrowserConfig {
    * error it can do nothing about (docs/findings/a-task-cannot-look-at-what-it-drew.md).
    */
   hasNoWindow: boolean;
-  listTargets: (id: TaskId) => Promise<BrowserTarget[]>;
+  listTargets: (id: ChatId) => Promise<BrowserTarget[]>;
   /**
    * Told just before a blank guest is navigated back to the page its tab was
    * last on (`restoreLastPage`), so the browser's history can tell reopening
@@ -63,7 +63,7 @@ export interface BrowserConfig {
    * and never touches the person's.
    */
   contentBlocking: (
-    id: TaskId,
+    id: ChatId,
     blocking?: boolean,
   ) => { task: boolean; workspace: boolean };
   onTargetDestroyed: (
@@ -108,11 +108,11 @@ export interface BrowserTarget {
 
 // The bridge routing key for a single browser view: a (id, sessionId)
 // tuple encoded as `${id}/${sessionId}`. The schema delegates to the
-// existing TaskId and StoreId.Session validators so a parse failure
+// existing ChatId and StoreId.Session validators so a parse failure
 // pinpoints the offending half. Use `encodeBrowserTargetId` /
 // `decodeBrowserTargetId` to construct or parse one; never build by hand.
 export const BrowserTargetIdSchema = z
-  .custom<`${TaskId}/${StoreId.Session}`>()
+  .custom<`${ChatId}/${StoreId.Session}`>()
   .superRefine((val, ctx) => {
     if (typeof val !== "string") {
       ctx.addIssue({
@@ -134,7 +134,7 @@ export const BrowserTargetIdSchema = z
       });
       return;
     }
-    const taskIdResult = TaskIdSchema.safeParse(val.slice(0, slash));
+    const taskIdResult = ChatIdSchema.safeParse(val.slice(0, slash));
     if (!taskIdResult.success) {
       for (const issue of taskIdResult.error.issues) {
         ctx.addIssue({ ...issue, path: ["id", ...issue.path] });
@@ -225,6 +225,8 @@ export interface WorkspaceConfig {
   preparedSkillsDir: AbsolutePath;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;
+  // Where every chat's folder is, `chats/` under the root.
+  chatsDir: AbsolutePath;
   systemSkillsDir: AbsolutePath;
   tasksDir: AbsolutePath;
   trashItem: (path: AbsolutePath) => Promise<void>;
@@ -268,20 +270,20 @@ type CdpSendArgs<M extends CdpMethod> =
 
 export function decodeBrowserTargetId(
   targetId: string,
-): null | { id: TaskId; sessionId: StoreId.Session } {
+): null | { id: ChatId; sessionId: StoreId.Session } {
   const result = BrowserTargetIdSchema.safeParse(targetId);
   if (!result.success) {
     return null;
   }
   const slash = result.data.indexOf("/");
   return {
-    id: result.data.slice(0, slash) as TaskId,
+    id: result.data.slice(0, slash) as ChatId,
     sessionId: result.data.slice(slash + 1) as StoreId.Session,
   };
 }
 
 export function encodeBrowserTargetId(
-  id: TaskId,
+  id: ChatId,
   sessionId: StoreId.Session,
 ): BrowserTargetId {
   return BrowserTargetIdSchema.parse(`${id}/${sessionId}`);

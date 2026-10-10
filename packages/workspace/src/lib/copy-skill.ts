@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { TASK_FOLDER_NAMES } from "../constants";
-import { type AbsolutePath, type TaskDir } from "../schemas/paths";
+import { type AbsolutePath, type ChatDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getIgnore } from "./get-ignore";
 import { normalizePath } from "./normalize-path";
@@ -27,7 +27,7 @@ export async function copySkill({
   skillName,
   skillSource,
 }: {
-  dir: TaskDir;
+  dir: ChatDir;
   signal: AbortSignal;
   skillDir: AbsolutePath;
   skillName: string;

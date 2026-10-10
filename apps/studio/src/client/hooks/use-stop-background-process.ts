@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId, type ChatId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -12,7 +12,7 @@ import { toast } from "sonner";
  * asking a process that is already being stopped to stop.
  */
 export function useStopBackgroundProcess(
-  taskId: TaskId | undefined,
+  taskId: ChatId | undefined,
   /** One session's of the record alone: the chat's own, or a task's. */
   sessionId?: StoreId.Session,
 ) {

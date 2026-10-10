@@ -12,7 +12,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { detectChatAppChanges } from "./chat-app-changes";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
@@ -26,10 +26,9 @@ import { listTopics, type TopicFolder } from "./chat/topics";
 import { tabHolders } from "./chat/window-tab";
 import { Store } from "./store";
 import { detectTaskAppChanges } from "./task-app-changes";
-import { taskDir } from "./task-dir-utils";
-import { setTaskState } from "./task-record";
+import { chatDir, resolveChat } from "./record-folders";
+import { setChatState } from "./chat-record";
 import { chatConversation } from "./chat/children";
-import { resolveChat } from "./record-folders";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 import { workDir } from "./work-dir";
@@ -76,7 +75,7 @@ export async function newMessage({
   /** The earlier message this one answers; see the reply part. */
   replyTo?: SessionMessageDataPart.ReplyDataPart;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
   /** What the sending surface had on screen; see the view-context part. */
   viewing?: SessionMessageDataPart.ViewContextDataPart;
 }) {
@@ -177,7 +176,7 @@ export async function newMessage({
 
   if ((files && files.length > 0) || (folders && folders.length > 0)) {
     const uploadResult = await writeUploadedAttachments({
-      dir: taskDir(taskId),
+      dir: chatDir(taskId),
       filesDir: workDir(taskId),
       files,
       folders,
@@ -344,7 +343,7 @@ export async function newMessage({
     role: "user",
   };
 
-  await setTaskState(taskDir(taskId), { selectedModelURI: modelURI });
+  await setChatState(chatDir(taskId), { selectedModelURI: modelURI });
 
   getWorkspaceConfig().captureEvent("message.created", {
     files_count: files?.length ?? 0,
@@ -369,7 +368,7 @@ async function createChatTopicsPart({
   createdAt: Date;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
   const session = await Store.getSession(sessionId, taskId);
   if (session.isErr()) {
@@ -417,7 +416,7 @@ async function createChatTopicsPart({
  * (folder-reach.ts), and a namesake there can move one to a qualified name.
  */
 async function namedByReach(
-  taskId: TaskId,
+  taskId: ChatId,
   part: SessionMessagePart.Type,
 ): Promise<SessionMessagePart.Type> {
   if (part.type !== "data-attachments" || !part.data.folders) {
@@ -461,7 +460,7 @@ function topicFolderMounts(
  * from what is stored and must say the same thing every time it is read.
  */
 async function withTabHolders(
-  taskId: TaskId,
+  taskId: ChatId,
   viewing: SessionMessageDataPart.ViewContextDataPart,
 ): Promise<SessionMessageDataPart.ViewContextDataPart> {
   if (!viewing.tabs?.length && !viewing.page?.tabs?.length) {

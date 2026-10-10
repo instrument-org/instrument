@@ -1,6 +1,6 @@
 import { defineCommand } from "just-bash";
 
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { getWorkspaceConfig } from "../workspace-config";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import { resolveCommandContext } from "./utils";
@@ -35,7 +35,7 @@ export const CONTACTS_COMMAND = {
  */
 export function createMacHelperCommand(
   command: typeof CALENDAR_COMMAND | typeof CONTACTS_COMMAND,
-  taskId: TaskId,
+  taskId: ChatId,
 ) {
   return defineCommand(command.name, async (args, ctx) => {
     const binPath = getWorkspaceConfig().macHelperBinPath;

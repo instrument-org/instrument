@@ -7,7 +7,7 @@ import { type Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
@@ -24,7 +24,6 @@ import { latestStepIn } from "./step-label";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
 import { hasPendingWake } from "./wake";
-import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { createWriteQueue } from "../create-write-queue";
 
 /** How much of the agent's last reply a chat's row shows. */
@@ -206,7 +205,7 @@ export async function listedChats(
  * A chat whose digest is kept answers from it without opening its store.
  */
 export async function chatReadProblem(
-  chatId: TaskId,
+  chatId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<"unreadable-messages" | "unreadable-session" | undefined> {
   if (await chatDigest(chatId, sessionId)) {
@@ -544,7 +543,7 @@ const chatDigests = indexedByStore<ChatDigest | undefined>("chat_digests");
 
 /** A chat's digest, or none when its record or its messages cannot be read. */
 function chatDigest(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<ChatDigest | undefined> {
   return chatDigests(taskId, async () => {

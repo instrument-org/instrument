@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import { publisher } from "../rpc/publisher";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import {
   type ChangedMessageBatch,
   changedMessageBatches,
 } from "./changed-message-batches";
 
-const taskId = TaskIdSchema.parse("task-batches");
+const taskId = ChatIdSchema.parse("task-batches");
 const sessionId = StoreId.newSessionId();
 const otherSessionId = StoreId.newSessionId();
 

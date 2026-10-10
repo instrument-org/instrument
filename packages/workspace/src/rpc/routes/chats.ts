@@ -27,10 +27,9 @@ import {
 } from "../../lib/record-folders";
 import { trashChat } from "../../lib/trash-task";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { base, toORPCError } from "../base";
 import { distinct, liveRead } from "../live-read";
-import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
 /** A task the chat started, as its tasks screen lists it. */
 const ChildTaskSchema = ChatTaskSchema.extend({
@@ -80,7 +79,7 @@ function inChat(chatId: ChatId) {
  * chat's: nothing lists every chat's tasks.
  */
 const childTasksRoute = base
-  .input(z.object({ id: TaskIdSchema }))
+  .input(z.object({ id: ChatIdSchema }))
   .output(ChildTaskSchema.array())
   .handler(async ({ errors, input }) => {
     const chatId = resolveChat(input.id);
@@ -92,7 +91,7 @@ const childTasksRoute = base
 
 /** A chat's tasks, re-read whenever one of them may have changed. */
 const liveChildTasksRoute = base
-  .input(z.object({ id: TaskIdSchema }))
+  .input(z.object({ id: ChatIdSchema }))
   .output(eventIterator(ChildTaskSchema.array()))
   .handler(async function* ({ errors, input, signal }) {
     const chatId = resolveChat(input.id);

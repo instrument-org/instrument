@@ -7,10 +7,10 @@ import { parseArgs } from "node:util";
 import { CHATS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
-import { getTaskSettings } from "../src/lib/task-settings";
+import { getChatSettings } from "../src/lib/chat-settings";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
-import { TaskDirSchema } from "../src/schemas/paths";
-import { TaskIdSchema } from "../src/schemas/task-id";
+import { ChatDirSchema } from "../src/schemas/paths";
+import { ChatIdSchema } from "../src/schemas/chat-id";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
 
 const { positionals, values } = parseArgs({
@@ -35,7 +35,7 @@ if (!inputPath) {
   );
 }
 
-const dir = TaskDirSchema.parse(path.resolve(inputPath));
+const dir = ChatDirSchema.parse(path.resolve(inputPath));
 
 // The workspace root is above `chats/<chat>/tasks/<id>`, `chats/<chat>`, or
 // a 1.x `tasks/<id>`, and records are found by scanning its `chats/`.
@@ -46,9 +46,9 @@ const rootDir =
     ? parts.slice(0, chatsAt).join(path.sep)
     : path.dirname(path.dirname(dir));
 
-const settings = await getTaskSettings(dir);
+const settings = await getChatSettings(dir);
 const folderName = path.basename(dir);
-const id = TaskIdSchema.parse(folderName);
+const id = ChatIdSchema.parse(folderName);
 setWorkspaceConfig(
   createStubWorkspaceConfig({
     rootDir,

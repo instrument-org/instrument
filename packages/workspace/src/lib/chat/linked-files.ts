@@ -1,7 +1,7 @@
 import { sort, unique } from "radashi";
 
 import { type StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
@@ -19,7 +19,7 @@ const MESSAGES_READ = 100;
 export interface LinkedFile {
   at: number;
   /** The chat whose reply named it, which is what a path under `/task` is relative to. */
-  chatId: TaskId;
+  chatId: ChatId;
   /** The path as the reply named it, which is the path the agent can reach it by. */
   path: string;
 }
@@ -57,7 +57,7 @@ export async function linkedFiles(): Promise<LinkedFile[]> {
 const shownByChat = indexedByStore<LinkedFile[]>("linked_files");
 
 async function readShownIn(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<Derived<LinkedFile[]>> {
   const ids = await Store.getMessageIds(sessionId, taskId);
@@ -87,7 +87,7 @@ async function readShownIn(
 
 /** What one chat's replies showed. */
 function shownIn(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<LinkedFile[]> {
   return shownByChat(taskId, () => readShownIn(taskId, sessionId));

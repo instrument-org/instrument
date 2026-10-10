@@ -7,7 +7,7 @@ import {
 import { dedent } from "radashi";
 
 import { MOUNT } from "../../mount-points";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
@@ -73,7 +73,7 @@ const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
   "update",
 ]);
 
-export function createNpxCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createNpxCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
   return createDlxAliasCommand(
     NPX_COMMAND.name,
     taskId,
@@ -82,7 +82,7 @@ export function createNpxCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
   );
 }
 
-export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createPnpmCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
   return defineCommand(PNPM_COMMAND.name, async (args, ctx) => {
     const subcommand = args[0];
 
@@ -237,17 +237,17 @@ export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
   });
 }
 
-export function createPnpxCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createPnpxCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
   return createDlxAliasCommand(PNPX_COMMAND.name, taskId, layout);
 }
 
-export function createPnxCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createPnxCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
   return createDlxAliasCommand(PNX_COMMAND.name, taskId, layout);
 }
 
 function createDlxAliasCommand(
   name: string,
-  taskId: TaskId,
+  taskId: ChatId,
   layout: WorkspaceFsLayout,
   normalizeArgs = (args: string[]) => args,
 ) {

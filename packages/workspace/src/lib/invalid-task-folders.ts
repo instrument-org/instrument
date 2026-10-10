@@ -9,8 +9,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { AbsolutePathSchema } from "../schemas/paths";
-import { TaskIdSchema } from "../schemas/task-id";
-import { TaskSettingsSchema } from "../schemas/task-settings";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { ChatSettingsSchema } from "../schemas/chat-settings";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
@@ -29,12 +29,12 @@ export const UNREADABLE_SETTINGS_REASON =
  * task's: the same test the task record applies, made on the file alone so
  * nothing is opened or written inside the folder.
  */
-export function hasReadableTaskSettings(taskDir: string): boolean {
+export function hasReadableTaskSettings(chatDir: string): boolean {
   try {
-    return TaskSettingsSchema.safeParse(
+    return ChatSettingsSchema.safeParse(
       JSON.parse(
         readFileSync(
-          path.join(taskDir, TASK_PRIVATE_FOLDER_NAME, TASK_SETTINGS_FILE_NAME),
+          path.join(chatDir, TASK_PRIVATE_FOLDER_NAME, TASK_SETTINGS_FILE_NAME),
           "utf8",
         ),
       ),
@@ -68,7 +68,7 @@ export async function listInvalidTaskFolders(
   const invalid: InvalidTaskFolder[] = [];
   for (const entry of entries) {
     const name = path.basename(entry);
-    const parsed = TaskIdSchema.safeParse(name);
+    const parsed = ChatIdSchema.safeParse(name);
     if (!parsed.success) {
       invalid.push({
         name,
@@ -91,7 +91,7 @@ export async function trashInvalidTaskFolder(
   workspaceConfig: WorkspaceConfig,
 ): Promise<Result<void, TypedError.FileSystem | TypedError.Parse>> {
   if (
-    TaskIdSchema.safeParse(name).success &&
+    ChatIdSchema.safeParse(name).success &&
     hasReadableTaskSettings(path.join(workspaceConfig.tasksDir, name))
   ) {
     return err(
@@ -113,7 +113,7 @@ export async function trashInvalidTaskFolder(
     return err(new TypedError.Parse("Folder is outside the tasks directory"));
   }
 
-  const taskId = TaskIdSchema.safeParse(name);
+  const taskId = ChatIdSchema.safeParse(name);
   return ResultAsync.fromPromise(
     (async () => {
       // A store something opened is closed before its folder goes.

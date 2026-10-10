@@ -4,15 +4,14 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ChatIdSchema } from "../../schemas/chat-id";
+import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { subcommandRunner } from "../../test/helpers/run-subcommand";
 import { instrumentAgent } from "../../agents/instrument";
 import { folderReach } from "../chat/folder-reach";
@@ -22,9 +21,9 @@ import {
   SESSION_CONTEXT_VERSION,
 } from "../prepare-model-messages";
 import { Store } from "../store";
-import { taskDir } from "../task-dir-utils";
+import { chatDir } from "../record-folders";
 import { effectiveFolderAccess } from "../workspace-fs-layout";
-import { getTaskState, setTaskState } from "../task-record";
+import { getChatState, setChatState } from "../chat-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { folderSubcommand } from "./task/folder";
@@ -83,13 +82,16 @@ beforeEach(async () => {
     recursive: true,
   });
   vi.spyOn(os, "homedir").mockReturnValue(home);
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", "unused"), {
+  createMockChatConfigForDir(path.join(rootDir, "tasks", "unused"), {
     unplaced: true,
   });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../../templates/default"),
+    ),
+    chatsDir: AbsolutePathSchema.parse(
+      path.join(path.join(rootDir, "workspace"), "chats"),
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
@@ -107,7 +109,7 @@ beforeEach(async () => {
     remainingYieldMs: () => Number.POSITIVE_INFINITY,
     sessionId: chatSessionId,
   };
-  await setTaskState(taskDir(chatId), {
+  await setChatState(chatDir(chatId), {
     selectedModelURI:
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
   });
@@ -118,11 +120,11 @@ beforeEach(async () => {
   if (session.isErr()) {
     throw session.error;
   }
-  await fs.mkdir(path.join(taskDir(chatId), "attachments"), {
+  await fs.mkdir(path.join(chatDir(chatId), "attachments"), {
     recursive: true,
   });
   await fs.writeFile(
-    path.join(taskDir(chatId), "attachments", "list.csv"),
+    path.join(chatDir(chatId), "attachments", "list.csv"),
     "a,b\n",
   );
   for (const message of chatMessages) {
@@ -282,7 +284,7 @@ function started() {
     ): event is {
       type: "createSession";
       value: {
-        id: TaskId;
+        id: ChatId;
         message: SessionMessage.UserWithParts;
         sessionId: StoreId.Session;
       };
@@ -322,7 +324,7 @@ describe("task new", () => {
         ._unsafeUnwrap()
         .map((one) => one.id),
     ).toEqual([chatSessionId]);
-    expect(await fs.readdir(taskDir(context.chatId))).not.toContain("tasks");
+    expect(await fs.readdir(chatDir(context.chatId))).not.toContain("tasks");
 
     const start = started();
     expect(start).toMatchObject({ id: context.chatId, sessionId: id });
@@ -538,11 +540,11 @@ describe("task new", () => {
   });
 
   it("leaves the chat's folders alone, reaching them as they stand", async () => {
-    const before = (await getTaskState(taskDir(context.chatId)))
+    const before = (await getChatState(chatDir(context.chatId)))
       .attachedFolders;
     await fork();
     expect(
-      (await getTaskState(taskDir(context.chatId))).attachedFolders,
+      (await getChatState(chatDir(context.chatId))).attachedFolders,
     ).toEqual(before);
   });
 });

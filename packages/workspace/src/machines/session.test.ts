@@ -40,18 +40,16 @@ import * as recordFolders from "../lib/record-folders";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
-import { ChatIdSchema } from "../schemas/chat-id";
 import { type RelativePath } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema, type ChatId } from "../schemas/chat-id";
 import { type WebSearchClient } from "../schemas/web-search";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
-  createMockTaskConfig,
+  createMockChatConfig,
   MOCK_WORKSPACE_DIRS,
-} from "../test/helpers/mock-task-config";
+} from "../test/helpers/mock-chat-config";
 import { sessionToShorthand } from "../test/helpers/session-to-shorthand";
 import { TOOLS } from "../tools/all";
 import { sessionMachine, type SessionMachineParentEvent } from "./session";
@@ -311,8 +309,8 @@ describe("sessionMachine", () => {
       providerConfigId,
     });
 
-    const testTaskConfig = createMockTaskConfig(
-      TaskIdSchema.parse(taskFolder),
+    const testTaskConfig = createMockChatConfig(
+      ChatIdSchema.parse(taskFolder),
       {
         aiSDKModel: aiSDKModel ?? mockLanguageModel,
         imageModel,
@@ -406,7 +404,7 @@ describe("sessionMachine", () => {
   }: {
     actor: ActorRefFrom<typeof sessionMachine>;
     sessionId: StoreId.Session;
-    taskId: TaskId;
+    taskId: ChatId;
   }) {
     actor.start();
     await waitFor(actor, (state) => state.status === "done");
@@ -425,7 +423,7 @@ describe("sessionMachine", () => {
       [MOCK_WORKSPACE_DIRS.defaultTaskTemplate]: {
         "package.json": "{}",
       },
-      [MOCK_WORKSPACE_DIRS.tasks]: {
+      [MOCK_WORKSPACE_DIRS.chats]: {
         [taskFolder]: {
           "image.png": mockFs.load(
             path.resolve(

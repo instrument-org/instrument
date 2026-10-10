@@ -32,9 +32,9 @@ import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { TOOLS } from "../tools/all";
 import { llmRequestLogic } from "./llm-request";
 import { setWorkspaceServerPort } from "./server/url";
@@ -670,7 +670,7 @@ describe.skipIf(!captureDir)("llm request wire capture", () => {
   describe.each(TARGETS)("$name", (target) => {
     it.each(Object.keys(SCENARIOS))("%s", async (scenario) => {
       const model = modelFor(target);
-      const taskId = createMockTaskConfig(TaskIdSchema.parse("wire"), {
+      const taskId = createMockChatConfig(ChatIdSchema.parse("wire"), {
         catalog: [model],
         model,
       });
@@ -749,7 +749,7 @@ describe.skipIf(!captureDir)("llm request wire capture", () => {
 
     it("title", async () => {
       const model = modelFor(target);
-      createMockTaskConfig(TaskIdSchema.parse("wire"), {
+      createMockChatConfig(ChatIdSchema.parse("wire"), {
         catalog: [model],
         model,
       });

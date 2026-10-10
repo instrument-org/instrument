@@ -1,14 +1,14 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { describe, expect, it } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { getAppCatalog, searchAppCatalog } from "../apps/catalog";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { truncateMiddle } from "../truncate-buffer";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
 
-const taskId = TaskIdSchema.parse("app-catalog-task");
+const taskId = ChatIdSchema.parse("app-catalog-task");
 
 async function catalog(...words: string[]) {
   const result = await createAppCommand({ taskId }).execute(

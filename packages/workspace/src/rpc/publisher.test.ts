@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { publisher } from "./publisher";
 
 describe("publisher", () => {
@@ -13,7 +13,7 @@ describe("publisher", () => {
       signal: controller.signal,
     });
     const ids = ["a", "b", "c"].map((name) => ({
-      id: TaskIdSchema.parse(`task-${name}`),
+      id: ChatIdSchema.parse(`task-${name}`),
       sessionId: StoreId.newSessionId(),
     }));
 

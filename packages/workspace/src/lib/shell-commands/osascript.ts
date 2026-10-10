@@ -1,6 +1,6 @@
 import { defineCommand } from "just-bash";
 
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -150,7 +150,7 @@ async function scriptFileSource(
 }
 
 export function createOsascriptCommand(
-  taskId: TaskId,
+  taskId: ChatId,
   layout: WorkspaceFsLayout,
 ) {
   return defineCommand(OSASCRIPT_COMMAND.name, async (args, ctx) => {

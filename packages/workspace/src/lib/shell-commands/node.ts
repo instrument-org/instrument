@@ -2,7 +2,7 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 
 import { MOUNT } from "../../mount-points";
 import { type AbsolutePath } from "../../schemas/paths";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
@@ -29,7 +29,7 @@ const BLOCKED_FLAGS = new Set(["--interactive", "-i"]);
 const BLOCKED_FLAG_PREFIXES = ["--inspect", "--debug", "--watch"];
 
 function execNode(
-  taskId: TaskId,
+  taskId: ChatId,
   args: string[],
   signal?: AbortSignal,
   cwd?: AbsolutePath,
@@ -82,7 +82,7 @@ const SANDBOXED_ALTERNATIVE = {
   alternative: `Run it with \`js-exec\` instead, which reads attached folders directly, if the code imports no package.`,
 };
 
-export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createNodeCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
   return defineCommand(NODE_COMMAND.name, async (args, ctx) => {
     const { env, taskCwd } = resolveCommandContext(taskId, ctx);
     const stdinProgram = latin1FromBytes(ctx.stdin);

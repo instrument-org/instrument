@@ -1,7 +1,7 @@
 import { rpcClient } from "@/client/rpc/client";
 import {
   type SessionMessagePart,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { CheckIcon } from "@phosphor-icons/react/Check";
@@ -253,7 +253,7 @@ export function ToolChoose({
   taskId,
 }: {
   part: ChoosePart;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   const answer = useMutation(
     rpcClient.workspace.session.answerToolCall.mutationOptions({

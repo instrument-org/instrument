@@ -6,25 +6,25 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import {
   AbsolutePathSchema,
-  TaskDirSchema,
+  ChatDirSchema,
   WorkspaceFilePathSchema,
 } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { getCurrentFileInfo } from "./get-file-info";
-import { setTaskState } from "./task-record";
+import { setChatState } from "./chat-record";
 
 describe("getCurrentFileInfo", () => {
   let mountedModifiedAt: number;
   let root: string;
-  let taskId: TaskId;
+  let taskId: ChatId;
   let taskModifiedAt: number;
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "file-info-"));
     const taskRoot = path.join(root, "tasks", "file-info-task");
     const photosRoot = path.join(root, "Photos");
-    taskId = createMockTaskConfigForDir(taskRoot);
+    taskId = createMockChatConfigForDir(taskRoot);
 
     await fs.mkdir(taskRoot, { recursive: true });
     await fs.mkdir(photosRoot);
@@ -35,7 +35,7 @@ describe("getCurrentFileInfo", () => {
     taskModifiedAt = taskStats.mtimeMs;
     mountedModifiedAt = mountedStats.mtimeMs;
 
-    await setTaskState(TaskDirSchema.parse(taskRoot), {
+    await setChatState(ChatDirSchema.parse(taskRoot), {
       attachedFolders: {
         photos: {
           access: "read-only",

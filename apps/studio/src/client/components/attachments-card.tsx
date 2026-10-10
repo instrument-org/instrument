@@ -3,7 +3,7 @@ import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import {
   type SessionMessageDataPart,
   TASK_FOLDER_NAMES,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 
 import { FilesGrid } from "./files-grid";
@@ -18,7 +18,7 @@ const LEGACY_ATTACHMENT_DIR_PREFIXES = ["user-provided/", "agent-retrieved/"];
 
 interface FileAttachmentsCardProps {
   files: SessionMessageDataPart.FileAttachmentDataPart[];
-  taskId: TaskId;
+  taskId: ChatId;
 }
 
 export function AttachmentsCard({ files, taskId }: FileAttachmentsCardProps) {

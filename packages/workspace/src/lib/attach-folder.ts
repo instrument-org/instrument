@@ -1,10 +1,10 @@
 import { type FolderAttachment } from "../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { getCurrentDate } from "./get-current-date";
 import { grantFolders } from "./grant-folders";
-import { taskDir } from "./task-dir-utils";
-import { getTaskState, setTaskState } from "./task-record";
+import { chatDir } from "./record-folders";
+import { getChatState, setChatState } from "./chat-record";
 
 /**
  * Attach a folder to a task outside of a message, the way an answered
@@ -24,10 +24,10 @@ export async function attachFolder({
   access: FolderAttachment.Access;
   mountName?: string;
   path: string;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<FolderAttachment.Type> {
-  const dir = taskDir(taskId);
-  const state = await getTaskState(dir);
+  const dir = chatDir(taskId);
+  const state = await getChatState(dir);
   const { folders, granted } = grantFolders(
     Object.values(state.attachedFolders ?? {}),
     [
@@ -40,7 +40,7 @@ export async function attachFolder({
     ],
     getCurrentDate().getTime(),
   );
-  await setTaskState(dir, { attachedFolders: folders });
+  await setChatState(dir, { attachedFolders: folders });
   const [attached] = granted;
   if (!attached) {
     throw new Error(`Folder ${path} was not attached`);
@@ -62,13 +62,13 @@ export async function detachFolder({
   taskId,
 }: {
   path: string;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<void> {
-  const dir = taskDir(taskId);
-  const state = await getTaskState(dir);
+  const dir = chatDir(taskId);
+  const state = await getChatState(dir);
   const wanted = AbsolutePathSchema.parse(folderPath);
   const remaining = Object.entries(state.attachedFolders ?? {}).filter(
     ([, folder]) => folder.path !== wanted,
   );
-  await setTaskState(dir, { attachedFolders: Object.fromEntries(remaining) });
+  await setChatState(dir, { attachedFolders: Object.fromEntries(remaining) });
 }

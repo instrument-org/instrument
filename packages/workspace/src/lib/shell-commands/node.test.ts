@@ -8,9 +8,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { taskDir } from "../task-dir-utils";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { chatDir } from "../record-folders";
 import { createNodeCommand } from "./node";
 import { taskLayout } from "../../test/helpers/task-layout";
 
@@ -26,7 +26,7 @@ const mockCtx = createCommandContext({
 });
 
 describe("nodeCommand", () => {
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
+  const taskId = createMockChatConfig(ChatIdSchema.parse("test"));
   const command = createNodeCommand(taskId, taskLayout(taskId));
 
   afterEach(() => {
@@ -369,7 +369,7 @@ describe("nodeCommand", () => {
 
   it("blocks a script file that references /mnt without spawning node", async () => {
     const { execa } = await import("execa");
-    const workDir = path.join(taskDir(taskId), "work");
+    const workDir = path.join(chatDir(taskId), "work");
     await fs.mkdir(workDir, { recursive: true });
     const scriptPath = path.join(workDir, "bad.js");
     await fs.writeFile(
@@ -400,7 +400,7 @@ describe("nodeCommand", () => {
 
     const calledArgs = vi.mocked(execa).mock.calls.at(-1)?.[1];
     assert(Array.isArray(calledArgs), "expected args array");
-    expect(calledArgs[0]).not.toContain(taskDir(taskId));
+    expect(calledArgs[0]).not.toContain(chatDir(taskId));
     expect(calledArgs[0]).toBe("scripts/run.js");
   });
 });

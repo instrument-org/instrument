@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { listBackgroundProcesses } from "./background-processes";
 import { getCurrentDate } from "./get-current-date";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
@@ -42,7 +42,7 @@ export async function createBackgroundProcessesPart({
   createdAt: Date;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
     const storage = await getSessionsStoreStorage(taskId);

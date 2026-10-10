@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { type Session } from "../../src/schemas/session";
-import { type TaskId } from "../../src/schemas/task-id";
+import { type ChatId } from "../../src/schemas/chat-id";
 import { CONTEXT_ROLLOVER_EVALS } from "./context-rollover";
 
 const [rolloverCase] = CONTEXT_ROLLOVER_EVALS;
@@ -28,7 +28,7 @@ const check = (...answers: string[]) =>
   keepsItsFormat?.check({
     childSessions: () => Promise.resolve([]),
     sessions: sessionsWithAnswers(...answers),
-    taskId: "task" as TaskId,
+    taskId: "task" as ChatId,
   });
 
 describe("context rollover: kept the format it chose", () => {

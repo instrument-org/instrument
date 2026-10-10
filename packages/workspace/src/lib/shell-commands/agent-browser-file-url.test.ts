@@ -2,7 +2,7 @@ import { InMemoryFs } from "just-bash";
 import { describe, expect, it } from "vitest";
 
 import { FolderAttachment } from "../../schemas/folder-attachment";
-import { AbsolutePathSchema, TaskDirSchema } from "../../schemas/paths";
+import { AbsolutePathSchema, ChatDirSchema } from "../../schemas/paths";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
 
@@ -17,7 +17,7 @@ const layout = buildWorkspaceFsLayout({
       source: "user",
     },
   },
-  taskHostRoot: TaskDirSchema.parse("/Users/me/Tasks/test-task"),
+  taskHostRoot: ChatDirSchema.parse("/Users/me/Tasks/test-task"),
 });
 
 async function makeCtx() {

@@ -6,9 +6,9 @@ import {
 } from "just-bash";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { taskDir } from "../task-dir-utils";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { chatDir } from "../record-folders";
 import {
   addressAppsById,
   createOsascriptCommand,
@@ -32,7 +32,7 @@ async function mockExeca() {
 }
 
 describe("osascriptCommand", () => {
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
+  const taskId = createMockChatConfig(ChatIdSchema.parse("test"));
   const command = createOsascriptCommand(taskId, taskLayout(taskId));
 
   afterEach(() => {
@@ -152,7 +152,7 @@ describe("osascriptCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       "/usr/bin/osascript",
-      ["-e", `read POSIX file "${taskDir(taskId)}/invite.ics"`],
+      ["-e", `read POSIX file "${chatDir(taskId)}/invite.ics"`],
       expect.anything(),
     );
   });

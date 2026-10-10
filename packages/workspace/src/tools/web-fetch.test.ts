@@ -6,17 +6,17 @@ import { clearCachedPages } from "../lib/web-fetch-cache";
 import { getWorkspaceServerPort } from "../logic/server/url";
 import { RelativePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
-  createMockTaskConfig,
+  createMockChatConfig,
   MOCK_WORKSPACE_DIRS,
-} from "../test/helpers/mock-task-config";
+} from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { WebFetch } from "./web-fetch";
 
 const model = createMockAIGatewayModel();
-const taskId = createMockTaskConfig(TaskIdSchema.parse("web-fetch-test"), {
+const taskId = createMockChatConfig(ChatIdSchema.parse("web-fetch-test"), {
   model,
 });
 
@@ -98,7 +98,7 @@ describe("WebFetch model output", () => {
 
   it("returns the first 20,000 characters when no size was asked for", async () => {
     const page = "p".repeat(60_000);
-    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [taskId]: {} } });
     vi.stubGlobal(
       "fetch",
       vi.fn(
@@ -128,7 +128,7 @@ describe("WebFetch model output", () => {
     const page = `visible start ${"x".repeat(100)} full tail`;
     const partId = StoreId.newPartId();
     mockFs({
-      [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} },
+      [MOCK_WORKSPACE_DIRS.chats]: { [taskId]: {} },
     });
     vi.stubGlobal(
       "fetch",
@@ -158,7 +158,7 @@ describe("WebFetch model output", () => {
 
     expect(output.text).toBe(page.slice(0, 20));
     const spill = await fs.readFile(
-      `${MOCK_WORKSPACE_DIRS.tasks}/${taskId}/${output.spillFilePath}`,
+      `${MOCK_WORKSPACE_DIRS.chats}/${taskId}/${output.spillFilePath}`,
       "utf8",
     );
     expect(spill).toContain(page);
@@ -176,7 +176,7 @@ describe("WebFetch failures", () => {
   });
 
   async function fetchFailing(response: Response): Promise<string> {
-    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [taskId]: {} } });
     vi.stubGlobal(
       "fetch",
       vi.fn(() => response),
@@ -268,7 +268,7 @@ describe("WebFetch page cache", () => {
       maxCharacters?: number;
     } = {},
   ) {
-    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [taskId]: {} } });
     const fetchSpy = vi.fn(response);
     vi.stubGlobal("fetch", fetchSpy);
     const run = async (input: Record<string, unknown>) => {
@@ -380,7 +380,7 @@ describe("WebFetch addresses", () => {
   });
 
   async function fetchFrom(url: string, fetchSpy: ReturnType<typeof vi.fn>) {
-    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [taskId]: {} } });
     vi.stubGlobal("fetch", fetchSpy);
     const result = await runTool(WebFetch, {
       input: { url },

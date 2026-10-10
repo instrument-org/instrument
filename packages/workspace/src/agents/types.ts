@@ -5,7 +5,7 @@ import type { AnyAgentTool } from "../tools/types";
 
 import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 
 export interface Agent<T extends AgentTools> {
   agentTools: T;
@@ -14,7 +14,7 @@ export interface Agent<T extends AgentTools> {
     taskId,
   }: {
     sessionId: StoreId.Session;
-    taskId: TaskId;
+    taskId: ChatId;
   }) =>
     | Promise<SessionMessage.ContextWithParts[]>
     | SessionMessage.ContextWithParts[];
@@ -25,12 +25,12 @@ export interface Agent<T extends AgentTools> {
     parentMessageId: StoreId.Message;
     sessionId: StoreId.Session;
     signal: AbortSignal;
-    taskId: TaskId;
+    taskId: ChatId;
   }) => Promise<void>;
   onStart: (options: {
     sessionId: StoreId.Session;
     signal: AbortSignal;
-    taskId: TaskId;
+    taskId: ChatId;
   }) => Promise<void>;
   shouldContinue: (options: {
     messages: SessionMessage.WithParts[];

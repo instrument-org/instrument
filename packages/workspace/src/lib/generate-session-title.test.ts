@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
   isSessionTitleAutoReplaceable,
   isUntitledChatSessionTitle,
 } from "./generate-session-title";
-import { getTaskSettings } from "./task-settings";
+import { getChatSettings } from "./chat-settings";
 
-vi.mock("./task-settings", () => ({
-  getTaskSettings: vi.fn(),
+vi.mock("./chat-settings", () => ({
+  getChatSettings: vi.fn(),
 }));
 
-const mockGetTaskSettings = vi.mocked(getTaskSettings);
+const mockGetTaskSettings = vi.mocked(getChatSettings);
 
 describe("isUntitledChatSessionTitle", () => {
   it.each([
@@ -34,7 +34,7 @@ describe("isUntitledChatSessionTitle", () => {
 });
 
 describe("isSessionTitleAutoReplaceable", () => {
-  const taskId = createMockTaskConfigForDir("/tmp/instrument-test-task");
+  const taskId = createMockChatConfigForDir("/tmp/instrument-test-task");
 
   beforeEach(() => {
     mockGetTaskSettings.mockReset();

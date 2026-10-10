@@ -24,10 +24,10 @@ import { AGENT_MESSAGE_LANGUAGE } from "../../src/constants";
 import { outputFolderPath } from "../../src/lib/chat/output-folder";
 import { memoryDir, saveMemory } from "../../src/lib/memory/store";
 import { isToolPart } from "../../src/lib/is-tool-part";
-import { taskDir } from "../../src/lib/task-dir-utils";
-import { getTaskState } from "../../src/lib/task-record";
+import { chatDir } from "../../src/lib/record-folders";
+import { getChatState } from "../../src/lib/chat-record";
 import { type Session } from "../../src/schemas/session";
-import { type TaskId } from "../../src/schemas/task-id";
+import { type ChatId } from "../../src/schemas/chat-id";
 import {
   type Assertion,
   type AssertionResult,
@@ -107,7 +107,7 @@ function lastReply(sessions: Session.WithMessagesAndParts[]): string {
 async function treeDirs({ childSessions, taskId }: Context): Promise<string[]> {
   const children = await childSessions();
   return [taskId, ...children.map((child) => child.taskId)].map((id) =>
-    taskDir(id),
+    chatDir(id),
   );
 }
 
@@ -182,10 +182,10 @@ export function readText(file: string): string {
 
 /** Where a folder the case sent was attached for this run. */
 async function attachedFolder(
-  taskId: TaskId,
+  taskId: ChatId,
   name: string,
 ): Promise<string | undefined> {
-  const state = await getTaskState(taskDir(taskId));
+  const state = await getChatState(chatDir(taskId));
   return Object.values(state.attachedFolders ?? {}).find(
     (folder) => path.basename(folder.path) === name,
   )?.path;
@@ -1027,7 +1027,7 @@ function sentAtOr(sessions: Session.WithMessagesAndParts[], words: string) {
 }
 
 /** The times `EvalCase.marks` recorded for this run, by name. */
-function marksFor(taskId: TaskId): Record<string, null | number> {
+function marksFor(taskId: ChatId): Record<string, null | number> {
   try {
     const read: unknown = JSON.parse(
       fs.readFileSync(path.join(HOME, ".eval-marks", `${taskId}.json`), "utf8"),

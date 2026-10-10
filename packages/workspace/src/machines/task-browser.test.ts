@@ -14,7 +14,7 @@ import {
 } from "../lib/workspace-config";
 import { type AbsolutePath } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import {
   type BrowserConfig,
   type BrowserTargetId,
@@ -76,7 +76,7 @@ function makeBrowser(): BrowserConfig {
   };
 }
 
-const id = TaskIdSchema.parse("test-task");
+const id = ChatIdSchema.parse("test-task");
 const partitionDir = "/tmp/partition" as AbsolutePath;
 
 interface Harness {

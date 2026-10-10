@@ -128,7 +128,7 @@ export function migrateWorkspaceLayout({
 }
 
 // A real project has a ProjectId (prj_<ULID>) in its settings; structurally
-// distinct from a TaskId, so legacy tasks are never misclassified.
+// distinct from a ChatId, so legacy tasks are never misclassified.
 function isProjectFolder(folderPath: string): boolean {
   const settingsPath = path.join(
     folderPath,

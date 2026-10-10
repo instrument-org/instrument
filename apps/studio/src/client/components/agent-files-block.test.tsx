@@ -1,6 +1,6 @@
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { renderWithProviders } from "@/tests/render";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -68,7 +68,7 @@ vi.mock("@/client/lib/computer-file-url", () => ({
     `instrument://computer-test${hostPath}${version === undefined ? "" : `?version=${version}`}`,
 }));
 
-const TASK_ID = TaskIdSchema.parse("a-task");
+const TASK_ID = ChatIdSchema.parse("a-task");
 
 function renderBlock(
   content: string,

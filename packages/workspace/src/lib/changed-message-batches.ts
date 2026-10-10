@@ -2,7 +2,7 @@ import { AsyncIteratorClass } from "@orpc/server";
 
 import { publisher } from "../rpc/publisher";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 
 export interface ChangedMessageBatch {
   removed: Set<StoreId.Message>;
@@ -25,12 +25,12 @@ export interface ChangedMessageBatch {
 export function changedMessageBatches(
   input: {
     /** One task, or a test every task's events are put to. */
-    id: ((id: TaskId) => boolean) | TaskId;
+    id: ((id: ChatId) => boolean) | ChatId;
     sessionId?: StoreId.Session;
   },
   signal: AbortSignal | undefined,
 ) {
-  const matchesTask = (id: TaskId) =>
+  const matchesTask = (id: ChatId) =>
     typeof input.id === "function" ? input.id(id) : id === input.id;
   const changes = new Map<StoreId.Message, "removed" | "updated">();
 

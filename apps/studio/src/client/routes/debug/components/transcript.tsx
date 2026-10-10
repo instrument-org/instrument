@@ -19,8 +19,7 @@ import { cn } from "@/client/lib/utils";
 import {
   ChatIdSchema,
   getToolNameByType,
-  type Task,
-  TaskIdSchema,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
 import { ArticleIcon } from "@phosphor-icons/react/Article";
@@ -87,11 +86,9 @@ const ROW_HEIGHT = 28;
 // still runs as fast as it is pushed.
 const WHEEL_STEP = 24;
 
-const task: Task = {
+const task: ChatInfo = {
   createdAt: new Date(0),
-  id: TaskIdSchema.parse("debug-transcript"),
-  chatId: ChatIdSchema.parse("a-chat"),
-  isChat: false,
+  id: ChatIdSchema.parse("debug-transcript"),
   title: "Transcript",
   updatedAt: new Date(0),
 };

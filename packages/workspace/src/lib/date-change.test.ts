@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { detectDateChange } from "./date-change";
 import { Store } from "./store";
 
@@ -31,7 +31,7 @@ afterEach(() => {
 
 describe("detectDateChange", () => {
   async function setup({ baselineAt }: { baselineAt?: Date }) {
-    const taskId = createMockTaskConfig(TaskIdSchema.parse("mock"));
+    const taskId = createMockChatConfig(ChatIdSchema.parse("mock"));
     const sessionId = StoreId.newSessionId();
 
     await Store.saveSession(

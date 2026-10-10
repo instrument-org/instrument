@@ -1,6 +1,6 @@
 import os from "node:os";
 
-import { type TaskDir } from "../schemas/paths";
+import { type ChatDir } from "../schemas/paths";
 import { normalizePath } from "./normalize-path";
 import { nonTaskMounts, type WorkspaceFsLayout } from "./workspace-fs-layout";
 
@@ -128,7 +128,7 @@ export function virtualizeHostPaths(
  * an absolute path via `.resolve()` / `__file__`), never legitimate content, so
  * redacting it can't mangle a path the agent needs to read or edit verbatim.
  */
-export function redactTaskDir(text: string, dir: TaskDir): string {
+export function redactTaskDir(text: string, dir: ChatDir): string {
   return rootRewrite([{ root: dir, to: "." }])(text);
 }
 

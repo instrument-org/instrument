@@ -18,9 +18,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { SKILL_NAMES } from "../../src/lib/skill-names";
-import { taskDir } from "../../src/lib/task-dir-utils";
+import { chatDir } from "../../src/lib/record-folders";
 import { type Session } from "../../src/schemas/session";
-import { type TaskId } from "../../src/schemas/task-id";
+import { type ChatId } from "../../src/schemas/chat-id";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
 const FIXTURES = path.resolve(
@@ -42,8 +42,8 @@ function pass(text: string, evidence: string): AssertionResult {
 }
 
 /** The newest PDF under the task's work folder, the skills it copied aside. */
-async function newestPdf(taskId: TaskId) {
-  const work = path.join(taskDir(taskId), "work");
+async function newestPdf(taskId: ChatId) {
+  const work = path.join(chatDir(taskId), "work");
   const found: { file: string; mtime: number }[] = [];
   const walk = async (at: string, depth: number) => {
     const entries = await fs.promises
@@ -174,7 +174,7 @@ const ranThePreview: Assertion = {
 const wroteADeck: Assertion = {
   check: async ({ taskId }) => {
     const text = "wrote a .pptx";
-    const work = path.join(taskDir(taskId), "work");
+    const work = path.join(chatDir(taskId), "work");
     const decks = (
       await fs.promises.readdir(work, { recursive: true }).catch(() => [])
     ).filter((name) => String(name).toLowerCase().endsWith(".pptx"));

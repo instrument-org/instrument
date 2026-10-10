@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 
-import { type TaskDir } from "../schemas/paths";
+import { type ChatDir } from "../schemas/paths";
 import { getCurrentDate } from "./get-current-date";
 
 /**
@@ -11,7 +11,7 @@ import { getCurrentDate } from "./get-current-date";
  *
  * See docs/findings/task-list-order-followed-file-mtimes.md.
  */
-export async function getTaskDirTimestamps(dir: TaskDir) {
+export async function getTaskDirTimestamps(dir: ChatDir) {
   try {
     return await fs.stat(dir).then((stats) => ({
       createdAt: stats.birthtime,

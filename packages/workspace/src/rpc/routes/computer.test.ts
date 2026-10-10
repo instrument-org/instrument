@@ -5,12 +5,12 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { getWorkspaceConfig } from "../../lib/workspace-config";
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { type WorkspaceRPCContext } from "../base";
 import { computer } from "./computer";
 
-const taskId = createMockTaskConfig(TaskIdSchema.parse("computer-route"));
+const taskId = createMockChatConfig(ChatIdSchema.parse("computer-route"));
 
 let tmpDir: string;
 

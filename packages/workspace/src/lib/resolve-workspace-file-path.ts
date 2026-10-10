@@ -1,5 +1,5 @@
 import { type AbsolutePath, type WorkspaceFilePath } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { folderReach } from "./chat/folder-reach";
 import { resolveExistingFilePath } from "./resolve-agent-path";
 import {
@@ -24,7 +24,7 @@ export async function resolveWorkspaceFilePath({
   taskId,
 }: {
   filePath: WorkspaceFilePath;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<AbsolutePath | null> {
   const resolved = await resolveWorkspaceFilePaths({
     filePaths: [filePath],
@@ -43,7 +43,7 @@ export async function resolveWorkspaceFilePaths({
   taskId,
 }: {
   filePaths: readonly WorkspaceFilePath[];
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<Map<WorkspaceFilePath, AbsolutePath | null>> {
   const layout = await taskFsLayout(taskId);
   return new Map(
@@ -58,7 +58,7 @@ export async function resolveWorkspaceFilePaths({
  * The filesystem a task's agent sees, as it stands now: its own folder and
  * the folders attached to it.
  */
-export async function taskFsLayout(taskId: TaskId): Promise<WorkspaceFsLayout> {
+export async function taskFsLayout(taskId: ChatId): Promise<WorkspaceFsLayout> {
   return buildWorkspaceFsLayout({
     attachedFolders: await folderReach(taskId),
     taskHostRoot: workDir(taskId),

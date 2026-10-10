@@ -3,9 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { TASKS_DIR_NAME } from "../constants";
-import { ChatIdSchema } from "../schemas/chat-id";
 import { AbsolutePathSchema } from "../schemas/paths";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { chatReadProblem } from "./chat/chats";
@@ -15,7 +14,7 @@ import {
 } from "./invalid-task-folders";
 import {
   chatsDir,
-  forgetRecord,
+  forgetChat,
   sessionOfChat,
   storedChatSession,
 } from "./record-folders";
@@ -73,7 +72,7 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
     }
     const tasksDir = path.join(root, name, TASKS_DIR_NAME);
     for (const taskName of listDirs(tasksDir)) {
-      const taskId = TaskIdSchema.safeParse(taskName);
+      const taskId = ChatIdSchema.safeParse(taskName);
       const reason = taskId.success
         ? hasReadableTaskSettings(path.join(tasksDir, taskName))
           ? undefined
@@ -109,7 +108,7 @@ export async function trashInvalidChatFolder(
   }
   // A chat's own folder is named by its id; a task's inside one ends in its.
   const isChatTask = name.includes(path.sep);
-  const recordId = TaskIdSchema.safeParse(
+  const recordId = ChatIdSchema.safeParse(
     isChatTask ? path.basename(name) : name,
   );
   return ResultAsync.fromPromise(
@@ -124,7 +123,7 @@ export async function trashInvalidChatFolder(
         AbsolutePathSchema.parse(path.join(chatsDir(), name)),
       );
       if (recordId.success) {
-        forgetRecord(recordId.data);
+        forgetChat(recordId.data);
       }
     })(),
     (error) =>

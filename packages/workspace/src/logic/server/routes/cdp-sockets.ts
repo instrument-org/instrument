@@ -4,7 +4,7 @@ import { type Duplex } from "node:stream";
 import { WebSocketServer } from "ws";
 
 import { StoreId } from "../../../schemas/store-id";
-import { TaskIdSchema } from "../../../schemas/task-id";
+import { ChatIdSchema } from "../../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../../types";
 import { parseCdpBridgePath } from "../cdp-bridge-path";
 import { type WorkspaceServerParentRef } from "../types";
@@ -35,7 +35,7 @@ export function setupCdpWebSocketBridge(
       return;
     }
 
-    const taskId = TaskIdSchema.safeParse(target.taskId);
+    const taskId = ChatIdSchema.safeParse(target.taskId);
     const sessionId = StoreId.SessionSchema.safeParse(target.sessionId);
     if (!taskId.success || !sessionId.success) {
       socket.destroy();

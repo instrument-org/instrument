@@ -5,14 +5,12 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
 import { Store } from "../../src/lib/store";
-import { taskDir } from "../../src/lib/task-dir-utils";
-import { sessionOfChat } from "../../src/lib/record-folders";
-import { getTaskState } from "../../src/lib/task-record";
-import { getTaskSettings } from "../../src/lib/task-settings";
-import { ChatIdSchema } from "../../src/schemas/chat-id";
+import { chatDir, sessionOfChat } from "../../src/lib/record-folders";
+import { getChatState } from "../../src/lib/chat-record";
+import { getChatSettings } from "../../src/lib/chat-settings";
+import { ChatIdSchema, type ChatId } from "../../src/schemas/chat-id";
 import { StoreId } from "../../src/schemas/store-id";
 import { SubdomainPartSchema } from "../../src/schemas/subdomain-part";
-import { type TaskId, TaskIdSchema } from "../../src/schemas/task-id";
 import { type SeededTask, seedWorkspace } from "./seed-workspace";
 import {
   listFixtureNames,
@@ -20,7 +18,7 @@ import {
   type WorkspaceFixture,
 } from "./workspace-fixture";
 
-const opened: TaskId[] = [];
+const opened: ChatId[] = [];
 
 // Storage handles are cached by task id, and every case here seeds the same
 // fixture into a new directory under the same ids. Without this, a read in one
@@ -51,7 +49,7 @@ async function readSeededSession(seeded: SeededTask) {
     );
     return { session: loaded._unsafeUnwrap(), sessionIds: [sessionId] };
   }
-  const taskId = TaskIdSchema.parse(seeded.id);
+  const taskId = ChatIdSchema.parse(seeded.id);
   const sessions = await Store.getSessions(taskId);
   const sessionIds = sessions._unsafeUnwrap().map((session) => session.id);
   const loaded = await Store.getSessionWithMessagesAndParts(
@@ -78,8 +76,8 @@ async function seedInto(
 }
 
 /** The record a seeded entry's store is in: its own, or its chat's. */
-function recordOf(seeded: SeededTask): TaskId[] {
-  return seeded.chat === undefined ? [TaskIdSchema.parse(seeded.id)] : [];
+function recordOf(seeded: SeededTask): ChatId[] {
+  return seeded.chat === undefined ? [ChatIdSchema.parse(seeded.id)] : [];
 }
 
 async function seedIntoTempDir(options?: { fixtures?: string[]; now?: Date }) {
@@ -144,7 +142,7 @@ describe("seedWorkspace", () => {
     ]);
 
     const chatId = ChatIdSchema.parse(at(seeded, 0).id);
-    const chatSettings = await getTaskSettings(taskDir(chatId));
+    const chatSettings = await getChatSettings(chatDir(chatId));
     const { session } = await readSeededSession(at(seeded, 0));
     expect(chatSettings).toMatchObject({
       chatSessionId: session.id,
@@ -161,7 +159,7 @@ describe("seedWorkspace", () => {
         title: task.name,
       });
     }
-    expect(await fs.readdir(taskDir(chatId))).not.toContain("tasks");
+    expect(await fs.readdir(chatDir(chatId))).not.toContain("tasks");
   });
 
   it("makes the chat's folders beside the workspace, granted to the chat", async () => {
@@ -175,8 +173,8 @@ describe("seedWorkspace", () => {
       );
     }
 
-    const chatState = await getTaskState(
-      taskDir(ChatIdSchema.parse(at(seeded, 0).id)),
+    const chatState = await getChatState(
+      chatDir(ChatIdSchema.parse(at(seeded, 0).id)),
     );
     expect(chatState.attachedFolders?.[folder.mount]).toMatchObject({
       access: "read-write",
@@ -205,7 +203,10 @@ describe("seedWorkspace", () => {
     const settings = JSON.parse(
       await fs.readFile(
         path.join(
-          taskDir(TaskIdSchema.parse(at(seeded, 0).id)),
+          userDataDir,
+          "workspace",
+          "tasks",
+          at(seeded, 0).id,
           ".instrument",
           "settings.json",
         ),
@@ -217,7 +218,7 @@ describe("seedWorkspace", () => {
   });
 
   // The caller clears the directory first; if it ever stops doing that, the
-  // fallback naming inside `newTaskId` would quietly hand the chat a dated
+  // fallback naming inside `newChatId` would quietly hand the chat a dated
   // folder and the fixture's promised id would be a lie.
   it("refuses to seed on top of a workspace that already holds the chat", async () => {
     const { userDataDir } = await seedIntoTempDir();
@@ -273,7 +274,7 @@ describe("seedWorkspace", () => {
     if (!filedIn) {
       throw new Error("the task was seeded in no chat");
     }
-    const dir = taskDir(filedIn);
+    const dir = chatDir(filedIn);
 
     expect(chatTask.files.length).toBeGreaterThan(0);
     for (const file of chatTask.files) {

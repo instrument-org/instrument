@@ -9,10 +9,10 @@ import {
   getWorkspaceServerPort,
   setWorkspaceServerPort,
 } from "../logic/server/url";
-import { TaskDirSchema } from "../schemas/paths";
+import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 
 // The shell's network commands go through `createSandboxFetch` rather than
@@ -35,7 +35,7 @@ const model = createMockAIGatewayModel();
 const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
-let taskId: ReturnType<typeof createMockTaskConfigForDir>;
+let taskId: ReturnType<typeof createMockChatConfigForDir>;
 
 async function run(command: string) {
   const bash = await createBashEnv({ sessionId, taskId });
@@ -47,7 +47,7 @@ beforeAll(async () => {
   const taskRoot = path.join(tmpDir, "tasks", "test");
   await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
   await fs.mkdir(path.join(taskRoot, ".instrument"), { recursive: true });
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot), { model });
+  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
 });
 
 afterAll(async () => {

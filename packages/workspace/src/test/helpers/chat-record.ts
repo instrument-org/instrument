@@ -4,15 +4,15 @@ import path from "node:path";
 import { chatFolderName } from "../../lib/generate-task-folder-name";
 import {
   chatOfSession,
-  forgetRecordFolders,
-  recordIdTaken,
+  forgetChatFolders,
+  chatIdTaken,
 } from "../../lib/record-folders";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 
 /**
- * The chat a session is, made under the current workspace root the first time
+ * The chat a session is, made in the current chats folder the first time
  * it is asked for: a folder under `chats/` whose settings name the session,
  * which is all the index needs to find it. For tests that need a chat to exist
  * without the grants and the rest that `ensureChat` brings.
@@ -31,13 +31,12 @@ export function chatFor(
     ChatIdSchema.parse(
       chatFolderName({
         date: new Date(2026, 8, 26),
-        isTaken: recordIdTaken,
+        isTaken: chatIdTaken,
         title: `chat ${sessionId.slice(-6).toLowerCase()}`,
       }),
     );
   const privateDir = path.join(
-    getWorkspaceConfig().rootDir,
-    "chats",
+    getWorkspaceConfig().chatsDir,
     id,
     ".instrument",
   );
@@ -49,6 +48,6 @@ export function chatFor(
       name: "Instrument",
     }),
   );
-  forgetRecordFolders();
+  forgetChatFolders();
   return id;
 }

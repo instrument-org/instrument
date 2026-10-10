@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { listChats } from "../../lib/chat/chats";
 import {
-  forgetRecordFolders,
+  forgetChatFolders,
   resolveChat,
   sessionOfChat,
 } from "../../lib/record-folders";
@@ -16,14 +16,13 @@ import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../../lib/workspace-config";
-import { WorkspaceDirSchema } from "../../schemas/paths";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { type WorkspaceRPCContext } from "../base";
 import { storage } from "./storage";
-import { ChatIdSchema } from "../../schemas/chat-id";
 
 // The chat list asks the machine what is running; none runs in a test.
 vi.mock(import("../../lib/chat/activity"), async (importOriginal) => ({
@@ -34,21 +33,22 @@ vi.mock(import("../../lib/workspace-actor-ref"), () => ({
   getWorkspaceActorRef: () =>
     ({
       getSnapshot: () => ({
-        context: { sessionRefsByTaskId: { get: () => [] } },
+        context: { sessionRefsByChatId: { get: () => [] } },
       }),
     }) as never,
   setWorkspaceActorRef: vi.fn(),
 }));
 
 let root: string;
-let opened: TaskId[];
+let opened: ChatId[];
 
 beforeEach(() => {
-  createMockTaskConfig(TaskIdSchema.parse(`storage-${Date.now()}`));
+  createMockChatConfig(ChatIdSchema.parse(`storage-${Date.now()}`));
   root = fs.mkdtempSync(path.join(os.tmpdir(), "storage-route-"));
   opened = [];
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
+    chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
     tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
     trashItem: (target) => {
@@ -56,7 +56,7 @@ beforeEach(() => {
       return Promise.resolve();
     },
   });
-  forgetRecordFolders();
+  forgetChatFolders();
 });
 
 afterEach(async () => {
@@ -76,7 +76,7 @@ function createContext(): WorkspaceRPCContext {
 }
 
 /** A chat with its session saved and one message from the user. */
-async function readableChat(named: string): Promise<TaskId> {
+async function readableChat(named: string): Promise<ChatId> {
   const sessionId = StoreId.newSessionId();
   const id = chatFor(sessionId, ChatIdSchema.parse(named));
   opened.push(id);
@@ -133,7 +133,7 @@ async function seedBrokenChats() {
       recursive: true,
     },
   );
-  forgetRecordFolders();
+  forgetChatFolders();
 }
 
 describe("storage.invalidFolders", () => {

@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { detectMessageGap } from "./message-gap";
 import { Store } from "./store";
 
@@ -13,7 +13,7 @@ const HOUR = 60 * 60 * 1000;
 
 describe("detectMessageGap", () => {
   async function setup() {
-    const taskId = createMockTaskConfig(TaskIdSchema.parse("mock"));
+    const taskId = createMockChatConfig(ChatIdSchema.parse("mock"));
     const sessionId = StoreId.newSessionId();
 
     await Store.saveSession(

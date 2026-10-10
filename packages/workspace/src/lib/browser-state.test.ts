@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { type BrowserTarget, encodeBrowserTargetId } from "../types";
 import {
   BLANK_PAGE_URL,
@@ -15,20 +15,20 @@ import {
   restoreLastPage,
 } from "./browser-state";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
-import { taskDir } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
-const id = TaskIdSchema.parse("browser-state-test");
+const id = ChatIdSchema.parse("browser-state-test");
 const sessionId = StoreId.newSessionId();
 
-let taskId: TaskId;
+let taskId: ChatId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "browser-state-test-"));
   const tasksDir = path.join(root, TASKS_DIR_NAME);
-  taskId = createMockTaskConfigForDir(path.join(tasksDir, id));
-  await fs.mkdir(taskDir(taskId), { recursive: true });
+  taskId = createMockChatConfigForDir(path.join(tasksDir, id));
+  await fs.mkdir(chatDir(taskId), { recursive: true });
 });
 
 afterEach(async () => {
@@ -69,7 +69,7 @@ describe("browser state", () => {
 
 describe("restoring a reopened tab", () => {
   const targetId = encodeBrowserTargetId(
-    TaskIdSchema.parse("browser-state-test"),
+    ChatIdSchema.parse("browser-state-test"),
     sessionId,
   );
 

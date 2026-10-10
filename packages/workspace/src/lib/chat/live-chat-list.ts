@@ -5,20 +5,16 @@ import { publisher } from "../../rpc/publisher";
 import { collapsed, everyOne } from "../../rpc/live-read";
 import { type ChatId } from "../../schemas/chat-id";
 import { type RecordChanged, recordChanges } from "../record-changes";
-import { chatOf } from "../record-folders";
+import { resolveChat } from "../record-folders";
 import { listChatIds } from "./chat-records";
 import { type Chat, listedChats } from "./chats";
 
-/** The chat each change is to, or the one whose folder holds the task it is to. */
+/** The chat each change is to. */
 function chatsMoved(changes: RecordChanged[]): ChatId[] {
   return unique(
     changes.flatMap((change) => {
       const chat =
-        change.kind === "removed"
-          ? change.ref.kind === "chat"
-            ? change.ref.id
-            : change.ref.chatId
-          : chatOf(change.id);
+        change.kind === "removed" ? change.id : resolveChat(change.id);
       return chat === undefined ? [] : [chat];
     }),
   );

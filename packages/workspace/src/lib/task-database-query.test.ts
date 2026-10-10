@@ -11,13 +11,13 @@ import {
 } from "./task-database-query";
 
 let rootDir: string;
-let taskDir: string;
+let chatDir: string;
 let databasePath: string;
 
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-database-query-"));
-  taskDir = path.join(rootDir, "task");
-  const privateDir = path.join(taskDir, TASK_FOLDER_NAMES.private);
+  chatDir = path.join(rootDir, "task");
+  const privateDir = path.join(chatDir, TASK_FOLDER_NAMES.private);
   await fs.mkdir(privateDir, { recursive: true });
   databasePath = path.join(privateDir, TASK_DB_FILE_NAME);
 
@@ -42,11 +42,11 @@ afterEach(async () => {
 describe("queryTaskDatabase", () => {
   it("queries a task directory read-only and returns raw rows", () => {
     const result = queryTaskDatabase({
-      databasePath: taskDir,
+      databasePath: chatDir,
       sql: "select key, cast(blob as text) as payload from sessions",
     });
 
-    expect(resolveTaskDatabasePath(taskDir)).toBe(databasePath);
+    expect(resolveTaskDatabasePath(chatDir)).toBe(databasePath);
     expect(result.columns).toEqual(["key", "payload"]);
     expect(result.rows).toEqual([
       {

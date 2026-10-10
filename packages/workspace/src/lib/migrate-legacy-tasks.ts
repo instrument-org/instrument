@@ -20,7 +20,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { chatFolderName } from "./generate-task-folder-name";
 import {
   newTopicId,
@@ -31,7 +31,7 @@ import {
   unusedTopicName,
   writeTopicSync,
 } from "./chat/topics";
-import { forgetRecordFolders } from "./record-folders";
+import { forgetChatFolders } from "./record-folders";
 import { isRecord } from "./skills";
 import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
 import { StorageKey } from "./storage-key";
@@ -179,7 +179,7 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
         chatsDir,
         rootDir,
         taken,
-        taskDir: path.join(tasksDir, name),
+        chatDir: path.join(tasksDir, name),
         topicOf,
       });
       if (adopted.kind === "empty") {
@@ -226,7 +226,7 @@ export function migrateLegacyTasks(rootDir: string): LegacyTasksMigration {
     fs.rmdirSync(projectsDir);
   }
 
-  forgetRecordFolders();
+  forgetChatFolders();
   return migration;
 }
 
@@ -240,13 +240,13 @@ function adoptTask({
   chatsDir,
   rootDir,
   taken,
-  taskDir,
+  chatDir,
   topicOf,
 }: {
   chatsDir: string;
   rootDir: string;
   taken: Set<string>;
-  taskDir: string;
+  chatDir: string;
   topicOf: Map<string, string>;
 }):
   | {
@@ -256,8 +256,8 @@ function adoptTask({
       stagingDir: string;
     }
   | { kind: "empty" } {
-  const taskName = path.basename(taskDir);
-  const privateDir = path.join(taskDir, TASK_PRIVATE_FOLDER_NAME);
+  const taskName = path.basename(chatDir);
+  const privateDir = path.join(chatDir, TASK_PRIVATE_FOLDER_NAME);
   const settings =
     readJson(path.join(privateDir, TASK_SETTINGS_FILE_NAME)) ?? {};
   const conversation = readConversation(
@@ -268,7 +268,7 @@ function adoptTask({
     !conversation.messages.some((message) => message.role === "user")
   ) {
     moveAside(
-      taskDir,
+      chatDir,
       path.join(rootDir, BACKUP_DIR_NAME, EMPTY_TASKS_DIR_NAME, taskName),
     );
     return { kind: "empty" };
@@ -352,11 +352,11 @@ function adoptTask({
         },
       }),
     );
-    fs.mkdirSync(path.join(taskDir, TASK_FOLDER_NAMES.attachments), {
+    fs.mkdirSync(path.join(chatDir, TASK_FOLDER_NAMES.attachments), {
       recursive: true,
     });
     fs.mkdirSync(chatsDir, { recursive: true });
-    fs.renameSync(taskDir, stagingDir);
+    fs.renameSync(chatDir, stagingDir);
   } catch (error) {
     removeDb(chatDb);
     fs.rmSync(chatSettings, { force: true });
@@ -435,11 +435,11 @@ function firstLine(text: string): string {
  * folder that ended up among the tasks, and not a record a 2.0 build wrote
  * there, which names a chat's session or the chat that started it.
  */
-function isLegacyTask(taskDir: string): boolean {
-  if (!TaskIdSchema.safeParse(path.basename(taskDir)).success) {
+function isLegacyTask(chatDir: string): boolean {
+  if (!ChatIdSchema.safeParse(path.basename(chatDir)).success) {
     return false;
   }
-  const privateDir = path.join(taskDir, TASK_PRIVATE_FOLDER_NAME);
+  const privateDir = path.join(chatDir, TASK_PRIVATE_FOLDER_NAME);
   const settingsPath = path.join(privateDir, TASK_SETTINGS_FILE_NAME);
   // The earliest builds could leave a task with a database and no settings
   // yet, which is a task like any other. Settings that cannot be read are

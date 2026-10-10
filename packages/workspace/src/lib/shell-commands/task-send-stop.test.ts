@@ -10,10 +10,10 @@ import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { Store } from "../store";
-import { taskDir } from "../task-dir-utils";
-import { setTaskState } from "../task-record";
+import { chatDir } from "../record-folders";
+import { setChatState } from "../chat-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { sendSubcommand } from "./task/send";
@@ -73,7 +73,7 @@ beforeEach(async () => {
   working.value = () => true;
   sent.events = [];
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-send-stop-"));
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", "unused"), {
+  createMockChatConfigForDir(path.join(rootDir, "tasks", "unused"), {
     unplaced: true,
   });
   setWorkspaceConfig({
@@ -81,10 +81,13 @@ beforeEach(async () => {
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../../templates/default"),
     ),
+    chatsDir: AbsolutePathSchema.parse(
+      path.join(path.join(rootDir, "workspace"), "chats"),
+    ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   chatFor(StoreId.newSessionId(), CHAT_ID);
-  await setTaskState(taskDir(CHAT_ID), {
+  await setChatState(chatDir(CHAT_ID), {
     selectedModelURI:
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
   });
@@ -172,7 +175,7 @@ describe("task send", () => {
   it("runs the task on the model the chat's picker is on now", async () => {
     const picked =
       "anthropic/claude-opus-5.5?provider=openrouter&providerConfigId=mock-provider-config-id";
-    await setTaskState(taskDir(CHAT_ID), { selectedModelURI: picked });
+    await setChatState(chatDir(CHAT_ID), { selectedModelURI: picked });
     await send([]);
     expect(
       sent.events.find(

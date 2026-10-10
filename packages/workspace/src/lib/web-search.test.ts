@@ -6,10 +6,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { type WebSearchClient } from "../schemas/web-search";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { webSearch } from "./web-search";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -97,7 +97,7 @@ async function runProviderSearch(chunks: LanguageModelV4StreamPart[]) {
       }),
   });
 
-  createMockTaskConfig(TaskIdSchema.parse("2026-07-27-web-search-provider"), {
+  createMockChatConfig(ChatIdSchema.parse("2026-07-27-web-search-provider"), {
     model,
     webSearch: rejectingWebSearchClient,
     webSearchModel: { model: searchModel },
@@ -222,8 +222,8 @@ describe("webSearch", () => {
         }),
       );
 
-      createMockTaskConfig(
-        TaskIdSchema.parse("2026-07-27-web-search-platform"),
+      createMockChatConfig(
+        ChatIdSchema.parse("2026-07-27-web-search-platform"),
         {
           model,
           webSearch: searchWeb,
@@ -256,7 +256,7 @@ describe("webSearch", () => {
     it("reports a signed-out user instead of falling back to a provider", async () => {
       const model = createMockAIGatewayModel();
 
-      createMockTaskConfig(TaskIdSchema.parse("2026-07-27-web-search-out"), {
+      createMockChatConfig(ChatIdSchema.parse("2026-07-27-web-search-out"), {
         model,
         webSearch: () =>
           Promise.resolve({
@@ -289,7 +289,7 @@ describe("webSearch", () => {
           ok: true,
         });
 
-      createMockTaskConfig(TaskIdSchema.parse("2026-07-27-web-search-retry"), {
+      createMockChatConfig(ChatIdSchema.parse("2026-07-27-web-search-retry"), {
         model,
         webSearch: searchWeb,
         webSearchModel: { model: neverCalledSearchModel() },
@@ -307,7 +307,7 @@ describe("webSearch", () => {
         Promise.resolve(unavailable),
       );
 
-      createMockTaskConfig(TaskIdSchema.parse("2026-07-27-web-search-down"), {
+      createMockChatConfig(ChatIdSchema.parse("2026-07-27-web-search-down"), {
         model,
         webSearch: searchWeb,
         webSearchModel: {
@@ -346,7 +346,7 @@ describe("webSearch", () => {
         }),
       );
 
-      createMockTaskConfig(TaskIdSchema.parse("2026-07-27-web-search-broke"), {
+      createMockChatConfig(ChatIdSchema.parse("2026-07-27-web-search-broke"), {
         model,
         webSearch: searchWeb,
         webSearchModel: { model: neverCalledSearchModel() },

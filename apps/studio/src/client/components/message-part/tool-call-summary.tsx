@@ -2,7 +2,7 @@ import { featuresAtom } from "@/client/atoms/features";
 import {
   getToolNameByType,
   type SessionMessagePart,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
@@ -43,7 +43,7 @@ export function ToolCallSummary({
   children?: ReactNode;
   isDeadDevMode?: boolean;
   part: SessionMessagePart.ToolPart;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   const features = useAtomValue(featuresAtom);
   const { backgroundProcess, isRunning, isStreaming } = useToolCallSession();

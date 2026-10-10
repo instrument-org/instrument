@@ -8,11 +8,11 @@ import {
   killSessionBackgroundProcesses,
   listTaskBackgroundProcesses,
 } from "../lib/background-processes";
-import { taskDir } from "../lib/task-dir-utils";
+import { chatDir } from "../lib/record-folders";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { BashTool } from "./bash";
 
@@ -28,7 +28,7 @@ const model = createMockAIGatewayModel();
  */
 describe("bash background processes, end to end", () => {
   let taskDirPath: string;
-  let taskId: TaskId;
+  let taskId: ChatId;
   let sessionId: StoreId.Session;
 
   beforeEach(async () => {
@@ -36,7 +36,7 @@ describe("bash background processes, end to end", () => {
     // The task id is the directory name, so it must look like one.
     taskDirPath = path.join(tasksDir, `01k${"e2e".padEnd(23, "0")}`);
     await fs.mkdir(path.join(taskDirPath, "work"), { recursive: true });
-    taskId = createMockTaskConfigForDir(taskDirPath);
+    taskId = createMockChatConfigForDir(taskDirPath);
     sessionId = StoreId.newSessionId();
   });
 
@@ -239,7 +239,7 @@ describe("bash background processes, end to end", () => {
     const processId = started.processId ?? "";
     expect(processId).not.toBe("");
 
-    expect(started.output).toContain("home: ~");
+    expect(started.output).toContain("home: /mnt/Home");
     expect(started.output).not.toContain(os.homedir());
     expect(started.output).toContain("https://***@example.com");
     expect(started.output).not.toContain("tok3n");
@@ -251,7 +251,7 @@ describe("bash background processes, end to end", () => {
     // file rather than however much had flushed.
     await kill(processId);
     const log = await fs.readFile(
-      path.join(taskDir(taskId), started.logFilePath ?? ""),
+      path.join(chatDir(taskId), started.logFilePath ?? ""),
       "utf8",
     );
     expect(log).not.toContain(os.homedir());

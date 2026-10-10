@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import {
   bumpStoreGeneration,
   cacheByStoreGeneration,
 } from "./store-generation";
 
-const taskId = TaskIdSchema.parse("2026-10-01-store-generation");
-const otherTaskId = TaskIdSchema.parse("2026-10-01-another-task");
+const taskId = ChatIdSchema.parse("2026-10-01-store-generation");
+const otherTaskId = ChatIdSchema.parse("2026-10-01-another-task");
 
 describe("cacheByStoreGeneration", () => {
   it("keeps a value until its task's store is written", async () => {

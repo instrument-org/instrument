@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { attachFolder, detachFolder } from "./attach-folder";
 import { detectAttachedFolderChanges } from "./attached-folder-changes";
 import { setAttachedFoldersBaseline } from "./attached-folders-baseline";
@@ -17,7 +17,7 @@ import { initializeTaskInChat } from "../test/helpers/initialize-task-in-chat";
 // second task under one name in a fresh temp directory reuses the handle on the
 // database the last one deleted, which answers every write as readonly.
 let taskCount = 0;
-let TASK_ID: ReturnType<typeof TaskIdSchema.parse>;
+let TASK_ID: ReturnType<typeof ChatIdSchema.parse>;
 
 let rootDir: string;
 let sessionId: StoreId.Session;
@@ -53,13 +53,16 @@ beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "folder-changes-"));
   downloads = path.join(rootDir, "Downloads");
   await fs.mkdir(downloads, { recursive: true });
-  TASK_ID = TaskIdSchema.parse(`find-the-vault-${++taskCount}`);
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", TASK_ID), {
+  TASK_ID = ChatIdSchema.parse(`find-the-vault-${++taskCount}`);
+  createMockChatConfigForDir(path.join(rootDir, "tasks", TASK_ID), {
     unplaced: true,
   });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     // Chats go under a workspace of the test's own, beside its folders.
+    chatsDir: AbsolutePathSchema.parse(
+      path.join(path.join(rootDir, "workspace"), "chats"),
+    ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../templates/default"),

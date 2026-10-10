@@ -1,11 +1,10 @@
 import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { type BashExecResult, type ExecOptions } from "just-bash";
 
-import { type TaskDir } from "../../schemas/paths";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatDir } from "../../schemas/paths";
+import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { type BashEnvOptions } from "../create-bash-env";
-import { type RecordRef } from "../record-folders";
 import { type TaskVenvError } from "../ensure-task-venv";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 
@@ -17,6 +16,7 @@ import { SubprocessTreeTerminationError } from "../subprocess-tree";
 export const WORKER_CONFIG_KEYS = [
   "appsDir",
   "appVersion",
+  "chatsDir",
   "defaultTaskTemplateDir",
   "macHelperBinPath",
   "nodeExecEnv",
@@ -57,7 +57,7 @@ export type FromWorker =
   | { pid: number; state: "settled" | "started"; type: "tree" }
   /** A `js-exec` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
   | { argsJson: string; callId: number; id: number; path: string; type: "tool" }
-  | { requestId: number; taskId: TaskId; type: "venv" };
+  | { requestId: number; taskId: ChatId; type: "venv" };
 
 export type ToWorker =
   | {
@@ -68,11 +68,11 @@ export type ToWorker =
       execOptions: Omit<ExecOptions, "signal">;
       id: number;
       /**
-       * The record the shell runs in, resolved on main, which keeps the
-       * folder index: the worker answers for this record alone and never
+       * The chat the shell runs in, resolved on main, which keeps the
+       * folder index: the worker answers for this chat alone and never
        * reads the index itself.
        */
-      record: { dir: TaskDir; ref: RecordRef } | undefined;
+      chat: { dir: ChatDir; id: ChatId } | undefined;
       /** Whether main has a background run's sink to stream native output into. */
       stream: boolean;
       type: "exec";

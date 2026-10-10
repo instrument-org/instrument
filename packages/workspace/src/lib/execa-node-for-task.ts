@@ -1,7 +1,7 @@
 import { execa, type Options } from "execa";
 
 import { type AbsolutePath } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { ffmpegSubprocessEnv } from "./ffmpeg";
 import { gitSubprocessEnv } from "./git";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -10,7 +10,7 @@ import { workDir } from "./work-dir";
 export function execaNodeForTask<
   OptionsType extends Omit<Options, "cwd"> = Omit<Options, "cwd">,
 >(
-  taskId: TaskId,
+  taskId: ChatId,
   file: string | URL,
   arguments_?: readonly string[],
   options?: OptionsType,

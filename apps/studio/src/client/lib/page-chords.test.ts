@@ -2,7 +2,7 @@ import {
   type BrowserTargetId,
   encodeBrowserTargetId,
   StoreId,
-  TaskIdSchema,
+  ChatIdSchema,
 } from "@instrument-org/workspace/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,7 +25,7 @@ vi.mock("@/client/lib/foreground-browser-registry", () => ({
   foregroundBrowser,
 }));
 
-const TASK = TaskIdSchema.parse("page-chords");
+const TASK = ChatIdSchema.parse("page-chords");
 const TYPED_IN = encodeBrowserTargetId(TASK, StoreId.newSessionId());
 const LOOKED_AT = encodeBrowserTargetId(TASK, StoreId.newSessionId());
 
@@ -37,9 +37,7 @@ function where({
   looking: BrowserTargetId | null;
 }) {
   pageHoldingKeyboard.mockReturnValue(keyboard);
-  foregroundBrowser.mockReturnValue(
-    looking ? { targetId: looking } : null,
-  );
+  foregroundBrowser.mockReturnValue(looking ? { targetId: looking } : null);
 }
 
 beforeEach(() => {
@@ -67,11 +65,7 @@ describe("pageForChord", () => {
 
   it("means no page when none is on screen", () => {
     where({ keyboard: null, looking: null });
-    for (const chord of [
-      "back",
-      "reloadPage",
-      "zoomIn",
-    ] as const) {
+    for (const chord of ["back", "reloadPage", "zoomIn"] as const) {
       expect(pageForChord(chord)).toBeNull();
     }
   });

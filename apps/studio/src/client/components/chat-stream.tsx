@@ -6,7 +6,7 @@ import {
   type SessionMessageDataPart,
   type SessionMessagePart,
   type StoreId,
-  type Task,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useEffect, useMemo, useState } from "react";
@@ -175,7 +175,7 @@ interface ChatStreamProps {
   // anchor turns. Only the top-level transcript sets this; nested tool-agent
   // streams render flat.
   renderAsItems?: boolean;
-  task: Task;
+  task: ChatInfo;
 }
 
 interface MessageRow {

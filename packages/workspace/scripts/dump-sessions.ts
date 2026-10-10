@@ -3,7 +3,7 @@ import path from "node:path";
 import readline from "node:readline/promises";
 
 import { TASKS_DIR_NAME } from "../src/constants";
-import { getTasks } from "../src/lib/get-tasks";
+import { getChatInfos } from "../src/lib/chat-info";
 import { Store } from "../src/lib/store";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
@@ -23,7 +23,7 @@ setWorkspaceConfig(
   }),
 );
 
-const { tasks } = await getTasks({
+const { chats: tasks } = await getChatInfos({
   direction: "desc",
   sortBy: "updatedAt",
 });

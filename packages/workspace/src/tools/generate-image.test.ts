@@ -6,9 +6,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { measureImage } from "../lib/render-image";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { withTempDir } from "../test/helpers/temp-dir";
 import { GenerateImage } from "./generate-image";
@@ -41,18 +41,18 @@ const mockImageModel: ImageModelV4 = {
 const model = createMockAIGatewayModel();
 const root = withTempDir("generate-image");
 
-let taskId: TaskId;
+let taskId: ChatId;
 let photosDir: string;
 let photos: FolderAttachment.Type;
 let attachedFolders: Record<string, FolderAttachment.Type>;
 
 beforeEach(async () => {
   photosDir = path.join(root.path, "Photos");
-  const taskDir = path.join(root.path, "tasks", "test");
+  const chatDir = path.join(root.path, "tasks", "test");
   await fs.mkdir(photosDir, { recursive: true });
-  await fs.mkdir(taskDir, { recursive: true });
+  await fs.mkdir(chatDir, { recursive: true });
 
-  taskId = createMockTaskConfigForDir(taskDir, {
+  taskId = createMockChatConfigForDir(chatDir, {
     imageModel: mockImageModel,
     model,
   });

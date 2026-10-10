@@ -7,15 +7,13 @@ import { publisher } from "../../rpc/publisher";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
 import { heldTabs } from "../held-tabs";
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
-import { resolveChat, sessionOfChat } from "../record-folders";
+import { resolveChat, sessionOfChat, chatDir } from "../record-folders";
 import { Store } from "../store";
-import { taskDir } from "../task-dir-utils";
-import { getTaskState } from "../task-record";
-import { recordTaskActivity } from "../task-settings";
+import { getChatState } from "../chat-record";
+import { recordChatActivity } from "../chat-settings";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
 import { decodeBrowserTargetId } from "../../types";
@@ -162,7 +160,7 @@ export async function wakeChatForApp(
   if (asked === undefined || !resolveChat(asked)) {
     return;
   }
-  const state = await getTaskState(taskDir(asked));
+  const state = await getChatState(chatDir(asked));
   if (!state.selectedModelURI) {
     return;
   }
@@ -247,7 +245,7 @@ async function onSessionDone(
     id,
     sessionId,
   }: {
-    id: TaskId;
+    id: ChatId;
     sessionId: StoreId.Session;
   },
   workspaceRef: WorkspaceActorRef,
@@ -280,7 +278,7 @@ async function onSessionDone(
   }
   // A chat nobody has written in has no conversation to report to: the eval
   // harness runs a task case in one (`evals/lib/start-run.ts`).
-  if (!(await getTaskState(taskDir(chatId))).selectedModelURI) {
+  if (!(await getChatState(chatDir(chatId))).selectedModelURI) {
     return;
   }
 
@@ -356,7 +354,7 @@ async function openTabsOf({
   taskId,
 }: {
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<NonNullable<TaskEvent["tabs"]>> {
   const { browser } = getWorkspaceConfig();
   return (await heldTabs(taskId, sessionId)).flatMap((tab) => {
@@ -390,7 +388,7 @@ async function stillWorkingEvent({
 }: {
   handle: string;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
   title: string;
   turnStart: Date | undefined;
 }): Promise<TaskEvent> {
@@ -412,13 +410,13 @@ async function stillWorkingEvent({
 }
 
 async function wakeWith(
-  chatId: TaskId,
+  chatId: ChatId,
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
   /** The chat to wake in; the newest one when a caller has no chat. */
   chatSessionId?: StoreId.Session,
 ) {
-  const state = await getTaskState(taskDir(chatId));
+  const state = await getChatState(chatDir(chatId));
   if (!state.selectedModelURI) {
     throw new Error(
       `Chat ${chatId} has no model to wake with; it has never been messaged.`,
@@ -472,7 +470,7 @@ async function wakeWith(
       sessionId,
     },
   });
-  await recordTaskActivity(chatId);
+  await recordChatActivity(chatId);
 }
 
 /**

@@ -3,8 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { accessIn, type AttachedRoot, listComputerFolder } from "./computer";
@@ -67,7 +67,7 @@ describe("accessIn", () => {
 });
 
 describe("listComputerFolder", () => {
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("computer-listing"));
+  const taskId = createMockChatConfig(ChatIdSchema.parse("computer-listing"));
   let folder: string | undefined;
 
   afterEach(async () => {

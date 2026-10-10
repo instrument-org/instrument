@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import {
   listMemories,
@@ -47,7 +47,7 @@ export async function createMemoryPart({
   createdAt: Date;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
     const memories = await listMemories(memoryDir());
@@ -132,7 +132,7 @@ export async function recordMemoryReported({
   memory: Memory | undefined;
   name: string;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<void> {
   const storage = await getSessionsStoreStorage(taskId);
   if (storage.isErr()) {
@@ -162,7 +162,7 @@ export async function resetMemoryReported({
   taskId,
 }: {
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<void> {
   const storage = await getSessionsStoreStorage(taskId);
   if (storage.isErr()) {

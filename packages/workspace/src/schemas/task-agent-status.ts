@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { StoreId } from "./store-id";
-import { TaskIdSchema } from "./task-id";
+import { ChatIdSchema } from "./chat-id";
 
 const SessionTagSchema = z.enum([
   "agent.alive",
@@ -20,7 +20,7 @@ export const TaskAgentStatusSchema = z.object({
       tags: z.array(SessionTagSchema),
     }),
   ),
-  taskId: TaskIdSchema,
+  taskId: ChatIdSchema,
 });
 
 export type TaskAgentStatus = z.output<typeof TaskAgentStatusSchema>;

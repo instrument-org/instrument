@@ -15,17 +15,18 @@ import {
   TEST_WEB_SEARCH_MODEL_OVERRIDE_KEY,
 } from "@instrument-org/ai-gateway/schemas";
 import { AI_GATEWAY_API_KEY_NOT_NEEDED } from "@instrument-org/shared";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { noop } from "radashi";
 
-import { TASKS_DIR_NAME } from "../../constants";
+import { CHATS_DIR_NAME, TASKS_DIR_NAME } from "../../constants";
 import { createMemoryAppsConfig } from "../../lib/apps/memory-config";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../../lib/workspace-config";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
-import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import {
   unavailableWebSearchClient,
   type WebSearchClient,
@@ -36,9 +37,8 @@ import {
   type WorkspaceConfig,
 } from "../../types";
 import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
-import { placeTaskAt } from "../../lib/record-folders";
-import { ChatIdSchema } from "../../schemas/chat-id";
-import { TaskDirSchema } from "../../schemas/paths";
+import { forgetChat, placeChat } from "../../lib/record-folders";
+import { StoreId } from "../../schemas/store-id";
 
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 
@@ -46,10 +46,11 @@ export const MOCK_WORKSPACE_DIRS = {
   defaultTaskTemplate: `${MOCK_WORKSPACE_DIR}/default-task-template`,
   registry: `${MOCK_WORKSPACE_DIR}/registry`,
   systemSkills: `${MOCK_WORKSPACE_DIR}/system-skills`,
+  chats: `${MOCK_WORKSPACE_DIR}/${CHATS_DIR_NAME}`,
   tasks: `${MOCK_WORKSPACE_DIR}/${TASKS_DIR_NAME}`,
 } as const;
 
-// Provider configs registered by createMockTaskConfig. The singleton's
+// Provider configs registered by createMockChatConfig. The singleton's
 // getAIProviderConfigs returns all of them so a test running two sessions with
 // distinct models (distinct providerConfigIds) resolves each to its own model
 // override. Configs are keyed by id so same-id mocks overwrite.
@@ -58,8 +59,8 @@ const mockProviderConfigs = new Map<
   ReturnType<typeof AIGatewayProviderConfig.Schema.parse>
 >();
 
-export function createMockTaskConfig(
-  id: TaskId,
+export function createMockChatConfig(
+  id: ChatId,
   options: {
     aiSDKModel?: LanguageModelV4;
     /**
@@ -72,8 +73,8 @@ export function createMockTaskConfig(
     imageModel?: ImageModelV4;
     model?: AIGatewayModel.Type;
     /**
-     * Leaves the id out of the folder index, for a test that makes the task
-     * itself through `initializeTask`, which places it.
+     * Leaves the id out of the folder index, for a test that makes the chat
+     * itself through `initializeChat`, which places it.
      */
     unplaced?: boolean;
     webSearch?: WebSearchClient;
@@ -141,9 +142,10 @@ export function createMockTaskConfig(
       `${MOCK_WORKSPACE_DIR}/prepared-skills`,
     ),
     registryDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.registry),
+    chatsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chats),
     rootDir: WorkspaceDirSchema.parse(MOCK_WORKSPACE_DIR),
     systemSkillsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.systemSkills),
-    tasksDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.tasks),
+    tasksDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chats),
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/tmp/uv"),
     uvDataDir: AbsolutePathSchema.parse(`${MOCK_WORKSPACE_DIR}/uv-data`),
@@ -156,43 +158,47 @@ export function createMockTaskConfig(
   mockProviderConfigs.set(config.id, config);
   setWorkspaceConfig(workspaceConfig);
   if (!options.unplaced) {
-    knowTask(id);
+    knowChat(id);
   }
 
   return id;
 }
 
-/** The chat every task a test places belongs to; it has no folder of its own. */
-export const MOCK_CHAT_ID = ChatIdSchema.parse("mock-chat");
-
 /**
- * Puts a task in the folder index under `MOCK_CHAT_ID`, at the config's
- * `tasksDir`, so `taskDir` answers for it before the test makes its folder,
- * or without one.
+ * Puts a chat in the folder index at the config's `chatsDir`, so `chatDir`
+ * answers for it before the test makes its folder, or without one. Its own
+ * conversation is a session named after the chat rather than a fresh one,
+ * so placing it mints no id a snapshot counts, and whatever a folder of the
+ * same name on disk says is set aside.
  */
-export function knowTask(id: TaskId) {
-  placeTaskAt(
-    id,
-    MOCK_CHAT_ID,
-    TaskDirSchema.parse(path.join(getWorkspaceConfig().tasksDir, id)),
-  );
+export function knowChat(id: ChatId) {
+  forgetChat(id);
+  placeChat(id, mockSessionOf(id));
 }
 
-// Returns a task id whose taskDir(id) resolves to `dir`, by pointing the
-// singleton's tasksDir at its parent. Replaces the old pattern of spreading
-// a mock TaskId and overriding dir. The dir's basename must be a valid id.
-export function createMockTaskConfigForDir(
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/** A session id made from a chat id, the same one every time. */
+function mockSessionOf(id: ChatId): StoreId.Session {
+  const digest = createHash("sha256").update(id).digest();
+  const chars = [...digest.subarray(0, 25)].map((byte) => CROCKFORD[byte % 32]);
+  return StoreId.SessionSchema.parse(`ses_0${chars.join("")}`);
+}
+
+// Returns a chat id whose chatDir(id) resolves to `dir`, by pointing the
+// singleton's chatsDir at its parent. The dir's basename must be a valid id.
+export function createMockChatConfigForDir(
   dir: string,
-  options: Parameters<typeof createMockTaskConfig>[1] = {},
-): TaskId {
-  const id = TaskIdSchema.parse(path.basename(dir));
-  createMockTaskConfig(id, options);
+  options: Parameters<typeof createMockChatConfig>[1] = {},
+): ChatId {
+  const id = ChatIdSchema.parse(path.basename(dir));
+  createMockChatConfig(id, { ...options, unplaced: true });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    tasksDir: AbsolutePathSchema.parse(path.dirname(dir)),
+    chatsDir: AbsolutePathSchema.parse(path.dirname(dir)),
   });
   if (!options.unplaced) {
-    knowTask(id);
+    knowChat(id);
   }
   return id;
 }

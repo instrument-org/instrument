@@ -3,23 +3,22 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { TASK_FOLDER_NAMES } from "../constants";
-import { type ChatId } from "../schemas/chat-id";
-import { type TaskDir } from "../schemas/paths";
+import { type ChatDir } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { type TaskSettingsUpdate } from "../schemas/task-settings";
+import { type ChatId } from "../schemas/chat-id";
+import { type ChatSettingsUpdate } from "../schemas/chat-settings";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
 import { pathExists } from "./path-exists";
-import { forgetRecord, placeChat } from "./record-folders";
-import { updateTaskSettings } from "./task-settings";
+import { forgetChat, placeChat } from "./record-folders";
+import { updateChatSettings } from "./chat-settings";
 import { workDir } from "./work-dir";
 
 type InitialSettings = Omit<
-  TaskSettingsUpdate,
+  ChatSettingsUpdate,
   "chatSessionId" | "createdWithAppVersion"
 >;
 
@@ -49,9 +48,9 @@ async function initializeRecord({
   taskId,
   workspaceConfig,
 }: {
-  initialSettings: Omit<TaskSettingsUpdate, "createdWithAppVersion">;
-  place: () => TaskDir;
-  taskId: TaskId;
+  initialSettings: Omit<ChatSettingsUpdate, "createdWithAppVersion">;
+  place: () => ChatDir;
+  taskId: ChatId;
   workspaceConfig: WorkspaceConfig;
 }) {
   // Lets go of the id reserved below when any later step fails, so a chat or
@@ -69,7 +68,7 @@ async function initializeRecord({
     )();
     const parentDir = path.dirname(dir);
     release = () => {
-      forgetRecord(taskId);
+      forgetChat(taskId);
     };
 
     // Ensure the parent dir exists (idempotent), then create the task
@@ -97,7 +96,7 @@ async function initializeRecord({
 
     const createdAt = getCurrentDate();
 
-    yield* updateTaskSettings(taskId, {
+    yield* updateChatSettings(taskId, {
       ...initialSettings,
       // Stamped from the start so a task that has never been messaged still
       // lists by when it was made rather than by whatever last touched a file
@@ -123,7 +122,7 @@ async function initializeRecord({
  * template detail (venv creation, pnpm guidance, and skill installs all
  * assume it exists).
  */
-function scaffoldWorkFolder(dir: TaskDir, workspaceConfig: WorkspaceConfig) {
+function scaffoldWorkFolder(dir: ChatDir, workspaceConfig: WorkspaceConfig) {
   return safeTry(async function* () {
     yield* copyTask({
       includePrivateFolder: false,
@@ -154,7 +153,7 @@ function scaffoldWorkFolder(dir: TaskDir, workspaceConfig: WorkspaceConfig) {
  * already is left as it is.
  */
 export async function ensureWorkFolder(
-  taskId: TaskId,
+  taskId: ChatId,
   workspaceConfig: WorkspaceConfig,
 ) {
   const dir = workDir(taskId);

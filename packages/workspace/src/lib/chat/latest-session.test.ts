@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { Store } from "../store";
 import {
   cutForNote,
@@ -15,7 +15,7 @@ vi.mock(import("../session-store-storage"));
 
 describe("latestOrNewSessionId", () => {
   it("creates a session for a task that has none, and answers with it after", async () => {
-    const taskId = createMockTaskConfig(TaskIdSchema.parse("fresh"));
+    const taskId = createMockChatConfig(ChatIdSchema.parse("fresh"));
     const before = await latestSessionId(taskId);
     expect(before._unsafeUnwrap()).toBeUndefined();
 
@@ -30,7 +30,7 @@ describe("latestOrNewSessionId", () => {
   });
 
   it("answers with the newest of several", async () => {
-    const taskId = createMockTaskConfig(TaskIdSchema.parse("several"));
+    const taskId = createMockChatConfig(ChatIdSchema.parse("several"));
     const older = StoreId.newSessionId();
     const newer = StoreId.newSessionId();
     for (const id of [newer, older]) {

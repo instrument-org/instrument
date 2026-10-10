@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { replacesPendingEvent } from "./wake-event";
 
-const taskId = TaskIdSchema.parse("task");
+const taskId = ChatIdSchema.parse("task");
 const event = (status: "done" | "error" | "overdue") => ({
   status,
   taskId,

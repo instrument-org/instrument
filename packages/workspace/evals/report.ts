@@ -1,12 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { getTasks } from "../src/lib/get-tasks";
+import { getChatInfos } from "../src/lib/chat-info";
 import { listChildTasks } from "../src/lib/chat/children";
 import { getSessionMarkdown } from "../src/lib/session-to-markdown";
 import { Store } from "../src/lib/store";
-import { taskDir } from "../src/lib/task-dir-utils";
-import { getTaskState } from "../src/lib/task-record";
+import { chatDir, resolveChat, sessionOfChat } from "../src/lib/record-folders";
+import { getChatState } from "../src/lib/chat-record";
 import { getTaskUsageSummary } from "../src/lib/usage-summary";
 import {
   hasWorkspaceConfig,
@@ -29,10 +29,9 @@ import {
   systemPromptDigest,
 } from "./provenance";
 import { buildReportWorkspaceConfig, c, write } from "./utils";
-import { resolveChat, sessionOfChat } from "../src/lib/record-folders";
 import { renderUserView } from "./lib/user-view";
 import { type StoreId } from "../src/schemas/store-id";
-import { type TaskId } from "../src/schemas/task-id";
+import { type ChatId } from "../src/schemas/chat-id";
 
 interface RollupSummary {
   assertions: {
@@ -132,7 +131,7 @@ export async function generateReport({
   const runsByTaskId = new Map(runs.map((run) => [run.taskId, run] as const));
   const absoluteWorkspaceDir = path.resolve(workspaceRootDir);
   const workspaceConfig = buildReportWorkspaceConfig(absoluteWorkspaceDir);
-  // `taskDir()` and friends read the config from its module singleton, which the
+  // `chatDir()` and friends read the config from its module singleton, which the
   // `run` flow populates when the workspace machine boots. Reporting on a past
   // workspace dir never boots one, so seed it here -- but only when it is absent,
   // so a report generated at the end of a run keeps the machine's own config.
@@ -140,7 +139,7 @@ export async function generateReport({
     setWorkspaceConfig(workspaceConfig);
   }
 
-  const listed = await getTasks({
+  const listed = await getChatInfos({
     direction: "asc",
     sortBy: "createdAt",
   });
@@ -148,9 +147,9 @@ export async function generateReport({
   // transcript to report.
   const tasks = (
     await Promise.all(
-      listed.tasks.map(async (task) =>
+      listed.chats.map(async (task) =>
         resolveChat(task.id) &&
-        !(await getTaskState(taskDir(task.id))).selectedModelURI
+        !(await getChatState(chatDir(task.id))).selectedModelURI
           ? []
           : [task],
       ),
@@ -196,7 +195,7 @@ export async function generateReport({
     const taskId = task.id;
     const run = runsByTaskId.get(taskId);
 
-    const taskState = await getTaskState(taskDir(taskId));
+    const taskState = await getChatState(chatDir(taskId));
     const taskModelURI = run?.modelURI ?? taskState.selectedModelURI;
     if (taskModelURI) {
       rollupModelURIs.add(taskModelURI);
@@ -298,7 +297,7 @@ export async function generateReport({
       "utf8",
     );
     const symlinkPath = path.join(taskOutputDir, "task");
-    await fs.symlink(taskDir(taskId), symlinkPath).catch(() => {
+    await fs.symlink(chatDir(taskId), symlinkPath).catch(() => {
       return;
     });
 
@@ -460,7 +459,7 @@ export async function generateReport({
  * task case started from the empty chat.
  */
 async function runSessionOf(
-  taskId: TaskId,
+  taskId: ChatId,
   label: string,
 ): Promise<undefined | { id: StoreId.Session }> {
   const chatId = resolveChat(taskId);

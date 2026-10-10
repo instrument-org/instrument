@@ -1,5 +1,5 @@
 import { StoreId } from "../../../schemas/store-id";
-import { type TaskId } from "../../../schemas/task-id";
+import { type ChatId } from "../../../schemas/chat-id";
 import { isWorking } from "../../chat/activity";
 import { stepInFlight } from "../../chat/in-flight";
 import { renderSteps, sessionSteps } from "../../chat/steps";
@@ -64,7 +64,7 @@ async function renderTranscript({
   taskId,
 }: {
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   // Loaded here rather than at the top: the renderer imports the tool registry,
   // which imports the bash tool, which imports this command, so a static import

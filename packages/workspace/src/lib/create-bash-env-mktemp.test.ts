@@ -3,11 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { ChatIdSchema } from "../schemas/chat-id";
-import { TaskDirSchema } from "../schemas/paths";
+import { ChatIdSchema, type ChatId } from "../schemas/chat-id";
+import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 
 /**
@@ -17,7 +16,7 @@ import { createBashEnv } from "./create-bash-env";
 const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
-let taskId: TaskId;
+let taskId: ChatId;
 
 async function run(command: string, { chat = false } = {}) {
   const bash = await createBashEnv({
@@ -32,7 +31,7 @@ beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-mktemp-"));
   const taskRoot = path.join(tmpDir, "tasks", "test");
   await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot));
+  taskId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
 });
 
 afterAll(async () => {

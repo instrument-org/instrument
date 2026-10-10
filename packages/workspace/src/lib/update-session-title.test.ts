@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type Session } from "../schemas/session";
 import { StoreId } from "../schemas/store-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { TypedError } from "./errors";
 import { isSessionTitleAutoReplaceable } from "./generate-session-title";
 import { Store } from "./store";
@@ -21,7 +21,7 @@ const mockGetSession = vi.mocked(Store.getSession);
 const mockSaveSession = vi.mocked(Store.saveSession);
 const mockIsAutoReplaceable = vi.mocked(isSessionTitleAutoReplaceable);
 
-const taskId = createMockTaskConfigForDir("/tmp/instrument-test-task");
+const taskId = createMockChatConfigForDir("/tmp/instrument-test-task");
 const sessionId = StoreId.newSessionId();
 
 function storedSession(title: string): Session.Type {

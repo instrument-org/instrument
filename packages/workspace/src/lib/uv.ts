@@ -1,7 +1,7 @@
 import path from "node:path";
 
 import { type AbsolutePath } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { commandLineToolsEnv } from "./command-line-tools-env";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -27,7 +27,7 @@ export function getUvBinPath(): AbsolutePath {
 }
 
 /** Absolute path to the task's virtualenv directory (`.venv`). */
-export function taskVenvDir(taskId: TaskId): AbsolutePath {
+export function taskVenvDir(taskId: ChatId): AbsolutePath {
   return absolutePathJoin(workDir(taskId), VENV_DIR_NAME);
 }
 
@@ -36,7 +36,7 @@ export function taskVenvDir(taskId: TaskId): AbsolutePath {
  * `Scripts/python.exe` on Windows; route python/python3 here directly so they
  * share the same environment that `uv pip` installs into.
  */
-export function taskVenvPython(taskId: TaskId): AbsolutePath {
+export function taskVenvPython(taskId: ChatId): AbsolutePath {
   const binDir = isWindows ? "Scripts" : "bin";
   const python = isWindows ? "python.exe" : "python";
   return absolutePathJoin(taskVenvDir(taskId), binDir, python);
@@ -54,7 +54,7 @@ export function taskVenvPython(taskId: TaskId): AbsolutePath {
 export function uvSubprocessEnv({
   taskId,
 }: {
-  taskId: TaskId;
+  taskId: ChatId;
 }): Record<string, string> {
   const { uvBinPath, uvDataDir } = getWorkspaceConfig();
   const venvDir = taskVenvDir(taskId);

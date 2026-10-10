@@ -7,7 +7,7 @@ import { runToolCall } from "../lib/run-tool-call";
 import { Store } from "../lib/store";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { getToolByType } from "../tools/all";
 
 /**
@@ -41,7 +41,7 @@ export async function saveStoppedToolCallPart(
   input: {
     part: SessionMessagePart.ToolPart;
     reason: CancellationReason;
-    taskId: TaskId;
+    taskId: ChatId;
   },
   { signal }: { signal?: AbortSignal } = {},
 ) {
@@ -83,7 +83,7 @@ const executeToolLogic = fromPromise<
     model: AIGatewayModel.Type;
     part: SessionMessagePart.ToolPartInputAvailable;
     sessionId: StoreId.Session;
-    taskId: TaskId;
+    taskId: ChatId;
   }
 >(async ({ input: { model, part, sessionId, taskId }, signal }) => {
   return runToolCall({
@@ -102,7 +102,7 @@ export const executeToolCallMachine = setup({
       {
         part: SessionMessagePart.ToolPartInputAvailable;
         reason: CancellationReason;
-        taskId: TaskId;
+        taskId: ChatId;
       }
     >(async ({ input, signal }) => {
       await saveStoppedToolCallPart(input, { signal });
@@ -129,14 +129,14 @@ export const executeToolCallMachine = setup({
       model: AIGatewayModel.Type;
       part: SessionMessagePart.ToolPartInputAvailable;
       sessionId: StoreId.Session;
-      taskId: TaskId;
+      taskId: ChatId;
     },
     events: {} as { reason?: StopReason; type: "stop" },
     input: {} as {
       model: AIGatewayModel.Type;
       part: SessionMessagePart.ToolPartInputAvailable;
       sessionId: StoreId.Session;
-      taskId: TaskId;
+      taskId: ChatId;
     },
   },
 }).createMachine({

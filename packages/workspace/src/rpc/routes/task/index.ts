@@ -3,14 +3,14 @@ import { z } from "zod";
 
 import { recordChanges } from "../../../lib/record-changes";
 import { changedMessageBatches } from "../../../lib/changed-message-batches";
-import { getTask } from "../../../lib/get-tasks";
+import { getChatInfo } from "../../../lib/chat-info";
 import {
   getTaskUsageSummary,
   UsageSummarySchema,
 } from "../../../lib/usage-summary";
 import { StoreId } from "../../../schemas/store-id";
-import { TaskSchema } from "../../../schemas/task";
-import { TaskIdSchema } from "../../../schemas/task-id";
+import { ChatInfoSchema } from "../../../schemas/chat-info";
+import { ChatIdSchema } from "../../../schemas/chat-id";
 import { base, toORPCError } from "../../base";
 import { liveRead } from "../../live-read";
 import { liveTaskActivity } from "./activity";
@@ -20,10 +20,10 @@ import { taskFiles } from "./files";
 import { taskState } from "./state";
 
 const byId = base
-  .input(z.object({ id: TaskIdSchema }))
-  .output(TaskSchema)
+  .input(z.object({ id: ChatIdSchema }))
+  .output(ChatInfoSchema)
   .handler(async ({ errors, input }) => {
-    const result = await getTask(input.id);
+    const result = await getChatInfo(input.id);
     if (result.isErr()) {
       throw toORPCError(result.error, errors);
     }
@@ -33,8 +33,8 @@ const byId = base
 
 const live = {
   byId: base
-    .input(z.object({ id: TaskIdSchema }))
-    .output(eventIterator(TaskSchema))
+    .input(z.object({ id: ChatIdSchema }))
+    .output(eventIterator(ChatInfoSchema))
     .handler(async function* ({ context, input, signal }) {
       yield* liveRead({
         changes: [
@@ -52,7 +52,7 @@ const live = {
 
 /** A record's spend across its sessions, or one session's: a task's, say. */
 const UsageOfSchema = z.object({
-  id: TaskIdSchema,
+  id: ChatIdSchema,
   sessionId: StoreId.SessionSchema.optional(),
 });
 

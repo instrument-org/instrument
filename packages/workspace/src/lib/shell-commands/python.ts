@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { TASK_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { isAtOrUnder } from "../path-containment";
@@ -55,18 +55,18 @@ export const PYTHON_NATIVE_COMMAND = {
 const SKILL_COPIES_DIR = `${MOUNT.task}/${TASK_FOLDER_NAMES.work}/${TASK_FOLDER_NAMES.skills}`;
 
 export function createPython3Command(
-  taskId: TaskId,
+  taskId: ChatId,
   layout: WorkspaceFsLayout,
 ) {
   return createSandboxedPythonCommand(taskId, layout, PYTHON3_COMMAND.name);
 }
 
-export function createPythonCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createPythonCommand(taskId: ChatId, layout: WorkspaceFsLayout) {
   return createSandboxedPythonCommand(taskId, layout, PYTHON_COMMAND.name);
 }
 
 export function createPythonNativeCommand(
-  taskId: TaskId,
+  taskId: ChatId,
   layout: WorkspaceFsLayout,
 ) {
   return defineCommand(PYTHON_NATIVE_COMMAND.name, (args, ctx) =>
@@ -87,7 +87,7 @@ const STDLIB_MODULE_NAMES = new Set(
 );
 
 function createSandboxedPythonCommand(
-  taskId: TaskId,
+  taskId: ChatId,
   layout: WorkspaceFsLayout,
   name: string,
 ) {
@@ -216,7 +216,7 @@ function explainSandboxedPythonFailure(stderr: string): string {
  * sandbox's error is the one that says to install it.
  */
 async function installedPackagesImported(
-  taskId: TaskId,
+  taskId: ChatId,
   args: string[],
   ctx: Parameters<Parameters<typeof defineCommand>[1]>[1],
 ): Promise<string[]> {
@@ -364,7 +364,7 @@ function pythonScriptArgIndex(args: string[]): number | undefined {
  * told that the sandboxed `python` reads the folder directly.
  */
 async function runNativePython(
-  taskId: TaskId,
+  taskId: ChatId,
   layout: WorkspaceFsLayout,
   name: string,
   args: string[],
@@ -477,7 +477,7 @@ async function runNativePython(
 }
 
 /** What the task's virtualenv has installed, by file name, or none. */
-async function sitePackagesEntries(taskId: TaskId): Promise<string[]> {
+async function sitePackagesEntries(taskId: ChatId): Promise<string[]> {
   const venv = taskVenvDir(taskId);
   const libDirs =
     process.platform === "win32"

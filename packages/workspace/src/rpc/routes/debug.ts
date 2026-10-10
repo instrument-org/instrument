@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createBashEnv } from "../../lib/create-bash-env";
 import { folderReach } from "../../lib/chat/folder-reach";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { base } from "../base";
 import { resolveChat } from "../../lib/record-folders";
 
@@ -49,7 +49,7 @@ const runBash = base
     z.object({
       command: z.string().min(1),
       sessionId: StoreId.SessionSchema,
-      taskId: TaskIdSchema,
+      taskId: ChatIdSchema,
       timeoutMs: z
         .number()
         .int()

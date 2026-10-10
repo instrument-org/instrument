@@ -13,9 +13,9 @@ import { recordChanges } from "../../../lib/record-changes";
 
 function getTaskActivity(workspaceRef: WorkspaceActorRef) {
   const activity: TaskAgentStatus[] = [];
-  const { sessionRefsByTaskId } = workspaceRef.getSnapshot().context;
+  const { sessionRefsByChatId } = workspaceRef.getSnapshot().context;
 
-  for (const id of sessionRefsByTaskId.keys()) {
+  for (const id of sessionRefsByChatId.keys()) {
     const sessionActors = getTaskAgentStatus({
       id,
       workspaceRef,

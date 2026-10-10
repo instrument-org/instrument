@@ -12,12 +12,12 @@ const WORKSPACE_SKILLS = `${MOUNT.skills}/workspace`;
 import { FolderAttachment } from "../schemas/folder-attachment";
 import {
   AbsolutePathSchema,
-  TaskDirSchema,
+  ChatDirSchema,
   WorkspaceDirSchema,
 } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { withTurnContext } from "./turn-context";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
@@ -60,7 +60,7 @@ describe("buildBashFs", () => {
           source: "user",
         },
       },
-      taskHostRoot: TaskDirSchema.parse(path.join(tmpDir, "task")),
+      taskHostRoot: ChatDirSchema.parse(path.join(tmpDir, "task")),
     });
     const bashFs = await buildBashFs(layout, {
       maxFileReadSize: 1024 * 1024,
@@ -284,9 +284,10 @@ describe("buildBashFs skills mount", () => {
     await fs.mkdir(path.join(tmpDir, "skills", "existing"), {
       recursive: true,
     });
-    createMockTaskConfig(TaskIdSchema.parse("skills-mount-test"));
+    createMockChatConfig(ChatIdSchema.parse("skills-mount-test"));
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
+      chatsDir: AbsolutePathSchema.parse(path.join(tmpDir, "chats")),
       rootDir: WorkspaceDirSchema.parse(tmpDir),
     });
   });
@@ -297,7 +298,7 @@ describe("buildBashFs skills mount", () => {
 
   async function makeBash() {
     const layout = buildWorkspaceFsLayout({
-      taskHostRoot: TaskDirSchema.parse(path.join(tmpDir, "task")),
+      taskHostRoot: ChatDirSchema.parse(path.join(tmpDir, "task")),
     });
     const bashFs = await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 });
     return new Bash({ cwd: MOUNT.task, fs: bashFs });
@@ -317,7 +318,7 @@ describe("buildBashFs skills mount", () => {
   it("attributes bash mutations through the mounted filesystem", async () => {
     const bash = await makeBash();
     const turn = {
-      id: TaskIdSchema.parse("skills-mount-test"),
+      id: ChatIdSchema.parse("skills-mount-test"),
       sessionId: StoreId.newSessionId(),
     };
     await beginSkillChangeTracking(turn);
@@ -373,6 +374,9 @@ describe("effectiveFolderAccess", () => {
     previousConfig = getWorkspaceConfig();
     setWorkspaceConfig({
       ...previousConfig,
+      chatsDir: AbsolutePathSchema.parse(
+        path.join(path.join(tmpDir, "workspace"), "chats"),
+      ),
       rootDir: WorkspaceDirSchema.parse(path.join(tmpDir, "workspace")),
     });
   });
@@ -470,7 +474,7 @@ describe("classifyHostPath", () => {
           source: "user",
         },
       },
-      taskHostRoot: TaskDirSchema.parse(task),
+      taskHostRoot: ChatDirSchema.parse(task),
     });
   }
 

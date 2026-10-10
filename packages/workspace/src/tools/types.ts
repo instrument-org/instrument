@@ -8,8 +8,8 @@ import type { ToolNameSchema } from "./name";
 
 import { type ExecuteError } from "../lib/execute-error";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { type TaskState } from "../schemas/task-state";
+import { type ChatId } from "../schemas/chat-id";
+import { type ChatState } from "../schemas/chat-state";
 
 export interface AgentTool<
   TName extends ToolName,
@@ -18,12 +18,12 @@ export interface AgentTool<
 > {
   aiSDKTool: (options: {
     model: AIGatewayModel.Type;
-    taskId: TaskId;
+    taskId: ChatId;
   }) => Promise<Tool<z.output<TInputSchema>, z.output<TOutputSchema>>>;
   description:
     | ((options: {
         model: AIGatewayModel.Type;
-        taskId: TaskId;
+        taskId: ChatId;
       }) => Promise<string> | string)
     | string;
   execute: (options: {
@@ -33,8 +33,8 @@ export interface AgentTool<
     partId: StoreId.Part;
     sessionId: StoreId.Session;
     signal: AbortSignal;
-    taskId: TaskId;
-    taskState: TaskState;
+    taskId: ChatId;
+    taskState: ChatState;
   }) =>
     | AsyncGenerator<ExecuteResult<z.output<TOutputSchema>>>
     | Promise<ExecuteResult<z.output<TOutputSchema>>>;
@@ -46,7 +46,7 @@ export interface AgentTool<
   // Does not call description(), so it is safe to call synchronously without taskId.
   staticAISDKTool: () => Tool<z.output<TInputSchema>, z.output<TOutputSchema>>;
   timeoutMs:
-    | ((options: { input: z.output<TInputSchema>; taskId: TaskId }) => number)
+    | ((options: { input: z.output<TInputSchema>; taskId: ChatId }) => number)
     | number;
   toModelOutput: (options: {
     input: z.output<TInputSchema>;

@@ -2,7 +2,7 @@ import { ok, safeTry } from "neverthrow";
 import { z } from "zod";
 
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
@@ -17,7 +17,7 @@ type TaskAppsBaseline = z.output<typeof TaskAppsBaselineSchema>;
  * undefined when none is stored yet.
  */
 export function getTaskAppsBaseline(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
   { signal }: { signal?: AbortSignal } = {},
 ) {
@@ -39,7 +39,7 @@ export function getTaskAppsBaseline(
 
 /** Persists the apps baseline for the session. */
 export function setTaskAppsBaseline(
-  taskId: TaskId,
+  taskId: ChatId,
   sessionId: StoreId.Session,
   slugs: TaskAppsBaseline,
   { signal }: { signal?: AbortSignal } = {},

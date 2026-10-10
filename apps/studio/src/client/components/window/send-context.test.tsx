@@ -12,7 +12,6 @@ import {
   FolderAttachment,
   type SessionMessageDataPart,
   ChatIdSchema,
-  TaskIdSchema,
 } from "@instrument-org/workspace/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -288,7 +287,7 @@ describe("sendContext", () => {
           screen: "tasks",
           tasks: [
             {
-              id: TaskIdSchema.parse("scan"),
+              id: ChatIdSchema.parse("scan"),
               status: "working",
               step: "Reading Downloads",
               title: "Scan the receipts",

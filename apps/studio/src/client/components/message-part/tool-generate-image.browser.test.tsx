@@ -1,5 +1,5 @@
 import { renderInBrowser } from "@/tests/render-browser";
-import { StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { StoreId, type ChatId } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
 
 // The claim here is that the card does not change height as the picture in it
@@ -21,7 +21,7 @@ vi.mock("@/client/lib/computer-file-url", () => ({
   getComputerThumbnailUrl: () => "",
 }));
 
-const TASK_ID = "quarterly-numbers" as TaskId;
+const TASK_ID = "quarterly-numbers" as ChatId;
 
 /**
  * What the card takes, which the two fixtures below are written against.

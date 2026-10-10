@@ -2,7 +2,7 @@ import { ok } from "neverthrow";
 import { parallel } from "radashi";
 
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { Store } from "./store";
 import {
   emptyUsageSummary,
@@ -17,7 +17,7 @@ export { UsageSummarySchema } from "./usage-summary-compute";
 // already hold the messages should use getUsageSummaryFromMessages directly
 // instead.
 export async function getTaskUsageSummary(
-  taskId: TaskId,
+  taskId: ChatId,
   {
     sessionId,
     signal,

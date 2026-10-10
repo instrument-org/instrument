@@ -7,7 +7,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { findAvailableName } from "./find-available-name";
 import { getCurrentDate } from "./get-current-date";
 import { pathExists } from "./path-exists";
-import { recordIdTaken } from "./record-folders";
+import { chatIdTaken } from "./record-folders";
 import { taskFolderSlug } from "./task-folder-slug";
 
 // Derives a sibling folder name for a branch by reusing the source folder's
@@ -31,7 +31,7 @@ export async function generateTaskFolderName({
 
   const { name } = await findAvailableName({
     isTaken: async (candidate) =>
-      recordIdTaken(candidate) ||
+      chatIdTaken(candidate) ||
       (await pathExists(absolutePathJoin(tasksDir, candidate))),
     name: base,
   });

@@ -11,7 +11,7 @@ import {
   encodeBrowserTargetId,
   lastBrowserAgentActivity,
   type StoreId,
-  type TaskId,
+  type ChatId,
   WINDOW_ID,
 } from "@instrument-org/workspace/electron";
 import {
@@ -535,7 +535,7 @@ export function createBrowserViewManager(): BrowserViewManager {
   }
 
   function createTarget(
-    id: TaskId,
+    id: ChatId,
     sessionId: StoreId.Session,
     partitionDir: AbsolutePath,
   ): Promise<{ targetId: BrowserTargetId }> {
@@ -591,7 +591,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     return Promise.race([entry.attach.promise, timeout]);
   }
 
-  function listTargets(id: TaskId): Promise<BrowserTarget[]> {
+  function listTargets(id: ChatId): Promise<BrowserTarget[]> {
     const targets: BrowserTarget[] = [];
 
     for (const [targetId, entry] of entries) {

@@ -134,9 +134,9 @@ describe("migrateWorkspaceLayout", () => {
   it("moves instrument.json -> .instrument/settings.json for tasks already under tasks/", () => {
     // no projects/ dir; a task already migrated to tasks/ but still on the
     // legacy settings filename
-    const taskDir = path.join(rootDir, "tasks", "abc");
-    fs.mkdirSync(taskDir, { recursive: true });
-    fs.writeFileSync(path.join(taskDir, "instrument.json"), `{"name":"Abc"}`);
+    const chatDir = path.join(rootDir, "tasks", "abc");
+    fs.mkdirSync(chatDir, { recursive: true });
+    fs.writeFileSync(path.join(chatDir, "instrument.json"), `{"name":"Abc"}`);
 
     migrateWorkspaceLayout({ rootDir });
 
@@ -145,9 +145,9 @@ describe("migrateWorkspaceLayout", () => {
   });
 
   it("moves root settings.json -> .instrument/settings.json", () => {
-    const taskDir = path.join(rootDir, "tasks", "abc");
-    fs.mkdirSync(taskDir, { recursive: true });
-    fs.writeFileSync(path.join(taskDir, "settings.json"), `{"name":"Abc"}`);
+    const chatDir = path.join(rootDir, "tasks", "abc");
+    fs.mkdirSync(chatDir, { recursive: true });
+    fs.writeFileSync(path.join(chatDir, "settings.json"), `{"name":"Abc"}`);
 
     migrateWorkspaceLayout({ rootDir });
 
@@ -410,9 +410,9 @@ describe("migrateWorkspaceLayout", () => {
 
       // A legacy-shaped task appearing after the sweep (e.g. hand-copied into
       // tasks/) is left alone until the layout version is bumped.
-      const taskDir = path.join(rootDir, "tasks", "abc");
-      fs.mkdirSync(taskDir, { recursive: true });
-      fs.writeFileSync(path.join(taskDir, "instrument.json"), `{"name":"Abc"}`);
+      const chatDir = path.join(rootDir, "tasks", "abc");
+      fs.mkdirSync(chatDir, { recursive: true });
+      fs.writeFileSync(path.join(chatDir, "instrument.json"), `{"name":"Abc"}`);
 
       migrateWorkspaceLayout({ rootDir });
 
@@ -425,9 +425,9 @@ describe("migrateWorkspaceLayout", () => {
     it("re-runs the sweep when the marker holds a stale version", () => {
       migrateWorkspaceLayout({ rootDir });
       fs.writeFileSync(path.join(rootDir, ...LAYOUT_MARKER), "0");
-      const taskDir = path.join(rootDir, "tasks", "abc");
-      fs.mkdirSync(taskDir, { recursive: true });
-      fs.writeFileSync(path.join(taskDir, "instrument.json"), `{"name":"Abc"}`);
+      const chatDir = path.join(rootDir, "tasks", "abc");
+      fs.mkdirSync(chatDir, { recursive: true });
+      fs.writeFileSync(path.join(chatDir, "instrument.json"), `{"name":"Abc"}`);
 
       migrateWorkspaceLayout({ rootDir });
 

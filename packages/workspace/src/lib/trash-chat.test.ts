@@ -6,9 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { chatFor } from "../test/helpers/chat-record";
 import { chatTaskFor } from "../test/helpers/chat-task";
-import { forgetRecordFolders, resolveChat } from "./record-folders";
+import { forgetChatFolders, resolveChat, chatDir } from "./record-folders";
 import { Store } from "./store";
-import { taskDir } from "./task-dir-utils";
 import { trashChat } from "./trash-task";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { ChatIdSchema } from "../schemas/chat-id";
@@ -31,6 +30,7 @@ beforeEach(async () => {
     defaultTaskTemplateDir: AbsolutePathSchema.parse(
       path.join(rootDir, "template"),
     ),
+    chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
     rootDir: WorkspaceDirSchema.parse(rootDir),
     tasksDir: WorkspaceDirSchema.parse(path.join(rootDir, "tasks")),
     trashItem: async (item: string) => {
@@ -39,11 +39,11 @@ beforeEach(async () => {
     },
   });
   await fs.mkdir(path.join(rootDir, "template"));
-  forgetRecordFolders();
+  forgetChatFolders();
 });
 
 afterEach(async () => {
-  forgetRecordFolders();
+  forgetChatFolders();
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
@@ -67,7 +67,7 @@ describe("trashChat", () => {
     expect(result.isOk()).toBe(true);
     expect(trashed).toEqual([`chats/${chat}`]);
     expect(resolveChat(chat)).toBeUndefined();
-    await expect(fs.access(taskDir(otherChat))).resolves.toBeUndefined();
+    await expect(fs.access(chatDir(otherChat))).resolves.toBeUndefined();
     expect((await Store.getSession(other, otherChat)).isOk()).toBe(true);
   });
 });

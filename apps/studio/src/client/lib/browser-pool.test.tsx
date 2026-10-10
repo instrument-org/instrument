@@ -1,7 +1,7 @@
 import {
   encodeBrowserTargetId,
   StoreId,
-  TaskIdSchema,
+  ChatIdSchema,
 } from "@instrument-org/workspace/client";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
@@ -14,7 +14,7 @@ import {
 } from "./browser-pool";
 
 const target = encodeBrowserTargetId(
-  TaskIdSchema.parse("instrument"),
+  ChatIdSchema.parse("instrument"),
   StoreId.newSessionId(),
 );
 

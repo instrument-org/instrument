@@ -5,13 +5,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { AbsolutePathSchema } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
   disposeSessionsStoreStorage,
   getSessionsStoreStorage,
 } from "./session-store-storage";
-import { taskDir } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
   closeWorkspaceIndex,
@@ -21,18 +21,18 @@ import {
 } from "./workspace-index";
 
 let root: string;
-let taskId: TaskId;
+let taskId: ChatId;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "workspace-index-test-"));
-  taskId = createMockTaskConfigForDir(
+  taskId = createMockChatConfigForDir(
     path.join(root, TASKS_DIR_NAME, "2026-10-01-indexed-task"),
   );
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     indexesDir: AbsolutePathSchema.parse(path.join(root, "indexes")),
   });
-  await fs.mkdir(taskDir(taskId), { recursive: true });
+  await fs.mkdir(chatDir(taskId), { recursive: true });
   // A store on disk, which is what a row stands for.
   const opened = await getSessionsStoreStorage(taskId);
   opened._unsafeUnwrap();

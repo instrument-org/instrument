@@ -20,7 +20,7 @@ import {
   decodeBrowserTargetId,
   isFolderPath,
   type StoreId,
-  type Task,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { useQuery } from "@tanstack/react-query";
@@ -177,7 +177,7 @@ function Chip({
  * own catalog default, so the chip resolves it the same way the request does
  * rather than reading as though nothing were set.
  */
-function EffortChip({ task }: { task: Task }) {
+function EffortChip({ task }: { task: ChatInfo }) {
   const models = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
@@ -245,7 +245,7 @@ function TaskBrief({
   task,
   taskSession,
 }: {
-  task: Task;
+  task: ChatInfo;
   /** The task's session, in the chat's record `task` is. */
   taskSession: StoreId.Session;
 }) {
@@ -303,7 +303,7 @@ function TaskBrief({
  * task's own layout before a tab is asked for it. A path the task cannot
  * reach opens nothing, and says so.
  */
-function useOpenFileNamedByTask(taskId: Task["id"]) {
+function useOpenFileNamedByTask(taskId: ChatInfo["id"]) {
   const { openScreen } = useWindow();
   return (filePath: string, options?: OpenOptions) => {
     const isFolder = isFolderPath(filePath);

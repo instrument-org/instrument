@@ -1,5 +1,5 @@
 import { type AbsolutePath } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { commandLineToolsEnv } from "./command-line-tools-env";
 import { execaNodeForTask } from "./execa-node-for-task";
 import { filterShellOutput } from "./filter-shell-output";
@@ -33,7 +33,7 @@ export async function runPnpmCommand({
   signal?: AbortSignal;
   /** Raw bytes; a string would be UTF-8 re-encoded by execa (see subprocessStdin). */
   stdin?: Buffer;
-  taskId: TaskId;
+  taskId: ChatId;
 }) {
   const sink = currentShellOutputSink();
   const subprocess = execaNodeForTask(

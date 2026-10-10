@@ -1,4 +1,4 @@
-import { StoreId, TaskIdSchema } from "@instrument-org/workspace/client";
+import { StoreId, ChatIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
 
 import { createMessageOptions, holdSendsUntilOpened } from "./message-sends";
@@ -15,7 +15,7 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
-const id = TaskIdSchema.parse("2026-10-01-message-sends");
+const id = ChatIdSchema.parse("2026-10-01-message-sends");
 
 describe("createMessageOptions", () => {
   it("holds a send into a chat until its opening message settles", async () => {

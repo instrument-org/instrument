@@ -2,7 +2,7 @@ import { ok } from "neverthrow";
 import { describe, expect, it } from "vitest";
 
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { streamTool } from "./stream-tool";
 import {
@@ -13,7 +13,7 @@ import {
 } from "./turn-context";
 
 const model = createMockAIGatewayModel();
-const taskId = TaskIdSchema.parse("stream-tool");
+const taskId = ChatIdSchema.parse("stream-tool");
 
 function makeOptions(sessionId: StoreId.Session) {
   return {

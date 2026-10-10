@@ -2,16 +2,15 @@ import { ulid } from "ulid";
 
 import { publisher } from "../../rpc/publisher";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
-import { type HeldTab } from "../../schemas/task-state";
+import { type HeldTab } from "../../schemas/chat-state";
 import {
   type WindowTabAction,
   type WindowTabAnswer,
 } from "../../schemas/window-tab";
 import { decodeBrowserTargetId } from "../../types";
-import { chatOf } from "../record-folders";
-import { getBrowserSessionDir, taskDir } from "../task-dir-utils";
-import { getTaskState } from "../task-record";
+import { resolveChat, chatDir } from "../record-folders";
+import { getBrowserSessionDir } from "../task-dir-utils";
+import { getChatState } from "../chat-record";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking } from "./activity";
 import { listChildTasks } from "./children";
@@ -39,7 +38,7 @@ export async function askWindow({
   timeoutMs = WINDOW_TAB_TIMEOUT_MS,
 }: {
   action: WindowTabAction;
-  askedBy: TaskId;
+  askedBy: ChatId;
   group: ChatId | undefined;
   timeoutMs?: number;
 }): Promise<undefined | WindowTabAnswer> {
@@ -78,7 +77,7 @@ export async function askWindow({
  * launch. A tab the window no longer has stays out: it was closed.
  */
 export async function liveHeldTabs(
-  taskId: TaskId,
+  taskId: ChatId,
   heldTabs: HeldTab[],
 ): Promise<HeldTab[]> {
   const { browser } = getWorkspaceConfig();
@@ -95,7 +94,7 @@ export async function liveHeldTabs(
     const answer = await askWindow({
       action: { kind: "restore", tabId: decoded.sessionId },
       askedBy: taskId,
-      group: chatOf(taskId),
+      group: resolveChat(taskId),
     });
     if (answer?.tabId === undefined) {
       continue;
@@ -125,7 +124,7 @@ export async function requestWindowTab({
   timeoutMs,
   url,
 }: {
-  askedBy: TaskId;
+  askedBy: ChatId;
   group: ChatId | undefined;
   show: boolean;
   timeoutMs?: number;
@@ -160,7 +159,7 @@ export async function tabHolders(
   if (working.length === 0) {
     return holders;
   }
-  const { browserTabs } = await getTaskState(taskDir(chatId));
+  const { browserTabs } = await getChatState(chatDir(chatId));
   for (const task of working) {
     for (const held of browserTabs) {
       const decoded = decodeBrowserTargetId(held.id);

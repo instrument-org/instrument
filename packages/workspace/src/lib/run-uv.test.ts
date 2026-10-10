@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { runUvCommand } from "./run-uv";
 
 vi.mock("execa");
@@ -16,7 +16,7 @@ describe("runUvCommand", () => {
       stdout: "",
     } as never);
 
-    const taskId = createMockTaskConfig(TaskIdSchema.parse("missing-uv"));
+    const taskId = createMockChatConfig(ChatIdSchema.parse("missing-uv"));
     const result = await runUvCommand({ args: ["--version"], taskId });
 
     expect(result).toMatchObject({

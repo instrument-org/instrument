@@ -2,7 +2,7 @@ import { joinedMidTurn } from "./chat/mid-turn";
 import { isToolPart } from "./is-tool-part";
 import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { chatConversation } from "./chat/children";
 import { Store } from "./store";
 import { systemNote } from "./system-note";
@@ -82,7 +82,7 @@ export async function turnNoteFor({
 }: {
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<string | undefined> {
   const messages = await Store.getMessagesWithParts(
     { sessionId, taskId },

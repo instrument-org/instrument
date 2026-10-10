@@ -8,8 +8,8 @@ import { TASK_FOLDER_NAMES } from "../constants";
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { absolutePathJoin } from "./absolute-path-join";
 import {
   handOverBackgroundProcesses,
@@ -25,7 +25,7 @@ import {
 } from "./background-processes";
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import { currentShellOutputSink } from "./shell-commands/output-sink";
-import { taskDir } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
 import {
   buildWorkspaceFsLayout,
   type WorkspaceFsLayout,
@@ -99,14 +99,14 @@ function controllableRun({
  * from what is on disk, so every run would start further along than the last.
  */
 function makeOwner(name: string) {
-  const taskId = TaskIdSchema.parse(
+  const taskId = ChatIdSchema.parse(
     `01k${name
       .replaceAll(/[^a-z0-9]/g, "")
       .padEnd(23, "0")
       .slice(0, 23)}`,
   );
-  createMockTaskConfig(taskId);
-  rmSync(taskDir(taskId), { force: true, recursive: true });
+  createMockChatConfig(taskId);
+  rmSync(chatDir(taskId), { force: true, recursive: true });
   const sessionId = StoreId.newSessionId();
   usedSessionIds.push(sessionId);
   return { sessionId, taskId };
@@ -295,10 +295,10 @@ describe("background processes", () => {
     // A regular file where the log directory belongs, so creating it fails the
     // way a permission or layout problem on the real disk would.
     const toolOutput = absolutePathJoin(
-      taskDir(owner.taskId),
+      chatDir(owner.taskId),
       TASK_FOLDER_NAMES.toolOutput,
     );
-    await fs.mkdir(taskDir(owner.taskId), { recursive: true });
+    await fs.mkdir(chatDir(owner.taskId), { recursive: true });
     await fs.writeFile(toolOutput, "not a directory", "utf8");
 
     const controllable = controllableRun();
@@ -510,7 +510,7 @@ describe("background processes", () => {
     });
 
     const log = await fs.readFile(
-      absolutePathJoin(taskDir(owner.taskId), info.logFilePath),
+      absolutePathJoin(chatDir(owner.taskId), info.logFilePath),
       "utf8",
     );
     expect(log).toMatchInlineSnapshot(`
@@ -668,7 +668,7 @@ describe("background processes", () => {
     };
     const layout = buildWorkspaceFsLayout({
       attachedFolders,
-      taskHostRoot: taskDir(owner.taskId),
+      taskHostRoot: chatDir(owner.taskId),
     });
     const { controllable, info } = promote(
       owner,
@@ -838,7 +838,7 @@ describe("background processes", () => {
     // The counter lives in memory, so a task it has never seen is the state every
     // task is in right after the app restarts.
     const outputDir = absolutePathJoin(
-      taskDir(owner.taskId),
+      chatDir(owner.taskId),
       TASK_FOLDER_NAMES.toolOutput,
     );
     await fs.mkdir(outputDir, { recursive: true });

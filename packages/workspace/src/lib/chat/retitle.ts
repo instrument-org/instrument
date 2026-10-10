@@ -4,7 +4,6 @@ import { alphabetical } from "radashi";
 import { publisher } from "../../rpc/publisher";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
 import { askDecisionModel } from "../decision-model";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import {
@@ -13,8 +12,8 @@ import {
 } from "../generate-title-from-user-message";
 import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { Store } from "../store";
-import { taskDir } from "../task-dir-utils";
-import { getTaskState } from "../task-record";
+import { chatDir } from "../record-folders";
+import { getChatState } from "../chat-record";
 import { chatConversation } from "./children";
 import { updateSessionTitle } from "../update-session-title";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -88,7 +87,7 @@ export async function retitleChat({
   ) {
     return currentTitle;
   }
-  const state = await getTaskState(taskDir(id));
+  const state = await getChatState(chatDir(id));
   if (!state.selectedModelURI) {
     return undefined;
   }
@@ -216,7 +215,7 @@ async function retitleOnSettle({
   id,
   sessionId,
 }: {
-  id: TaskId;
+  id: ChatId;
   sessionId: StoreId.Session;
 }): Promise<void> {
   // A task's turn ending names nothing: the chat is named from its own.

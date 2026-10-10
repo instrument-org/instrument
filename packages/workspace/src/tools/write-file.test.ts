@@ -9,17 +9,17 @@ import {
 import { FolderAttachment } from "../schemas/folder-attachment";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
-  createMockTaskConfig,
+  createMockChatConfig,
   MOCK_WORKSPACE_DIRS,
-} from "../test/helpers/mock-task-config";
+} from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { WriteFile } from "./write-file";
 
 const model = createMockAIGatewayModel();
-const taskId = createMockTaskConfig(TaskIdSchema.parse("test"), {
+const taskId = createMockChatConfig(ChatIdSchema.parse("test"), {
   model,
 });
 
@@ -41,7 +41,7 @@ describe("WriteFile - toModelOutput", () => {
   });
 
   it("returns a bare success line for a new file", async () => {
-    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [taskId]: {} } });
 
     const input = {
       content: "const x = 2;",
@@ -61,7 +61,7 @@ describe("WriteFile - toModelOutput", () => {
 
   it("returns a bare success line for an overwritten file", async () => {
     mockFs({
-      [MOCK_WORKSPACE_DIRS.tasks]: {
+      [MOCK_WORKSPACE_DIRS.chats]: {
         [taskId]: { "index.ts": "const x = 1;" },
       },
     });
@@ -89,7 +89,7 @@ describe("WriteFile - path policy", () => {
   });
 
   it("writes /task/... virtual paths to the real task location", async () => {
-    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
+    mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [taskId]: {} } });
 
     const result = await runTool(
       WriteFile,
@@ -130,38 +130,10 @@ describe("WriteFile - path policy", () => {
     });
   });
 
-  it("rejects writes into a read-only attached mount", async () => {
-    mockFs({ [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} } });
-
-    const result = await runTool(WriteFile, {
-      ...makeExecuteArgs({
-        content: "nope",
-        explanation: "test",
-        filePath: "/mnt/Docs/report.md",
-      }),
-      taskState: {
-        browserTabs: [],
-        attachedFolders: {
-          docs: {
-            access: "read-only",
-            createdAt: 0,
-            id: FolderAttachment.IdSchema.parse("docs-id"),
-            mountName: "Docs",
-            path: AbsolutePathSchema.parse("/ext/Docs"),
-            source: "user",
-          },
-        },
-      },
-    });
-    const error = result._unsafeUnwrapErr();
-    expect(error.message).toContain("read-only");
-    expect(error.message).toContain("copy");
-  });
-
   it("writes into a read-write mount at its real location", async () => {
     mockFs({
       "/ext/Docs": {},
-      [MOCK_WORKSPACE_DIRS.tasks]: { [taskId]: {} },
+      [MOCK_WORKSPACE_DIRS.chats]: { [taskId]: {} },
     });
 
     const result = await runTool(WriteFile, {

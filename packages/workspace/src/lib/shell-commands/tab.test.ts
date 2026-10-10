@@ -2,17 +2,16 @@ import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { publisher } from "../../rpc/publisher";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { type WindowTabAction } from "../../schemas/window-tab";
 import { createTabCommand } from "./tab";
-import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
 const chatId = ChatIdSchema.parse("tab-command-chat");
 
 // Which task is at work in which tab, as the chat's tasks' records would say.
 const holders = new Map<
   string,
-  { id: ReturnType<typeof TaskIdSchema.parse>; title: string }
+  { id: ReturnType<typeof ChatIdSchema.parse>; title: string }
 >();
 vi.mock(import("../chat/window-tab"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -158,7 +157,7 @@ describe("tab close, replace and show", () => {
 
   it("says which task was working in a tab it closed", async () => {
     holders.set("tab-known", {
-      id: TaskIdSchema.parse("read-the-page"),
+      id: ChatIdSchema.parse("read-the-page"),
       title: "Read the page",
     });
 

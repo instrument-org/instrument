@@ -14,7 +14,7 @@ import { type Session } from "../schemas/session";
 import { SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
 import { attachedFolderMountPoint } from "./attached-folder-mounts";
 import { buildAttachedFoldersText } from "./build-attached-folders-text";
@@ -27,8 +27,8 @@ import { isUntitledChatSessionTitle } from "./generate-session-title";
 import { isToolPart } from "./is-tool-part";
 import { normalizeProjectInstructions } from "./project-instructions";
 import { Store } from "./store";
-import { taskDir } from "./task-dir-utils";
-import { getTaskSettings } from "./task-settings";
+import { chatDir } from "./record-folders";
+import { getChatSettings } from "./chat-settings";
 import { getUsageSummaryFromMessages } from "./usage-summary-compute";
 
 interface MessageRenderInfo {
@@ -132,13 +132,13 @@ export async function getSessionMarkdown({
   frontMatter?: Record<string, unknown>;
   includeContextMessages?: boolean;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  taskId: ChatId;
 }): Promise<string> {
   const result = await Store.getSessionWithMessagesAndParts(sessionId, taskId);
   if (result.isErr()) {
     throw new Error(`Session ${sessionId} not found`);
   }
-  const settings = await getTaskSettings(taskDir(taskId));
+  const settings = await getChatSettings(chatDir(taskId));
 
   return sessionToMarkdown(result.value, {
     frontMatter,

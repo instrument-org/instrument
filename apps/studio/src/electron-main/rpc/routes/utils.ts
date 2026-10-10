@@ -1,4 +1,8 @@
-import { liveRead } from "@instrument-org/workspace/electron";
+import {
+  liveRead,
+  chatDir,
+  ChatIdSchema,
+} from "@instrument-org/workspace/electron";
 import { storeFileOpenNativeImage } from "@/electron-main/lib/app-protocol";
 import { computerFileBase as computerFileBaseUrl } from "@/electron-main/lib/computer-files";
 import { readLogTail, saveLogCopy } from "@/electron-main/lib/diagnostic-log";
@@ -26,7 +30,6 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import { getAppWindow } from "@/electron-main/windows/app-window";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
-import { taskDir, TaskIdSchema } from "@instrument-org/workspace/electron";
 import { eventIterator } from "@orpc/server";
 import {
   app,
@@ -562,8 +565,8 @@ function readWindowState(webContentsId: number) {
 
 /** Where a task's folder is on the computer, for the window to show it in its own folder view. */
 const taskFolderPath = base
-  .input(z.object({ id: TaskIdSchema }))
-  .handler(({ input }) => taskDir(input.id));
+  .input(z.object({ id: ChatIdSchema }))
+  .handler(({ input }) => chatDir(input.id));
 
 const copyFileToClipboard = base
   .errors({

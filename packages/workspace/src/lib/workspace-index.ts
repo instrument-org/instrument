@@ -4,10 +4,11 @@ import path from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 import superjson from "superjson";
 
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { cacheByStoreGeneration } from "./store-generation";
 import { STORE_MIGRATION_COUNT } from "./store-migrations";
-import { sessionStorePath, taskDir } from "./task-dir-utils";
+import { sessionStorePath } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -94,13 +95,13 @@ export function indexedByStore<Value>(table: IndexTable) {
     (derived) => derived.keep,
   );
   const read =
-    (taskId: TaskId, key: string, compute: () => Promise<Derived<Value>>) =>
+    (taskId: ChatId, key: string, compute: () => Promise<Derived<Value>>) =>
     async (): Promise<Derived<Value>> => {
       // Taken before the value is computed: a write that lands meanwhile
       // leaves a stamp older than the store, which only costs a recompute.
       const stamp = await stampOf([
-        sessionStorePath(taskDir(taskId)),
-        `${sessionStorePath(taskDir(taskId))}-wal`,
+        sessionStorePath(chatDir(taskId)),
+        `${sessionStorePath(chatDir(taskId))}-wal`,
       ]);
       if (stamp !== undefined) {
         const row = guarded(() => openIndex()?.read.get(table)?.get(key));
@@ -126,7 +127,7 @@ export function indexedByStore<Value>(table: IndexTable) {
     };
   /** `key` tells apart values derived from one store: a task's, by its session. */
   return async (
-    taskId: TaskId,
+    taskId: ChatId,
     compute: () => Promise<Derived<Value>>,
     key: string = taskId,
   ): Promise<Value> => {

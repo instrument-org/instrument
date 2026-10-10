@@ -23,7 +23,7 @@ import { filesNamedIn } from "../../src/lib/parse-files-block";
 import { resolveWorkspaceFilePath } from "../../src/lib/resolve-workspace-file-path";
 import { type WorkspaceFilePath } from "../../src/schemas/paths";
 import { type Session } from "../../src/schemas/session";
-import { type TaskId } from "../../src/schemas/task-id";
+import { type ChatId } from "../../src/schemas/chat-id";
 import { type Assertion, defineEval } from "../harness";
 
 // ---------------------------------------------------------------------------
@@ -58,7 +58,7 @@ function assistantText(sessions: Session.WithMessagesAndParts[]): string {
 /** The text of every readable file the reply's files fences name. */
 async function deliverableText(
   sessions: Session.WithMessagesAndParts[],
-  taskId: TaskId,
+  taskId: ChatId,
 ): Promise<{ names: string[]; text: string }> {
   const names = filesNamedIn(assistantText(sessions)).filter((name) =>
     TEXT_DELIVERABLE.test(name),
@@ -129,7 +129,7 @@ function linkedUrls(text: string): string[] {
 
 async function findingsLinks(
   sessions: Session.WithMessagesAndParts[],
-  taskId: TaskId,
+  taskId: ChatId,
 ): Promise<{ files: string[]; reply: string[]; urls: string[] }> {
   const reply = linkedUrls(assistantText(sessions));
   const deliverables = await deliverableText(sessions, taskId);

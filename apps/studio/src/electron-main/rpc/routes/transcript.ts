@@ -2,11 +2,11 @@ import { devOnly } from "@/electron-main/rpc/base";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   findAvailableName,
-  getTaskSettings,
+  getChatSettings,
   StoreId,
-  taskDir,
-  type TaskId,
-  TaskIdSchema,
+  chatDir,
+  type ChatId,
+  ChatIdSchema,
   workspaceRouter,
   type WorkspaceRPCContext,
 } from "@instrument-org/workspace/electron";
@@ -25,7 +25,7 @@ import { z } from "zod";
  * reach us.
  */
 
-async function buildSystemFrontMatter(taskId: TaskId) {
+async function buildSystemFrontMatter(taskId: ChatId) {
   const platform = os.platform();
   const osName =
     platform === "darwin"
@@ -38,8 +38,8 @@ async function buildSystemFrontMatter(taskId: TaskId) {
 
   const env = app.isPackaged ? "production" : "development";
 
-  const taskDirPath = taskDir(taskId);
-  const settings = await getTaskSettings(taskDirPath);
+  const taskDirPath = chatDir(taskId);
+  const settings = await getChatSettings(taskDirPath);
 
   return {
     appEnvironment: env,
@@ -57,7 +57,7 @@ async function buildSystemFrontMatter(taskId: TaskId) {
     // which is most of why a transcript gets handed to one. It names the
     // user's own machine in a file the user asked for and nothing sends it
     // anywhere, so where the file goes next is theirs to decide.
-    taskDir: taskDirPath,
+    chatDir: taskDirPath,
     transcriptGeneratedAt: new Date().toISOString(),
   };
 }
@@ -71,7 +71,7 @@ const TRANSCRIPT_EXTENSION = {
 
 const transcriptInput = z.object({
   format: TranscriptFormatSchema,
-  id: TaskIdSchema,
+  id: ChatIdSchema,
   /**
    * What the saved file is named after, when the record's own name is not
    * what the user knows it by: a chat is saved under its title.
@@ -128,7 +128,7 @@ const save = devOnly
   .handler(async ({ context, input, signal }) => {
     const markdown = await renderTranscript({ context, input, signal });
 
-    const settings = await getTaskSettings(taskDir(input.id));
+    const settings = await getChatSettings(chatDir(input.id));
     const outputPath = app.getPath("downloads");
     const { name: filename } = await findAvailableName({
       isTaken: (candidate) =>

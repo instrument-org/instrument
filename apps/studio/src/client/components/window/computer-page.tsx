@@ -1896,10 +1896,14 @@ function FolderMenuItems({
   const several = group?.length;
   const file = tab && !several ? { hostPath: tab.hostPath } : undefined;
   const openFile = useOpenFile();
-  const { openLabel, showOpen } = useFileOpenTarget(file);
+  const { openLabel, opensUnnamed, showOpen } = useFileOpenTarget(file);
   const itemHostPath = hostPathOfItem(item);
+  // A file the system opens with a helper not worth naming has one way to
+  // open, and the Open above already takes it.
   const openIn =
-    isMacOS() && itemHostPath ? { hostPath: itemHostPath } : undefined;
+    isMacOS() && itemHostPath && !opensUnnamed
+      ? { hostPath: itemHostPath }
+      : undefined;
   // The rest of the selection, opened along with the row in the app picked.
   const openInOthers = (group ?? []).flatMap((each) => {
     const hostPath = hostPathOfItem(each);
@@ -1955,7 +1959,7 @@ function FolderMenuItems({
               menuComponents={menuComponents}
               others={openInOthers}
             />
-          ) : file && showOpen ? (
+          ) : file && showOpen && !opensUnnamed ? (
             <Item
               onClick={() => {
                 openFile(file);

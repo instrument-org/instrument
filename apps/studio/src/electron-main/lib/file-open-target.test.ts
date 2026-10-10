@@ -11,7 +11,7 @@ const SAVE_DEBOUNCE_MS = 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW = new Date("2026-01-01T00:00:00Z").getTime();
 // Matches CACHE_VERSION in the cache store.
-const CACHE_VERSION = 9;
+const CACHE_VERSION = 10;
 
 interface ExecCall {
   args: string[];
@@ -494,6 +494,7 @@ describe("getFileOpenTarget", () => {
         "appName": "Editor",
         "iconUrl": "icon://png-target",
         "launchAppPath": null,
+        "opensUnnamed": false,
       }
     `);
   });
@@ -516,6 +517,30 @@ describe("getFileOpenTarget", () => {
         "appName": "Editor md",
         "iconUrl": "icon://png-for-Editor-md.app",
         "launchAppPath": "/Applications/Editor-md.app",
+        "opensUnnamed": false,
+      }
+    `);
+  });
+
+  it("offers a plain Open when the system's choice is a helper not worth naming", async () => {
+    const { getFileOpenTarget } = await importModule();
+    execImpl = (call) =>
+      classify(call) === "target"
+        ? Promise.resolve(
+            JSON.stringify({
+              appName: "DiskImageMounter.app",
+              bundleId: "com.apple.DiskImageMounter",
+              iconBase64: "png-helper",
+            }),
+          )
+        : defaultExecImpl(call);
+
+    expect(await getFileOpenTarget("/tasks/a/App.dmg")).toMatchInlineSnapshot(`
+      {
+        "appName": null,
+        "iconUrl": null,
+        "launchAppPath": null,
+        "opensUnnamed": true,
       }
     `);
   });
@@ -555,6 +580,7 @@ describe("getFileOpenTarget", () => {
           "appName": null,
           "iconUrl": "native://file-type",
           "launchAppPath": null,
+          "opensUnnamed": false,
         }
       `);
   });
@@ -569,6 +595,7 @@ describe("getFileOpenTarget", () => {
         "appName": null,
         "iconUrl": "native://file-type",
         "launchAppPath": null,
+        "opensUnnamed": false,
       }
     `);
   });
@@ -584,6 +611,7 @@ describe("getFileOpenTarget", () => {
       appName: "Editor",
       iconUrl: "icon://png-target",
       launchAppPath: null,
+      opensUnnamed: false,
     });
   });
 });
@@ -605,6 +633,7 @@ describe("getBrowserOpenTarget", () => {
         "appName": "Safari",
         "iconUrl": "icon://png-safari",
         "launchAppPath": null,
+        "opensUnnamed": false,
       }
     `);
     await getBrowserOpenTarget();
@@ -636,6 +665,7 @@ describe("getBrowserOpenTarget", () => {
         "appName": null,
         "iconUrl": null,
         "launchAppPath": null,
+        "opensUnnamed": false,
       }
     `);
   });
@@ -666,6 +696,7 @@ describe("persisted cache", () => {
       appName: "Editor",
       iconUrl: "icon://png-target",
       launchAppPath: null,
+      opensUnnamed: false,
     });
     expect(
       await second.getFileOpenCandidates("/tasks/b/other.md"),
@@ -730,7 +761,12 @@ describe("persisted cache", () => {
       targets[`.ext${i}`] = {
         // Older entries first, so trimming has a clear newest-wins ordering.
         resolvedAt: NOW - (300 - i) * 1000,
-        value: { appName: `App ${i}`, iconUrl: null, launchAppPath: null },
+        value: {
+          appName: `App ${i}`,
+          iconUrl: null,
+          launchAppPath: null,
+          opensUnnamed: false,
+        },
       };
     }
     await writeCache({ targets, version: CACHE_VERSION });
@@ -959,6 +995,7 @@ describe("linux", () => {
         "appName": "Example Viewer",
         "iconUrl": null,
         "launchAppPath": null,
+        "opensUnnamed": false,
       }
     `);
   });
@@ -1039,6 +1076,7 @@ describe("linux", () => {
         "appName": "Firefox",
         "iconUrl": "icon://Zng=",
         "launchAppPath": null,
+        "opensUnnamed": false,
       }
     `);
   });
@@ -1083,6 +1121,7 @@ describe("win32", () => {
         "appName": "Example Editor",
         "iconUrl": "native://exe-icon",
         "launchAppPath": null,
+        "opensUnnamed": false,
       }
     `);
   });
@@ -1103,6 +1142,7 @@ describe("win32", () => {
         "appName": "Google Chrome",
         "iconUrl": "native://chrome-icon",
         "launchAppPath": null,
+        "opensUnnamed": false,
       }
     `);
     expect(execCalls[0]?.script).toContain(

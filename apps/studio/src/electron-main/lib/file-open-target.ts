@@ -5,7 +5,10 @@ import path from "node:path";
 
 import { storeFileOpenIcon, storeFileOpenNativeImage } from "./app-protocol";
 import * as cacheStore from "./file-open-target/cache-store";
-import { curateCandidates } from "./file-open-target/candidate-policy";
+import {
+  curateCandidates,
+  isUnnamedHandler,
+} from "./file-open-target/candidate-policy";
 import {
   enumerateDarwinCandidates,
   renderDarwinBundleIcon,
@@ -66,6 +69,7 @@ const UNRESOLVED_BROWSER: FileOpenTarget = {
   appName: null,
   iconUrl: null,
   launchAppPath: null,
+  opensUnnamed: false,
 };
 
 // Resolution results that only make sense for this process: promises in flight,
@@ -259,6 +263,7 @@ async function fallbackTarget(fullPath: string): Promise<FileOpenTarget> {
     appName: null,
     iconUrl: await getFileTypeIconUrl(fullPath),
     launchAppPath: null,
+    opensUnnamed: false,
   };
 }
 
@@ -463,6 +468,7 @@ async function resolveBrowserTarget(): Promise<FileOpenTarget> {
     appName: resolved.appName,
     iconUrl: resolved.iconUrl,
     launchAppPath: null,
+    opensUnnamed: false,
   };
 }
 
@@ -551,6 +557,7 @@ async function resolvePromotedTarget(
     appName: promoted.appName,
     iconUrl: promoted.iconUrl ?? (await getFileTypeIconUrl(fullPath)),
     launchAppPath: promoted.appPath,
+    opensUnnamed: false,
   };
 }
 
@@ -559,6 +566,21 @@ async function resolveTarget(fullPath: string): Promise<FileOpenTarget> {
   if (resolved?.bundleId === APP_BUNDLE_ID) {
     return resolvePromotedTarget(fullPath);
   }
+  // The file's own icon stands in for a helper's, which has none worth
+  // showing.
+  if (resolved && isUnnamedHandler(resolved.bundleId)) {
+    return {
+      appName: null,
+      iconUrl: await getFileTypeIconUrl(fullPath),
+      launchAppPath: null,
+      opensUnnamed: true,
+    };
+  }
   const iconUrl = resolved?.iconUrl ?? (await getFileTypeIconUrl(fullPath));
-  return { appName: resolved?.appName ?? null, iconUrl, launchAppPath: null };
+  return {
+    appName: resolved?.appName ?? null,
+    iconUrl,
+    launchAppPath: null,
+    opensUnnamed: false,
+  };
 }

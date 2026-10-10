@@ -237,6 +237,7 @@ const fileOpenTarget = base
     z.object({
       appName: z.string().nullable(),
       iconUrl: z.string().nullable(),
+      opensUnnamed: z.boolean(),
     }),
   )
   .handler(({ input }) => getFileOpenTarget(input.filePath));

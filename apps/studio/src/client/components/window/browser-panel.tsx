@@ -1,5 +1,6 @@
 import { bookmarksAtom } from "@/client/atoms/window";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
+import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
 import { BrowserFindBar } from "@/client/components/window/browser-find-bar";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
@@ -622,6 +623,7 @@ export function BrowserPanel({
         const controls = (
           <>
             {pageControls}
+            <BrowserDownloadsButton />
             {menu}
           </>
         );
@@ -751,6 +753,7 @@ export function BrowserPanel({
                 </InputGroupAddon>
               </InputGroup>
             </form>
+            <BrowserDownloadsButton />
             {menu}
           </>
         );

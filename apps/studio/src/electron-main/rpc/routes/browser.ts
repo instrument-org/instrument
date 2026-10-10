@@ -4,6 +4,12 @@ import {
   recordEffectiveGuestSurface,
   setRasterBudget,
 } from "@/electron-main/browser-view/guest-surface";
+import {
+  cancelDownload,
+  clearDownloads,
+  listDownloads,
+  removeDownload,
+} from "@/electron-main/browser-view/download-list";
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import {
   capturePageThumbnail,
@@ -29,13 +35,6 @@ function currentTargets(): BrowserGuestTarget[] {
 }
 
 const events = {
-  downloadFinished: base.handler(async function* ({ signal }) {
-    for await (const event of publisher.subscribe("browser.download-finished", {
-      signal,
-    })) {
-      yield event;
-    }
-  }),
   focusGuest: base.handler(async function* ({ signal }) {
     for await (const event of publisher.subscribe("browser.focus-guest", {
       signal,
@@ -89,6 +88,13 @@ const events = {
 };
 
 const live = {
+  // The download list, newest first, sent again whenever it changes.
+  downloads: base.handler(async function* ({ signal }) {
+    yield* liveRead({
+      changes: [publisher.subscribe("browser.downloads-changed", { signal })],
+      read: listDownloads,
+    });
+  }),
   // Stream the browser targets. The renderer pool reconciles its guests to this
   // set (mount on add, dispose on remove) and the UI reads `attached`.
   // Re-subscribing always yields the current set, so nothing is stranded by a
@@ -206,6 +212,23 @@ const thumbnails = {
     }),
 };
 
+/** What a person can do to a download on the browser's list. */
+const downloads = {
+  cancel: base
+    .input(z.object({ id: z.string() }))
+    .handler(({ input }) => {
+      cancelDownload(input.id);
+    }),
+  clear: base.handler(() => {
+    clearDownloads();
+  }),
+  remove: base
+    .input(z.object({ id: z.string() }))
+    .handler(({ input }) => {
+      removeDownload(input.id);
+    }),
+};
+
 /** The engine's answer: the words asked about, then what it would finish them as. */
 const SuggestionsSchema = z.tuple(
   [z.string(), z.array(z.string())],
@@ -251,6 +274,7 @@ function duckDuckGoRegion(locale: string) {
 }
 
 export const browser = {
+  downloads,
   events,
   live,
   rememberPageIcon,

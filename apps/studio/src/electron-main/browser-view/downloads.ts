@@ -2,14 +2,13 @@ import type { Protocol } from "devtools-protocol";
 import type { DownloadItem, Session } from "electron";
 
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
-import { publisher } from "@/electron-main/rpc/publisher";
-import { displayHostPath } from "@instrument-org/shared";
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 
 import type { BrowserEntry } from "./entry";
 
+import { trackDownload } from "./download-list";
 import { type GuestRegistry } from "./guest-registry";
 import { isAllowedLocalDownload } from "./local-file-policy";
 
@@ -63,7 +62,7 @@ export function routeGuestDownloads(
     if (entry.authorizedDownloadPath) {
       saveForAgent(entry, item, entry.authorizedDownloadPath, stillOwned);
     } else {
-      saveForPerson(entry, item);
+      saveForPerson(item);
     }
   });
 }
@@ -94,12 +93,6 @@ function availableFilename(dir: string, filename: string): string {
     suffix += 1;
   }
   return `${stem}-${suffix}${ext}`;
-}
-
-// The folder as the toast shows it, read from the home folder's own name the
-// way the app shows every path of the person's.
-function displayFolder(dir: string): string {
-  return displayHostPath(dir, app.getPath("home"));
 }
 
 // The person's own Downloads folder, proved writable before it is chosen.
@@ -205,35 +198,18 @@ function saveForAgent(
 }
 
 // Where a download from any other browser goes, without a chooser: the
-// person's Downloads folder, and the renderer is told where it landed so the
-// window can say so. A name already taken gets the `-2`, `-3` suffix the rest
-// of the app gives a copy, rather than overwriting, which is what an explicit
+// person's Downloads folder, and onto the browser's download list, which the
+// window shows. A name already taken gets the `-2`, `-3` suffix the rest of
+// the app gives a copy, rather than overwriting, which is what an explicit
 // save path otherwise does.
-function saveForPerson(entry: BrowserEntry, item: DownloadItem) {
-  const filename = item.getFilename();
-  const report = (
-    completed: boolean,
-    saved: null | { dir: string; savePath: string },
-  ) => {
-    publisher.publish("browser.download-finished", {
-      completed,
-      filename: saved ? path.basename(saved.savePath) : filename,
-      folder: saved ? displayFolder(saved.dir) : null,
-      path: saved?.savePath ?? null,
-      targetId: entry.targetId,
-    });
-  };
-
+function saveForPerson(item: DownloadItem) {
   const dir = personDownloadsDir();
   if (!dir) {
     item.cancel();
-    report(false, null);
+    trackDownload(item, null);
     return;
   }
-  const savePath = path.join(dir, availableFilename(dir, filename));
+  const savePath = path.join(dir, availableFilename(dir, item.getFilename()));
   item.setSavePath(savePath);
-
-  item.once("done", (_doneEvent, state) => {
-    report(state === "completed", { dir, savePath });
-  });
+  trackDownload(item, savePath);
 }

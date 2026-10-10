@@ -369,11 +369,11 @@ describe("webSearch", () => {
         ok: false,
       });
 
-    function setUp(webSearch: WebSearchClient) {
+    function setUp(platformSearch: WebSearchClient) {
       const model = createMockAIGatewayModel({ provider: "openai-compatible" });
       createMockTaskConfig(
         TaskIdSchema.parse("2026-10-10-web-search-keyless"),
-        { model, webSearch },
+        { model, webSearch: platformSearch },
       );
       return model;
     }

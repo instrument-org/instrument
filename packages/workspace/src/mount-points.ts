@@ -41,8 +41,8 @@ export const MOUNT = {
   skills: "/skills",
 
   /**
-   * The agent's working folder, and its working directory: a chat's own
-   * folder, which its forks share, or a briefed task's.
+   * The agent's working folder, and its working directory: the chat's own
+   * folder, which its tasks share.
    *
    * A named home rather than the filesystem root, so the agent has a clear,
    * stable place to work and is less prone to hallucinating host paths.
@@ -51,15 +51,6 @@ export const MOUNT = {
    * through the layout, so this is the single value to change.
    */
   task: "/task",
-
-  /**
-   * Where a chat sees the folders of its briefed tasks, one read-only mount
-   * per task at `/tasks/<id>`. Plural, beside the singular `/task` that is
-   * the chat's own folder, because the two are different things: a briefed
-   * task kept its work in a folder of its own, which the chat reads and never
-   * writes. A fork works in the chat's folder and has none here.
-   */
-  tasks: "/tasks",
 } as const;
 
 /**

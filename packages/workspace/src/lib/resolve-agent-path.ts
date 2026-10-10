@@ -262,9 +262,8 @@ function fileExistsSync(filePath: string): boolean {
 function maskedEntryError(displayPath: string, entry: MaskedEntry) {
   if (entry === TASKS_DIR_NAME) {
     return executeError(
-      `"${displayPath}" is inside this chat's ${TASKS_DIR_NAME}/ directory, ` +
-        `which is not accessible from here. Each task's folder is mounted ` +
-        `read-only at ${MOUNT.tasks}/<id>.`,
+      `"${displayPath}" is inside the ${TASKS_DIR_NAME}/ directory an earlier ` +
+        `version left in this folder, which is not accessible.`,
     );
   }
   return executeError(

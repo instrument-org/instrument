@@ -1,9 +1,7 @@
 import ms from "ms";
 
-import { MOUNT } from "../mount-points";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { asClause } from "./as-clause";
-import { describeHoldings } from "./chat/describe-holdings";
 import { describeLeftRunning } from "./chat/left-running";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { systemNote } from "./system-note";
@@ -67,9 +65,6 @@ export function taskEventModelNote(
       : event.ended || event.status === "overdue"
         ? ""
         : " It said nothing.";
-    // The shape of its folder, as counts: enough to see a repository copied
-    // in or a build left behind, without a listing the chat can make
-    // for itself when it wants the names.
     // What the step running now is doing, on its own line: the measure of a
     // step that may never end on its own, which its label does not give.
     const inFlight =
@@ -80,11 +75,6 @@ export function taskEventModelNote(
       event.needs && event.needs.length > 0
         ? `\n  It cannot go on without:\n${event.needs.map((need) => `      ${need}`).join("\n")}`
         : "";
-    // Only a briefed task has a folder of its own to describe; a fork works
-    // in the chat's, and its event carries no holdings.
-    const holds = event.holds
-      ? `\n  Its folder ${MOUNT.tasks}/${event.sessionId} holds${event.status === "overdue" ? " so far" : ""}: ${describeHoldings(event.holds)}.`
-      : "";
     // Where a result that lives on a page is: the tab, by the id `tab show`
     // takes, since the task's transcript holds only its account of the page.
     const tabs =
@@ -95,7 +85,7 @@ export function taskEventModelNote(
       event.running && event.running.length > 0
         ? `\n  It left running in the background: ${event.running.map((process) => describeLeftRunning(process)).join(", ")}. Stop what the user does not need with \`${TASK_COMMAND.name} stop ${id} <bg id>\`, or all of it with \`${TASK_COMMAND.name} stop ${id} --all\`; a server they are using stays.`
         : "";
-    return `- ${id} ("${event.title}") ${outcome}${cost}.${steps}${summary}${inFlight}${needs}${holds}${tabs}${running}`;
+    return `- ${id} ("${event.title}") ${outcome}${cost}.${steps}${summary}${inFlight}${needs}${tabs}${running}`;
   });
 
   // What to do about a wake is the prompt's business (When a task finishes);

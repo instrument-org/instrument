@@ -238,12 +238,9 @@ async function targetOf(
     return { kind: "page", url: arg };
   }
   const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
-  if (
-    !isUnder(MOUNT.attachedFolders, virtualPath) &&
-    !isUnder(MOUNT.tasks, virtualPath)
-  ) {
+  if (!isUnder(MOUNT.attachedFolders, virtualPath)) {
     return {
-      error: `${TAB_NAME}: "${arg}" is not a page, and not under ${MOUNT.attachedFolders} or ${MOUNT.tasks}, which are the files and folders the window can show.`,
+      error: `${TAB_NAME}: "${arg}" is not a page, and not under ${MOUNT.attachedFolders}, which holds the files and folders the window can show.`,
     };
   }
   let stat;

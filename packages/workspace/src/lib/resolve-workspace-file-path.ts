@@ -9,9 +9,8 @@ import {
 import { workDir } from "./work-dir";
 
 /**
- * Host path for a file a task can reach: task-relative, the mount path of a
- * folder the user attached (`/mnt/<name>/...`), or, for a chat, a task it
- * created (`/tasks/<id>/...`). Null when the path resolves outside everything the task
+ * Host path for a file a task can reach: task-relative, or the mount path of a
+ * folder the user attached (`/mnt/<name>/...`). Null when the path resolves outside everything the task
  * has -- including the task's own private dir and a symlink leading out of a
  * mount -- so a caller can fail closed.
  *

@@ -23,7 +23,8 @@ const { positionals, values } = parseArgs({
 
 const inputPath = positionals[0];
 const outputPath = values.output;
-// A chat task has a root session per chat, so this names which one.
+// A chat's store holds its own session and each task's, so this names one;
+// the chat's own is the default.
 const wantedSessionId = values.session;
 
 if (!inputPath) {
@@ -37,8 +38,8 @@ if (!inputPath) {
 
 const dir = ChatDirSchema.parse(path.resolve(inputPath));
 
-// The workspace root is above `chats/<chat>/tasks/<id>`, `chats/<chat>`, or
-// a 1.x `tasks/<id>`, and records are found by scanning its `chats/`.
+// The workspace root is above `chats/<chat>` or a 1.x `tasks/<id>`, and
+// chats are found by scanning its `chats/`.
 const parts = dir.split(path.sep);
 const chatsAt = parts.lastIndexOf(CHATS_DIR_NAME);
 const rootDir =
@@ -76,12 +77,12 @@ if (rootSessions.length > 1 && !wantedSessionId) {
 }
 
 const rootSession = wantedSessionId
-  ? rootSessions.find((session) => session.id === wantedSessionId)
+  ? sessionsResult.value.find((session) => session.id === wantedSessionId)
   : rootSessions[0];
 if (!rootSession) {
   throw new Error(
     wantedSessionId
-      ? `No root session ${wantedSessionId} in ${dir}`
+      ? `No session ${wantedSessionId} in ${dir}`
       : `No root session found in ${dir}`,
   );
 }

@@ -86,8 +86,8 @@ export function filterShellOutput(
 
 /**
  * The text with every host path the layout knows written the way the agent
- * reaches it: each mount's root as its mount point (`/mnt/Docs`, `/skills/...`,
- * `/tasks/<id>`), the task's own folder as `.`, and the home folder as `~`.
+ * reaches it: each mount's root as its mount point (`/mnt/Docs`,
+ * `/skills/...`), the task's own folder as `.`, and the home folder as `~`.
  * The one rewrite every command's output goes through, foreground and
  * streamed, so a path reads the same whichever printed it.
  *

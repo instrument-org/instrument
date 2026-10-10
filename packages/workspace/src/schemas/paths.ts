@@ -54,12 +54,9 @@ const MountedWorkspacePathSchema = z
   .refine(
     (val) =>
       val.startsWith(`${MOUNT.attachedFolders}/`) ||
-      // A chat's read-only view of a task it created; resolved by the
-      // same layout the attached folders are, for a task of that kind only.
-      val.startsWith(`${MOUNT.tasks}/`) ||
       // A skill, read where its source is mounted (`/skills/<source>/...`).
       val.startsWith(`${MOUNT.skills}/`),
-    `Mounted path must be under ${MOUNT.attachedFolders}/, ${MOUNT.tasks}/, or ${MOUNT.skills}/`,
+    `Mounted path must be under ${MOUNT.attachedFolders}/ or ${MOUNT.skills}/`,
   )
   .brand("MountedWorkspacePath")
   .refine(

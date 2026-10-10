@@ -234,25 +234,14 @@ describe("private-dir (.instrument) restriction", () => {
   });
 });
 
-// A chat's folder holds its tasks under tasks/, and mounts writable at /task.
-// Its tasks are its to read only at /tasks/<id>, read-only and with their
-// private dirs masked, so none of these resolvers may reach them through the
-// chat's own folder.
+// A chat's folder may hold a tasks/ dir an earlier version kept its tasks in,
+// each with its private dir, and the folder mounts writable at /task, so none
+// of these resolvers may reach that dir through it.
 describe("a chat's tasks dir", () => {
   const chat = ChatDirSchema.parse(path.join(chatsDir(), "2026-09-26-chat"));
   const childId = "2026-09-26-child";
   const child = ChatDirSchema.parse(path.join(chat, "tasks", childId));
-  const layout = buildWorkspaceFsLayout({
-    extraMounts: [
-      {
-        hostRoot: child,
-        maskedEntries: [".instrument"],
-        mountPoint: `${MOUNT.tasks}/${childId}`,
-        readOnly: true,
-      },
-    ],
-    taskHostRoot: chat,
-  });
+  const layout = buildWorkspaceFsLayout({ taskHostRoot: chat });
 
   it.each([
     `tasks/${childId}/.instrument/settings.json`,
@@ -284,21 +273,6 @@ describe("a chat's tasks dir", () => {
       `${MOUNT.task}/tasks/${childId}/.instrument/settings.json`,
     );
     expect(native.startsWith(path.join(child, ".instrument"))).toBe(false);
-  });
-
-  it("reads the task through its own mount, and refuses its private dir there", () => {
-    expect(
-      resolveAgentPath({
-        inputPath: `${MOUNT.tasks}/${childId}/output/report.md`,
-        layout,
-      }).isOk(),
-    ).toBe(true);
-    expect(
-      resolveAgentPath({
-        inputPath: `${MOUNT.tasks}/${childId}/.instrument/settings.json`,
-        layout,
-      }).isErr(),
-    ).toBe(true);
   });
 
   it("leaves the chat's own files writable", () => {

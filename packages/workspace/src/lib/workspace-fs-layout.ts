@@ -709,14 +709,11 @@ function masked(mount: WorkspaceFsMount, fs: IFileSystem): IFileSystem {
 
 /**
  * What the task mount masks: its private dir, and in a chat's own folder the
- * `tasks/` dir holding the chat's tasks.
- *
- * Those tasks are mounted one by one at `/tasks/<id>`, read-only and with
- * their own private dirs masked, which is the only way the chat reaches them.
- * The chat's folder mounts writable at `/task`, so without this the same child
- * would also sit at `/task/tasks/<id>`, writable and with its private dir in
- * plain view. Decided by where the folder is rather than by an id so that it
- * holds for every consumer handed only the task's host root.
+ * `tasks/` dir an earlier version kept its tasks in. The chat's folder mounts
+ * writable at `/task`, so without this those old folders would sit at
+ * `/task/tasks/<id>`, writable and with their private dirs in plain view.
+ * Decided by where the folder is rather than by an id so that it holds for
+ * every consumer handed only the task's host root.
  */
 function taskMaskedEntries(taskHostRoot: ChatDir): MaskedEntry[] {
   return nodePath.dirname(taskHostRoot) === chatsDir()

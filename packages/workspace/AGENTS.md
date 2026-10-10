@@ -14,7 +14,7 @@ Core AI agents, workflow logic, RPC, and tools.
 - **Machines**: XState in `src/machines/`. `WorkspaceActorRef` is the main-process handle; RPC context gets `workspaceRef` and `workspaceConfig`.
 - **Skills**: `src/lib/skills.ts` discovers them across the bundled set, the registry, co-installed agent homes, and the workspace `skills/` dir, deduping symlinks by canonical directory and copies by package fingerprint. `skill-catalog.ts` renders the budgeted catalog, which `available-skills-context.ts` puts in the session's context message (`LoadSkill`'s description is static, so installing a skill never rewrites a tool definition); `validate-skill.ts` holds the rules the runtime enforces. Each skill source mounts at `/skills/<source>/` for the agent, and only the workspace's own (`/skills/workspace/`) is writable (see `docs/architecture/agent-sandbox.md`).
 - **Records**: a chat is the only record, and `src/lib/record-folders.ts` is the one answer to where its folder is (`chatDir`, under the config's `chatsDir`). `resolveChat(id)` says whether an id is a chat's, never an id's shape; `chatDir` throws `NotFound` for one that is not. Everything that names a record takes a `ChatId` (`schemas/chat-id.ts`), and a task is named by its session in the chat's store; the chat's session id is internal to its store (`chats.session` reads it, and `chats.ofSession` turns a session from an older address back into its chat). JSON files on disk are written only through `src/lib/json-record-file.ts`.
-- **Mount paths**: `src/mount-points.ts` holds `MOUNT`, the virtual paths the agent works in (`/task`, `/skills`, `/mnt`, `/apps`, `/tasks`). `/task` is the working folder, the chat's for its tasks too (`workDir`, `src/lib/work-dir.ts`). `/apps` mounts in a chat's own conversation only. Interpolate it into prompts, tool descriptions, and command help rather than typing a path out, so what the agent is told cannot disagree with what it gets; `instrument/no-bare-mount-path` (`oxlint-rules.ts`) fails the lint on a literal anywhere under `src/`.
+- **Mount paths**: `src/mount-points.ts` holds `MOUNT`, the virtual paths the agent works in (`/task`, `/skills`, `/mnt`, `/apps`). `/task` is the working folder, the chat's for its tasks too (`workDir`, `src/lib/work-dir.ts`). `/apps` mounts in a chat's own conversation only. Interpolate it into prompts, tool descriptions, and command help rather than typing a path out, so what the agent is told cannot disagree with what it gets; `instrument/no-bare-mount-path` (`oxlint-rules.ts`) fails the lint on a literal anywhere under `src/`.
 
 ## Context messages
 
@@ -40,7 +40,7 @@ description in `fixtures/workspaces/` at the **repo root** (this package's own
 ```bash
 pnpm workspace:seed --list                                # from the repo root
 pnpm workspace:seed --out <dir> --fixture documents [--fresh]
-pnpm --filter @instrument-org/workspace script:record-fixture-session <chat-dir> --fixture <name> --chat <key> [--task-key <recorded>=<key>]...
+pnpm --filter @instrument-org/workspace script:record-fixture-session <chat-dir> --fixture <name> --chat <key> [--task-key <handle>=<key>]...
 pnpm --filter @instrument-org/workspace script:record-fixture-session <task-dir> --fixture <name> --task <key>
 ```
 

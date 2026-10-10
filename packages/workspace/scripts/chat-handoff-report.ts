@@ -8,6 +8,7 @@ import { parseArgs } from "node:util";
 import { sessionsFor } from "../evals/harness";
 import { buildReportWorkspaceConfig } from "../evals/utils";
 import { getChatInfos } from "../src/lib/chat-info";
+import { listChildTasks } from "../src/lib/chat/children";
 import { sessionOfChat } from "../src/lib/record-folders";
 import { WAKE_SUMMARY_MAX_LENGTH } from "../src/lib/chat/wake-summary";
 import { getUsageSummary } from "../src/lib/usage-summary";
@@ -50,7 +51,14 @@ const rows: {
 // other sessions in its store; each read on its own, without what it forked.
 for (const chat of chats) {
   const conversation = sessionOfChat(chat.id);
-  for (const session of await sessionsFor(chat.id)) {
+  const ids = [
+    ...(conversation ? [conversation] : []),
+    ...(await listChildTasks(chat.id)).map((task) => task.id),
+  ];
+  const sessions = (
+    await Promise.all(ids.map((id) => sessionsFor(chat.id, id)))
+  ).flat();
+  for (const session of sessions) {
     const texts = session.messages
       .filter((message) => message.role === "assistant")
       .flatMap((message) =>

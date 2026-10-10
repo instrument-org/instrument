@@ -85,7 +85,7 @@ Just `pnpm --silent script:run-bash` with no arguments when stdin is a TTY.
 Stderr example:
 
 ```plaintext
-task dir: /tmp/instrument-bash-repl/tasks/01kv...
+task dir: /tmp/instrument-bash-repl/chats/01kv...
 task: 01kv...  session: ses_01KV...
 
 [exit 0 · 23ms]
@@ -120,4 +120,4 @@ TASK_DIR=$(pnpm --silent script:run-bash -- "echo hi" 2>&1 \
   | grep 'task dir:' | awk '{print $3}')
 ```
 
-Alternatively pass `--task <id>` to a known task dir under `$TMPDIR/instrument-bash-repl/tasks/<id>/` (`--tasks-dir <dir>` uses another tasks root).
+Alternatively pass `--task <id>` to a known folder under `$TMPDIR/instrument-bash-repl/chats/<id>/` (`--chats-dir <dir>` uses another root).

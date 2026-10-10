@@ -229,7 +229,7 @@ function bridgePathArgs(
         !isMaskedDirItself(resolveVirtual(arg), TASKS_DIR_NAME)
       ) {
         return {
-          error: `${RG_COMMAND.name}: ${arg}: path is not accessible; each task's folder is at ${MOUNT.tasks}/<id>`,
+          error: `${RG_COMMAND.name}: ${arg}: path is not accessible`,
         };
       }
       bridged.push(arg);

@@ -2,15 +2,12 @@ import { type IFileSystem } from "just-bash";
 import path from "node:path";
 
 import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
-import { MOUNT } from "../mount-points";
 import { normalizePath } from "./normalize-path";
 
 /**
  * The root entries a mount can mask: its private dir, and in a chat's own
- * folder the `tasks/` dir its tasks live in. A chat's tasks are mounted on
- * their own, read-only and with their private dirs masked, at
- * `/tasks/<id>`; reached through the chat's writable folder instead, every one
- * of those guards would be gone.
+ * folder the `tasks/` dir an earlier version kept tasks in, which holds their
+ * private dirs and is nothing of the chat's now.
  */
 export type MaskedEntry =
   | typeof TASK_FOLDER_NAMES.private
@@ -36,8 +33,8 @@ export function maskedEntryOf(
 /**
  * Wrap a filesystem so the given entries at its root are invisible to the agent
  * shell. The `.instrument` dir is masked on the task mount, whose private dir
- * holds the task db and state, and on each task a chat reaches at
- * `/tasks/<id>`. A chat's task mount masks its `tasks/` dir too (see {@link MaskedEntry}).
+ * holds the chat's db and state, and a chat's own folder masks its `tasks/`
+ * dir too (see {@link MaskedEntry}).
  *
  * The mask is a decorator on the mount rather than an empty filesystem mounted
  * over `/task/.instrument`, because `MountableFs` refuses to mount inside an
@@ -242,8 +239,8 @@ function readOnlyError(
 ) {
   const reason =
     entry === TASKS_DIR_NAME
-      ? `a chat's tasks are not reachable through its folder; each one is ` +
-        `mounted read-only at ${MOUNT.tasks}/<id>`
+      ? `the ${TASKS_DIR_NAME}/ directory an earlier version left is not ` +
+        `reachable`
       : `the ${TASK_FOLDER_NAMES.private} directory holds internals and is ` +
         `not writable`;
   return Object.assign(

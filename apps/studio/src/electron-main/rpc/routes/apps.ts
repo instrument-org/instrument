@@ -448,6 +448,7 @@ async function withInspectorClient<T>({
   errors: {
     API_ERROR: (options: { cause?: unknown; message: string }) => Error;
     NOT_FOUND: (options: { message: string }) => Error;
+    UNAUTHORIZED: (options: { message: string }) => Error;
   };
   run: Parameters<typeof withAppMcpClient>[0]["run"] extends (
     client: infer C,
@@ -469,9 +470,16 @@ async function withInspectorClient<T>({
   try {
     credential = await requireAppCredential(slug, manifest);
   } catch (error) {
-    throw errors.API_ERROR({
-      message: error instanceof Error ? error.message : String(error),
+    // A key that is gone from the store, or held for another address than
+    // the manifest names now, leaves the app needing a key: the page asks
+    // for one, and nothing is captured as a fault.
+    const message = error instanceof Error ? error.message : String(error);
+    await recordConnection(slug, {
+      error: message.slice(0, 300),
+      status: "needs-key",
     });
+    await appChanged(slug);
+    throw errors.UNAUTHORIZED({ message });
   }
   const result = await withAppMcpClient({
     credential,
@@ -492,6 +500,7 @@ async function withInspectorClient<T>({
         status: manifest.auth.kind === "oauth" ? "needs-sign-in" : "needs-key",
       });
       await appChanged(slug);
+      throw errors.UNAUTHORIZED({ message: result.error.message });
     }
     // Carried as the cause so a server that is not there (a desktop app's
     // local server while the app is closed, a service that is down) is
@@ -587,7 +596,12 @@ const startOAuth = base
         detail: result.error.message,
         event: "failed",
       });
-      throw errors.API_ERROR({ message: result.error.message });
+      // Carried as the cause so a sign-in that could not start because the
+      // network is down is not captured as a fault.
+      throw errors.API_ERROR({
+        cause: result.error.cause,
+        message: result.error.message,
+      });
     }
     if (result.value.alreadyConnected) {
       await announceConnected(input.slug);

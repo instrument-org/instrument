@@ -157,6 +157,7 @@ export async function beginMcpOAuth({
     // flow to park.
     await transport.close().catch(noop);
     return err({
+      cause: failure,
       message: `Could not start sign-in for "${slug}": ${describeSignInFailure(failure)}`,
       reason: "connect",
     });

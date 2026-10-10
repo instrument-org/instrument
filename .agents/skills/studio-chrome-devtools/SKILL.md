@@ -49,7 +49,7 @@ node $DRIVE eval 'document.querySelectorAll("button[aria-haspopup=menu]")[3].set
 node $DRIVE click --selector '[data-probe=kebab]'
 ```
 
-`boot` requires `--purpose` with a terse description of what this instance is testing, such as `"hotkeys"` or `"document viewer"`. Keep it to one or two short words; the launcher rejects anything over 24 characters. The purpose labels the instance for its lifetime so a person can distinguish agent-driven windows at a glance. Reusing the instance with the same purpose works normally; asking to reuse it with a different purpose fails and tells you to stop it first so the window never carries a stale label.
+`boot` requires `--purpose` with a terse description of what this instance is testing, such as `"hotkeys"` or `"document viewer"`. Keep it to one or two short words; the launcher rejects anything over 24 characters. The purpose labels the instance for its lifetime so a person can distinguish agent-driven windows at a glance: on macOS the app is named `Instrument <purpose>` in Cmd-Tab, the Dock, and the menu bar, and `boot` hands it a `color` (in its output) worn as a dot on the Dock icon and the dev pill. A purpose keeps its color across boots unless another live instance already wears it, so tell the person which color to look for. Reusing the instance with the same purpose works normally; asking to reuse it with a different purpose fails and tells you to stop it first so the window never carries a stale label.
 
 The port is derived from the checkout you are standing in. `boot` will not fall back to 48160 because that is the conventional port and almost always a window a person is using, so driving it means their clicks fight yours and their quit ends your run. Pass `--port` to target one deliberately.
 

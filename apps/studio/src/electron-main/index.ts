@@ -10,6 +10,7 @@ import {
   keepClaudeCodeCurrent,
   refreshClaudeAccountStatus,
 } from "@/electron-main/lib/claude-account";
+import { drawCornerDot } from "@/electron-main/lib/dev-dock-icon";
 import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
@@ -31,6 +32,10 @@ import {
   updateOnboardingWindowBackgroundColor,
 } from "@/electron-main/windows/onboarding";
 import { revealTask } from "@/electron-main/windows/reveal-task";
+import {
+  DEV_INSTANCE_COLORS,
+  isDevInstanceColor,
+} from "@/shared/dev-instance-colors";
 import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_FLAVOR, APP_PROTOCOL } from "@instrument-org/shared";
@@ -38,6 +43,7 @@ import {
   app,
   BrowserWindow,
   dialog,
+  nativeImage,
   nativeTheme,
   powerMonitor,
   protocol,
@@ -143,11 +149,23 @@ async function bootstrapPrimaryInstance() {
 
   // A development run is Electron's own binary, so the Dock would show
   // Electron's icon. It shows the app's in the development color instead, which
-  // keeps it apart from an installed Instrument running beside it.
+  // keeps it apart from an installed Instrument running beside it. An instance
+  // studio-drive booted adds the dot of the color it was handed.
   if (import.meta.env.DEV && process.platform === "darwin") {
     void import("../../build/flavors/development/icon.png?asset").then(
       ({ default: icon }) => {
-        app.dock?.setIcon(icon);
+        const color = process.env.STUDIO_DRIVE_COLOR;
+        if (!isDevInstanceColor(color)) {
+          app.dock?.setIcon(icon);
+          return;
+        }
+        const image = nativeImage.createFromPath(icon);
+        const { width, height } = image.getSize();
+        const bitmap = image.toBitmap();
+        drawCornerDot(bitmap, width, DEV_INSTANCE_COLORS[color]);
+        app.dock?.setIcon(
+          nativeImage.createFromBitmap(bitmap, { height, width }),
+        );
       },
     );
   }

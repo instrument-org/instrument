@@ -14,6 +14,10 @@ import {
   openOnboardingWindow,
 } from "@/electron-main/windows/onboarding";
 import { PORTS } from "@instrument-org/shared";
+import {
+  DEV_INSTANCE_COLORS,
+  isDevInstanceColor,
+} from "@/shared/dev-instance-colors";
 import { app, shell } from "electron";
 import fsSync from "node:fs";
 import path from "node:path";
@@ -173,6 +177,15 @@ function drivePurpose() {
   return process.env.STUDIO_DRIVE_PURPOSE || undefined;
 }
 
+/** The color studio-drive marked this dev instance with, matching its Dock dot. */
+function driveColor() {
+  const color = process.env.STUDIO_DRIVE_COLOR;
+  if (app.isPackaged || !isDevInstanceColor(color)) {
+    return;
+  }
+  return DEV_INSTANCE_COLORS[color];
+}
+
 /**
  * An instance pointed at its own user data directory -- a seeded workspace, say
  * -- is named by that directory. One on the shared dev directory has nothing to
@@ -209,6 +222,7 @@ const getAppEnvironment = devOnly
   .output(
     z.object({
       debugPort: z.number().optional(),
+      driveColor: z.string().optional(),
       drivePurpose: z.string().optional(),
       isPackaged: z.boolean(),
       userData: z.string().optional(),
@@ -217,6 +231,7 @@ const getAppEnvironment = devOnly
   )
   .handler(() => ({
     debugPort: debugPort(),
+    driveColor: driveColor(),
     drivePurpose: drivePurpose(),
     isPackaged: app.isPackaged,
     userData: userDataName(),

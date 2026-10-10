@@ -231,7 +231,14 @@ export function DevPanel() {
                   build gives its version: how this instance differs from the
                   one started by hand, and nothing at all when it doesn't. */}
               {!isPackaged && instanceTag !== "" && (
-                <span className="font-mono text-[9px] leading-none text-dev-500/70 tabular-nums dark:text-dev-400/60">
+                <span className="flex items-center gap-x-1 font-mono text-[9px] leading-none text-dev-500/70 tabular-nums dark:text-dev-400/60">
+                  {/* The dot this instance wears in its Dock icon's corner. */}
+                  {appEnvironment?.driveColor !== undefined && (
+                    <span
+                      className="size-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: appEnvironment.driveColor }}
+                    />
+                  )}
                   {instanceTag}
                 </span>
               )}

@@ -12,8 +12,23 @@
 //
 // The `dev` script and studio-drive's `boot` both run electron-vite through
 // this, so the process a launcher holds keeps the same pid across a restart.
+//
+// On macOS it also gives Electron the instance's name. The menu bar, Cmd-Tab,
+// and the Dock name a running app by its bundle's CFBundleName, which
+// `app.setName` does not reach, so every dev run read "Electron". The run goes
+// through an APFS clone of Electron.app named for it instead: "Instrument
+// hotkeys" for an instance studio-drive booted with that purpose, "Instrument
+// (Dev)" for one started by hand.
 
-import { type ChildProcess, spawn } from "node:child_process";
+import { type ChildProcess, execFileSync, spawn } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+} from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 
 // Kept in step with DEV_RELAUNCH_EXIT_CODE in src/electron-main/lib/relaunch.ts.
@@ -31,9 +46,77 @@ const ELECTRON_VITE = path.resolve(
 let child: ChildProcess | undefined;
 let stopping = false;
 
+/**
+ * The executable of an Electron.app clone carrying `name`, made on first use and
+ * kept beside the dependencies, keyed by Electron's version so an upgrade starts
+ * over. A clone costs no disk until written to, and only the outer bundle is
+ * re-signed, since the Info.plist is all that changed. Undefined anywhere it
+ * cannot be made, which leaves the run on Electron's own bundle.
+ */
+function namedElectron(name: string) {
+  if (process.platform !== "darwin") {
+    return;
+  }
+  try {
+    const electronDir = path.dirname(
+      createRequire(import.meta.url).resolve("electron/package.json"),
+    );
+    const stockBundle = path.join(electronDir, "dist/Electron.app");
+    const version = readFileSync(
+      path.join(electronDir, "dist/version"),
+      "utf8",
+    ).trim();
+    const bundle = path.resolve(
+      import.meta.dirname,
+      "../node_modules/.cache/dev-electron",
+      version,
+      `${name.replaceAll(/[/:]/g, "-")}.app`,
+    );
+    const executable = path.join(bundle, "Contents/MacOS/Electron");
+    if (existsSync(executable)) {
+      return executable;
+    }
+    // Built aside and moved into place, so a second supervisor starting at the
+    // same moment never launches a half-made bundle.
+    const building = `${bundle}.${process.pid}`;
+    rmSync(building, { force: true, recursive: true });
+    mkdirSync(path.dirname(bundle), { recursive: true });
+    execFileSync("cp", ["-cR", stockBundle, building]);
+    const plist = path.join(building, "Contents/Info.plist");
+    for (const key of ["CFBundleName", "CFBundleDisplayName"]) {
+      execFileSync("plutil", ["-replace", key, "-string", name, plist]);
+    }
+    execFileSync("codesign", ["--force", "--sign", "-", building], {
+      stdio: "ignore",
+    });
+    try {
+      renameSync(building, bundle);
+    } catch {
+      // Another supervisor finished first; its bundle is the same.
+      rmSync(building, { force: true, recursive: true });
+    }
+    return executable;
+  } catch (error) {
+    process.stderr.write(
+      `[dev-supervisor] running as Electron, since a bundle named ${JSON.stringify(name)} could not be made: ${String(error)}\n`,
+    );
+    return;
+  }
+}
+
+const purpose = process.env.STUDIO_DRIVE_PURPOSE;
+const electronExecPath = namedElectron(
+  purpose ? `Instrument ${purpose}` : "Instrument (Dev)",
+);
+
 function start() {
   child = spawn(ELECTRON_VITE, process.argv.slice(2), {
-    env: { ...process.env, INSTRUMENT_DEV_SUPERVISOR: "1" },
+    env: {
+      ...process.env,
+      INSTRUMENT_DEV_SUPERVISOR: "1",
+      // electron-vite launches whatever this names in place of its own lookup.
+      ...(electronExecPath && { ELECTRON_EXEC_PATH: electronExecPath }),
+    },
     // A .cmd shim only runs through a shell.
     shell: process.platform === "win32",
     stdio: "inherit",

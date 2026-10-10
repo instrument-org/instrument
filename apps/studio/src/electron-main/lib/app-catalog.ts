@@ -1,4 +1,5 @@
-import { getAnonymousPlatformApiHeaders } from "@/electron-main/platform-api/headers";
+import { getPlatformApiHeaders } from "@/electron-main/platform-api/headers";
+import { getSessionStore } from "@/electron-main/stores/workspace/session";
 import { applyServedAppCatalog } from "@instrument-org/workspace/electron";
 import { app } from "electron";
 import fs from "node:fs";
@@ -14,6 +15,10 @@ import { createScopedLogger } from "./electron-logger";
  * launch before the window asks for the directory, so a launch without the
  * network keeps the fixes it already had. The built-in directory stands in
  * until a copy arrives, and whenever one is older than it.
+ *
+ * The ask carries the account when someone is signed in, since what the API
+ * serves can depend on who asks (a sign-in client open only to the people
+ * trying it), so a sign-in or sign-out asks again.
  */
 
 const log = createScopedLogger("AppCatalog");
@@ -68,7 +73,7 @@ export function fetchAppCatalog(): Promise<void> {
     try {
       const response = await fetch(`${base}/apps/catalog`, {
         headers: {
-          ...getAnonymousPlatformApiHeaders(),
+          ...getPlatformApiHeaders(),
           ...(state.etag ? { "if-none-match": state.etag } : {}),
         },
         signal: AbortSignal.timeout(15_000),
@@ -123,5 +128,9 @@ export function startAppCatalog() {
     if (Date.now() - readState().fetchedAt > POLL_MS) {
       void fetchAppCatalog();
     }
+  });
+  // After any ask already under way, which carried the account as it was.
+  getSessionStore().onDidChange("apiBearerToken", () => {
+    void (inFlight ?? Promise.resolve()).then(fetchAppCatalog);
   });
 }

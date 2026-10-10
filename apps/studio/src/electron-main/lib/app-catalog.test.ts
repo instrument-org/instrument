@@ -12,7 +12,10 @@ vi.mock("electron", () => ({
   app: { getPath: () => userData.dir, on: vi.fn() },
 }));
 vi.mock("@/electron-main/platform-api/headers", () => ({
-  getAnonymousPlatformApiHeaders: () => ({ "x-client-name": "studio" }),
+  getPlatformApiHeaders: () => ({ "x-client-name": "studio" }),
+}));
+vi.mock("@/electron-main/stores/workspace/session", () => ({
+  getSessionStore: () => ({ onDidChange: vi.fn() }),
 }));
 vi.mock("@instrument-org/workspace/electron", () => ({
   applyServedAppCatalog: apply,

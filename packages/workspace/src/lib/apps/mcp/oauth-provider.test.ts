@@ -2,7 +2,10 @@ import {
   type OAuthClientInformationFull,
   type OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { serveRegisteredClient } from "../../../test/helpers/serve-registered-client";
+import { resetServedAppCatalog } from "../catalog";
 
 import { type OriginBound } from "../origin-bound";
 import {
@@ -213,14 +216,27 @@ describe("mcpSignInClient", () => {
   const relayRedirectUrl = (service: string) =>
     `https://api.example/oauth/${service}/callback`;
 
+  afterEach(resetServedAppCatalog);
+
+  it("leaves a service the directory gives no client on the loopback", () => {
+    expect(
+      mcpSignInClient({
+        loopbackRedirectUrl,
+        relayRedirectUrl,
+        serverUrl: "https://mcp.slack.com/mcp",
+      }).clientId,
+    ).toBeUndefined();
+  });
+
   it.each(["https://mcp.slack.com/mcp", "https://mcp.slack.com/mcp/"])(
-    "signs in to %s with Instrument's client through the relay",
+    "signs in to %s with the client the directory gives",
     (serverUrl) => {
+      serveRegisteredClient("slack", "registered-slack-client");
       expect(
         mcpSignInClient({ loopbackRedirectUrl, relayRedirectUrl, serverUrl }),
       ).toMatchInlineSnapshot(`
       {
-        "clientId": "7844234082100.12310227817328",
+        "clientId": "registered-slack-client",
         "redirectUrl": "https://api.example/oauth/slack/callback",
         "statePrefix": "49200",
       }

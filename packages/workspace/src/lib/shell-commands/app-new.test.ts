@@ -9,6 +9,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TaskIdSchema } from "../../schemas/task-id";
+import { serveRegisteredClient } from "../../test/helpers/serve-registered-client";
+import { resetServedAppCatalog } from "../apps/catalog";
 import { AppManifestSchema } from "../apps/manifest";
 import { createMemoryAppsConfig } from "../apps/memory-config";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
@@ -302,14 +304,26 @@ describe("app test and the guide skeleton", () => {
     ["asana", "--api https://app.asana.com/api/1.0 --auth bearer"],
     // ...and past a token that takes building an app first, to the web.
     ["hubspot", "--web https://app.hubspot.com"],
-    // One Instrument holds a registered client for signs in on the card.
-    ["slack", "--mcp https://mcp.slack.com/mcp\n"],
+    // Slack, until the directory gives it a client, goes to the web too.
+    ["slack", "--web https://app.slack.com"],
     // One that wants a sign-in gets the card, not --auth none.
     ["semgrep", "--mcp https://mcp.semgrep.ai/mcp\n"],
   ])("sets %s up the way it actually connects", async (slug, line) => {
     const result = await app("catalog", slug);
 
     expect(`${result.stdout}\n`).toContain(line);
+  });
+
+  it("signs in on the card once the directory gives a client", async () => {
+    serveRegisteredClient("slack", "registered-slack-client");
+    try {
+      const result = await app("catalog", "slack");
+      expect(`${result.stdout}\n`).toContain(
+        "--mcp https://mcp.slack.com/mcp\n",
+      );
+    } finally {
+      resetServedAppCatalog();
+    }
   });
 
   it("puts the directory's key test in the set-up line", async () => {

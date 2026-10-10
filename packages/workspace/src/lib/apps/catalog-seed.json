@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-10-10T21:37:47.924Z",
-  "entriesHash": "32470743ce11c0c3",
+  "revision": "2026-10-10T21:58:10.525Z",
+  "entriesHash": "daf1ced6a33e234f",
   "entries": [
     {
       "slug": "ahrefs",
@@ -4032,8 +4032,7 @@
           "format": "mcp",
           "name": "Slack MCP",
           "endpoint": "https://mcp.slack.com/mcp",
-          "auth": "oauth-client",
-          "clientId": "7844234082100.12310227817328"
+          "auth": "oauth-client"
         },
         {
           "format": "openapi",

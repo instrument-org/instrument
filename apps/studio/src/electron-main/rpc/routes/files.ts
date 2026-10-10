@@ -7,12 +7,14 @@ import {
   undoEntry,
   UndoRefusedError,
 } from "@/electron-main/lib/file-journal";
+import { resolveAlias } from "@/electron-main/lib/mac-native";
 import { utf8Text } from "@/electron-main/lib/utf8-text";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
 import { getFileJournal } from "@/electron-main/stores/machine/file-journal";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { moveSidebarPlaces } from "@/shared/sidebar-places";
+import { resolveThroughAliases } from "@instrument-org/workspace/electron";
 import { eventIterator, ORPCError } from "@orpc/server";
 import { shell } from "electron";
 import { createHash, randomUUID } from "node:crypto";
@@ -368,13 +370,14 @@ const write = base
   )
   .handler(async ({ errors, input }) => {
     try {
-      return await oneWriterAt(input.path, async () => {
+      const filePath = await followAliases(input.path);
+      return await oneWriterAt(filePath, async () => {
         // A write with no version to check creates the file when it is not
         // there; one with a version needs the file it edited.
         const bytes =
           input.baseVersion === undefined
-            ? await fs.readFile(input.path).catch(() => null)
-            : await fs.readFile(input.path);
+            ? await fs.readFile(filePath).catch(() => null)
+            : await fs.readFile(filePath);
         // Text in another encoding came to the editor with its unreadable
         // bytes replaced, so saving it would replace them on disk too.
         const disk = bytes ? utf8Text(bytes) : null;
@@ -387,7 +390,7 @@ const write = base
             return { content: disk, ok: false as const, version: diskVersion };
           }
         }
-        await writeWhole(input.path, input.content);
+        await writeWhole(filePath, input.content);
         return { ok: true as const, version: versionOf(input.content) };
       });
     } catch (error) {
@@ -411,11 +414,20 @@ const read = base
     z.object({ content: z.string(), utf8: z.boolean(), version: z.string() }),
   )
   .handler(async ({ input }) => {
-    const bytes = await fs.readFile(input.path);
+    const bytes = await fs.readFile(await followAliases(input.path));
     const strict = utf8Text(bytes);
     const content = strict ?? bytes.toString("utf8");
     return { content, utf8: strict !== null, version: versionOf(content) };
   });
+
+/**
+ * A text file's path with every Finder alias on it followed, so an editor
+ * opened on an alias reads and writes the file it leads to, the way the
+ * computer-file channel serves it.
+ */
+function followAliases(hostPath: string): Promise<string> {
+  return resolveThroughAliases(hostPath, resolveAlias);
+}
 
 const live = {
   /** One file on this computer, watched while something is looking at it: when it was last written, or null while it is not there. */
@@ -433,7 +445,7 @@ const live = {
         ...(input.intervalMs === undefined
           ? {}
           : { intervalMs: Math.max(200, input.intervalMs) }),
-        path: input.path,
+        path: await followAliases(input.path),
         signal,
       });
     }),

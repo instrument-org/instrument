@@ -1,6 +1,6 @@
 import { registerInPageCommandMenu } from "@/client/atoms/command-menu";
 import { Command, CommandInput } from "@/client/components/ui/command";
-import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { formatAccelerator } from "@/client/lib/format-accelerator";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
@@ -18,25 +18,26 @@ import { useWindow } from "./context";
  * A new tab: the command menu laid into the page with the caret in it,
  * under a greeting. Whatever is picked sends this tab there; Return with
  * nothing typed goes back to the place the tab was opened from, which is
- * what Cmd+T used to open. The line under the menu says it is Cmd+K, so the
- * tab teaches the menu, and Cmd+K here puts the caret back in it.
+ * what Cmd+T used to open. The line under the menu names Cmd+K, so the tab
+ * teaches the menu, and Cmd+K here puts the caret back in it.
  */
 export function NewTabPage({ search }: { search: URLSearchParams }) {
   const { openPage, openScreen } = useWindow();
   const isActive = useIsActiveTab();
-  const tabId = useTabId();
   const origin = newTabOrigin(search);
   const [words, setWords] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const trimmed = words.trim();
-
-  const { isBang, rows } = useCommandMenuRows({
+  const {
+    isBang,
+    rows,
+    words: shown,
+  } = useCommandMenuRows({
     active: isActive,
     done: (run) => run,
     openPage,
     openScreen,
-    surface: { kind: "page", origin, tabId },
-    words: trimmed,
+    surface: { kind: "page", origin },
+    words: words.trim(),
   });
 
   // The caret is in the menu whenever the tab comes up, and Cmd+K finds it
@@ -57,10 +58,10 @@ export function NewTabPage({ search }: { search: URLSearchParams }) {
       <h1 className="mb-6 shrink-0 text-[22px] font-medium tracking-tight">
         <Greeting />
       </h1>
-      {/* As tall as the places, the closed tabs and the commands need, and
-          shorter in a short window, where the list scrolls and the greeting
-          and the line under it stay in view. */}
-      <div className="flex h-126 min-h-40 w-full max-w-160 shrink flex-col overflow-hidden rounded-2xl border bg-card shadow-sm">
+      {/* As tall as the places and the commands need, and shorter in a short
+          window, where the list scrolls and the greeting and the line under
+          it stay in view. */}
+      <div className="flex h-92 min-h-40 w-full max-w-160 shrink flex-col overflow-hidden rounded-2xl border bg-card shadow-sm">
         <Command
           className="bg-card"
           defaultValue={`goto:${origin}`}
@@ -79,7 +80,7 @@ export function NewTabPage({ search }: { search: URLSearchParams }) {
             className="max-h-none! min-h-0 flex-1 overflow-hidden!"
             isBang={isBang}
             rows={rows}
-            words={trimmed}
+            words={shown}
           />
         </Command>
       </div>
@@ -88,7 +89,7 @@ export function NewTabPage({ search }: { search: URLSearchParams }) {
         <kbd className="rounded-md bg-foreground/5 px-1.5 py-0.5 font-sans text-[11px] font-medium ring-1 ring-foreground/10">
           {formatAccelerator(WINDOW_SHORTCUTS.commandMenu.accelerator).join("")}
         </kbd>{" "}
-        anywhere to open this menu over what you’re doing.
+        to search from anywhere.
       </p>
     </div>
   );

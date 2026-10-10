@@ -29,7 +29,6 @@ import { PLACES } from "@/client/components/window/app-rail";
 import { placeStartHref } from "@/client/components/window/app-tabs";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { byActivity, type Chat } from "@/client/components/window/chats";
-import { useClosedAppTabs } from "@/client/components/window/closed-app-tabs";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
@@ -69,12 +68,11 @@ import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
-import { type TabId } from "@/shared/tabs";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
 import { unique } from "radashi";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useDeferredValue, useRef, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
@@ -87,13 +85,10 @@ const FILES_SHOWN = 6;
 const MEANING_MIN_LENGTH = 3;
 /** Chats listed before anything is typed, newest first. */
 const RECENT_CHATS_SHOWN = 5;
-/** Closed tabs listed before anything is typed, newest first. */
-const CLOSED_SHOWN = 3;
 /** The commands a new tab lists before anything is typed; the rest are found by typing. */
 const NEW_TAB_COMMANDS = new Set(["new-chat", "settings", "shortcuts"]);
 
-export const COMMAND_MENU_PLACEHOLDER =
-  "Search chats, files, apps, pages, and commands…";
+export const COMMAND_MENU_PLACEHOLDER = "Search or type an address";
 
 type Item = {
   chord?: ShortcutAccelerator;
@@ -115,22 +110,24 @@ type Row =
 /**
  * Where the menu is drawn: over the window by Cmd+K, or as a new tab's page.
  * The page leads with the places to go, the one the tab was opened from
- * first in line for Return, and a closed tab brought back from it takes the
- * new tab's place.
+ * first in line for Return.
  */
 export type CommandMenuSurface =
   | { kind: "dialog" }
-  | { kind: "page"; origin: AppPlace; tabId: TabId };
+  | { kind: "page"; origin: AppPlace };
 
 /**
  * The menu's rows for the words typed, the same wherever it is drawn: what
- * the words name (an address to open, commands, chats, apps, pages, files),
- * then a web search for words that are a search, then, when nothing matched
- * by name and the words are no address, the chats the decision model says
- * they mean, below the search so Return never changes under the caret.
- * Before anything is typed, the tabs closed lately and the commands, and the
- * newest chats in the dialog, where a new tab has the places instead. Words
+ * the words name (an address to open, commands, chats, the apps set up here,
+ * pages, files), then a web search for words that are a search, then, when
+ * nothing matched by name and the words are no address, the chats the
+ * decision model says they mean, below the search so Return never changes
+ * under the caret. Before anything is typed, the commands, and the newest
+ * chats in the dialog, where a new tab has the places instead. Words
  * starting `!` reach the switches kept out of sight: `!dev` and `!beta`.
+ *
+ * The rows follow the words a beat behind while typing, so the field keeps
+ * up with the keys; `words` in the result is what the rows are for.
  */
 export function useCommandMenuRows({
   active,
@@ -138,7 +135,7 @@ export function useCommandMenuRows({
   openPage,
   openScreen,
   surface,
-  words,
+  words: typed,
 }: {
   /** Whether the menu is on screen, for what it reads off the disk or asks the model. */
   active: boolean;
@@ -148,16 +145,21 @@ export function useCommandMenuRows({
   openScreen: (href: string) => void;
   surface: CommandMenuSurface;
   words: string;
-}): { isBang: boolean; rows: Row[] } {
+}): { isBang: boolean; rows: Row[]; words: string } {
+  const words = useDeferredValue(typed);
   const shell = useShell();
   const { setTheme, theme } = useTheme();
   const developerMode = useDeveloperMode();
+  // The apps set up here, by the names the window has for them: one only in
+  // the directory is no place to go yet.
   const appsBySlug = useAppsBySlug();
+  const installed = useQuery(
+    rpcClient.apps.live.list.experimental_liveOptions(),
+  );
   const visited = useRecentPages();
   // Described only while the menu is up: each file is looked at on the disk.
   const recentFiles = useRecentFiles({ enabled: active }).files;
   const bookmarks = useAtomValue(bookmarksAtom);
-  const closedTabs = useClosedAppTabs(shell);
 
   const preferences = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
@@ -353,31 +355,19 @@ export function useCommandMenuRows({
     (page) => page.url,
   );
 
-  // A closed tab brought back from a new tab takes the new tab's place, the
-  // way a page picked there does.
-  const closedItems: Item[] = closedTabs.closed.map((tab, row) => ({
-    ...(row === 0 ? { chord: WINDOW_SHORTCUTS.reopenTab.accelerator } : {}),
-    detail: PLACES.find((place) => place.id === tab.place)?.label,
-    icon: tab.icon,
-    id: `closed:${row}`,
-    label: tab.title,
-    ranges: null,
-    run: () => {
-      closedTabs.reopen(row, isPage ? { replacing: surface.tabId } : {});
-    },
-    type: "item",
-  }));
-
   const isSearch = words !== "" && !isBang;
   const site = isSearch ? siteFromWords(words) : undefined;
   const chatMatches = isSearch
     ? nameMatch(byActivity(chats), (chat) => [chat.title], words)
     : [];
   const appMatches = isSearch
-    ? nameMatch([...appsBySlug], ([, app]) => [app.name], words).slice(
-        0,
-        APPS_SHOWN,
-      )
+    ? nameMatch(
+        [...appsBySlug].filter(([slug]) =>
+          installed.data?.apps.some((app) => app.slug === slug),
+        ),
+        ([, app]) => [app.name],
+        words,
+      ).slice(0, APPS_SHOWN)
     : [];
 
   const goTo: Item[] = PLACES.map(({ id, label }) => ({
@@ -420,12 +410,6 @@ export function useCommandMenuRows({
             appItem(slug, app, ranges),
           ),
           label: "Apps",
-        },
-        {
-          items: fuzzyMatch(closedItems, (item) => [item.label], words).map(
-            ({ item, ranges }) => ({ ...item, ranges }),
-          ),
-          label: "Recently closed",
         },
         {
           items: fuzzyMatch(
@@ -510,10 +494,6 @@ export function useCommandMenuRows({
       ? [
           ...(isPage ? [{ items: goTo, label: "Go to" }] : []),
           {
-            items: closedItems.slice(0, CLOSED_SHOWN),
-            label: "Recently closed",
-          },
-          {
             items: commands
               .filter((command) => !isPage || NEW_TAB_COMMANDS.has(command.id))
               .map((command) => ({ ...command, ranges: null, type: "item" })),
@@ -559,7 +539,7 @@ export function useCommandMenuRows({
                     {
                       icon: <MagnifyingGlassIcon />,
                       id: "web-search",
-                      label: `Search DuckDuckGo for “${words}”`,
+                      label: `Search the web for “${words}”`,
                       ranges: null,
                       run: () => {
                         openPage(webSearchUrl(words));
@@ -620,7 +600,7 @@ export function useCommandMenuRows({
           ...(section.looking ? [{ type: "looking" as const }] : []),
         ],
   );
-  return { isBang, rows };
+  return { isBang, rows, words };
 }
 
 /**
@@ -674,8 +654,7 @@ export function CommandMenu({
   };
   useHoldWindow(open, { onClose: close });
 
-  const words = search.trim();
-  const { isBang, rows } = useCommandMenuRows({
+  const { isBang, rows, words } = useCommandMenuRows({
     active: open,
     // A row's action, run once the menu is out of the way.
     done: (run) => () => {
@@ -685,7 +664,7 @@ export function CommandMenu({
     openPage,
     openScreen,
     surface: { kind: "dialog" },
-    words,
+    words: search.trim(),
   });
 
   return (

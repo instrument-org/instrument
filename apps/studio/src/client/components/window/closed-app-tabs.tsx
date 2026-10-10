@@ -1,7 +1,6 @@
 import { freshTabId } from "@/client/lib/tab-actions";
 import { reopenClosed } from "@/client/lib/tabs-model";
 import { NEW_TAB_HREF } from "@/client/atoms/window";
-import { type TabId } from "@/shared/tabs";
 import { type ChatId, type TaskId } from "@instrument-org/workspace/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { useAtom, useAtomValue } from "jotai";
@@ -13,7 +12,6 @@ import {
   INBOX_HREF,
   isChatHref,
   isSiteHref,
-  placeOfHref,
   putAwaySitesAtom,
 } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
@@ -78,8 +76,8 @@ export function useAppTabPresentation({
 
 /**
  * The window's tabs closed lately that would come back as they were, newest
- * first, each named as its tab was and with the place it stood in, and a
- * way to bring one back where it stood. A site's page is kept only for this
+ * first, each named as its tab was, and a way to bring one back where it
+ * stood. A site's page is kept only for this
  * launch, so a site closed before it is left out: it would reopen on nothing.
  * A new tab is left out too.
  */
@@ -101,26 +99,16 @@ export function useClosedAppTabs(names: {
     return group !== undefined && !putAway[group] ? [] : [{ entry, tab }];
   });
   return {
-    closed: reopenable.map(({ tab }) => ({
-      ...presentationOf(tab.pathname || INBOX_HREF),
-      place: placeOfHref(tab.pathname || INBOX_HREF),
-    })),
-    /**
-     * Brings one back, up, by its place in `closed`; in place of the tab
-     * `replacing` names when given, which goes without joining the closed.
-     */
-    reopen: (row: number, { replacing }: { replacing?: TabId } = {}) => {
+    closed: reopenable.map(({ tab }) =>
+      presentationOf(tab.pathname || INBOX_HREF),
+    ),
+    /** Brings one back, up, by its place in `closed`. */
+    reopen: (row: number) => {
       const entry = reopenable[row]?.entry;
       if (entry !== undefined) {
-        setAppTabs((current) => {
-          const reopened = reopenClosed(current, { entry, id: freshTabId() });
-          return replacing === undefined
-            ? reopened
-            : {
-                ...reopened,
-                tabs: reopened.tabs.filter((tab) => tab.id !== replacing),
-              };
-        });
+        setAppTabs((current) =>
+          reopenClosed(current, { entry, id: freshTabId() }),
+        );
       }
     },
   };

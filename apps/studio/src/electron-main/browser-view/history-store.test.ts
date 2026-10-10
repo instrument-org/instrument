@@ -93,6 +93,30 @@ describe("history store", () => {
     expect(history.summary()).toEqual({ count: 0, hosts: [] });
   });
 
+  // A tab that was open through a clear still holds its visit's id and later
+  // hides or retitles it; a page visited since must not have taken that id.
+  it("never gives a cleared visit's id to a later visit", () => {
+    const history = store();
+    const cleared = history.addVisit({
+      actor: "user",
+      at: 2 * HOUR,
+      transition: "link",
+      url: "https://a.test/",
+    });
+    history.clear(HOUR);
+    history.addVisit({
+      actor: "user",
+      at: 3 * HOUR,
+      transition: "link",
+      url: "https://b.test/",
+    });
+    history.hideVisit(cleared, "redirect");
+    history.setTitle([cleared], "A");
+    expect(history.recent(10)).toMatchObject([
+      { title: "", url: "https://b.test/" },
+    ]);
+  });
+
   it("removes a page from the person's history", () => {
     const history = store();
     history.addVisit({

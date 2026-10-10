@@ -86,7 +86,7 @@ const SIGNIFICANT_RECENCY_MS = 3 * 24 * 60 * 60 * 1000;
 /** How many visible visits make a page significant without being typed, Chromium's rule. */
 const SIGNIFICANT_VISITS = 4;
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS urls (
@@ -100,7 +100,9 @@ CREATE TABLE IF NOT EXISTS urls (
   hidden INTEGER NOT NULL DEFAULT 1
 ) STRICT;
 CREATE TABLE IF NOT EXISTS visits (
-  id INTEGER PRIMARY KEY,
+  -- AUTOINCREMENT: an open tab holds its visit's id through a clear, so a
+  -- cleared id must never be handed to a later visit.
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   url_id INTEGER NOT NULL REFERENCES urls(id),
   at INTEGER NOT NULL,
   actor TEXT NOT NULL,
@@ -155,8 +157,7 @@ export function createHistoryStore(file: string) {
   database.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
   const version = database.prepare("PRAGMA user_version").get()?.user_version;
   if (version !== SCHEMA_VERSION) {
-    // Nothing older than this version was ever written; a file of another
-    // version is from a build this one cannot read, so it starts over.
+    // History is not migrated: a file of another version starts over.
     database.exec(
       "DROP TABLE IF EXISTS visits; DROP TABLE IF EXISTS urls; DROP TABLE IF EXISTS file_opens; DROP TABLE IF EXISTS files;",
     );

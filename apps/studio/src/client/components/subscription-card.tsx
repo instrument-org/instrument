@@ -36,8 +36,8 @@ export function SubscriptionCard() {
       } else {
         toast.error("Couldn't open your billing page");
       }
-    } catch (error) {
-      toast.error("Couldn't open your billing page", { cause: error });
+    } catch (caught) {
+      toast.error("Couldn't open your billing page", { cause: caught });
     }
   };
 

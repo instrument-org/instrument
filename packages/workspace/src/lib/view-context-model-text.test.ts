@@ -78,7 +78,7 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, the browser showed "Example" at https://example.com/ (tab ses_01M3AX9RF3C2E9RTATMB602W0B, task read-the-page is working in it). "This page", "this site", "this" and "here" refer to it. It has no text yet.
+      When the user sent this, the browser showed "Example" at https://example.com/ (tab ses_01M3AX9RF3C2E9RTATMB602W0B, task read-the-page is working in it). "This page", "this site", "this" and "here" refer to it.
       Other tabs open but not on screen: "Shop" at https://shop.example/ (tab ses_01M3AX9RF3C2E9RTATMB602W0C, task compare-prices is working in it).
       </instrument-system-note>"
     `);

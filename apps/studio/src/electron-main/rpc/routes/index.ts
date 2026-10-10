@@ -4,12 +4,15 @@ import { appCommands } from "./app-commands";
 import { apps } from "./apps";
 import { auth } from "./auth";
 import { browser } from "./browser";
+import { browsingData } from "./browsing-data";
 import { chatgptAccount } from "./chatgpt-account";
 import { claudeAccount } from "./claude-account";
 import { debug } from "./debug";
+import { drafts } from "./drafts";
 import { features } from "./features";
 import { files } from "./files";
 import { gateway } from "./gateway";
+import { history } from "./history";
 import { mac } from "./mac";
 import { onboarding } from "./onboarding";
 import { pageEditor } from "./page-editor";
@@ -32,12 +35,15 @@ export const router = {
   apps,
   auth,
   browser,
+  browsingData,
   chatgptAccount,
   claudeAccount,
   debug,
+  drafts,
   features,
   files,
   gateway,
+  history,
   mac,
   onboarding,
   pageEditor,

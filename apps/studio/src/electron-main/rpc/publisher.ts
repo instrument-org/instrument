@@ -98,6 +98,7 @@ interface PublisherEvents {
   // were pressed, and the window decides which page, if any, they mean.
   "window.command":
     | "back"
+    | "clearBrowsingData"
     | "closeTab"
     | "commandMenu"
     | "editPage"

@@ -1,0 +1,76 @@
+[
+  {
+    "query": "video games",
+    "must": [19, 20, 25, 187, 191, 259, 261, 77],
+    "ok": [35]
+  },
+  { "query": "smart home", "must": [22, 104, 135, 142], "ok": [] },
+  { "query": "thermostat", "must": [135], "ok": [142, 22, 104] },
+  {
+    "query": "caffeine",
+    "must": [74, 100, 267, 37],
+    "ok": [23, 34, 66, 160, 268, 270, 274]
+  },
+  {
+    "query": "energy drink",
+    "must": [100, 34, 66, 267],
+    "ok": [23, 74, 160, 268, 270]
+  },
+  {
+    "query": "kitchen appliance",
+    "must": [164, 166, 357, 368, 369, 370],
+    "ok": [136]
+  },
+  {
+    "query": "cooking dinner",
+    "must": [136],
+    "ok": [164, 166, 368, 357, 369, 370, 158, 273]
+  },
+  { "query": "pizza", "must": [179, 181, 182, 194], "ok": [] },
+  { "query": "restaurant", "must": [158], "ok": [179, 181, 182, 194] },
+  { "query": "music", "must": [69, 27, 87], "ok": [254, 29] },
+  { "query": "speakers", "must": [254], "ok": [] },
+  { "query": "keeping cool in summer", "must": [90, 96], "ok": [] },
+  {
+    "query": "meeting notes",
+    "must": [134, 149, 157, 51, 52],
+    "ok": [156, 302, 298]
+  },
+  { "query": "taxes", "must": [], "ok": [] },
+  { "query": "asdf", "must": [], "ok": [] },
+  { "query": "launch plan", "must": [207, 244, 245, 150], "ok": [152, 94, 31] },
+  {
+    "query": "privacy",
+    "must": [152, 163],
+    "ok": [243, 277, 278, 280, 281, 282, 283, 284, 271, 272, 279]
+  },
+  {
+    "query": "hide personal info in screenshot",
+    "must": [277, 278, 280, 281, 282, 283, 284, 271, 272, 279, 243],
+    "ok": []
+  },
+  { "query": "computer upgrade", "must": [103, 77], "ok": [161, 138] },
+  { "query": "local AI models", "must": [138], "ok": [216, 241, 242, 161] },
+  { "query": "make a gif", "must": [288, 60], "ok": [372] },
+  {
+    "query": "video editing",
+    "must": [101, 102, 215, 315, 324, 326],
+    "ok": [60, 288]
+  },
+  { "query": "voice memo", "must": [242, 95, 131, 132, 63], "ok": [89] },
+  {
+    "query": "health supplements",
+    "must": [78, 268, 270, 160],
+    "ok": [23, 74]
+  },
+  { "query": "paintings", "must": [193, 198], "ok": [263, 266, 61] },
+  { "query": "drawing of a cat", "must": [10, 295], "ok": [266, 26, 30, 241] },
+  { "query": "buy a domain name", "must": [71], "ok": [] },
+  { "query": "travel", "must": [], "ok": [108, 109, 158] },
+  { "query": "home repair", "must": [294], "ok": [] },
+  { "query": "what colors to wear", "must": [217], "ok": [] },
+  { "query": "bike gear", "must": [170, 251, 252, 253], "ok": [105] },
+  { "query": "family", "must": [75, 155], "ok": [] },
+  { "query": "fundraising", "must": [185], "ok": [] },
+  { "query": "AI spending", "must": [70, 137], "ok": [148] }
+]

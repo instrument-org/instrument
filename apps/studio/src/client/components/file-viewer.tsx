@@ -1015,6 +1015,8 @@ export function FileViewer({
   return (
     <div
       className={cn(fileViewerClassName, className)}
+      // The whole viewer is where its toolbar's find answers Cmd+F.
+      data-find-surface
       // Read by a format's toolbar, which sits under the head when there is
       // one and stands alone as the first row when there is not.
       data-headless={isInRow || undefined}
@@ -1047,12 +1049,16 @@ export function FileViewer({
         </div>
       ) : viewer.scrolls === "self" ? (
         // Viewers that scroll internally own the whole content area, so they
-        // are not nested inside the shared scroll container.
-        <div className="flex min-h-0 flex-1 flex-col">
+        // are not nested inside the shared scroll container. The content is
+        // the file, so it is text; a viewer's own toolbar and rail say not.
+        <div className="flex min-h-0 flex-1 flex-col select-text">
           {viewer.render(viewerContext)}
         </div>
       ) : (
-        <div className="relative min-h-0 flex-1 overflow-auto" ref={contentRef}>
+        <div
+          className="relative min-h-0 flex-1 overflow-auto select-text"
+          ref={contentRef}
+        >
           {viewer.render(viewerContext)}
         </div>
       )}

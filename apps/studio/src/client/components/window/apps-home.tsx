@@ -1,3 +1,4 @@
+import { useDecisionModelAvailable } from "@/client/hooks/use-decision";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +13,7 @@ import { useConnectFromDirectory } from "@/client/components/window/use-connect-
 import { GlyphButton } from "@/client/components/window/glyph-button";
 import { PageSection } from "@/client/components/window/page-section";
 import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
+import { useFindTarget } from "@/client/hooks/use-find-target";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -25,16 +27,15 @@ import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useDeferredValue, useState } from "react";
+import { type ReactNode, useDeferredValue, useRef, useState } from "react";
 
 type App = RPCOutput["apps"]["list"]["apps"][number];
 type CatalogEntry = RPCOutput["apps"]["catalog"][number];
 
 /**
- * A search that names this few services by its words, and is this long, is
- * also asked of the decision model for the services it means.
+ * A search this long that names no service by its words is asked of the
+ * decision model for the services it means.
  */
-const MEANING_BELOW_MATCHES = 3;
 const MEANING_MIN_LENGTH = 3;
 
 /** How many tiles hold the directory's place while it is on its way. */
@@ -94,14 +95,18 @@ export function AppsHome({
   // follows under its category, so the whole directory is a scroll away.
   const popular = more.filter((entry) => entry.tier === "featured");
   const rest = more.filter((entry) => entry.tier !== "featured");
-  // A search the words barely answer ("text my mom") also goes to the
-  // decision model, once the typing settles. Its place at the foot of the
-  // results is held from the first key that asks, so what it finds lands
-  // where nothing is to be pressed and moves nothing that is.
+  // A search the words don't answer ("text my mom") goes to the decision
+  // model once the typing settles. Its place at the foot of the results is
+  // held from the first key that asks, so what it finds lands where nothing
+  // is to be pressed and moves nothing that is.
+  // Read once a search is typed, so a workspace no model can answer for
+  // never holds a "Related" place that only empties.
+  const canAskMeaning = useDecisionModelAvailable(showsConnect && typed !== "");
   const asksMeaning =
+    canAskMeaning === true &&
     showsConnect &&
     typed.length >= MEANING_MIN_LENGTH &&
-    matches.length < MEANING_BELOW_MATCHES;
+    matches.length === 0;
   const settled = useDebouncedValue(typed, 300);
   const byMeaning = useQuery(
     rpcClient.apps.catalogByMeaning.queryOptions({
@@ -147,8 +152,20 @@ export function AppsHome({
     );
   };
 
+  const searchRef = useRef<HTMLInputElement>(null);
+  useFindTarget({
+    anchor: searchRef,
+    openFind: () => {
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    },
+  });
+
   return (
-    <div className="@container/apps h-full min-h-0 overflow-y-auto">
+    <div
+      className="@container/apps h-full min-h-0 overflow-y-auto"
+      data-find-surface
+    >
       {/* As a page, a centered column and head with room around it. Inside
         a draft, the narrower column the draft's frame allows. */}
       <div
@@ -226,6 +243,7 @@ export function AppsHome({
                 shelf, with the brand's green as its focus. */}
               <input
                 aria-label="Search apps"
+                ref={searchRef}
                 className="h-11 w-full rounded-xl border-0 bg-card pr-4 pl-11 text-[15px] shadow-xs transition-shadow outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-brand-500/30 dark:bg-input/30"
                 onChange={(event) => {
                   setQuery(event.target.value);

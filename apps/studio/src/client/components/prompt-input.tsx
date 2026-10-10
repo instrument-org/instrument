@@ -56,6 +56,7 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   Fragment,
   useEffect,
+  useEffectEvent,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -76,12 +77,14 @@ import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
 
-type AttachedItem =
+export type AttachedItem =
   | {
       content: string;
       id: string;
       mimeType: string;
       name: string;
+      /** The words, for a long paste made an attachment, so it can be put back in the message. */
+      pastedText?: string;
       size: number;
       type: "file";
       url?: string;
@@ -153,6 +156,8 @@ interface PromptInputProps {
   /** A chip at the head of the box, before any attached file: what goes with the prompt besides its words. */
   lead?: React.ReactNode;
   modelURI?: AIGatewayModelURI.Type;
+  /** What the box holds besides the words, each time that changes after it first draws. */
+  onItemsChange?: (items: AttachedItem[]) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onSubmit: (value: {
     files?: FileUpload.Input[];
@@ -187,6 +192,7 @@ export const PromptInput = ({
   isLoading,
   lead,
   modelURI,
+  onItemsChange,
   onModelChange,
   onSubmit,
   placeholder,
@@ -198,6 +204,18 @@ export const PromptInput = ({
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
+  // Told only of changes: the empty box it starts as is not news, and would
+  // read as everything taken out before a host's restore lands.
+  const onItemsChangeEvent = useEffectEvent((items: AttachedItem[]) => {
+    onItemsChange?.(items);
+  });
+  const reportedItems = useRef(attachedItems);
+  useEffect(() => {
+    if (reportedItems.current !== attachedItems) {
+      reportedItems.current = attachedItems;
+      onItemsChangeEvent(attachedItems);
+    }
+  }, [attachedItems]);
   const [menuView, setMenuView] = useState<ComposerMenuView | null>(null);
   // A pill is one row until it is written in, then opens a row for the rest.
   const [pillFocused, setPillFocused] = useState(false);
@@ -710,6 +728,20 @@ export const PromptInput = ({
     });
   };
 
+  // A long paste made an attachment goes back to being words in the
+  // message, at the caret, the way the paste would have put it.
+  const putInMessage = (item: AttachedItem) => {
+    const pastedText = "pastedText" in item ? item.pastedText : undefined;
+    if (pastedText === undefined) {
+      return undefined;
+    }
+    return () => {
+      removeAttachedItem(item.id);
+      promptEditorRef.current?.focus();
+      promptEditorRef.current?.pasteText(pastedText);
+    };
+  };
+
   const handlePaste = (e: ClipboardEvent) => {
     const clipboardData = e.clipboardData;
     if (!clipboardData) {
@@ -759,6 +791,7 @@ export const PromptInput = ({
             id: ulid(),
             mimeType: "text/plain",
             name: filename,
+            pastedText: text,
             size: blob.size,
             type: "file",
           },
@@ -900,6 +933,7 @@ export const PromptInput = ({
                           });
                         }
                       }}
+                      onPutInMessage={putInMessage(item)}
                       onRemove={() => {
                         removeAttachedItem(item.id);
                       }}
@@ -943,6 +977,7 @@ export const PromptInput = ({
               />
               <ModelPicker
                 anchorOnly
+                bounds={composerBounds}
                 className="pointer-events-none absolute inset-0"
                 disabled={disabled || isLoading}
                 errors={modelsErrors}

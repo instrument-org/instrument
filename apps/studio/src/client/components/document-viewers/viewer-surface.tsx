@@ -51,7 +51,7 @@ export function ViewerBody({
       {rail && railWasOpened && (
         <div
           className={cn(
-            "shrink-0 overflow-hidden border-r border-border/60 transition-[width] duration-200",
+            "shrink-0 overflow-hidden border-r border-border/60 transition-[width] duration-200 select-none",
             railOpen ? "w-40" : "w-0 border-r-0",
           )}
           // Collapsed by clipping rather than unmounting, so the thumbnails stay

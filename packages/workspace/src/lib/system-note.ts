@@ -20,7 +20,7 @@ const NOTE_TAG_PATTERN = new RegExp(`<(/?)(${NOTE_TAG})>`, "g");
  * Only the tag itself is neutralized, and only inside a value. This is markup
  * we introduced, in metadata short enough that showing it as `&lt;...&gt;`
  * costs nothing -- unlike a skill body or a retrieved page, which are read for
- * their meaning and get a nonce boundary instead (`lib/content-boundary.ts`).
+ * their meaning and so are passed through unchanged, last in their output.
  */
 export function systemNote(
   strings: TemplateStringsArray,

@@ -1,6 +1,7 @@
 import { Input } from "@/client/components/ui/input";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
+import { type Ref } from "react";
 
 /**
  * The search as a field beside the view picker, the way mail puts it: it
@@ -10,12 +11,14 @@ import { XIcon } from "@phosphor-icons/react/X";
  */
 export function SearchField({
   autoFocus = false,
+  inputRef,
   onChange,
   onFocusChange,
   placeholder,
   value,
 }: {
   autoFocus?: boolean;
+  inputRef?: Ref<HTMLInputElement>;
   onChange: (value: string) => void;
   /** Told when the field takes focus and when it lets it go. */
   onFocusChange?: (isFocused: boolean) => void;
@@ -46,6 +49,7 @@ export function SearchField({
           }
         }}
         placeholder={placeholder}
+        ref={inputRef}
         type="text"
         value={value}
       />

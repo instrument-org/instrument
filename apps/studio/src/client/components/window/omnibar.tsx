@@ -1,9 +1,9 @@
 import { PageFavicon } from "@/client/components/favicon";
 import {
-  bookmarksAtom,
-  CHATS_HREF,
-  visitedPagesAtom,
-} from "@/client/atoms/window";
+  noteTypedPage,
+  useCompletionPages,
+} from "@/client/hooks/use-browser-history";
+import { bookmarksAtom, CHATS_HREF } from "@/client/atoms/window";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
@@ -230,6 +230,7 @@ export function Omnibar({
   };
   /** Where a site goes: this tab's own guest on a page, a tab of its own anywhere else. */
   const openSite = (url: string) => {
+    noteTypedPage(url);
     (onSite ?? openPage)(url);
   };
   // Done with: the field goes back to showing the place, or to empty on a
@@ -561,8 +562,10 @@ function useRows({
   const words = typed.trim();
   const shell = use(ShellContext);
 
-  // On the web: the pages the window knows, bookmarks ahead of history.
-  const visited = useAtomValue(visitedPagesAtom);
+  // On the web: the pages the window knows, bookmarks ahead of history,
+  // whose part is the pages the person goes back to (Chromium's significant
+  // ones) rather than every page seen once.
+  const visited = useCompletionPages();
   const bookmarks = useAtomValue(bookmarksAtom);
   const pages = unique(
     [

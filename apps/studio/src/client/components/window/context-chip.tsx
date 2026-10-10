@@ -8,14 +8,20 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { FileOpenContext } from "@/client/components/file-open-context";
+import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
-import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
+import {
+  isFolderPath,
+  type SessionMessageDataPart,
+} from "@instrument-org/workspace/client";
 import { XIcon } from "@phosphor-icons/react/X";
-import { type ReactNode } from "react";
+import { type ReactNode, useContext } from "react";
 
 import { type AppsBySlug, useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
 import { useComputerVolumes } from "./computer-volumes";
+import { type OpenOptions, WindowContext } from "./context";
 import { pageTabTitle } from "./file-tabs";
 import { segmentsOf } from "./host-path";
 import { screenPresentation, type ScreenNames } from "./screen-presentation";
@@ -128,10 +134,40 @@ export function ChosenChip({
 /**
  * The chips a message went with, over it in the transcript the way they
  * stood over the words as it was written, without the x: what went cannot
- * be left out after it has gone.
+ * be left out after it has gone. Each opens what it names the way the
+ * surface around the transcript opens things, so in a chat it comes up in
+ * the chat's own tabs.
  */
 export function SentChips({ chips }: { chips: SentChip[] }) {
   const appsBySlug = useAppsBySlug();
+  const appWindow = useContext(WindowContext);
+  const openFile = useContext(FileOpenContext);
+  const openerOf = (chip: SentChip) => {
+    if (chip.kind === "paths") {
+      return openFile
+        ? (options: OpenOptions) => {
+            for (const item of chip.items) {
+              openFile(
+                item.kind === "folder" && !isFolderPath(item.path)
+                  ? `${item.path}/`
+                  : item.path,
+                options,
+              );
+            }
+          }
+        : undefined;
+    }
+    if (!appWindow) {
+      return undefined;
+    }
+    return chip.kind === "page"
+      ? (options: OpenOptions) => {
+          appWindow.openPage(chip.url, options);
+        }
+      : (options: OpenOptions) => {
+          appWindow.openScreen(chip.url, options);
+        };
+  };
   return (
     <div
       className="flex w-full flex-wrap justify-end gap-1"
@@ -164,6 +200,7 @@ export function SentChips({ chips }: { chips: SentChip[] }) {
             )
           }
           name={nameOfChip(chip)}
+          onOpen={openerOf(chip)}
           slot="sent-chip"
         />
       ))}
@@ -203,46 +240,75 @@ function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
  * One quiet line at the head of the words: a mark and a name in grey, with
  * an x that leaves the thing out while there is still a message to leave it
  * out of, so it takes no room from the words and does not ask to be read;
- * what it is is in its tooltip.
+ * what it is is in its tooltip. A chip with somewhere to open its thing is a
+ * button that opens it, a modified or middle click in a tab of its own.
  */
 function ContextChip({
   label,
   mark,
   name,
   onLeaveOut,
+  onOpen,
   slot,
 }: {
   label: ReactNode;
   mark: ReactNode;
   name: string;
   onLeaveOut?: () => void;
+  /** Opens the thing the chip names; a chip that can be left out has none, since the x sits inside it. */
+  onOpen?: (options: OpenOptions) => void;
   slot: string;
 }) {
+  const className = cn(
+    "inline-flex h-6 max-w-44 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pl-2 text-xs text-muted-foreground ring-1 ring-border/70",
+    onLeaveOut ? "pr-0.5" : "pr-2.5",
+  );
+  const content = (
+    <>
+      <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
+        {mark}
+      </span>
+      <span className="truncate">{name}</span>
+      {onLeaveOut && (
+        <button
+          aria-label={`Leave out ${name}`}
+          className="grid size-5 shrink-0 place-items-center rounded-full hover:bg-foreground/8 hover:text-foreground"
+          onClick={onLeaveOut}
+          type="button"
+        >
+          <XIcon className="size-3" />
+        </button>
+      )}
+    </>
+  );
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span
-          className={cn(
-            "inline-flex h-6 max-w-44 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pl-2 text-xs text-muted-foreground ring-1 ring-border/70",
-            onLeaveOut ? "pr-0.5" : "pr-2.5",
-          )}
-          data-slot={slot}
-        >
-          <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
-            {mark}
+        {onOpen && !onLeaveOut ? (
+          <button
+            className={cn(
+              className,
+              "cursor-pointer hover:bg-muted hover:text-foreground",
+            )}
+            data-slot={slot}
+            onAuxClick={(event) => {
+              if (event.button === 1) {
+                event.preventDefault();
+                onOpen({ behind: true, newTab: true });
+              }
+            }}
+            onClick={(event) => {
+              onOpen(wantsNewTab(event) ? { newTab: true } : {});
+            }}
+            type="button"
+          >
+            {content}
+          </button>
+        ) : (
+          <span className={className} data-slot={slot}>
+            {content}
           </span>
-          <span className="truncate">{name}</span>
-          {onLeaveOut && (
-            <button
-              aria-label={`Leave out ${name}`}
-              className="grid size-5 shrink-0 place-items-center rounded-full hover:bg-foreground/8 hover:text-foreground"
-              onClick={onLeaveOut}
-              type="button"
-            >
-              <XIcon className="size-3" />
-            </button>
-          )}
-        </span>
+        )}
       </TooltipTrigger>
       <TooltipContent collisionPadding={10} maxWidth="20rem">
         {label}

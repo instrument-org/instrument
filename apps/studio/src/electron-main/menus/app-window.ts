@@ -202,9 +202,23 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
     ],
   };
 
+  // Where a browser keeps it: the dialog clears the in-app browser's
+  // history, cookies, and cache.
   const historyMenu: MenuItemConstructorOptions = {
     label: "History",
-    submenu: menuItems(HISTORY_CHORDS),
+    submenu: [
+      ...menuItems(HISTORY_CHORDS),
+      { type: "separator" },
+      {
+        click: () => {
+          // A focused page guest holds the keyboard, and the dialog is the
+          // window's, so the window takes the keyboard back first.
+          BrowserWindow.getFocusedWindow()?.webContents.focus();
+          publisher.publish("window.command", "clearBrowsingData");
+        },
+        label: "Clear Browsing Data…",
+      },
+    ],
   };
 
   // The other windows' View menu with the inbox's chord at its head, less

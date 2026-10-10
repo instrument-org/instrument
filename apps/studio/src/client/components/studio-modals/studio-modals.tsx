@@ -1,3 +1,4 @@
+import { ClearBrowsingDataModal } from "@/client/components/studio-modals/clear-browsing-data-modal";
 import { LoginModal } from "@/client/components/studio-modals/login-modal";
 import { SettingsModal } from "@/client/components/studio-modals/settings-modal";
 import { ShortcutGuideModal } from "@/client/components/studio-modals/shortcut-guide-modal";
@@ -12,6 +13,7 @@ import { ShortcutGuideModal } from "@/client/components/studio-modals/shortcut-g
 export function StudioModals() {
   return (
     <>
+      <ClearBrowsingDataModal />
       <LoginModal />
       <SettingsModal />
       <ShortcutGuideModal />

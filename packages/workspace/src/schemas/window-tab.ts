@@ -31,6 +31,8 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("close"), tabId: z.string() }),
   z.object({ kind: z.literal("show"), tabId: z.string() }),
+  /** Reads the text of the page in a page tab, as the person sees it. */
+  z.object({ kind: z.literal("read"), tabId: z.string() }),
   /**
    * Brings a page tab's guest back, at the page it last showed, without
    * showing it: the window makes a tab's guest again only when the tab is
@@ -56,6 +58,8 @@ export const WindowTabAnswerSchema = z.object({
   error: z.string().optional(),
   requestId: z.string(),
   tabId: z.string().optional(),
+  /** The page's text, for a read. */
+  text: z.string().optional(),
 });
 
 export type WindowTabAnswer = z.output<typeof WindowTabAnswerSchema>;

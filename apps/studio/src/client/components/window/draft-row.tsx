@@ -1,4 +1,4 @@
-import { type Draft } from "@/client/atoms/window";
+import { type Draft, draftGroupOf } from "@/client/atoms/window";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -8,9 +8,18 @@ import {
 } from "@/client/components/ui/context-menu";
 import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
+import { fileHref, folderHref } from "@/shared/computer-href";
+import { unique } from "radashi";
+import { type ReactNode } from "react";
+
+import { useAppsBySlug } from "./apps-by-slug";
 
 import { TopicPill } from "./chat-row";
 import { activityLabel, draftTitle, type Topic } from "./chats";
+import { HeldMark } from "./context-chip";
+import { screenPresentation } from "./screen-presentation";
+import { isHomeTab } from "./tab-model";
+import { useWindowTabs } from "./window-tabs";
 import { RowActionBar } from "./row-action-bar";
 import { type RowAction, rowClassName } from "./row-shell";
 
@@ -19,7 +28,8 @@ import { type RowAction, rowClassName } from "./row-shell";
  * list reads the same whichever it holds: a dashed circle in the gutter
  * where a chat wears its state, the topic it will be filed under as a pill,
  * the first line of its words as the title, "Draft" in muted where a chat's
- * latest line goes, and when it was last touched at the far right. A plain
+ * latest line goes with the marks of what it holds beside it, and when it
+ * was last touched at the far right. A plain
  * click, or Enter, opens the draft to go on writing; deleting it is the one
  * action at the row's edge and on its menu, and takes no confirming, since
  * the caller says what was deleted and offers it back.
@@ -88,7 +98,10 @@ export function DraftRow({
               {title}
               {time}
             </p>
-            <p className="mt-0.5 flex">{standing}</p>
+            <p className="mt-0.5 flex items-center gap-2">
+              {standing}
+              <DraftMarks draft={draft} />
+            </p>
           </div>
           <RowActionBar actions={actions} />
         </div>
@@ -108,5 +121,51 @@ export function DraftRow({
         ))}
       </ContextMenuContent>
     </ContextMenu>
+  );
+}
+
+/** How many marks a draft's row shows of what it holds before a count of the rest. */
+const ROW_MARKS = 5;
+
+/**
+ * The marks of what a draft holds: its tabs (a site's icon, a folder, a
+ * file's type, an app) and then what its composer was given, by path.
+ */
+function DraftMarks({ draft }: { draft: Draft }) {
+  const { allTabs } = useWindowTabs();
+  const appsBySlug = useAppsBySlug();
+  const group = draftGroupOf(draft.id);
+  const marks: { icon: ReactNode; key: string }[] = [
+    ...allTabs
+      .filter((tab) => tab.group === group && !isHomeTab(tab))
+      .map((tab) => ({
+        icon: <HeldMark appsBySlug={appsBySlug} tab={tab} />,
+        key: tab.id,
+      })),
+    ...[...(draft.chosen ?? []), ...(draft.attached ?? [])].map((item) => ({
+      icon: screenPresentation(
+        item.kind === "folder" ? folderHref(item.path) : fileHref(item.path),
+        { appsBySlug },
+      ).icon,
+      key: item.path,
+    })),
+  ];
+  const shown = unique(marks, (mark) => mark.key);
+  if (shown.length === 0) {
+    return null;
+  }
+  return (
+    <span className="flex min-w-0 items-center gap-1 text-muted-foreground [&_img]:size-3.5 [&_img]:rounded-xs [&_svg]:size-3.5">
+      {shown.slice(0, ROW_MARKS).map((mark) => (
+        <span className="grid size-4 shrink-0 place-items-center" key={mark.key}>
+          {mark.icon}
+        </span>
+      ))}
+      {shown.length > ROW_MARKS && (
+        <span className="text-[10px] font-medium">
+          +{shown.length - ROW_MARKS}
+        </span>
+      )}
+    </span>
   );
 }

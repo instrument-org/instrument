@@ -329,6 +329,18 @@ async function renderRows(
           appsBySlug={
             new Map([
               ["github", { name: "GitHub", site: "https://github.com" }],
+              [
+                "gmail",
+                {
+                  home: "https://mail.google.com",
+                  name: "Gmail",
+                  site: "https://gmail.com",
+                },
+              ],
+              [
+                "apple-notes",
+                { local: true, name: "Apple Notes", site: "https://apple.com" },
+              ],
             ])
           }
           chat={entry}
@@ -729,6 +741,39 @@ describe("ChatRow", () => {
     expect(marks.slice(0, 4).map((mark) => mark.textContent)).toEqual(
       files.toReversed().map((path) => path.split("/").at(-1)),
     );
+  });
+
+  it("draws a site of an app the chat holds as the app alone", async () => {
+    const { row } = await renderRow(
+      chat({
+        holds: {
+          apps: ["github", "gmail", "apple-notes"],
+          files: [],
+          sites: [
+            "github.com",
+            "gist.github.com",
+            "mail.google.com",
+            "docs.google.com",
+            "apple.com",
+          ],
+        },
+      }),
+    );
+    // The app's own domain, a subdomain of it, and the host of its web app
+    // fold into the app; another app's maker's site, a sibling under the
+    // same parent, and the site of an app that runs here do not.
+    // The apps first, then the sites, newest first.
+    const marks = marksOf(row);
+    expect(marks).toHaveLength(5);
+    expect(
+      marks
+        .slice(3)
+        .map((mark) =>
+          mark
+            .querySelector("[alt], [aria-label]")
+            ?.getAttribute(mark.querySelector("[alt]") ? "alt" : "aria-label"),
+        ),
+    ).toEqual(["Favicon for apple.com", "Favicon for docs.google.com"]);
   });
 
   it("names a bare mark in its tooltip", async () => {

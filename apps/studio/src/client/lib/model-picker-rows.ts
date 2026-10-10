@@ -166,7 +166,11 @@ const fuzzy = new uFuzzy({ intraMode: 1 });
 /**
  * Every connection searched at once, matches grouped under the connection
  * that serves them, so one model reached three ways reads as three places to
- * get it.
+ * get it. A search that finds nothing by name is tried again more loosely:
+ * against the connection's name too ("openrouter sonnet"), and with a word
+ * run into its version split from it ("opus5.5", "gpt6"). Loosening only
+ * after nothing matched leaves every search that finds something today as
+ * it was.
  */
 export function rowsForSearch({
   models,
@@ -175,12 +179,36 @@ export function rowsForSearch({
   models: AIGatewayModel.Type[];
   query: string;
 }): PickerRow[] {
+  const strict = searchConnections({ models, query, withConnection: false });
+  if (strict.length > 0) {
+    return strict;
+  }
+  return searchConnections({
+    models,
+    query: query.replaceAll(/(\p{L}{2,})(\d)/gu, "$1 $2"),
+    withConnection: true,
+  });
+}
+
+function searchConnections({
+  models,
+  query,
+  withConnection,
+}: {
+  models: AIGatewayModel.Type[];
+  query: string;
+  withConnection: boolean;
+}): PickerRow[] {
   const rows: PickerRow[] = [];
   for (const connection of connectionsOf(models)) {
     const own = sortByName(
       models.filter((model) => model.params.providerConfigId === connection.id),
     );
-    const joined = own.map((model) => joinFuzzyFields([model.name]));
+    const joined = own.map((model) =>
+      joinFuzzyFields(
+        withConnection ? [connection.name, model.name] : [model.name],
+      ),
+    );
     const haystack = joined.map((fields) => fields.haystack);
     const indexes = fuzzy.filter(haystack, query);
     if (!indexes?.length) {
@@ -203,8 +231,9 @@ export function rowsForSearch({
         rows.push({ model, type: "auto" });
         continue;
       }
-      const [nameRanges] =
-        joined[index]?.splitRanges(info.ranges[at] ?? null) ?? [];
+      const nameRanges = joined[index]
+        ?.splitRanges(info.ranges[at] ?? null)
+        .at(withConnection ? 1 : 0);
       rows.push({
         ...modelRow(model, own),
         nameRanges: nameRanges ?? null,

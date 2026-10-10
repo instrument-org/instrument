@@ -68,16 +68,40 @@ const states = [
   },
   {
     title: "Files",
-    note: "Files opens the Finder as its first tab, under the location row.",
+    note: "Files opens on a folder with the places down the side and the Finder's own header under the top row, whose omnibar names the folder.",
     body: appWindow({
       on: "files",
-      bar: winBar({
-        tabs: [{ chats: true }, { file: "comparison" }],
-        active: 0,
+      bar: winBar({ tabs: [{ folder: "Instrument" }], active: 0 }),
+      body: finder({ pick: 4 }),
+    }),
+  },
+  {
+    title: "Files without the sidebar",
+    note: "The toggle at the left of the top row folds the places away, and the listing takes the width.",
+    body: appWindow({
+      on: "files",
+      bar: winBar({ tabs: [{ folder: "Instrument" }], active: 0 }),
+      body: filesPlace({
+        top: filesTop({ crumbs: ["studio26", "Instrument"] }),
+        side: "",
+        head: finderHeader({ title: "Instrument", views: finderViews("list") }),
+        body: finderListView(FINDER_FILES.map(([k, n]) => [k, n, "Oct 8, 2026 at 9:41 AM", k === "folder" ? "--" : "24 KB", k === "folder" ? "Folder" : "text/" + k])),
       }),
-      body: placeCard({
-        tab: { file: "comparison" },
-        body: finder({ pick: 4 }),
+    }),
+  },
+  {
+    title: "File open",
+    note: "A file opened from the Finder takes the tab, its type's mark leads the omnibar, its controls sit at the right of the top row, and its folder stands beside it as a tree in place of the places.",
+    body: appWindow({
+      on: "files",
+      bar: winBar({ tabs: [{ file: "comparison" }], active: 0 }),
+      body: filesPlace({
+        top: filesTop({ crumbs: ["studio26", "Instrument", "pricing-comparison.html"], mark: fileMark("html", "text-[14px]"), right: fileActions() }),
+        side: fileTree(
+          [[0, "folder", "Instrument"], ...FINDER_FILES.map(([k, n]) => [1, k, n])],
+          { on: "pricing-comparison.html" },
+        ),
+        body: page({ file: "comparison" }),
       }),
     }),
   },
@@ -145,6 +169,19 @@ const states = [
         }),
       over: plusMenu({ left: 456, top: 486 }),
     }),
+  },
+  {
+    title: "Model picker",
+    note: "The picker opens on the connection holding the chosen model. While Auto is all Instrument offers, we draw it centered with its one button.",
+    w: PICKER_W,
+    h: PICKER_H,
+    body: pickerCrop(
+      modelPicker({
+        open: "instrument",
+        held: "instrument",
+        list: pickerAutoOnly({ on: true }),
+      }),
+    ),
   },
   {
     title: "Menu and sheet",

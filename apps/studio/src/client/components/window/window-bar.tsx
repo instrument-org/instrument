@@ -5,6 +5,7 @@ import { cn, isMacOS } from "@/client/lib/utils";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { lazy, type ReactNode, Suspense } from "react";
 
+import { AppIdentityChip } from "./app-identity-chip";
 import { PlatformApiIndicator } from "./platform-api-indicator";
 import { ServerExceptionsIndicator } from "./server-exceptions";
 
@@ -35,7 +36,7 @@ export function WindowBar({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center gap-1.5 select-none [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]",
+        "flex shrink-0 items-center gap-1.5 [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]",
         // The lights are drawn by the system over the window's top left; on
         // the platforms that put controls elsewhere the row starts at the edge
         // and ends at the buttons it draws itself, which reach the corner the
@@ -80,6 +81,8 @@ export function WindowCorner() {
   const isDeveloperMode = useDeveloperMode();
   return (
     <>
+      {/* Which app and workspace this is, when either is not the usual one. */}
+      <AppIdentityChip />
       {/* What the main process threw, beside the panel a developer would
         reach for next; developer mode only, like the panel. */}
       {/* A local API server that is not running; development builds only,

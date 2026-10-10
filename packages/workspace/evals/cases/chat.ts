@@ -411,7 +411,7 @@ export const CHAT_EVALS = [
 
   defineEval({
     // The user asked for the kind of thing a skill makes.
-    assertions: [loadedSkill("create-page")],
+    assertions: [loadedSkill("instrument-page")],
     kind: "chat",
     name: "chat-asks-for-a-page",
     prompt:

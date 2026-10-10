@@ -51,6 +51,7 @@ import {
 import { resolveUrlOrSearch } from "@/client/lib/resolve-url-or-search";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { BROWSER_ZOOM_MAX, BROWSER_ZOOM_MIN } from "@/shared/browser";
 import { steppedZoom } from "@/shared/zoom";
 import { withoutPageEditParam } from "@instrument-org/shared";
@@ -70,6 +71,7 @@ import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DeviceMobileIcon } from "@phosphor-icons/react/DeviceMobile";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
+import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
@@ -212,7 +214,14 @@ export function BrowserPanel({
   // own host claims the single find-opener slot, clears it on unmount, and this
   // panel never re-registers.
   const covered = useIsGuestCovered({ insideOverlay });
-  const find = useBrowserFind({ active, covered, isVisible, targetId });
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const find = useBrowserFind({
+    active,
+    covered,
+    isVisible,
+    surfaceRef,
+    targetId,
+  });
   const slotRef = useBrowserSlot({
     active,
     covered,
@@ -425,6 +434,8 @@ export function BrowserPanel({
         "flex h-full flex-col overflow-hidden rounded-xl bg-card shadow-sm",
         className,
       )}
+      data-find-surface
+      ref={surfaceRef}
     >
       {(() => {
         // The page's menu, the same in either shape of the bar.
@@ -596,6 +607,11 @@ export function BrowserPanel({
                   Open in external browser
                 </DropdownMenuItem>
               )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={openClearBrowsingData}>
+                <BroomIcon className="size-4" />
+                Clear browsing data…
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         );

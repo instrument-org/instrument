@@ -1,8 +1,9 @@
 import { useGuest } from "@/client/hooks/use-browser-targets";
-import { getGuest } from "@/client/lib/browser-pool";
+import { useFindTarget } from "@/client/hooks/use-find-target";
+import { getGuest, pageHoldingKeyboard } from "@/client/lib/browser-pool";
 import { registerForegroundBrowser } from "@/client/lib/foreground-browser-registry";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
-import { useEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 
 /**
  * Find-in-page state and wiring for a browser panel's guest. Owns the find bar's
@@ -14,6 +15,7 @@ export function useBrowserFind({
   active,
   covered = false,
   isVisible,
+  surfaceRef,
   targetId,
 }: {
   active: boolean;
@@ -24,6 +26,8 @@ export function useBrowserFind({
   // re-registering, so Cmd+F stops working entirely.
   covered?: boolean;
   isVisible: boolean;
+  /** The panel, which Cmd+F means while the keyboard is in it. */
+  surfaceRef: RefObject<Element | null>;
   targetId: BrowserTargetId;
 }) {
   const findInputRef = useRef<HTMLInputElement>(null);
@@ -60,24 +64,27 @@ export function useBrowserFind({
     };
   }, [targetId]);
 
-  // Register this panel as the foreground browser, so the Cmd+F app command
-  // opens (and re-focuses) its find bar and Cmd+R reloads its guest. The find
-  // opener is what has to be handed over, which is why the registration lives in
-  // this hook; see foreground-browser-registry for why neither chord can be a
-  // renderer keydown.
+  // Register this panel as the foreground browser, so Cmd+R reloads its guest,
+  // and as a find target, so Cmd+F opens (and re-focuses) its find bar when the
+  // keyboard is in the panel or its page, or was last; see
+  // foreground-browser-registry for why neither chord can be a renderer keydown.
+  const isForeground = active && isVisible && !covered;
   useEffect(() => {
-    if (!active || !isVisible || covered) {
+    if (!isForeground) {
       return;
     }
-    return registerForegroundBrowser({
-      openFind: () => {
-        setFindOpen(true);
-        findInputRef.current?.focus();
-        findInputRef.current?.select();
-      },
-      targetId,
-    });
-  }, [active, covered, isVisible, targetId]);
+    return registerForegroundBrowser({ targetId });
+  }, [isForeground, targetId]);
+  useFindTarget({
+    anchor: surfaceRef,
+    enabled: isForeground,
+    holdsKeyboard: () => pageHoldingKeyboard() === targetId,
+    openFind: () => {
+      setFindOpen(true);
+      findInputRef.current?.focus();
+      findInputRef.current?.select();
+    },
+  });
 
   // Focus the find input when the bar opens (its first render, when the opener
   // above couldn't focus it yet). Deferred a frame so it wins over Radix

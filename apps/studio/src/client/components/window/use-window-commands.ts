@@ -3,6 +3,7 @@ import {
   toggleCommandMenu,
 } from "@/client/atoms/command-menu";
 import { openSettings } from "@/client/atoms/settings-modal";
+import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import {
   blockingModalCountAtom,
@@ -10,7 +11,12 @@ import {
 } from "@/client/atoms/tab-navigation-block";
 import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
+import { openFindForKeyboard } from "@/client/lib/find-targets";
 import { runPageChord } from "@/client/lib/page-chords";
+import {
+  closeTabForKeyboard,
+  openTabForKeyboard,
+} from "@/client/lib/tab-surfaces";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
@@ -27,6 +33,7 @@ const RECONNECT_DELAY_MS = 1000;
  * the user out from under it. Every other chord waits for the dialog to close.
  */
 const MODAL_SAFE_COMMANDS = new Set([
+  "clearBrowsingData",
   "findInPage",
   "openSettings",
   "openShortcutGuide",
@@ -197,7 +204,10 @@ export function useWindowCommands(
               break;
             }
             case "closeTab": {
-              latest.current.closeTab();
+              // The tab up in the tabs the keyboard is in, else the window's.
+              if (!closeTabForKeyboard()) {
+                latest.current.closeTab();
+              }
               break;
             }
             case "editPage": {
@@ -207,9 +217,9 @@ export function useWindowCommands(
               break;
             }
             case "findInPage": {
-              // The page on screen registers itself as the foreground
-              // browser; with none up there is nothing to search.
-              runPageChord("findInPage");
+              // The search of the surface the keyboard is in; with none on
+              // screen there is nothing to search.
+              openFindForKeyboard();
               break;
             }
             case "forward": {
@@ -223,7 +233,11 @@ export function useWindowCommands(
               break;
             }
             case "newTab": {
-              latest.current.newTab();
+              // A tab of the chat or draft the keyboard is in, else the
+              // window's.
+              if (!openTabForKeyboard()) {
+                latest.current.newTab();
+              }
               break;
             }
             case "nextChat": {
@@ -236,6 +250,10 @@ export function useWindowCommands(
             }
             case "openSettings": {
               openSettings({ tab: "General" });
+              break;
+            }
+            case "clearBrowsingData": {
+              openClearBrowsingData();
               break;
             }
             case "openShortcutGuide": {

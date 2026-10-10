@@ -36,6 +36,7 @@ export function ComposeLayer({
   onCloseChat,
   onCloseDraft,
   onCloseTab,
+  onDiscardDraft,
   onModelChange,
   onNewChatTopic,
   onNewTopic,
@@ -59,6 +60,8 @@ export function ComposeLayer({
   onCloseDraft: (id: string, words: string) => void;
   /** A tab closed from a chat window's tiles: asks first while a task is working in it. */
   onCloseTab: (id: string) => void;
+  /** A draft thrown away from its window's head. */
+  onDiscardDraft: (id: string) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** A topic asked for from a draft's head, with what was typed: the topic it makes files that draft. */
   /** Makes a topic from a popped-out chat's head, filing that chat under it. */
@@ -236,6 +239,9 @@ export function ComposeLayer({
               }}
               onClose={(words) => {
                 onCloseDraft(draft.id, words);
+              }}
+              onDiscard={() => {
+                onDiscardDraft(draft.id);
               }}
               onModelChange={onModelChange}
               onNewTopic={(name) => {

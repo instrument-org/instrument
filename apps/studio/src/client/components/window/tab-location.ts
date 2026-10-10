@@ -18,7 +18,7 @@ export interface LocationCrumb {
   to?: OpenTarget;
 }
 
-/** A disk the computer has mounted, by the name the sidebar lists it under. */
+/** A disk or a cloud service's folder, by the name the sidebar lists it under. */
 export interface Volume {
   name: string;
   path: string;
@@ -75,7 +75,12 @@ export type TabLocation =
   | { icon?: string; kind: "app"; name: string; site?: string }
   | { kind: "apps" }
   | { kind: "chat"; title: string }
-  | { kind: "folder"; path: string }
+  | {
+      /** Where the folder really is, when that is not where it was walked to: an iCloud Drive app folder. */
+      hostPath?: string;
+      kind: "folder";
+      path: string;
+    }
   | { kind: "newTab" }
   | { kind: "page"; url: string }
   | {
@@ -229,9 +234,15 @@ function pathCrumbs(
   path: string,
   { home, volumes }: { home: string; volumes: Volume[] },
 ): LocationCrumb[] {
-  const fromHome = namesFromHome(path, home);
   const hostPath = expandHomePath(path, home);
-  const volume = fromHome ? undefined : volumeOf(hostPath, volumes);
+  // A place kept inside the home folder, iCloud Drive or a cloud service's
+  // folder, is named for itself rather than walked to from home.
+  const named = volumeOf(hostPath, volumes);
+  const fromHome =
+    named && named.path !== home && isInside(named.path, home)
+      ? undefined
+      : namesFromHome(path, home);
+  const volume = fromHome ? undefined : named;
   const separator = separatorOf(hostPath);
   const names =
     fromHome ??

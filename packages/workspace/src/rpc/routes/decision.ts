@@ -1,8 +1,8 @@
-import { selectDecisionConfigs } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
 import {
   askDecisionModel,
+  decisionModelAvailable,
   DecisionQuestionSchema,
   DecisionResponseSchema,
 } from "../../lib/decision-model";
@@ -42,24 +42,23 @@ const ask = base
     }
     if (!asked) {
       throw errors.NOT_FOUND({
-        message: "Classifying needs an OpenRouter key or an Instrument sign-in",
+        message:
+          "The decision model can't be asked: it needs an OpenRouter key or an Instrument sign-in, and is left alone for a minute after asking it fails",
       });
     }
     return { ...asked.response, ms: asked.ms, provider: asked.provider };
   });
 
 /**
- * Whether any provider the workspace has could reach the decision model: an
- * Instrument sign-in or an OpenRouter key. Read off the configs alone, so a
- * caller can skip asking, and skip saying it is looking, when nothing could
- * answer; a provider that is set up but down still only shows on `ask`.
+ * Whether asking the decision model would send anything: a provider that
+ * reaches it is set up (an Instrument sign-in or an OpenRouter key), and
+ * asking hasn't just failed. Answered without a request, so a caller can skip
+ * asking, and skip saying it is looking, when nothing would answer.
  */
 const available = base
   .output(z.boolean())
-  .handler(
-    ({ context }) =>
-      selectDecisionConfigs(context.workspaceConfig.getAIProviderConfigs())
-        .length > 0,
+  .handler(({ context }) =>
+    decisionModelAvailable(context.workspaceConfig.getAIProviderConfigs()),
   );
 
 export const decision = { ask, available };

@@ -15,6 +15,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./app-directory": "./src/app-directory.ts",
+    "./decision-bars": "./src/decision-bars.ts",
     "./icons": "./src/icons.ts",
     "./merge-generators": "./src/merge-generators.ts",
     "./shim": "./src/shim.ts",

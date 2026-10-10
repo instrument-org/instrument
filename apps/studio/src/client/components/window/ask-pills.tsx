@@ -3,10 +3,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { FileOpenContext } from "@/client/components/file-open-context";
+import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { XIcon } from "@phosphor-icons/react/X";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useContext, useState } from "react";
 
 import { AskPopover } from "./ask-popover";
 import {
@@ -46,13 +48,15 @@ export function AskPills({ asks }: { asks: readonly StagedAsk[] }) {
 /**
  * What was marked, on the record under the message it went with: the asks
  * as chips wrapping at the right where the person's own words sit, the way
- * attached files are, each with its whole self in its tooltip.
+ * attached files are, each with its whole self in its tooltip. Pressed, one
+ * opens its file where the surface opens files.
  */
 export function SentAsksNote({
   data,
 }: {
   data: SessionMessageDataPart.AsksDataPart;
 }) {
+  const openFile = useContext(FileOpenContext);
   const counts = new Map<string, number>();
   const showFile = new Set(data.asks.map((ask) => ask.file.path)).size > 1;
   return (
@@ -60,6 +64,9 @@ export function SentAsksNote({
       {data.asks.map((ask, index) => {
         const n = (counts.get(ask.file.path) ?? 0) + 1;
         counts.set(ask.file.path, n);
+        const where = showFile
+          ? `${ask.file.name} · ${ask.target}`
+          : ask.target;
         return (
           <AskChip
             detail={
@@ -74,10 +81,25 @@ export function SentAsksNote({
 
             key={index}
             label={
-              // Focusable, so the tooltip reaches a keyboard too.
-              <span className="min-w-0 truncate pr-1" tabIndex={0}>
-                {showFile ? `${ask.file.name} · ${ask.target}` : ask.target}
-              </span>
+              openFile ? (
+                <button
+                  className="min-w-0 truncate pr-1 text-left hover:text-foreground"
+                  onClick={(event) => {
+                    openFile(
+                      ask.file.path,
+                      wantsNewTab(event) ? { newTab: true } : {},
+                    );
+                  }}
+                  type="button"
+                >
+                  {where}
+                </button>
+              ) : (
+                // Focusable, so the tooltip reaches a keyboard too.
+                <span className="min-w-0 truncate pr-1" tabIndex={0}>
+                  {where}
+                </span>
+              )
             }
             n={n}
           />

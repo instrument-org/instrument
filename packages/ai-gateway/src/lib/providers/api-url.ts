@@ -38,6 +38,16 @@ export function apiURL({
       return `${baseURL}${adjustedPath}`;
     }
 
+    case "minimax": {
+      // Models are listed on MiniMax's OpenAI-compatible API, and replies come
+      // from the Anthropic-compatible one beside it, which keeps a model's
+      // thinking between tool calls.
+      if (path.startsWith("/messages")) {
+        return `${baseURL.replace(/\/v1$/, "")}/anthropic/v1${path}`;
+      }
+      return `${baseURL}${path}`;
+    }
+
     case "vercel": {
       // The gateway answers in the stream protocol its path names, so the
       // version follows @ai-sdk/gateway's own default base URL. An older one

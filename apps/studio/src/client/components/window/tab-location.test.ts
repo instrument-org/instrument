@@ -84,6 +84,35 @@ describe("locationCrumbs", () => {
     `);
   });
 
+  it("starts a path in iCloud Drive at iCloud Drive rather than home", () => {
+    const volumes = [
+      { name: "Macintosh HD", path: "/" },
+      {
+        name: "iCloud Drive",
+        path: "/Users/casey/Library/Mobile Documents/com~apple~CloudDocs",
+      },
+    ];
+    expect(
+      locationCrumbs(
+        {
+          kind: "folder",
+          path: "~/Library/Mobile Documents/com~apple~CloudDocs/Obsidian/Vault",
+        },
+        { home: HOME, volumes },
+      ).map((crumb) =>
+        crumb.to?.kind === "screen"
+          ? `${crumb.label} -> ${crumb.to.href}`
+          : crumb.label,
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "iCloud Drive -> /files?path=&root=%2FUsers%2Fcasey%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs",
+        "Obsidian -> /files?path=&root=%2FUsers%2Fcasey%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2FObsidian",
+        "Vault",
+      ]
+    `);
+  });
+
   it("walks a folder up from the root of the disk", () => {
     expect(readable({ kind: "folder", path: "/Volumes/Backup/Photos" }))
       .toMatchInlineSnapshot(`

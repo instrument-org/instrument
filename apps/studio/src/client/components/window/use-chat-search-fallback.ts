@@ -1,13 +1,14 @@
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { type DecisionAnswer, useDecision } from "@/client/hooks/use-decision";
+import { decisionBar } from "@instrument-org/shared/decision-bars";
 import { useEffect, useState } from "react";
 
 import { byActivity, type Chat } from "./chats";
-import { useDecisionModelAvailable } from "./use-decision-model-available";
 
 /**
  * Most questions one request carries: the API refuses more than 512, and the
- * question about the search itself rides in the first.
+ * question about the search itself rides in the first. A longer search is
+ * split evenly rather than in 500s, so no request is short enough for the API
+ * to answer it from another model than the rest.
  */
 const PER_REQUEST = 500;
 const MEANINGFUL = "meaningful";
@@ -20,11 +21,12 @@ const MEANINGFUL = "meaningful";
 const MEANINGFUL_AT_LEAST = 0.3;
 /**
  * How sure the model has to be that a chat is related to the search, judged
- * on its own rather than against the best fit: on 34 labeled searches over
- * 376 real chats, clef-flash found 89% of the chats each search meant, and
- * nonsense and searches about nothing there ("asdf", "taxes") top out at 0.4.
+ * on its own rather than against the best fit. On 34 labeled searches over
+ * 376 real chats, Clef-flash at 0.6 finds 86 of the 97 chats meant with 15
+ * wrong, and Clef at 0.45 as many with 14; padded to 1000 chats, Clef offers
+ * 30 wrong where Clef-flash offers 53.
  */
-const FITS_AT_LEAST = 0.6;
+const FITS_AT_LEAST = { clef: 0.45, clefFlash: 0.6, other: 0.6 };
 const MOST = 12;
 /**
  * The most chats one search asks about, the most recently active first: two
@@ -64,57 +66,42 @@ export function useChatSearchFallback({
     };
   }, [search]);
 
-  // Not asked when no provider could answer, so the list says straight away
-  // that nothing matched rather than looking first.
-  const available = useDecisionModelAvailable(active);
-  const askable =
-    active &&
-    available !== false &&
-    candidates.length > 0 &&
-    search.trim().length > 1;
-  // Asked once typing pauses and the model is known to be there; until then
-  // the list says it is looking, so it does not say "Nothing matches" a
-  // moment before an answer arrives.
-  const asking = askable && available === true && settled === search.trim();
-  const { data, isError, isFetching } = useQuery({
-    queryFn: asking
-      ? async ({ signal }) => {
-          const asked = await Promise.all(
-            requestsFor(candidates).map((questions) =>
-              rpcClient.workspace.decision.ask.call(
-                { questions, state: { search: settled } },
-                { signal },
-              ),
-            ),
-          );
-          return asked.reduce<Answers>(
-            (merged, { answers }) => ({ ...merged, ...answers }),
-            {},
-          );
-        }
-      : skipToken,
-    queryKey: [
+  const settledNow = settled === search.trim();
+  const askable = active && candidates.length > 0 && search.trim().length > 1;
+  const { answer, available, isAsking } = useDecision({
+    ask:
+      askable && settledNow
+        ? requestsFor(candidates).map((questions) => ({
+            questions,
+            state: { search: settled },
+          }))
+        : undefined,
+    checkAvailable: active,
+    key: [
       "chat-search",
       settled,
       candidates.map((chat) => `${chat.id}:${chat.title}`).join("\n"),
     ],
-    retry: false,
-    staleTime: Infinity,
   });
 
   return {
-    chats: asking && data ? fitting(data, candidates) : [],
-    /** Whether the model was asked and could not be reached, which is not the same as finding nothing. */
-    failed: asking && isError,
-    /** Whether the model is being asked, so the list can say it is looking rather than that nothing matched. */
-    isLooking: askable && (!asking || isFetching),
+    chats: answer ? fitting(answer, candidates) : [],
+    /**
+     * Whether an answer is coming: from the first key the words find nothing
+     * for, while it is not yet known that nothing could answer, until the
+     * answer arrives. So the list says it is looking through the pause rather
+     * than "Nothing matches" a moment before the answer, and says nothing
+     * matched straight away when no model could answer.
+     */
+    isLooking: askable && available !== false && (!settledNow || isAsking),
   };
 }
 
-type Answers = RPCOutput["workspace"]["decision"]["ask"]["answers"];
-
 /** The chats the answers say the search is after, best fit first, or none when the search names nothing. */
-function fitting(answers: Answers, candidates: Chat[]): Chat[] {
+function fitting(
+  { answers, model }: DecisionAnswer,
+  candidates: Chat[],
+): Chat[] {
   if ((answers[MEANINGFUL]?.noul ?? 0) < MEANINGFUL_AT_LEAST) {
     return [];
   }
@@ -126,7 +113,7 @@ function fitting(answers: Answers, candidates: Chat[]): Chat[] {
     }))
     .toSorted((a, b) => b.chance - a.chance);
   return fits
-    .filter(({ chance }) => chance >= FITS_AT_LEAST)
+    .filter(({ chance }) => chance >= decisionBar(model, FITS_AT_LEAST))
     .slice(0, MOST)
     .map(({ chat }) => chat);
 }
@@ -157,11 +144,12 @@ function requestsFor(candidates: Chat[]) {
       type: "noul",
     },
   ]);
+  const size = Math.ceil(
+    questions.length / Math.ceil(questions.length / PER_REQUEST),
+  );
   const requests = [];
-  for (let start = 0; start < questions.length; start += PER_REQUEST) {
-    requests.push(
-      Object.fromEntries(questions.slice(start, start + PER_REQUEST)),
-    );
+  for (let start = 0; start < questions.length; start += size) {
+    requests.push(Object.fromEntries(questions.slice(start, start + size)));
   }
   return requests;
 }

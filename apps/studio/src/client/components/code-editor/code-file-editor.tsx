@@ -5,9 +5,11 @@ import { UpdatedPill } from "@/client/components/updated-pill";
 import { useAskMarks } from "@/client/components/window/ask-marks";
 import { linesLabel } from "@/client/components/window/staged-asks";
 import { useAskCard } from "@/client/components/window/use-ask-card";
+import { useFindTarget } from "@/client/hooks/use-find-target";
 import { registerFileFlush } from "@/client/lib/file-flush";
 import { type SaveStatus, usePullOnDiskChange } from "@/client/lib/live-file";
 import { rpcClient } from "@/client/rpc/client";
+import { openSearchPanel } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -119,6 +121,16 @@ function LiveCodeDocument({
   wrapRef.current = wrapLines;
 
   usePullOnDiskChange(hostPath, session);
+  // The editor's own keymap answers ⌘F with the caret in it; this is the same
+  // panel for a press anywhere else in the viewer.
+  useFindTarget({
+    anchor: rootRef,
+    openFind: () => {
+      if (session) {
+        openSearchPanel(session.view);
+      }
+    },
+  });
 
   useEffect(() => {
     session?.setWrapLines(wrapLines);

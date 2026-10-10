@@ -13,6 +13,7 @@ import {
   renderChatPart,
   type RenderPartContext,
 } from "./chat-stream-render-part";
+import { ToolCallBody } from "./message-part/tool-call";
 
 const sessionId = StoreId.newSessionId();
 const messageId = StoreId.newMessageId();
@@ -175,7 +176,11 @@ describe("renderChatPart in the chat", () => {
     state: "done",
   };
 
-  function chatNode(part: SessionMessagePart.Type, isDeveloperMode: boolean) {
+  function chatNode(
+    part: SessionMessagePart.Type,
+    isDeveloperMode: boolean,
+    { isStreaming = false }: { isStreaming?: boolean } = {},
+  ) {
     const message = {
       id: messageId,
       metadata: { createdAt: new Date(0), sessionId },
@@ -187,7 +192,7 @@ describe("renderChatPart in the chat", () => {
       ctx: {
         isAgentRunning: false,
         isDeveloperMode,
-        isToolStreaming: () => false,
+        isToolStreaming: () => isStreaming,
         lastMessageId: messageId,
         onRetry: () => {
           // Nothing to do: these tests assert on whether the row exists.
@@ -209,4 +214,32 @@ describe("renderChatPart in the chat", () => {
     expect(chatNode(part, false)).toBeNull();
     expect(chatNode(part, true)).not.toBeNull();
   });
+
+  // A question the model is still writing has nothing to ask yet, and once
+  // written it is the card alone, with no row above it to open or shut it.
+  it.each([false, true])(
+    "draws a question as its card once it has arrived (developer mode: %s)",
+    (isDeveloperMode) => {
+      const choosePart = {
+        ...toolPart,
+        input: { question: "Which one?" },
+        state: "input-streaming",
+        type: "tool-choose",
+      } satisfies SessionMessagePart.ToolPart;
+      expect(
+        chatNode(choosePart, isDeveloperMode, { isStreaming: true }),
+      ).toBeNull();
+      expect(
+        chatNode(
+          {
+            ...choosePart,
+            input: { choices: ["This", "That"], question: "Which one?" },
+            state: "input-available",
+          },
+          isDeveloperMode,
+          { isStreaming: true },
+        ),
+      ).toMatchObject({ type: ToolCallBody });
+    },
+  );
 });

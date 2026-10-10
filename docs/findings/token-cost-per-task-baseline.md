@@ -123,7 +123,7 @@ Proposed only (model mix and orchestration, not harness text):
 
 Not changed, and why:
 
-- Request order, tool order, and volatile content were already right: tools are picked in a fixed order, the context message is written once per session, the date is day-granular, and nonces are seeded from the tool-call id. The ways a tool description changes mid-session (activity-headings flag, external-browser setting, `generate_image` on a model switch) are all rare, and a model switch already discards the cache.
+- Request order, tool order, and volatile content were already right: tools are picked in a fixed order, the context message is written once per session, and the date is day-granular. The ways a tool description changes mid-session (activity-headings flag, external-browser setting, `generate_image` on a model switch) are all rare, and a model switch already discards the cache.
 - Large outputs already spill: `bash` and `web_fetch` write the full output to `.tool-output/` and show head and tail.
 - Nothing strips reasoning items except the cross-model OpenRouter redaction, which is correct.
 

@@ -196,6 +196,12 @@ export interface FolderOnScreen {
   selected: string[];
   /** What is selected in it, by host path and kind. */
   selectedItems: ChosenItem[];
+  /**
+   * As the person walked to it, which is how the location bar names it.
+   * Differs from `display` where the folder lives somewhere other than
+   * where it is shown: an iCloud Drive app folder.
+   */
+  walked: string;
 }
 
 /**
@@ -874,6 +880,13 @@ export function ComputerPage({
     ? recentFolder && homeRelative(recentFolder, homePath)
     : (currentListing?.display ??
       (refusedHostPath && homeRelative(refusedHostPath, homePath)));
+  // Where the person walked to the folder, which is how the location bar
+  // names it: an iCloud Drive app folder under iCloud Drive, though it lives
+  // in its app's container.
+  const walked =
+    isRecents || display === undefined
+      ? display
+      : homeRelative(hostPathOf(onScreen, rootHostPath ?? root), homePath);
   const hostPath = isRecents
     ? recentFolder
     : (currentListing?.path ?? refusedHostPath);
@@ -921,10 +934,11 @@ export function ComputerPage({
       ...(mount === undefined ? {} : { mount }),
       selected: selectedOnScreen.map(({ name }) => name),
       selectedItems: selectedOnScreen.map(({ item }) => item),
+      walked: walked ?? display,
     });
     // The selection by its key: the rows are rebuilt on every re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [access, display, hostPath, mount, onFolderChange, selectedKey]);
+  }, [access, display, hostPath, mount, onFolderChange, selectedKey, walked]);
 
   const openFile = (file: FileSystemFileItem) => {
     const tab = fileTabOf(file);
@@ -1320,7 +1334,7 @@ export function ComputerPage({
       {isNarrow ? (
         <nav
           className={cn(
-            "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft select-none",
+            "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft",
             !isPlacesOpen && "hidden",
           )}
           onKeyDown={onPlacesKeyDown}
@@ -1606,7 +1620,38 @@ export function ComputerPage({
             sort={shown.sort}
           />
         </ContextMenu>
+        {currentListing?.appFoldersLocked && <ICloudAccessBanner />}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Under the top of iCloud Drive while macOS keeps its app folders from
+ * Instrument. The first read asks for the iCloud Drive permission, and macOS
+ * never asks twice, so after that the switch in System Settings is the only
+ * way in.
+ */
+function ICloudAccessBanner() {
+  const openSettings = useMutation(
+    rpcClient.features.openFilesAndFoldersSettings.mutationOptions(),
+  );
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-4 py-3 text-xs text-muted-foreground">
+      <p className="min-w-0 flex-1 leading-5">
+        Some folders in iCloud Drive need your permission before Instrument can
+        show them. You can turn on iCloud Drive for Instrument in System
+        Settings.
+      </p>
+      <Button
+        onClick={() => {
+          openSettings.mutate(undefined);
+        }}
+        size="sm"
+        variant="outline"
+      >
+        Open System Settings
+      </Button>
     </div>
   );
 }

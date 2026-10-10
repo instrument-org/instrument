@@ -39,7 +39,12 @@ function answeringWindow() {
       action.kind === "open"
         ? { tabId: `made-${asked.length}` }
         : action.tabId === known
-          ? { tabId: known }
+          ? {
+              tabId: known,
+              ...(action.kind === "read"
+                ? { text: "Jar\nA rigid container." }
+                : {}),
+            }
           : { error: `no tab ${action.tabId} is open in this chat.` };
     publisher.publish("window.tabDone", {
       id: ask.id,
@@ -193,6 +198,20 @@ describe("tab close, replace and show", () => {
     const result = await run({}, "show", "tab-known");
 
     expect(result.stdout).toBe("Tab tab-known is on the user's screen.\n");
+  });
+
+  it("prints the text of the page in a tab", async () => {
+    const result = await run({}, "read", "tab-known");
+
+    expect(asked[0]?.action).toEqual({ kind: "read", tabId: "tab-known" });
+    expect(result.stdout).toBe("Jar\nA rigid container.\n");
+  });
+
+  it("passes on the window's refusal to read a tab it does not have", async () => {
+    const result = await run({}, "read", "tab-gone");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("tab: no tab tab-gone is open in this chat.\n");
   });
 
   it("says nothing changed when no window answers", async () => {

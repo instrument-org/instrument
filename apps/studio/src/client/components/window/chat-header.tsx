@@ -88,7 +88,7 @@ export function ChatHeader({
           open={isDeleting}
         />
       )}
-      <div className="flex h-8 min-w-0 flex-1 items-center gap-x-2 select-none">
+      <div className="flex h-8 min-w-0 flex-1 items-center gap-x-2">
         {leading}
         {chat ? (
           <ChatHeading

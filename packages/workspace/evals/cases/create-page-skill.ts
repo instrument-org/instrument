@@ -1,5 +1,5 @@
 /**
- * Does `create-page` get reached for when it should, and left alone when it
+ * Does `instrument-page` get reached for when it should, and left alone when it
  * should not?
  *
  * The agent's prompt names the skill as where a page starts, which is a
@@ -24,8 +24,8 @@ function fail(text: string, evidence: string): AssertionResult {
 function isCreatePageName(name: unknown): boolean {
   return (
     typeof name === "string" &&
-    (name === SKILL_NAMES.createPage ||
-      name.endsWith(`:${SKILL_NAMES.createPage}`))
+    (name === SKILL_NAMES.instrumentPage ||
+      name.endsWith(`:${SKILL_NAMES.instrumentPage}`))
   );
 }
 
@@ -47,28 +47,28 @@ function pass(text: string, evidence: string): AssertionResult {
 
 const loadsCreatePage: Assertion = {
   check: ({ sessions }) => {
-    const text = `loads the ${SKILL_NAMES.createPage} skill`;
+    const text = `loads the ${SKILL_NAMES.instrumentPage} skill`;
     return loadedCreatePage(sessions)
-      ? pass(text, `found a load_skill call for ${SKILL_NAMES.createPage}`)
-      : fail(text, `no load_skill call for ${SKILL_NAMES.createPage}`);
+      ? pass(text, `found a load_skill call for ${SKILL_NAMES.instrumentPage}`)
+      : fail(text, `no load_skill call for ${SKILL_NAMES.instrumentPage}`);
   },
-  text: `loads the ${SKILL_NAMES.createPage} skill`,
+  text: `loads the ${SKILL_NAMES.instrumentPage} skill`,
 };
 
 const leavesCreatePageAlone: Assertion = {
   check: ({ sessions }) => {
-    const text = `does not load the ${SKILL_NAMES.createPage} skill for a file the user named by format`;
+    const text = `does not load the ${SKILL_NAMES.instrumentPage} skill for a file the user named by format`;
     return loadedCreatePage(sessions)
-      ? fail(text, `loaded ${SKILL_NAMES.createPage} anyway`)
-      : pass(text, `no load_skill call for ${SKILL_NAMES.createPage}`);
+      ? fail(text, `loaded ${SKILL_NAMES.instrumentPage} anyway`)
+      : pass(text, `no load_skill call for ${SKILL_NAMES.instrumentPage}`);
   },
-  text: `does not load the ${SKILL_NAMES.createPage} skill for a file the user named by format`,
+  text: `does not load the ${SKILL_NAMES.instrumentPage} skill for a file the user named by format`,
 };
 
 /** The chat or a fork of it loaded the skill. */
 const treeLoadedCreatePage: Assertion = {
   check: async ({ childSessions, sessions }) => {
-    const text = `the chat or a fork loaded the ${SKILL_NAMES.createPage} skill`;
+    const text = `the chat or a fork loaded the ${SKILL_NAMES.instrumentPage} skill`;
     const children = await childSessions();
     const evidence = [
       `chat: ${loadedCreatePage(sessions) ? "loaded" : "did not load"}`,
@@ -82,7 +82,7 @@ const treeLoadedCreatePage: Assertion = {
       ? pass(text, evidence)
       : fail(text, evidence);
   },
-  text: `the chat or a fork loaded the ${SKILL_NAMES.createPage} skill`,
+  text: `the chat or a fork loaded the ${SKILL_NAMES.instrumentPage} skill`,
 };
 
 const stopOnLoadCreatePage = (part: SessionMessagePart.Type) =>

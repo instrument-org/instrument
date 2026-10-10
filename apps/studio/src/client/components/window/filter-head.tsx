@@ -5,6 +5,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
+import { useFindTarget } from "@/client/hooks/use-find-target";
 import { cn } from "@/client/lib/utils";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
@@ -14,7 +15,7 @@ import { NotificationIcon } from "@phosphor-icons/react/Notification";
 import { PlusSquareIcon } from "@phosphor-icons/react/PlusSquare";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { ChevronDown } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 
 import {
   type ChatFilters,
@@ -83,17 +84,26 @@ export function FilterHead(props: FilterProps) {
   const model = useFilterModel(props);
   const [isSearchFocused, setSearchFocused] = useState(false);
   const isSearching = isSearchFocused || filters.search !== "";
+  const searchRef = useRef<HTMLInputElement>(null);
+  useFindTarget({
+    anchor: searchRef,
+    openFind: () => {
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    },
+  });
   return (
     <div
       aria-label="Filters"
       // 8px in from the card's side and 12px down from its top, and 16px
       // with the list's own 4px down to the first row: a heading over the
       // rows, set apart from them as well as larger than their titles.
-      className="flex shrink-0 items-center gap-2 px-2 pt-3 pb-3 select-none"
+      className="flex shrink-0 items-center gap-2 px-2 pt-3 pb-3"
       role="group"
     >
       <ViewPicker {...model} isCompact={isSearching} />
       <SearchField
+        inputRef={searchRef}
         onChange={(search) => {
           onFiltersChange({ ...filters, search });
         }}
@@ -111,7 +121,11 @@ export function FilterHead(props: FilterProps) {
   );
 }
 
-/** One row of the picker: large, with its face, its name, and what stands at its end. */
+/**
+ * One row of the picker: large, with its face, its name, and what stands at
+ * its end. It keeps its height in the menu's flex column, where the rows
+ * outside the topics' scroll would otherwise shrink to make room for them.
+ */
 function PickerRow({
   children,
   isOn,
@@ -128,7 +142,7 @@ function PickerRow({
   return (
     <div
       className={cn(
-        "group/row flex h-10 items-center gap-1 rounded-xl pr-2",
+        "group/row flex h-10 shrink-0 items-center gap-1 rounded-xl pr-2",
         isOn ? "bg-foreground/6" : "hover:bg-foreground/5",
       )}
     >

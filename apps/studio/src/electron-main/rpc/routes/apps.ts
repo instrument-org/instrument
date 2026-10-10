@@ -56,6 +56,10 @@ import {
   appOAuthRedirectUrl,
   disconnectApp,
 } from "../../lib/apps";
+import {
+  expectSignIn,
+  settleSignIn,
+} from "@/electron-main/browser-view/history-intents";
 
 /** Where an app stands, as the Apps screen draws it. */
 const AppStandingSchema = z.enum([
@@ -433,7 +437,7 @@ async function withInspectorClient<T>({
     };
   };
   errors: {
-    API_ERROR: (options: { message: string }) => Error;
+    API_ERROR: (options: { cause?: unknown; message: string }) => Error;
     NOT_FOUND: (options: { message: string }) => Error;
   };
   run: Parameters<typeof withAppMcpClient>[0]["run"] extends (
@@ -480,7 +484,14 @@ async function withInspectorClient<T>({
       });
       await appChanged(slug);
     }
-    throw errors.API_ERROR({ message: result.error.message });
+    // Carried as the cause so a server that is not there (a desktop app's
+    // local server while the app is closed, a service that is down) is
+    // known as a network failure: the page offers a retry, and nothing is
+    // captured as a fault.
+    throw errors.API_ERROR({
+      cause: result.error.cause,
+      message: result.error.message,
+    });
   }
   return result.value;
 }
@@ -573,6 +584,11 @@ const startOAuth = base
       await announceConnected(input.slug);
       return { status: "connected" as const };
     }
+    if (input.opensIn === "app") {
+      // The window opens the page in its own browser; the pages the sign-in
+      // goes through there are kept out of history until it lands.
+      expectSignIn(input.slug, result.value.authorizationUrl);
+    }
     return { status: "started" as const, url: result.value.authorizationUrl };
   });
 
@@ -584,6 +600,7 @@ const startOAuth = base
 const cancelOAuth = base
   .input(z.object({ slug: AppSlugSchema }))
   .handler(async ({ input }) => {
+    settleSignIn(input.slug);
     const state = await appOAuthStore.getState(input.slug);
     if (state !== undefined) {
       await cancelMcpOAuth(state);

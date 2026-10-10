@@ -30,6 +30,8 @@ export interface McpConnectionConfig {
 }
 
 export interface McpConnectionError {
+  /** What the connection threw, when it threw, so a caller can tell a server that is not there from a fault. */
+  cause?: unknown;
   message: string;
   reason: "connect" | "protocol" | "unapproved" | "unauthorized";
 }
@@ -217,6 +219,7 @@ async function runWithTransport<T>(
       error instanceof UnauthorizedError || /401|unauthor/i.test(message);
     const said = detail?.();
     return err({
+      cause: error,
       message: unauthorized
         ? `The MCP server rejected the credential (unauthorized): ${message}`
         : `Could not connect to the MCP server: ${message}${said ? `\n${said}` : ""}`,

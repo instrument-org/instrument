@@ -1,8 +1,9 @@
+import { type Bookmark, bookmarksAtom } from "@/client/atoms/window";
 import {
-  type Bookmark,
-  bookmarksAtom,
-  visitedPagesAtom,
-} from "@/client/atoms/window";
+  noteTypedPage,
+  useRecentPages,
+} from "@/client/hooks/use-browser-history";
+import { rpcClient } from "@/client/rpc/client";
 import { OUTPUT_FOLDER } from "@/shared/computer-href";
 import { type Icon } from "@phosphor-icons/react";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
@@ -96,7 +97,7 @@ export function WebStart({
   onOpenPage: (url: string) => void;
 }) {
   const [bookmarks, setBookmarks] = useAtom(bookmarksAtom);
-  const [visited, setVisited] = useAtom(visitedPagesAtom);
+  const visited = useRecentPages();
   const clicksFor = usePageClicks();
   // The bookmark whose name is being typed over, by id.
   const [renamingId, setRenamingId] = useState<string>();
@@ -134,25 +135,24 @@ export function WebStart({
       description: bookmark.title || hostOf(bookmark.url),
     });
   };
-  // Every page seen, not only the dozen shown, since what the rest feed is
-  // the address field's completions, and a person clearing their recent
-  // pages means those too. Undo puts them back behind anything seen since.
+  // Every page the person has seen, not only the dozen shown, since what
+  // the rest feed is the address field's completions, and a person clearing
+  // their recent pages means those too.
   const clearRecent = () => {
-    const cleared = visited;
-    setVisited([]);
-    toast("Removed all Recent Pages", {
-      action: {
-        label: "Undo",
-        onClick: () => {
-          setVisited((current) => [
-            ...current,
-            ...cleared.filter(
-              (page) => !current.some((seen) => seen.url === page.url),
-            ),
-          ]);
-        },
-      },
-    });
+    void rpcClient.history.clear
+      .call({})
+      .then(() => {
+        toast("Removed all Recent Pages");
+      })
+      .catch(() => {
+        toast.error("Could not remove Recent Pages");
+      });
+  };
+  // A bookmark is an address the person chose, so opening one counts the
+  // way typing it would.
+  const openBookmark = (url: string) => {
+    noteTypedPage(url);
+    onOpenPage(url);
   };
   return (
     <div className="h-full min-h-0 overflow-y-auto">
@@ -201,7 +201,7 @@ export function WebStart({
                 return (
                   <PageContextMenu
                     key={bookmark.id}
-                    onOpen={onOpenPage}
+                    onOpen={openBookmark}
                     onRemove={() => {
                       remove(bookmark);
                     }}
@@ -213,7 +213,7 @@ export function WebStart({
                   >
                     <button
                       className="group flex w-24 flex-col items-center gap-2 rounded-xl py-2 text-center hover:bg-accent/50 data-[state=open]:bg-accent/50"
-                      {...clicksFor(bookmark.url, onOpenPage)}
+                      {...clicksFor(bookmark.url, openBookmark)}
                       title={`${name}\n${bookmark.url}`}
                       type="button"
                     >

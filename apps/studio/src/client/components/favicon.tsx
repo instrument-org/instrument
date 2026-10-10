@@ -33,11 +33,14 @@ export const FAVICON_SURFACE_CLASS_NAME = "dark:bg-white/10";
 export function Favicon({
   className,
   fallback,
+  hasTooltip = true,
   url,
 }: {
   className?: string;
   /** What to draw when the site has no icon anywhere; the site's initial on a quiet tile otherwise. */
   fallback?: ReactNode;
+  /** Whether the icon names its site on hover; off where the row around it says more. */
+  hasTooltip?: boolean;
   url: string;
 }) {
   const hostname = URL.canParse(url) ? new URL(url).hostname : url;
@@ -55,33 +58,33 @@ export function Favicon({
     onLoad: arrived,
   } = useImageArrival(faviconUrl, "icon");
 
+  const icon = isIconless ? (
+    (fallback ?? <FaviconFallback className={className} label={hostname} />)
+  ) : (
+    <img
+      alt={`Favicon for ${hostname}`}
+      className={cn(
+        // A rounded rectangle, the way a browser tab softens a site's
+        // own square mark, and what tells a site from an app's circle.
+        "size-4 shrink-0 rounded-sm border border-border/50",
+        FAVICON_SURFACE_CLASS_NAME,
+        arrivalClassName,
+        className,
+      )}
+      onError={() => {
+        markIconlessThisSession(url);
+      }}
+      onLoad={arrived}
+      ref={attach}
+      src={faviconUrl}
+    />
+  );
+  if (!hasTooltip) {
+    return icon;
+  }
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        {isIconless ? (
-          (fallback ?? (
-            <FaviconFallback className={className} label={hostname} />
-          ))
-        ) : (
-          <img
-            alt={`Favicon for ${hostname}`}
-            className={cn(
-              // A rounded rectangle, the way a browser tab softens a site's
-              // own square mark, and what tells a site from an app's circle.
-              "size-4 shrink-0 rounded-sm border border-border/50",
-              FAVICON_SURFACE_CLASS_NAME,
-              arrivalClassName,
-              className,
-            )}
-            onError={() => {
-              markIconlessThisSession(url);
-            }}
-            onLoad={arrived}
-            ref={attach}
-            src={faviconUrl}
-          />
-        )}
-      </TooltipTrigger>
+      <TooltipTrigger asChild>{icon}</TooltipTrigger>
       <TooltipContent>{hostname}</TooltipContent>
     </Tooltip>
   );
@@ -141,11 +144,14 @@ export function FaviconFallback({
 export function PageFavicon({
   className,
   favicon,
+  hasTooltip = true,
   url,
 }: {
   className?: string;
   /** The icon the page last announced, when one is known. */
   favicon?: string | undefined;
+  /** Whether the icon names its site on hover; off where the row around it says more. */
+  hasTooltip?: boolean;
   url: string | undefined;
 }) {
   // An announced icon that does not load gives way to the site's.
@@ -164,7 +170,7 @@ export function PageFavicon({
     );
   }
   if (url && /^https?:/i.test(url)) {
-    return <Favicon className={className} url={url} />;
+    return <Favicon className={className} hasTooltip={hasTooltip} url={url} />;
   }
   return (
     <GlobeIcon

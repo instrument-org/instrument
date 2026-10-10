@@ -63,6 +63,7 @@ import {
 import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { useFileDragArea } from "@/client/hooks/use-file-drag";
+import { useFindTarget } from "@/client/hooks/use-find-target";
 import { cn, isMacOS } from "@/client/lib/utils";
 import {
   createFileTreeIconResolver,
@@ -2840,6 +2841,16 @@ export function FileSystem({
     sort,
     treeExpansionRef,
   };
+  // ⌘F focuses the toolbar search. Below 560px the field is in a popover,
+  // outside the component, so a press with the caret already in it is ours too.
+  useFindTarget({
+    anchor: rootRef,
+    holdsKeyboard: () => document.activeElement === searchInputRef.current,
+    openFind: () => {
+      setIsSearchExpanded(true);
+      searchInputRef.current?.focus();
+    },
+  });
   const openedFileName = openedFile
     ? (openedFile.file.name ?? openedFile.file.path)
     : "";
@@ -2865,6 +2876,7 @@ export function FileSystem({
         "flex h-[480px] min-h-0 flex-col overflow-hidden rounded-xl border bg-background text-foreground outline-none select-none",
         className,
       )}
+      data-find-surface
       data-slot="file-system"
       onClickCapture={dragArea.onClickCapture}
       onContextMenu={(event) => {
@@ -2880,13 +2892,6 @@ export function FileSystem({
       }}
       onDragStart={dragArea.onDragStart}
       onKeyDown={(event) => {
-        // ⌘F focuses the toolbar search while focus is inside the component.
-        if ((event.metaKey || event.ctrlKey) && event.key === "f") {
-          event.preventDefault();
-          setIsSearchExpanded(true);
-          searchInputRef.current?.focus();
-          return;
-        }
         // The rows' keys, read here for every view. A press already answered
         // (a menu's own arrows), one from something portalled out of the
         // browser (its menus and dialogs), and one typed into a field are

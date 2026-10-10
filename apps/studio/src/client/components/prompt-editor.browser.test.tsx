@@ -342,4 +342,29 @@ describe("PromptEditor in a browser", () => {
       expect(onChange).toHaveBeenLastCalledWith(ref.current?.getValue());
     },
   );
+
+  it("puts the clipboard's words in at the caret on Cmd+Shift+V", async () => {
+    const long = "word ".repeat(2000).trim();
+    vi.spyOn(navigator.clipboard, "readText").mockResolvedValue(long);
+    const { ref } = renderEditor("before ");
+
+    await userEvent.click(editor());
+    ref.current?.moveCaretToEnd();
+    await userEvent.keyboard("{Meta>}{Shift>}v{/Shift}{/Meta}");
+
+    await vi.waitFor(() => {
+      expect(ref.current?.getValue()).toBe(`before ${long}`);
+    });
+  });
+
+  it("puts words in through the handle the way a paste would", async () => {
+    const { ref } = renderEditor("", [ffmpegSkill]);
+
+    await userEvent.click(editor());
+    ref.current?.pasteText("/ffmpeg is cool");
+
+    expect(ref.current?.getValue()).toBe(
+      "[$instrument:ffmpeg](skill:instrument:ffmpeg) is cool",
+    );
+  });
 });

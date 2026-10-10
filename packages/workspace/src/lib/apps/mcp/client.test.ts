@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import http from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isExpectedNetworkError } from "@instrument-org/shared";
 import { z } from "zod";
 
 import { getWorkspaceServerPort } from "../../../logic/server/url";
@@ -120,6 +121,27 @@ describe("withMcpClient", () => {
 
     expect(result.isErr()).toBe(true);
     expect(result._unsafeUnwrapErr().reason).toBe("unauthorized");
+  });
+
+  // A desktop app's local server while the app is closed: the cause is kept
+  // so the caller can treat it as the network failure it is, not a fault.
+  it("keeps the network failure as the cause when nothing is listening", async () => {
+    const closed = http.createServer();
+    await new Promise<void>((resolve) => {
+      closed.listen(0, "127.0.0.1", resolve);
+    });
+    const address = closed.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    await new Promise((resolve) => closed.close(resolve));
+
+    const result = await withMcpClient({
+      config: { auth: { kind: "none" }, url: `http://127.0.0.1:${port}/mcp` },
+      run: (client) => listMcpTools(client),
+    });
+
+    const error = result._unsafeUnwrapErr();
+    expect(error.reason).toBe("connect");
+    expect(isExpectedNetworkError(error.cause)).toBe(true);
   });
 
   it("rejects non-https, non-loopback URLs before connecting", async () => {

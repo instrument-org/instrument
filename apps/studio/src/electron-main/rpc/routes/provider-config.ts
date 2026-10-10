@@ -1,4 +1,11 @@
 import { liveRead } from "@instrument-org/workspace/electron";
+import { startAuthCallbackServer } from "@/electron-main/auth/server";
+import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import {
+  cancelOpenRouterConnect,
+  connectOpenRouter,
+  type OpenRouterConnectResult,
+} from "@/electron-main/lib/openrouter-connect";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
@@ -86,6 +93,19 @@ const update = base
     providersStore.set("providers", updatedConfigs);
   });
 
+/** Why a config of this type can't take this name, when one already has it. */
+function duplicateNameMessage({
+  displayName,
+  type,
+}: Pick<AIGatewayProviderConfig.Type, "displayName" | "type">) {
+  const taken = getProviderConfigsStore()
+    .get("providers")
+    .some((p) => p.type === type && p.displayName === displayName);
+  return taken
+    ? `A provider of type "${type}" with the name "${displayName ?? ""}" already exists`
+    : undefined;
+}
+
 const create = base
   .errors({ BAD_REQUEST: {} })
   .input(
@@ -106,15 +126,9 @@ const create = base
       const providersStore = getProviderConfigsStore();
       const existingConfigs = providersStore.get("providers");
 
-      const duplicateProviderByName = existingConfigs.find(
-        (p) =>
-          p.type === newConfig.type && p.displayName === newConfig.displayName,
-      );
-
-      if (duplicateProviderByName) {
-        throw errors.BAD_REQUEST({
-          message: `A provider of type "${newConfig.type}" with the name "${newConfig.displayName ?? ""}" already exists`,
-        });
+      const duplicateName = duplicateNameMessage(newConfig);
+      if (duplicateName) {
+        throw errors.BAD_REQUEST({ message: duplicateName });
       }
 
       const providerMetadata = getProviderMetadata(newConfig.type);
@@ -170,6 +184,79 @@ const create = base
     },
   );
 
+/**
+ * Adds OpenRouter by having OpenRouter create a key in the browser rather than
+ * by a pasted one, with the name and base URL the form holds. Answers how it
+ * ended, with what went wrong when it failed.
+ */
+const connectOpenRouterProvider = base
+  .input(
+    z.object({
+      baseURL: z.string().optional(),
+      displayName: z.string().optional(),
+    }),
+  )
+  .handler(
+    async ({
+      context,
+      input,
+    }): Promise<
+      OpenRouterConnectResult | { error: string; outcome: "failed" }
+    > => {
+      try {
+        // Checked before the browser opens, so a name that can't be saved
+        // never costs a key on OpenRouter.
+        const duplicateName = duplicateNameMessage({
+          displayName: input.displayName,
+          type: "openrouter",
+        });
+        if (duplicateName) {
+          return { error: duplicateName, outcome: "failed" };
+        }
+        const server = await startAuthCallbackServer();
+        if (!server) {
+          throw new Error("The sign-in callback server isn't running");
+        }
+        return await connectOpenRouter({
+          callbackPort: server.port,
+          // The first config takes the provider's own name, which says
+          // nothing on OpenRouter's keys page.
+          keyLabel:
+            input.displayName === getProviderMetadata("openrouter").name
+              ? undefined
+              : input.displayName,
+          // The key was just created for this, so checking it again would only
+          // race OpenRouter's own propagation.
+          save: (apiKey) =>
+            call(
+              create,
+              {
+                config: { ...input, apiKey, type: "openrouter" },
+                skipValidation: true,
+              },
+              { context },
+            ),
+        });
+      } catch (error) {
+        captureServerException(
+          new Error("Connecting OpenRouter failed", { cause: error }),
+          { scopes: ["auth"] },
+        );
+        return {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Couldn't connect OpenRouter",
+          outcome: "failed",
+        };
+      }
+    },
+  );
+
+const cancelConnectOpenRouter = base.handler(() => {
+  cancelOpenRouterConnect();
+});
+
 const credits = base
   .use(async ({ next }) => {
     return next({
@@ -183,7 +270,7 @@ const credits = base
   .input(z.object({ id: AIProviderConfigIdSchema }))
   .output(
     z.object({
-      credits: z.object({ total_credits: z.number(), total_usage: z.number() }),
+      credits: z.object({ remaining: z.number() }),
     }),
   )
   .handler(async ({ errors, input }) => {
@@ -244,6 +331,8 @@ const listMetadata = base
   });
 
 export const providerConfig = {
+  cancelConnectOpenRouter,
+  connectOpenRouter: connectOpenRouterProvider,
   create,
   credits,
   list,

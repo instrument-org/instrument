@@ -99,7 +99,12 @@ function DeadDevModeBody({ part }: { part: SessionMessagePart.ToolPart }) {
   );
 }
 
-function ToolCallBody({
+/**
+ * What a call says, without the row that opens it. The chat draws the cards
+ * that ask the user something this way, since the card is the whole of what
+ * there is to read.
+ */
+export function ToolCallBody({
   onRetry,
   part,
   task,

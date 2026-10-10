@@ -163,7 +163,7 @@ export function ChatPane({
   const deletingChat = chats.find((chat) => chat.id === deletingId);
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-col" data-find-surface>
       <FilterHead
         chats={chats}
         drafts={drafts.length}

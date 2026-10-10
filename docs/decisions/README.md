@@ -10,6 +10,7 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-09 | [Outside content arrives last and unmarked](2026-10-09-outside-content-arrives-last-and-unmarked.md) |
 | 2026-10-07 | [The chat and its tasks are one agent that does quick work itself and forks the rest](2026-10-07-one-agent-that-forks.md) |
 | 2026-10-07 | [The CDP bridge refuses any `Target.*` command its table does not list](2026-10-07-cdp-bridge-refuses-unlisted-target-commands.md) |
 | 2026-10-06 | [The packaged log keeps cheap lines on by default and gates only what is expensive to gather](2026-10-06-logs-keep-cheap-lines-on-by-default.md) |
@@ -37,7 +38,7 @@ Newest first. A struck-through entry has been superseded.
 | 2026-07-31 | [pdfium is the PDF engine](2026-07-31-pdfium-is-the-pdf-engine.md) |
 | 2026-07-29 | [Controls activate on release](2026-07-29-controls-activate-on-release.md) |
 | 2026-07-28 | [Search moves into the shell, on the real ripgrep binary](2026-07-28-real-ripgrep-in-the-sandbox.md) |
-| 2026-07-27 | [Untrusted content is bounded by a nonce, not escaped](2026-07-27-nonce-bounded-untrusted-content.md) |
+| 2026-07-27 | ~~[Untrusted content is bounded by a nonce, not escaped](2026-07-27-nonce-bounded-untrusted-content.md)~~ superseded by 2026-10-09 |
 | 2026-07-27 | [Turn context through AsyncLocalStorage](2026-07-27-turn-context-through-async-local-storage.md) |
 | 2026-07-27 | [Hover and press feedback does not ease](2026-07-27-hover-and-press-feedback-does-not-ease.md) |
 | 2026-07-27 | ~~[Controls activate on press, not release](2026-07-27-controls-activate-on-press.md)~~ superseded by 2026-07-29 |

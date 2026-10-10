@@ -382,6 +382,7 @@ export const workspaceMachine = setup({
       uvBinPath: string;
       uvDataDir: string;
       macHelperBinPath?: string;
+      knownFolders?: WorkspaceConfig["knownFolders"];
       webSearch: WebSearchClient;
     },
     output: {},
@@ -405,6 +406,7 @@ export const workspaceMachine = setup({
         : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
+      ...(input.knownFolders ? { knownFolders: input.knownFolders } : {}),
       ...(input.indexesDir && {
         indexesDir: AbsolutePathSchema.parse(input.indexesDir),
       }),

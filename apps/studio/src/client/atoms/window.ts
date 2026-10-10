@@ -41,6 +41,17 @@ export type ScreenView = Omit<
 
 export const screenViewsAtom = atom<Readonly<Record<string, ScreenView>>>({});
 
+/**
+ * Where the folder each Files screen shows was walked to, by the same tab as
+ * `screenViewsAtom`, which is how the location bar names it. Apart from the
+ * view because it is for the person alone: an iCloud Drive app folder is
+ * walked to under iCloud Drive, while the conversation is told where it
+ * really is.
+ */
+export const walkedFoldersAtom = atom<
+  Readonly<Record<string, { hostPath: string; walked: string }>>
+>({});
+
 /** A file or folder on this computer picked to go with a draft, by its path. */
 export interface ChosenItem {
   kind: "file" | "folder";
@@ -61,12 +72,24 @@ export interface FinderShown {
 export const findersByTabAtom = atom<Readonly<Record<string, FinderShown>>>({});
 
 /**
+ * A file or folder given to a draft's composer, by its path on disk: what of
+ * the composer outlasts the app. Bytes pasted in with no file behind them
+ * are written to the draft's own folder first, and kept by that path.
+ */
+export type DraftAttachment =
+  | { kind: "file"; mimeType: string; name: string; path: string; size: number }
+  | { kind: "folder"; path: string };
+
+/**
  * A chat not yet started: its words and the topic it will be filed under.
  * What it has gathered (sites, files, folders) is its tab group, kept with
  * the window's tabs under the draft's group key; what its composer holds
- * besides the words is kept in memory beside it.
+ * besides the words is kept in memory beside it, and the part of that with
+ * a place on disk in `attached`.
  */
 export interface Draft {
+  /** What the composer was given that has a place on disk, so it comes back after a relaunch. */
+  attached?: DraftAttachment[];
   /**
    * Files and folders the person opened the draft on by name, from a menu or
    * a button over them: held for the chat whatever the window moves on to,
@@ -252,23 +275,6 @@ export interface BrowserTab {
   /** The last page it showed, opened again when the tab comes back. */
   url?: string;
 }
-
-/** A page the browser showed, for the new-tab page and the address field's completions: newest first, one per address. */
-export interface VisitedPage {
-  at: number;
-  favicon?: string;
-  title: string;
-  url: string;
-}
-
-/** Enough history for the address field to finish the sites a person goes back to, which a page's handful of rows never needed. */
-export const VISITED_MAX = 500;
-
-export const visitedPagesAtom = keptAtom<VisitedPage[]>(
-  "history",
-  "visited-pages.v1",
-  [],
-);
 
 /** A file the window can open in a tab: where it is on the computer, which is the tab's identity. */
 export interface FileTab {

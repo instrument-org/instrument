@@ -121,7 +121,7 @@ const reasoningEffort = values.effort
 
 /**
  * A `cf:` prefix reads the name as a Workers AI id (with or without its
- * `@cf/`), which is what this project has credits on; a bare name is an
+ * `@cf/`), which runs without `--paid`; a bare name is an
  * OpenRouter slug, and a full model URI pins any configured provider. The last
  * two are metered, and metered needs `--paid`.
  */
@@ -147,7 +147,7 @@ if (subcommand === "run" && models.length === 0) {
     `\`pnpm eval models\` lists what the configured providers can run right now, newest first.\nPick for the question being asked and say which you picked and why.\n\n`,
   );
   write(
-    `Workers AI carries this project's credits, so it is where to start: pass one as\n\`--model cf:<id>\`, e.g. \`--model cf:${HOUSE_FLOOR}\`, the model this project is\nusually tested against. Everything else is metered and needs --paid.\n`,
+    `Workers AI runs without --paid, so it is where to start: pass one as\n\`--model cf:<id>\`, e.g. \`--model cf:${HOUSE_FLOOR}\`, the model this project is\nusually tested against. Everything else is metered and needs --paid.\n`,
   );
   process.exit(1);
 }
@@ -169,7 +169,7 @@ if (paidModels.length > 0 && !values.paid) {
     write(`  ${model.split("?")[0] ?? model}\n`);
   }
   write(
-    `\nWorkers AI carries this project's credits: pass one as \`--model cf:<id>\`, or\n\`pnpm eval models\` to see what is there. Pass --paid when the question is\nspecifically about a model only another provider has.\n`,
+    `\nWorkers AI runs without --paid: pass one as \`--model cf:<id>\`, or\n\`pnpm eval models\` to see what is there. Pass --paid when the question is\nspecifically about a model only another provider has.\n`,
   );
   process.exit(1);
 }
@@ -214,7 +214,7 @@ if (
     `                   --effort <${REASONING_EFFORTS.join("|")}> asks every task to think that hard\n`,
   );
   process.stderr.write(
-    "                   --model <cf:id|slug|uri>, repeatable; default is the free Workers AI set\n",
+    "                   --model <cf:id|slug|uri>, repeatable; Workers AI (cf:) runs without --paid\n",
   );
   process.stderr.write(
     "                   --paid allows a metered model, which is refused without it\n",
@@ -429,7 +429,7 @@ switch (subcommand) {
     write(
       [
         ...section(
-          "Free, on this project's Cloudflare credits:",
+          "Workers AI, no --paid needed:",
           rows.filter((model) => !isPaidModel(model.uri)),
         ),
         ...section(

@@ -1,5 +1,4 @@
-import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { useDecision } from "@/client/hooks/use-decision";
 import { useEffect, useMemo, useState } from "react";
 
 import { type Emoji } from "./emoji-set";
@@ -11,7 +10,6 @@ import { type Emoji } from "./emoji-set";
  */
 const CHUNK = 250;
 
-type Answer = RPCOutput["workspace"]["decision"]["ask"];
 const NONE = "none";
 
 /** Below this an emoji is the model shrugging, not suggesting. */
@@ -62,36 +60,24 @@ export function useEmojiSuggestions(
   );
 
   const asking = questions !== undefined && settled.length > 1;
-  // Typed up front: the placeholder callback reads the answer type back, so it
-  // cannot also be inferred from the query function.
-  const query = useQuery<Answer, Error, Answer, string[]>({
+  // The question set is the same for every call, so the text alone keys it.
+  const { answer, available } = useDecision({
+    ask: asking ? { questions, state: settled } : undefined,
+    checkAvailable: questions !== undefined,
     // Only an answer about the same words, a letter more or less, stands in:
     // a different query's picks would read as answers to this one.
-    placeholderData: (previous, previousQuery) => {
-      const previousText = previousQuery?.queryKey[1] ?? "";
-      return previousText &&
-        (settled.startsWith(previousText) || previousText.startsWith(settled))
-        ? previous
-        : undefined;
-    },
-    // The question set is the same for every call, so the text alone keys it.
-    queryFn: asking
-      ? ({ signal }) =>
-          rpcClient.workspace.decision.ask.call(
-            { questions, state: settled },
-            { signal },
-          )
-      : skipToken,
-    queryKey: ["emoji-suggestions", settled],
-    retry: false,
-    staleTime: Infinity,
+    keepPrevious: ([, previousText]) =>
+      typeof previousText === "string" &&
+      previousText !== "" &&
+      (settled.startsWith(previousText) || previousText.startsWith(settled)),
+    key: ["emoji-suggestions", settled],
   });
 
   const suggestions = useMemo(() => {
     const ranked: { emoji: Emoji; probability: number }[] = [];
-    for (const answer of Object.values(query.data?.answers ?? {})) {
+    for (const question of Object.values(answer?.answers ?? {})) {
       for (const [unicode, probability] of Object.entries(
-        answer.probabilities ?? {},
+        question.probabilities ?? {},
       )) {
         const emoji = byUnicode.get(unicode);
         if (emoji && probability >= FLOOR) {
@@ -102,12 +88,17 @@ export function useEmojiSuggestions(
     return ranked
       .toSorted((a, b) => b.probability - a.probability)
       .slice(0, MOST);
-  }, [byUnicode, query.data]);
+  }, [answer, byUnicode]);
 
   return {
-    error: asking ? query.error : null,
+    /**
+     * Whether suggestions can come, known before any are asked for, so a
+     * picker draws a place for them only when a model can answer, rather
+     * than one that never fills or one that shows and then goes.
+     */
+    available: available === true,
     /** Whether an answer for this text, or one before it, has arrived. */
-    hasAnswer: asking && query.data !== undefined,
+    hasAnswer: asking && answer !== undefined,
     suggestions: asking ? suggestions : [],
   };
 }

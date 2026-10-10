@@ -9,7 +9,6 @@ import { DeepSeek } from "@/client/components/icons/deepseek";
 import { Fireworks } from "@/client/components/icons/fireworks";
 import { Groq } from "@/client/components/icons/groq";
 import { HuggingFace } from "@/client/components/icons/huggingface";
-import { Hyperbolic } from "@/client/components/icons/hyperbolic";
 import { Jan } from "@/client/components/icons/jan";
 import { LMStudio } from "@/client/components/icons/lmstudio";
 import { LocalAI } from "@/client/components/icons/localai";
@@ -17,7 +16,6 @@ import { Minimax } from "@/client/components/icons/minimax";
 import { Mistral } from "@/client/components/icons/mistral";
 import { Novita } from "@/client/components/icons/novita";
 import { OpenCode } from "@/client/components/icons/opencode";
-import { Perplexity } from "@/client/components/icons/perplexity";
 import { Together } from "@/client/components/icons/together";
 import { XAI } from "@/client/components/icons/x-ai";
 import { ZAI } from "@/client/components/icons/z-ai";
@@ -37,12 +35,10 @@ import deepseekColor from "@lobehub/icons-static-svg/icons/deepseek-color.svg?ra
 import fireworksColor from "@lobehub/icons-static-svg/icons/fireworks-color.svg?raw";
 import geminiColor from "@lobehub/icons-static-svg/icons/gemini-color.svg?raw";
 import huggingfaceColor from "@lobehub/icons-static-svg/icons/huggingface-color.svg?raw";
-import hyperbolicColor from "@lobehub/icons-static-svg/icons/hyperbolic-color.svg?raw";
 import minimaxColor from "@lobehub/icons-static-svg/icons/minimax-color.svg?raw";
 import mistralColor from "@lobehub/icons-static-svg/icons/mistral-color.svg?raw";
 import novitaColor from "@lobehub/icons-static-svg/icons/novita-color.svg?raw";
 import openrouterColor from "@lobehub/icons-static-svg/icons/openrouter-color.svg?raw";
-import perplexityColor from "@lobehub/icons-static-svg/icons/perplexity-color.svg?raw";
 import togetherColor from "@lobehub/icons-static-svg/icons/together-color.svg?raw";
 import zhipuColor from "@lobehub/icons-static-svg/icons/zhipu-color.svg?raw";
 import { useAtomValue } from "jotai";
@@ -86,12 +82,10 @@ const PROVIDER_COLOR_SVG: Partial<Record<AIProviderType, string>> = {
   fireworks: fireworksColor,
   google: geminiColor,
   huggingface: huggingfaceColor,
-  hyperbolic: hyperbolicColor,
   minimax: minimaxColor,
   mistral: mistralColor,
   novita: novitaColor,
   openrouter: openrouterColor,
-  perplexity: perplexityColor,
   together: togetherColor,
   "z-ai": zhipuColor,
 };
@@ -110,7 +104,6 @@ const PROVIDER_ICON_MAP: Record<
   google: SiGooglegemini,
   groq: Groq,
   huggingface: HuggingFace,
-  hyperbolic: Hyperbolic,
   jan: Jan,
   lmstudio: LMStudio,
   localai: LocalAI,
@@ -124,7 +117,6 @@ const PROVIDER_ICON_MAP: Record<
   "opencode-zen": OpenCode,
   openrouter: OpenRouter,
   [OUR_MODELS.providerType]: InstrumentProviderGlyph,
-  perplexity: Perplexity,
   together: Together,
   vercel: SiVercel,
   "x-ai": XAI,

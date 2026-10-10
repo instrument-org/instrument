@@ -1,4 +1,5 @@
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import {
   AlertDialog,
@@ -115,7 +116,10 @@ export function ChatGPTAccountCard() {
       state={status && accounts.map((account) => account.id).join(" ")}
     >
       <Card className="gap-0 p-4">
-        <div className="flex items-start justify-between gap-4">
+        <div
+          className="flex items-start justify-between gap-4"
+          {...settingAnchor("chatgpt-account")}
+        >
           <div className="flex min-w-0 flex-1 items-start gap-3">
             <div className="flex size-8 shrink-0 items-center justify-center">
               <AIProviderIcon type="chatgpt-account" />

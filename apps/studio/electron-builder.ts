@@ -1,8 +1,9 @@
 import {
   APP_BUNDLE_ID,
   APP_EXECUTABLE,
+  APP_FLAVOR,
   APP_NAME,
-  APP_PREVIEW_NAME,
+  APP_NAME_SLUG,
   APP_PRODUCT_NAME,
   APP_PROTOCOL,
   APP_UPDATER_CACHE_DIR_NAME,
@@ -24,6 +25,21 @@ if (process.env.CI !== "true") {
     path: [".env.build"],
   });
 }
+
+const isPreview = APP_FLAVOR.kind === "preview";
+
+// A preview wears its own color, so it reads as something other than
+// Instrument in the Dock, Finder, and a downloads folder before its name does.
+// Generated beside the shipping icons by `icons:generate`.
+const iconDir = isPreview ? "flavors/preview/" : "";
+
+// What an installer or package manager knows a preview by, so installing one
+// puts nothing where Instrument's own files go: the Windows install folder,
+// which NSIS takes from `name`, and the Linux executable and package.
+const previewPackageName =
+  APP_FLAVOR.kind === "preview"
+    ? `${APP_NAME_SLUG}-preview-${APP_FLAVOR.name}`
+    : undefined;
 
 const publishConfig: PlatformSpecificBuildOptions["publish"] = {
   bucket: "instrument-releases",
@@ -85,7 +101,7 @@ const config: Configuration = {
   dmg: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     // DMG volume icons still use .icns even when the app bundle uses .icon (macOS 26+).
-    icon: "icon.icns",
+    icon: `${iconDir}icon.icns`,
   },
   // Refuses `--inspect` and SIGUSR1 on the packaged binary, so no other
   // process can start Instrument with a debugger on main and read what
@@ -114,7 +130,7 @@ const config: Configuration = {
   // app that fails to boot.
   electronLanguages: ["en-US"],
   extraMetadata: {
-    name: APP_NAME,
+    name: previewPackageName ?? APP_NAME,
     // Electron names the userData folder and the keychain's Safe Storage item
     // after this, which is what keeps a preview's state apart from the app's.
     productName: APP_PRODUCT_NAME,
@@ -203,9 +219,12 @@ const config: Configuration = {
   linux: {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     category: "Office",
-    executableName: APP_EXECUTABLE,
-    icon: "build/icons",
-    target: ["AppImage", "deb", "rpm", "tar.gz"],
+    executableName: previewPackageName ?? APP_EXECUTABLE,
+    icon: `build/${iconDir}icons`,
+    // A preview runs from where it was unpacked, never installed system-wide.
+    target: isPreview
+      ? ["AppImage", "tar.gz"]
+      : ["AppImage", "deb", "rpm", "tar.gz"],
   },
   mac: {
     category: "public.app-category.productivity",
@@ -215,7 +234,7 @@ const config: Configuration = {
     // pointing here by default, which put an app-scoped entitlement on all
     // four helpers and produced a build that signed, notarized, and could not
     // launch -- docs/findings/an-entitlement-that-notarizes-and-will-not-launch.md.
-    entitlements: APP_PREVIEW_NAME
+    entitlements: isPreview
       ? "build/entitlements.mac.preview.plist"
       : "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.inherit.plist",
@@ -235,7 +254,7 @@ const config: Configuration = {
     extendInfo: {
       // A preview claims no document types: installing one must not change
       // what opens a file on the machine it is tried on.
-      ...(APP_PREVIEW_NAME ? {} : { CFBundleDocumentTypes: macDocumentTypes }),
+      ...(isPreview ? {} : { CFBundleDocumentTypes: macDocumentTypes }),
       // Must match the Icon Composer bundle name (build/icon.icon).
       CFBundleIconName: "icon",
       // Why the system's own ask names a reason: without these macOS asks for
@@ -259,16 +278,16 @@ const config: Configuration = {
       NSNetworkVolumesUsageDescription: `${APP_NAME} reads and writes files on a network drive when you ask it to work there.`,
       NSRemovableVolumesUsageDescription: `${APP_NAME} reads and writes files on a removable drive when you ask it to work there.`,
     },
-    fileAssociations: APP_PREVIEW_NAME ? [] : macFileAssociations,
+    fileAssociations: isPreview ? [] : macFileAssociations,
     gatekeeperAssess: false,
     hardenedRuntime: true,
     // macOS 26+ uses build/icon.icon (compiled to Assets.car); older macOS uses build/icon.icns.
-    icon: "icon.icon",
+    icon: `${iconDir}icon.icon`,
     notarize: process.env.APPLE_NOTARIZATION_ENABLED === "true",
     // Grants the team-scoped entitlements in entitlements.mac.plist. Without
     // it the system refuses them and the app is killed on exec.
     // A preview goes without: the profile is bound to the shipping bundle id.
-    provisioningProfile: APP_PREVIEW_NAME
+    provisioningProfile: isPreview
       ? undefined
       : "build/Instrument_Developer_ID.provisionprofile",
     publish: {
@@ -288,8 +307,8 @@ const config: Configuration = {
     differentialPackage: "store-asar",
     // The installer drawn at the display's scale, and Open With for the
     // types Instrument shows. Not `win.fileAssociations`, whose macro makes
-    // the app each extension's default.
-    include: writeWindowsInstallerScript(),
+    // the app each extension's default. A preview claims no types, as on macOS.
+    include: writeWindowsInstallerScript({ fileAssociations: !isPreview }),
     shortcutName: "${productName}",
     uninstallDisplayName: "${productName}",
   },
@@ -303,12 +322,18 @@ const config: Configuration = {
   ],
   publish: publishConfig,
   win: {
+    icon: `${iconDir}icon.ico`,
     signtoolOptions: {
       // Both casings the certificate subject has been issued under. An update is
       // rejected unless the installed build's list contains the incoming
       // installer's CN verbatim, and the comparison is case sensitive.
       publisherName: ["Finalpoint, LLC", "FINALPOINT, LLC"],
-      sign: "electron-builder/win-cloud-hsm-sign.js",
+      // A preview built without the signing key goes unsigned rather than
+      // failing; a release always signs.
+      sign:
+        isPreview && !process.env.WIN_GCP_KMS_KEY_VERSION
+          ? undefined
+          : "electron-builder/win-cloud-hsm-sign.js",
     },
     target: ["nsis"],
   },

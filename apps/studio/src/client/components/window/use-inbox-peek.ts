@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /** How long the pointer rests on Chat in the rail before the inbox peeks out, so a pass over the rail on the way somewhere else shows nothing. */
-const PEEK_OPEN_MS = 150;
+const PEEK_OPEN_MS = 300;
 /** How long the pointer may be off both Chat and the peek before it goes, room to cross from one to the other. */
 const PEEK_CLOSE_MS = 250;
 
@@ -48,9 +48,16 @@ export function useInboxPeek({ canPeek }: { canPeek: boolean }) {
   };
 
   useEffect(() => clear, []);
+  // Nor is one on its way out when the list is already on screen.
+  useEffect(() => {
+    if (!canPeek) {
+      clear();
+    }
+  }, [canPeek]);
 
   // Held open by its search or a menu of its own, it goes on a press
-  // anywhere outside it and its menus, or on Escape with no menu up.
+  // anywhere outside it and its menus, or on Escape with no menu up. A press
+  // on Chat is left to its click, which pins the list where the peek is.
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -60,7 +67,8 @@ export function useInboxPeek({ canPeek }: { canPeek: boolean }) {
       if (
         target instanceof Element &&
         (panel?.contains(target) ||
-          target.closest("[data-radix-popper-content-wrapper]"))
+          target.closest("[data-radix-popper-content-wrapper]") ||
+          target.closest("[data-peeks-inbox]"))
       ) {
         return;
       }
@@ -84,6 +92,8 @@ export function useInboxPeek({ canPeek }: { canPeek: boolean }) {
   return {
     close,
     isOpen: isOpen && canPeek,
+    /** The list come on screen where the peek was, so the peek goes at once and the list stands in its place. */
+    leavesAtOnce: !canPeek,
     onPointerEnter: clear,
     onPointerLeave: scheduleClose,
     panelRef: setPanel,

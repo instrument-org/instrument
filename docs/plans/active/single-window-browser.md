@@ -9,7 +9,7 @@ The in-app browser began as something only an agent opened: each task had a brow
 - `BrowserConfig.createTarget(id, …)`, `listTargets(id)`, and `getTargetMeta().id`, always `WINDOW_ID`.
 - The workspace routes `browser.open`, `browser.close`, `browser.live.presence`, and `browser.events.agentActivity`, each taking an id.
 - One `task-browser` machine per id in the workspace machine, and `forceReap` by task id when a task is trashed.
-- A target id is `<id>/<session>`, and the `<id>` half is always `window`. It is stored in task records (`browserTabs`), `window.json` (the tab on screen), and the window's kept tabs.
+- A target id is `<id>/<session>`, and the `<id>` half is always `window`. It is stored in task records (`browserTabs`) and the window's kept tabs.
 
 ## What changes
 

@@ -4,6 +4,7 @@ import {
   type WindowTab,
 } from "@/client/atoms/window";
 import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
+import { registerHistorySurface } from "@/client/lib/history-surfaces";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import {
@@ -13,7 +14,14 @@ import {
 } from "@instrument-org/workspace/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useEffect, useEffectEvent, useState } from "react";
+import {
+  type ReactNode,
+  type Ref,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
@@ -128,6 +136,19 @@ export function GroupItem({
       stepPage(direction);
     });
   }, [targetId]);
+  // With the keyboard in what is up here, back and forward are its steps
+  // rather than the window's, the way they are for a page holding it.
+  const anchorRef = useRef<HTMLDivElement>(null);
+  useEffect(
+    () =>
+      registerHistorySurface({
+        anchor: () => anchorRef.current,
+        step: (direction) => {
+          stepPage(direction);
+        },
+      }),
+    [],
+  );
 
   /**
    * The row over what is up, the one the pane beside a chat draws: its
@@ -204,6 +225,7 @@ export function GroupItem({
     const filePath = hostPathOfFileUrl(up.url);
     return (
       <Frame
+        anchorRef={anchorRef}
         head={row(
           filePath === undefined
             ? { kind: "page", url: up.url ?? "" }
@@ -223,7 +245,10 @@ export function GroupItem({
   // with the draft's tabs: the web's start, whose page takes its place.
   if (isHomeTab(up)) {
     return (
-      <Frame head={row(screenLocation(up.href, { appsBySlug, taskTitles }))}>
+      <Frame
+        anchorRef={anchorRef}
+        head={row(screenLocation(up.href, { appsBySlug, taskTitles }))}
+      >
         <WebStart
           onOpenPage={(url) => {
             browser?.open(url, { group, replacing: up });
@@ -247,6 +272,7 @@ export function GroupItem({
       : location;
   return (
     <Frame
+      anchorRef={anchorRef}
       head={row(shown, { isFileScreen: computerTabOf(up.href) !== undefined })}
     >
       <GroupTabContext
@@ -284,9 +310,17 @@ export function GroupItem({
 }
 
 /** What a card holds, edge to edge with nothing around it: the pane's own look. */
-function Bare({ children, head }: { children: ReactNode; head?: ReactNode }) {
+function Bare({
+  anchorRef,
+  children,
+  head,
+}: {
+  anchorRef?: Ref<HTMLDivElement>;
+  children: ReactNode;
+  head?: ReactNode;
+}) {
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full flex-col bg-background" ref={anchorRef}>
       {head}
       <div className="min-h-0 flex-1">{children}</div>
     </div>
@@ -294,9 +328,17 @@ function Bare({ children, head }: { children: ReactNode; head?: ReactNode }) {
 }
 
 /** The band's white card, for a thing drawn large in it. */
-function Card({ children, head }: { children: ReactNode; head?: ReactNode }) {
+function Card({
+  anchorRef,
+  children,
+  head,
+}: {
+  anchorRef?: Ref<HTMLDivElement>;
+  children: ReactNode;
+  head?: ReactNode;
+}) {
   return (
-    <div className="h-full px-2 pb-2">
+    <div className="h-full px-2 pb-2" ref={anchorRef}>
       <div className="flex h-full flex-col overflow-hidden rounded-lg bg-card">
         {head}
         <div className="min-h-0 flex-1">{children}</div>

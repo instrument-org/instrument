@@ -12,6 +12,7 @@ import {
 import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
 import { openFindForKeyboard } from "@/client/lib/find-targets";
+import { stepForKeyboard, stepSurfaceAt } from "@/client/lib/history-surfaces";
 import { runPageChord } from "@/client/lib/page-chords";
 import {
   closeTabForKeyboard,
@@ -55,8 +56,10 @@ const MODAL_SAFE_COMMANDS = new Set([
  * consumes it, and that history is not the tab's: left alone, back moved the
  * tab one step and the renderer one step, and the second undid the first.
  * Back and forward from the main process go to the page holding the keyboard
- * first, which steps the way a thumb press over it does; a thumb press over
- * the window's own chrome is the window's.
+ * first, which steps the way a thumb press over it does, then to the view
+ * with a history of its own the keyboard is in (a chat's pane), and then to
+ * the window. A thumb press goes where it is pressed: a view's own steps
+ * over that view, the window's over the window's own chrome.
  */
 export function useWindowCommands(
   handlers: {
@@ -111,7 +114,11 @@ export function useWindowCommands(
         return;
       }
       swallow(event);
-      if (heldByModal(event.button === 3 ? "back" : "forward")) {
+      const direction = event.button === 3 ? "back" : "forward";
+      // A press over a view with a history of its own steps that view, as
+      // one over a page steps the page.
+      const over = event.target instanceof Element ? event.target : null;
+      if (heldByModal(direction, over) || stepSurfaceAt(over, direction)) {
         return;
       }
       if (event.button === 3) {
@@ -204,7 +211,7 @@ export function useWindowCommands(
           }
           switch (command) {
             case "back": {
-              if (!runPageChord("back")) {
+              if (!runPageChord("back") && !stepForKeyboard("back")) {
                 latest.current.back();
               }
               break;
@@ -229,7 +236,7 @@ export function useWindowCommands(
               break;
             }
             case "forward": {
-              if (!runPageChord("forward")) {
+              if (!runPageChord("forward") && !stepForKeyboard("forward")) {
                 latest.current.forward();
               }
               break;
@@ -376,15 +383,23 @@ function answer(
 /**
  * Whether something holds the window, answering back and forward itself when
  * it does: a page holding the keyboard (in a draft grown over the row) steps
- * first, and otherwise back runs the innermost registered back and forward
- * does nothing. Either way the tab behind stays where it is.
+ * first, then the view with a history of its own that the press was over or
+ * the keyboard is in, and otherwise back runs the innermost registered back
+ * and forward does nothing. Either way the tab behind stays where it is.
  */
-function heldByModal(direction: "back" | "forward") {
+function heldByModal(
+  direction: "back" | "forward",
+  /** What a thumb press was over, which outranks the keyboard; null for a chord. */
+  pressed: Element | null = null,
+) {
   const store = getDefaultStore();
   if (store.get(windowHoldsAtom).length === 0) {
     return false;
   }
-  if (!runPageChord(direction) && direction === "back") {
+  const stepped =
+    runPageChord(direction) ||
+    (pressed ? stepSurfaceAt(pressed, direction) : stepForKeyboard(direction));
+  if (!stepped && direction === "back") {
     store.get(modalBackStackAtom).at(-1)?.run();
   }
   return true;

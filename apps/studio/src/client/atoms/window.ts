@@ -393,9 +393,10 @@ export const inboxWidthAtom = atom(
 );
 
 /**
- * The layout a folder with no layout of its own opens in, when the browser
- * opens on it fresh: the one last chosen anywhere. Walking into such a folder
- * keeps whatever layout is on screen instead, the way a Finder window does.
+ * The layout last chosen anywhere: what a folder with no layout of its own
+ * opens in when arrived at directly, a new tab's first folder among them.
+ * Walking from folder to folder keeps whatever layout is on screen instead,
+ * the way a Finder window does.
  */
 export const computerViewAtom = keptAtom<
   "columns" | "gallery" | "icons" | "list"
@@ -409,22 +410,12 @@ export const computerHiddenFilesAtom = keptAtom<boolean>(
 );
 
 /**
- * The order a folder with no order of its own opens in, the same way as the
- * layout above. The recents keep their own order, newest shown first, and do
- * not write here.
- */
-export const computerSortAtom = keptAtom<FileSystemSortState>(
-  "view",
-  "computer-sort.v1",
-  { direction: "asc", key: "name" },
-);
-
-/**
- * The layout and order each folder was last left in, by where it is on the
- * computer, the way the Finder keeps them with the folder: a folder reached
- * again, by any way in, looks the way it was left. Both are kept whenever
- * either changes, so a folder's look is one thing rather than two halves
- * that each fall back on their own. The recents are kept under their root.
+ * The layout and order each folder was last set to by hand, by where it is
+ * on the computer, the way the Finder keeps them with the folder. The order
+ * holds however the folder is reached; the layout only when it is arrived at
+ * directly, since walking keeps the tab's own. Both are kept whenever either
+ * is set, and walking into a folder sets neither. The recents are kept under
+ * their root.
  */
 export const computerFolderViewsAtom = keptAtom<
   Record<string, ComputerFolderView>

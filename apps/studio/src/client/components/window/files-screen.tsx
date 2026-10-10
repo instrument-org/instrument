@@ -5,6 +5,7 @@ import {
   findersByTabAtom,
   pageSlotsAtom,
 } from "@/client/atoms/window";
+import type { FileSystemView } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FileViewer } from "@/client/components/file-viewer";
 import {
@@ -90,6 +91,7 @@ export function FilesScreen({
   select,
   source,
   tree,
+  view,
 }: {
   /** The file this tab shows, by where it is on the computer; the folder when absent. */
   file: string | undefined;
@@ -101,6 +103,8 @@ export function FilesScreen({
   source: boolean;
   /** The folder the tab's own tree is rooted at, for a file opened from the Finder. */
   tree: string | undefined;
+  /** The layout this step of the tab's history shows the folder in; absent on a direct arrival. */
+  view: FileSystemView | undefined;
 }) {
   const { browser, openPage, openScreen, rowLead, rowTail } = useWindow();
   const { allTabs, close, moveToGroup, pageTakesOver, stepVisitOf } =
@@ -597,6 +601,7 @@ export function FilesScreen({
             path={path}
             root={root}
             select={select}
+            view={view}
             {...quickLook.props}
           />
         )}

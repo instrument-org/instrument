@@ -6,7 +6,6 @@ import {
   computerHiddenFilesAtom,
   computerListColumnsAtom,
   computerListColumnWidthsAtom,
-  computerSortAtom,
   computerViewAtom,
   type FileTab,
   finderPlacesOpenAtom,
@@ -20,6 +19,7 @@ import {
   type FileSystemItem,
   type FileSystemSortKey,
   type FileSystemSortState,
+  type FileSystemView,
   TOOLBAR_CONTROL_CLASSNAME,
   TOOLBAR_ICON_BUTTON_CLASSNAME,
 } from "@/client/components/extend/file-system";
@@ -160,6 +160,9 @@ const REFRESH_MS = ms("4 seconds");
  */
 export const RECENTS_ROOT = "recents:";
 
+/** The order a folder never sorted by hand opens in. */
+const NAME_SORT: FileSystemSortState = { direction: "asc", key: "name" };
+
 /** The order the recents open in: the most recently opened first. */
 const RECENTS_SORT: FileSystemSortState = {
   direction: "desc",
@@ -238,6 +241,7 @@ export function ComputerPage({
   refreshInterval = REFRESH_MS,
   root,
   select,
+  view: viewInHistory,
 }: {
   /** Told the folder on screen whenever it changes; null when nothing on screen is a folder. */
   onFolderChange?: (folder: FolderOnScreen | null) => void;
@@ -255,6 +259,8 @@ export function ComputerPage({
   root: string;
   /** What the folder opens with selected, as a path under the root: a file shown in its folder. */
   select?: string;
+  /** The layout this step of the tab's history shows the folder in; absent on a direct arrival. */
+  view?: FileSystemView;
 }) {
   const { askAbout, openScreen, rowLead } = useWindow();
   const { resolvedTheme } = useTheme();
@@ -262,10 +268,9 @@ export function ComputerPage({
   const queryClient = useQueryClient();
   // Held above the browser, which is rebuilt on every opening, so the column
   // width and the dotfiles answer survive walking into the next folder. The
-  // layout and order are kept per folder, below; these two are what a folder
-  // of no layout of its own opens in when nothing is on screen to keep.
+  // layout and order are kept per folder, below; this is the layout a folder
+  // of no layout of its own opens in when arrived at directly.
   const [defaultView, setDefaultView] = useAtom(computerViewAtom);
-  const [defaultSort, setDefaultSort] = useAtom(computerSortAtom);
   const [folderViews, setFolderViews] = useAtom(computerFolderViewsAtom);
   const [columnWidth, setColumnWidth] = useAtom(computerColumnWidthAtom);
   const [listColumns, setListColumns] = useAtom(computerListColumnsAtom);
@@ -683,9 +688,7 @@ export function ComputerPage({
         first === undefined
           ? current
           : first.slice(0, first.lastIndexOf("/", first.length - 2) + 1);
-      setSelectedPath(
-        shown.view === "columns" && holder !== current ? holder : null,
-      );
+      setSelectedPath(view === "columns" && holder !== current ? holder : null);
       focusBrowser();
     } catch (error) {
       fileActionFailed(
@@ -748,34 +751,42 @@ export function ComputerPage({
         ? homePath && joinHostPath(homePath, root.slice(2))
         : root;
 
-  // Each folder in the layout and order it was last left in, the way a Finder
-  // window shows one: walking into a folder with a look of its own takes that
-  // look, and walking into one without keeps whatever is on screen. Walking
-  // means the browser's own folder changing, by a double-click, the sidebar or
-  // back and forward; the columns opening a folder beside the last is still
-  // the same window, and nothing changes under the pointer there.
+  // The layout and order go the way a Finder window's do. The layout belongs
+  // to the tab: walking from folder to folder (a double-click, the columns,
+  // back and forward) keeps it, and each step of the tab's history holds the
+  // layout it was shown in. Arriving at a folder directly (a place, a new
+  // tab, a typed path) is the one time a folder's own layout counts, the one
+  // it was last set to by hand, or else the one last chosen anywhere. The
+  // order belongs to the folder however it is reached, and one never set is
+  // by name; the recents are a list of their own and open newest first.
   const folderKeyOf = (prefix: string) =>
     isRecents ? RECENTS_ROOT : hostPathOf(prefix, rootHostPath ?? root);
   const currentKey = folderKeyOf(current);
-  const [shown, setShown] = useState(() => {
-    const own = folderViews[currentKey];
-    return {
-      at: currentKey,
-      sort: own?.sort ?? (isRecents ? RECENTS_SORT : defaultSort),
-      view: own?.view ?? defaultView,
-    };
-  });
-  // Set during render rather than in an effect, so the folder is drawn in its
-  // own look from its first frame. A new root arrives a render ahead of the
-  // folder under it, so nothing is taken until the two agree. The recents are
-  // a list of their own rather than a folder, and open in their own order.
-  if (settled && shown.at !== currentKey) {
-    const own = folderViews[currentKey];
-    setShown({
-      at: currentKey,
-      sort: own?.sort ?? (isRecents ? RECENTS_SORT : shown.sort),
-      view: own?.view ?? shown.view,
+  const view =
+    viewInHistory ?? folderViews[folderKeyOf(path)]?.view ?? defaultView;
+  // A direct arrival's layout written into its step, so back to it shows it
+  // the way it was even after the folder's own or the default moves on.
+  useEffect(() => {
+    if (viewInHistory !== undefined) {
+      return;
+    }
+    void navigate({
+      replace: true,
+      search: (previous) => ({ ...previous, view }),
+      to: "/files",
     });
+  }, [navigate, view, viewInHistory]);
+  const sortOf = (key: string) =>
+    folderViews[key]?.sort ?? (isRecents ? RECENTS_SORT : NAME_SORT);
+  const [shown, setShown] = useState(() => ({
+    at: currentKey,
+    sort: sortOf(currentKey),
+  }));
+  // Set during render rather than in an effect, so the folder is drawn in its
+  // own order from its first frame. A new root arrives a render ahead of the
+  // folder under it, so nothing is taken until the two agree.
+  if (settled && shown.at !== currentKey) {
+    setShown({ at: currentKey, sort: sortOf(currentKey) });
   }
 
   // The folder on screen. In the columns a selected folder shows its contents
@@ -786,7 +797,7 @@ export function ComputerPage({
   // anywhere, and neither the address nor back and forward move for it.
   // Several selected open nothing past the column that lists them.
   const onScreen =
-    selectedPath === null || shown.view !== "columns"
+    selectedPath === null || view !== "columns"
       ? current
       : selectedPath.endsWith("/") && allSelectedPaths.length === 1
         ? selectedPath
@@ -821,8 +832,8 @@ export function ComputerPage({
   // A change is kept for the folder the window is showing. In the columns that
   // is the last column's folder, which is where leaving the columns goes.
   const keepLook = (look: ComputerFolderView) => {
-    setShown((previous) => ({ ...previous, ...look }));
-    const key = folderKeyOf(shown.view === "columns" ? onScreen : current);
+    setShown((previous) => ({ ...previous, sort: look.sort }));
+    const key = folderKeyOf(view === "columns" ? onScreen : current);
     // Newest last, so the oldest are the ones let go of past the cap.
     setFolderViews((previous) => {
       const kept: [string, ComputerFolderView][] = [
@@ -833,11 +844,7 @@ export function ComputerPage({
     });
   };
   const sortBy = (sort: FileSystemSortState) => {
-    // The recents' order is their own and says nothing about a folder's.
-    if (!isRecents) {
-      setDefaultSort(sort);
-    }
-    keepLook({ sort, view: shown.view });
+    keepLook({ sort, view });
   };
   // The folder on screen as the address last had it. An address arriving
   // from outside (back, forward, the sidebar) changes `path` a render before
@@ -876,6 +883,7 @@ export function ComputerPage({
           path: onScreen,
           root,
           select: undefined,
+          view,
         }),
         to: "/files",
       });
@@ -883,7 +891,7 @@ export function ComputerPage({
     return () => {
       clearTimeout(timer);
     };
-  }, [navigate, onScreen, path, root, settled]);
+  }, [navigate, onScreen, path, root, settled, view]);
 
   // The arrows work the moment a folder is on screen: the first row takes
   // the keyboard on each opening, unless the user is typing somewhere.
@@ -1605,9 +1613,16 @@ export function ComputerPage({
                 onShowHiddenFilesChange={setShowHiddenFiles}
                 onSortChange={sortBy}
                 onTrash={(picked) => void trash(picked)}
-                onViewChange={(view) => {
-                  setDefaultView(view);
-                  keepLook({ sort: shown.sort, view });
+                onViewChange={(next) => {
+                  setDefaultView(next);
+                  keepLook({ sort: shown.sort, view: next });
+                  // The step on screen takes the new layout rather than a
+                  // new step being made for it, the way the Finder's does.
+                  void navigate({
+                    replace: true,
+                    search: (previous) => ({ ...previous, view: next }),
+                    to: "/files",
+                  });
                 }}
                 pendingFolders={pendingFolders}
                 // Resting on a folder reads it ahead, so opening it in place
@@ -1756,7 +1771,7 @@ export function ComputerPage({
                 showHiddenFiles={showHiddenFiles}
                 sort={shown.sort}
                 title={rootName}
-                view={shown.view}
+                view={view}
               />
             </div>
           </ContextMenuTrigger>

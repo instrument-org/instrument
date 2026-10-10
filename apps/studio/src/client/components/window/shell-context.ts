@@ -1,4 +1,4 @@
-import { type Draft } from "@/client/atoms/window";
+import { type AppPlace, type Draft } from "@/client/atoms/window";
 import {
   type ChatId,
   type SessionMessageDataPart,
@@ -44,6 +44,8 @@ export interface WindowShell {
   discardDraft: (id: string) => void;
   /** The drafts worth coming back to, for the inbox. */
   drafts: Draft[];
+  /** Takes the tab up to one of the rail's places, as a press on the rail does. */
+  goToPlace: (place: AppPlace) => void;
   /** Opens a new draft, as the rail's New does. */
   newDraft: () => void;
   /** The inbox's rows as it lists them, for stepping through them by chord. */

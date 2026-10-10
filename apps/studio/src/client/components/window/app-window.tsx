@@ -1,4 +1,5 @@
 import {
+  type AppPlace,
   chatGroupAtom,
   CHATS_HREF,
   type Draft,
@@ -584,6 +585,26 @@ function WindowShell({
     topics,
     windowTabs,
   });
+  /**
+   * The tab up to one of the rail's places, from the rail, its chords, or the
+   * command menu. Chat asked for is the inbox asked for too, even where the
+   * row is narrow enough that it stepped aside. Peeked out already, the list
+   * stays where it is drawn rather than sliding in again under it. A place
+   * asked for in a tab of its own waits behind, the way a bookmark
+   * middle-clicked in a browser does.
+   */
+  const choosePlace = (next: AppPlace, { newTab = false } = {}) => {
+    if (next === "chat") {
+      if (inboxPeek.isOpen) {
+        setInboxLandsAtOnce(true);
+      }
+      setInboxOpen(true);
+    }
+    if (next === place && !newTab) {
+      return;
+    }
+    appTabs.goToPlace(next, { behind: newTab, newTab });
+  };
   // The inbox's rows as the tab up lists them, for stepping through them by
   // chord.
   const listedChats = useRef<ChatId[]>([]);
@@ -600,6 +621,7 @@ function WindowShell({
       forward: () => {
         windowSteps.go("forward");
       },
+      goToPlace: choosePlace,
       newChat: newDraft,
       newTab: appTabs.openNewTab,
       // A file from outside the app is the person's own, in a tab of its own.
@@ -740,6 +762,7 @@ function WindowShell({
         !startingIds.has(draft.id) &&
         !discardingIds.has(draft.id),
     ),
+    goToPlace: choosePlace,
     newDraft: () => {
       newDraft();
     },
@@ -836,24 +859,7 @@ function WindowShell({
             }
             rail={
               <AppRail
-                onChoose={(next, { newTab }) => {
-                  // Chat asked for is the inbox asked for too, even where the
-                  // row is narrow enough that it stepped aside. Peeked out
-                  // already, the list stays where it is drawn rather than
-                  // sliding in again under it.
-                  if (next === "chat") {
-                    if (inboxPeek.isOpen) {
-                      setInboxLandsAtOnce(true);
-                    }
-                    setInboxOpen(true);
-                  }
-                  if (next === place && !newTab) {
-                    return;
-                  }
-                  // A place asked for in a tab of its own waits behind, the
-                  // way a bookmark middle-clicked in a browser does.
-                  appTabs.goToPlace(next, { behind: newTab, newTab });
-                }}
+                onChoose={choosePlace}
                 onHoverChat={inboxPeek.onRailHover}
                 onNew={() => {
                   newDraft();

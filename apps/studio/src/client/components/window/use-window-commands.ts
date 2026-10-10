@@ -9,6 +9,7 @@ import {
   modalBackStackAtom,
   windowHoldsAtom,
 } from "@/client/atoms/tab-navigation-block";
+import { type AppPlace } from "@/client/atoms/window";
 import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
 import { openFindForKeyboard } from "@/client/lib/find-targets";
@@ -63,6 +64,8 @@ export function useWindowCommands(
     back: () => void;
     closeTab: () => void;
     forward: () => void;
+    /** The tab up to one of the rail's places, as a press on the rail takes it. */
+    goToPlace: (place: AppPlace) => void;
     /** A draft of a new chat, at the corner. */
     newChat: () => void;
     newTab: () => void;
@@ -239,6 +242,22 @@ export function useWindowCommands(
               if (!runPageChord("forward") && !stepForKeyboard("forward")) {
                 latest.current.forward();
               }
+              break;
+            }
+            case "goToApps": {
+              latest.current.goToPlace("apps");
+              break;
+            }
+            case "goToBrowser": {
+              latest.current.goToPlace("browser");
+              break;
+            }
+            case "goToChat": {
+              latest.current.goToPlace("chat");
+              break;
+            }
+            case "goToFiles": {
+              latest.current.goToPlace("files");
               break;
             }
             case "newChat": {

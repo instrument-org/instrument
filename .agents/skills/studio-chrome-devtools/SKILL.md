@@ -231,7 +231,7 @@ To measure at a real workspace's scale, boot against a copy of it. `cp -cR` make
 Both have a dev panel entry under the `dev` badge:
 
 - **Simulate > Just updated** — the toast only fires when the app launches on a newer version than the last launch. The item queues the bump and reloads, the path a real update takes. It auto-dismisses in a few seconds, so capture promptly.
-- **Force > Ask before quitting** — dev builds skip the running-agent quit prompt so hot reload is never blocked on a dialog nobody sees. In memory only, so a relaunch clears it; while on, a main-process rebuild waits on the dialog.
+- **Simulate > Quit prompt** — dev builds skip the running-agent quit prompt so hot reload is never blocked on a dialog nobody sees. In memory only, so a relaunch clears it; while on, a main-process rebuild waits on the dialog.
 
 The quit prompt is a native `showMessageBox`, outside the web contents. CDP cannot capture it.
 

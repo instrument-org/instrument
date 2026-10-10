@@ -40,6 +40,7 @@ import { SHORTCUTS } from "@/shared/shortcuts";
 import { PORTS } from "@instrument-org/shared";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { BugIcon } from "@phosphor-icons/react/Bug";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { EraserIcon } from "@phosphor-icons/react/Eraser";
 import { EyeSlashIcon } from "@phosphor-icons/react/EyeSlash";
@@ -54,6 +55,7 @@ import { MoonIcon } from "@phosphor-icons/react/Moon";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 import { WarningOctagonIcon } from "@phosphor-icons/react/WarningOctagon";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useAtom, useAtomValue } from "jotai";
 import { useState } from "react";
 import { toast } from "@/client/lib/toast";
@@ -78,6 +80,7 @@ const itemClassName = "font-mono text-xs";
 type AppEnvironment = RPCOutput["debug"]["getAppEnvironment"];
 
 export function DevPanel() {
+  const navigate = useNavigate();
   const [hidden, setHidden] = useState(false);
   const [crash, setCrash] = useState(false);
   const [forceWindowControls, setForceWindowControls] = useAtom(
@@ -300,6 +303,15 @@ export function DevPanel() {
                   <MenubarSeparator />
                 </>
               )}
+              <MenubarItem
+                className={itemClassName}
+                onSelect={() => {
+                  void navigate({ to: "/debug" });
+                }}
+              >
+                <BugIcon className="size-3" />
+                Debug pages
+              </MenubarItem>
               <WorkspaceMenu
                 onCreate={() => {
                   setWorkspaceDialog("new");
@@ -416,6 +428,33 @@ export function DevPanel() {
                     Clear badge
                   </MenubarItem>
                   <MenubarSeparator />
+                  {/* States a dev run on this Mac never reaches by itself:
+                      another platform's window buttons, and the prompt dev
+                      builds skip when an agent is running at quit. */}
+                  <MenubarLabel className={sectionLabelClassName}>
+                    Always show
+                  </MenubarLabel>
+                  {isMacOS() && (
+                    <MenubarCheckboxItem
+                      checked={forceWindowControls}
+                      className={itemClassName}
+                      onCheckedChange={setForceWindowControls}
+                      title="Draw the minimize, maximize, and close buttons Windows and Linux get, for checking the layout around them"
+                    >
+                      Windows-style buttons
+                    </MenubarCheckboxItem>
+                  )}
+                  <MenubarCheckboxItem
+                    checked={quitGuardForced?.forced ?? false}
+                    className={itemClassName}
+                    onCheckedChange={(forced) => {
+                      setQuitGuardForced({ forced });
+                    }}
+                    title="Ask before quitting while an agent is running, which dev builds normally skip. Resets on relaunch; a rebuild while it is on waits on the dialog."
+                  >
+                    Quit prompt
+                  </MenubarCheckboxItem>
+                  <MenubarSeparator />
                   <MenubarItem
                     className={`${itemClassName} text-destructive focus:text-destructive`}
                     onSelect={() => {
@@ -456,29 +495,8 @@ export function DevPanel() {
               </MenubarSub>
               <MenubarSeparator />
               <MenubarLabel className={sectionLabelClassName}>
-                Force
+                Developer mode
               </MenubarLabel>
-              {isMacOS() && (
-                <MenubarCheckboxItem
-                  checked={forceWindowControls}
-                  className={itemClassName}
-                  onCheckedChange={setForceWindowControls}
-                  title="Render the Windows/Linux window controls on macOS for layout debugging"
-                >
-                  Windows and Linux controls
-                </MenubarCheckboxItem>
-              )}
-              <MenubarCheckboxItem
-                checked={quitGuardForced?.forced ?? false}
-                className={itemClassName}
-                onCheckedChange={(forced) => {
-                  setQuitGuardForced({ forced });
-                }}
-                title="Run the running-agent quit prompt that dev builds normally skip. Resets on relaunch; a rebuild while it is on will wait on the dialog."
-              >
-                Ask before quitting
-              </MenubarCheckboxItem>
-              <MenubarSeparator />
               <MenubarItem
                 className={itemClassName}
                 onSelect={() => {
@@ -486,7 +504,10 @@ export function DevPanel() {
                 }}
               >
                 <EyeSlashIcon className="size-3" />
-                Hide until reload
+                Hide this panel
+                <span className="ml-auto pl-4 text-[9px] text-dev-500/70 dark:text-dev-400/60">
+                  until reload
+                </span>
               </MenubarItem>
               <MenubarItem
                 className={itemClassName}
@@ -496,7 +517,7 @@ export function DevPanel() {
                 }}
               >
                 <SignOutIcon className="size-3" />
-                Exit developer mode
+                Turn off
               </MenubarItem>
             </MenubarContent>
           </MenubarMenu>

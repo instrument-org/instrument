@@ -13,6 +13,10 @@
 // toolchain is a Mac's. Runs before every package build (see
 // apps/studio/package.json `build:vite`), and from a checkout so `pnpm dev`
 // finds them too.
+//
+// `--host-arch` builds for this Mac's architecture alone, which is what the
+// dev supervisor asks for: a universal Swift build needs Xcode's build
+// system, which a Mac with only the Command Line Tools does not have.
 
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync } from "node:fs";
@@ -31,16 +35,18 @@ if (target !== "darwin" || process.platform !== "darwin") {
     `build-mac-helper: skipped, the bridge is macOS only (${target}).`,
   );
 } else {
+  const archs = process.argv.includes("--host-arch")
+    ? [process.arch === "x64" ? "x86_64" : process.arch]
+    : ["arm64", "x86_64"];
   const swiftArgs = [
     "build",
     "--package-path",
     helperDir,
     "-c",
     "release",
-    "--arch",
-    "arm64",
-    "--arch",
-    "x86_64",
+    // One architecture is built without `--arch`, which is what keeps it
+    // working with the Command Line Tools alone.
+    ...(archs.length > 1 ? archs.flatMap((arch) => ["--arch", arch]) : []),
   ];
   execFileSync("swift", swiftArgs, { stdio: "inherit" });
   const binPath = execFileSync("swift", [...swiftArgs, "--show-bin-path"], {
@@ -65,10 +71,7 @@ if (target !== "darwin" || process.platform !== "darwin") {
       "dynamic_lookup",
       "-fobjc-arc",
       "-O2",
-      "-arch",
-      "arm64",
-      "-arch",
-      "x86_64",
+      ...archs.flatMap((arch) => ["-arch", arch]),
       "-mmacosx-version-min=13.0",
       "-I",
       headers,

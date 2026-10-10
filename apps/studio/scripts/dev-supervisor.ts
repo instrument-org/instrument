@@ -19,14 +19,22 @@
 // through an APFS clone of Electron.app named for it instead: "Instrument
 // hotkeys" for an instance studio-drive booted with that purpose, "Instrument
 // (Dev)" for one started by hand.
+//
+// And it builds the Mac bridge (native/mac-helper) when it is missing or older
+// than its sources. A package build makes it as a step of its own, but nothing
+// else did in dev, so a checkout that had never built it ran without it and
+// lost everything behind it without a word: Finder icons and packages in
+// Files, notifications, Calendar and Contacts.
 
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
 } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -109,6 +117,73 @@ function namedElectron(name: string) {
     return;
   }
 }
+
+const MAC_HELPER_DIR = path.resolve(
+  import.meta.dirname,
+  "../native/mac-helper",
+);
+
+/** The newest modification time among these files and every file under these folders. */
+function newestMtime(paths: string[]): number {
+  let newest = 0;
+  for (const each of paths) {
+    const stats = statSync(each, { throwIfNoEntry: false });
+    if (!stats) {
+      continue;
+    }
+    const files = stats.isDirectory()
+      ? readdirSync(each, { recursive: true, withFileTypes: true })
+          .filter((entry) => entry.isFile())
+          .map((entry) => path.join(entry.parentPath, entry.name))
+      : [each];
+    for (const file of files) {
+      newest = Math.max(newest, statSync(file).mtimeMs);
+    }
+  }
+  return newest;
+}
+
+/**
+ * Builds the Mac bridge when either half is missing or older than what it is
+ * built from. A failed build is said and passed over: the app runs without
+ * the bridge, as it does off a Mac.
+ */
+function ensureMacBridge() {
+  if (process.platform !== "darwin") {
+    return;
+  }
+  const outputs = ["instrument-mac", "instrument-mac.node"].map((name) =>
+    path.join(MAC_HELPER_DIR, ".build/bridge", name),
+  );
+  const built = Math.min(
+    ...outputs.map(
+      (file) => statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0,
+    ),
+  );
+  const sources = newestMtime([
+    path.join(MAC_HELPER_DIR, "addon"),
+    path.join(MAC_HELPER_DIR, "Sources"),
+    path.join(MAC_HELPER_DIR, "Package.swift"),
+    path.join(import.meta.dirname, "build-mac-helper.ts"),
+  ]);
+  if (built >= sources) {
+    return;
+  }
+  process.stdout.write("[dev-supervisor] building the Mac bridge\n");
+  try {
+    execFileSync(
+      process.execPath,
+      [path.join(import.meta.dirname, "build-mac-helper.ts"), "--host-arch"],
+      { stdio: "inherit" },
+    );
+  } catch (error) {
+    process.stderr.write(
+      `[dev-supervisor] running without the Mac bridge, since it did not build: ${String(error)}\n`,
+    );
+  }
+}
+
+ensureMacBridge();
 
 const purpose = process.env.STUDIO_DRIVE_PURPOSE;
 const electronExecPath = namedElectron(

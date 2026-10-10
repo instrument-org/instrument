@@ -232,7 +232,7 @@ function useWiderSide() {
  * gives way first, truncating; on a narrow head the topics stand as their
  * marks alone.
  */
-export function ChatHeading({
+function ChatHeading({
   centered = false,
   chat,
   menu,
@@ -352,7 +352,7 @@ export function ChatHeading({
  * opens the title's field, and its tasks among the ways to organize it, and
  * deleting it at the foot. Its topics are the pills beside the title.
  */
-export function ChatMenu({
+function ChatMenu({
   chat,
   onArchived,
   onDelete,

@@ -35,7 +35,6 @@ import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { session as sessionRoute } from "../src/rpc/routes/session";
 import { type FileUpload } from "../src/schemas/file-upload";
-import { type FolderAttachment } from "../src/schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
@@ -318,7 +317,6 @@ export interface EvalCase {
    * process with a home of its own (`INSTRUMENT_EVAL_HOME`) does not share.
    */
   folders?: {
-    access?: FolderAttachment.Access;
     inPlace?: boolean;
     path: string;
   }[];
@@ -1234,18 +1232,17 @@ function ensureWorkspaceFolder() {
  * others just wrote, and a model that finds three charts it did not make
  * behaves nothing like one working in the folder the user actually has.
  *
- * A read-only attachment is shared instead. Nothing a run does can change it,
- * so the isolation the copy buys is worth nothing there, while the copy itself
- * is a per-run walk of the whole tree: a case that attaches a folder large
- * enough to be interesting spends longer copying it than the agent spends
- * working in it.
+ * A folder marked `inPlace` is attached where it is instead: one `setup`
+ * made under the run's home, or one too large to copy for every run. A
+ * granted folder is the chat's to write, so a committed fixture is never
+ * attached in place.
  *
  * The basename is preserved because it becomes the mount name, which the case's
  * own prompt refers to ("my Reports folder").
  */
 function privateFoldersFor(evalCase: EvalCase, index: number) {
   return evalCase.folders?.map(({ inPlace, ...folder }) => {
-    if (folder.access === "read-only" || inPlace) {
+    if (inPlace) {
       return folder;
     }
     const root = path.join(

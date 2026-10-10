@@ -328,7 +328,7 @@ export const FILES_FENCE_EVALS = [
       assertLinesResolve,
       assertNamedMountedFile,
     ],
-    folders: [{ access: "read-write", path: path.join(FIXTURES, "Reports") }],
+    folders: [{ path: path.join(FIXTURES, "Reports") }],
     name: "files-fence-shared-folder-deliverable",
     prompt:
       "Chart the monthly revenue in the sales spreadsheet in my Reports folder as a PNG, and save it next to the spreadsheet.",
@@ -352,7 +352,7 @@ export const FILES_FENCE_EVALS = [
       assertLinesResolve,
       assertNamedMountedFile,
     ],
-    folders: [{ access: "read-only", path: path.join(FIXTURES, "Notes") }],
+    folders: [{ path: path.join(FIXTURES, "Notes") }],
     kind: "chat",
     name: "files-fence-chat-retrieval-from-shared-folder",
     prompt:
@@ -368,7 +368,7 @@ export const FILES_FENCE_EVALS = [
     // A file of the user's changed in place is handed back where it sits,
     // so they can check what was written.
     assertions: [assertConversationHandedBackNote, assertNoteEdited],
-    folders: [{ access: "read-write", path: path.join(FIXTURES, "Journal") }],
+    folders: [{ path: path.join(FIXTURES, "Journal") }],
     kind: "chat",
     name: "files-fence-chat-edited-note",
     prompt: `Add these as checkboxes at the bottom of the first section of ${EDITED_NOTE} in my Journal folder: call the dentist, renew my passport, order a new water filter.`,

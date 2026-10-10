@@ -2458,10 +2458,10 @@ export interface Scenario {
   marks?: EvalCase["marks"];
   /** Read when the run starts, after `setup`: a getter can name what it made. */
   prompt: string;
-  /** Folders the user sent with the message, by path, read-write. */
+  /** Folders the user sent with the message, by path, attached where they are. */
   sent?: string[];
-  /** Folders the user sent read-only, which every run shares. */
-  sentReadOnly?: string[];
+  /** Folders the user sent, each run getting a copy: a committed fixture. */
+  sentCopied?: string[];
   setup?: EvalCase["setup"];
   slug: string;
   topics?: EvalCase["topics"];
@@ -2470,14 +2470,10 @@ export interface Scenario {
 export function toEval(scenario: Scenario): EvalCase {
   const sent = [
     ...(scenario.sent ?? []).map((folder) => ({
-      access: "read-write" as const,
       inPlace: true,
       path: folder,
     })),
-    ...(scenario.sentReadOnly ?? []).map((folder) => ({
-      access: "read-only" as const,
-      path: folder,
-    })),
+    ...(scenario.sentCopied ?? []).map((folder) => ({ path: folder })),
   ];
   return defineEval(
     Object.defineProperty(
@@ -2719,7 +2715,7 @@ const SCENARIOS: Scenario[] = [
     assertions: [wroteADocument(".xlsx"), sheetRecomputes, sheetHasAChart],
     prompt:
       "Can you turn the regional-sales.csv in this folder into a workbook I can actually work in? Revenue worked out per row (units times unit price), a summary of revenue by region and by month that totals with real formulas rather than pasted numbers, and a chart of the monthly trend. Save it as sales.xlsx in the workspace folder.",
-    sentReadOnly: [DATA_FIXTURE],
+    sentCopied: [DATA_FIXTURE],
     slug: "document",
   },
   {
@@ -2818,7 +2814,7 @@ const SCENARIOS: Scenario[] = [
     ],
     prompt:
       "Here's my field research folder. Quick orientation first: how many site reports are in it, and which regions do they cover?",
-    sentReadOnly: [path.join(HOME, "Documents", "Field Research")],
+    sent: [path.join(HOME, "Documents", "Field Research")],
     setup: seedFieldResearch,
     slug: "long-work",
   },

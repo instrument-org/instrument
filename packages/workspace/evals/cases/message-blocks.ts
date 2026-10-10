@@ -306,7 +306,7 @@ export const MESSAGE_BLOCK_EVALS = [
       readyToSend,
       didNotRetypeAMessage,
     ],
-    folders: [{ access: "read-only", path: path.join(FIXTURES, "Quotes") }],
+    folders: [{ path: path.join(FIXTURES, "Quotes") }],
     kind: "chat",
     name: "message-after-a-comparison",
     prompt:

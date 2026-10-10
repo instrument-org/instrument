@@ -147,21 +147,21 @@ export const LARGE_FOLDER_SEARCH_EVALS = FOLDER
           noBudgetExhaustedTraversal,
           answeredWithACount,
         ],
-        folders: [{ access: "read-only", path: FOLDER }],
+        folders: [{ inPlace: true, path: FOLDER }],
         name: "large-folder-by-name",
         prompt:
           "In my attached folder, how many files are named SKILL.md? Give me the number and the five shortest paths.",
       }),
       defineEval({
         assertions: [noBudgetExhaustedTraversal, answeredRatherThanGaveUp],
-        folders: [{ access: "read-only", path: FOLDER }],
+        folders: [{ inPlace: true, path: FOLDER }],
         name: "large-folder-structure",
         prompt:
           "Give me an overview of how my attached folder is organized: what the top-level areas are and roughly what lives under them.",
       }),
       defineEval({
         assertions: [noBudgetExhaustedTraversal, answeredRatherThanGaveUp],
-        folders: [{ access: "read-only", path: FOLDER }],
+        folders: [{ inPlace: true, path: FOLDER }],
         name: "large-folder-size",
         prompt:
           "How much disk space is my attached folder using, and which parts of it are the biggest?",

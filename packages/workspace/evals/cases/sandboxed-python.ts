@@ -193,7 +193,7 @@ export const SANDBOXED_PYTHON_EVALS = [
       neverCopiedTheMount,
       ranPythonOnTheMount,
     ],
-    folders: [{ access: "read-only", path: DATA_FIXTURE }],
+    folders: [{ path: DATA_FIXTURE }],
     name: "python-reads-the-mount-in-place",
     prompt:
       "regional-sales.csv in my Data folder has a year of sales by region and month, with units and a unit price per row. Revenue is units times unit price. Tell me total revenue for the year and revenue per region, to the cent. Just the numbers in your reply; no files.",
@@ -207,7 +207,7 @@ export const SANDBOXED_PYTHON_EVALS = [
       neverCopiedTheMount,
       ranTheScriptFileWithPython,
     ],
-    folders: [{ access: "read-only", path: DATA_FIXTURE }],
+    folders: [{ path: DATA_FIXTURE }],
     name: "python-script-file-walks-the-mount",
     prompt:
       "Write a small Python script, save it as work/count.py, that walks my Data folder and prints each file's name with its line count and byte size. Run it and tell me what it printed.",
@@ -218,7 +218,7 @@ export const SANDBOXED_PYTHON_EVALS = [
       installedThePackageAndRanIt,
       didNotRetryTheSandboxedImport,
     ],
-    folders: [{ access: "read-only", path: DATA_FIXTURE }],
+    folders: [{ path: DATA_FIXTURE }],
     name: "python-runs-a-package-once-installed",
     prompt:
       "Use pandas for this, not the csv module: load regional-sales.csv from my Data folder into a DataFrame, add a revenue column (units times unit_price), and tell me the total revenue for the year and the per-region totals, to the cent. Just the numbers in your reply; no files.",

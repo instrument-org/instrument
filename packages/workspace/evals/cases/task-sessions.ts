@@ -11,11 +11,16 @@
  *   with a parent and a fork point, and the work done there.
  * - **It steers that task by its handle.** A change of plan reaches t1
  *   through `task send t1` or `task stop t1`, rather than a second task.
+ * - **It hands the task the user's tab.** `task new --tab` makes the task
+ *   the tab's one driver, and the tab goes back to the chat when the task
+ *   finishes.
  */
 import fs from "node:fs";
 import path from "node:path";
 
+import { getChatState } from "../../src/lib/chat-record";
 import { outputFolderPath } from "../../src/lib/chat/output-folder";
+import { chatDir } from "../../src/lib/record-folders";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 
@@ -135,6 +140,43 @@ const steeredT1: Assertion = {
   text: "steered t1 by its handle, starting no second task",
 };
 
+/** The user's open tab, as the note on their message names it. */
+const PAGE = "https://example.com/";
+const PAGE_TAB = "ses_01M3AX9RF3C2E9RTATMB602W0D";
+
+/** The chat started its task with the user's tab handed over. */
+const handedTheTab: Assertion = {
+  check: (ctx: Context) => {
+    const text = `handed the task tab ${PAGE_TAB}`;
+    const handed = commandsIn(ctx.sessions).filter(
+      (command) =>
+        /(?:^|[\n;&|])\s*task new\b/.test(command) &&
+        new RegExp(`--tab[ =]['"]?${PAGE_TAB}`).test(command),
+    );
+    return (handed.length > 0 ? pass : fail)(
+      text,
+      handed.join(" | ") ||
+        commandsIn(ctx.sessions).join(" | ").slice(0, 300) ||
+        "no commands",
+    );
+  },
+  text: `handed the task tab ${PAGE_TAB}`,
+};
+
+/** Once the task finished, the tab it drove is the chat's again. */
+const tabCameBack: Assertion = {
+  check: async (ctx: Context) => {
+    const text = "the tab went back to the chat when the task finished";
+    const { browserTabs } = await getChatState(chatDir(ctx.chatId));
+    const held = browserTabs.filter((tab) => tab.id.endsWith(PAGE_TAB));
+    return (held.length > 0 && held.every((tab) => !tab.driver) ? pass : fail)(
+      text,
+      JSON.stringify(browserTabs),
+    );
+  },
+  text: "the tab went back to the chat when the task finished",
+};
+
 export const TASK_SESSION_EVALS = [
   defineEval({
     assertions: [
@@ -160,5 +202,27 @@ export const TASK_SESSION_EVALS = [
     name: "task-session-steer",
     prompt:
       "Start a background task for this, please: write twelve haiku about tea, look each one over for its syllable counts, and save them as haiku.md in the workspace folder.",
+  }),
+  defineEval({
+    assertions: [
+      startedOneTaskAsT1,
+      handedTheTab,
+      tabCameBack,
+      wrote("page-title.md", /example domain/i),
+    ],
+    kind: "chat",
+    name: "task-session-tab",
+    prompt:
+      "Start a background task and hand it the tab I have open: it should read that page's title and save it as page-title.md in the workspace folder.",
+    viewing: {
+      page: {
+        tab: PAGE_TAB,
+        tabs: [{ id: PAGE_TAB, title: "Example Domain", url: PAGE }],
+        title: "Example Domain",
+        url: PAGE,
+      },
+      screen: "browser",
+      url: PAGE,
+    },
   }),
 ];

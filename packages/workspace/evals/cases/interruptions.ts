@@ -128,7 +128,6 @@ function toEval(one: Interruption): EvalCase {
         ? undefined
         : [
             {
-              access: "read-write",
               inPlace: true,
               path: path.join(HOME, "Documents", one.sent),
             },

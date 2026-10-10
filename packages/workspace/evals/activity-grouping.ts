@@ -365,7 +365,7 @@ const EVAL_CASES = [
       assertTitlesAreHeadings,
       assertStillShowsItsFiles,
     ],
-    folders: [{ access: "read-only", path: fixtures.reports }],
+    folders: [{ path: fixtures.reports }],
     name: "multi-phase-build",
     prompt:
       "Take the sales spreadsheet in my Reports folder, work out the month-over-month growth, and give me a PNG chart of it plus a two-line takeaway. Look at the chart yourself before you tell me it's done.",
@@ -382,7 +382,7 @@ const EVAL_CASES = [
       assertTitlesAreHeadings,
       assertStillShowsItsFiles,
     ],
-    folders: [{ access: "read-only", path: fixtures.notes }],
+    folders: [{ path: fixtures.notes }],
     name: "find-then-produce",
     prompt:
       "First work out which of the notes in my Notes folder has the Helsinki launch date in it, then write me a one-page markdown brief about that launch.",
@@ -397,7 +397,7 @@ const EVAL_CASES = [
       assertAnnouncedBeforeWorking,
       assertExplanationVoice,
     ],
-    folders: [{ access: "read-only", path: fixtures.notes }],
+    folders: [{ path: fixtures.notes }],
     name: "derailed-by-a-read-only-folder",
     prompt:
       "Tidy up the notes in my Notes folder: give each one a proper title line and fix the formatting, then tell me what you changed.",
@@ -410,7 +410,7 @@ const EVAL_CASES = [
       assertAnnouncedBeforeWorking,
       assertExplanationVoice,
     ],
-    folders: [{ access: "read-only", path: fixtures.notes }],
+    folders: [{ path: fixtures.notes }],
     name: "single-quick-lookup",
     prompt: "What's the Helsinki launch date in my notes?",
   }),

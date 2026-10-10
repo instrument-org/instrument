@@ -794,7 +794,7 @@ export const WORKER_EVALS = [
       reportContains("the best region's revenue", 215_748.97),
       checkedItsOwnWork,
     ],
-    folders: [{ access: "read-only", path: DATA_FIXTURE }],
+    folders: [{ path: DATA_FIXTURE }],
     name: "worker-data-report",
     prompt:
       "The regional-sales.csv in my Data folder has a year of sales by region and month, with units and a unit price per row. Work out total revenue for the year, revenue per region, and which region did best, and write it up as summary.md in your output folder with a short table. Revenue is units times unit price.",
@@ -810,7 +810,7 @@ export const WORKER_EVALS = [
       embeddedAnImage,
       checkedItsOwnWork,
     ],
-    folders: [{ access: "read-only", path: DATA_FIXTURE }],
+    folders: [{ path: DATA_FIXTURE }],
     name: "worker-data-memo",
     prompt:
       "The regional-sales.csv in my Data folder has a year of sales by region and month, with units and a unit price per row -- revenue is units times unit price. Write it up as a one-page memo called memo.docx in your output folder for someone who will not open the spreadsheet: the total for the year up top, a table of revenue by region, a chart of monthly revenue actually embedded in the document, and one sentence saying what you would do about it. Lay it out so the point lands without reading every number.",
@@ -825,7 +825,7 @@ export const WORKER_EVALS = [
       sheetHasAChart,
       checkedItsOwnWork,
     ],
-    folders: [{ access: "read-only", path: DATA_FIXTURE }],
+    folders: [{ path: DATA_FIXTURE }],
     name: "worker-data-workbook",
     prompt:
       "The regional-sales.csv in my Data folder has a year of sales by region and month, with units and a unit price per row -- revenue is units times unit price. Turn it into a workbook called sales.xlsx in your output folder that I can actually work in: the rows with revenue worked out per row, a summary of revenue by region and by month that totals with real formulas rather than pasted numbers, and a chart of the monthly trend. Lay it out so I can find things, and make it so that changing a unit price updates everything downstream.",
@@ -852,7 +852,7 @@ export const WORKER_EVALS = [
       ),
       checkedItsOwnWork,
     ],
-    folders: [{ access: "read-only", path: SHOPPING_FIXTURE }],
+    folders: [{ path: SHOPPING_FIXTURE }],
     name: "worker-product-comparison",
     prompt:
       "espresso-machines.csv in my Shopping folder has six machines I am choosing between. Build me a single-file comparison page called compare.html in your output folder that lets me see the differences at a glance and ends with a clear recommendation. My budget is $700, I want a 58mm portafilter so my accessories fit, and I want PID temperature control. Everything else is a trade-off I want you to make for me: I pull one shot on a weekday morning and I am usually in a hurry. Style it inside the file, no libraries and no external images.",

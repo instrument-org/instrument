@@ -225,6 +225,14 @@ export interface WorkspaceConfig {
   isExternalBrowserEnabled: () => boolean;
   modelCache: ModelCache;
   nodeExecEnv: Record<string, string>;
+  /**
+   * The paths a native command (node, python-native, uv, pnpm, ffmpeg, git,
+   * osascript) may not read or write, enforced with Seatbelt on macOS. A
+   * plain list, because native commands run in the bash worker, which is sent
+   * a snapshot of the config with each command. Absent, native commands run
+   * unwrapped, as they do off macOS.
+   */
+  nativeSandboxPlaces?: readonly string[];
   pnpmBinPath: AbsolutePath;
   // Where the skills the app ships are prepared for use. They cannot run from
   // the bundle -- it is signed, notarized, and replaced wholesale by the updater,

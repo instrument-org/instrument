@@ -1,5 +1,11 @@
 import { execa, type Options } from "execa";
 
+import {
+  deniedPlaceIn,
+  deniedPlaceNote,
+  wrapNativeCommand,
+} from "../native-sandbox";
+
 import { watchSubprocessTree } from "../subprocess-tree";
 import { collectAndForward, currentShellOutputSink } from "./output-sink";
 
@@ -76,7 +82,8 @@ export async function execShim(
 ) {
   const sink = currentShellOutputSink();
   const { cancelSignal, ...subprocessOptions } = options;
-  const subprocess = execa(file, args, {
+  const spawned = wrapNativeCommand(file, args);
+  const subprocess = execa(spawned.file, spawned.args, {
     ...subprocessOptions,
     all: true,
     cancelSignal: sink ? undefined : cancelSignal,
@@ -93,6 +100,12 @@ export async function execShim(
   const result = await subprocess;
   await streamed;
   await finishTreeTermination?.();
+  const stderr = typeof result.stderr === "string" ? result.stderr : "";
+  const stdout = typeof result.stdout === "string" ? result.stdout : "";
+  const deniedPlace =
+    spawned.sandboxed && result.exitCode !== 0
+      ? deniedPlaceIn(`${stderr}\n${stdout}`, spawned.denied)
+      : undefined;
   return {
     exitCode: result.exitCode,
     // The binary that was launched, kept so a diagnostic can name the command
@@ -108,8 +121,10 @@ export async function execShim(
     // (when `encoding` is set). Neither is settable here, so the string branch
     // is the only reachable one; narrowing rather than asserting keeps that
     // guarantee checked.
-    stderr: typeof result.stderr === "string" ? result.stderr : "",
-    stdout: typeof result.stdout === "string" ? result.stdout : "",
+    stderr: deniedPlace
+      ? `${stderr}${stderr.endsWith("\n") || stderr === "" ? "" : "\n"}${deniedPlaceNote(deniedPlace)}\n`
+      : stderr,
+    stdout,
   };
 }
 

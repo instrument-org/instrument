@@ -374,6 +374,7 @@ export const workspaceMachine = setup({
       indexesDir?: string;
       isExternalBrowserEnabled: () => boolean;
       modelCache: ModelCache;
+      nativeSandboxPlaces?: WorkspaceConfig["nativeSandboxPlaces"];
       nodeExecEnv: Record<string, string>;
       pnpmBinPath: string;
       preparedSkillsDir: string;
@@ -415,6 +416,9 @@ export const workspaceMachine = setup({
         indexesDir: AbsolutePathSchema.parse(input.indexesDir),
       }),
       modelCache: input.modelCache,
+      ...(input.nativeSandboxPlaces && {
+        nativeSandboxPlaces: input.nativeSandboxPlaces,
+      }),
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
       preparedSkillsDir: AbsolutePathSchema.parse(input.preparedSkillsDir),

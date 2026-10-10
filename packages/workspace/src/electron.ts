@@ -143,3 +143,4 @@ export {
   type OAuthClientInformationFull,
   type OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
+export { credentialPlaces } from "./lib/native-sandbox";

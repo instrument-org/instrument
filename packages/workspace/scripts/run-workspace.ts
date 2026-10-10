@@ -19,6 +19,7 @@ import { createActor } from "xstate";
 import { type TaskId } from "../src/client";
 import { workspaceMachine } from "../src/electron";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
+import { credentialPlaces } from "../src/lib/native-sandbox";
 import { defaultTaskName } from "../src/lib/default-task-name";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { type StoreId } from "../src/schemas/store-id";
@@ -126,6 +127,7 @@ const actor = createActor(workspaceMachine, {
     isExternalBrowserEnabled: () => true,
     modelCache: noopModelCache,
     nodeExecEnv: {},
+    nativeSandboxPlaces: credentialPlaces(),
     pnpmBinPath: await execa({ reject: false })`which pnpm`.then(
       (result) => result.stdout.trim() || "pnpm",
     ),

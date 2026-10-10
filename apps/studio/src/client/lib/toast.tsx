@@ -45,7 +45,9 @@ export function spokenMessage(
   error: unknown,
   codes: readonly string[],
 ): string | undefined {
-  return error instanceof ORPCError && codes.includes(error.code)
+  return error instanceof ORPCError &&
+    typeof error.code === "string" &&
+    codes.includes(error.code)
     ? error.message
     : undefined;
 }

@@ -699,8 +699,8 @@ function Memories({
   const [isConfirming, setIsConfirming] = useState(false);
   const forgetMutation = useMutation(
     rpcClient.workspace.memory.forget.mutationOptions({
-      onError: () => {
-        toast.error("Couldn't forget those memories");
+      onError: (error) => {
+        toast.error("Couldn't forget those memories", { cause: error });
       },
     }),
   );

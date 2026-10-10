@@ -101,9 +101,7 @@ export function ConnectControls({
   const startOAuth = useMutation(
     rpcClient.apps.startOAuth.mutationOptions({
       onError: (error) => {
-        toast.error("Could not start the sign-in", {
-          description: error.message,
-        });
+        toast.error("Couldn't start signing in", { cause: error });
       },
     }),
   );
@@ -128,23 +126,19 @@ export function ConnectControls({
   const markWebSignedIn = useMutation(
     rpcClient.apps.markWebSignedIn.mutationOptions({
       onError: (error) => {
-        toast.error(`Could not connect ${name}`, {
-          description: error.message,
-        });
+        toast.error(`Couldn't connect ${name}`, { cause: error });
       },
     }),
   );
   const allow = useMutation(
     rpcClient.apps.allow.mutationOptions({
       onError: (error) => {
-        toast.error(`Could not start ${name}`, { description: error.message });
+        toast.error(`Couldn't start ${name}`, { cause: error });
       },
       onSuccess: (report) => {
         const failure = report.checks.find((check) => check.status === "fail");
         if (failure) {
-          toast.error(`${name} did not connect`, {
-            description: failure.detail.split("\n")[0],
-          });
+          toast.error(`Couldn't connect ${name}`, { cause: failure.detail });
         }
       },
     }),
@@ -152,7 +146,7 @@ export function ConnectControls({
   const setCredential = useMutation(
     rpcClient.apps.setCredential.mutationOptions({
       onError: (error) => {
-        toast.error("Could not save the key", { description: error.message });
+        toast.error("Couldn't save the key", { cause: error });
       },
       onSuccess: () => {
         setValue("");

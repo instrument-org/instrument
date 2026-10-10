@@ -3,7 +3,11 @@ import { InfoIcon } from "@phosphor-icons/react/Info";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
+import { useEffect } from "react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
+
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { setToastDeveloperMode } from "@/client/lib/toast";
 
 import { useTheme } from "../theme-provider";
 import { Spinner } from "./spinner";
@@ -12,9 +16,13 @@ import { Spinner } from "./spinner";
 // the pointer rarely is. A toast with only a title is a one-line pill as wide as
 // its words; one with a description is a card at the stack's full width. Sonner
 // keeps the stacking and swiping; `unstyled` hands every surface to these
-// classes. How long each one stays is decided in `client/lib/toast.ts`.
+// classes. How long each one stays is decided in `client/lib/toast.tsx`.
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme } = useTheme();
+  const isDeveloperMode = useDeveloperMode();
+  useEffect(() => {
+    setToastDeveloperMode(isDeveloperMode);
+  }, [isDeveloperMode]);
 
   return (
     <Sonner

@@ -148,10 +148,7 @@ function SkillActions({
       toast.success(`Deleted “${skill.title}”`);
       onDeleted();
     } catch (error) {
-      toast.error("Could not delete the skill", {
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      });
+      toast.error(`Couldn't delete “${skill.title}”`, { cause: error });
     }
   };
 

@@ -389,7 +389,7 @@ function LiveTable({
       onNotes: reportNotes,
       onStatus: (status, detail) => {
         if (status === "error") {
-          toast.error("Could not save", { description: detail });
+          toast.error("Couldn't save your changes", { cause: detail });
         }
       },
     });

@@ -741,7 +741,7 @@ export function DevPanel() {
                 className="font-mono text-xs"
                 onSelect={() => {
                   setDeveloperMode({ enabled: false });
-                  toast("Developer mode disabled");
+                  toast.dev("Developer mode is off");
                 }}
               >
                 Exit developer mode

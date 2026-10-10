@@ -48,9 +48,7 @@ export function useOpenInApp(target: OpenInAppTarget | undefined) {
   const openLink = useMutation(
     rpcClient.utils.openExternalLink.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to open the page", {
-          description: error.message,
-        });
+        toast.error("Couldn't open the page", { cause: error });
       },
     }),
   );

@@ -67,9 +67,7 @@ export function ChatGPTLoginButton({
       }
       case "failed": {
         setWaiting(false);
-        toast.error("Couldn't sign in with ChatGPT", {
-          description: result.error,
-        });
+        toast.error("Couldn't sign in with ChatGPT", { cause: result.error });
         return;
       }
       case "canceled":

@@ -1,5 +1,5 @@
 import type { ExternalToast } from "sonner";
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 
 const calls: { kind: string; data: ExternalToast | undefined }[] = [];
 const record = (kind: string) => (_: unknown, data?: ExternalToast) => {
@@ -18,7 +18,13 @@ vi.mock("sonner", () => ({
   }),
 }));
 
-const { toast } = await import("./toast");
+const logged: unknown[][] = [];
+vi.mock("./logger", () => ({
+  logger: { error: (...args: unknown[]) => logged.push(args) },
+}));
+
+const { setToastDeveloperMode, spokenMessage, toast } = await import("./toast");
+const { ORPCError } = await import("@orpc/client");
 
 const action = { label: "Show", onClick: () => {} };
 
@@ -54,4 +60,50 @@ it("picks how long a toast stays from what it carries", () => {
       "caller's own duration: error 3000",
     ]
   `);
+});
+
+beforeEach(() => {
+  calls.length = 0;
+  logged.length = 0;
+  setToastDeveloperMode(false);
+});
+
+it("keeps an error's cause off the toast and in the log", () => {
+  const cause = new Error("ENOENT: no such file or directory");
+  toast.error("Couldn't open the file", { cause });
+  expect(calls[0]?.data?.description).toBeUndefined();
+  expect(calls[0]?.data).not.toHaveProperty("cause");
+  expect(logged).toEqual([["Couldn't open the file", cause]]);
+});
+
+it("shows an error's cause in developer mode, after the caller's words", () => {
+  setToastDeveloperMode(true);
+  toast.error("Couldn't delete the chat", {
+    cause: new Error("EBUSY"),
+    description: "Close anything using its folders.",
+  });
+  expect(JSON.stringify(calls[0]?.data?.description)).toContain("EBUSY");
+  expect(JSON.stringify(calls[0]?.data?.description)).toContain(
+    "Close anything using its folders.",
+  );
+});
+
+it("shows developer toasts only in developer mode, marked", () => {
+  toast.dev("Switch canceled");
+  expect(calls).toEqual([]);
+  setToastDeveloperMode(true);
+  toast.dev("Switch canceled");
+  expect(calls[0]?.data?.icon).toBeDefined();
+  expect(calls[0]?.data?.classNames?.toast).toContain("ring-dev");
+});
+
+it("passes an error's message through only for the codes named", () => {
+  const inUse = new ORPCError("NAME_IN_USE", {
+    message: "Something with that name is already there",
+  });
+  expect(spokenMessage(inUse, ["NAME_IN_USE"])).toBe(
+    "Something with that name is already there",
+  );
+  expect(spokenMessage(inUse, ["NAME_INVALID"])).toBeUndefined();
+  expect(spokenMessage(new Error("raw"), ["NAME_IN_USE"])).toBeUndefined();
 });

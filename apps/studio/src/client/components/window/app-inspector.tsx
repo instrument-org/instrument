@@ -867,7 +867,7 @@ function LinkValue({ url }: { url: string }) {
         void safe(rpcClient.utils.openExternalLink.call({ url })).then(
           ([error]) => {
             if (error) {
-              toast.error("Could not open that link");
+              toast.error("Couldn't open the link", { cause: error });
             }
           },
         );

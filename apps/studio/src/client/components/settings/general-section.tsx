@@ -418,8 +418,8 @@ function ReleaseChannel() {
   );
   const setReleaseChannelMutation = useMutation(
     rpcClient.preferences.setReleaseChannel.mutationOptions({
-      onError: () => {
-        toast.error("Failed to change the release channel");
+      onError: (error) => {
+        toast.error("Couldn't change the release channel", { cause: error });
       },
     }),
   );
@@ -545,8 +545,8 @@ function DiagnosticLog() {
 
   const saveLogMutation = useMutation(
     rpcClient.utils.saveDiagnosticLog.mutationOptions({
-      onError: () => {
-        toast.error("Couldn't save the log");
+      onError: (error) => {
+        toast.error("Couldn't save the log", { cause: error });
       },
       onSuccess: ({ status }) => {
         switch (status) {
@@ -762,8 +762,8 @@ function Notifications() {
   const requestPermission = useMutation(
     rpcClient.mac.notifications.request.mutationOptions({
       onError: (error) => {
-        toast.error("Couldn't ask macOS about notifications.", {
-          description: error.message,
+        toast.error("Couldn't ask macOS about notifications", {
+          cause: error,
         });
       },
       onSettled: () => {
@@ -773,10 +773,11 @@ function Notifications() {
         // macOS refused without asking anyone: in development because the
         // build is not signed, which is the one case worth explaining.
         if (error !== undefined) {
-          toast.error("macOS didn't allow notifications.", {
+          toast.error("macOS didn't allow notifications", {
+            cause: error,
             description: import.meta.env.DEV
               ? "Development builds aren't signed, and macOS lets only a signed app notify."
-              : error,
+              : undefined,
           });
         }
       },
@@ -798,7 +799,7 @@ function Notifications() {
       const { supported } =
         await sendTestNotificationMutation.mutateAsync(undefined);
       if (!supported) {
-        toast.error("Notifications aren't supported on this device.");
+        toast.error("This computer doesn't support notifications");
         return;
       }
       toast.success("Test notification sent", {
@@ -810,8 +811,8 @@ function Notifications() {
         },
         description: `Not seeing it? Turn on notifications for ${APP_NAME}.`,
       });
-    } catch {
-      toast.error("Couldn't send a test notification.");
+    } catch (error) {
+      toast.error("Couldn't send a test notification", { cause: error });
     }
   };
 
@@ -989,11 +990,10 @@ function UsageMetrics() {
   const handleToggleUsageMetrics = async (checked: boolean) => {
     try {
       await setUsageMetricsMutation.mutateAsync({ enabled: checked });
-      toast.success(
-        checked ? "Usage metrics enabled" : "Usage metrics disabled",
-      );
-    } catch {
-      toast.error("Failed to update usage metrics preference");
+    } catch (error) {
+      toast.error("Couldn't change the usage metrics setting", {
+        cause: error,
+      });
     }
   };
 

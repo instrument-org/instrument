@@ -171,7 +171,7 @@ function LiveCodeDocument({
       onStatus: (next, detail) => {
         setStatus(next);
         if (next === "error") {
-          toast.error("Could not save", { description: detail });
+          toast.error("Couldn't save your changes", { cause: detail });
         }
       },
       parent,

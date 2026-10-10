@@ -75,8 +75,8 @@ export function LinkSurface({
       id: "copy",
       label: "Copy Path",
       run: () => {
-        void navigator.clipboard.writeText(hostPath).catch(() => {
-          toast.error("Unable to copy path");
+        void navigator.clipboard.writeText(hostPath).catch((error: unknown) => {
+          toast.error("Couldn't copy the path", { cause: error });
         });
       },
     },

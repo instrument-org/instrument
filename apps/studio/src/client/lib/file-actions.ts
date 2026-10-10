@@ -20,13 +20,7 @@ export async function copyFileToClipboard({
     }),
   );
   if (error) {
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : "The file could not be copied to clipboard";
-    toast.error("Failed to copy file", {
-      description: errorMessage,
-    });
+    toast.error("Couldn't copy the file", { cause: error });
     throw error;
   }
 }
@@ -43,13 +37,7 @@ export async function downloadFile(file: ViewerFile) {
       blob,
     });
   } catch (error) {
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : "An unknown error occurred while saving the file";
-    toast.error("Failed to save file", {
-      description: errorMessage,
-    });
+    toast.error("Couldn't save the file", { cause: error });
     throw error;
   }
 }

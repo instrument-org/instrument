@@ -258,9 +258,7 @@ export function ToolChoose({
   const answer = useMutation(
     rpcClient.workspace.session.answerToolCall.mutationOptions({
       onError: (error) => {
-        toast.error("Could not send the answer", {
-          description: error.message,
-        });
+        toast.error("Couldn't send your answer", { cause: error });
       },
     }),
   );

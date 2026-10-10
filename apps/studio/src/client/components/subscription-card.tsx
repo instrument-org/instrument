@@ -34,10 +34,10 @@ export function SubscriptionCard() {
       if (url) {
         await openExternalLink({ url });
       } else {
-        toast.error("Failed to create portal session");
+        toast.error("Couldn't open your billing page");
       }
-    } catch {
-      toast.error("Failed to create portal session");
+    } catch (error) {
+      toast.error("Couldn't open your billing page", { cause: error });
     }
   };
 

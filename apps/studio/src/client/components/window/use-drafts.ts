@@ -362,9 +362,7 @@ export function useDrafts({
       } catch (error) {
         opened();
         setStartingIds((current) => withoutId(current, id));
-        toast.error("Failed to start the chat", {
-          description: error instanceof Error ? error.message : String(error),
-        });
+        toast.error("Couldn't start the chat", { cause: error });
         return;
       }
       setSentWords((current) => new Map(current).set(chatId, send.prompt));
@@ -398,9 +396,7 @@ export function useDrafts({
           compose.becomeDraft(chatId, id);
         }
         setSentWords((current) => withoutKey(current, chatId));
-        toast.error("Failed to start the chat", {
-          description: error instanceof Error ? error.message : String(error),
-        });
+        toast.error("Couldn't start the chat", { cause: error });
         return;
       } finally {
         opened();

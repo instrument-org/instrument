@@ -15,7 +15,7 @@ export function useConnectFromDirectory() {
   const setUp = useMutation(
     rpcClient.apps.setUp.mutationOptions({
       onError: (error) => {
-        toast.error("Could not set it up", { description: error.message });
+        toast.error("Couldn't set up the app", { cause: error });
       },
     }),
   );

@@ -78,11 +78,10 @@ export function DeleteChatDialog({
         try {
           await rpcClient.workspace.chats.trash.call({ id: chat.id });
         } catch (error) {
-          toast.error("Failed to delete the chat", {
+          toast.error("Couldn't delete the chat", {
+            cause: error,
             description:
-              error instanceof Error
-                ? error.message
-                : "Close anything using its folders (editors, terminals, servers) and try again.",
+              "Close anything using its folders, like an editor, a terminal or a server, and try again.",
           });
           throw error;
         }

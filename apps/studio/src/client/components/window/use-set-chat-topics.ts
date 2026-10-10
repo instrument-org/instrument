@@ -19,9 +19,7 @@ export function useSetChatTopics() {
   const mutation = useMutation(
     rpcClient.workspace.chats.setTopics.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to tag the chat", {
-          description: error.message,
-        });
+        toast.error("Couldn't change the chat's topics", { cause: error });
         void queryClient.invalidateQueries({ queryKey: key });
       },
       onMutate: (input) => {

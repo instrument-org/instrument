@@ -130,7 +130,7 @@ export function DevTools() {
 
   const handleLoadToolbar = () => {
     if (!validationResult.isValid || !validationResult.parsedData) {
-      toast.error("Please fix validation errors before loading toolbar");
+      toast.dev("Fix the errors before loading the toolbar");
       return;
     }
 

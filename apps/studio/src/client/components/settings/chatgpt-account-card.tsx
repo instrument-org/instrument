@@ -74,9 +74,7 @@ export function ChatGPTAccountCard() {
     }
     setWaiting(null);
     if (result.outcome === "failed") {
-      toast.error("Couldn't sign in with ChatGPT", {
-        description: result.error,
-      });
+      toast.error("Couldn't sign in with ChatGPT", { cause: result.error });
       return;
     }
     // Declined, canceled, or signed in without the plan, which the account's

@@ -149,7 +149,7 @@ export function UpdateStatusIndicator() {
                 openSettings({ tab: "General" });
               },
             },
-            description: error.message,
+            cause: error,
           });
           return;
         }

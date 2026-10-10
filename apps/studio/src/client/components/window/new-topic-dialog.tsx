@@ -234,8 +234,8 @@ function TopicFolders({
   const add = async () => {
     const picked = await rpcClient.utils.showFolderPicker
       .call({ buttonLabel: "Add" })
-      .catch(() => {
-        toast.error("Could not open the folder picker");
+      .catch((error: unknown) => {
+        toast.error("Couldn't open the folder picker", { cause: error });
         return null;
       });
     if (picked && !folders.some((folder) => folder.path === picked.path)) {

@@ -115,10 +115,8 @@ function ClearBrowsingDataContent({
           }),
       ]);
     },
-    onError: () => {
-      toast.error(
-        "Something went wrong while clearing your browsing data. Please try again.",
-      );
+    onError: (error) => {
+      toast.error("Couldn't clear your browsing data", { cause: error });
     },
     onSuccess: () => {
       toast.success(clearedMessage({ ...picked, range }));

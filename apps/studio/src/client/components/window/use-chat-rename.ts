@@ -22,18 +22,14 @@ export function useChatRename(chat: Chat | undefined) {
   const { mutateAsync: renameChat } = useMutation(
     rpcClient.workspace.chats.rename.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to rename the chat", {
-          description: error.message,
-        });
+        toast.error("Couldn't rename the chat", { cause: error });
       },
     }),
   );
   const retitle = useMutation(
     rpcClient.workspace.chats.retitle.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to rename the chat", {
-          description: error.message,
-        });
+        toast.error("Couldn't rename the chat", { cause: error });
       },
     }),
   );

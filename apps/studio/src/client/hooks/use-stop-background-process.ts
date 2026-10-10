@@ -15,14 +15,14 @@ export function useStopBackgroundProcess(taskId: TaskId | undefined) {
   const { isPending: isStopping, mutate: stopOne } = useMutation(
     rpcClient.workspace.task.backgroundProcesses.stop.mutationOptions({
       onError: (error) => {
-        toast.error("Couldn't stop it", { description: error.message });
+        toast.error("Couldn't stop the process", { cause: error });
       },
     }),
   );
   const { isPending: isStoppingAll, mutate: stopEvery } = useMutation(
     rpcClient.workspace.task.backgroundProcesses.stopAll.mutationOptions({
       onError: (error) => {
-        toast.error("Couldn't stop them", { description: error.message });
+        toast.error("Couldn't stop the processes", { cause: error });
       },
     }),
   );

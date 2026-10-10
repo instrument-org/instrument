@@ -487,7 +487,7 @@ export const PromptInput = ({
       rpcClient.utils.showFolderPicker.call({}),
     );
     if (error) {
-      toast.error("Failed to open folder picker");
+      toast.error("Couldn't open the folder picker", { cause: error });
       return;
     }
     if (!result) {

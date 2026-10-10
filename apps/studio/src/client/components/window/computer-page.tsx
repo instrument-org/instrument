@@ -71,7 +71,12 @@ import {
 import { getFileType, opensInSystemApp } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
-import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
+import {
+  cn,
+  getFileManagerName,
+  getRevealInFolderLabel,
+  isMacOS,
+} from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { folderNameFromPath } from "@instrument-org/shared";
@@ -110,7 +115,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "@/client/lib/toast";
+import { spokenMessage, toast } from "@/client/lib/toast";
 
 import { useWindow } from "./context";
 import { FileThumbnail } from "./file-thumbnail";
@@ -567,7 +572,7 @@ export function ComputerPage({
         `${parent.prefix}${made.path.split("/").at(-1) ?? ""}/`,
       );
     } catch (error) {
-      failed(error);
+      fileActionFailed("Couldn't make a new folder", error);
     }
   };
   // A failure is said and thrown on, so the browser opens the name field
@@ -580,7 +585,7 @@ export function ComputerPage({
     try {
       await rpcClient.files.rename.call({ name, path: hostPath });
     } catch (error) {
-      failed(error);
+      fileActionFailed(`Couldn't rename “${item.name}”`, error);
       throw error;
     }
     // The thing renamed stays selected under its new name, so the column it
@@ -609,7 +614,7 @@ export function ComputerPage({
       }
       focusBrowser();
     } catch (error) {
-      failed(error);
+      fileActionFailed("Couldn't make a copy", error);
     } finally {
       reread();
     }
@@ -626,7 +631,7 @@ export function ComputerPage({
       await navigator.clipboard.writeText(hostPath);
       focusBrowser();
     } catch (error) {
-      failed(error);
+      fileActionFailed("Couldn't copy the path", error);
     }
   };
   const trash = async (picked: FileSystemItem[]) => {
@@ -661,7 +666,10 @@ export function ComputerPage({
       );
       focusBrowser();
     } catch (error) {
-      failed(error);
+      fileActionFailed(
+        `Couldn't move that to the ${getTrashTerminology()}`,
+        error,
+      );
     } finally {
       reread();
       if (undoable.length > 0) {
@@ -691,7 +699,7 @@ export function ComputerPage({
         first = await rpcClient.files.undo.call({ journalId });
       }
     } catch (error) {
-      failed(error);
+      fileActionFailed("Couldn't put that back", error);
     }
     reread();
     if (first) {
@@ -1045,7 +1053,9 @@ export function ComputerPage({
           reread();
           selectUndone(undone);
         })
-        .catch(failed);
+        .catch((error: unknown) => {
+          fileActionFailed("Couldn't undo that", error);
+        });
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
@@ -1283,7 +1293,12 @@ export function ComputerPage({
     onReveal: () =>
       void rpcClient.utils.showFileInFolder
         .call({ filepath: hostPathOfItem(item) })
-        .catch(failed),
+        .catch((error: unknown) => {
+          fileActionFailed(
+            `Couldn't show it in ${getFileManagerName()}`,
+            error,
+          );
+        }),
   });
   const rootName = isRecents
     ? "Recents"
@@ -2055,9 +2070,16 @@ function relativeHostPath(root: string, hostPath: string) {
     : null;
 }
 
-/** What went wrong with a file action, said where the folder is. */
-function failed(error: unknown) {
-  toast(error instanceof Error ? error.message : "That did not work");
+// The files routes' errors that come with a sentence written for people. The
+// rest carry the system's own message, which only developer mode shows.
+const SPOKEN_FILE_ERRORS = ["NAME_IN_USE", "NAME_INVALID", "NOTHING_TO_UNDO"];
+
+/** Says a file action didn't happen, with the reason when it is one a person can use. */
+export function fileActionFailed(title: string, error: unknown) {
+  toast.error(title, {
+    cause: error,
+    description: spokenMessage(error, SPOKEN_FILE_ERRORS),
+  });
 }
 
 /** Where an item the browser is showing sits on the Mac. */
@@ -2465,7 +2487,12 @@ function PlaceMenu({
           onClick={() =>
             void rpcClient.utils.showFileInFolder
               .call({ filepath: hostPath })
-              .catch(failed)
+              .catch((error: unknown) => {
+                fileActionFailed(
+                  `Couldn't show it in ${getFileManagerName()}`,
+                  error,
+                );
+              })
           }
         >
           <RevealInFolderIcon className="size-4" />
@@ -2475,7 +2502,11 @@ function PlaceMenu({
       <ContextMenuSeparator />
       <ContextMenuItem
         onClick={() =>
-          void navigator.clipboard.writeText(hostPath).catch(failed)
+          void navigator.clipboard
+            .writeText(hostPath)
+            .catch((error: unknown) => {
+              fileActionFailed("Couldn't copy the path", error);
+            })
         }
       >
         <ClipboardTextIcon className="size-4" />

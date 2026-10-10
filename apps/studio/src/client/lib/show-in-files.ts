@@ -30,7 +30,7 @@ export async function revealInFileManager(hostPath: string) {
   );
   if (error) {
     toast.error(`Couldn't show it in ${getFileManagerName()}`, {
-      description: error.message,
+      cause: error,
     });
   }
 }
@@ -67,7 +67,7 @@ export async function showInFolder(
       rpcClient.utils.openFolder.call({ folderPath: hostPath }),
     );
     if (error) {
-      toast.error("Failed to open folder", { description: error.message });
+      toast.error("Couldn't open the folder", { cause: error });
     }
     return;
   }
@@ -92,9 +92,7 @@ export async function showTaskFolder(taskId: TaskId) {
     rpcClient.utils.taskFolderPath.call({ id: taskId }),
   );
   if (error) {
-    toast.error("Couldn't find the task's folder", {
-      description: error.message,
-    });
+    toast.error("Couldn't find the task's folder", { cause: error });
     return;
   }
   await showInFolder(hostPath, { kind: "folder" });

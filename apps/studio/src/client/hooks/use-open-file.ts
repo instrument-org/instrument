@@ -8,9 +8,7 @@ export function useOpenFile() {
   const openPathMutation = useMutation(
     rpcClient.utils.openPath.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to open file", {
-          description: error.message,
-        });
+        toast.error("Couldn't open the file", { cause: error });
       },
     }),
   );
@@ -25,9 +23,7 @@ export function useOpenFileWith() {
   const openFileWithMutation = useMutation(
     rpcClient.utils.openFileWith.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to open file", {
-          description: error.message,
-        });
+        toast.error("Couldn't open the file", { cause: error });
       },
     }),
   );

@@ -144,8 +144,8 @@ export function WebStart({
       .then(() => {
         toast("Removed all Recent Pages");
       })
-      .catch(() => {
-        toast.error("Could not remove Recent Pages");
+      .catch((error: unknown) => {
+        toast.error("Couldn't clear Recent Pages", { cause: error });
       });
   };
   // A bookmark is an address the person chose, so opening one counts the

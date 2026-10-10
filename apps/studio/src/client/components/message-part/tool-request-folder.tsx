@@ -38,18 +38,14 @@ export function ToolRequestFolder({
   const answer = useMutation(
     rpcClient.workspace.session.answerToolCall.mutationOptions({
       onError: (error) => {
-        toast.error("Could not answer the request", {
-          description: error.message,
-        });
+        toast.error("Couldn't send your answer", { cause: error });
       },
     }),
   );
   const attach = useMutation(
     rpcClient.workspace.task.state.attachFolder.mutationOptions({
       onError: (error) => {
-        toast.error("Could not attach the folder", {
-          description: error.message,
-        });
+        toast.error("Couldn't attach the folder", { cause: error });
       },
     }),
   );

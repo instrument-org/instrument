@@ -10,7 +10,7 @@ import { TASK_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { executeError } from "../lib/execute-error";
 import { folderReach } from "../lib/chat/folder-reach";
 import { pathExists } from "../lib/path-exists";
-import { resolveChat } from "../lib/record-folders";
+import { chatConversation } from "../lib/chat/children";
 import { resolveWritableToolPath } from "../lib/resolve-agent-path";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
@@ -51,9 +51,9 @@ export const WriteFile = setupTool({
     - The ${INPUT_PARAMS.filePath} parameter is a path relative to the task (e.g. ./${TASK_FOLDER_NAMES.work}/report.md), or the mount path of an attached folder you have read-and-write access to (${MOUNT.attachedFolders}/<name>/report.md). The attached-folders list in your context says which folders those are.
     - Writing to an existing path overwrites it, so read it with \`${ReadFile.name}\` first when you have not seen its current contents.
     - Never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp work/foo.html ${MOUNT.attachedFolders}/<folder>/foo.html\`.  `,
-  execute: async ({ input, signal, taskId, taskState }) => {
+  execute: async ({ input, sessionId, signal, taskId, taskState }) => {
     const layout = buildWorkspaceFsLayout({
-      apps: resolveChat(taskId) !== undefined,
+      apps: chatConversation(taskId, sessionId) !== undefined,
       attachedFolders: await folderReach(taskId, taskState),
       taskHostRoot: workDir(taskId),
     });

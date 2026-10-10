@@ -21,7 +21,10 @@ export function cutForNote(text: string, maxLength: number): string {
     : text;
 }
 
-/** What a task's agent last wrote in a session, whole. */
+/**
+ * What an agent last wrote in a session, whole: in a task's, only what the
+ * task wrote, never the chat's words it carries on from.
+ */
 export async function lastAssistantText({
   sessionId,
   taskId,
@@ -29,7 +32,11 @@ export async function lastAssistantText({
   sessionId: StoreId.Session;
   taskId: TaskId;
 }): Promise<string | undefined> {
-  const messages = await Store.getMessagesWithParts({ sessionId, taskId });
+  const messages = await Store.getMessagesWithParts({
+    inherited: false,
+    sessionId,
+    taskId,
+  });
   if (messages.isErr()) {
     return undefined;
   }

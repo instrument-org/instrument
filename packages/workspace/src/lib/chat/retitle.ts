@@ -15,7 +15,7 @@ import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
-import { resolveChat } from "../record-folders";
+import { chatConversation } from "./children";
 import { updateSessionTitle } from "../update-session-title";
 import { getWorkspaceConfig } from "../workspace-config";
 import { chatIsWorking, settleChatTitle } from "./chats";
@@ -219,7 +219,8 @@ async function retitleOnSettle({
   id: TaskId;
   sessionId: StoreId.Session;
 }): Promise<void> {
-  const chatId = resolveChat(id);
+  // A task's turn ending names nothing: the chat is named from its own.
+  const chatId = chatConversation(id, sessionId);
   if (!chatId) {
     return;
   }

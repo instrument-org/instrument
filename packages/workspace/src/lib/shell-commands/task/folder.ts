@@ -5,9 +5,6 @@ import { attachFolder } from "../../attach-folder";
 import { attachedFolderMountPoint } from "../../attached-folder-mounts";
 import { folderReach } from "../../chat/folder-reach";
 import { folderLabel } from "../../folder-parent-label";
-import { chatTaskIds } from "../../record-folders";
-import { taskDir } from "../../task-dir-utils";
-import { getTaskSettings } from "../../task-settings";
 import { effectiveFolderAccess } from "../../workspace-fs-layout";
 import { type SubcommandInput, subcommand } from "../subcommands";
 import {
@@ -25,17 +22,17 @@ export const folderSubcommand = subcommand<TaskCommandContext>({
   run: (input, context) => runFolder(input, context),
   usage: `  ${TASK_COMMAND.name} folder --add <mount>/<folder>...
       Read and write on a folder inside one you reach read-only (one in the
-      home folder, say), for you and every task you start after this. Prints
-      the path to work in it at.
+      home folder, say), for you and every task of yours. Prints the path to
+      work in it at.
 `,
 });
 
 /**
  * Gives the chat a folder inside one it reaches: the home folder is
  * read-only whole, since the workspace is inside it, and a folder in it is
- * not. The chat's tasks reach exactly its folders, so its running forks are
- * given the folder too, at the same path, and every fork started after has
- * it from the chat.
+ * not. The chat's tasks reach exactly its folders, read as they stand, so
+ * every task of the chat's has the folder at the same path, running ones
+ * included.
  *
  * The system's own ask for a protected folder (Desktop, Documents,
  * Downloads) comes first.
@@ -71,18 +68,6 @@ async function runFolder(input: SubcommandInput, context: TaskCommandContext) {
     const mountPoint = mounted
       ? attachedFolderMountPoint(mounted.mountName)
       : folder.path;
-    if (mounted) {
-      for (const taskId of chatTaskIds(context.chatId)) {
-        if ((await getTaskSettings(taskDir(taskId)))?.fork) {
-          await attachFolder({
-            access: folder.access,
-            mountName: mounted.mountName,
-            path: folder.path,
-            taskId,
-          });
-        }
-      }
-    }
     lines.push(
       `You now have ${folderLabel(folder.path)} at ${mountPoint} (${mounted ? effectiveFolderAccess(mounted) : folder.access}). Work in it there.`,
     );

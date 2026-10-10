@@ -7,12 +7,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { publisher } from "../../rpc/publisher";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { type TaskId } from "../../schemas/task-id";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
+import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import { type BrowserTargetId, encodeBrowserTargetId } from "../../types";
-import { initializeTask } from "../initialize-task";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState, setTaskState } from "../task-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -24,8 +24,12 @@ vi.mock("execa");
 const CHAT_SESSION = StoreId.SessionSchema.parse(
   "ses_01M3AX9RF3C2E9RTATMB602W0B",
 );
-const CHAT_ID = ChatIdSchema.parse("2026-09-26-conversation");
-const TASK_ID = TaskIdSchema.parse("read-the-page");
+// A chat of its own per test: a store handle is kept per record id, and
+// each test's workspace is a folder of its own.
+let counter = 0;
+let CHAT_ID = ChatIdSchema.parse("2026-09-26-conversation");
+/** The task, a session in the chat's store. */
+let TASK_SESSION = StoreId.newSessionId();
 
 let rootDir: string;
 let live: Set<BrowserTargetId>;
@@ -81,17 +85,27 @@ function browserOfLiveTargets() {
   });
 }
 
-async function run(args: string[], taskId = TASK_ID) {
+async function run(
+  args: string[],
+  sessionId = TASK_SESSION,
+  taskId: TaskId = CHAT_ID,
+) {
   const { execa } = await import("execa");
   vi.mocked(execa).mockResolvedValue({
     exitCode: 0,
     stderr: "",
     stdout: "",
   } as never);
-  return createAgentBrowserCommand({
-    sessionId: StoreId.newSessionId(),
-    taskId,
-  }).execute(args, ctx);
+  return createAgentBrowserCommand({ sessionId, taskId }).execute(args, ctx);
+}
+
+/** Tabs the task drives, on the chat's record. */
+async function holdTabs(
+  tabs: { id: BrowserTargetId; openedBy: "handed" | "task" }[],
+) {
+  await setTaskState(taskDir(CHAT_ID), {
+    browserTabs: tabs.map((tab) => ({ ...tab, sessionId: TASK_SESSION })),
+  });
 }
 
 async function spawnedCdpUrl() {
@@ -108,7 +122,7 @@ async function spawnedCdpUrl() {
 
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "agent-browser-tabs-"));
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", TASK_ID), {
+  createMockTaskConfigForDir(path.join(rootDir, "tasks", "unused"), {
     unplaced: true,
   });
   setWorkspaceConfig({
@@ -118,19 +132,10 @@ beforeEach(async () => {
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
+  counter += 1;
+  CHAT_ID = ChatIdSchema.parse(`2026-09-26-conversation-${counter}`);
   chatFor(CHAT_SESSION, CHAT_ID);
-  const made = await initializeTask(
-    {
-      chatId: CHAT_ID,
-      initialSettings: { name: "Read the page" },
-      taskId: TASK_ID,
-      workspaceConfig: getWorkspaceConfig(),
-    },
-    {},
-  );
-  if (made.isErr()) {
-    throw made.error;
-  }
+  TASK_SESSION = await chatTaskFor(CHAT_ID, { title: "Read the page" });
   live = new Set();
   asks = [];
   browserOfLiveTargets();
@@ -145,10 +150,12 @@ afterEach(async () => {
 
 describe("a chat", () => {
   it("browses in the tabs it holds, through its own browser", async () => {
-    const result = await run(["open", "https://example.com"], CHAT_ID);
+    const result = await run(["open", "https://example.com"], CHAT_SESSION);
 
     expect(result.exitCode).toBe(0);
-    expect(await spawnedCdpUrl()).toContain(`/devtools/task/${CHAT_ID}`);
+    expect(await spawnedCdpUrl()).toContain(
+      `/devtools/task/${CHAT_ID}/${CHAT_SESSION}`,
+    );
     expect(asks).toEqual([]);
   });
 });
@@ -159,7 +166,9 @@ describe("a task's tab", () => {
 
     expect(result.exitCode).toBe(0);
     // The task's whole browser, not one page of it.
-    expect(await spawnedCdpUrl()).toContain(`/devtools/task/${TASK_ID}`);
+    expect(await spawnedCdpUrl()).toContain(
+      `/devtools/task/${CHAT_ID}/${TASK_SESSION}`,
+    );
     // Nothing is opened before agent-browser asks the browser for a page.
     expect(asks).toEqual([]);
   });
@@ -167,24 +176,28 @@ describe("a task's tab", () => {
   it("connects a task to the tabs it holds", async () => {
     const own = encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId());
     live.add(own);
-    await setTaskState(taskDir(TASK_ID), {
-      browserTabs: [{ id: own, openedBy: "task" }],
-    });
+    await holdTabs([{ id: own, openedBy: "task" }]);
 
     const result = await run(["snapshot", "-i"]);
 
     expect(result.exitCode).toBe(0);
-    expect(await spawnedCdpUrl()).toContain(`/devtools/task/${TASK_ID}`);
+    expect(await spawnedCdpUrl()).toContain(
+      `/devtools/task/${CHAT_ID}/${TASK_SESSION}`,
+    );
   });
 
   it("says so once when its own tabs were closed, then goes on", async () => {
-    await setTaskState(taskDir(TASK_ID), {
-      browserTabs: [
-        {
-          id: encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId()),
-          openedBy: "task",
-        },
-      ],
+    const chats = encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId());
+    await holdTabs([
+      {
+        id: encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId()),
+        openedBy: "task",
+      },
+    ]);
+    // A tab the chat's own conversation holds is none of the task's.
+    const held = await getTaskState(taskDir(CHAT_ID));
+    await setTaskState(taskDir(CHAT_ID), {
+      browserTabs: [...held.browserTabs, { id: chats, openedBy: "task" }],
     });
 
     const told = await run(["snapshot", "-i"]);
@@ -193,19 +206,17 @@ describe("a task's tab", () => {
     expect(told.exitCode).toBe(1);
     expect(told.stderr).toContain("the tab this task opened was closed");
     expect(next.exitCode).toBe(0);
-    const state = await getTaskState(taskDir(TASK_ID));
-    expect(state.browserTabs).toEqual([]);
+    const state = await getTaskState(taskDir(CHAT_ID));
+    expect(state.browserTabs).toEqual([{ id: chats, openedBy: "task" }]);
   });
 
   it("is never replaced when it was handed over and the user closed it", async () => {
-    await setTaskState(taskDir(TASK_ID), {
-      browserTabs: [
-        {
-          id: encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId()),
-          openedBy: "handed",
-        },
-      ],
-    });
+    await holdTabs([
+      {
+        id: encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId()),
+        openedBy: "handed",
+      },
+    ]);
 
     const result = await run(["snapshot", "-i"]);
 
@@ -222,6 +233,8 @@ describe("a task's tab", () => {
     const result = await run(args);
 
     expect(result.exitCode).toBe(0);
-    expect(await spawnedCdpUrl()).toContain(`/devtools/task/${TASK_ID}`);
+    expect(await spawnedCdpUrl()).toContain(
+      `/devtools/task/${CHAT_ID}/${TASK_SESSION}`,
+    );
   });
 });

@@ -27,7 +27,6 @@ import {
   tasksPlacementOf,
 } from "./placement";
 import { visitInTab } from "./tab-history";
-import { taskRecordOptions } from "./child-tasks-query";
 import {
   memoryOfHref,
   skillOfHref,
@@ -153,12 +152,7 @@ export function useOpeners({
       }
     }
   };
-  const openScreen = (
-    href: string,
-    options: OpenOptions = {},
-    /** Whether a task's chat has already been looked for, found or not. */
-    resolved = false,
-  ): void => {
+  const openScreen = (href: string, options: OpenOptions = {}): void => {
     const { behind = false, group: into, newTab = false } = options;
     // A chat named by its session, as an older reply's link or a memory
     // saved then names it, opens at the chat that session is.
@@ -223,22 +217,6 @@ export function useOpeners({
     // A tasks tab already up in that chat walks there in place, the way its
     // crumbs do; anything else gets the tab at that address, or a new one.
     const tasks = tasksOfHref(href);
-    if (tasks?.task !== undefined && tasks.chat === undefined && !resolved) {
-      // A task's address that names no chat is opened once its record says
-      // which chat it was filed in, a read kept for as long as the window
-      // is open.
-      const task = tasks.task;
-      void queryClient
-        .fetchQuery(taskRecordOptions(task))
-        .then(
-          (record) => (record.isChat ? undefined : record.chatId),
-          () => undefined,
-        )
-        .then((filedIn) => {
-          openScreen(taskHref(task, filedIn), options, true);
-        });
-      return;
-    }
     const owner = tasks
       ? chatOfGroup(tasks.chat ?? into ?? windowTabs.groupOnScreen)
       : undefined;

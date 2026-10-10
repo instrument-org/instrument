@@ -1,15 +1,15 @@
 import { renderInBrowser } from "@/tests/render-browser";
-import { ChatIdSchema, TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { ChatActivity } from "./chat-activity";
 
 const CHAT_ID = ChatIdSchema.parse("2026-10-05-lisbon-trip");
-const tram = TaskIdSchema.parse("2026-10-05-tram-28");
-const nata = TaskIdSchema.parse("2026-10-05-pastel-de-nata");
-const sintra = TaskIdSchema.parse("2026-10-05-sintra-palaces");
-const packing = TaskIdSchema.parse("2026-10-05-packing-list");
+const tram = StoreId.newSessionId();
+const nata = StoreId.newSessionId();
+const sintra = StoreId.newSessionId();
+const packing = StoreId.newSessionId();
 
 const RUNNING = [
   { id: tram, step: "Reading about tram 28's route", title: "Tram 28 history" },

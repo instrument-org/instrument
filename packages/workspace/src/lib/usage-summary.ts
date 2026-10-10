@@ -1,5 +1,7 @@
+import { ok } from "neverthrow";
 import { parallel } from "radashi";
 
+import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { Store } from "./store";
 import {
@@ -9,14 +11,21 @@ import {
 
 export { UsageSummarySchema } from "./usage-summary-compute";
 
-// Loads every message + parts for a task from the store, then summarizes.
-// Client callers that already hold the messages should use
-// getUsageSummaryFromMessages directly instead.
+// Loads every message + parts for a task from the store, then summarizes:
+// every session of its store, a chat's tasks included, or the one named, a
+// task's own spend without what its chat spent before it. Client callers that
+// already hold the messages should use getUsageSummaryFromMessages directly
+// instead.
 export async function getTaskUsageSummary(
   taskId: TaskId,
-  { signal }: { signal?: AbortSignal } = {},
+  {
+    sessionId,
+    signal,
+  }: { sessionId?: StoreId.Session; signal?: AbortSignal } = {},
 ) {
-  const sessionIdsResult = await Store.getStoreId(taskId, { signal });
+  const sessionIdsResult = sessionId
+    ? ok([sessionId])
+    : await Store.getStoreId(taskId, { signal });
   if (sessionIdsResult.isErr()) {
     return emptyUsageSummary();
   }
@@ -24,8 +33,8 @@ export async function getTaskUsageSummary(
   const messageGroups = await parallel(
     { limit: 5, signal },
     sessionIdsResult.value,
-    async (sessionId) => {
-      const messageIdsResult = await Store.getMessageIds(sessionId, taskId, {
+    async (each) => {
+      const messageIdsResult = await Store.getMessageIds(each, taskId, {
         signal,
       });
       if (messageIdsResult.isErr()) {
@@ -37,7 +46,7 @@ export async function getTaskUsageSummary(
         messageIdsResult.value,
         async (messageId) => {
           const result = await Store.getMessageWithParts(
-            { messageId, sessionId, taskId },
+            { messageId, sessionId: each, taskId },
             { signal },
           );
           return result.isOk() ? result.value : null;

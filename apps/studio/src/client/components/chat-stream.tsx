@@ -12,6 +12,7 @@ import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useEffect, useMemo, useState } from "react";
 
 import { useTaskBackgroundProcesses } from "../hooks/use-task-background-processes";
+import { useTaskSession } from "../hooks/use-task-session";
 import { chatSeparators } from "../lib/chat-separators";
 import { cn } from "../lib/utils";
 import {
@@ -392,8 +393,9 @@ export function ChatStream({
   // that one of the commands behind it has outlived the turn that started it.
   // The same query the task header reads, so a transcript full of promoted
   // calls costs no extra request.
+  const { sessionId } = useTaskSession();
   const runningProcessIds = new Set(
-    useTaskBackgroundProcesses(task.id).map((process) => process.id),
+    useTaskBackgroundProcesses(task.id, sessionId).map((process) => process.id),
   );
 
   // A group's head line copies the step the agent is on, which lives in some

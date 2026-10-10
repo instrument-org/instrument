@@ -1,19 +1,26 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 
 import { Skeleton } from "../ui/skeleton";
 import { UsageStatsTooltip, UsageSummaryText } from "../usage-stats-tooltip";
 
 /**
- * A task's messages and tokens across every session it ran, for a developer
- * reading the task header. Live, so a running task's totals climb as it
- * streams; the tooltip breaks the tokens down and adds the time spent.
+ * A task's messages and tokens, for a developer reading the task header: its
+ * own session's, in the chat's record it runs in. Live, so a running task's
+ * totals climb as it streams; the tooltip breaks the tokens down and adds the
+ * time spent.
  */
-export function TaskUsageSummary({ taskId }: { taskId: TaskId }) {
+export function TaskUsageSummary({
+  sessionId,
+  taskId,
+}: {
+  sessionId: StoreId.Session;
+  taskId: TaskId;
+}) {
   const { data } = useQuery(
     rpcClient.workspace.task.live.usageSummary.experimental_liveOptions({
-      input: { id: taskId },
+      input: { id: taskId, sessionId },
     }),
   );
 

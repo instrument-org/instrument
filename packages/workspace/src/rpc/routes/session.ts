@@ -109,22 +109,33 @@ const run = base
     context.workspaceConfig.captureEvent("session.run");
   });
 
+/**
+ * Stops a record's agents: a chat's, which is its own conversation and every
+ * task it started, since Stop means all of the user's work wherever it is
+ * running; or with `sessionId`, that one session alone, a task's say.
+ */
 const stop = base
-  .input(z.object({ id: TaskIdSchema }))
+  .input(
+    z.object({
+      id: TaskIdSchema,
+      sessionId: StoreId.SessionSchema.optional(),
+    }),
+  )
   .handler(async ({ context, input }) => {
+    const chatId = resolveChat(input.id);
+    if (chatId && input.sessionId === undefined) {
+      // A task's stop is the chat's doing, and not news to wake it with.
+      for (const forkId of await runningForks(chatId)) {
+        stopFork(chatId, forkId);
+      }
+    }
     context.workspaceRef.send({
       type: "stopSessions",
       value: {
         id: input.id,
+        ...(input.sessionId ? { sessionId: input.sessionId } : {}),
       },
     });
-    // A chat's work can be running in its tasks, and Stop means all of it.
-    const chatId = resolveChat(input.id);
-    if (chatId) {
-      for (const forkId of await runningForks(chatId)) {
-        stopFork(forkId);
-      }
-    }
 
     context.workspaceConfig.captureEvent("session.stopped");
   });

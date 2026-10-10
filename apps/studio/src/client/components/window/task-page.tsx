@@ -3,37 +3,34 @@ import { TaskUsageSummary } from "@/client/components/task/usage-summary";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { ChildTranscript } from "@/client/components/window/child-tasks";
-import { useNewestSessionId } from "@/client/components/window/newest-session";
+import { useChildTask } from "@/client/components/window/child-tasks-query";
 import { TaskMenu } from "@/client/components/window/task-menu";
-import { useIsTaskWorking } from "@/client/components/window/task-working";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { StopIcon } from "@phosphor-icons/react/Stop";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 
 /**
- * One task's own chat, in its chat's pane: how the user looks over the
- * conversation's shoulder. Headed by the task's title and its menu, which
+ * One task's own conversation, in its chat's pane: how the user looks over
+ * the agent's shoulder. Headed by the task's title and its menu, which
  * travel together so the menu reads as acting on the task named beside it.
  * A task that left commands running shows how many, opening onto a list
  * that stops them. While the task works, a Stop at the header's far end
- * halts it; in developer mode the task's message and token
- * totals sit beside it. Nothing names the chat: the page stands under it.
+ * halts it; in developer mode the task's message and token totals sit
+ * beside it. Nothing names the chat: the page stands under it.
  */
-export function TaskPage({ taskId }: { taskId: TaskId }) {
-  const task = useQuery(
-    rpcClient.workspace.task.live.byId.experimental_liveOptions({
-      input: { id: taskId },
-    }),
-  );
-  // The session the transcript below is showing, so the menu acts on what is
-  // on screen rather than on whichever session it would pick for itself.
-  const sessionId = useNewestSessionId(taskId);
-  const isWorking = useIsTaskWorking(taskId);
+export function TaskPage({
+  chat,
+  sessionId,
+}: {
+  chat: ChatId;
+  sessionId: StoreId.Session;
+}) {
+  const task = useChildTask(chat, sessionId);
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
   const isDeveloperMode = useDeveloperMode();
-  if (!task.data) {
+  if (!task) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-5" />
@@ -43,19 +40,19 @@ export function TaskPage({ taskId }: { taskId: TaskId }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2">
-        <h2 className="min-w-0 truncate text-sm font-medium">
-          {task.data.title}
-        </h2>
-        <TaskMenu sessionId={sessionId} taskId={taskId} />
-        <TaskBackgroundProcesses taskId={taskId} />
+        <h2 className="min-w-0 truncate text-sm font-medium">{task.title}</h2>
+        <TaskMenu sessionId={sessionId} taskId={chat} />
+        <TaskBackgroundProcesses sessionId={sessionId} taskId={chat} />
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {isDeveloperMode && <TaskUsageSummary taskId={taskId} />}
-          {isWorking && (
+          {isDeveloperMode && (
+            <TaskUsageSummary sessionId={sessionId} taskId={chat} />
+          )}
+          {task.stoppable && (
             <Button
               className="shrink-0"
               disabled={stop.isPending}
               onClick={() => {
-                stop.mutate({ id: taskId });
+                stop.mutate({ id: chat, sessionId });
               }}
               size="xs"
               variant="outline"
@@ -67,7 +64,12 @@ export function TaskPage({ taskId }: { taskId: TaskId }) {
         </div>
       </div>
       <div className="min-h-0 flex-1">
-        <ChildTranscript key={taskId} task={task.data} />
+        <ChildTranscript
+          chat={chat}
+          isWorking={task.stoppable}
+          key={sessionId}
+          sessionId={sessionId}
+        />
       </div>
     </div>
   );

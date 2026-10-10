@@ -2,9 +2,8 @@ import { sum } from "radashi";
 
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
-import { type TaskId } from "../../schemas/task-id";
 import { isToolPart } from "../is-tool-part";
-import { latestMessages } from "./activity";
+import { ownMessages, type SessionRef } from "./activity";
 
 /**
  * Characters per token for the estimate of what a step has written. Rough on
@@ -14,14 +13,14 @@ import { latestMessages } from "./activity";
 const CHARS_PER_TOKEN = 4;
 
 /**
- * The step a working task is in, as one line read from its latest transcript.
+ * The step a working task is in, as one line read from its own transcript.
  * Undefined when the task has no turn to read.
  */
 export async function stepInFlight(
-  taskId: TaskId,
+  ref: SessionRef,
   now = new Date(),
 ): Promise<string | undefined> {
-  return stepInFlightIn(await latestMessages(taskId), now);
+  return stepInFlightIn(await ownMessages(ref), now);
 }
 
 /**

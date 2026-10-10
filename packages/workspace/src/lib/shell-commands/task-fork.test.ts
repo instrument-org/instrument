@@ -9,7 +9,7 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { type TaskId } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
@@ -23,14 +23,12 @@ import {
 } from "../prepare-model-messages";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
-import { chatPathOfWorkDir, workDir } from "../work-dir";
 import { effectiveFolderAccess } from "../workspace-fs-layout";
 import { getTaskState, setTaskState } from "../task-record";
-import { getTaskSettings } from "../task-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { folderSubcommand } from "./task/folder";
-import { newSubcommand, withoutCall } from "./task/fork";
+import { newSubcommand } from "./task/fork";
 import { type HandOff, withHandOffs } from "./task-hand-off";
 
 const runNew = subcommandRunner(newSubcommand, "task new");
@@ -70,6 +68,7 @@ let counter = 0;
 let rootDir: string;
 let context: TaskCommandContext;
 let chatSessionId: StoreId.Session;
+let chatMessages: SessionMessage.WithParts[];
 
 beforeEach(async () => {
   counter += 1;
@@ -99,7 +98,11 @@ beforeEach(async () => {
     chatSessionId,
     ChatIdSchema.parse(`2026-10-06-files-${counter}`),
   );
+  chatMessages = conversation(chatSessionId);
   context = {
+    // The `bash` part `task new` runs in: the last call of the reply in
+    // flight.
+    callPartId: callOf(chatMessages).metadata.id,
     chatId,
     remainingYieldMs: () => Number.POSITIVE_INFINITY,
     sessionId: chatSessionId,
@@ -122,7 +125,7 @@ beforeEach(async () => {
     path.join(taskDir(chatId), "attachments", "list.csv"),
     "a,b\n",
   );
-  for (const message of conversation(chatSessionId)) {
+  for (const message of chatMessages) {
     const saved = await Store.saveMessageWithParts(message, chatId);
     if (saved.isErr()) {
       throw saved.error;
@@ -245,14 +248,21 @@ function conversation(sessionId: StoreId.Session): SessionMessage.WithParts[] {
   ];
 }
 
+/** The `task new` call of the reply in flight at the conversation's end. */
+function callOf(messages: SessionMessage.WithParts[]) {
+  const call = messages.at(-1)?.parts.find((part) => part.type === "tool-bash");
+  if (!call) {
+    throw new Error("the conversation ends on a fork call");
+  }
+  return call;
+}
+
 async function fork(args: string[] = []) {
   const handOffs: HandOff[] = [];
   const result = await withHandOffs(handOffs, () =>
     runNew(
       ["--name", "Rename photos", ...args],
       context,
-      // A directive of its own per test, since the fork's id comes from it
-      // and a store handle is kept per id.
       encodeUtf8ToBytes(
         `Batch ${counter}: rename every photo in Downloads by its date taken.`,
       ),
@@ -261,70 +271,64 @@ async function fork(args: string[] = []) {
   return { handOffs, result };
 }
 
-function forkId(handOffs: HandOff[]): TaskId {
-  return TaskIdSchema.parse(handOffs[0]?.taskId);
+function forkId(handOffs: HandOff[]): StoreId.Session {
+  return StoreId.SessionSchema.parse(handOffs[0]?.taskId);
+}
+
+function started() {
+  const start = sent.events.find(
+    (
+      event,
+    ): event is {
+      type: "createSession";
+      value: {
+        id: TaskId;
+        message: SessionMessage.UserWithParts;
+        sessionId: StoreId.Session;
+      };
+    } =>
+      typeof event === "object" &&
+      event !== null &&
+      "type" in event &&
+      event.type === "createSession",
+  );
+  if (!start) {
+    throw new Error("the task did not start");
+  }
+  return start.value;
 }
 
 describe("task new", () => {
-  it("starts the agent on the chat's conversation, then the directive", async () => {
+  it("starts a session in the chat's store, carrying on from before the step that started it", async () => {
     const { handOffs, result } = await fork();
     expect(result.exitCode).toBe(0);
     expect(handOffs.map((handOff) => handOff.kind)).toEqual(["created"]);
     const id = forkId(handOffs);
-    expect(await getTaskSettings(taskDir(id))).toMatchObject({
-      fork: true,
-      workdir: context.chatId,
+
+    const session = (
+      await Store.getSession(id, context.chatId)
+    )._unsafeUnwrap();
+    // The last message the step that called `task new` was sent: the
+    // finished `ls`, not the reply still in flight.
+    expect(session).toMatchObject({
+      forkedAtMessageId: chatMessages[2]?.id,
+      parentId: chatSessionId,
+      status: "running",
+      title: "Rename photos",
     });
-
-    const sessions = await Store.getSessions(id);
-    const sessionId = sessions._unsafeUnwrap()[0]?.id;
-    if (!sessionId) {
-      throw new Error("the fork has no session");
-    }
-    const copied = (
-      await Store.getMessagesWithParts({ sessionId, taskId: id })
-    )._unsafeUnwrap();
-    const chat = (
-      await Store.getMessagesWithParts({
-        sessionId: chatSessionId,
-        taskId: context.chatId,
-      })
-    )._unsafeUnwrap();
-
-    // Same ids in the same order, filed under the fork's session and marked
-    // as inherited.
-    expect(copied.map((message) => message.id)).toEqual(
-      chat.map((message) => message.id),
-    );
+    // Not one of the chat's own sessions, and no record or folder of its own.
     expect(
-      copied.every(
-        (message) =>
-          message.metadata.sessionId === sessionId &&
-          message.metadata.inherited === true &&
-          message.parts.every((part) => part.metadata.sessionId === sessionId),
-      ),
-    ).toBe(true);
-    // The fork call itself, unanswered, stays behind; the line before it comes.
-    expect(copied.at(-1)?.parts.map((part) => part.type)).toEqual(["text"]);
-    // The chat already counted what its replies spent.
-    expect(
-      copied.flatMap((message) =>
-        message.role === "assistant" ? [message.metadata.usage] : [],
-      ),
-    ).toEqual([undefined, undefined]);
+      (await Store.getSessions(context.chatId))
+        ._unsafeUnwrap()
+        .map((one) => one.id),
+    ).toEqual([chatSessionId]);
+    expect(await fs.readdir(taskDir(context.chatId))).not.toContain("tasks");
 
-    const start = sent.events.find(
-      (event): event is { type: "createSession"; value: unknown } =>
-        typeof event === "object" &&
-        event !== null &&
-        "type" in event &&
-        event.type === "createSession",
-    );
-    expect(start?.value).toMatchObject({ id });
+    const start = started();
+    expect(start).toMatchObject({ id: context.chatId, sessionId: id });
     // The chat's words, not the user's: no text of the user's, and no folder
-    // list the inherited conversation already gives.
-    const parts = (start?.value as { message: SessionMessage.WithParts })
-      .message.parts;
+    // list the conversation it carries on from already gives.
+    const { parts } = start.message;
     expect(parts.filter((part) => part.type === "text")).toEqual([]);
     expect(parts.some((part) => part.type === "data-attachments")).toBe(false);
     expect(parts.find((part) => part.type === "data-fromChat")).toMatchObject({
@@ -335,22 +339,117 @@ describe("task new", () => {
     });
   });
 
-  it("works in the chat's own folder, keeping only its record in its own", async () => {
+  it("reads the chat's messages as its own history, copying none", async () => {
     const { handOffs } = await fork();
     const id = forkId(handOffs);
-    expect(workDir(id)).toBe(taskDir(context.chatId));
-    // What it reports in its own `/task` paths is the chat's `/task` too.
-    expect(chatPathOfWorkDir(id, context.chatId)).toBe("/task");
-    await expect(
-      fs.readFile(path.join(workDir(id), "attachments", "list.csv"), "utf8"),
-    ).resolves.toBe("a,b\n");
-    expect(await fs.readdir(taskDir(id))).toEqual([".instrument"]);
+    (
+      await Store.saveMessageWithParts(started().message, context.chatId)
+    )._unsafeUnwrap();
+
+    const history = (
+      await Store.getMessagesWithParts({
+        sessionId: id,
+        taskId: context.chatId,
+      })
+    )._unsafeUnwrap();
+    expect(history.map((message) => message.id)).toEqual([
+      ...chatMessages.slice(0, 3).map((message) => message.id),
+      started().message.id,
+    ]);
+    // Still the chat's, filed under its session.
+    expect(
+      history
+        .slice(0, 3)
+        .every((message) => message.metadata.sessionId === chatSessionId),
+    ).toBe(true);
+    const own = (
+      await Store.getMessagesWithParts({
+        inherited: false,
+        sessionId: id,
+        taskId: context.chatId,
+      })
+    )._unsafeUnwrap();
+    expect(own.map((message) => message.id)).toEqual([started().message.id]);
   });
 
-  it("says it started, with nothing of a task folder", async () => {
-    const { handOffs, result } = await fork();
-    expect(result.stdout).toContain(`Started task ${forkId(handOffs)}`);
-    expect(result.stdout).not.toContain("/tasks");
+  it("carries on from before its step even once its call was answered and a newer step followed", async () => {
+    // A call that ran past its yield is answered "still running in the
+    // background" while the chat goes on; a task that read that answer would
+    // take its own start for the work already under way.
+    const last = chatMessages.at(-1);
+    if (last?.role !== "assistant") {
+      throw new Error("the conversation ends on a reply");
+    }
+    const answered: SessionMessage.WithParts = {
+      ...last,
+      parts: last.parts.map(
+        (part): SessionMessagePart.Type =>
+          part.type === "tool-bash"
+            ? {
+                input: {
+                  command: "task new --name 'Rename photos'",
+                  explanation: "Forking",
+                  yieldMs: 1000,
+                },
+                metadata: { ...part.metadata, endedAt: new Date() },
+                output: {
+                  command: "task new --name 'Rename photos'",
+                  commands: ["task new --name 'Rename photos'"],
+                  durationMs: 1000,
+                  omittedBytes: 0,
+                  output: "",
+                  processId: "bg_1",
+                },
+                state: "output-available",
+                toolCallId: part.toolCallId,
+                type: "tool-bash",
+              }
+            : part,
+      ),
+    };
+    (
+      await Store.saveMessageWithParts(answered, context.chatId)
+    )._unsafeUnwrap();
+    const newerId = StoreId.newMessageId();
+    (
+      await Store.saveMessageWithParts(
+        {
+          ...answered,
+          id: newerId,
+          parts: answered.parts
+            .filter((part) => part.type === "text")
+            .map((part) => ({
+              ...part,
+              metadata: {
+                ...part.metadata,
+                id: StoreId.newPartId(),
+                messageId: newerId,
+              },
+            })),
+        },
+        context.chatId,
+      )
+    )._unsafeUnwrap();
+
+    const { handOffs } = await fork();
+    expect(
+      (await Store.getSession(forkId(handOffs), context.chatId))._unsafeUnwrap()
+        .forkedAtMessageId,
+    ).toBe(chatMessages[2]?.id);
+  });
+
+  it("says it started by its handle, with nothing of a task folder", async () => {
+    const first = await fork();
+    expect(first.result.stdout).toContain('Started task t1 ("Rename photos")');
+    expect(first.result.stdout).not.toContain("/tasks");
+    // Handed out in the order the chat starts them, and kept.
+    const second = await fork();
+    expect(second.result.stdout).toContain("Started task t2");
+    expect(
+      (
+        await Store.getSession(forkId(first.handOffs), context.chatId)
+      )._unsafeUnwrap().handle,
+    ).toBe("t1");
   });
 
   it("hands it a command of the chat's still running, to wait on", async () => {
@@ -361,7 +460,7 @@ describe("task new", () => {
     const { handOffs } = await fork(["--job", "%1"]);
     const id = forkId(handOffs);
     expect(jobs.handed).toMatchObject([
-      { from: chatSessionId, ids: ["bg_1"], toTaskId: id },
+      { from: chatSessionId, ids: ["bg_1"], to: id, toTaskId: context.chatId },
     ]);
     const start = JSON.stringify(sent.events.at(-1));
     expect(start).toContain("yours now under the same ids: bg_1");
@@ -382,48 +481,47 @@ describe("task new", () => {
     }
   });
 
-  it("sends the chat's request as the prefix of its first one", async () => {
-    const { handOffs } = await fork();
-    const id = forkId(handOffs);
-    const start = sent.events.find(
-      (event): event is { type: "createSession"; value: { message: never } } =>
-        typeof event === "object" &&
-        event !== null &&
-        "type" in event &&
-        event.type === "createSession",
-    );
-    const sessionId = (await Store.getSessions(id))._unsafeUnwrap()[0]?.id;
-    if (!start || !sessionId) {
-      throw new Error("the fork did not start");
-    }
-    // The session machine saves the directive before the first request.
-    (await Store.saveMessageWithParts(start.value.message, id))._unsafeUnwrap();
-
+  it("sends the request that started it as the prefix of its first one", async () => {
     const model = createMockAIGatewayModel();
-    const request = async (taskId: TaskId, session: StoreId.Session) =>
+    const request = async (sessionId: StoreId.Session) =>
       (
         await prepareModelMessages({
           agent: instrumentAgent,
           model,
-          sessionId: session,
+          sessionId,
           signal: new AbortController().signal,
-          taskId,
+          taskId: context.chatId,
         })
       )
         ._unsafeUnwrap()
         // Where the cache breakpoints sit moves with the newest message, and
         // is a request option rather than bytes of the prefix.
         .map(({ providerOptions: _options, ...message }) => message);
-    const chat = await request(context.chatId, chatSessionId);
-    const forked = await request(id, sessionId);
+    // What the chat sent for the step that called `task new`: everything
+    // before the reply that step wrote.
+    const reply = chatMessages.at(-1);
+    if (!reply) {
+      throw new Error("the conversation is empty");
+    }
+    (
+      await Store.removeMessage(reply.id, chatSessionId, context.chatId)
+    )._unsafeUnwrap();
+    const chat = await request(chatSessionId);
+    (await Store.saveMessageWithParts(reply, context.chatId))._unsafeUnwrap();
 
-    // System prompt, the ask, the `ls` call and its result, and the line.
+    const { handOffs } = await fork();
+    // The session machine saves the assignment before the first request.
+    (
+      await Store.saveMessageWithParts(started().message, context.chatId)
+    )._unsafeUnwrap();
+    const forked = await request(forkId(handOffs));
+
+    // System prompt, the ask, and the `ls` call and its result.
     expect(chat.map((message) => message.role)).toEqual([
       "system",
       "user",
       "assistant",
       "tool",
-      "assistant",
     ]);
     expect(forked.slice(0, chat.length)).toEqual(chat);
     expect(forked).toHaveLength(chat.length + 1);
@@ -439,120 +537,19 @@ describe("task new", () => {
     expect(assignment).not.toContain("attached_folders");
   });
 
-  it("reaches exactly the chat's folders, and leaves them alone", async () => {
-    const reach = Object.values(await folderReach(context.chatId));
+  it("leaves the chat's folders alone, reaching them as they stand", async () => {
     const before = (await getTaskState(taskDir(context.chatId)))
       .attachedFolders;
-
-    const { handOffs } = await fork();
-
+    await fork();
     expect(
       (await getTaskState(taskDir(context.chatId))).attachedFolders,
     ).toEqual(before);
-    const forkFolders = Object.values(
-      (await getTaskState(taskDir(forkId(handOffs)))).attachedFolders ?? {},
-    );
-    expect(forkFolders.map((folder) => folder.path).toSorted()).toEqual(
-      reach.map((folder) => folder.path).toSorted(),
-    );
-  });
-});
-
-describe("withoutCall", () => {
-  /**
-   * The conversation with the fork call answered "still running in the
-   * background", as a call that ran past its yield is, and a newer step the
-   * chat wrote after it.
-   */
-  function backgrounded() {
-    const messages = conversation(chatSessionId);
-    const last = messages.at(-1);
-    if (last?.role !== "assistant") {
-      throw new Error("the conversation ends on a reply");
-    }
-    const call = last.parts.find((part) => part.type === "tool-bash");
-    if (!call) {
-      throw new Error("the reply has no fork call");
-    }
-    const answered: SessionMessage.WithParts = {
-      ...last,
-      parts: last.parts.map(
-        (part): SessionMessagePart.Type =>
-          part.type === "tool-bash"
-            ? {
-                input: {
-                  command: "task new --name 'Rename photos'",
-                  explanation: "Forking",
-                  yieldMs: 1000,
-                },
-                metadata: {
-                  ...part.metadata,
-                  endedAt: new Date("2026-10-06T10:00:01.000Z"),
-                },
-                output: {
-                  command: "task new --name 'Rename photos'",
-                  commands: ["task new --name 'Rename photos'"],
-                  durationMs: 1000,
-                  omittedBytes: 0,
-                  output: "",
-                  processId: "bg_1",
-                },
-                state: "output-available",
-                toolCallId: part.toolCallId,
-                type: "tool-bash",
-              }
-            : part,
-      ),
-    };
-    const newer: SessionMessage.WithParts = {
-      ...answered,
-      id: StoreId.newMessageId(),
-      parts: answered.parts.filter((part) => part.type === "text"),
-    };
-    return {
-      callId: call.metadata.id,
-      messages: [...messages.slice(0, -1), answered, newer],
-      original: messages,
-    };
-  }
-
-  // A fork that inherited the answer read its own start as the work already
-  // under way, and waited on it.
-  it("leaves out the forking call even once it was answered and a newer step followed", () => {
-    const { callId, messages, original } = backgrounded();
-    const kept = withoutCall(callId)(messages);
-    expect(kept).toHaveLength(messages.length);
-    expect(
-      kept.flatMap((message) => message.parts).map((part) => part.metadata.id),
-    ).not.toContain(callId);
-    // Everything before the step that started it stays as it was, which is
-    // the prefix a provider has cached.
-    expect(kept.slice(0, original.length - 1)).toEqual(original.slice(0, -1));
-  });
-
-  it("drops a step whole when the forking call was all of it", () => {
-    const messages = conversation(chatSessionId);
-    const last = messages.at(-1);
-    const call = last?.parts.find((part) => part.type === "tool-bash");
-    if (!last || !call) {
-      throw new Error("the conversation ends on a fork call");
-    }
-    const onlyCall = { ...last, parts: [call] };
-    expect(
-      withoutCall(call.metadata.id)([...messages.slice(0, -1), onlyCall]),
-    ).toEqual(messages.slice(0, -1));
-  });
-
-  it("keeps everything when the call is not known", () => {
-    const { messages } = backgrounded();
-    expect(withoutCall(undefined)(messages)).toEqual(messages);
   });
 });
 
 describe("task folder", () => {
-  it("gives the chat and its running forks a folder inside one it reaches", async () => {
-    const { handOffs } = await fork();
-    const id = forkId(handOffs);
+  it("gives the chat a folder inside one it reaches, which its tasks reach too", async () => {
+    await fork();
     const writable = Object.values(await folderReach(context.chatId)).find(
       (folder) => effectiveFolderAccess(folder) === "read-write",
     );
@@ -566,11 +563,10 @@ describe("task folder", () => {
       context,
     );
     expect(result.stdout).toContain("You now have");
-    const held = (dir: TaskId) =>
-      getTaskState(taskDir(dir)).then((state) =>
-        Object.values(state.attachedFolders ?? {}).map((folder) => folder.path),
-      );
-    expect(await held(context.chatId)).toContain(inside);
-    expect(await held(id)).toContain(inside);
+    expect(
+      Object.values(await folderReach(context.chatId)).map(
+        (folder) => folder.path,
+      ),
+    ).toContain(inside);
   });
 });

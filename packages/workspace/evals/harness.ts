@@ -56,7 +56,7 @@ import {
   resolveRegistryDir,
   write,
 } from "./utils";
-import { resolveChat } from "../src/lib/record-folders";
+import { resolveChat, sessionOfChat } from "../src/lib/record-folders";
 import { ensureChat } from "../src/lib/chat/chat-records";
 import { createTopic, updateTopic } from "../src/lib/chat/topics";
 import { StoreId } from "../src/schemas/store-id";
@@ -104,8 +104,8 @@ function evalPrefix(name: string): string {
 export const HOUSE_FLOOR = "zai-org/glm-5.3-flash";
 
 export interface CompletedRun {
-  /** Every task this run's task started, however deep. Empty unless it forked. */
-  childTaskIds: TaskId[];
+  /** Every task this run's chat started, by its session. Empty unless it forked. */
+  childTaskIds: StoreId.Session[];
   /** Approximate USD, when the model's price is known. See `formatCost`. */
   costUSD?: number;
   label: string;
@@ -122,14 +122,20 @@ export interface CompletedRun {
    * model, where `modelURI` already says it.
    */
   resolvedModelId?: string;
+  /**
+   * The session the case's prompt went to: the chat's own, or for a task
+   * case, the task the run started from an empty chat.
+   */
+  sessionId: StoreId.Session;
   /** Absent when the agent ended the turn itself. */
   stoppedBy?: RunStop;
+  /** The chat the run is in. */
   taskId: TaskId;
   /** This task plus every task it started. Equal to `usage` when it forked nothing. */
   treeUsage: { inputTokens: number; outputTokens: number; totalTokens: number };
   /** 1-based, and only meaningful when `repeat` asked for more than one. */
   trial: number;
-  /** This task alone, which for a chat is the conversation only. */
+  /** The run's session alone, which for a chat is the conversation only. */
   usage: { inputTokens: number; outputTokens: number; totalTokens: number };
 }
 
@@ -401,7 +407,11 @@ interface AssertionContext {
 }
 
 interface ChildTaskSessions {
+  /** The task's session, which is its id. */
+  sessionId: StoreId.Session;
+  /** Its own messages, without the conversation it carries on from. */
   sessions: Session.WithMessagesAndParts[];
+  /** The chat it is in, whose folder it works in. */
   taskId: TaskId;
   title: string;
 }
@@ -722,6 +732,8 @@ export async function runEvals(
         void call(sessionRoute.stop, { id }, { context });
       };
 
+      // The whole chat's spend, its tasks' included: a runaway task is as much
+      // the run's as a runaway conversation.
       const enforcementTimer = setInterval(() => {
         void getTaskUsageSummary(id).then((usage) => {
           enforceCaps(usage.totalTokens);
@@ -731,7 +743,12 @@ export async function runEvals(
       void (async () => {
         try {
           for await (const event of partUpdates) {
-            if (event.id !== id) {
+            // The run's own session: a task's parts are in the chat's store
+            // too, and are the task's.
+            if (
+              event.id !== id ||
+              event.part.metadata.sessionId !== sessionId
+            ) {
               continue;
             }
 
@@ -957,7 +974,7 @@ export async function runEvals(
         // and that turn's end is the one still awaited; sent to a session at
         // rest, it starts a turn of its own.
         await evalCase.beforeFollowUp?.(position);
-        const steering = isTimed(followUp) && isWorking(id);
+        const steering = isTimed(followUp) && isWorking(id, sessionId);
         write(
           `${evalPrefix(label)}${c.dim}Follow-up${steering ? " (mid-turn)" : ""}: ${followUp.prompt.slice(0, 60)}${c.reset}\n`,
         );
@@ -1017,13 +1034,15 @@ export async function runEvals(
         );
       }
 
-      const usage = await getTaskUsageSummary(id);
+      const usage = await getTaskUsageSummary(id, { sessionId });
       // What a forking run actually spent is the conversation plus every
       // task it started; the conversation's own total is a fraction of it, and
       // reporting only that would make forking look free.
-      const childTaskIds = await treeTaskIds(id);
+      const childTaskIds = await childTasksOf(id, sessionId);
       const childUsages = await Promise.all(
-        childTaskIds.map((childId) => getTaskUsageSummary(childId)),
+        childTaskIds.map((childId) =>
+          getTaskUsageSummary(id, { sessionId: childId }),
+        ),
       );
       const treeUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
       for (const one of [usage, ...childUsages]) {
@@ -1051,7 +1070,7 @@ export async function runEvals(
         );
       }
       const metrics = {
-        ...(await metricsFor(id, childTaskIds, {
+        ...(await metricsFor(id, sessionId, childTaskIds, {
           doneAt,
           firstTextAt,
           startedAt,
@@ -1091,6 +1110,7 @@ export async function runEvals(
         name: evalCase.name,
         overBudget,
         resolvedModelId: catalog.aliasTargets.get(uri.split("?")[0] ?? uri),
+        sessionId,
         stoppedBy,
         taskId: id,
         treeUsage,
@@ -1125,28 +1145,74 @@ export function runKey(run: {
 }
 
 /**
- * Every session of a task, parts included, which is what an assertion reads and
- * what a suite needs to render anything of its own afterwards. Exported because
- * each standalone runner had otherwise written this same function privately.
+ * A run's session, parts included, which is what an assertion reads and what
+ * a suite needs to render anything of its own afterwards: the one named, or a
+ * chat's own conversation. A task's comes with only its own messages, never
+ * the conversation it carries on from. Exported because each standalone
+ * runner had otherwise written this same function privately.
  */
 export async function sessionsFor(
   taskId: TaskId,
+  sessionId?: StoreId.Session,
 ): Promise<Session.WithMessagesAndParts[]> {
-  const list = await Store.getSessions(taskId, { includeChildSessions: true });
-  if (list.isErr()) {
+  const ids = sessionId
+    ? [sessionId]
+    : (await Store.getSessions(taskId)).map((list) =>
+        list.map((session) => session.id),
+      );
+  if (!Array.isArray(ids) && ids.isErr()) {
     return [];
   }
   const sessions: Session.WithMessagesAndParts[] = [];
-  for (const session of list.value) {
-    const withParts = await Store.getSessionWithMessagesAndParts(
-      session.id,
+  for (const id of Array.isArray(ids) ? ids : ids.value) {
+    const session = await Store.getSession(id, taskId);
+    const messages = await Store.getMessagesWithParts({
+      inherited: false,
+      sessionId: id,
       taskId,
-    );
-    if (withParts.isOk()) {
-      sessions.push(withParts.value);
+    });
+    if (session.isOk() && messages.isOk()) {
+      sessions.push({ ...session.value, messages: messages.value });
     }
   }
   return sessions;
+}
+
+/**
+ * The tasks a run started: those of its chat when the run is the chat's own
+ * conversation, and none for a task case, whose session starts nothing.
+ */
+async function childTasksOf(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<StoreId.Session[]> {
+  const chatId = resolveChat(taskId);
+  if (!chatId || sessionOfChat(chatId) !== sessionId) {
+    return [];
+  }
+  return (await listChildTasks(chatId)).map((task) => task.id);
+}
+
+/**
+ * The tasks a run's chat started, each with its own messages: what a chat
+ * case is scored on when the work happened in them.
+ */
+export async function childSessionsOf(
+  taskId: TaskId,
+  sessionId: StoreId.Session,
+): Promise<ChildTaskSessions[]> {
+  const chatId = resolveChat(taskId);
+  if (!chatId || sessionOfChat(chatId) !== sessionId) {
+    return [];
+  }
+  return Promise.all(
+    (await listChildTasks(chatId)).map(async (child) => ({
+      sessionId: child.id,
+      sessions: await sessionsFor(chatId, child.id),
+      taskId: chatId,
+      title: child.title,
+    })),
+  );
 }
 
 /**
@@ -1254,28 +1320,22 @@ const REFUSED =
 /** See `RunMetrics`. */
 async function metricsFor(
   taskId: TaskId,
-  childTaskIds: TaskId[],
+  sessionId: StoreId.Session,
+  childTaskIds: StoreId.Session[],
   {
     doneAt,
     firstTextAt,
     startedAt,
   }: { doneAt: number; firstTextAt?: number; startedAt: number },
 ): Promise<Omit<RunMetrics, "cacheReadTokens">> {
-  const own = await Store.getSessions(taskId);
   let visibleChars = 0;
   const taskCommands = { new: 0 };
   const turns: NonNullable<RunMetrics["turns"]> = [];
   const turnShapes: TurnShape[] = [];
-  for (const session of own.isOk() ? own.value : []) {
-    const withParts = await Store.getSessionWithMessagesAndParts(
-      session.id,
-      taskId,
-    );
-    turns.push(...turnsOf(withParts.isOk() ? withParts.value.messages : []));
-    turnShapes.push(
-      ...turnShapesOf(withParts.isOk() ? withParts.value.messages : []),
-    );
-    for (const message of withParts.isOk() ? withParts.value.messages : []) {
+  for (const session of await sessionsFor(taskId, sessionId)) {
+    turns.push(...turnsOf(session.messages));
+    turnShapes.push(...turnShapesOf(session.messages));
+    for (const message of session.messages) {
       if (message.role !== "assistant") {
         continue;
       }
@@ -1294,8 +1354,8 @@ async function metricsFor(
   }
   let toolCalls = 0;
   const refusals = { all: 0, task: 0 };
-  for (const one of [taskId, ...childTaskIds]) {
-    for (const session of await sessionsFor(one)) {
+  for (const one of [sessionId, ...childTaskIds]) {
+    for (const session of await sessionsFor(taskId, one)) {
       for (const message of session.messages) {
         toolCalls += message.parts.filter((part) => isToolPart(part)).length;
         for (const part of message.parts) {
@@ -1340,11 +1400,7 @@ function turnShapesOf(
 ): TurnShape[] {
   const shapes: TurnShape[] = [];
   messages.forEach((message, index) => {
-    if (
-      message.role !== "user" ||
-      message.metadata.inherited ||
-      !isTypedByUser(message)
-    ) {
+    if (message.role !== "user" || !isTypedByUser(message)) {
       return;
     }
     const next = messages.findIndex(
@@ -1397,11 +1453,7 @@ function turnsOf(
 ): NonNullable<RunMetrics["turns"]> {
   const turns: NonNullable<RunMetrics["turns"]> = [];
   messages.forEach((message, index) => {
-    if (
-      message.role !== "user" ||
-      message.metadata.inherited ||
-      !isTypedByUser(message)
-    ) {
+    if (message.role !== "user" || !isTypedByUser(message)) {
       return;
     }
     const next = messages.findIndex(
@@ -1458,15 +1510,18 @@ async function standInForTasks(
   const resolved = resolveChat(chatId);
   for (const child of resolved ? await listChildTasks(resolved) : []) {
     expectStop(child.id);
-    workspaceRef.send({ type: "stopSessions", value: { id: child.id } });
-    while (isWorking(child.id)) {
+    workspaceRef.send({
+      type: "stopSessions",
+      value: { id: chatId, sessionId: child.id },
+    });
+    while (isWorking(chatId, child.id)) {
       await new Promise((resolve) => setTimeout(resolve, TREE_POLL_MS));
     }
     for (const tab of leavesOpen) {
       standInWindow.openPage(tab);
     }
     wakeChatWithTaskEvent(
-      chatId,
+      child.chatId,
       {
         status: "done",
         summary: said,
@@ -1479,30 +1534,13 @@ async function standInForTasks(
               })),
             }
           : {}),
+        handle: child.handle,
         taskId: child.id,
         title: child.title,
       },
       workspaceRef,
     );
   }
-}
-
-/** Every task descended from this one, however deep. */
-async function treeTaskIds(rootTaskId: TaskId): Promise<TaskId[]> {
-  const found: TaskId[] = [];
-  const frontier = [rootTaskId];
-  while (frontier.length > 0) {
-    const next = frontier.pop();
-    if (next === undefined) {
-      break;
-    }
-    const chatId = resolveChat(next);
-    for (const child of chatId ? await listChildTasks(chatId) : []) {
-      found.push(child.id);
-      frontier.push(child.id);
-    }
-  }
-  return found;
 }
 
 async function waitForSessionDone(
@@ -1544,11 +1582,11 @@ async function waitForSessionDone(
 }
 
 /**
- * Waits until no task in this run's tree has been working for a continuous
- * stretch, so a lull between a child finishing and its wake reaching the
- * chat is not mistaken for the end.
+ * Waits until no session of this run's chat, its own or a task's, has been
+ * working for a continuous stretch, so a lull between a child finishing and
+ * its wake reaching the chat is not mistaken for the end.
  *
- * Scoped to the tree rather than the workspace because one workspace holds
+ * Scoped to the chat rather than the workspace because one workspace holds
  * every concurrent run of a suite, and waiting on all of them would make each
  * run as long as the slowest.
  */
@@ -1559,9 +1597,7 @@ async function waitForTreeQuiet(
   const deadline = Date.now() + timeoutMs;
   let quietSince: number | undefined;
   while (Date.now() < deadline) {
-    const working = [rootTaskId, ...(await treeTaskIds(rootTaskId))].some(
-      (taskId) => isWorking(taskId),
-    );
+    const working = isWorking(rootTaskId);
     if (working) {
       quietSince = undefined;
     } else {

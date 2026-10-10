@@ -16,20 +16,20 @@ import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { catalogEffort } from "@instrument-org/ai-gateway/client";
 import {
+  type ChatId,
   decodeBrowserTargetId,
   isFolderPath,
+  type StoreId,
   type Task,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { TabIcon } from "./browser-tabs";
 import { type OpenOptions, useWindow } from "./context";
-import { useNewestSessionId } from "./newest-session";
-import { useIsTaskWorking } from "./task-working";
 import { windowTabsAtom } from "./window-tabs";
 
 const noop = () => {
@@ -38,22 +38,36 @@ const noop = () => {
 
 /**
  * A task's transcript, on its own screen, read the way it unfolded and kept
- * at its end while the task works. Nothing to type into: the user talks to
- * the chat, which talks to the task, so this is how they look over
- * its shoulder and not a second conversation.
+ * at its end while the task works: the chat's conversation it carries on
+ * from, then its own. Nothing to type into: the user talks to the chat,
+ * which talks to the task, so this is how they look over its shoulder and
+ * not a second conversation.
  */
-export function ChildTranscript({ task }: { task: Task }) {
-  const sessionId = useNewestSessionId(task.id);
-  const messages = useQuery(
-    rpcClient.workspace.message.live.list.experimental_liveOptions({
-      input: sessionId ? { id: task.id, sessionId } : skipToken,
+export function ChildTranscript({
+  chat,
+  isWorking,
+  sessionId,
+}: {
+  chat: ChatId;
+  isWorking: boolean;
+  sessionId: StoreId.Session;
+}) {
+  // The chat's record, which the task runs in: its folder, model and apps.
+  const record = useQuery(
+    rpcClient.workspace.task.live.byId.experimental_liveOptions({
+      input: { id: chat },
     }),
   );
-  const isWorking = useIsTaskWorking(task.id);
+  const messages = useQuery(
+    rpcClient.workspace.message.live.list.experimental_liveOptions({
+      input: { id: chat, sessionId },
+    }),
+  );
 
-  const openFile = useOpenFileNamedByTask(task.id);
+  const openFile = useOpenFileNamedByTask(chat);
 
-  if (!sessionId || !messages.data) {
+  const task = record.data;
+  if (!task || !messages.data) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-5" />
@@ -62,7 +76,7 @@ export function ChildTranscript({ task }: { task: Task }) {
   }
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <TaskBrief task={task} />
+      <TaskBrief task={task} taskSession={sessionId} />
       <MessageScrollerProvider
         autoScroll={isWorking}
         defaultScrollPosition="end"
@@ -227,19 +241,27 @@ function HeldTabChip({ sessionId }: { sessionId: string }) {
  * asked in, where it cannot be mistaken for a rule. Chips open to their full
  * value on hover.
  */
-function TaskBrief({ task }: { task: Task }) {
+function TaskBrief({
+  task,
+  taskSession,
+}: {
+  task: Task;
+  /** The task's session, in the chat's record `task` is. */
+  taskSession: StoreId.Session;
+}) {
   const taskId = task.id;
   const state = useQuery(
     rpcClient.workspace.task.state.get.queryOptions({ input: { id: taskId } }),
   );
-  // The workspace folder is every task's, so only the ones it was handed
-  // besides are worth a chip.
+  // The workspace folder is every task's, so only the ones its chat was
+  // handed besides are worth a chip.
   const folders = Object.values(state.data?.attachedFolders ?? {}).filter(
     (folder) => !isOutputFolder(folder.path),
   );
+  // The chat's tabs this task drives.
   const heldTabs = (state.data?.browserTabs ?? []).flatMap((held) => {
     const decoded = decodeBrowserTargetId(held.id);
-    return decoded ? [decoded.sessionId] : [];
+    return decoded && held.sessionId === taskSession ? [decoded.sessionId] : [];
   });
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-4 py-2 text-xs">

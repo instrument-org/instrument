@@ -10,15 +10,13 @@ import { TaskIdSchema } from "../schemas/task-id";
 import { WINDOW_ID } from "../schemas/window-id";
 import { chatFolderName } from "./generate-task-folder-name";
 import { getTasks } from "./get-tasks";
-import { initializeChat, initializeTask } from "./initialize-task";
+import { initializeChat } from "./initialize-task";
 import { newTaskId } from "./new-task-id";
 import {
   chatOf,
   chatOfSession,
   forgetRecord,
   forgetRecordFolders,
-  owningChat,
-  placeTask,
   recordDir,
   recordIdTaken,
   resolveChat,
@@ -51,19 +49,18 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-async function make(id: string, chatId: string) {
-  const taskId = TaskIdSchema.parse(id);
-  const made = await initializeTask(
-    {
-      chatId: ChatIdSchema.parse(chatId),
-      initialSettings: { name: id },
-      taskId,
-      workspaceConfig: getWorkspaceConfig(),
-    },
-    {},
+/**
+ * A task folder inside a chat, as an earlier version left a fork, which
+ * nothing reads now.
+ */
+async function leaveTaskFolder(chat: string, name: string) {
+  const dir = path.join(rootDir, "chats", chat, "tasks", name, ".instrument");
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(
+    path.join(dir, "settings.json"),
+    JSON.stringify({ fork: true, name, workdir: chat }),
   );
-  expect(made.isOk()).toBe(true);
-  return taskId;
+  return name;
 }
 
 async function makeChat(name: string, sessionId = SESSION) {
@@ -106,83 +103,41 @@ describe("chat folder names", () => {
 });
 
 describe("record folders", () => {
-  it("puts a chat under chats/ and its tasks inside it", async () => {
+  it("puts a chat under chats/, and knows no task folder inside one", async () => {
     const chat = await makeChat("2026-09-24-transcribe-a-note");
-    const child = await make("2026-09-24-transcribe-the-recording", chat);
+    const left = await leaveTaskFolder(chat, "2026-09-24-a-fork");
 
-    expect([chat, child].map((id) => relative(taskDir(id))))
-      .toMatchInlineSnapshot(`
-        [
-          "chats/2026-09-24-transcribe-a-note",
-          "chats/2026-09-24-transcribe-a-note/tasks/2026-09-24-transcribe-the-recording",
-        ]
-      `);
+    expect(relative(taskDir(chat))).toBe("chats/2026-09-24-transcribe-a-note");
     expect(chatOfSession(SESSION)).toBe(chat);
     expect(sessionOfChat(chat)).toBe(SESSION);
-    expect([resolveChat(chat), resolveChat(child)]).toEqual([chat, undefined]);
+    expect(resolveChat(chat)).toBe(chat);
+    expect(resolveRecord(left).isErr()).toBe(true);
     const { tasks } = await getTasks();
-    expect(
-      tasks
-        .map((task) => [task.id, task.isChat, task.isChat ? null : task.chatId])
-        .sort(),
-    ).toMatchInlineSnapshot(`
-      [
-        [
-          "2026-09-24-transcribe-a-note",
-          true,
-          null,
-        ],
-        [
-          "2026-09-24-transcribe-the-recording",
-          false,
-          "2026-09-24-transcribe-a-note",
-        ],
-      ]
-    `);
-    expect([owningChat(child), owningChat(chat)]).toEqual([chat, undefined]);
-    expect([chatOf(child), chatOf(chat)]).toEqual([chat, chat]);
+    expect(tasks.map((task) => [task.id, task.isChat])).toEqual([[chat, true]]);
+    expect(chatOf(chat)).toBe(chat);
     expect(relative(taskDir(WINDOW_ID))).toBe(".instrument/window");
     expect(recordIdTaken(WINDOW_ID)).toBe(true);
   });
 
-  it("finds chats and their tasks from disk in a fresh process", async () => {
+  it("finds chats from disk in a fresh process, and still no task inside one", async () => {
     const chat = await makeChat("2026-09-24-transcribe-a-note");
-    const child = await make("2026-09-24-transcribe-the-recording", chat);
+    const left = await leaveTaskFolder(chat, "2026-09-24-a-fork");
     forgetRecordFolders();
 
-    expect(relative(taskDir(child))).toBe(
-      "chats/2026-09-24-transcribe-a-note/tasks/2026-09-24-transcribe-the-recording",
-    );
     expect(chatOfSession(SESSION)).toBe(chat);
+    expect(resolveRecord(left).isErr()).toBe(true);
   });
 
-  it("keeps ids unique across chats and their tasks", async () => {
+  it("keeps ids unique across chats", async () => {
     const chat = await makeChat("2026-09-24-transcribe-a-note");
-    await make("taken", chat);
 
-    expect(recordIdTaken("taken")).toBe(true);
     expect(recordIdTaken(chat)).toBe(true);
     expect(
       await newTaskId({
-        preferredFolderName: TaskIdSchema.parse("taken"),
+        preferredFolderName: TaskIdSchema.parse(chat),
         workspaceConfig: getWorkspaceConfig(),
       }),
-    ).not.toBe("taken");
-
-    forgetRecord(TaskIdSchema.parse("taken"));
-    expect(recordIdTaken("taken")).toBe(false);
-  });
-
-  it("refuses a task id another chat has just taken, before either folder exists", async () => {
-    const one = await makeChat("2026-09-24-one");
-    const two = await makeChat("2026-09-24-two", StoreId.newSessionId());
-    const id = TaskIdSchema.parse("2026-09-24-same-name");
-    placeTask(id, one);
-
-    expect(() => placeTask(id, two)).toThrow("already has the id");
-    expect(relative(taskDir(id))).toBe(
-      "chats/2026-09-24-one/tasks/2026-09-24-same-name",
-    );
+    ).not.toBe(chat);
   });
 
   it("gives a chat the scaffold a working folder starts with", async () => {
@@ -196,16 +151,13 @@ describe("record folders", () => {
 });
 
 describe("resolveRecord", () => {
-  it("says what each record is, and which chat holds a task", async () => {
+  it("says a chat is one", async () => {
     const chat = await makeChat("2026-09-24-transcribe-a-note");
-    const child = await make("2026-09-24-transcribe-the-recording", chat);
 
-    expect(
-      [chat, child].map((id) => resolveRecord(id)._unsafeUnwrap()),
-    ).toEqual([
-      { id: chat, kind: "chat" },
-      { chatId: chat, id: child, kind: "task" },
-    ]);
+    expect(resolveRecord(chat)._unsafeUnwrap()).toEqual({
+      id: chat,
+      kind: "chat",
+    });
   });
 
   it.each([
@@ -255,14 +207,12 @@ describe("resolveRecord", () => {
     });
   });
 
-  it("forgets a chat with the tasks inside it", async () => {
+  it("forgets a chat once its folder is gone", async () => {
     const chat = await makeChat("2026-09-24-transcribe-a-note");
-    const child = await make("2026-09-24-transcribe-the-recording", chat);
     await fs.rm(taskDir(chat), { force: true, recursive: true });
     forgetRecord(chat);
 
     expect(resolveRecord(chat).isErr()).toBe(true);
-    expect(resolveRecord(child).isErr()).toBe(true);
     expect(chatOfSession(SESSION)).toBeUndefined();
   });
 });

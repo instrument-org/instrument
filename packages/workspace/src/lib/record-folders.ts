@@ -6,7 +6,7 @@ import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs";
 import path from "node:path";
 
-import { CHATS_DIR_NAME, TASKS_DIR_NAME } from "../constants";
+import { CHATS_DIR_NAME } from "../constants";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import {
   type AbsolutePath,
@@ -25,8 +25,9 @@ import { getWorkspaceConfig } from "./workspace-config";
 
 /**
  * What a record is, which is where its folder is: a folder under `chats/` is
- * a chat, and one under a chat's `tasks/` is a task that chat started.
- * Nothing on a record says which; its place does.
+ * a chat. A chat's tasks are sessions in its store rather than records, and a
+ * `tasks/` folder an earlier version left inside a chat is nobody's record. A
+ * task record is what a test places (`placeTaskAt`).
  */
 export type RecordRef =
   | { chatId: ChatId; id: TaskId; kind: "task" }
@@ -43,18 +44,13 @@ export type RecordRef =
  */
 interface Index {
   /**
-   * Each chat's one session and the tasks inside its folder, by any record
-   * id, so an id not yet known to be a chat's can be looked up.
+   * Each chat's one session, by any record id, so an id not yet known to be
+   * a chat's can be looked up.
    */
-  chats: Map<
-    TaskId,
-    { id: ChatId; sessionId: StoreId.Session; tasks: Set<TaskId> }
-  >;
+  chats: Map<TaskId, { id: ChatId; sessionId: StoreId.Session }>;
   root: string;
   /** Each chat's id, by its session. */
   sessions: Map<StoreId.Session, ChatId>;
-  /** Every task, with the chat whose folder holds it. */
-  tasks: Map<TaskId, ChatId>;
 }
 
 let index: Index | undefined;
@@ -96,15 +92,6 @@ export function chatOf(id: TaskId): ChatId | undefined {
   return ref.value.kind === "chat" ? ref.value.id : ref.value.chatId;
 }
 
-/**
- * The chat whose folder holds a task, or none for a chat itself and an id no
- * record has.
- */
-export function owningChat(id: TaskId): ChatId | undefined {
-  const ref = resolveRecord(id);
-  return ref.isOk() && ref.value.kind === "task" ? ref.value.chatId : undefined;
-}
-
 /** A record's id as a chat's, or none for a task's and an id no record has. */
 export function resolveChat(id: TaskId): ChatId | undefined {
   const ref = resolveRecord(id);
@@ -121,52 +108,27 @@ export function chatsDir(): AbsolutePath {
   return absolutePathJoin(getWorkspaceConfig().rootDir, CHATS_DIR_NAME);
 }
 
-/** Every task folder inside a chat. */
-export function chatTaskDirs(): TaskDir[] {
-  return [...read().chats.values()].flatMap((chat) =>
-    [...chat.tasks].map((id) => taskInChatDir(id, chat.id)),
-  );
-}
-
-/** The ids of the tasks inside one chat. */
-export function chatTaskIds(chatId: ChatId): TaskId[] {
-  return [...(read().chats.get(chatId)?.tasks ?? [])];
-}
-
-/** The folder a chat's tasks are in. */
-export function chatTasksDir(chatId: ChatId): AbsolutePath {
-  return absolutePathJoin(chatDir(chatId), TASKS_DIR_NAME);
-}
-
 /** The folder a resolved record lives in. */
 export function dirOf(ref: RecordRef): TaskDir {
   if (ref.kind === "chat") {
     return chatDir(ref.id);
   }
-  return placedAt.get(ref.id)?.dir ?? taskInChatDir(ref.id, ref.chatId);
+  const placed = placedAt.get(ref.id);
+  if (!placed) {
+    throw new TypedError.NotFound(`No record has the id ${ref.id}.`);
+  }
+  return placed.dir;
 }
 
-/**
- * Drops a record from the index once its folder is gone: a chat with every
- * task inside it, or one task.
- */
+/** Drops a record from the index once its folder is gone. */
 export function forgetRecord(id: TaskId): void {
   placedAt.delete(id);
   const known = read();
   const chat = known.chats.get(id);
   if (chat) {
-    for (const taskId of chat.tasks) {
-      known.tasks.delete(taskId);
-    }
     known.chats.delete(id);
     known.sessions.delete(chat.sessionId);
-    return;
   }
-  const owner = known.tasks.get(id);
-  if (owner !== undefined) {
-    known.chats.get(owner)?.tasks.delete(id);
-  }
-  known.tasks.delete(id);
 }
 
 /**
@@ -185,10 +147,10 @@ export function forgetRecordFolders(): void {
 /** Records a chat as it is made, and returns the folder it goes in. */
 export function placeChat(id: ChatId, sessionId: StoreId.Session): ChatDir {
   const known = read();
-  if (known.chats.has(id) || known.tasks.has(id)) {
+  if (known.chats.has(id)) {
     throw new Error(`A record already has the id ${id}.`);
   }
-  known.chats.set(id, { id, sessionId, tasks: new Set() });
+  known.chats.set(id, { id, sessionId });
   known.sessions.set(sessionId, id);
   return chatDir(id);
 }
@@ -196,31 +158,10 @@ export function placeChat(id: ChatId, sessionId: StoreId.Session): ChatDir {
 /**
  * Records a task in a folder of the caller's choosing, under `chatId`,
  * replacing where the id was placed before. For tests, whose tasks keep their
- * files in a temporary folder rather than inside a chat's.
+ * files in a temporary folder.
  */
 export function placeTaskAt(id: TaskId, chatId: ChatId, dir: TaskDir): void {
   placedAt.set(id, { chatId, dir });
-}
-
-/**
- * Records a task as it is made, inside the chat that started it, and returns
- * the folder it goes in. The id is reserved at once: two chats picking the
- * same dated name at the same moment would each make a folder in their own
- * `tasks/`, where no single folder stands guard, so the second is refused
- * here instead.
- */
-export function placeTask(id: TaskId, chatId: ChatId): TaskDir {
-  const known = read();
-  if (known.tasks.has(id) || known.chats.has(id)) {
-    throw new Error(`A record already has the id ${id}.`);
-  }
-  const chat = known.chats.get(chatId);
-  if (!chat) {
-    throw new Error(`No chat has the id ${chatId}.`);
-  }
-  chat.tasks.add(id);
-  known.tasks.set(id, chatId);
-  return dirOf({ chatId, id, kind: "task" });
 }
 
 /**
@@ -246,10 +187,10 @@ export function recordDir(id: TaskId): TaskDir {
 
 /**
  * Whether any record already has this id: ids are unique across the whole
- * workspace, so a name picked for a task or a chat anywhere has to check
- * every chat and every task inside one, and the `tasks/` folder an earlier
- * version left, whose tasks keep their ids when they move into a chat. The
- * window's id is never free, since its scope goes by it.
+ * workspace, so a name picked for a chat has to check every chat, and the
+ * `tasks/` folder an earlier version left, whose tasks keep their ids when
+ * they move into a chat. The window's id is never free, since its scope goes
+ * by it.
  */
 export function recordIdTaken(id: string): boolean {
   const parsed = TaskIdSchema.safeParse(id);
@@ -260,15 +201,14 @@ export function recordIdTaken(id: string): boolean {
   return (
     parsed.data === WINDOW_ID ||
     known.chats.has(parsed.data) ||
-    known.tasks.has(parsed.data) ||
     fs.existsSync(path.join(chatsDir(), parsed.data)) ||
     fs.existsSync(path.join(getWorkspaceConfig().tasksDir, parsed.data))
   );
 }
 
 /**
- * What a record is: a chat, or a task inside the chat that started it. An id
- * that names no record, the window's among them, is `NotFound`.
+ * What a record is: a chat, or a task a test placed. An id that names no
+ * record, the window's among them, is `NotFound`.
  */
 export function resolveRecord(
   id: string,
@@ -335,9 +275,9 @@ export function storedChatSession(
 }
 
 /**
- * Adds a chat found in its folder to the index, with the tasks inside it, or
- * nothing when its settings name no session: such a folder is unreachable as
- * a chat until they do, and listed in Settings > Storage meanwhile.
+ * Adds a chat found in its folder to the index, or nothing when its settings
+ * name no session: such a folder is unreachable as a chat until they do, and
+ * listed in Settings > Storage meanwhile.
  */
 function addChatFrom(known: Index, folder: string): ChatId | undefined {
   const id = ChatIdSchema.safeParse(path.basename(folder));
@@ -345,19 +285,7 @@ function addChatFrom(known: Index, folder: string): ChatId | undefined {
   if (!id.success || !stored || !("sessionId" in stored)) {
     return undefined;
   }
-  const tasks = new Set<TaskId>();
-  for (const name of listDirs(path.join(folder, TASKS_DIR_NAME))) {
-    const taskId = TaskIdSchema.safeParse(name);
-    if (taskId.success) {
-      tasks.add(taskId.data);
-      known.tasks.set(taskId.data, id.data);
-    }
-  }
-  known.chats.set(id.data, {
-    id: id.data,
-    sessionId: stored.sessionId,
-    tasks,
-  });
+  known.chats.set(id.data, { id: id.data, sessionId: stored.sessionId });
   known.sessions.set(stored.sessionId, id.data);
   return id.data;
 }
@@ -398,22 +326,12 @@ function read(): Index {
   const { rootDir } = getWorkspaceConfig();
   if (handed) {
     // Nothing but what was handed in: an empty index, never a scan.
-    return {
-      chats: new Map(),
-      root: rootDir,
-      sessions: new Map(),
-      tasks: new Map(),
-    };
+    return { chats: new Map(), root: rootDir, sessions: new Map() };
   }
   if (index?.root === rootDir) {
     return index;
   }
-  const known: Index = {
-    chats: new Map(),
-    root: rootDir,
-    sessions: new Map(),
-    tasks: new Map(),
-  };
+  const known: Index = { chats: new Map(), root: rootDir, sessions: new Map() };
   const dir = absolutePathJoin(rootDir, CHATS_DIR_NAME);
   let skipped = 0;
   for (const name of listDirs(dir)) {
@@ -430,13 +348,5 @@ function read(): Index {
 
 function refIn(known: Index, id: TaskId): RecordRef | undefined {
   const chat = known.chats.get(id);
-  if (chat) {
-    return { id: chat.id, kind: "chat" };
-  }
-  const owner = known.tasks.get(id);
-  return owner === undefined ? undefined : { chatId: owner, id, kind: "task" };
-}
-
-function taskInChatDir(id: TaskId, chatId: ChatId): TaskDir {
-  return TaskDirSchema.parse(path.join(chatTasksDir(chatId), id));
+  return chat ? { id: chat.id, kind: "chat" } : undefined;
 }

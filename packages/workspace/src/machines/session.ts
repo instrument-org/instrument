@@ -18,7 +18,7 @@ import { createAssignEventError } from "../lib/assign-event-error";
 import { callsItOff, MID_TURN_NOTE } from "../lib/chat/mid-turn";
 import { createSession } from "../lib/create-session";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
-import { resolveChat } from "../lib/record-folders";
+import { chatConversation } from "../lib/chat/children";
 import { recordChanged } from "../lib/record-changes";
 import { Store } from "../lib/store";
 import { isTypedByUser } from "../lib/typed-by-user";
@@ -322,7 +322,7 @@ export const sessionMachine = setup({
             return;
           }
           const typedIntoChat =
-            resolveChat(context.taskId) !== undefined &&
+            chatConversation(context.taskId, context.sessionId) !== undefined &&
             isTypedByUser(event.value);
           if (
             event.interrupt ||

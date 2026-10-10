@@ -14,9 +14,10 @@ import { type SessionMessageDataPart } from "../../schemas/session/message-data-
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
+import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
 import { recordChanged, recordRemoved } from "../record-changes";
-import { forgetRecord, placeTask, sessionOfChat } from "../record-folders";
+import { forgetRecord, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type ChatActivity } from "./activity";
@@ -46,8 +47,7 @@ const alive = vi.hoisted(() => ({ value: new Set<string>() }));
 const pendingWakes = vi.hoisted(() => ({ value: new Set<string>() }));
 
 vi.mock(import("./wake"), () => ({
-  hasPendingWake: (_chatId: string, taskId: string) =>
-    pendingWakes.value.has(taskId),
+  hasPendingWake: (chatId: string) => pendingWakes.value.has(chatId),
 }));
 
 // What the machine would say: which tasks are at work, and which sessions
@@ -101,10 +101,9 @@ const freshTask = async () => {
   return taskId;
 };
 
-/** A task started in a chat: a folder inside that chat's record. */
-function fileTask(sessionId: StoreId.Session, child: TaskId) {
-  const dir = placeTask(child, chatFor(sessionId));
-  fs.mkdirSync(dir, { recursive: true });
+/** A task started in a chat: a session in that chat's store. */
+function fileTask(sessionId: StoreId.Session, title = "Grocery list") {
+  return chatTaskFor(chatFor(sessionId), { title });
 }
 
 beforeEach(() => {
@@ -426,7 +425,7 @@ describe("listChats", () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
-    const child = TaskIdSchema.parse(`bake-${Date.now()}`);
+    const child = StoreId.newSessionId();
     running.value = [
       { chat: sessionId, taskId: child, title: "Bake", updatedAt: Date.now() },
     ];
@@ -547,8 +546,7 @@ describe("listChats", () => {
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Starting the list.", { minute: 2 });
-    const child = TaskIdSchema.parse("grocery-list");
-    fileTask(sessionId, child);
+    const child = await fileTask(sessionId);
     running.value = [
       {
         chat: sessionId,
@@ -577,8 +575,7 @@ describe("listChats", () => {
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Starting the list.", { minute: 2 });
-    const child = TaskIdSchema.parse("grocery-list");
-    fileTask(sessionId, child);
+    const child = await fileTask(sessionId);
     running.value = [
       {
         chat: sessionId,
@@ -614,7 +611,7 @@ describe("listChats", () => {
       {
         chat: sessionId,
         step: "Checking the pantry",
-        taskId: TaskIdSchema.parse("pantry"),
+        taskId: await fileTask(sessionId, "Pantry"),
         title: "Pantry",
         updatedAt: at(4).getTime(),
       },
@@ -669,9 +666,8 @@ describe("listChats", () => {
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
     await agentSays(taskId, sessionId, "Starting the list.", { minute: 2 });
-    const child = TaskIdSchema.parse("grocery-list-done");
-    fileTask(sessionId, child);
-    pendingWakes.value = new Set([child]);
+    await fileTask(sessionId);
+    pendingWakes.value = new Set([chatFor(sessionId)]);
 
     const [chat] = await listChats();
 
@@ -1009,8 +1005,7 @@ describe("liveChatList", () => {
     const taskId = await freshTask();
     const sessionId = await session(taskId, "Groceries");
     await userSays(taskId, sessionId, "make me a grocery list", 1);
-    const child = TaskIdSchema.parse("live-grocery-list");
-    fileTask(sessionId, child);
+    const child = await fileTask(sessionId);
     const { next, stop } = await open();
 
     recordChanged(chatFor(sessionId), "settings");
@@ -1025,7 +1020,7 @@ describe("liveChatList", () => {
         updatedAt: at(3).getTime(),
       },
     ];
-    recordChanged(child, "messages");
+    recordChanged(chatFor(sessionId), "messages");
     expect((await next())?.[0]?.runningTasks).toEqual([
       { id: child, step: "Checking the pantry", title: "Grocery list" },
     ]);

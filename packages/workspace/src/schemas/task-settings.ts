@@ -1,7 +1,6 @@
 import { REASONING_EFFORTS } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
-import { ChatIdSchema } from "./chat-id";
 import { StoreId } from "./store-id";
 
 // Load-bearing that this stays a plain object schema: it is parsed against the
@@ -10,8 +9,8 @@ import { StoreId } from "./store-id";
 // in the workspace with them.
 export const TaskSettingsSchema = z.object({
   // The apps this task may reach through the `app` command, by slug: set on
-  // a briefed task, possibly to none. Absent on a fork, which reaches every
-  // app its chat does.
+  // a briefed task, possibly to none. Absent on a chat, which reaches every
+  // app.
   apps: z.array(z.string()).optional(),
   // On a chat's record, the one session it holds. A chat's folder is named for
   // what it is about, so this is how a session finds its chat. Whether a
@@ -30,20 +29,11 @@ export const TaskSettingsSchema = z.object({
   // the session database is rewritten by the act of opening a task, so sorting
   // on its mtime moves a task to the top for having been read.
   lastActivityAt: z.coerce.date().optional(),
-  // A task `task new` started as a fork of its chat: it carries the chat's
-  // conversation and works in the chat's folder (`workdir`).
-  fork: z.boolean().optional(),
   name: z.string().default("Untitled task"),
-  // How hard this task's model is asked to think, on every turn it takes. A
-  // task the conversation starts copies the conversation's level. Absent
-  // leaves the provider's own default, which is what every task took before
-  // this existed.
+  // How hard this task's model is asked to think, on every turn it takes,
+  // the turns of the chat's tasks included. Absent leaves the provider's own
+  // default, which is what every task took before this existed.
   reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
-  // The chat whose folder this task works in, rather than its own: a fork
-  // shares its chat's working folder, so a path the conversation names is
-  // the same file for both. Its own folder still holds its record. Absent
-  // for every other task. Read through `workDir` (lib/work-dir.ts).
-  workdir: ChatIdSchema.optional(),
 });
 
 export const TaskSettingsUpdateSchema = TaskSettingsSchema.partial().extend({

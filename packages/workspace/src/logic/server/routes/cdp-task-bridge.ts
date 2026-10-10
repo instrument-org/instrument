@@ -7,9 +7,10 @@ import { chatOf } from "../../../lib/record-folders";
 import { WINDOW_ID } from "../../../schemas/window-id";
 import { askWindow, requestWindowTab } from "../../../lib/chat/window-tab";
 import { taskFsLayout } from "../../../lib/resolve-workspace-file-path";
-import { getBrowserSessionDir, taskDir } from "../../../lib/task-dir-utils";
-import { getTaskState, setTaskState } from "../../../lib/task-record";
+import { heldTabs, updateHeldTabs } from "../../../lib/held-tabs";
+import { getBrowserSessionDir } from "../../../lib/task-dir-utils";
 import { publisher } from "../../../rpc/publisher";
+import { type StoreId } from "../../../schemas/store-id";
 import { type TaskId } from "../../../schemas/task-id";
 import { type HeldTab } from "../../../schemas/task-state";
 import {
@@ -63,7 +64,7 @@ interface Held {
  */
 export function handleTaskCdpClient(
   clientWs: WebSocket,
-  taskId: TaskId,
+  { sessionId, taskId }: { sessionId: StoreId.Session; taskId: TaskId },
   workspaceConfig: WorkspaceConfig,
   workspaceRef: WorkspaceServerParentRef,
 ) {
@@ -100,8 +101,7 @@ export function handleTaskCdpClient(
 
   /** The tabs the task holds that are open, in the order it came by them. */
   const held = async (): Promise<Held[]> => {
-    const state = await getTaskState(taskDir(taskId));
-    return state.browserTabs.flatMap((tab) => {
+    return (await heldTabs(taskId, sessionId)).flatMap((tab) => {
       const decoded = decodeBrowserTargetId(tab.id);
       return decoded && browser.getTargetMeta(tab.id)
         ? [
@@ -236,17 +236,16 @@ export function handleTaskCdpClient(
   };
 
   const holdOpened = async (targetId: BrowserTargetId) => {
-    const state = await getTaskState(taskDir(taskId));
-    await setTaskState(taskDir(taskId), {
-      browserTabs: [...state.browserTabs, { id: targetId, openedBy: "task" }],
-    });
+    await updateHeldTabs(taskId, sessionId, (tabs) => [
+      ...tabs,
+      { id: targetId, openedBy: "task" },
+    ]);
   };
 
   const release = async (targetId: BrowserTargetId) => {
-    const state = await getTaskState(taskDir(taskId));
-    await setTaskState(taskDir(taskId), {
-      browserTabs: state.browserTabs.filter((tab) => tab.id !== targetId),
-    });
+    await updateHeldTabs(taskId, sessionId, (tabs) =>
+      tabs.filter((tab) => tab.id !== targetId),
+    );
   };
 
   const createTarget = async (id: number, params: unknown) => {

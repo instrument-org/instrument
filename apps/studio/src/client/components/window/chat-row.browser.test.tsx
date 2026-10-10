@@ -4,11 +4,7 @@ import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
 import { getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { renderInBrowser } from "@/tests/render-browser";
-import {
-  ChatIdSchema,
-  StoreId,
-  TaskIdSchema,
-} from "@instrument-org/workspace/client";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { createStore } from "jotai";
 import { toast, Toaster } from "sonner";
 import {
@@ -28,6 +24,8 @@ import { type Chat, type Topic } from "./chats";
 import { WindowContext, type WindowContextValue } from "./context";
 
 /** What each of the row's own routes was asked, by name. */
+
+const NEST_GUARD = StoreId.newSessionId();
 const calls = vi.hoisted(() => ({
   archive: vi.fn(),
   rename: vi.fn(),
@@ -525,7 +523,7 @@ describe("ChatRow", () => {
         },
         runningTasks: [
           {
-            id: TaskIdSchema.parse("nest-guard"),
+            id: NEST_GUARD,
             step: "Reading the automation",
             title: "Nest guard",
           },
@@ -568,9 +566,7 @@ describe("ChatRow", () => {
     const { row } = await renderRow(
       chat({
         latest: undefined,
-        runningTasks: [
-          { id: TaskIdSchema.parse("nest-guard"), title: "Nest guard" },
-        ],
+        runningTasks: [{ id: NEST_GUARD, title: "Nest guard" }],
         state: "working",
       }),
     );

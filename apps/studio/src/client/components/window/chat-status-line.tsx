@@ -6,7 +6,7 @@ import {
   joinedMidTurn,
   latestStepIn,
   type SessionMessage,
-  type TaskId,
+  type StoreId,
 } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
@@ -45,7 +45,7 @@ export function ChatStatusLine({
 }: {
   chat: Chat;
   /** Opens one of the chat's tasks beside it. */
-  onOpenTask: (taskId: TaskId) => void;
+  onOpenTask: (taskId: StoreId.Session) => void;
 }) {
   const { isAgentRunning } = useAgentSessionStatus({
     id: chat.id,

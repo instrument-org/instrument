@@ -5,17 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
+import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
 import {
   killSessionBackgroundProcesses,
-  listTaskBackgroundProcesses,
+  listBackgroundProcesses,
   promoteBackgroundProcess,
   startBackgroundRun,
 } from "../background-processes";
-import { initializeChat, initializeTask } from "../initialize-task";
-import { Store } from "../store";
+import { initializeChat } from "../initialize-task";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { logSubcommand } from "./task/log";
@@ -52,12 +51,12 @@ vi.mock(import("../workspace-actor-ref"), () => ({
 let counter = 0;
 let CHAT_SESSION = StoreId.newSessionId();
 let CHAT_ID = ChatIdSchema.parse("2026-09-26-conversation");
-const CHILD_ID = TaskIdSchema.parse("find-the-vault");
+/** The task, by its session in the chat's store. */
+let CHILD_ID = StoreId.newSessionId();
 
 let context: TaskCommandContext;
 
 let rootDir: string;
-let sessionId: StoreId.Session;
 
 beforeEach(async () => {
   counter += 1;
@@ -67,7 +66,7 @@ beforeEach(async () => {
   CHAT_ID = ChatIdSchema.parse(`2026-09-26-conversation-${counter}`);
   context = { chatId: CHAT_ID, remainingYieldMs: () => 0 };
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-stop-background-"));
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", CHILD_ID), {
+  createMockTaskConfigForDir(path.join(rootDir, "tasks", "unused"), {
     unplaced: true,
   });
   setWorkspaceConfig({
@@ -88,25 +87,11 @@ beforeEach(async () => {
   if (chat.isErr()) {
     throw chat.error;
   }
-  const created = await initializeTask(
-    {
-      chatId: CHAT_ID,
-      initialSettings: {
-        name: "Find the vault",
-      },
-      taskId: CHILD_ID,
-      workspaceConfig: getWorkspaceConfig(),
-    },
-    {},
-  );
-  if (created.isErr()) {
-    throw created.error;
-  }
-  sessionId = StoreId.newSessionId();
+  CHILD_ID = await chatTaskFor(CHAT_ID, { title: "Find the vault" });
 });
 
 afterEach(async () => {
-  await killSessionBackgroundProcesses(sessionId);
+  await killSessionBackgroundProcesses(CHILD_ID);
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
@@ -124,12 +109,12 @@ function leave(command: string) {
           reject(new Error("aborted"));
         });
       }),
-    taskId: CHILD_ID,
+    taskId: CHAT_ID,
   });
   const promoted = promoteBackgroundProcess({
     handle,
-    sessionId,
-    taskId: CHILD_ID,
+    sessionId: CHILD_ID,
+    taskId: CHAT_ID,
   });
   if ("error" in promoted) {
     throw new Error(promoted.error);
@@ -139,11 +124,11 @@ function leave(command: string) {
 
 /** Output with the ids that differ from run to run written as placeholders. */
 function shown(stdout: string) {
-  return stdout.replaceAll(CHILD_ID, "<id>").replaceAll(/bg_\d+/g, "bg_N");
+  return stdout.replaceAll("t1", "<id>").replaceAll(/bg_\d+/g, "bg_N");
 }
 
 function stillRunning() {
-  return listTaskBackgroundProcesses(CHILD_ID)
+  return listBackgroundProcesses(CHILD_ID)
     .filter((process) => process.status === "running")
     .map((process) => process.id);
 }
@@ -189,7 +174,7 @@ describe("task stop, for what a task left running", () => {
       "
     `);
     expect(sent.events).toEqual([
-      { type: "stopSessions", value: { id: CHILD_ID } },
+      { type: "stopSessions", value: { id: CHAT_ID, sessionId: CHILD_ID } },
     ]);
     expect(stillRunning()).toEqual([]);
   });
@@ -240,7 +225,7 @@ describe("task stop, for what a task left running", () => {
   it("names what is running when the id is not there", async () => {
     const server = leave("node work/server.js");
     await expect(runStop([CHILD_ID, "bg_99"], context)).rejects.toThrow(
-      `no bg_99 running in ${CHILD_ID}. In the background: ${server.id} \`node work/server.js\` (1 second).`,
+      `no bg_99 running in t1. In the background: ${server.id} \`node work/server.js\` (1 second).`,
     );
     expect(stillRunning()).toEqual([server.id]);
   });
@@ -251,51 +236,37 @@ describe("task stop, for what a task left running", () => {
     );
   });
 
-  it("refuses a task another chat started", async () => {
-    leave("node work/server.js");
-    await expect(
-      runStop([CHILD_ID, "--all"], {
-        ...context,
-        chatId: ChatIdSchema.parse("someone-else"),
-      }),
-    ).rejects.toThrow(/"find-the-vault" was started in another chat/);
-  });
-
   // A task started in another chat reports there, so steering it from here
-  // would move a conversation the user is not having; reading it stays open.
-  it("refuses to act on a task another chat started, naming the chat, and still reads it", async () => {
-    const theirs = CHAT_SESSION;
-    const saved = await Store.saveSession(
-      {
-        createdAt: new Date(),
-        id: theirs,
-        title: "Vault hunt",
-      },
-      CHAT_ID,
-    );
-    if (saved.isErr()) {
-      throw saved.error;
-    }
+  // would move a conversation the user is not having; it is no task of this
+  // chat's, to read or to stop.
+  it("knows no task another chat started", async () => {
     const server = leave("node work/server.js");
-    const elsewhere = chatFor();
-    const here = { ...context, chatId: elsewhere };
+    const here = { ...context, chatId: chatFor() };
     await expect(runStop([CHILD_ID, "--all"], here)).rejects.toThrow(
-      `"find-the-vault" was started in another chat ("Vault hunt"), and is that chat's to steer: you can read it (\`task show\`, \`task log\`) but not send to it, stop it, or change it.`,
+      `no task "${CHILD_ID}" of yours. See \`task list\`.`,
+    );
+    await expect(runLog([CHILD_ID], here)).rejects.toThrow(
+      `no task "${CHILD_ID}" of yours.`,
     );
     expect(stillRunning()).toEqual([server.id]);
-    await expect(runLog([CHILD_ID], here)).resolves.toBeDefined();
     // Its own chat still steers it.
     await expect(runStop([CHILD_ID, "--all"], context)).resolves.toBeDefined();
   });
 
   // An id guessed from a task's title gets most of the words right, and the
   // miss cost a turn and two more minutes of the process it meant to stop.
-  it("offers the nearest of its own tasks for a mistyped id", async () => {
-    await expect(runStop(["find-the-vaults"], context)).rejects.toThrow(
-      'no task "find-the-vaults" of yours. Did you mean "find-the-vault"? See `task list`.',
+  it("offers the nearest of its own tasks for a mistyped name", async () => {
+    await expect(runStop(["find the vaults"], context)).rejects.toThrow(
+      'no task "find the vaults" of yours. Did you mean t1 ("Find the vault")? See `task list`.',
     );
     await expect(runStop(["draft-a-brief"], context)).rejects.toThrow(
       'no task "draft-a-brief" of yours. See `task list`.',
     );
+  });
+
+  it("takes a task by its title", async () => {
+    await expect(runStop(["Find the vault"], context)).resolves.toMatchObject({
+      stdout: "t1 is not running.\n",
+    });
   });
 });

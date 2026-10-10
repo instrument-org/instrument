@@ -3,7 +3,7 @@ import { isToolPart } from "./is-tool-part";
 import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
-import { resolveChat } from "./record-folders";
+import { chatConversation } from "./chat/children";
 import { Store } from "./store";
 import { systemNote } from "./system-note";
 import { isTypedByUser } from "./typed-by-user";
@@ -13,7 +13,7 @@ import { isTypedByUser } from "./typed-by-user";
  * message it answers: a line to them before any work, and then quiet until
  * the outcome. A note rather than a prompt rule, since it is read where the
  * turn starts, and placed after the cache breakpoints for that one request,
- * never stored. A fork gets none: nobody reads its lines as they come.
+ * never stored. A task gets none: nobody reads its lines as they come.
  */
 export const TURN_NOTE = systemNote`
   Before using any tool, tell the user in a few words what you are doing ("Reading the lease."), the work rather than their request said back, then nothing more until the outcome. If no tool is needed, just answer.
@@ -21,20 +21,14 @@ export const TURN_NOTE = systemNote`
 
 /**
  * Whether the next step opens a turn the user typed: the turn's message is
- * the user's own words, not a note the harness wrote or one a fork
- * inherited, nor one that joined a turn already under way, and no step of
- * the turn has run yet. A failed step does not count, since its retry is
- * still the turn's first.
+ * the user's own words, not a note the harness wrote, nor one that joined a
+ * turn already under way, and no step of the turn has run yet. A failed step
+ * does not count, since its retry is still the turn's first.
  */
 export function opensTypedTurn(messages: SessionMessage.WithParts[]): boolean {
   const start = messages.findLastIndex((message) => message.role === "user");
   const opener = messages[start];
-  if (
-    opener === undefined ||
-    opener.metadata.inherited === true ||
-    !isTypedByUser(opener) ||
-    joinedMidTurn(opener)
-  ) {
+  if (opener === undefined || !isTypedByUser(opener) || joinedMidTurn(opener)) {
     return false;
   }
   return !messages
@@ -100,7 +94,8 @@ export async function turnNoteFor({
   if (continuesOwnReply(messages.value)) {
     return PROMISED_NOTE;
   }
-  return resolveChat(taskId) !== undefined && opensTypedTurn(messages.value)
+  return chatConversation(taskId, sessionId) !== undefined &&
+    opensTypedTurn(messages.value)
     ? TURN_NOTE
     : undefined;
 }

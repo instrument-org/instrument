@@ -26,8 +26,8 @@ const ChatRecordSchema = TaskFieldsSchema.extend({
   isChat: z.literal(true),
 });
 
-/** A task, with the chat whose `tasks/` folder holds it. */
-export const TaskInChatSchema = TaskFieldsSchema.extend({
+/** A record a test places as a task, under a chat. */
+const TaskInChatSchema = TaskFieldsSchema.extend({
   chatId: ChatIdSchema,
   isChat: z.literal(false),
 });
@@ -38,5 +38,3 @@ export const TaskSchema = z.discriminatedUnion("isChat", [
 ]);
 
 export type Task = z.output<typeof TaskSchema>;
-
-export type TaskInChat = z.output<typeof TaskInChatSchema>;

@@ -14,7 +14,7 @@ import { copyTask } from "./copy-task";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
 import { pathExists } from "./path-exists";
-import { forgetRecord, placeChat, placeTask } from "./record-folders";
+import { forgetRecord, placeChat } from "./record-folders";
 import { updateTaskSettings } from "./task-settings";
 import { workDir } from "./work-dir";
 
@@ -22,30 +22,6 @@ type InitialSettings = Omit<
   TaskSettingsUpdate,
   "chatSessionId" | "createdWithAppVersion"
 >;
-
-/** Makes a task inside the chat that starts it, under that chat's `tasks/`. */
-export function initializeTask(
-  {
-    chatId,
-    initialSettings,
-    taskId,
-    workspaceConfig,
-  }: {
-    /** The chat that starts the task, whose `tasks/` folder it goes in. */
-    chatId: ChatId;
-    initialSettings: InitialSettings;
-    taskId: TaskId;
-    workspaceConfig: WorkspaceConfig;
-  },
-  _options: { signal?: AbortSignal },
-) {
-  return initializeRecord({
-    initialSettings,
-    place: () => placeTask(taskId, chatId),
-    taskId,
-    workspaceConfig,
-  });
-}
 
 /** Makes a chat under `chats/`, holding `sessionId` as its one session. */
 export function initializeChat({
@@ -131,11 +107,7 @@ async function initializeRecord({
       lastActivityAt: createdAt,
     });
 
-    // A task that works in another record's folder (a fork, in its chat's)
-    // takes no scaffold: its own folder holds only its record.
-    if (initialSettings.workdir === undefined) {
-      yield* scaffoldWorkFolder(dir, workspaceConfig);
-    }
+    yield* scaffoldWorkFolder(dir, workspaceConfig);
 
     return ok({ taskId });
   }).mapErr((error) => {

@@ -1,8 +1,6 @@
 import { TASK_SETTINGS_FILE_NAME } from "@instrument-org/shared";
-import fs from "node:fs";
 import path from "node:path";
 
-import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { type AbsolutePath, type TaskDir } from "../schemas/paths";
 import { TaskIdSchema } from "../schemas/task-id";
 import {
@@ -106,6 +104,19 @@ export async function setTaskState(
 }
 
 /**
+ * Changes the state half from what is on disk, read inside the write queue,
+ * so two changes landing together each build on the other.
+ */
+export async function updateTaskState(
+  dir: TaskDir,
+  change: (state: TaskState) => Partial<TaskState>,
+): Promise<void> {
+  await updateTaskRecord(dir, "state", (record) =>
+    recordWithState(record, change(record.state)),
+  );
+}
+
+/**
  * Applies a change to the whole file, reading it inside the write queue.
  *
  * The callback receives what is currently on disk and returns the fields to
@@ -163,33 +174,6 @@ function recordFrom(parsed: unknown): TaskRecord {
     state: state.success ? state.data : StoredTaskStateSchema.parse({}),
     unreadable: false,
   };
-}
-
-/**
- * The chat whose folder the task at `dir` works in (`workdir` in its
- * settings), read synchronously for the path resolution that cannot wait on
- * a promise. `read` is false when there is no record to read yet, so the
- * caller does not remember an answer the task's creation is about to change.
- */
-export function readWorkdirSync(
-  dir: TaskDir,
-): { read: false } | { read: true; workdir: ChatId | undefined } {
-  let text: string;
-  try {
-    text = fs.readFileSync(recordPath(dir), "utf8");
-  } catch {
-    return { read: false };
-  }
-  try {
-    const raw: unknown = JSON.parse(text);
-    const workdir =
-      raw !== null && typeof raw === "object" && "workdir" in raw
-        ? ChatIdSchema.safeParse(raw.workdir)
-        : undefined;
-    return { read: true, workdir: workdir?.success ? workdir.data : undefined };
-  } catch {
-    return { read: false };
-  }
 }
 
 function recordPath(dir: TaskDir): AbsolutePath {

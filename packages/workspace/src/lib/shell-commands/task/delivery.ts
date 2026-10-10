@@ -1,11 +1,9 @@
 import { type ByteString } from "just-bash";
 
-import { type Task } from "../../../schemas/task";
 import { isWorking } from "../../chat/activity";
-import { latestOrNewSessionId } from "../../chat/latest-session";
+import { type ChatTask, touchTask } from "../../chat/children";
 import { newMessage } from "../../new-message";
 import { Store } from "../../store";
-import { recordTaskActivity } from "../../task-settings";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import { subprocessStdin } from "../utils";
 import { type TaskCommandContext } from "./context";
@@ -41,34 +39,30 @@ export async function deliver({
   context: TaskCommandContext;
   interrupt?: boolean;
   prompt: string;
-  task: Task;
+  task: ChatTask;
 }) {
   const { model, modelURI } = await chatModel(command, context);
-  const session = await latestOrNewSessionId(task.id);
-  if (session.isErr()) {
-    throw session.error;
-  }
-  const sessionId = session.value;
+  const sessionId = task.id;
   const message = await newMessage({
     fromChat: { kind: "message", text: prompt },
     model,
     modelURI,
     prompt: "",
     sessionId,
-    taskId: task.id,
+    taskId: task.chatId,
   });
   if (message.isErr()) {
     throw message.error;
   }
-  const running = isWorking(task.id);
-  const written = await Store.saveMessageWithParts(message.value, task.id);
+  const running = isWorking(task.chatId, sessionId);
+  const written = await Store.saveMessageWithParts(message.value, task.chatId);
   if (written.isErr()) {
     throw written.error;
   }
   getWorkspaceActorRef().send({
     type: "addMessage",
     value: {
-      id: task.id,
+      id: task.chatId,
       interrupt,
       message: message.value,
       model,
@@ -76,6 +70,6 @@ export async function deliver({
       sessionId,
     },
   });
-  await recordTaskActivity(task.id);
+  await touchTask(task.chatId, sessionId, { status: "running" });
   return { message: message.value, running };
 }

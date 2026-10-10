@@ -17,7 +17,6 @@ import {
   effectiveFolderAccess,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
-import { childTaskMounts } from "./children";
 import { folderReach } from "./folder-reach";
 import { hiddenEntryNames } from "./hidden-entries";
 import {
@@ -27,7 +26,6 @@ import {
   resolveICloudPath,
 } from "./icloud-drive";
 import { linkedFiles } from "./linked-files";
-import { resolveChat } from "../record-folders";
 
 /**
  * How many entries one listing carries. A folder past this shows the first in
@@ -350,13 +348,7 @@ async function computerAccess(
   taskId: TaskId,
   hostPath: string,
 ): Promise<ComputerAccess | undefined> {
-  // Only a folder among the tasks can be inside one the chat made,
-  // and listing the tasks reads every one of them, which every folder
-  // listing, and every re-read of one on the clock, would otherwise pay.
-  const tasksRoot = path.dirname(taskDir(taskId));
-  const { roots } = await chatView(taskId, {
-    withChildren: isInsideFolder(hostPath, tasksRoot),
-  });
+  const { roots } = await chatView(taskId);
   return accessIn(roots, hostPath);
 }
 
@@ -469,41 +461,21 @@ async function exists(hostPath: string) {
   }
 }
 
-/** Whether a host path is that folder or something inside it. */
-function isInsideFolder(hostPath: string, folder: string) {
-  const relative = path.relative(folder, hostPath);
-  return (
-    relative === "" ||
-    (!relative.startsWith("..") && !path.isAbsolute(relative))
-  );
-}
-
 /**
- * The chat's own view of the filesystem: the folders the user attached
- * and a read-only mount per task it created, which is where a file its work
- * made actually sits. Beside the layout, the same mounts as host roots with
- * the grant each carries, which is what a folder's access is judged from.
+ * The chat's own view of the filesystem: its folder and the folders the user
+ * attached. Beside the layout, the same mounts as host roots with the grant
+ * each carries, which is what a folder's access is judged from.
  */
-async function chatView(
-  taskId: TaskId,
-  { withChildren = true }: { withChildren?: boolean } = {},
-) {
+async function chatView(taskId: TaskId) {
   const taskHostRoot = taskDir(taskId);
-  const chatId = resolveChat(taskId);
   const attachedFolders = await folderReach(taskId);
-  const layout = buildWorkspaceFsLayout({
-    attachedFolders,
-    extraMounts: withChildren && chatId ? await childTaskMounts(chatId) : [],
-    taskHostRoot,
-  });
+  const layout = buildWorkspaceFsLayout({ attachedFolders, taskHostRoot });
   return { layout, roots: reachableRoots(layout, attachedFolders) };
 }
 
 /**
- * What a chat can reach outside its own folder, each resolved to a
- * host root: the folders the user granted it, and the tasks it created, which
- * it reads and never writes. A file one of its tasks made lives in the second
- * kind, so leaving those out would show the user a file with no way to open it.
+ * What a chat can reach outside its own folder, each resolved to a host
+ * root: the folders the user granted it.
  */
 function reachableRoots(
   layout: WorkspaceFsLayout,
@@ -518,8 +490,7 @@ function reachableRoots(
   return layout.attached.map((mount) => {
     const root = path.resolve(mount.hostRoot);
     return {
-      // A mount with no grant behind it is a task the chat created,
-      // which it reads and never writes.
+      // A mount with no grant behind it is one the layout holds read-only.
       grant: grants.get(root) ?? (mount.readOnly ? "read-only" : "read-write"),
       mountPoint: mount.mountPoint,
       root,

@@ -8,7 +8,24 @@ export namespace Session {
     /** When the chat was put away; absent while it is in the inbox. */
     archivedAt: z.date().optional(),
     createdAt: z.date(),
+    /**
+     * On a task, the last of its parent's messages it carries on from. Its
+     * history is read rather than copied: the parent's messages up to and
+     * including this one, then its own, so its first request sends the
+     * prefix the parent's last request did.
+     */
+    forkedAtMessageId: StoreId.MessageSchema.optional(),
+    /**
+     * A task's short name in its chat, `t1`, `t2`, … in the order the chat
+     * started them: what the `task` command takes. Given once, when the task
+     * is started, and never changed. Absent on the chat's own session.
+     */
+    handle: z.string().optional(),
     id: StoreId.SessionSchema,
+    /**
+     * The session a task was started from: its chat's conversation. Absent on
+     * the chat's own session.
+     */
     parentId: StoreId.SessionSchema.optional(),
     /** When the user starred the chat; absent while it is not starred. */
     starredAt: z.date().optional(),
@@ -50,6 +67,13 @@ export namespace Session {
      * reader: this boundary cannot be judged, so it stands.
      */
     rolledOverUnderUsableTokens: z.number().int().positive().optional(),
+    /**
+     * Where a task stood when its last turn ended, or `running` while one is
+     * under way. Whether one is under way this moment is the session's
+     * agent's to say: a `running` with no agent alive is a turn the app quit
+     * in. Absent on the chat's own session.
+     */
+    status: z.enum(["done", "failed", "running", "waiting"]).optional(),
     title: z.string(),
     /**
      * When the chat's title stopped being the app's to change: its one

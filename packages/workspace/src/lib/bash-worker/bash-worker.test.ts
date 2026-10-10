@@ -7,7 +7,7 @@ import { noop } from "radashi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { MOUNT } from "../../mount-points";
-import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
+import { WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
@@ -18,7 +18,7 @@ import {
   type BashRunner,
   createLocalBashEnv,
 } from "../create-bash-env";
-import { placeTask } from "../record-folders";
+import { resolveChat } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 import { withTurnContext } from "../turn-context";
@@ -169,40 +169,39 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     });
   });
 
-  it("finds a task made inside a chat after the worker started", async () => {
+  it("finds a chat made after the worker started", async () => {
     const chatId = chatFor();
-    const chatTaskId = TaskIdSchema.parse(`01k${"chattask".padEnd(23, "0")}`);
-    const dir = placeTask(chatTaskId, chatId);
+    const dir = taskDir(chatId);
     await fs.mkdir(path.join(dir, "work"), { recursive: true });
     await fs.writeFile(path.join(dir, "work", "here.txt"), "inside the chat\n");
 
     const result = await remoteBash({
       sessionId: StoreId.newSessionId(),
-      taskId: chatTaskId,
+      taskId: chatId,
     }).exec("cat work/here.txt");
     expect(result.stdout).toBe("inside the chat\n");
   });
 
   it("runs in the record main resolved, without reading the index itself", async () => {
     const chatId = chatFor();
-    const chatTaskId = TaskIdSchema.parse(`01k${"handedtask".padEnd(23, "0")}`);
-    const dir = placeTask(chatTaskId, chatId);
+    const dir = taskDir(chatId);
     await fs.mkdir(path.join(dir, "work"), { recursive: true });
     await fs.writeFile(path.join(dir, "work", "here.txt"), "handed\n");
     // A scan of the disk now skips the chat, whose settings name no session;
-    // only main's index still knows where the task is.
-    await fs.rm(path.join(taskDir(chatId), ".instrument", "settings.json"));
+    // only main's index, read before they went, still knows where it is.
+    expect(resolveChat(chatId)).toBe(chatId);
+    await fs.rm(path.join(dir, ".instrument", "settings.json"));
 
     const result = await remoteBash({
       sessionId: StoreId.newSessionId(),
-      taskId: chatTaskId,
+      taskId: chatId,
     }).exec("cat work/here.txt");
     expect(result.stdout).toBe("handed\n");
   });
 
-  // A chat's tasks sit inside the chat's own folder, which mounts writable at
-  // /task. The chat reaches them at /tasks/<id>, read-only with their private
-  // dirs masked, and must not get around that through /task/tasks/<id>.
+  // A `tasks/` folder an earlier version left inside a chat's own folder,
+  // which mounts writable at /task: nothing of it is the chat's, and the chat
+  // must not reach it through /task/tasks/<id>.
   describe("a chat's tasks", () => {
     const childId = TaskIdSchema.parse(`01k${"nestedchild".padEnd(23, "0")}`);
     let chatId: ChatId;
@@ -215,8 +214,8 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
 
     beforeAll(async () => {
       chatId = chatFor();
-      childDir = placeTask(childId, chatId);
-      chatDir = path.dirname(path.dirname(childDir));
+      chatDir = taskDir(chatId);
+      childDir = path.join(chatDir, "tasks", childId);
       await fs.mkdir(path.join(childDir, ".instrument"), { recursive: true });
       await fs.writeFile(
         path.join(childDir, ".instrument", "settings.json"),
@@ -231,34 +230,12 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
         '{"private":"overwritten"}',
       );
       const bashOptions: BashEnvOptions = {
-        chat: {
-          // The mount `childTaskMounts` gives the chat for this task.
-          childMounts: [
-            {
-              hostRoot: AbsolutePathSchema.parse(childDir),
-              maskedEntries: [".instrument"],
-              mountPoint: `${MOUNT.tasks}/${childId}`,
-              readOnly: true,
-            },
-          ],
-          id: chatId,
-        },
+        chat: { id: chatId },
         sessionId: StoreId.newSessionId(),
         taskId: chatId,
       };
       const bash = remoteBash(bashOptions);
       chatBash = (command) => bash.exec(command);
-    });
-
-    it("reads a task through its read-only mount", async () => {
-      const result = await chatBash(
-        `cat ${MOUNT.tasks}/${childId}/output/report.md`,
-      );
-      expect(result).toMatchObject({ exitCode: 0, stdout: "made\n" });
-      const privateRead = await chatBash(
-        `cat ${MOUNT.tasks}/${childId}/.instrument/settings.json`,
-      );
-      expect(privateRead.exitCode).not.toBe(0);
     });
 
     it.each([

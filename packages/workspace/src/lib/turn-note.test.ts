@@ -14,7 +14,7 @@ const createdAt = new Date("2026-10-07T12:00:00Z");
 function message(
   role: "assistant" | "user",
   parts: ("midTurn" | "text" | "tool" | "wake")[],
-  extra: { error?: boolean; inherited?: boolean } = {},
+  extra: { error?: boolean } = {},
 ): SessionMessage.WithParts {
   const id = StoreId.newMessageId();
   const meta = () => ({
@@ -72,11 +72,7 @@ function message(
   return role === "user"
     ? {
         id,
-        metadata: {
-          createdAt,
-          sessionId,
-          ...(extra.inherited ? { inherited: true } : {}),
-        },
+        metadata: { createdAt, sessionId },
         parts: built,
         role,
       }
@@ -110,11 +106,6 @@ describe("opensTypedTurn", () => {
     ],
     ["a turn a finished task started", [message("user", ["wake"])], false],
     [
-      "a turn a fork inherited",
-      [message("user", ["text"], { inherited: true })],
-      false,
-    ],
-    [
       "a message that joined a turn under way",
       [
         asked,
@@ -130,7 +121,7 @@ describe("opensTypedTurn", () => {
 
   it("asks for a few words, then quiet until the outcome", () => {
     expect(systemNoteBody(TURN_NOTE)).toMatchInlineSnapshot(
-      `"Before using any tool, tell the user in a few words what you are doing (\"Reading the lease.\"), the work rather than their request said back, then nothing more until the outcome. If no tool is needed, just answer."`,
+      `"Before using any tool, tell the user in a few words what you are doing ("Reading the lease."), the work rather than their request said back, then nothing more until the outcome. If no tool is needed, just answer."`,
     );
   });
 });

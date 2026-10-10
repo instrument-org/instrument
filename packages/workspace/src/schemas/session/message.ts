@@ -117,13 +117,6 @@ export namespace SessionMessage {
   // --------
   const BaseMetadataSchema = z.object({
     createdAt: z.date(),
-    /**
-     * Copied from the chat a fork was started from (`task new`): the
-     * conversation it holds as background rather than its own turns. Metadata
-     * reaches no model request, so marking the copies leaves the prefix the
-     * provider cached byte for byte the chat's.
-     */
-    inherited: z.boolean().optional(),
     sessionId: StoreId.SessionSchema,
   });
   const ContextMetadataSchema = BaseMetadataSchema.extend({

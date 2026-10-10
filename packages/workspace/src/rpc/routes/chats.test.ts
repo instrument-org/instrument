@@ -4,8 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { placeTask } from "../../lib/record-folders";
-import { updateTaskSettings } from "../../lib/task-settings";
 import { setWorkspaceActorRef } from "../../lib/workspace-actor-ref";
 import {
   getWorkspaceConfig,
@@ -16,12 +14,13 @@ import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
+import { chatTaskFor } from "../../test/helpers/chat-task";
 import { type WorkspaceRPCContext } from "../base";
 import { chats } from "./chats";
 import { ChatIdSchema } from "../../schemas/chat-id";
 
-// A chat, a task that is not one, and a task the chat started. The chat is a
-// folder under a workspace root of this file's own.
+// A chat, and a record that is not one. The chat is a folder under a
+// workspace root of this file's own.
 let taskId = ChatIdSchema.parse("2026-09-26-conversation");
 beforeAll(() => {
   setWorkspaceConfig({
@@ -31,10 +30,8 @@ beforeAll(() => {
     ),
   });
   taskId = chatFor(StoreId.newSessionId(), taskId);
-  fs.mkdirSync(placeTask(childTaskId, taskId), { recursive: true });
 });
 const otherTaskId = TaskIdSchema.parse("chat-other");
-const childTaskId = TaskIdSchema.parse("chat-child");
 
 describe("chats.tasks", () => {
   const context: WorkspaceRPCContext = {
@@ -44,29 +41,17 @@ describe("chats.tasks", () => {
     workspaceRef: undefined as unknown as WorkspaceRPCContext["workspaceRef"],
   };
 
-  it("refuses the window and a task, since nothing lists every chat's tasks", async () => {
-    for (const id of [WINDOW_ID, otherTaskId, childTaskId]) {
+  it("refuses the window and a record that is no chat, since nothing lists every chat's tasks", async () => {
+    for (const id of [WINDOW_ID, otherTaskId]) {
       await expect(call(chats.tasks, { id }, { context })).rejects.toThrow(
         "That chat is not there any more.",
       );
     }
   });
-
-  it("leaves out a task with no settings, and makes nothing inside it", async () => {
-    expect(await call(chats.tasks, { id: taskId }, { context })).toEqual([]);
-    const childDir = path.join(
-      getWorkspaceConfig().rootDir,
-      "chats",
-      taskId,
-      "tasks",
-      childTaskId,
-    );
-    expect(fs.readdirSync(childDir)).toEqual([]);
-  });
 });
 
 describe("chats.live.tasks", () => {
-  it("answers again when a task the chat filed changes", async () => {
+  it("answers again when the chat starts a task", async () => {
     // No agent is alive in a test; the list asks the machine whether one is.
     setWorkspaceActorRef({
       getSnapshot: () => ({ context: { sessionRefsByTaskId: new Map() } }),
@@ -83,14 +68,12 @@ describe("chats.live.tasks", () => {
     );
     expect((await live.next()).value).toEqual([]);
 
-    expect(
-      (await updateTaskSettings(childTaskId, { name: "Child" })).isOk(),
-    ).toBe(true);
+    await chatTaskFor(taskId, { title: "Child" });
 
     const next = await live.next();
-    expect(next.done ? [] : next.value.map((task) => task.title)).toEqual([
-      "Child",
-    ]);
+    expect(
+      next.done ? [] : next.value.map((task) => [task.handle, task.title]),
+    ).toEqual([["t1", "Child"]]);
     controller.abort();
     await live.return?.(undefined).catch(() => undefined);
   });

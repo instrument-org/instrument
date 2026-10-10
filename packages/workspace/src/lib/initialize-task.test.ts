@@ -5,10 +5,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASK_FOLDER_NAMES } from "../constants";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { StoreId } from "../schemas/store-id";
 import { chatFor } from "../test/helpers/chat-record";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
-import { ensureWorkFolder, initializeTask } from "./initialize-task";
+import { ensureWorkFolder, initializeChat } from "./initialize-task";
 import { taskDir } from "./task-dir-utils";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -26,10 +27,10 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-describe("initializeTask", () => {
-  it("creates a task from the bundled default template", async () => {
-    const taskId = TaskIdSchema.parse("test-task");
-    createMockTaskConfigForDir(path.join(rootDir, "tasks", taskId), {
+describe("initializeChat", () => {
+  it("creates a chat from the bundled default template", async () => {
+    const taskId = ChatIdSchema.parse("test-task");
+    createMockTaskConfigForDir(path.join(rootDir, "tasks", "unused"), {
       unplaced: true,
     });
     setWorkspaceConfig({
@@ -41,15 +42,12 @@ describe("initializeTask", () => {
       ),
     });
 
-    const result = await initializeTask(
-      {
-        chatId: chatFor(),
-        initialSettings: { name: "Test task" },
-        taskId,
-        workspaceConfig: getWorkspaceConfig(),
-      },
-      {},
-    );
+    const result = await initializeChat({
+      chatId: taskId,
+      initialSettings: { name: "Test task" },
+      sessionId: StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B"),
+      workspaceConfig: getWorkspaceConfig(),
+    });
 
     expect(result.isOk()).toBe(true);
     expect(await listPaths(taskDir(taskId))).toMatchInlineSnapshot(`
@@ -77,6 +75,7 @@ describe("initializeTask", () => {
     expect(settings.replaceAll(ISO_TIMESTAMP, "<when>")).toMatchInlineSnapshot(`
       "{
         "name": "Test task",
+        "chatSessionId": "ses_01M3AX9RF3C2E9RTATMB602W0B",
         "createdAt": "<when>",
         "createdWithAppVersion": "0.0.0-test",
         "lastActivityAt": "<when>"

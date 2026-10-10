@@ -10,13 +10,7 @@ import { type TaskSettings } from "../schemas/task-settings";
 import { TypedError } from "./errors";
 import { getTaskDirTimestamps } from "./get-task-dir-timestamps";
 import { isTaskId } from "./is-task-id";
-import {
-  chatDir,
-  chatIds,
-  chatTaskDirs,
-  dirOf,
-  resolveRecord,
-} from "./record-folders";
+import { chatDir, chatIds, dirOf, resolveRecord } from "./record-folders";
 import { getTaskSettings } from "./task-settings";
 
 export interface TaskListOptions {
@@ -49,11 +43,7 @@ export async function getTask(
 export async function getTasks(
   options: TaskListOptions = {},
 ): Promise<{ tasks: Task[]; total: number }> {
-  // Chats and the tasks inside them.
-  const taskDirs = [
-    ...chatIds().map((chatId) => chatDir(chatId)),
-    ...chatTaskDirs(),
-  ];
+  const taskDirs = chatIds().map((chatId) => chatDir(chatId));
   // Read tasks concurrently; each readTask is several independent fs ops and a
   // workspace can hold many tasks, so a serial loop dominates list latency.
   const taskResults = await parallel({ limit: 12 }, taskDirs, (dir) =>
@@ -70,33 +60,7 @@ export async function getTasks(
   return sortTasks(tasks, options);
 }
 
-/**
- * The tasks in these folders, ordered as asked, leaving out any whose
- * settings are missing or cannot be read. Such a folder is listed in
- * Settings > Storage rather than as a task, and nothing past its settings is
- * read, so listing it never makes anything inside it.
- */
-export async function getTasksIn(
-  dirs: TaskDir[],
-  options: TaskListOptions = {},
-): Promise<Task[]> {
-  const results = await parallel({ limit: 12 }, dirs, (dir) =>
-    readTask({ dir, requireSettings: true }),
-  );
-  return sortTasks(
-    results.filter((result) => result.isOk()).map((result) => result.value),
-    options,
-  ).tasks;
-}
-
-async function readTask({
-  dir,
-  requireSettings = false,
-}: {
-  dir: TaskDir;
-  /** Refuses a folder whose settings are missing or cannot be read. */
-  requireSettings?: boolean;
-}) {
+async function readTask({ dir }: { dir: TaskDir }) {
   const rawFolderName = path.basename(dir);
   const taskIdResult = TaskIdSchema.safeParse(rawFolderName);
 
@@ -114,9 +78,6 @@ async function readTask({
     return err(ref.error);
   }
   const settings = await getTaskSettings(dir);
-  if (requireSettings && !settings) {
-    return err(new TypedError.NotFound("No readable settings"));
-  }
 
   const fields = {
     ...(await taskTimestamps(dir, settings)),

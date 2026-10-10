@@ -1,7 +1,7 @@
 import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { type TabId } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
-import { type ChatId, type TaskId } from "@instrument-org/workspace/client";
+import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import {
   DropdownMenu,
@@ -59,7 +59,7 @@ export function AppTabStrip({
   tabs,
 }: {
   chatTitles: Map<ChatId, string>;
-  childTitles: Map<TaskId, string>;
+  childTitles: Map<StoreId.Session, string>;
   onClose: (id: TabId) => void;
   onCloseOthers: (id: TabId) => void;
   onCloseToRight: (id: TabId) => void;

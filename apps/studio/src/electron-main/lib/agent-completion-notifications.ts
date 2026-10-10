@@ -136,11 +136,15 @@ export function startAgentCompletionNotifications({
         return;
       }
       const chat = await chatOf({ context, id });
-      // A reply while a task of the chat's is still at work is a step on
-      // the way: the line said before a hand-off, a task sent back. The news
-      // is the reply that leaves the chat at rest, with nothing of its own
-      // running and the next move the user's.
-      if (chat?.state === "working") {
+      // A task of the chat's runs in its record, and its turn ending is news
+      // the chat's own reply carries. A reply while a task of the chat's is
+      // still at work is a step on the way: the line said before a hand-off,
+      // a task sent back. The news is the reply that leaves the chat at
+      // rest, with nothing of its own running and the next move the user's.
+      if (
+        chat?.state === "working" ||
+        (chat !== undefined && chat.sessionId !== sessionId)
+      ) {
         return;
       }
       taskTitle = chat?.title ?? taskTitle;

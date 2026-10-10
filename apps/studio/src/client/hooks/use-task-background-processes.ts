@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
@@ -27,12 +27,15 @@ export interface RunningBackgroundProcess {
  */
 export function useRunningBackgroundProcess({
   processId,
+  sessionId,
   taskId,
 }: {
   processId: string | undefined;
+  /** The session whose call it is: a chat's tasks run in its record. */
+  sessionId?: StoreId.Session;
   taskId: TaskId;
 }): RunningBackgroundProcess | undefined {
-  const processes = useTaskBackgroundProcesses(taskId);
+  const processes = useTaskBackgroundProcesses(taskId, sessionId);
   if (processId === undefined) {
     return undefined;
   }
@@ -52,12 +55,16 @@ export function useRunningBackgroundProcess({
  * lives in the main process, nothing about a running process reaches the store,
  * and only `backgroundProcesses.changed` says when the set moved.
  */
-export function useTaskBackgroundProcesses(taskId: TaskId) {
+export function useTaskBackgroundProcesses(
+  taskId: TaskId,
+  /** One session's of the record alone: the chat's own, or a task's. */
+  sessionId?: StoreId.Session,
+) {
   const queryClient = useQueryClient();
 
   const { data: processes } = useQuery(
     rpcClient.workspace.task.backgroundProcesses.list.queryOptions({
-      input: { id: taskId },
+      input: { id: taskId, ...(sessionId ? { sessionId } : {}) },
     }),
   );
 

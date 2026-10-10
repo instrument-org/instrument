@@ -5,13 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type AbsolutePath, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
 import { chatFor } from "../test/helpers/chat-record";
 import {
   listInvalidChatFolders,
   trashInvalidChatFolder,
 } from "./invalid-chat-folders";
-import { chatTaskIds, forgetRecordFolders, placeTask } from "./record-folders";
+import { chatDir, forgetRecordFolders } from "./record-folders";
 import { Store } from "./store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -59,7 +58,7 @@ function chatTask(
   name: string,
   settings?: string,
 ) {
-  const dir = placeTask(TaskIdSchema.parse(name), chatId);
+  const dir = path.join(chatDir(chatId), "tasks", name);
   fs.mkdirSync(path.join(dir, ".instrument"), { recursive: true });
   if (settings !== undefined) {
     fs.writeFileSync(path.join(dir, ".instrument", "settings.json"), settings);
@@ -113,7 +112,6 @@ describe("trashInvalidChatFolder", () => {
 
     expect(result.isOk()).toBe(true);
     expect(trashed).toEqual([dir]);
-    expect(chatTaskIds(id)).toEqual([]);
     expect(await listInvalidChatFolders()).toEqual([]);
   });
 });

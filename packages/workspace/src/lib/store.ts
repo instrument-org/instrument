@@ -1,4 +1,4 @@
-import { err, ok, Result, safeTry } from "neverthrow";
+import { err, ok, Result, type ResultAsync, safeTry } from "neverthrow";
 import { alphabetical, parallel } from "radashi";
 
 import { publisher } from "../rpc/publisher";
@@ -96,19 +96,41 @@ export namespace Store {
     });
   }
 
+  /**
+   * A session's transcript, oldest first. A task's starts with what it
+   * carries on from (`forkedAtMessageId`): its parent's messages up to that
+   * one, read from the parent each time rather than copied, each still filed
+   * under the parent's session. `inherited: false` reads the session's own
+   * messages alone, as does naming `messageIds`.
+   */
   export function getMessagesWithParts(
     {
+      inherited = true,
       messageIds,
       sessionId,
       taskId,
     }: {
+      inherited?: boolean;
       messageIds?: StoreId.Message[];
       sessionId: StoreId.Session;
       taskId: TaskId;
     },
     { signal }: { signal?: AbortSignal } = {},
-  ) {
+  ): ResultAsync<
+    SessionMessage.WithParts[],
+    TypedError.NotFound | TypedError.Parse | TypedError.Storage
+  > {
     return safeTry(async function* () {
+      const forkedFrom =
+        inherited && messageIds === undefined
+          ? yield* forkPoint(sessionId, taskId, { signal })
+          : undefined;
+      const before = forkedFrom
+        ? (yield* getMessagesWithParts(
+            { sessionId: forkedFrom.parentId, taskId },
+            { signal },
+          )).filter((message) => message.id <= forkedFrom.messageId)
+        : [];
       const messageIdsResult =
         messageIds ?? (yield* getMessageIds(sessionId, taskId, { signal }));
 
@@ -130,8 +152,33 @@ export namespace Store {
       const found = messageResults.filter(
         (r) => !(r.isErr() && r.error.type === "workspace-not-found-error"),
       );
-      return Result.combine(found);
+      const own = yield* Result.combine(found);
+      return ok(before.length > 0 ? [...before, ...own] : own);
     });
+  }
+
+  /**
+   * Where a task's session carries on from its parent's, or nothing for a
+   * session that starts from nothing of another's, one not saved yet among
+   * them.
+   */
+  function forkPoint(
+    sessionId: StoreId.Session,
+    taskId: TaskId,
+    { signal }: { signal?: AbortSignal },
+  ) {
+    return getSession(sessionId, taskId, { signal })
+      .map((session) =>
+        session.parentId && session.forkedAtMessageId
+          ? {
+              messageId: session.forkedAtMessageId,
+              parentId: session.parentId,
+            }
+          : undefined,
+      )
+      .orElse((error) =>
+        error.type === "workspace-not-found-error" ? ok(undefined) : err(error),
+      );
   }
 
   export function getMessageWithParts(

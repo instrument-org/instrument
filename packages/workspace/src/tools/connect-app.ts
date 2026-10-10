@@ -17,7 +17,7 @@ import { getWorkspaceConfig } from "../lib/workspace-config";
 import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
-import { resolveChat } from "../lib/record-folders";
+import { chatConversation } from "../lib/chat/children";
 
 /**
  * Ask the user for the one thing only they can give an app: a sign-in, or a
@@ -65,9 +65,10 @@ export const ConnectApp = setupTool({
   description: dedent`
     Ask the user to connect an app whose folder you have written under ${MOUNT.apps}/<slug>/. A card appears in the conversation: a sign-in button for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a button that opens its sign-in in the window's browser. It returns at once; say one line and end your turn. You are woken with a note when the user has signed in, saved a key, or declined. Never ask for a key in prose instead.
   `,
-  execute: async ({ input, taskId }) => {
-    // A fork runs the chat's agent where no card is seen.
-    if (!resolveChat(taskId)) {
+  execute: async ({ input, sessionId, taskId }) => {
+    // A task runs the chat's agent where no card is seen.
+    const chatId = chatConversation(taskId, sessionId);
+    if (!chatId) {
       return ok({
         message:
           "You are running in the background, where nobody sees a card: only the chat asks the user to connect an app. End your last message with a needs fence naming the app.",
@@ -124,9 +125,8 @@ export const ConnectApp = setupTool({
       // What the user does on the card or the app's page comes back as an
       // app event with no chat of its own; the ask kept with the app is
       // what tells it which chat to wake.
-      const chatId = resolveChat(taskId);
       await recordConnection(slug, {
-        ...(chatId ? { askedIn: chatId } : {}),
+        askedIn: chatId,
         status:
           kind === "key"
             ? "needs-key"

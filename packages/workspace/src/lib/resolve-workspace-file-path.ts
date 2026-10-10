@@ -1,10 +1,7 @@
 import { type AbsolutePath, type WorkspaceFilePath } from "../schemas/paths";
 import { type TaskId } from "../schemas/task-id";
-import { WINDOW_ID } from "../schemas/window-id";
-import { childTaskMounts, windowTaskMounts } from "./chat/children";
 import { folderReach } from "./chat/folder-reach";
 import { resolveExistingFilePath } from "./resolve-agent-path";
-import { resolveChat } from "./record-folders";
 import {
   buildWorkspaceFsLayout,
   type WorkspaceFsLayout,
@@ -58,20 +55,12 @@ export async function resolveWorkspaceFilePaths({
 }
 
 /**
- * The filesystem a task's agent sees, as it stands now: its own folder, the
- * folders attached to it and, for a chat, the tasks it created. The window's is a chat's without a chat's own folders,
- * reaching every chat's tasks.
+ * The filesystem a task's agent sees, as it stands now: its own folder and
+ * the folders attached to it.
  */
 export async function taskFsLayout(taskId: TaskId): Promise<WorkspaceFsLayout> {
-  const taskHostRoot = workDir(taskId);
-  const chatId = resolveChat(taskId);
   return buildWorkspaceFsLayout({
     attachedFolders: await folderReach(taskId),
-    extraMounts: chatId
-      ? await childTaskMounts(chatId)
-      : taskId === WINDOW_ID
-        ? windowTaskMounts()
-        : undefined,
-    taskHostRoot,
+    taskHostRoot: workDir(taskId),
   });
 }

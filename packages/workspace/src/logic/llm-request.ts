@@ -384,12 +384,11 @@ export const llmRequestLogic = fromPromise<
       },
       // Groups this session's generations into one trace in the analytics our
       // gateway reports, and routes the request to the provider cache the
-      // session's earlier requests warmed. A fork names its chat's session,
-      // whose cache holds the conversation it starts from.
+      // session's earlier requests warmed. A task names its chat's session,
+      // whose cache holds the conversation it carries on from.
       headers: {
         [CLIENT_SESSION_ID_HEADER]: cacheSessionFor({
           sessionId: input.sessionId,
-          settings: taskSettings,
           taskId: input.taskId,
         }),
       },

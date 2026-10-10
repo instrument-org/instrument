@@ -2,11 +2,11 @@ import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 
 import { type WorkspaceActorRef } from "../../src/machines/workspace";
 import { ensureChat } from "../../src/lib/chat/chat-records";
+import { addChildTask } from "../../src/lib/chat/children";
 import { createSession } from "../../src/lib/create-session";
-import { initializeTask } from "../../src/lib/initialize-task";
 import { newMessage } from "../../src/lib/new-message";
-import { newTaskId } from "../../src/lib/new-task-id";
 import { Store } from "../../src/lib/store";
+import { updateTaskSettings } from "../../src/lib/task-settings";
 import { type FileUpload } from "../../src/schemas/file-upload";
 import { type FolderAttachment } from "../../src/schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../../src/schemas/session/message-data-part";
@@ -18,11 +18,11 @@ import { type WorkspaceConfig } from "../../src/types";
  * Starts one eval run the way the product starts the agent it measures.
  *
  * A chat case opens a chat with the prompt, as the window's first send does.
- * A task case makes a chat and a task inside it, then sends the prompt to the
- * task, as `task new` does when the chat forks: the agent answers in a task a
- * chat owns, the only kind the product makes, without spending a chat turn to
- * get there. That chat is never written in, so it is
- * never woken when the task finishes.
+ * A task case makes a chat and a task in it, a session of the chat's started
+ * from its empty conversation, then sends the prompt to the task, as `task
+ * new` does: the agent answers in a task a chat owns, the only kind the
+ * product makes, without spending a chat turn to get there. That chat is
+ * never written in, so it is never woken when the task finishes.
  */
 export async function startRun(
   {
@@ -65,27 +65,25 @@ export async function startRun(
 
   const chatSession = StoreId.newSessionId();
   const chatId = await ensureChat(chatSession, prompt);
-  let taskId: TaskId = chatId;
+  const taskId: TaskId = chatId;
   let sessionId = chatSession;
+  (await createSession({ sessionId: chatSession, taskId }))._unsafeUnwrap();
   if (kind === "task") {
-    (
-      await createSession({ sessionId: chatSession, taskId: chatId })
-    )._unsafeUnwrap();
-    taskId = await newTaskId({ prompt, workspaceConfig });
-    (
-      await initializeTask(
-        {
-          chatId,
-          initialSettings: { apps, name },
-          taskId,
-          workspaceConfig,
-        },
-        {},
-      )
-    )._unsafeUnwrap();
-    sessionId = StoreId.newSessionId();
+    // The chat's apps are the task's, so the case's are handed to the chat.
+    if (apps) {
+      (await updateTaskSettings(chatId, { apps }))._unsafeUnwrap();
+    }
+    const now = new Date();
+    sessionId = (
+      await addChildTask(chatId, {
+        createdAt: now,
+        id: StoreId.newSessionId(),
+        status: "running",
+        title: name,
+        updatedAt: now,
+      })
+    ).id;
   }
-  (await createSession({ sessionId, taskId }))._unsafeUnwrap();
 
   const sent = await newMessage({
     files,

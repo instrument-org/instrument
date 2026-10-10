@@ -2,7 +2,6 @@ import { StoreId } from "../../../schemas/store-id";
 import { type TaskId } from "../../../schemas/task-id";
 import { isWorking } from "../../chat/activity";
 import { stepInFlight } from "../../chat/in-flight";
-import { latestSessionId } from "../../chat/latest-session";
 import { renderSteps, sessionSteps } from "../../chat/steps";
 import { type SubcommandInput, subcommand } from "../subcommands";
 import { TASK_COMMAND } from "../task-command";
@@ -17,8 +16,8 @@ export const logSubcommand = subcommand<TaskCommandContext>({
   flags: ["tail"],
   positional: 1,
   run: runLog,
-  usage: `  ${TASK_COMMAND.name} log <id> [--steps] [--tail <lines>]
-      Its transcript, last ${DEFAULT_LOG_TAIL_LINES} lines by default. Composes: \`${TASK_COMMAND.name} log <id> | rg error\`.
+  usage: `  ${TASK_COMMAND.name} log <t id> [--steps] [--tail <lines>]
+      Its transcript, last ${DEFAULT_LOG_TAIL_LINES} lines by default. Composes: \`${TASK_COMMAND.name} log t1 | rg error\`.
       \`--steps\` is the outline instead: what it set out to do, each call and how it ended, what it said, one line each and no tool output. Read this first to see what a task is doing; the transcript's tail is whatever printed last.
 `,
 });
@@ -33,22 +32,14 @@ async function runLog(input: SubcommandInput, context: TaskCommandContext) {
   if (!Number.isFinite(tail) || tail <= 0) {
     throw new Error("--tail takes a number of lines.");
   }
-  const sessionId = await latestSessionId(task.id);
-  if (sessionId.isErr()) {
-    throw sessionId.error;
-  }
-  if (!sessionId.value) {
-    return `${task.id} has no transcript yet.\n`;
-  }
+  const ref = { sessionId: task.id, taskId: task.chatId };
   const rendered = input.has("steps")
     ? // The outline rather than the transcript: one line per thing the task
       // set out to do or called, with tool output left out. The transcript's
       // tail is whatever printed last, which for a wide search is a page of
       // paths that says nothing about what the task is doing.
-      renderSteps(
-        await sessionSteps({ sessionId: sessionId.value, taskId: task.id }),
-      )
-    : await renderTranscript({ sessionId: sessionId.value, taskId: task.id });
+      renderSteps(await sessionSteps(ref))
+    : await renderTranscript(ref);
   const lines = rendered.trimEnd().split("\n");
   const omitted = Math.max(0, lines.length - tail);
   let text = lines.slice(-tail).join("\n");
@@ -62,8 +53,8 @@ async function runLog(input: SubcommandInput, context: TaskCommandContext) {
   // The outline's lines are steps that happened; a working task's last line
   // is the one still happening, which no step line measures.
   const inFlight =
-    input.has("steps") && isWorking(task.id)
-      ? await stepInFlight(task.id)
+    input.has("steps") && isWorking(task.chatId, task.id)
+      ? await stepInFlight(ref)
       : undefined;
   return `${header}${text}\n${inFlight ? `now: ${inFlight}\n` : ""}`;
 }

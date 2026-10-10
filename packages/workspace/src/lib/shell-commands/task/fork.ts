@@ -1,30 +1,21 @@
 import { type ChatId } from "../../../schemas/chat-id";
-import { type SessionMessage } from "../../../schemas/session/message";
-import { type StoreId } from "../../../schemas/store-id";
-import { type TaskId } from "../../../schemas/task-id";
+import { StoreId } from "../../../schemas/store-id";
 import { isWorking } from "../../chat/activity";
-import { folderReach } from "../../chat/folder-reach";
-import { latestOrNewSessionId } from "../../chat/latest-session";
+import {
+  addChildTask,
+  type ChatTask,
+  listChildTasks,
+} from "../../chat/children";
 import { expectStop } from "../../chat/wake";
 import { defaultTaskName } from "../../default-task-name";
-import { getCurrentDate } from "../../get-current-date";
-import { type FolderGrant, grantFolders } from "../../grant-folders";
-import { initializeTask } from "../../initialize-task";
 import {
   handOverBackgroundProcesses,
   listBackgroundProcesses,
 } from "../../background-processes";
-import { isToolPart } from "../../is-tool-part";
+import { updateHeldTabs } from "../../held-tabs";
 import { newMessage } from "../../new-message";
-import { newTaskId } from "../../new-task-id";
-import { chatTaskIds } from "../../record-folders";
 import { Store } from "../../store";
-import { taskDir } from "../../task-dir-utils";
-import { getTaskState, setTaskState } from "../../task-record";
-import { getTaskSettings, recordTaskActivity } from "../../task-settings";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
-import { getWorkspaceConfig } from "../../workspace-config";
-import { effectiveFolderAccess } from "../../workspace-fs-layout";
 import {
   type SubcommandInput,
   type SubcommandShell,
@@ -48,7 +39,7 @@ const NEW_USAGE = `  ${TASK_COMMAND.name} new --name '<title>' [--tab <id>]... [
       says what to do now and repeats none of the conversation. --tab hands it
       a tab of the user's, page and all. --job hands it a command of yours
       still running in the background (an id \`jobs\` lists), which it then
-      waits on rather than you. Prints its id. You are told when it finishes;
+      waits on rather than you. Prints its id, t1. You are told when it finishes;
       do not poll it.
 `;
 
@@ -70,7 +61,7 @@ async function runFork(
 ) {
   const chatSessionId = context.sessionId;
   if (!chatSessionId) {
-    throw new Error("there is no conversation to fork outside a turn.");
+    throw new Error("there is no conversation to carry on outside a turn.");
   }
   const directive = promptFrom(input.positional.join(" "), stdin);
   if (!directive) {
@@ -89,25 +80,20 @@ async function runFork(
   const sharedTabs = await tabsHeldElsewhere(handedTabs, context.chatId);
   const name = input.value("name")?.trim() || defaultTaskName(directive);
 
-  const taskId = await startFork({
+  const task = await startFork({
+    callPartId: context.callPartId,
     chatId: context.chatId,
     chatSessionId,
-    // Every folder the chat reaches comes along at the chat's own path and
-    // access, so a path anywhere in the inherited conversation is the same
-    // path here.
-    folders: grantsOfChat(await folderReach(context.chatId)),
     handedTabs,
-    idFrom: directive,
-    keep: withoutCall(context.callPartId),
     model,
     modelURI,
     name,
-    onSession: (forkSessionId, forkId) => {
+    onSession: (forkSessionId) => {
       handOverBackgroundProcesses({
         from: chatSessionId,
         ids: jobs,
         to: forkSessionId,
-        toTaskId: forkId,
+        toTaskId: context.chatId,
       });
     },
     assignment:
@@ -115,8 +101,8 @@ async function runFork(
         ? `${directive}\n\nStill running in the background, and yours now under the same ids: ${jobs.join(", ")}. Wait on them with \`fg\` rather than starting them again.`
         : directive,
   });
-  recordHandOff({ kind: "created", taskId });
-  return `Started task ${taskId} ("${name}"). It is running now, in this folder with your folders.\n${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`;
+  recordHandOff({ kind: "created", taskId: task.id });
+  return `Started task ${task.handle} ("${name}"). It is running now, in this folder with your folders.\n${handedTabsLine(handedTabs)}${sharedTabs}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.\n`;
 }
 
 /**
@@ -143,180 +129,23 @@ function handedJobs(args: string[], sessionId: StoreId.Session): string[] {
 }
 
 /**
- * The chat's messages without the call that is starting this fork (`callPartId`,
- * the `bash` part `task new` runs in). Unanswered, it is dropped like any call
- * with no result; but a call that ran past its yield has already been
- * answered "still running in the background", and a fork that inherits that
- * answer reads its own start as the work already under way, and waits on it.
- * The call is in a step newer than the provider has cached, so the prefix is
- * unchanged.
+ * The last of the chat's messages a task carries on from: the one before the
+ * step whose call (`callPartId`, the `bash` part `task new` runs in) starts
+ * it, which is the last message the request that wrote that call was sent.
+ * The task's first request then sends that same prefix, which the provider
+ * has cached, and nothing of the step still under way, whose calls have no
+ * results yet and whose own result would read as the work already started.
+ * The newest message when no call is named.
  */
-export function withoutCall(
-  callPartId: StoreId.Part | undefined,
-): (messages: SessionMessage.WithParts[]) => SessionMessage.WithParts[] {
-  return (messages) =>
-    messages.flatMap((message) => {
-      const parts = message.parts.filter(
-        (part) => part.metadata.id !== callPartId,
-      );
-      if (parts.length === message.parts.length) {
-        return [message];
-      }
-      return parts.length === 0 ? [] : [{ ...message, parts }];
-    });
-}
-
-/**
- * Every folder the chat reaches, at the chat's own path and access, so a path
- * anywhere in the inherited conversation is the same path in the fork.
- */
-function grantsOfChat(
-  chatFolders: Awaited<ReturnType<typeof folderReach>>,
-): FolderGrant[] {
-  return Object.values(chatFolders).map((folder) => ({
-    access: effectiveFolderAccess(folder),
-    mountName: folder.mountName,
-    path: folder.path,
-    source: folder.source,
-  }));
-}
-
-/**
- * Starts a fork of a chat: a task of the chat's that works in its
- * folder, inherits its conversation, and runs the agent on `assignment` as its
- * own first turn. Returns the fork's id once its
- * session has been asked to start.
- */
-async function startFork({
-  assignment,
+async function forkPoint({
+  callPartId,
   chatId,
   chatSessionId,
-  folders,
-  handedTabs = [],
-  idFrom,
-  keep,
-  model,
-  modelURI,
-  name,
-  onSession,
 }: {
-  /** What the chat asks the fork to do, as it wrote it. */
-  assignment: string;
+  callPartId: StoreId.Part | undefined;
   chatId: ChatId;
   chatSessionId: StoreId.Session;
-  folders: FolderGrant[];
-  handedTabs?: Awaited<ReturnType<typeof resolveTabs>>;
-  /** What the fork's id is made from. */
-  idFrom: string;
-  /** Which of the chat's messages it inherits, in order; all when absent. */
-  keep?: (messages: SessionMessage.WithParts[]) => SessionMessage.WithParts[];
-  model: Parameters<typeof newMessage>[0]["model"];
-  modelURI: Parameters<typeof newMessage>[0]["modelURI"];
-  name: string;
-  /** Called with the fork's session before its first turn starts. */
-  onSession?: (sessionId: StoreId.Session, taskId: TaskId) => void;
-}): Promise<TaskId> {
-  const workspaceConfig = getWorkspaceConfig();
-  const taskId = await newTaskId({ prompt: idFrom, workspaceConfig });
-  const effort = (await getTaskSettings(taskDir(chatId)))?.reasoningEffort;
-  const initialized = await initializeTask(
-    {
-      chatId,
-      initialSettings: {
-        fork: true,
-        name,
-        ...(effort ? { reasoningEffort: effort } : {}),
-        workdir: chatId,
-      },
-      taskId,
-      workspaceConfig,
-    },
-    {},
-  );
-  if (initialized.isErr()) {
-    throw initialized.error;
-  }
-  // Granted on the fork's record rather than attached to its first message:
-  // the conversation it inherits already names every folder at these paths,
-  // so a list on the assignment would only repeat it.
-  const held = await getTaskState(taskDir(taskId));
-  await setTaskState(taskDir(taskId), {
-    attachedFolders: grantFolders(
-      Object.values(held.attachedFolders ?? {}),
-      folders,
-      getCurrentDate().getTime(),
-    ).folders,
-  });
-  if (handedTabs.length > 0) {
-    await setTaskState(taskDir(taskId), {
-      browserTabs: handedTabs.map((id) => ({ id, openedBy: "handed" })),
-    });
-  }
-
-  const session = await latestOrNewSessionId(taskId);
-  if (session.isErr()) {
-    throw session.error;
-  }
-  const sessionId = session.value;
-  await inheritConversation({
-    chatId,
-    chatSessionId,
-    forkId: taskId,
-    forkSessionId: sessionId,
-    keep,
-  });
-
-  const message = await newMessage({
-    fromChat: { kind: "assignment", text: assignment },
-    model,
-    modelURI,
-    prompt: "",
-    sessionId,
-    taskId,
-  });
-  if (message.isErr()) {
-    throw message.error;
-  }
-  onSession?.(sessionId, taskId);
-  getWorkspaceActorRef().send({
-    type: "createSession",
-    value: {
-      id: taskId,
-      message: message.value,
-      model,
-      sessionId,
-    },
-  });
-  await recordTaskActivity(taskId);
-  return taskId;
-}
-
-/**
- * Copies the chat's session into the fork's: the baseline (system prompt and
- * context message) and every message so far, under the same ids, so the
- * fork's first request renders the same bytes as the chat's up to the
- * fork's own turn. Each copy is marked `inherited` in its metadata, which no
- * model request carries, so a transcript can set the background apart
- * without moving the prefix.
- *
- * Left out: a tool call that has not answered yet, which is the `fork` call
- * itself, since a call with no result is a request a provider refuses.
- * Usage and timing come off the copied replies, which the chat already
- * counted, so the fork's spend is its own.
- */
-async function inheritConversation({
-  chatId,
-  chatSessionId,
-  forkId,
-  forkSessionId,
-  keep = (messages) => messages,
-}: {
-  chatId: ChatId;
-  chatSessionId: StoreId.Session;
-  forkId: TaskId;
-  forkSessionId: StoreId.Session;
-  keep?: (messages: SessionMessage.WithParts[]) => SessionMessage.WithParts[];
-}) {
+}): Promise<StoreId.Message> {
   const messages = await Store.getMessagesWithParts({
     sessionId: chatSessionId,
     taskId: chatId,
@@ -324,99 +153,117 @@ async function inheritConversation({
   if (messages.isErr()) {
     throw messages.error;
   }
-  for (const message of keep(messages.value)) {
-    const copy = inherited(message, forkSessionId);
-    if (!copy) {
-      continue;
-    }
-    const saved = await Store.saveMessageWithParts(copy, forkId);
-    if (saved.isErr()) {
-      throw saved.error;
-    }
+  const calling = messages.value.findIndex((message) =>
+    message.parts.some((part) => part.metadata.id === callPartId),
+  );
+  const before =
+    calling === -1 ? messages.value.at(-1) : messages.value[calling - 1];
+  if (!before) {
+    throw new Error("there is no conversation to carry on from yet.");
   }
-  // The chat's rollover boundary holds for the copy, under the same ids, so
-  // the fork sends what the chat sends rather than history the chat dropped.
-  const chatSession = await Store.getSession(chatSessionId, chatId);
-  const forkSession = await Store.getSession(forkSessionId, forkId);
-  if (
-    chatSession.isOk() &&
-    forkSession.isOk() &&
-    chatSession.value.rolledOverAfterMessageId
-  ) {
-    const saved = await Store.saveSession(
-      {
-        ...forkSession.value,
-        rolledOverAfterMessageId: chatSession.value.rolledOverAfterMessageId,
-        rolledOverUnderUsableTokens:
-          chatSession.value.rolledOverUnderUsableTokens,
-      },
-      forkId,
-    );
-    if (saved.isErr()) {
-      throw saved.error;
-    }
-  }
-}
-
-function inherited(
-  message: SessionMessage.WithParts,
-  sessionId: StoreId.Session,
-): SessionMessage.WithParts | undefined {
-  const parts = message.parts
-    .filter((part) => !isToolPart(part) || part.state.startsWith("output-"))
-    .map((part) => inSession(part, sessionId));
-  if (parts.length === 0 && message.parts.length > 0) {
-    return undefined;
-  }
-  if (message.role === "assistant") {
-    const {
-      completionTokensPerSecond: _rate,
-      msToFinish: _finish,
-      msToFirstChunk: _firstChunk,
-      usage: _usage,
-      ...metadata
-    } = message.metadata;
-    return {
-      ...message,
-      metadata: { ...metadata, inherited: true, sessionId },
-      parts,
-    };
-  }
-  return { ...markedInherited(message, sessionId), parts };
-}
-
-/** A message filed under another session, marked as inherited. */
-function markedInherited<
-  T extends { metadata: { inherited?: boolean; sessionId: StoreId.Session } },
->(item: T, sessionId: StoreId.Session): T {
-  return {
-    ...item,
-    metadata: { ...item.metadata, inherited: true, sessionId },
-  };
-}
-
-/** The same record, filed under another session. */
-function inSession<T extends { metadata: { sessionId: StoreId.Session } }>(
-  item: T,
-  sessionId: StoreId.Session,
-): T {
-  return { ...item, metadata: { ...item.metadata, sessionId } };
+  return before.id;
 }
 
 /**
- * The chat's forks still running, for a stop of the chat to end with them:
- * Stop means all of the user's work, wherever it is running.
+ * Starts a task of a chat: a session in the chat's store that carries the
+ * chat's conversation on from where it stands, works in the chat's folder
+ * with the chat's folders, model and effort, and runs the agent on
+ * `assignment` as its own first turn. Returns the task once it has
+ * been asked to start.
  */
-export async function runningForks(chatId: ChatId): Promise<TaskId[]> {
-  const ids = chatTaskIds(chatId).filter((id) => isWorking(id));
-  const settings = await Promise.all(
-    ids.map((id) => getTaskSettings(taskDir(id))),
-  );
-  return ids.filter((_, index) => settings[index]?.fork === true);
+async function startFork({
+  assignment,
+  callPartId,
+  chatId,
+  chatSessionId,
+  handedTabs = [],
+  model,
+  modelURI,
+  name,
+  onSession,
+}: {
+  /** What the chat asks the task to do, as it wrote it. */
+  assignment: string;
+  /** The call starting it, whose step the task leaves out. */
+  callPartId: StoreId.Part | undefined;
+  chatId: ChatId;
+  chatSessionId: StoreId.Session;
+  handedTabs?: Awaited<ReturnType<typeof resolveTabs>>;
+  model: Parameters<typeof newMessage>[0]["model"];
+  modelURI: Parameters<typeof newMessage>[0]["modelURI"];
+  name: string;
+  /** Called with the task's session before its first turn starts. */
+  onSession?: (sessionId: StoreId.Session) => void;
+}): Promise<ChatTask> {
+  const chatSession = await Store.getSession(chatSessionId, chatId);
+  if (chatSession.isErr()) {
+    throw chatSession.error;
+  }
+  const now = new Date();
+  const task = await addChildTask(chatId, {
+    createdAt: now,
+    forkedAtMessageId: await forkPoint({ callPartId, chatId, chatSessionId }),
+    id: StoreId.newSessionId(),
+    // The chat's rollover boundary holds for what the task carries on from,
+    // so it sends what the chat sends rather than history the chat dropped.
+    ...(chatSession.value.rolledOverAfterMessageId
+      ? {
+          rolledOverAfterMessageId: chatSession.value.rolledOverAfterMessageId,
+          rolledOverUnderUsableTokens:
+            chatSession.value.rolledOverUnderUsableTokens,
+        }
+      : {}),
+    status: "running",
+    title: name,
+    updatedAt: now,
+  });
+  const sessionId = task.id;
+  if (handedTabs.length > 0) {
+    await updateHeldTabs(chatId, sessionId, (held) => [
+      ...held,
+      ...handedTabs.map((id) => ({ id, openedBy: "handed" as const })),
+    ]);
+  }
+
+  const message = await newMessage({
+    fromChat: { kind: "assignment", text: assignment },
+    model,
+    modelURI,
+    prompt: "",
+    sessionId,
+    taskId: chatId,
+  });
+  if (message.isErr()) {
+    throw message.error;
+  }
+  onSession?.(sessionId);
+  getWorkspaceActorRef().send({
+    type: "createSession",
+    value: {
+      id: chatId,
+      message: message.value,
+      model,
+      sessionId,
+    },
+  });
+  return task;
 }
 
-/** Ends a fork's turn, as a stop the chat expects rather than news. */
-export function stopFork(taskId: TaskId): void {
-  expectStop(taskId);
-  getWorkspaceActorRef().send({ type: "stopSessions", value: { id: taskId } });
+/**
+ * The chat's tasks still running, for a stop of the chat to end with them:
+ * Stop means all of the user's work, wherever it is running.
+ */
+export async function runningForks(chatId: ChatId): Promise<StoreId.Session[]> {
+  return (await listChildTasks(chatId, (id) => isWorking(chatId, id))).map(
+    (task) => task.id,
+  );
+}
+
+/** Ends a task's turn, as a stop the chat expects rather than news. */
+export function stopFork(chatId: ChatId, sessionId: StoreId.Session): void {
+  expectStop(sessionId);
+  getWorkspaceActorRef().send({
+    type: "stopSessions",
+    value: { id: chatId, sessionId },
+  });
 }

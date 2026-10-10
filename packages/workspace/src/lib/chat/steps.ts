@@ -7,7 +7,6 @@ import { getToolNameByType } from "../get-tool-name-by-type";
 import { isInteractiveTool } from "../is-interactive-tool";
 import { isToolPart } from "../is-tool-part";
 import { Store } from "../store";
-import { latestSessionId } from "./latest-session";
 
 /**
  * One line of a task's transcript read as a sequence of steps: what its agent
@@ -54,6 +53,10 @@ export function renderSteps(steps: Step[]): string {
     .join("\n");
 }
 
+/**
+ * A session's own steps, oldest first: a task's, without the conversation
+ * it carries on from.
+ */
 export async function sessionSteps({
   sessionId,
   taskId,
@@ -61,7 +64,11 @@ export async function sessionSteps({
   sessionId: StoreId.Session;
   taskId: TaskId;
 }): Promise<Step[]> {
-  const messages = await Store.getMessagesWithParts({ sessionId, taskId });
+  const messages = await Store.getMessagesWithParts({
+    inherited: false,
+    sessionId,
+    taskId,
+  });
   if (messages.isErr()) {
     return [];
   }
@@ -131,21 +138,16 @@ export async function sessionSteps({
 }
 
 /**
- * Where a task's agent has gone since a moment, oldest first, from its newest
- * session: the activities its calls named, or each call it made when they named
- * none, which a model can leave out. What an overdue note carries in place of
- * the one latest step, so the conversation reads a trajectory rather than a
- * snapshot.
+ * Where a task's agent has gone since a moment, oldest first: the activities
+ * its calls named, or each call it made when they named none, which a model
+ * can leave out. What an overdue note carries in place of the one latest
+ * step, so the conversation reads a trajectory rather than a snapshot.
  */
 export async function trajectorySince(
-  taskId: TaskId,
+  ref: { sessionId: StoreId.Session; taskId: TaskId },
   since: Date,
 ): Promise<string[]> {
-  const sessionId = await latestSessionId(taskId);
-  if (sessionId.isErr() || !sessionId.value) {
-    return [];
-  }
-  const allSteps = await sessionSteps({ sessionId: sessionId.value, taskId });
+  const allSteps = await sessionSteps(ref);
   const steps = allSteps.filter((step) => step.at >= since);
   const activities = steps.filter((step) => step.kind === "activity");
   return (

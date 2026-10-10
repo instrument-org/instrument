@@ -1,7 +1,5 @@
 import { type ChatId } from "../../../schemas/chat-id";
 import { StoreId } from "../../../schemas/store-id";
-import { type TaskId } from "../../../schemas/task-id";
-import { type HeldTab } from "../../../schemas/task-state";
 import { WINDOW_ID } from "../../../schemas/window-id";
 import {
   type BrowserTargetId,
@@ -83,7 +81,6 @@ function tabIdOf(targetId: BrowserTargetId): string {
 export async function tabsHeldElsewhere(
   tabs: BrowserTargetId[],
   chatId: ChatId,
-  except?: TaskId,
 ): Promise<string> {
   if (tabs.length === 0) {
     return "";
@@ -92,33 +89,13 @@ export async function tabsHeldElsewhere(
   return tabs
     .flatMap((id) => {
       const holder = holders.get(tabIdOf(id));
-      return holder && holder.id !== except
+      return holder
         ? [
             `Tab ${tabIdOf(id)} is also held by ${holder.id} ("${holder.title}"), which is working in it now; both will act on the same page.\n`,
           ]
         : [];
     })
     .join("");
-}
-
-/**
- * The tab a task was handed, by the id the conversation knows it as, and
- * whether it is still open: a tab the user has since closed leaves the task
- * with nothing to act on, which is worth seeing before steering it at one.
- */
-export function describeHeldTabs(tabs: HeldTab[]): string {
-  if (tabs.length === 0) {
-    return "none; it opens one of its own when it needs a page";
-  }
-  return tabs
-    .map((held) => {
-      const own = held.openedBy === "task" ? ", which it opened" : "";
-      const closed = getWorkspaceConfig().browser.getTargetMeta(held.id)
-        ? ""
-        : " (closed since)";
-      return `${tabIdOf(held.id)}${own}${closed}`;
-    })
-    .join("; ");
 }
 
 /** What a hand-over prints about the tabs it made, or nothing. */

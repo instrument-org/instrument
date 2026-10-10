@@ -22,7 +22,7 @@ import { getErrorAction } from "../lib/get-error-action";
 import { isInteractiveTool } from "../lib/is-interactive-tool";
 import { isToolPart } from "../lib/is-tool-part";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
-import { resolveChat } from "../lib/record-folders";
+import { chatConversation } from "../lib/chat/children";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { llmRequestLogic } from "../logic/llm-request";
@@ -675,7 +675,8 @@ export const agentMachine = setup({
                 // nobody answers: its question runs, and says so.
                 if (
                   isInteractiveTool(tool.name) &&
-                  resolveChat(context.taskId) !== undefined
+                  chatConversation(context.taskId, context.sessionId) !==
+                    undefined
                 ) {
                   pendingToolCalls.push(part);
                   continue;

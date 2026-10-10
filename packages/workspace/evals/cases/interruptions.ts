@@ -62,13 +62,11 @@ async function agents(ctx: Context): Promise<Agent[]> {
 /** Every tool part an agent ran itself, as JSON, input and output alike. */
 function ownToolParts(agent: Agent): string[] {
   return agent.sessions.flatMap((session) =>
-    session.messages
-      .filter((message) => !message.metadata.inherited)
-      .flatMap((message) =>
-        message.parts.flatMap((part) =>
-          part.type.startsWith("tool-") ? [JSON.stringify(part)] : [],
-        ),
+    session.messages.flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type.startsWith("tool-") ? [JSON.stringify(part)] : [],
       ),
+    ),
   );
 }
 
@@ -356,7 +354,6 @@ const stoppedPromptly: Assertion = {
       agent.sessions.flatMap((session) =>
         session.messages.flatMap((message) =>
           message.role === "assistant" &&
-          !message.metadata.inherited &&
           message.metadata.createdAt.getTime() > stopAt + 15_000 &&
           message.parts.some((part) => part.type.startsWith("tool-"))
             ? [agent.name]

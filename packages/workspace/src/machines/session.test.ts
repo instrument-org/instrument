@@ -35,6 +35,7 @@ import {
 import { setupAgent } from "../agents/create-agent";
 import { instrumentAgent } from "../agents/instrument";
 import { type AnyAgent } from "../agents/types";
+import * as children from "../lib/chat/children";
 import * as recordFolders from "../lib/record-folders";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
@@ -94,6 +95,9 @@ describe("sessionMachine", () => {
    */
   function answersAsChat() {
     vi.spyOn(recordFolders, "resolveChat").mockImplementation((id) =>
+      id === taskFolder ? ChatIdSchema.parse(taskFolder) : undefined,
+    );
+    vi.spyOn(children, "chatConversation").mockImplementation((id) =>
       id === taskFolder ? ChatIdSchema.parse(taskFolder) : undefined,
     );
   }

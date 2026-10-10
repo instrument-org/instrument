@@ -3,15 +3,21 @@ import { z } from "zod";
 
 import { BrowserTargetIdSchema } from "../types";
 import { FolderAttachment } from "./folder-attachment";
+import { StoreId } from "./store-id";
 
 /**
- * A tab of the window a task holds: one the conversation handed it, which is
- * the user's and outlives the task, or one the task opened itself, which stays
- * in the chat after the task is done.
+ * A tab of the window a chat's agent holds: one the conversation handed a
+ * task, which is the user's and outlives the task, or one the agent opened
+ * itself, which stays in the chat after the task is done.
  */
 const HeldTabSchema = z.object({
   id: BrowserTargetIdSchema,
   openedBy: z.enum(["handed", "task"]),
+  /**
+   * The task that drives it, by its session; absent for a tab the chat's
+   * own conversation drives.
+   */
+  sessionId: StoreId.SessionSchema.optional(),
 });
 
 export type HeldTab = z.output<typeof HeldTabSchema>;
@@ -35,8 +41,9 @@ export const StoredTaskStateSchema = z
 export const TaskStateSchema = z.object({
   attachedFolders: z.record(z.string(), FolderAttachment.Schema).optional(),
   /**
-   * The window's tabs a task drives, first one first: tabs the conversation
-   * handed it and tabs it opened itself. `agent-browser` connects to them.
+   * The window's tabs the chat's agents drive, first one first: tabs the
+   * conversation handed a task and tabs each opened itself, each with the
+   * session that drives it. `agent-browser` connects to its session's.
    */
   browserTabs: z.array(HeldTabSchema).default([]),
   // A stored URI this build cannot parse (a provider since renamed or

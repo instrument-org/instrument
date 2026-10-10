@@ -2,7 +2,6 @@ import ms from "ms";
 import { z } from "zod";
 
 import { createBashEnv } from "../../lib/create-bash-env";
-import { childTaskMounts } from "../../lib/chat/children";
 import { folderReach } from "../../lib/chat/folder-reach";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
@@ -74,14 +73,7 @@ const runBash = base
     const chatId = resolveChat(input.taskId);
     const bash = await createBashEnv({
       attachedFolders: await folderReach(input.taskId),
-      ...(chatId
-        ? {
-            chat: {
-              childMounts: await childTaskMounts(chatId),
-              id: chatId,
-            },
-          }
-        : {}),
+      ...(chatId ? { chat: { id: chatId } } : {}),
       sessionId: input.sessionId,
       taskId: input.taskId,
     });

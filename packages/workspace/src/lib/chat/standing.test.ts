@@ -83,7 +83,11 @@ describe("taskStanding", () => {
       taskId,
     );
 
-    const standing = await taskStanding({ isRunning: false, taskId });
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      taskId,
+    });
 
     expect(standing).toEqual({
       kind: "done",
@@ -105,7 +109,11 @@ describe("taskStanding", () => {
       taskId,
     );
 
-    const standing = await taskStanding({ isRunning: false, taskId });
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      taskId,
+    });
 
     expect(standing).toEqual({ kind: "done", line: "Wrote compared.html" });
   });
@@ -125,7 +133,11 @@ describe("taskStanding", () => {
       taskId,
     );
 
-    const standing = await taskStanding({ isRunning: false, taskId });
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      taskId,
+    });
 
     expect(standing.line).toBe(`${words.slice(0, 90)}…`);
   });
@@ -146,7 +158,11 @@ describe("taskStanding", () => {
       taskId,
     );
 
-    const standing = await taskStanding({ isRunning: false, taskId });
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      taskId,
+    });
 
     expect(standing).toEqual({
       kind: "waiting",
@@ -182,7 +198,11 @@ describe("taskStanding", () => {
       taskId,
     );
 
-    const standing = await taskStanding({ isRunning: false, taskId });
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      taskId,
+    });
 
     expect(standing).toEqual({
       kind: "done",
@@ -215,7 +235,11 @@ describe("taskStanding", () => {
       taskId,
     );
 
-    const standing = await taskStanding({ isRunning: false, taskId });
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      taskId,
+    });
 
     expect(standing.line).toBe("Stopped while completing repository copy");
   });
@@ -231,7 +255,11 @@ describe("taskStanding", () => {
       taskId,
     );
 
-    const standing = await taskStanding({ isRunning: false, taskId });
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      taskId,
+    });
 
     expect(standing.line).toBe("Stopped while PDF export of the report");
   });
@@ -247,7 +275,11 @@ describe("taskStanding", () => {
       taskId,
     );
 
-    const standing = await taskStanding({ isRunning: false, taskId });
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      taskId,
+    });
 
     expect(standing).toEqual({ kind: "done", line: "Stopped" });
   });
@@ -267,7 +299,11 @@ describe("taskStanding", () => {
       taskId,
     );
 
-    const standing = await taskStanding({ isRunning: false, taskId });
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      taskId,
+    });
 
     expect(standing).toEqual({ kind: "failed", line: "Model is busy" });
   });
@@ -295,7 +331,11 @@ describe("taskStanding", () => {
       taskId,
     );
 
-    const standing = await taskStanding({ isRunning: false, taskId });
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      taskId,
+    });
 
     expect(standing).toEqual({
       kind: "done",
@@ -305,9 +345,9 @@ describe("taskStanding", () => {
 
   it("says the step while it runs", async () => {
     const taskId = freshTask();
-    await withSession(taskId);
+    const sessionId = await withSession(taskId);
 
-    const standing = await taskStanding({ isRunning: true, taskId });
+    const standing = await taskStanding({ isRunning: true, sessionId, taskId });
 
     expect(standing.kind).toBe("running");
     expect(standing.line).toBe("Working");
@@ -334,7 +374,7 @@ describe("taskStanding", () => {
       taskId,
     );
 
-    const standing = await taskStanding({ isRunning: true, taskId });
+    const standing = await taskStanding({ isRunning: true, sessionId, taskId });
 
     expect(standing).toEqual({
       kind: "waiting",

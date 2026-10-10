@@ -344,7 +344,6 @@ const stoppedEverythingPromptly: Assertion = {
       child.sessions.flatMap((session) =>
         session.messages.flatMap((message) =>
           message.role === "assistant" &&
-          !message.metadata.inherited &&
           message.metadata.createdAt.getTime() > stopAt + 15_000
             ? [child.taskId]
             : [],
@@ -535,10 +534,7 @@ const forkReadTheCache: Assertion = {
     const firsts = children.map((child) => {
       const own = child.sessions
         .flatMap((session) => session.messages)
-        .filter(
-          (message) =>
-            message.role === "assistant" && !message.metadata.inherited,
-        )
+        .filter((message) => message.role === "assistant")
         .toSorted(
           (a, b) =>
             a.metadata.createdAt.getTime() - b.metadata.createdAt.getTime(),
@@ -847,7 +843,7 @@ const exportedAndToldWithoutPolling: Assertion = {
     );
     const commands = bashCommands(sessions);
     const sleeps = count(commands, /\bsleep\b/);
-    const peeks = count(commands, /\btask (?:show|log|list)\b/);
+    const peeks = count(commands, /\btask (?:log|list)\b/);
     const wakes = sessions
       .flatMap((session) => session.messages)
       .flatMap((message) =>
@@ -860,7 +856,7 @@ const exportedAndToldWithoutPolling: Assertion = {
             : [],
         ),
       );
-    const evidence = `finished ${String(finished)}; told ${String(toldAfter)}; chat sleeps ${sleeps}; task show/log/list ${peeks}; wakes: ${wakes.join(", ") || "none"}; ${taskCommandCounts(sessions)}`;
+    const evidence = `finished ${String(finished)}; told ${String(toldAfter)}; chat sleeps ${sleeps}; task log/list ${peeks}; wakes: ${wakes.join(", ") || "none"}; ${taskCommandCounts(sessions)}`;
     return finished && toldAfter && sleeps === 0 && peeks <= 3
       ? pass(text, evidence)
       : fail(text, evidence);

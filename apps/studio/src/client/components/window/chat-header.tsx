@@ -14,7 +14,7 @@ import {
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { cn } from "@/client/lib/utils";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId } from "@instrument-org/workspace/client";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
@@ -86,7 +86,7 @@ export function ChatHeader({
   /** Opens the chat among the chats, from its menu, where the head is not already there. */
   onOpenInChats?: () => void;
   /** Opens one of the chat's tasks beside it, from the work in flight at the head's right. */
-  onOpenTask: (taskId: TaskId) => void;
+  onOpenTask: (taskId: StoreId.Session) => void;
   onSetTopics: (topics: string[]) => void;
   /** Opens the chat's tasks as a tab in its group, when the head can reach them. */
   onViewTasks?: () => void;

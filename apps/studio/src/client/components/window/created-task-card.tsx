@@ -1,7 +1,8 @@
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
+import { useTaskSession } from "@/client/hooks/use-task-session";
 import { rpcClient } from "@/client/rpc/client";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
 import { useMutation } from "@tanstack/react-query";
 import { type MouseEvent } from "react";
@@ -11,7 +12,7 @@ import { TRANSCRIPT_ROW } from "../message-part/transcript-group";
 import { StopProcessButton } from "../task/stop-process-button";
 import { useChildTask } from "./child-tasks-query";
 import { useWindow } from "./context";
-import { useTaskStatus } from "./task-working";
+import { taskHref } from "./tab-location";
 
 /**
  * The task a command in the conversation created, inside the reply that
@@ -28,15 +29,23 @@ import { useTaskStatus } from "./task-working";
  */
 export function CreatedTaskCard({ taskId }: { taskId: string }) {
   const appWindow = useWindow();
-  const id = TaskIdSchema.parse(taskId);
-  const status = useTaskStatus(id);
-  // The line a finished task ends on: what it made, what it asks for, or how
-  // it stopped. Read from the list of the chat it was filed in, and only once
-  // this one is done, which is the moment the line is settled.
-  const standing = useChildTask(id, status?.isWorking === false)?.standing;
+  const id = StoreId.SessionSchema.parse(taskId);
+  // The chat whose transcript this card is in, which started the task and
+  // holds it.
+  const chat = ChatIdSchema.parse(useTaskSession().taskId);
+  // Where it stands, from the list of the chat it was started in: the step
+  // while it works, and once it is done the line it ended on: what it made,
+  // what it asks for, or how it stopped.
+  const task = useChildTask(chat, id);
+  const status = task && {
+    isWorking: task.stoppable,
+    step: task.step,
+    title: task.title,
+  };
+  const standing = task?.standing;
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
 
-  const href = `/tasks/${id}`;
+  const href = taskHref(id, chat);
   // A middle click, a modified click, or the menu on a right click asks for a
   // tab of the task's own; a plain click takes the tab on screen.
   const gestures = useOpenGestures({ href, kind: "screen" });
@@ -111,7 +120,7 @@ export function CreatedTaskCard({ taskId }: { taskId: string }) {
           disabled={stop.isPending}
           label="Stop this task"
           onClick={() => {
-            stop.mutate({ id });
+            stop.mutate({ id: chat, sessionId: id });
           }}
         />
       )}

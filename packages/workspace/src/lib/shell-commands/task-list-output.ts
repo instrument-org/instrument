@@ -1,5 +1,3 @@
-import { type TaskId } from "../../schemas/task-id";
-
 /**
  * How long each unit a span may be written in lasts. A month and a year are
  * the round figures a question uses rather than calendar arithmetic, since a
@@ -39,7 +37,8 @@ export interface TaskListQuery {
 
 /** One task as the listing needs it. */
 export interface TaskListRow {
-  id: TaskId;
+  /** Its handle in the chat, `t1`. */
+  id: string;
   /** Whether an agent turn is live in it. */
   isRunning: boolean;
   /**
@@ -47,6 +46,10 @@ export interface TaskListRow {
    * is doing. The two come apart when a turn ends with a scan still going.
    */
   leftRunning: number;
+  /** The step it is on, what it waits for, or what it last said. */
+  line: string;
+  /** Where it stands: at work, stopped on an ask, done, or failed. */
+  status: "done" | "failed" | "running" | "waiting";
   title: string;
   updatedAt: Date;
 }
@@ -129,18 +132,17 @@ export function parseListDate(
 }
 
 /**
- * The listing itself: a column each for the id, whether it is running, what it
- * has in the background when any row does, the day it was last active, how
- * long ago that was, and its title.
+ * The listing itself: a column each for the id, where it stands, what it has
+ * in the background when any row does, the day it was last active, how long
+ * ago that was, and its title with its line after it: the step it is on, what
+ * it waits for, or what it last said.
  *
- * The day is written out as well as the age because a listing without one is
- * filtered by reading a date out of the id, which is the day the task was made
- * rather than the day it was last active, and which a quarter of tasks do not
- * carry at all.
+ * The day is written out as well as the age, so a listing is filtered by the
+ * day a task was last active rather than by working one out from an age.
  *
  * The background column is its own rather than a word in the status column,
  * because "running" there means an agent turn is live, and a task that ended
- * its turn with a scan still going is idle and has one. One cell saying both
+ * its turn with a scan still going is done and has one. One cell saying both
  * with one word would say neither.
  */
 export function renderTaskList(
@@ -150,13 +152,13 @@ export function renderTaskList(
   const anyLeft = selection.shown.some((row) => row.leftRunning > 0);
   const cells = selection.shown.map((row) => [
     row.id,
-    row.isRunning ? "running" : "idle",
+    row.status,
     ...(anyLeft
       ? [row.leftRunning > 0 ? `${row.leftRunning} in background` : ""]
       : []),
     row.updatedAt.toISOString().slice(0, 10),
     `${formatAge(now.getTime() - row.updatedAt.getTime())} ago`,
-    row.title,
+    row.line ? `${row.title} · ${row.line}` : row.title,
   ]);
   const last = (cells[0]?.length ?? 1) - 1;
   const widths = Array.from({ length: last }, (_, column) =>

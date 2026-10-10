@@ -27,20 +27,25 @@ export function cacheByStoreGeneration<Value>(
   keepWhen: (value: Value) => boolean = () => true,
 ) {
   const entries = new Map<
-    TaskId,
+    string,
     { generation: string; value: Promise<Value> }
   >();
-  return (taskId: TaskId, compute: () => Promise<Value>): Promise<Value> => {
+  /** `key` tells apart values derived from one store, one per session say. */
+  return (
+    taskId: TaskId,
+    compute: () => Promise<Value>,
+    key: string = taskId,
+  ): Promise<Value> => {
     const generation = storeGeneration(taskId);
-    const known = entries.get(taskId);
+    const known = entries.get(key);
     if (known?.generation === generation) {
       return known.value;
     }
     const value = compute();
-    entries.set(taskId, { generation, value });
+    entries.set(key, { generation, value });
     const forget = () => {
-      if (entries.get(taskId)?.value === value) {
-        entries.delete(taskId);
+      if (entries.get(key)?.value === value) {
+        entries.delete(key);
       }
     };
     void value.then((settled) => {

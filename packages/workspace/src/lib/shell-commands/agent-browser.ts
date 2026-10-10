@@ -41,7 +41,7 @@ import {
   getScreenshotsDir,
   taskDir,
 } from "../task-dir-utils";
-import { getTaskState, setTaskState } from "../task-record";
+import { heldTabs, updateHeldTabs } from "../held-tabs";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   buildWorkspaceFsLayout,
@@ -817,13 +817,13 @@ export function createAgentBrowserCommand({
         ...resolvedArgs,
       );
     } else {
-      const refused = await refuseBrowserFor(id);
+      const refused = await refuseBrowserFor(id, sessionId);
       if (refused !== undefined) {
         return { exitCode: 1, stderr: refused, stdout: "" };
       }
       drivesHeldTabs = true;
 
-      const cdpUrl = cdpBridgeUrl(serverPort, id);
+      const cdpUrl = cdpBridgeUrl(serverPort, id, sessionId);
       const pluginPath = await writeInstrumentProviderPlugin(homeDir);
       pluginRegistry = instrumentPluginRegistry({ cdpUrl, pluginPath });
       commandArgs.push("--session", sessionId, ...resolvedArgs);
@@ -1061,8 +1061,7 @@ async function recordHeldTabHosts({
 }) {
   const { browser } = getWorkspaceConfig();
   try {
-    const { browserTabs } = await getTaskState(taskDir(taskId));
-    const urls = browserTabs.flatMap((tab) => {
+    const urls = (await heldTabs(taskId, sessionId)).flatMap((tab) => {
       const url = browser.getTargetUrl(tab.id);
       return url ? [url] : [];
     });
@@ -1083,27 +1082,31 @@ async function recordHeldTabHosts({
  * is one the user can find in the chat's tabs and none is put in front of
  * them. A page the user has open is handed to a task (`task new --tab`).
  */
-async function refuseBrowserFor(id: TaskId): Promise<string | undefined> {
-  const state = await getTaskState(taskDir(id));
-  const heldTabs = state.browserTabs;
-  const live = await liveHeldTabs(id, heldTabs);
+async function refuseBrowserFor(
+  id: TaskId,
+  sessionId: StoreId.Session,
+): Promise<string | undefined> {
+  const held = await heldTabs(id, sessionId);
+  const live = await liveHeldTabs(id, held);
   if (live.length > 0) {
-    if (live.length < heldTabs.length) {
+    if (live.length < held.length) {
       // Tabs closed since: the browser already told the agent they are gone.
-      await setTaskState(taskDir(id), { browserTabs: live });
+      await updateHeldTabs(id, sessionId, (tabs) =>
+        tabs.filter((tab) => live.some((alive) => alive.id === tab.id)),
+      );
     }
     return undefined;
   }
-  if (heldTabs.some((tab) => tab.openedBy === "handed")) {
+  if (held.some((tab) => tab.openedBy === "handed")) {
     // The user closed the tabs, or the window they were in, since the task
     // was handed them.
     return "agent-browser: the tab this task was handed is closed, so there is no page to act on. Say so and finish with what you have.\n";
   }
-  if (heldTabs.length > 0) {
+  if (held.length > 0) {
     // The task's own tabs, closed by the user or by the conversation: said
     // once, so the task knows the pages it was on are gone rather than
     // finding a blank one, and the next command opens a new tab.
-    await setTaskState(taskDir(id), { browserTabs: [] });
+    await updateHeldTabs(id, sessionId, () => []);
     return "agent-browser: the tab this task opened was closed by the user or the conversation, and the page in it is gone. The next command opens a new tab; start again from the page's address.\n";
   }
   // None yet: agent-browser asks a browser with no pages for one, which the

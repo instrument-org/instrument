@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
 import {
   formatAge,
   parseListDate,
@@ -21,9 +20,11 @@ function row(
   leftRunning = 0,
 ): TaskListRow {
   return {
-    id: TaskIdSchema.parse(id),
+    id,
     isRunning,
     leftRunning,
+    line: isRunning ? "Reading the inbox" : "",
+    status: isRunning ? "running" : "done",
     title,
     updatedAt: new Date(NOW.getTime() - daysAgo * 86_400_000),
   };
@@ -129,12 +130,12 @@ describe("renderTaskList", () => {
   it("writes a column each for the day and the age", () => {
     expect(renderTaskList(selectTasks(TASKS), { now: NOW }))
       .toMatchInlineSnapshot(`
-      "2026-09-08-hey        running  2026-09-08  1s ago   hey
-      2026-09-04-webauthn   idle     2026-09-04  4d ago   Test WebAuthn registration
-      2026-08-14-nest       idle     2026-08-14  25d ago  Second-floor Nest eco mode guard
-      golden-iron-stone-73  idle     2026-04-15  5mo ago  Wednesday afternoon greeting
-      "
-    `);
+        "2026-09-08-hey        running  2026-09-08  1s ago   hey · Reading the inbox
+        2026-09-04-webauthn   done     2026-09-04  4d ago   Test WebAuthn registration
+        2026-08-14-nest       done     2026-08-14  25d ago  Second-floor Nest eco mode guard
+        golden-iron-stone-73  done     2026-04-15  5mo ago  Wednesday afternoon greeting
+        "
+      `);
   });
 
   it("adds a background column only when a task has something there", () => {
@@ -145,11 +146,11 @@ describe("renderTaskList", () => {
     ];
     expect(renderTaskList(selectTasks(tasks), { now: NOW }))
       .toMatchInlineSnapshot(`
-      "2026-09-08-vault     idle     1 in background  2026-09-08  1s ago  Find the vault
-      2026-09-08-hey       running                   2026-09-08  1s ago  hey
-      2026-09-04-webauthn  idle                      2026-09-04  4d ago  Test WebAuthn registration
-      "
-    `);
+        "2026-09-08-vault     done     1 in background  2026-09-08  1s ago  Find the vault
+        2026-09-08-hey       running                   2026-09-08  1s ago  hey · Reading the inbox
+        2026-09-04-webauthn  done                      2026-09-04  4d ago  Test WebAuthn registration
+        "
+      `);
   });
 
   it("names every way to narrow when it left rows behind", () => {

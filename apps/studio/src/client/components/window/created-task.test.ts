@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { StoreId } from "@instrument-org/workspace/client";
+
 import { createdTaskId } from "./created-task";
+
+const TASK = StoreId.newSessionId();
 
 const created = (command: string, output: string) => ({
   input: { command },
@@ -14,10 +18,10 @@ describe("createdTaskId", () => {
       createdTaskId(
         created(
           "task new --name 'Lisbon' <<'EOF'\nFind a hotel.\nEOF",
-          'Created lisbon-hotel ("Lisbon"). It is running now.\n',
+          `Created ${TASK} ("Lisbon"). It is running now.\n`,
         ),
       ),
-    ).toBe("lisbon-hotel");
+    ).toBe(TASK);
   });
 
   it("finds a task new later in a chain", () => {
@@ -25,10 +29,10 @@ describe("createdTaskId", () => {
       createdTaskId(
         created(
           "task list; task new --name 'x' <<'EOF'\nx\nEOF",
-          "Created x-1",
+          `Created ${TASK}`,
         ),
       ),
-    ).toBe("x-1");
+    ).toBe(TASK);
   });
 
   it.each([

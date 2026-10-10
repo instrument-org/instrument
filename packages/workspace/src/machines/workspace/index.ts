@@ -126,7 +126,8 @@ export type WorkspaceEvent =
     }
   | {
       type: "stopSessions";
-      value: { id: TaskId };
+      /** Every session of the record, or the one named. */
+      value: { id: TaskId; sessionId?: StoreId.Session };
     }
   | {
       type: "updateInteractiveToolCall";
@@ -658,8 +659,12 @@ export const workspaceMachine = setup({
         const sessionActorRefs = context.sessionRefsByTaskId.get(
           event.value.id,
         );
-        if (sessionActorRefs) {
-          for (const sessionActorRef of sessionActorRefs) {
+        const { sessionId } = event.value;
+        for (const sessionActorRef of sessionActorRefs ?? []) {
+          if (
+            sessionId === undefined ||
+            sessionActorRef.getSnapshot().context.sessionId === sessionId
+          ) {
             sessionActorRef.send({ type: "stop" });
           }
         }

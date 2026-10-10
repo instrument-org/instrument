@@ -17,23 +17,21 @@ import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
  * rebuilt from the stores as it is read: the index is derived, so it is never
  * migrated.
  */
-const INDEX_VERSION = 2;
+const INDEX_VERSION = 3;
 
 /**
  * What the index keeps, one row per chat or task: each a value derived from
- * that record's own store, and the stamp of the store it was derived from.
+ * the chat's store, and the stamp of the store it was derived from.
  */
 export type IndexTable =
   | "chat_digests"
   | "linked_files"
-  | "task_apps"
   | "task_hosts"
   | "task_standings";
 
 const TABLES: IndexTable[] = [
   "chat_digests",
   "linked_files",
-  "task_apps",
   "task_hosts",
   "task_standings",
 ];
@@ -88,43 +86,24 @@ export function closeWorkspaceIndex() {
  * closed. Only a value whose store has moved is computed again, and one the
  * computation marks `unkept` is kept in neither place.
  *
- * `files` names what else the value is read from besides the task's store,
- * such as its settings, so a change to them is seen across launches too.
- *
  * The index only ever speeds a read up: a row it cannot read or write is
  * derived as though it were absent.
  */
-export function indexedByStore<Value>(
-  table: IndexTable,
-  {
-    files = () => [],
-    inMemory = true,
-  }: {
-    files?: (taskId: TaskId) => string[];
-    /**
-     * Whether to also keep the value in memory by the store's write count.
-     * Off for a value read from more than the store, which a write elsewhere
-     * changes without moving that count; its caller keeps it in memory by
-     * whatever does announce those writes.
-     */
-    inMemory?: boolean;
-  } = {},
-) {
+export function indexedByStore<Value>(table: IndexTable) {
   const memory = cacheByStoreGeneration<Derived<Value>>(
     (derived) => derived.keep,
   );
   const read =
-    (taskId: TaskId, compute: () => Promise<Derived<Value>>) =>
+    (taskId: TaskId, key: string, compute: () => Promise<Derived<Value>>) =>
     async (): Promise<Derived<Value>> => {
       // Taken before the value is computed: a write that lands meanwhile
       // leaves a stamp older than the store, which only costs a recompute.
       const stamp = await stampOf([
         sessionStorePath(taskDir(taskId)),
         `${sessionStorePath(taskDir(taskId))}-wal`,
-        ...files(taskId),
       ]);
       if (stamp !== undefined) {
-        const row = guarded(() => openIndex()?.read.get(table)?.get(taskId));
+        const row = guarded(() => openIndex()?.read.get(table)?.get(key));
         if (row?.stamp === stamp && typeof row.value === "string") {
           const value = row.value;
           const parsed = guarded(() => ({
@@ -140,18 +119,18 @@ export function indexedByStore<Value>(
         guarded(() =>
           openIndex()
             ?.write.get(table)
-            ?.run(taskId, stamp, superjson.stringify(derived.value)),
+            ?.run(key, stamp, superjson.stringify(derived.value)),
         );
       }
       return derived;
     };
+  /** `key` tells apart values derived from one store: a task's, by its session. */
   return async (
     taskId: TaskId,
     compute: () => Promise<Derived<Value>>,
+    key: string = taskId,
   ): Promise<Value> => {
-    const derived = await (inMemory
-      ? memory(taskId, read(taskId, compute))
-      : read(taskId, compute)());
+    const derived = await memory(taskId, read(taskId, key, compute), key);
     return derived.value;
   };
 }

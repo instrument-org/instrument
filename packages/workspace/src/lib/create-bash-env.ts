@@ -103,7 +103,6 @@ import {
   buildBashFs,
   buildWorkspaceFsLayout,
   type WorkspaceFsLayout,
-  type WorkspaceFsMount,
 } from "./workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
 import { createWalkBudget, type WalkBudget } from "./walk-budget";
@@ -536,11 +535,11 @@ function customCommandDefs(): CustomCommandDef[] {
 export interface BashEnvOptions {
   attachedFolders?: Record<string, FolderAttachment.Type>;
   /**
-   * Present when the shell is a chat's: it gets the chat's own commands
-   * (`task`, `chat`, `memory`, `tab`) and the apps' folders, and its briefed
-   * tasks' folders mount read-only (`childTaskMounts`).
+   * Present when the shell is a chat's own conversation's: it gets the
+   * chat's own commands (`task`, `chat`, `memory`, `tab`) and the apps'
+   * folders.
    */
-  chat?: { childMounts: WorkspaceFsMount[]; id: ChatId };
+  chat?: { id: ChatId };
   /**
    * The `bash` call this shell runs, so a fork it starts leaves that call out
    * of what it inherits.
@@ -669,7 +668,6 @@ export function shellLayout({
     // the apps it was handed through the command alone.
     apps: chat !== undefined,
     attachedFolders,
-    extraMounts: chat?.childMounts,
     taskHostRoot: workDir(taskId),
   });
 }

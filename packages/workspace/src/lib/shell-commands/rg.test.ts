@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AbsolutePath } from "../../schemas/paths";
 
 import { FolderAttachment } from "../../schemas/folder-attachment";
-import { AbsolutePathSchema, TaskDirSchema } from "../../schemas/paths";
+import { TaskDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
@@ -91,7 +91,7 @@ describe("rg command", () => {
     await fs.writeFile(path.join(appDir, "app.ts"), "const NEEDLE = 2;\n");
     try {
       const bash = await createBashEnv({
-        chat: { childMounts: [], id: ChatIdSchema.parse(taskId) },
+        chat: { id: ChatIdSchema.parse(taskId) },
         sessionId,
         taskId,
       });
@@ -352,8 +352,8 @@ describe("rg command", () => {
   });
 });
 
-// A chat's folder mounts at /task with its `tasks/` dir masked, since the
-// chat reaches each of its tasks only through the read-only `/tasks/<id>`.
+// A chat's folder mounts at /task with its `tasks/` dir masked: what an
+// earlier version left there is nothing of the chat's.
 describe("rg command in a chat", () => {
   const childId = TaskIdSchema.parse(`01k${"rgchild".padEnd(23, "0")}`);
   let chatDir: string;
@@ -377,14 +377,6 @@ describe("rg command in a chat", () => {
     );
     const bash = await createBashEnv({
       chat: {
-        childMounts: [
-          {
-            hostRoot: AbsolutePathSchema.parse(childDir),
-            maskedEntries: [".instrument"],
-            mountPoint: `/tasks/${childId}`,
-            readOnly: true,
-          },
-        ],
         id: chatId,
       },
       sessionId: StoreId.newSessionId(),
@@ -410,15 +402,6 @@ describe("rg command in a chat", () => {
 
     expect(result.stdout).toContain("a.ts");
     expect(result.stdout).not.toMatch(/sentinel|report|settings\.json/);
-  });
-
-  it("keeps a task's private dir out of a search over its mount", async () => {
-    const result = await runInChat(
-      `cd work && rg -uu NEEDLE /tasks/${childId}`,
-    );
-
-    expect(result.stdout).toContain("report");
-    expect(result.stdout).not.toMatch(/sentinel|settings\.json/);
   });
 });
 

@@ -12,12 +12,7 @@ import { killTaskBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
 import { recordRemoved } from "./record-changes";
-import {
-  chatTaskIds,
-  forgetRecord,
-  type RecordRef,
-  resolveRecord,
-} from "./record-folders";
+import { forgetRecord, resolveRecord } from "./record-folders";
 import {
   disposeSessionsStoreStorage,
   markStorageAsDisposing,
@@ -27,49 +22,28 @@ import { taskDir } from "./task-dir-utils";
 
 interface RemoveTaskOptions {
   id: TaskId;
-  /**
-   * Stop everything the task runs and let go of its store, but leave its
-   * folder where it is: for a task inside a chat that is going to the trash
-   * whole, which takes the folder with it.
-   */
-  keepFolder?: boolean;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }
 
 /**
- * Puts a chat in the trash with every task it started. The chat's own agent
- * is stopped first and refused new messages, so nothing it does meanwhile
- * starts a task that would be missed; then each task is stopped the way
- * trashing it alone stops it (its browser reaped, what it left running killed,
- * its store let go); then the chat's folder, which holds them all, goes to the
- * trash in one piece. The index forgets them only once the folder is gone, so
- * a failure partway leaves every task still listed where it still is.
+ * Puts a chat in the trash with every task it started, which are sessions in
+ * its store. Every agent of the chat's, its tasks' included, is stopped and
+ * refused new messages, so nothing it does meanwhile starts a task that would
+ * be missed; its browser is reaped, what any of them left running is killed,
+ * its store let go; then its folder goes to the trash in one piece. The index
+ * forgets it only once the folder is gone.
  */
 export async function trashChat({
   id,
   workspaceConfig,
   workspaceRef,
-}: Omit<RemoveTaskOptions, "id" | "keepFolder"> & { id: ChatId }) {
-  workspaceRef.send({ type: "prepareToTrashTask", value: { id } });
-  for (const child of chatTaskIds(id)) {
-    const stopped = await trashTask({
-      id: child,
-      keepFolder: true,
-      workspaceConfig,
-      workspaceRef,
-    });
-    if (stopped.isErr()) {
-      workspaceRef.send({ type: "removeTaskBeingTrashed", value: { id } });
-      return err(stopped.error);
-    }
-  }
+}: Omit<RemoveTaskOptions, "id"> & { id: ChatId }) {
   return await trashTask({ id, workspaceConfig, workspaceRef });
 }
 
 async function trashTask({
   id,
-  keepFolder = false,
   workspaceConfig,
   workspaceRef,
 }: RemoveTaskOptions) {
@@ -125,16 +99,12 @@ async function trashTask({
           return err(disposeResult.error);
         }
 
-        if (!keepFolder) {
-          // What it was, and the tasks a chat's folder took with it, read
-          // before the index forgets them.
-          const ref = resolveRecord(taskId);
-          const removed = ref.isOk() ? withTasksInside(ref.value) : [];
-          await workspaceConfig.trashItem(taskDir(taskId));
-          forgetRecord(taskId);
-          for (const gone of removed) {
-            recordRemoved(gone);
-          }
+        // What it was, read before the index forgets it.
+        const ref = resolveRecord(taskId);
+        await workspaceConfig.trashItem(taskDir(taskId));
+        forgetRecord(taskId);
+        if (ref.isOk()) {
+          recordRemoved(ref.value);
         }
 
         // In the off chance that a future task with the same id is
@@ -165,20 +135,4 @@ async function rmrf(path: string): Promise<void> {
     recursive: true,
     retryDelay: ms("2 seconds"),
   });
-}
-
-/** A record, after the tasks inside it when it is a chat's. */
-function withTasksInside(ref: RecordRef): RecordRef[] {
-  if (ref.kind !== "chat") {
-    return [ref];
-  }
-  const chatId = ref.id;
-  return [
-    ...chatTaskIds(chatId).map((id) => ({
-      chatId,
-      id,
-      kind: "task" as const,
-    })),
-    ref,
-  ];
 }

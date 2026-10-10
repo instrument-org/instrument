@@ -18,12 +18,20 @@ import { handleTaskCdpClient, TASK_TAB_CAP } from "./cdp-task-bridge";
 
 const TASK_ID = TaskIdSchema.parse("read-the-pages");
 
-// The task's record, in memory: which tabs it holds.
+const SESSION_ID = StoreId.SessionSchema.parse(
+  "ses_01M3AX9RF3C2E9RTATMB602W0C",
+);
+
+// The tabs the task's session holds, in memory.
 const record: { browserTabs?: HeldTab[] } = {};
-vi.mock("../../../lib/task-record", () => ({
-  getTaskState: () => Promise.resolve({ ...record }),
-  setTaskState: (_dir: unknown, patch: { browserTabs?: HeldTab[] }) => {
-    Object.assign(record, patch);
+vi.mock("../../../lib/held-tabs", () => ({
+  heldTabs: () => Promise.resolve([...(record.browserTabs ?? [])]),
+  updateHeldTabs: (
+    _taskId: unknown,
+    _sessionId: unknown,
+    change: (tabs: HeldTab[]) => HeldTab[],
+  ) => {
+    record.browserTabs = change(record.browserTabs ?? []);
     return Promise.resolve();
   },
 }));
@@ -126,9 +134,12 @@ function connect() {
     },
     captureException: vi.fn(),
   } as unknown as WorkspaceConfig;
-  handleTaskCdpClient(ws as unknown as WebSocket, TASK_ID, config, {
-    send: vi.fn(),
-  } as unknown as WorkspaceServerParentRef);
+  handleTaskCdpClient(
+    ws as unknown as WebSocket,
+    { sessionId: SESSION_ID, taskId: TASK_ID },
+    config,
+    { send: vi.fn() } as unknown as WorkspaceServerParentRef,
+  );
 
   let nextId = 0;
   const command = async (

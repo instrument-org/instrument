@@ -454,6 +454,12 @@ export namespace SessionMessageDataPart {
            */
           files: z.array(z.string()).optional(),
           /**
+           * The task's handle in its chat, `t1`, which the `task` command
+           * takes. Absent on an event written before tasks had one, which
+           * names the task by `taskId` alone.
+           */
+          handle: z.string().optional(),
+          /**
            * The step running as an overdue note is composed, in one line:
            * how long the turn has run, when it last called a tool, and what
            * it is doing this moment (writing with no tool call, or which tool
@@ -513,7 +519,11 @@ export namespace SessionMessageDataPart {
               }),
             )
             .optional(),
-          taskId: TaskIdSchema,
+          /**
+           * The task, by its session in the chat's store, which `task` takes.
+           * A task id on an event written before tasks were sessions.
+           */
+          taskId: z.union([StoreId.SessionSchema, TaskIdSchema]),
           title: z.string(),
           /** Input and output tokens the child has spent in total. */
           tokens: z.number().nonnegative().optional(),

@@ -6,8 +6,7 @@ import { BLANK_PAGE_URL } from "./browser-state";
 import { agentSpellingOfFileUrls } from "./local-page-address";
 import { WINDOW_ID } from "../schemas/window-id";
 import { taskFsLayout } from "./resolve-workspace-file-path";
-import { taskDir } from "./task-dir-utils";
-import { getTaskState } from "./task-record";
+import { heldTabs } from "./held-tabs";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function createBrowserStatusPart({
@@ -26,7 +25,7 @@ export async function createBrowserStatusPart({
     // by where the file sits on the person's disk.
     const layout = await taskFsLayout(taskId);
     const spell = (url: string) => agentSpellingOfFileUrls(url, layout);
-    const held = await heldTabsStatus(taskId, spell);
+    const held = await heldTabsStatus({ sessionId, taskId }, spell);
     return held !== null && held.length > 0
       ? createPart({
           createdAt,
@@ -74,23 +73,22 @@ function createPart({
  * own whatever it holds, so there is nothing true to tell it.
  */
 async function heldTabsStatus(
-  taskId: TaskId,
+  { sessionId, taskId }: { sessionId: StoreId.Session; taskId: TaskId },
   spell: (url: string) => string,
 ): Promise<
   | null
   | { id: string; openedBy: "handed" | "task"; title?: string; url: string }[]
 > {
   const { browser } = getWorkspaceConfig();
-  const state = await getTaskState(taskDir(taskId));
-  const heldTabs = state.browserTabs;
-  if (heldTabs.length === 0 || browser.hasNoWindow) {
+  const held = await heldTabs(taskId, sessionId);
+  if (held.length === 0 || browser.hasNoWindow) {
     return null;
   }
   const windowTargets = await browser.listTargets(WINDOW_ID);
   const titles = new Map(
     windowTargets.map((target) => [target.id, target.title]),
   );
-  return heldTabs.flatMap((tab) => {
+  return held.flatMap((tab) => {
     const decoded = decodeBrowserTargetId(tab.id);
     const url = browser.getTargetUrl(tab.id);
     if (!decoded || !browser.getTargetMeta(tab.id)) {

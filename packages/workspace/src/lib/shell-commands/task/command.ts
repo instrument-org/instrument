@@ -8,7 +8,6 @@ import { newSubcommand } from "./fork";
 import { listSubcommand } from "./list";
 import { logSubcommand } from "./log";
 import { sendSubcommand } from "./send";
-import { showSubcommand } from "./show";
 import { stopSubcommand } from "./stop";
 
 /**
@@ -22,7 +21,6 @@ const subcommands = {
   send: sendSubcommand,
   stop: stopSubcommand,
   list: listSubcommand,
-  show: showSubcommand,
   log: logSubcommand,
   folder: folderSubcommand,
 };

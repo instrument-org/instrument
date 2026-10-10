@@ -4,14 +4,19 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { StoreId } from "../../schemas/store-id";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
-import { initializeTask } from "../initialize-task";
+import { chatTaskFor } from "../../test/helpers/chat-task";
 import { forgetRecordFolders } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { childTaskMounts, listChildTasks } from "./children";
-import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import {
+  addChildTask,
+  chatConversation,
+  isTaskSession,
+  listChildTasks,
+} from "./children";
+import { ChatIdSchema } from "../../schemas/chat-id";
 
 let rootDir: string;
 
@@ -34,30 +39,12 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-async function make(id: string, chatId: ChatId, { fork = false } = {}) {
-  const taskId = TaskIdSchema.parse(id);
-  const made = await initializeTask(
-    {
-      chatId,
-      initialSettings: {
-        name: id,
-        ...(fork ? { fork: true, workdir: chatId } : {}),
-      },
-      taskId,
-      workspaceConfig: getWorkspaceConfig(),
-    },
-    {},
-  );
-  expect(made.isOk()).toBe(true);
-  return taskId;
-}
-
 describe("listChildTasks", () => {
-  it("gives a chat its own tasks, and the window or a task none", async () => {
+  it("gives a chat the sessions it started, and the window none", async () => {
     const one = chatFor();
     const two = chatFor();
-    const first = await make("2026-09-26-first", one);
-    const second = await make("2026-09-26-second", two);
+    const first = await chatTaskFor(one, { title: "First" });
+    const second = await chatTaskFor(two, { title: "Second" });
 
     const ids = async (id: string) => {
       const tasks = await listChildTasks(ChatIdSchema.parse(id));
@@ -66,45 +53,73 @@ describe("listChildTasks", () => {
 
     expect(await ids(one)).toEqual([first]);
     expect(await ids(two)).toEqual([second]);
-    // No id stands for every chat's tasks, and a task asked for its tasks
-    // never walks back into its chat.
+    // No id stands for every chat's tasks.
     expect(await ids(WINDOW_ID)).toEqual([]);
-    expect(await ids(first)).toEqual([]);
   });
 
-  it("leaves out a task whose settings cannot be read, and makes nothing in it", async () => {
+  it("knows nothing of a tasks folder an earlier version left in a chat, and makes nothing in it", async () => {
     const chat = chatFor();
-    const kept = await make("2026-09-26-kept", chat);
-    const broken = path.join(
+    const kept = await chatTaskFor(chat);
+    const left = path.join(
       rootDir,
       "chats",
       chat,
       "tasks",
-      "2026-09-26-broken",
+      "2026-09-26-a-fork",
       ".instrument",
     );
-    await fs.mkdir(broken, { recursive: true });
-    await fs.writeFile(path.join(broken, "settings.json"), "{ not json");
+    await fs.mkdir(left, { recursive: true });
+    await fs.writeFile(
+      path.join(left, "settings.json"),
+      JSON.stringify({ fork: true, name: "A fork", workdir: chat }),
+    );
     forgetRecordFolders();
 
     const tasks = await listChildTasks(chat);
 
     expect(tasks.map((task) => task.id)).toEqual([kept]);
-    expect(await fs.readdir(broken)).toEqual(["settings.json"]);
+    expect(await fs.readdir(left)).toEqual(["settings.json"]);
   });
 });
 
-describe("childTaskMounts", () => {
-  it("mounts a briefed task's own folder at /tasks/<id>, and no fork's", async () => {
-    const chatId = chatFor(
-      undefined,
-      ChatIdSchema.parse("2026-10-07-a-chat-with-both"),
+describe("addChildTask", () => {
+  it("hands out t1, t2, … in the order the chat starts them, never twice", async () => {
+    const chat = chatFor();
+    const at = new Date();
+    const started = await Promise.all(
+      ["First", "Second", "Third"].map((title) =>
+        addChildTask(chat, {
+          createdAt: at,
+          id: StoreId.newSessionId(),
+          title,
+        }),
+      ),
     );
-    const briefed = await make("2026-10-01-briefed-task", chatId);
-    await make("2026-10-07-a-fork", chatId, { fork: true });
+    expect(started.map((task) => task.handle)).toEqual(["t1", "t2", "t3"]);
+    // Another chat counts from its own first.
+    const other = chatFor();
+    await chatTaskFor(other);
+    expect((await listChildTasks(other)).map((task) => task.handle)).toEqual([
+      "t1",
+    ]);
+    const listed = await listChildTasks(chat);
+    expect(listed.map((task) => task.handle).toSorted()).toEqual([
+      "t1",
+      "t2",
+      "t3",
+    ]);
+  });
+});
 
-    expect(
-      (await childTaskMounts(chatId)).map((mount) => mount.mountPoint),
-    ).toEqual([`/tasks/${briefed}`]);
+describe("chatConversation", () => {
+  it("tells the chat's own session from a task's", async () => {
+    const sessionId = StoreId.newSessionId();
+    const chat = chatFor(sessionId);
+    const task = await chatTaskFor(chat);
+
+    expect(chatConversation(chat, sessionId)).toBe(chat);
+    expect(chatConversation(chat, task)).toBeUndefined();
+    expect(isTaskSession(chat, task)).toBe(true);
+    expect(isTaskSession(chat, sessionId)).toBe(false);
   });
 });

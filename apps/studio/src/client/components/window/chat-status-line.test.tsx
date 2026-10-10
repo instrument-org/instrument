@@ -2,14 +2,13 @@ import {
   type SessionMessage,
   type SessionMessagePart,
   StoreId,
-  TaskIdSchema,
 } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import { statusLine } from "./chat-status-line";
 
 const sessionId = StoreId.newSessionId();
-const taskId = TaskIdSchema.parse("lisbon-fares");
+const taskId = StoreId.newSessionId();
 
 function user(at: number, text = "Plan a trip"): SessionMessage.WithParts {
   const id = StoreId.newMessageId();

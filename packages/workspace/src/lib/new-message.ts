@@ -28,6 +28,7 @@ import { Store } from "./store";
 import { detectTaskAppChanges } from "./task-app-changes";
 import { taskDir } from "./task-dir-utils";
 import { setTaskState } from "./task-record";
+import { chatConversation } from "./chat/children";
 import { resolveChat } from "./record-folders";
 import { getWorkspaceConfig } from "./workspace-config";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
@@ -217,8 +218,9 @@ export async function newMessage({
   // A chat has no browser of its own: it drives whichever of the
   // window's tabs is on screen, which the view note on each message names,
   // so the open-and-closed bookkeeping of a task's browser would only tell
-  // it tales about tabs it never owned.
-  const isChat = resolveChat(taskId) !== undefined;
+  // it tales about tabs it never owned. A task of the chat's, in the same
+  // store, is told as a task.
+  const isChat = chatConversation(taskId, sessionId) !== undefined;
   const browserStatusPart = isChat
     ? undefined
     : await createBrowserStatusPart({

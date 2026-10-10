@@ -44,9 +44,7 @@ async function run(command: string, { chat = false } = {}) {
       Home: attach("Home", homeDir),
       Wide: attach("Wide", wideDir),
     },
-    chat: chat
-      ? { childMounts: [], id: ChatIdSchema.parse(taskId) }
-      : undefined,
+    chat: chat ? { id: ChatIdSchema.parse(taskId) } : undefined,
     sessionId,
     taskId,
   });

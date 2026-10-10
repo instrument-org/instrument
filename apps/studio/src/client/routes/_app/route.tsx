@@ -45,7 +45,7 @@ import {
   pageSlotByTabAtom,
   useShell,
 } from "@/client/components/window/shell-context";
-import { tasksHref } from "@/client/components/window/tab-location";
+import { taskHref, tasksHref } from "@/client/components/window/tab-location";
 import { TabLocationRow } from "@/client/components/window/tab-location-row";
 import {
   chatOfHref,
@@ -311,7 +311,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                         onNewTopic={shell.onNewTopic}
                         // A task opens beside the chat, in the pane.
                         onOpenTask={(id) => {
-                          appWindow.openScreen(`/tasks/${id}`, {
+                          appWindow.openScreen(taskHref(id, chat), {
                             group: chat,
                             ownTab: true,
                             show: true,

@@ -216,21 +216,21 @@ describe("sessionSteps", () => {
   });
 
   it("lists the activities set since a moment, for the overdue note", async () => {
-    await seed();
+    const sessionId = await seed();
 
-    expect(await trajectorySince(taskId, at(40))).toEqual([
+    expect(await trajectorySince({ sessionId, taskId }, at(40))).toEqual([
       "Pinning the review range",
     ]);
-    expect(await trajectorySince(taskId, at(0))).toEqual([
+    expect(await trajectorySince({ sessionId, taskId }, at(0))).toEqual([
       "Inspecting runtime changes and history",
       "Pinning the review range",
     ]);
   });
 
   it("lists the calls instead when no activity was set since the moment", async () => {
-    await seed();
+    const sessionId = await seed();
 
-    expect(await trajectorySince(taskId, at(46))).toEqual([
+    expect(await trajectorySince({ sessionId, taskId }, at(46))).toEqual([
       "bash: Waiting (running)",
       "bash: Failing (failed)",
     ]);

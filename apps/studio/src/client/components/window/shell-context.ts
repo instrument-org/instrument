@@ -2,7 +2,7 @@ import { type Draft } from "@/client/atoms/window";
 import {
   type ChatId,
   type SessionMessageDataPart,
-  type TaskId,
+  type StoreId,
 } from "@instrument-org/workspace/client";
 import { atom } from "jotai";
 import { createContext, useContext } from "react";
@@ -38,7 +38,7 @@ export interface WindowShell {
   chats: Chat[] | undefined;
   chatTitles: Map<ChatId, string>;
   /** Each task's title, for a tab standing on one. */
-  childTitles: Map<TaskId, string>;
+  childTitles: Map<StoreId.Session, string>;
   compose: ReturnType<typeof useCompose>;
   /** Throws a draft away, with a moment to take it back. */
   discardDraft: (id: string) => void;

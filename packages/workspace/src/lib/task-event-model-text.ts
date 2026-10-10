@@ -18,6 +18,8 @@ export function taskEventModelNote(
   data: SessionMessageDataPart.TaskEventDataPart,
 ) {
   const lines = data.events.map((event) => {
+    // What the `task` command takes for it.
+    const id = event.handle ?? event.taskId;
     const outcome =
       event.status === "error"
         ? `stopped with an error${event.ended ? `, "${event.ended}"` : ""}`
@@ -91,9 +93,9 @@ export function taskEventModelNote(
         : "";
     const running =
       event.running && event.running.length > 0
-        ? `\n  It left running in the background: ${event.running.map((process) => describeLeftRunning(process)).join(", ")}. Stop what the user does not need with \`${TASK_COMMAND.name} stop ${event.taskId} <bg id>\`, or all of it with \`${TASK_COMMAND.name} stop ${event.taskId} --all\`; a server they are using stays.`
+        ? `\n  It left running in the background: ${event.running.map((process) => describeLeftRunning(process)).join(", ")}. Stop what the user does not need with \`${TASK_COMMAND.name} stop ${id} <bg id>\`, or all of it with \`${TASK_COMMAND.name} stop ${id} --all\`; a server they are using stays.`
         : "";
-    return `- ${event.taskId} ("${event.title}") ${outcome}${cost}.${steps}${summary}${inFlight}${needs}${holds}${tabs}${running}`;
+    return `- ${id} ("${event.title}") ${outcome}${cost}.${steps}${summary}${inFlight}${needs}${holds}${tabs}${running}`;
   });
 
   // What to do about a wake is the prompt's business (When a task finishes);

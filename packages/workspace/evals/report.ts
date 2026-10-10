@@ -20,6 +20,7 @@ import {
   runKey,
   type RunMetrics,
   type RunStop,
+  childSessionsOf,
   sessionsFor,
 } from "./harness";
 import {
@@ -28,8 +29,10 @@ import {
   systemPromptDigest,
 } from "./provenance";
 import { buildReportWorkspaceConfig, c, write } from "./utils";
-import { resolveChat } from "../src/lib/record-folders";
+import { resolveChat, sessionOfChat } from "../src/lib/record-folders";
 import { renderUserView } from "./lib/user-view";
+import { type StoreId } from "../src/schemas/store-id";
+import { type TaskId } from "../src/schemas/task-id";
 
 interface RollupSummary {
   assertions: {
@@ -175,16 +178,6 @@ export async function generateReport({
     `${c.dim}Generating report for${c.reset} ${c.yellow}${tasks.length}${c.reset} ${c.dim}task(s)...${c.reset}\n`,
   );
 
-  const startedByAChat = new Set<string>();
-  if (caseForRoots) {
-    for (const task of tasks) {
-      const chatId = resolveChat(task.id);
-      for (const child of chatId ? await listChildTasks(chatId) : []) {
-        startedByAChat.add(child.id);
-      }
-    }
-  }
-
   let rollupPassed = 0;
   let rollupFailed = 0;
   let rollupErroredTasks = 0;
@@ -214,9 +207,7 @@ export async function generateReport({
     // over a past workspace dir is still filed by case and model rather than by
     // a slug of the prompt with a numeric suffix, which named nothing anyone
     // could act on.
-    const caseName =
-      run?.name ??
-      (caseForRoots && !startedByAChat.has(taskId) ? caseForRoots : task.title);
+    const caseName = run?.name ?? caseForRoots ?? task.title;
     const evalCase =
       evalCasesByName.get(caseName) ??
       evalCasesByName.get(task.id) ??
@@ -236,28 +227,10 @@ export async function generateReport({
     }
     claimedDirs.add(relativeDir);
 
-    const sessionsResult = await Store.getSessions(taskId);
-
-    if (sessionsResult.isErr()) {
-      process.stderr.write(
-        `Error loading sessions for ${label}: ${sessionsResult.error.message}\n`,
-      );
-      continue;
-    }
-
-    const rootSessions = sessionsResult.value;
-
-    if (rootSessions.length > 1) {
-      process.stderr.write(
-        `Warning: ${label} has ${rootSessions.length} root sessions (expected 1). Using the first one.\n`,
-      );
-    }
-
-    const rootSession = rootSessions[0];
+    const rootSession = run
+      ? { id: run.sessionId }
+      : await runSessionOf(taskId, label);
     if (!rootSession) {
-      process.stderr.write(
-        `Warning: ${label} has no root session, skipping.\n`,
-      );
       continue;
     }
 
@@ -270,7 +243,9 @@ export async function generateReport({
     const taskOutputDir = path.join(outputDir, relativeDir);
     await fs.mkdir(taskOutputDir, { recursive: true });
 
-    const stats = await getTaskUsageSummary(taskId);
+    const stats = await getTaskUsageSummary(taskId, {
+      sessionId: rootSession.id,
+    });
 
     // A run whose every step failed on a 402/429 still reaches this point having
     // produced a task and a transcript, so without this it reports exactly like a
@@ -336,7 +311,7 @@ export async function generateReport({
     // Read once for both the digest and the assertions: the digest has to be
     // recorded for every task, including one with no assertions to run, and
     // that is the case where the old code never loaded the sessions at all.
-    const sessions = await sessionsFor(taskId);
+    const sessions = await sessionsFor(taskId, rootSession.id);
     const systemPromptSha256 = systemPromptDigest(sessions);
     if (evalCase?.kind === "chat") {
       await fs.writeFile(
@@ -372,20 +347,10 @@ export async function generateReport({
     let assertionResults: AssertionResult[] = [];
     if (evalCase?.assertions && evalCase.assertions.length > 0) {
       // A conversation that forks does much of what it is being scored on
-      // inside its tasks, and those are separate tasks rather than sessions of
-      // this one, so `sessions` alone cannot see the work. Read lazily: only an
-      // chat case has children, and only some of its assertions ask.
-      const childSessions = async () => {
-        const chatId = resolveChat(taskId);
-        const children = chatId ? await listChildTasks(chatId) : [];
-        return Promise.all(
-          children.map(async (child) => ({
-            sessions: await sessionsFor(child.id),
-            taskId: child.id,
-            title: child.title,
-          })),
-        );
-      };
+      // inside its tasks, which are sessions of the chat's beside its own, so
+      // `sessions` alone cannot see the work. Read lazily: only a chat case
+      // has children, and only some of its assertions ask.
+      const childSessions = () => childSessionsOf(taskId, rootSession.id);
       assertionResults = await Promise.all(
         evalCase.assertions.map((a) =>
           Promise.resolve(a.check({ childSessions, sessions, taskId })),
@@ -487,6 +452,29 @@ export async function generateReport({
   );
 
   return rollup;
+}
+
+/**
+ * The session a run past its process went to, read from its chat: the
+ * chat's own conversation when anything was said in it, else the task a
+ * task case started from the empty chat.
+ */
+async function runSessionOf(
+  taskId: TaskId,
+  label: string,
+): Promise<undefined | { id: StoreId.Session }> {
+  const chatId = resolveChat(taskId);
+  const own = chatId ? sessionOfChat(chatId) : undefined;
+  if (!chatId || !own) {
+    process.stderr.write(`Warning: ${label} has no session, skipping.\n`);
+    return undefined;
+  }
+  const said = await Store.getMessageIds(own, chatId);
+  if (said.isOk() && said.value.length > 0) {
+    return { id: own };
+  }
+  const [task] = await listChildTasks(chatId);
+  return { id: task?.id ?? own };
 }
 
 function truncate(text: string): string {

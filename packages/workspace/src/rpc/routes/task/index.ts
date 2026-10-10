@@ -8,12 +8,12 @@ import {
   getTaskUsageSummary,
   UsageSummarySchema,
 } from "../../../lib/usage-summary";
+import { StoreId } from "../../../schemas/store-id";
 import { TaskSchema } from "../../../schemas/task";
 import { TaskIdSchema } from "../../../schemas/task-id";
 import { base, toORPCError } from "../../base";
 import { liveRead } from "../../live-read";
 import { liveTaskActivity } from "./activity";
-import { taskStatus } from "./status";
 import { taskAgentStatus } from "./agent-status";
 import { taskBackgroundProcesses } from "./background-processes";
 import { taskFiles } from "./files";
@@ -50,22 +50,29 @@ const live = {
     }),
 };
 
+/** A record's spend across its sessions, or one session's: a task's, say. */
+const UsageOfSchema = z.object({
+  id: TaskIdSchema,
+  sessionId: StoreId.SessionSchema.optional(),
+});
+
 const usageSummary = base
-  .input(z.object({ id: TaskIdSchema }))
+  .input(UsageOfSchema)
   .output(UsageSummarySchema)
-  .handler(async ({ input, signal }) => {
-    const { id } = input;
-    const taskId = id;
-    return getTaskUsageSummary(taskId, { signal });
-  });
+  .handler(async ({ input, signal }) =>
+    getTaskUsageSummary(input.id, {
+      signal,
+      ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+    }),
+  );
 
 const liveUsageSummary = base
-  .input(z.object({ id: TaskIdSchema }))
+  .input(UsageOfSchema)
   .output(eventIterator(UsageSummarySchema))
   .handler(async function* ({ context, input, signal }) {
     // Coalesce this task's message/part events so a streaming turn recomputes
     // the (whole-task) summary once per batch instead of once per event.
-    const batches = changedMessageBatches({ id: input.id }, signal);
+    const batches = changedMessageBatches(input, signal);
     try {
       yield call(usageSummary, input, { context, signal });
       for await (const _batch of batches) {
@@ -84,9 +91,7 @@ export const task = {
   live: {
     ...live,
     activity: liveTaskActivity,
-    status: taskStatus.live,
     usageSummary: liveUsageSummary,
   },
   state: taskState,
-  status: taskStatus.status,
 };

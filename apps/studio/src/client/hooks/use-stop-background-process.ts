@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -11,7 +11,12 @@ import { toast } from "sonner";
  * `busy` covers both mutations: a second press while one is in flight would be
  * asking a process that is already being stopped to stop.
  */
-export function useStopBackgroundProcess(taskId: TaskId | undefined) {
+export function useStopBackgroundProcess(
+  taskId: TaskId | undefined,
+  /** One session's of the record alone: the chat's own, or a task's. */
+  sessionId?: StoreId.Session,
+) {
+  const owner = sessionId ? { sessionId } : {};
   const { isPending: isStopping, mutate: stopOne } = useMutation(
     rpcClient.workspace.task.backgroundProcesses.stop.mutationOptions({
       onError: (error) => {
@@ -31,12 +36,12 @@ export function useStopBackgroundProcess(taskId: TaskId | undefined) {
     busy: isStopping || isStoppingAll,
     stop: (processId: string) => {
       if (taskId) {
-        stopOne({ id: taskId, processId });
+        stopOne({ id: taskId, processId, ...owner });
       }
     },
     stopAll: () => {
       if (taskId) {
-        stopEvery({ id: taskId });
+        stopEvery({ id: taskId, ...owner });
       }
     },
   };

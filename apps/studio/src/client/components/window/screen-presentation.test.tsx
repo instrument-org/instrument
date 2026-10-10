@@ -1,5 +1,5 @@
 import { outputFolderHref } from "@/shared/computer-href";
-import { ChatIdSchema, TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import routeTreeSource from "../../routeTree.gen.ts?raw";
@@ -20,7 +20,7 @@ describe("screenPresentation", () => {
   });
 
   it("names a tasks tab, and a task's by its title once known", () => {
-    const task = TaskIdSchema.parse("book");
+    const task = StoreId.newSessionId();
     const taskTitles = new Map([[task, "Book the hotel"]]);
     const href = `/tasks/${task}?chat=${CHAT_ID}`;
     expect(screenPresentation(`/tasks?chat=${CHAT_ID}`, CONTEXT).title).toBe(
@@ -115,7 +115,11 @@ describe("screenPresentation", () => {
   it.each([...routes].filter((path) => !NAMED_BY_THE_STRIP.has(path)))(
     "names every tab on %s",
     (path) => {
-      const href = path.replaceAll(/\$\w+/g, "x");
+      // A task's address names it by its session.
+      const href = path.replaceAll(
+        /\$\w+/g,
+        path.startsWith("/tasks/") ? StoreId.newSessionId() : "x",
+      );
       expect(screenPresentation(href, CONTEXT).title).not.toBe("Tab");
     },
   );

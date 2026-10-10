@@ -48,6 +48,7 @@ export function ToolCall({
       part.type === "tool-bash" && part.state === "output-available"
         ? part.output.processId
         : undefined,
+    sessionId: part.metadata.sessionId,
     taskId: task.id,
   });
 

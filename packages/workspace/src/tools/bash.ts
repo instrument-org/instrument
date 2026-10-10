@@ -22,7 +22,7 @@ import {
 } from "../lib/browser-skill-delivery";
 import { executeError } from "../lib/execute-error";
 import { ignoredBuildsNote } from "../lib/ignored-builds-note";
-import { childTaskMounts } from "../lib/chat/children";
+import { chatConversation } from "../lib/chat/children";
 import { folderReach } from "../lib/chat/folder-reach";
 import {
   FG_COMMAND,
@@ -51,7 +51,6 @@ import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { skillInstructions } from "./load-skill";
-import { resolveChat } from "../lib/record-folders";
 import { workDir } from "../lib/work-dir";
 
 const DEFAULT_YIELD_MS = ms("30 seconds");
@@ -169,10 +168,10 @@ export const BashTool = setupTool({
     const attachedFolders = await folderReach(taskId);
     const yieldMs = clampYieldMs(input.yieldMs);
     const startedAt = performance.now();
-    const chatId = resolveChat(taskId);
-    const chat = chatId
-      ? { childMounts: await childTaskMounts(chatId), id: chatId }
-      : undefined;
+    // The chat's own commands are its conversation's: a task of the chat's
+    // runs in the same folder with a task's shell.
+    const chatId = chatConversation(taskId, sessionId);
+    const chat = chatId ? { id: chatId } : undefined;
     const bash = await createBashEnv({
       attachedFolders,
       callPartId: partId,

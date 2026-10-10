@@ -1,8 +1,4 @@
-import {
-  APP_NAME_SLUG,
-  placeholderTitle,
-  TASK_SETTINGS_FILE_NAME,
-} from "@instrument-org/shared";
+import { APP_NAME_SLUG, placeholderTitle } from "@instrument-org/shared";
 import { parallel, unique } from "radashi";
 import { z } from "zod";
 
@@ -11,23 +7,18 @@ import { type Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
-import { absolutePathJoin } from "../absolute-path-join";
+import { type TaskId } from "../../schemas/task-id";
 import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
-import { getTaskAgentStatus } from "../get-task-agent-status";
 import { pathsNamedInMessage } from "../paths-named-in-message";
-import { chatTaskIds, resolveChat, sessionOfChat } from "../record-folders";
+import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
-import { getTaskPrivateDir, taskDir } from "../task-dir-utils";
-import { getTaskSettings } from "../task-settings";
-import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
 import { indexedByStore, kept, unkept } from "../workspace-index";
-import { askIn, type ChatActivity, chatActivity } from "./activity";
+import { askIn, type ChatActivity, chatActivity, isWorking } from "./activity";
 import { listChatIds } from "./chat-records";
-import { latestSessionId } from "./latest-session";
+import { chatConversation, listChildTasks } from "./children";
 import { joinedMidTurn } from "./mid-turn";
 import { latestStepIn } from "./step-label";
 import { excerptOf } from "./standing";
@@ -58,7 +49,7 @@ export const ChatSchema = z.object({
    * to read may leave its list empty.
    */
   holds: z.object({
-    /** App slugs the chat called or handed to a task, then those the user sent from. */
+    /** App slugs the chat called, then those the user sent from. */
     apps: z.array(z.string()),
     /**
      * Paths the user sent (a folder's with a trailing slash), then those the
@@ -95,7 +86,8 @@ export const ChatSchema = z.object({
   /** The tasks filed from this chat that are at work right now. */
   runningTasks: z.array(
     z.object({
-      id: TaskIdSchema,
+      /** The task's session in the chat's store, which is its id. */
+      id: StoreId.SessionSchema,
       step: z.string().optional(),
       title: z.string(),
       /** What it has stopped to ask the user for; present while it is stalled on that rather than moving. */
@@ -128,15 +120,6 @@ export const ChatSchema = z.object({
 });
 
 export type Chat = z.output<typeof ChatSchema>;
-
-/** The apps a filed task was given, as last read from its settings, until they are written. */
-const filedAppsByTask = new Map<TaskId, Promise<string[]>>();
-
-publisher.subscribe("record.changed", (change) => {
-  if (change.kind === "settings" || change.kind === "removed") {
-    filedAppsByTask.delete(change.id);
-  }
-});
 
 /** One queue per chat for the marks the user puts on its session record. */
 const markQueue = createWriteQueue();
@@ -271,9 +254,10 @@ export async function markChatUnread(
  */
 export function startChatUnreadOnSettle(): void {
   void (async () => {
-    for await (const { id } of publisher.subscribe("session.done")) {
+    for await (const { id, sessionId } of publisher.subscribe("session.done")) {
       try {
-        const chatId = resolveChat(id);
+        // A task's turn ending is news the chat's own next reply carries.
+        const chatId = chatConversation(id, sessionId);
         if (chatId && !(await chatIsWorking(chatId))) {
           await markChatUnread(chatId, { byUser: false });
         }
@@ -339,54 +323,9 @@ export async function unarchiveChat(chatId: ChatId): Promise<boolean> {
   return saveArchivedAt(chatId, undefined);
 }
 
-/** The app slugs a chat reached: its own calls and the grants of its tasks. */
-async function appsHeld(
-  calledApps: string[],
-  filedTasks: TaskId[],
-  known: Set<string>,
-): Promise<string[]> {
-  const slugs = [...calledApps];
-  for (const filed of filedTasks) {
-    slugs.push(...(await filedApps(filed)));
-  }
-  return unique(knownAmong(slugs, known));
-}
-
 /**
- * The same apps across launches, kept in the index against the task's
- * settings as well as its store, since the settings are where they are
- * written. Held in memory by `filedAppsByTask`, which hears every write.
- */
-const appsIndex = indexedByStore<string[]>("task_apps", {
-  files: (taskId) => [
-    absolutePathJoin(
-      getTaskPrivateDir(taskDir(taskId)),
-      TASK_SETTINGS_FILE_NAME,
-    ),
-  ],
-  inMemory: false,
-});
-
-function filedApps(taskId: TaskId): Promise<string[]> {
-  const known = filedAppsByTask.get(taskId);
-  if (known) {
-    return known;
-  }
-  const read = appsIndex(taskId, () =>
-    getTaskSettings(taskDir(taskId)).then((settings) =>
-      kept(settings?.apps ?? []),
-    ),
-  );
-  filedAppsByTask.set(taskId, read);
-  read.catch(() => {
-    filedAppsByTask.delete(taskId);
-  });
-  return read;
-}
-
-/**
- * The hosts a filed task's newest session has visited, held until its store
- * is written: the browser records a visit there and announces nothing.
+ * The hosts a task's session has visited, held until its chat's store is
+ * written: the browser records a visit there and announces nothing.
  */
 const filedHosts = indexedByStore<string[]>("task_hosts");
 
@@ -511,7 +450,7 @@ async function chatFor(
   shared: Shared,
 ): Promise<Chat> {
   const { root, session } = digest;
-  const filedTasks = chatTaskIds(taskId);
+  const filedTasks = (await listChildTasks(taskId)).map((task) => task.id);
   const { running: filed } = await chatActivity(taskId);
   const runningTasks = filed.map((task) => ({
     id: task.taskId,
@@ -529,9 +468,7 @@ async function chatFor(
     (chatIsAlive(taskId) && digest.ownAsk === undefined) ||
     turnIsStarting(digest);
   const working =
-    ownWorking ||
-    filed.some((task) => !task.waiting) ||
-    filedTasks.some((filedTask) => hasPendingWake(taskId, filedTask));
+    ownWorking || filed.some((task) => !task.waiting) || hasPendingWake(taskId);
   const ask = working ? undefined : askOf(digest, filed);
   const state = working
     ? "working"
@@ -554,9 +491,9 @@ async function chatFor(
 
   const { sent } = digest;
   const made = {
-    apps: await appsHeld(digest.calledApps, filedTasks, shared.knownApps),
+    apps: unique(knownAmong(digest.calledApps, shared.knownApps)),
     files: digest.madeFiles,
-    sites: await sitesHeld(digest.openedHosts, filedTasks),
+    sites: await sitesHeld(taskId, digest.openedHosts, filedTasks),
   };
 
   return {
@@ -703,20 +640,20 @@ function digestOf(
   };
 }
 
-function filedHostsOf(taskId: TaskId): Promise<string[]> {
-  return filedHosts(taskId, async () => {
-    const sessionId = await latestSessionId(taskId);
-    if (sessionId.isErr()) {
-      return unkept([]);
-    }
-    if (!sessionId.value) {
-      return kept([]);
-    }
-    const browser = await getBrowserState(taskId, sessionId.value);
-    return browser.isOk()
-      ? kept(browser.value?.visitedHosts ?? [])
-      : unkept([]);
-  });
+function filedHostsOf(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<string[]> {
+  return filedHosts(
+    chatId,
+    async () => {
+      const browser = await getBrowserState(chatId, sessionId);
+      return browser.isOk()
+        ? kept(browser.value?.visitedHosts ?? [])
+        : unkept([]);
+    },
+    sessionId,
+  );
 }
 
 /** The paths the replies handed over, deduped, the newest mention last. */
@@ -934,17 +871,18 @@ function sentHeld(messages: SessionMessage.WithParts[]) {
 
 /**
  * The hostnames the chat's work touched: what its agent opened for the user
- * with `tab open <url>`, then every host the browsers of the tasks it filed have
- * been on, each task's newest last. A task's hosts come from its browser
+ * with `tab open <url>`, then every host the browsers of the tasks it started
+ * have been on, each task's newest last. A task's hosts come from its browser
  * state, one small read per task, rather than from its transcript.
  */
 async function sitesHeld(
+  chatId: ChatId,
   openedHosts: string[],
-  filedTasks: TaskId[],
+  filedTasks: StoreId.Session[],
 ): Promise<string[]> {
   const hosts = [...openedHosts];
   for (const filed of filedTasks) {
-    hosts.push(...(await filedHostsOf(filed)));
+    hosts.push(...(await filedHostsOf(chatId, filed)));
   }
   return unique(hosts);
 }
@@ -977,16 +915,8 @@ function webHostOf(url: string): string {
 const TURN_START_GRACE_MS = 30_000;
 
 function chatIsAlive(chatId: ChatId): boolean {
-  const status = getTaskAgentStatus({
-    id: chatId,
-    workspaceRef: getWorkspaceActorRef(),
-  });
-  return (
-    status.isOk() &&
-    status.value.sessionActors.some((actor) =>
-      actor.tags.includes("agent.alive"),
-    )
-  );
+  const sessionId = sessionOfChat(chatId);
+  return sessionId !== undefined && isWorking(chatId, sessionId);
 }
 
 /** The newest message is the user's or a wake's, recent, and not yet answered. */

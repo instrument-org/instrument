@@ -74,7 +74,10 @@ export function ToolBash({ part }: { part: BashPart }) {
   const { backgroundProcess, isStreaming } = useToolCallSession();
   const now = useNow(ELAPSED_TICK_MS);
   const { taskId } = useTaskSession();
-  const { busy, stop } = useStopBackgroundProcess(taskId);
+  const { busy, stop } = useStopBackgroundProcess(
+    taskId,
+    part.metadata.sessionId,
+  );
   const command = part.input?.command ?? "";
   const hasOutput = part.state === "output-available";
   const isError = part.state === "output-error";

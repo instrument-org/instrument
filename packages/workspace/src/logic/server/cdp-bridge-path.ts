@@ -13,20 +13,27 @@ const CDP_BRIDGE_SECRET = randomBytes(32).toString("base64url");
 
 const TASK_SEGMENT = "/devtools/task/";
 
-/** The bridge URL for a task's browser, on the port the workspace server bound. */
-export function cdpBridgeUrl(port: number, taskId: string): string {
-  return `ws://127.0.0.1:${port}${CDP_BASE_PATH}/${CDP_BRIDGE_SECRET}${TASK_SEGMENT}${taskId}`;
+/**
+ * The bridge URL for the browser of one session of a record, on the port the
+ * workspace server bound: the tabs that session holds.
+ */
+export function cdpBridgeUrl(
+  port: number,
+  taskId: string,
+  sessionId: string,
+): string {
+  return `ws://127.0.0.1:${port}${CDP_BASE_PATH}/${CDP_BRIDGE_SECRET}${TASK_SEGMENT}${taskId}/${sessionId}`;
 }
 
 /**
- * The task a bridge path names, when it carries this launch's secret.
- * Undefined for a path outside the bridge, `"refused"` for one inside it with
- * a missing or wrong secret or an unknown shape. The id is returned unparsed;
- * the caller validates it.
+ * The record and session a bridge path names, when it carries this launch's
+ * secret. Undefined for a path outside the bridge, `"refused"` for one inside
+ * it with a missing or wrong secret or an unknown shape. The ids are returned
+ * unparsed; the caller validates them.
  */
 export function parseCdpBridgePath(
   url: string | undefined,
-): { taskId: string } | "refused" | undefined {
+): { sessionId: string; taskId: string } | "refused" | undefined {
   const pathname = url?.split("?")[0];
   if (!pathname?.startsWith(`${CDP_BASE_PATH}/`)) {
     return undefined;
@@ -37,8 +44,14 @@ export function parseCdpBridgePath(
     return "refused";
   }
   const after = rest.slice(slash);
-  return after.startsWith(TASK_SEGMENT)
-    ? { taskId: after.slice(TASK_SEGMENT.length) }
+  if (!after.startsWith(TASK_SEGMENT)) {
+    return "refused";
+  }
+  const [taskId, sessionId, ...extra] = after
+    .slice(TASK_SEGMENT.length)
+    .split("/");
+  return taskId && sessionId && extra.length === 0
+    ? { sessionId, taskId }
     : "refused";
 }
 

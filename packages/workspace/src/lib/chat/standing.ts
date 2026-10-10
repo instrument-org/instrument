@@ -2,15 +2,19 @@ import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 
 import { AGENT_FILES_LANGUAGE } from "../../constants";
 import { type SessionMessage } from "../../schemas/session/message";
-import { type StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
 import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
 import { parseFilesBlock } from "../parse-files-block";
 import { Store } from "../store";
 import { type Derived, indexedByStore, kept, unkept } from "../workspace-index";
-import { askIn, latestStep, runningLines } from "./activity";
-import { lastAssistantTextIn, latestSessionId } from "./latest-session";
+import {
+  askIn,
+  latestStep,
+  ownMessages,
+  runningLines,
+  type SessionRef,
+} from "./activity";
+import { lastAssistantTextIn } from "./latest-session";
 
 /** How much of the agent's own words the list shows on a task's second line. */
 const LINE_MAX = 90;
@@ -53,12 +57,8 @@ type TaskStandingKind = "done" | "failed" | "running" | "waiting";
  * for a stop, what the task was in the middle of. Read by the task list and
  * by the note that wakes the chat, so the two say the same thing.
  */
-export async function endedWithoutWords(
-  taskId: TaskId,
-  sessionId: StoreId.Session,
-): Promise<TaskEnding> {
-  const messages = await Store.getMessagesWithParts({ sessionId, taskId });
-  return endingIn(taskId, messages.isOk() ? messages.value : []);
+export async function endedWithoutWords(ref: SessionRef): Promise<TaskEnding> {
+  return endingIn(ref, await ownMessages(ref));
 }
 
 /**
@@ -116,18 +116,17 @@ export function excerptOf(text: string, maxLength: number): string {
  */
 export async function taskStanding({
   isRunning,
+  sessionId,
   taskId,
-}: {
-  isRunning: boolean;
-  taskId: TaskId;
-}): Promise<TaskStanding> {
+}: SessionRef & { isRunning: boolean }): Promise<TaskStanding> {
+  const ref = { sessionId, taskId };
   if (isRunning) {
-    const { step, waiting } = await runningLines(taskId);
+    const { step, waiting } = await runningLines(ref);
     return waiting
       ? { kind: "waiting", line: waiting }
       : { kind: "running", line: step ?? "Working" };
   }
-  return settledStanding(taskId, () => standingAtRest(taskId));
+  return settledStanding(taskId, () => standingAtRest(ref), sessionId);
 }
 
 /** The last segment of a path, which is how a file is named in a line. */
@@ -141,7 +140,7 @@ function cut(line: string, maxLength: number): string {
 
 /** The same ending, read from a transcript already in hand. */
 async function endingIn(
-  taskId: TaskId,
+  ref: SessionRef,
   messages: SessionMessage.WithParts[],
 ): Promise<TaskEnding> {
   const last = messages.findLast((message) => message.role === "assistant");
@@ -160,26 +159,20 @@ async function endingIn(
   if (error && error.kind !== "aborted") {
     return { failed: true, line: describeMessageError(error).summary };
   }
-  const step = await latestStep(taskId);
+  const step = await latestStep(ref);
   return {
     failed: false,
     line: step ? `Stopped while ${asClause(step)}` : "Stopped",
   };
 }
 
-async function standingAtRest(taskId: TaskId): Promise<Derived<TaskStanding>> {
-  const sessionId = await latestSessionId(taskId);
-  if (sessionId.isErr()) {
-    return unkept({ kind: "done", line: "Nothing yet" });
-  }
-  if (!sessionId.value) {
-    return kept({ kind: "done", line: "Nothing yet" });
-  }
+async function standingAtRest(ref: SessionRef): Promise<Derived<TaskStanding>> {
   // One read answers all three: what it is asking, what it last said, and
-  // how it ended when it said nothing.
+  // how it ended when it said nothing. Its own messages alone, since what it
+  // carries on from is the chat's.
   const messages = await Store.getMessagesWithParts({
-    sessionId: sessionId.value,
-    taskId,
+    ...ref,
+    inherited: false,
   });
   const transcript = messages.isOk() ? messages.value : [];
   const settle = messages.isOk() ? kept : unkept;
@@ -194,6 +187,6 @@ async function standingAtRest(taskId: TaskId): Promise<Derived<TaskStanding>> {
   if (said) {
     return settle({ kind: "done", line: excerptOf(said, LINE_MAX) });
   }
-  const ending = await endingIn(taskId, transcript);
+  const ending = await endingIn(ref, transcript);
   return settle({ kind: ending.failed ? "failed" : "done", line: ending.line });
 }

@@ -1,6 +1,6 @@
-import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { StoreId } from "@instrument-org/workspace/client";
 
-/** The task a `task new` created, read off the command's output. */
+/** The task a `task new` created, by its session, read off the command's output. */
 export function createdTaskId(part: {
   input?: undefined | { command?: string };
   output?: undefined | { output?: string };
@@ -15,5 +15,5 @@ export function createdTaskId(part: {
   }
   const created = /^Created (\S+)/m.exec(part.output?.output ?? "");
   const id = created?.[1];
-  return id && TaskIdSchema.safeParse(id).success ? id : undefined;
+  return id && StoreId.SessionSchema.safeParse(id).success ? id : undefined;
 }

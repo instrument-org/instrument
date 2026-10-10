@@ -6,7 +6,7 @@ import { expandHomePath, isHomeDir } from "@instrument-org/shared";
 import {
   type ChatId,
   ChatIdSchema,
-  type TaskId,
+  type StoreId,
 } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
@@ -47,7 +47,7 @@ export interface ScreenNames {
    */
   homeLabel?: string;
   /** Each task's title by its id, for a tab standing on one; a task not in it is a "Task". */
-  taskTitles?: Map<TaskId, string>;
+  taskTitles?: Map<StoreId.Session, string>;
   /** The disks the sidebar lists, which name a folder tab at the top of one. */
   volumes?: Volume[];
 }

@@ -152,17 +152,21 @@ export async function requestWindowTab({
  */
 export async function tabHolders(
   chatId: ChatId,
-): Promise<Map<string, { id: TaskId; title: string }>> {
-  const holders = new Map<string, { id: TaskId; title: string }>();
-  for (const task of await listChildTasks(chatId)) {
-    if (!isWorkingNow(task.id)) {
-      continue;
-    }
-    const state = await getTaskState(taskDir(task.id));
-    for (const held of state.browserTabs) {
+): Promise<Map<string, { id: string; title: string }>> {
+  const holders = new Map<string, { id: string; title: string }>();
+  const working = await listChildTasks(chatId, (id) =>
+    isWorkingNow(chatId, id),
+  );
+  if (working.length === 0) {
+    return holders;
+  }
+  const { browserTabs } = await getTaskState(taskDir(chatId));
+  for (const task of working) {
+    for (const held of browserTabs) {
       const decoded = decodeBrowserTargetId(held.id);
-      if (decoded) {
-        holders.set(decoded.sessionId, { id: task.id, title: task.title });
+      if (decoded && held.sessionId === task.id) {
+        // By its handle, which is what the conversation steers it by.
+        holders.set(decoded.sessionId, { id: task.handle, title: task.title });
       }
     }
   }
@@ -170,9 +174,9 @@ export async function tabHolders(
 }
 
 /** Whether a task is working, or false where no workspace is running to ask. */
-function isWorkingNow(taskId: TaskId): boolean {
+function isWorkingNow(chatId: ChatId, sessionId: StoreId.Session): boolean {
   try {
-    return isWorking(taskId);
+    return isWorking(chatId, sessionId);
   } catch {
     return false;
   }

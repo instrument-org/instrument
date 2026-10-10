@@ -21,9 +21,7 @@ let taskId: TaskId;
 
 async function run(command: string, { chat = false } = {}) {
   const bash = await createBashEnv({
-    chat: chat
-      ? { childMounts: [], id: ChatIdSchema.parse(taskId) }
-      : undefined,
+    chat: chat ? { id: ChatIdSchema.parse(taskId) } : undefined,
     sessionId,
     taskId,
   });

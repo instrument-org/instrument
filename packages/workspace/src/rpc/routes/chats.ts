@@ -15,30 +15,25 @@ import {
   settleChatTitle,
   unarchiveChat,
 } from "../../lib/chat/chats";
-import { listChildTasks } from "../../lib/chat/children";
+import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { taskStanding } from "../../lib/chat/standing";
 import { type RecordChanged, recordChanges } from "../../lib/record-changes";
 import {
   chatOfSession,
-  owningChat,
   resolveChat,
   sessionOfChat,
 } from "../../lib/record-folders";
-import { taskDir } from "../../lib/task-dir-utils";
 import { trashChat } from "../../lib/trash-task";
 import { StoreId } from "../../schemas/store-id";
-import { TaskInChatSchema } from "../../schemas/task";
 import { TaskIdSchema } from "../../schemas/task-id";
 import { base, toORPCError } from "../base";
 import { distinct, liveRead } from "../live-read";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 
-/** A task the window filed, as its tasks screen lists it. */
-const ChildTaskSchema = TaskInChatSchema.extend({
-  // With each one's folder on disk: what a link into `/tasks/<id>` opens.
-  dir: z.string(),
+/** A task the chat started, as its tasks screen lists it. */
+const ChildTaskSchema = ChatTaskSchema.extend({
   /** Where it stands and the line the list says about it. */
   standing: z.object({
     kind: z.enum(["done", "failed", "running", "waiting"]),
@@ -57,12 +52,12 @@ async function childTasks(id: ChatId) {
   const tasks = await listChildTasks(id);
   return await Promise.all(
     tasks.map(async (task) => {
-      const running = isWorking(task.id);
-      const step = await latestStep(task.id);
+      const ref = { sessionId: task.id, taskId: id };
+      const running = isWorking(id, task.id);
+      const step = await latestStep(ref);
       return {
         ...task,
-        dir: taskDir(task.id),
-        standing: await taskStanding({ isRunning: running, taskId: task.id }),
+        standing: await taskStanding({ ...ref, isRunning: running }),
         ...(step ? { step } : {}),
         stoppable: running,
       };
@@ -71,14 +66,13 @@ async function childTasks(id: ChatId) {
 }
 
 /**
- * Whether a change is to a task the chat filed: what one of its rows shows
- * (its title, its standing, its step) is all in the task's own record.
+ * Whether a change is to the chat whose tasks a list shows: what one of its
+ * rows shows (its title, its standing, its step) is all in the chat's store,
+ * and whether it works is its session's agent.
  */
 function inChat(chatId: ChatId) {
   return (change: RecordChanged) =>
-    change.kind === "removed"
-      ? change.ref.kind === "task" && change.ref.chatId === chatId
-      : owningChat(change.id) === chatId;
+    change.id === chatId && change.kind !== "settings";
 }
 
 /**

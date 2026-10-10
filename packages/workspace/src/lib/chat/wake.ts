@@ -8,35 +8,27 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
 import { type TaskId } from "../../schemas/task-id";
+import { heldTabs } from "../held-tabs";
 import { filesNamedIn } from "../parse-files-block";
-import { chatPathOfWorkDir, hasOwnWorkFolder } from "../work-dir";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
-import { owningChat, resolveChat, sessionOfChat } from "../record-folders";
+import { resolveChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { taskDir } from "../task-dir-utils";
 import { getTaskState } from "../task-record";
-import { getTaskSettings, recordTaskActivity } from "../task-settings";
+import { recordTaskActivity } from "../task-settings";
 import { getTaskUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
 import { decodeBrowserTargetId } from "../../types";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
 import { currentChatApps, setChatAppsBaseline } from "../chat-app-changes";
-import { chatOfTask } from "./attribution";
 import { listChatIds } from "./chat-records";
-import { listChildTasks } from "./children";
-import { taskFolderHoldings } from "./folder-holdings";
+import { childTask, listChildTasks, touchTask } from "./children";
 import { stepInFlight } from "./in-flight";
 import {
   cutForNote,
   lastAssistantText,
   latestOrNewSessionId,
 } from "./latest-session";
-import { folderReach } from "./folder-reach";
-import {
-  mountAliases,
-  toChatPaths,
-  translateTaskFolderPaths,
-} from "./mount-paths";
 import { endedWithoutWords } from "./standing";
 import { trajectorySince } from "./steps";
 import { replacesPendingEvent } from "./wake-event";
@@ -81,15 +73,15 @@ const WAKE_MODEL_RETRY_DELAYS_MS = [
 /** How many of a turn's steps an overdue note carries, latest last. */
 const OVERDUE_STEPS = 6;
 
-/** When each child was last reported overdue, so the note comes once per stretch. */
-const overdueReportedAt = new Map<TaskId, number>();
+/** When each task was last reported overdue, by its session, so the note comes once per stretch. */
+const overdueReportedAt = new Map<StoreId.Session, number>();
 
 /**
- * Children the chat itself told to stop. The turn that ends is the
- * one it ended, so there is nothing to wake it about; the next finish after
- * that is news again.
+ * Tasks the chat itself told to stop, by their sessions. The turn that ends
+ * is the one it ended, so there is nothing to wake it about; the next finish
+ * after that is news again.
  */
-const stoppedByChat = new Set<TaskId>();
+const stoppedByChat = new Set<StoreId.Session>();
 
 /**
  * Wakes a chat about one of its tasks with an event composed elsewhere,
@@ -97,29 +89,30 @@ const stoppedByChat = new Set<TaskId>();
  * harness stands a task's finish in with, without the task doing the work.
  */
 export function wakeChatWithTaskEvent(
-  chatId: TaskId,
+  chatId: ChatId,
   event: TaskEvent,
   workspaceRef: WorkspaceActorRef,
 ) {
   schedule(chatId, event, workspaceRef);
 }
 
-export function expectStop(taskId: TaskId) {
-  stoppedByChat.add(taskId);
+/** Says a task's turn is ending at the chat's word, by the task's session. */
+export function expectStop(sessionId: StoreId.Session) {
+  stoppedByChat.add(sessionId);
 }
 
 const pending = new Map<
-  TaskId,
-  { events: Map<TaskId, TaskEvent>; timer: NodeJS.Timeout }
+  ChatId,
+  { events: Map<string, TaskEvent>; timer: NodeJS.Timeout }
 >();
 
 /**
- * Whether a task's finish is waiting out the debounce before its wake is
- * written. The chat it was filed from is still at work in that gap: its task
- * has stopped and its own agent has not started on the news yet.
+ * Whether any of a chat's tasks has a finish waiting out the debounce before
+ * its wake is written. The chat is still at work in that gap: its task has
+ * stopped and its own agent has not started on the news yet.
  */
-export function hasPendingWake(chatId: TaskId, taskId: TaskId) {
-  return pending.get(chatId)?.events.has(taskId) ?? false;
+export function hasPendingWake(chatId: ChatId) {
+  return (pending.get(chatId)?.events.size ?? 0) > 0;
 }
 
 /**
@@ -192,7 +185,9 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
   // Only a chat's task reports in, and only one at work is read.
   const working = (
     await Promise.all(
-      listChatIds().map((chatId) => listChildTasks(chatId, isWorking)),
+      listChatIds().map((chatId) =>
+        listChildTasks(chatId, (id) => isWorking(chatId, id)),
+      ),
     )
   ).flat();
   const workingIds = new Set(working.map((task) => task.id));
@@ -203,22 +198,23 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
   }
   for (const task of working) {
     const { chatId } = task;
+    const ref = { sessionId: task.id, taskId: chatId };
     const reportedAt = overdueReportedAt.get(task.id);
-    const turnStart = await turnStartedAt(task.id);
+    const turnStart = await turnStartedAt(ref);
     const startedAt = reportedAt ?? turnStart?.getTime();
     if (startedAt === undefined || now - startedAt < OVERDUE_AFTER_MS) {
       continue;
     }
     overdueReportedAt.set(task.id, now);
     const event = await stillWorkingEvent({
-      chatId,
-      taskId: task.id,
+      ...ref,
+      handle: task.handle,
       title: task.title,
       turnStart,
     });
     // The note took several reads to compose; a task that finished meanwhile
     // has already woken the chat with its finish.
-    if (!isWorking(task.id)) {
+    if (!isWorking(chatId, task.id)) {
       continue;
     }
     schedule(chatId, event, workspaceRef);
@@ -226,55 +222,23 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
 }
 
 async function deliver(
-  chatId: TaskId,
+  chatId: ChatId,
   events: TaskEvent[],
   workspaceRef: WorkspaceActorRef,
 ) {
-  // A task reports into the chat it was filed from, so a batch that spans
-  // chats becomes one wake each rather than one message in whichever
-  // chat happens to be newest.
-  const byChat = new Map<string, TaskEvent[]>();
-  const sessions = new Map<string, StoreId.Session | undefined>();
-  for (const event of events) {
-    const sessionId = chatOfTask(event.taskId);
-    const key = sessionId ?? "";
-    sessions.set(key, sessionId);
-    byChat.set(key, [...(byChat.get(key) ?? []), event]);
-  }
   // A report is the task's latest activity: the list orders by it, and the
   // chat's line names a task that finished since the user last wrote by it.
-  await Promise.all(events.map((event) => recordTaskActivity(event.taskId)));
-  for (const [key, chatEvents] of byChat) {
-    await wakeWith(
-      chatId,
-      { data: { events: chatEvents }, type: "data-taskEvent" },
-      workspaceRef,
-      sessions.get(key),
-    );
-  }
-}
-
-/**
- * What a task said, in the paths the conversation that started it reads: its
- * own folder at `/tasks/<id>`, and any folder it holds under a name of its own
- * at the chat's path for it (see mount-paths.ts). A note is composed for the
- * conversation rather than for the task.
- */
-async function inChatPaths(
-  text: string | undefined,
-  { chatId, taskId }: { chatId: TaskId; taskId: TaskId },
-): Promise<string | undefined> {
-  if (text === undefined) {
-    return undefined;
-  }
-  const aliases = mountAliases(
-    await folderReach(chatId),
-    await folderReach(taskId),
+  await Promise.all(
+    events.flatMap((event) => {
+      const sessionId = StoreId.SessionSchema.safeParse(event.taskId);
+      return sessionId.success ? [touchTask(chatId, sessionId.data)] : [];
+    }),
   );
-  return translateTaskFolderPaths(
-    toChatPaths(text, aliases),
-    taskId,
-    chatPathOfWorkDir(taskId, chatId),
+  await wakeWith(
+    chatId,
+    { data: { events }, type: "data-taskEvent" },
+    workspaceRef,
+    sessionOfChat(chatId),
   );
 }
 
@@ -288,12 +252,30 @@ async function onSessionDone(
   },
   workspaceRef: WorkspaceActorRef,
 ) {
-  // Only a chat is woken, by a task inside it.
-  const chatId = owningChat(id);
-  if (!chatId) {
+  // Only a chat is woken, by a task of its own.
+  const chatId = resolveChat(id);
+  const task = chatId ? await childTask(chatId, sessionId) : undefined;
+  if (!chatId || !task) {
     return;
   }
-  if (stoppedByChat.delete(id)) {
+  const ref = { sessionId, taskId: chatId };
+  // Read as the turn ends rather than at delivery, a debounce later: a process
+  // that exits in between was the task's own doing and is not news.
+  const running = leftRunning(sessionId);
+  // What the task's agent said, never what the chat said before it.
+  const said = await lastAssistantText(ref);
+  // A turn with no words ended on a stop, the step limit, or a model error,
+  // and the note has to say which: the chat continues one of those
+  // with `task send`, and leaves one the user stopped alone.
+  const ending = said === undefined ? await endedWithoutWords(ref) : undefined;
+  // What the task cannot go on without, read the same way and listed apart
+  // from its words, so a turn that ended blocked reads as waiting rather than
+  // finished and the fence is not said twice.
+  const needs = said === undefined ? [] : needsNamedIn(said);
+  await touchTask(chatId, sessionId, {
+    status: ending?.failed ? "failed" : needs.length > 0 ? "waiting" : "done",
+  });
+  if (stoppedByChat.delete(sessionId)) {
     return;
   }
   // A chat nobody has written in has no conversation to report to: the eval
@@ -302,31 +284,16 @@ async function onSessionDone(
     return;
   }
 
-  const usage = await getTaskUsageSummary(id);
-  // Read as the turn ends rather than at delivery, a debounce later: a process
-  // that exits in between was the task's own doing and is not news.
-  const running = leftRunning(id);
-  const said = await lastAssistantText({ sessionId, taskId: id });
-  // A turn with no words ended on a stop, the step limit, or a model error,
-  // and the note has to say which: the chat continues one of those
-  // with `task send`, and leaves one the user stopped alone.
-  const ending =
-    said === undefined ? await endedWithoutWords(id, sessionId) : undefined;
-  const receipt = await inChatPaths(said, {
-    chatId,
-    taskId: id,
-  });
-  // What the task said it made, read from the whole receipt once the paths
-  // in it are the chat's, before the ceiling cuts it: the fence is
-  // the receipt's last lines, and a long receipt would otherwise lose it.
-  // The note carries the receipt itself; this is for the card, which draws
-  // the files as chips.
+  const usage = await getTaskUsageSummary(chatId, { sessionId });
+  // The task works in the chat's folder with the chat's folders, so what it
+  // said names every path the way the chat reads it.
+  const receipt = said;
+  // What the task said it made, read from the whole receipt before the
+  // ceiling cuts it: the fence is the receipt's last lines, and a long
+  // receipt would otherwise lose it. The note carries the receipt itself;
+  // this is for the card, which draws the files as chips.
   const files = receipt === undefined ? [] : filesNamedIn(receipt);
-  // What the task cannot go on without, read the same way and listed apart
-  // from its words, so a turn that ended blocked reads as waiting rather than
-  // finished and the fence is not said twice.
-  const needs = receipt === undefined ? [] : needsNamedIn(receipt);
-  const tabs = await openTabsOf(id);
+  const tabs = await openTabsOf(ref);
   const summary =
     receipt === undefined
       ? undefined
@@ -340,14 +307,14 @@ async function onSessionDone(
       activeMs: usage.activeMs,
       ...(ending ? { ended: ending.line } : {}),
       ...(files.length > 0 ? { files } : {}),
-      ...(hasOwnWorkFolder(id) ? { holds: await taskFolderHoldings(id) } : {}),
+      handle: task.handle,
       ...(needs.length > 0 ? { needs } : {}),
       ...(running.length > 0 ? { running } : {}),
       status: ending?.failed ? "error" : "done",
       summary,
       ...(tabs.length > 0 ? { tabs } : {}),
-      taskId: id,
-      title: (await getTaskSettings(taskDir(id)))?.name ?? id,
+      taskId: sessionId,
+      title: task.title,
       tokens: usage.inputTokens + usage.outputTokens,
     },
     workspaceRef,
@@ -355,7 +322,7 @@ async function onSessionDone(
 }
 
 function schedule(
-  chatId: TaskId,
+  chatId: ChatId,
   event: TaskEvent,
   workspaceRef: WorkspaceActorRef,
 ) {
@@ -366,7 +333,7 @@ function schedule(
   if (existing) {
     clearTimeout(existing.timer);
   }
-  const events = existing?.events ?? new Map<TaskId, TaskEvent>();
+  const events = existing?.events ?? new Map<string, TaskEvent>();
   events.set(event.taskId, event);
   const timer = setTimeout(() => {
     pending.delete(chatId);
@@ -384,12 +351,15 @@ function schedule(
  * a result the task left on a page is in one of these, and nowhere in the
  * task's own transcript.
  */
-async function openTabsOf(
-  taskId: TaskId,
-): Promise<NonNullable<TaskEvent["tabs"]>> {
+async function openTabsOf({
+  sessionId,
+  taskId,
+}: {
+  sessionId: StoreId.Session;
+  taskId: TaskId;
+}): Promise<NonNullable<TaskEvent["tabs"]>> {
   const { browser } = getWorkspaceConfig();
-  const held = (await getTaskState(taskDir(taskId))).browserTabs;
-  return held.flatMap((tab) => {
+  return (await heldTabs(taskId, sessionId)).flatMap((tab) => {
     const decoded = decodeBrowserTargetId(tab.id);
     if (!decoded || !browser.getTargetMeta(tab.id)) {
       return [];
@@ -412,33 +382,30 @@ async function openTabsOf(
  * its latest step alone does not.
  */
 async function stillWorkingEvent({
-  chatId,
+  handle,
+  sessionId,
   taskId,
   title,
   turnStart,
 }: {
-  chatId: TaskId;
+  handle: string;
+  sessionId: StoreId.Session;
   taskId: TaskId;
   title: string;
   turnStart: Date | undefined;
 }): Promise<TaskEvent> {
-  const usage = await getTaskUsageSummary(taskId);
-  const paths = { chatId, taskId };
-  const trajectory = await trajectorySince(taskId, turnStart ?? new Date());
-  const steps = await Promise.all(
-    trajectory.slice(-OVERDUE_STEPS).map((step) => inChatPaths(step, paths)),
-  );
+  const ref = { sessionId, taskId };
+  const usage = await getTaskUsageSummary(taskId, { sessionId });
+  const trajectory = await trajectorySince(ref, turnStart ?? new Date());
   return {
     activeMs: usage.activeMs,
     cachedTokens: usage.inputTokenDetails.cacheReadTokens,
-    ...(hasOwnWorkFolder(taskId)
-      ? { holds: await taskFolderHoldings(taskId) }
-      : {}),
-    inFlight: await stepInFlight(taskId),
+    handle,
+    inFlight: await stepInFlight(ref),
     status: "overdue",
-    steps: steps.filter((step) => step !== undefined),
-    summary: await inChatPaths(await latestStep(taskId), paths),
-    taskId,
+    steps: trajectory.slice(-OVERDUE_STEPS),
+    summary: await latestStep(ref),
+    taskId: sessionId,
     title,
     tokens: usage.inputTokens + usage.outputTokens,
   };

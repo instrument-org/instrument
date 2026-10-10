@@ -10,17 +10,18 @@ import { type WorkspaceServerParentRef } from "../types";
 import { setupCdpWebSocketBridge } from "./cdp-sockets";
 
 const handled = vi.hoisted(() => ({
-  task: [] as string[],
+  task: [] as { sessionId: string; taskId: string }[],
 }));
 
 vi.mock(import("./cdp-task-bridge"), () => ({
-  handleTaskCdpClient: (client, taskId) => {
-    handled.task.push(taskId);
+  handleTaskCdpClient: (client, owner) => {
+    handled.task.push(owner);
     client.close();
   },
 }));
 
 const TASK_ID = "read-the-page";
+const SESSION_ID = "ses_01M3AX9RF3C2E9RTATMB602W0B";
 
 let server: Server;
 let port: number;
@@ -61,9 +62,9 @@ function connect(url: string, headers: Record<string, string> = {}) {
 }
 
 describe("setupCdpWebSocketBridge", () => {
-  it("accepts a task's path carrying the launch's secret", async () => {
-    expect(await connect(cdpBridgeUrl(port, TASK_ID))).toBe("open");
-    expect(handled.task).toEqual([TASK_ID]);
+  it("accepts a session's path carrying the launch's secret", async () => {
+    expect(await connect(cdpBridgeUrl(port, TASK_ID, SESSION_ID))).toBe("open");
+    expect(handled.task).toEqual([{ sessionId: SESSION_ID, taskId: TASK_ID }]);
   });
 
   it.each([
@@ -79,7 +80,7 @@ describe("setupCdpWebSocketBridge", () => {
   });
 
   it("refuses an upgrade carrying an Origin header, secret or not", async () => {
-    const url = cdpBridgeUrl(port, TASK_ID);
+    const url = cdpBridgeUrl(port, TASK_ID, SESSION_ID);
 
     expect(await connect(url, { Origin: "https://example.com" })).toBe(403);
     expect(handled.task).toEqual([]);

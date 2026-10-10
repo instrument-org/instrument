@@ -31,7 +31,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import {
   createEditorSession,
@@ -313,7 +313,7 @@ function LiveDocument({
       onStatus: (next, detail) => {
         setStatus(next);
         if (next === "error") {
-          toast.error("Could not save", { description: detail });
+          toast.error("Couldn't save your changes", { cause: detail });
         }
       },
       renderFence: (language, content) => {
@@ -349,9 +349,7 @@ function LiveDocument({
         }
       },
       (error: unknown) => {
-        toast.error("Could not open the editor", {
-          description: error instanceof Error ? error.message : undefined,
-        });
+        toast.error("Couldn't open the editor", { cause: error });
       },
     );
     return () => {

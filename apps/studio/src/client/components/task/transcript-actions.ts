@@ -2,7 +2,7 @@ import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { rpcClient, type RPCInput } from "@/client/rpc/client";
 import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 export type TranscriptFormat = RPCInput["transcript"]["save"]["format"];
 
@@ -40,9 +40,7 @@ export function useTranscriptActions({
   const { isPending: isCopying, mutate: copy } = useMutation(
     rpcClient.transcript.copy.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to copy transcript", {
-          description: error.message,
-        });
+        toast.error("Couldn't copy the transcript", { cause: error });
       },
       onSuccess: () => {
         toast.success("Transcript copied to clipboard");
@@ -53,9 +51,7 @@ export function useTranscriptActions({
   const { isPending: isSaving, mutate: save } = useMutation(
     rpcClient.transcript.save.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to save transcript", {
-          description: error.message,
-        });
+        toast.error("Couldn't save the transcript", { cause: error });
       },
       onSuccess: (result) => {
         // Ordinary duration, no close button: the save is already done and its

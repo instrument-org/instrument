@@ -48,7 +48,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
 import { debounce } from "radashi";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import {
   groupMemories,
@@ -699,8 +699,8 @@ function Memories({
   const [isConfirming, setIsConfirming] = useState(false);
   const forgetMutation = useMutation(
     rpcClient.workspace.memory.forget.mutationOptions({
-      onError: () => {
-        toast.error("Couldn't forget those memories");
+      onError: (error) => {
+        toast.error("Couldn't forget those memories", { cause: error });
       },
     }),
   );

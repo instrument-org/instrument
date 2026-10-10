@@ -12,6 +12,7 @@ import {
   defaultWorkspacePath,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
+  writeWorkspaceIdentity,
 } from "./workspaces";
 
 let userDataDir: string;
@@ -130,15 +131,15 @@ describe("settings migration", () => {
               ]),
         ].toSorted(),
       );
+      // 1.x's localStorage held only how its window looked, and stays behind.
       expect(
-        fs.readFileSync(
+        fs.existsSync(
           path.join(
             defaultWorkspacePath(userDataDir),
-            ".instrument/app-session/Local Storage/leveldb/000003.log",
+            ".instrument/app-session/Local Storage",
           ),
-          "utf8",
         ),
-      ).toBe("tabs");
+      ).toBe(false);
       expect(
         fs.existsSync(
           path.join(
@@ -170,7 +171,7 @@ describe("settings migration", () => {
         color: "gray",
         createdBy: { kind: "person" },
         name: "Default",
-        settingsVersion: 1,
+        settingsVersion: 2,
       });
     },
   );
@@ -223,7 +224,7 @@ describe("settings migration", () => {
       true,
     );
     expect(fs.existsSync(workspaceSettingsDirOf(other))).toBe(false);
-    expect(readWorkspaceIdentity(other).settingsVersion).toBe(1);
+    expect(readWorkspaceIdentity(other).settingsVersion).toBe(2);
 
     migrateBoth();
     expect(
@@ -261,25 +262,118 @@ describe("settings migration", () => {
     ).toBe(true);
   });
 
-  it("copies Local Storage even past a partial copy a crash left behind", () => {
-    seedLegacy("dev");
-    const partial = path.join(
-      defaultWorkspacePath(userDataDir),
-      ".instrument/app-session/Local Storage.partial-1",
+  it("starts a fresh install with nothing to move", () => {
+    expect(migrateBoth()).toEqual(["settings at version 2"]);
+  });
+});
+
+describe("drafts into folders", () => {
+  const workspace = () => defaultWorkspacePath(userDataDir);
+  const settings = () => workspaceSettingsDirOf(workspace());
+
+  /** A beta's workspace at version 1, its drafts in `drafts.json`. */
+  function seedBetaDrafts() {
+    writeWorkspaceIdentity(workspace(), {
+      color: "gray",
+      createdBy: { kind: "person" },
+      name: "Mine",
+      settingsVersion: 1,
+    });
+    const staged = path.join(
+      workspace(),
+      ".instrument/drafts/d1/item-1/image.png",
     );
-    fs.mkdirSync(partial, { recursive: true });
-    migrateBoth();
+    fs.mkdirSync(path.dirname(staged), { recursive: true });
+    fs.writeFileSync(staged, "png");
+    fs.mkdirSync(settings(), { recursive: true });
+    fs.writeFileSync(
+      path.join(settings(), "drafts.json"),
+      JSON.stringify({
+        "drafts.v2": [
+          {
+            attached: [
+              {
+                kind: "file",
+                mimeType: "image/png",
+                name: "image.png",
+                path: staged,
+                size: 3,
+              },
+            ],
+            createdAt: 1,
+            id: "d1",
+            updatedAt: 1,
+            words: "Look at this",
+          },
+          { createdAt: 2, id: "d2", updatedAt: 2, words: "" },
+        ],
+      }),
+    );
+    fs.writeFileSync(path.join(settings(), "history.json"), "{}");
+  }
+
+  it("moves each draft into a folder of its own, with what was pasted into it", () => {
+    seedBetaDrafts();
+
+    expect(migrateBoth()).toEqual([
+      "moved 2 drafts into their folders",
+      "settings at version 2",
+    ]);
+
+    const drafts = path.join(workspace(), "drafts");
     expect(
-      fs.existsSync(
-        path.join(
-          defaultWorkspacePath(userDataDir),
-          ".instrument/app-session/Local Storage/leveldb/000003.log",
-        ),
-      ),
-    ).toBe(true);
+      fs
+        .readdirSync(drafts, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) =>
+          path.relative(drafts, path.join(entry.parentPath, entry.name)),
+        )
+        .toSorted(),
+    ).toMatchInlineSnapshot(`
+      [
+        "d1/.instrument/settings.json",
+        "d1/draft.md",
+        "d1/image.png",
+        "d2/.instrument/settings.json",
+        "d2/draft.md",
+      ]
+    `);
+    expect(read(path.join(drafts, "d1/.instrument/settings.json"))).toEqual({
+      attached: [
+        {
+          kind: "file",
+          mimeType: "image/png",
+          name: "image.png",
+          path: "image.png",
+          size: 3,
+        },
+      ],
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    expect(fs.readdirSync(settings())).not.toEqual(
+      expect.arrayContaining(["drafts.json", "history.json"]),
+    );
+    expect(fs.existsSync(path.join(workspace(), ".instrument/drafts"))).toBe(
+      false,
+    );
+    expect(readWorkspaceIdentity(workspace()).name).toBe("Mine");
   });
 
-  it("starts a fresh install with nothing to move", () => {
-    expect(migrateBoth()).toEqual(["settings at version 1"]);
+  it("leaves a draft whose folder is already there as it is", () => {
+    seedBetaDrafts();
+    const words = path.join(workspace(), "drafts/d1/draft.md");
+    fs.mkdirSync(path.join(workspace(), "drafts/d1/.instrument"), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(workspace(), "drafts/d1/.instrument/settings.json"),
+      "{}",
+    );
+    fs.writeFileSync(words, "newer");
+
+    migrateBoth();
+
+    expect(fs.readFileSync(words, "utf8")).toBe("newer");
   });
 });

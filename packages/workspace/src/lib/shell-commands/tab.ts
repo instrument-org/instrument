@@ -14,7 +14,10 @@ import {
   tabHolders,
   WINDOW_TAB_TIMEOUT_MS,
 } from "../chat/window-tab";
+import { agentPathOfFileUrl, isLocalAddress } from "../local-page-address";
 import { isUnder } from "../path-containment";
+import { getWorkspaceConfig } from "../workspace-config";
+import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import {
   defineSubcommands,
   type SubcommandShell,
@@ -40,9 +43,12 @@ const USAGE = `Usage: ${TAB_NAME} open <url or path>... | ${TAB_NAME} replace <i
  */
 export function createTabCommand({
   chatId,
+  layout,
   timeoutMs = WINDOW_TAB_TIMEOUT_MS,
 }: {
   chatId: ChatId;
+  /** The chat's shell layout: a local page outside it is not the chat's to read. */
+  layout: WorkspaceFsLayout;
   timeoutMs?: number;
 }) {
   const ask = (action: WindowTabAction) =>
@@ -171,12 +177,20 @@ export function createTabCommand({
     if (!tabId || extra.length > 0) {
       return fail(`read takes one tab id. ${USAGE}`);
     }
+    // Checked on both sides of the read, since a page can take its own tab to
+    // another file while the window reads it.
+    if (showsFileOutside(tabId)) {
+      return fail(outsideFile(tabId));
+    }
     const answer = await ask({ kind: "read", tabId });
     if (!answer) {
       return fail(NO_WINDOW);
     }
     if (answer.error) {
       return fail(answer.error);
+    }
+    if (showsFileOutside(tabId)) {
+      return fail(outsideFile(tabId));
     }
     const text = answer.text ?? "";
     return {
@@ -186,6 +200,25 @@ export function createTabCommand({
     };
   }
 
+  /**
+   * Whether a page tab is on a file of this computer the chat's own tools
+   * could not read, which the window would otherwise read for it.
+   */
+  function showsFileOutside(tabId: string): boolean {
+    const session = StoreId.SessionSchema.safeParse(tabId);
+    if (!session.success) {
+      return false;
+    }
+    const url = getWorkspaceConfig().browser.getTargetUrl(
+      encodeBrowserTargetId(WINDOW_ID, session.data),
+    );
+    return (
+      url !== undefined &&
+      isLocalAddress(url) &&
+      agentPathOfFileUrl(layout, url) === null
+    );
+  }
+
   return defineCommand(TAB_COMMAND.name, (args, ctx) =>
     runTab(args, undefined, ctx),
   );
@@ -193,6 +226,10 @@ export function createTabCommand({
 
 function describeTarget(target: WindowTabTarget) {
   return target.kind === "page" ? (target.url ?? "a new page") : target.mount;
+}
+
+function outsideFile(tabId: string) {
+  return `tab ${tabId} shows a file outside your folders, so it can't be read.`;
 }
 
 function fail(message: string) {

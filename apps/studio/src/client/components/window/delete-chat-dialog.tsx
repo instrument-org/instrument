@@ -2,7 +2,7 @@ import { DeleteWithProgressDialog } from "@/client/components/delete-with-progre
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";
@@ -78,11 +78,10 @@ export function DeleteChatDialog({
         try {
           await rpcClient.workspace.chats.trash.call({ id: chat.id });
         } catch (error) {
-          toast.error("Failed to delete the chat", {
+          toast.error("Couldn't delete the chat", {
+            cause: error,
             description:
-              error instanceof Error
-                ? error.message
-                : "Close anything using its folders (editors, terminals, servers) and try again.",
+              "Close anything using its folders, like an editor, a terminal or a server, and try again.",
           });
           throw error;
         }

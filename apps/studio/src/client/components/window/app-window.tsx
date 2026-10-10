@@ -326,12 +326,8 @@ function WindowShell({
         windowTabs.dropGroup(draftGroupOf(draft.id));
       }
     }
+    // A draft's folder goes with it, and what was pasted into it.
     setDrafts((current) => current.filter(isKept));
-    // What drafts kept on disk goes with them, including any whose clear
-    // never ran.
-    void rpcClient.drafts.prune
-      .call({ keep: drafts.filter(isKept).map((draft) => draft.id) })
-      .catch(() => undefined);
     for (const entry of compose.entries) {
       if (
         entry.kind === "draft" &&
@@ -477,19 +473,20 @@ function WindowShell({
   const appsBySlug = useAppsBySlug();
   // What a new tab shows, asked for as the window comes up rather than as the
   // tab mounts, so the page lays out from the cache instead of growing a
-  // section at a time as each answer lands.
+  // section at a time as each answer lands. The new tab's own code is split
+  // from the window's, so it is fetched now too, or the first Cmd+T waits on
+  // it.
   const queryClient = useQueryClient();
+  const { activeRouter } = appTabs;
   useEffect(() => {
     if (!opened) {
       return;
     }
     void queryClient.prefetchQuery(
-      rpcClient.workspace.computer.recents.queryOptions(),
-    );
-    void queryClient.prefetchQuery(
       rpcClient.workspace.computer.places.queryOptions(),
     );
-  }, [opened, queryClient]);
+    void activeRouter?.loadRouteChunk(activeRouter.routesById["/_app/new-tab"]);
+  }, [activeRouter, opened, queryClient]);
 
   const requestClose = (id: string) => {
     // Any group's: a popped-out chat's rail closes its tabs here too.

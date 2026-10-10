@@ -2,7 +2,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 // Surfaces a one-time toast after the app restarts on a newer version. The main
 // process hands the bump out exactly once, so claiming it is destructive and has

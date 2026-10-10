@@ -17,7 +17,7 @@ import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
  * rebuilt from the stores as it is read: the index is derived, so it is never
  * migrated.
  */
-const INDEX_VERSION = 2;
+const INDEX_VERSION = 3;
 
 /**
  * What the index keeps, one row per chat or task: each a value derived from
@@ -25,14 +25,12 @@ const INDEX_VERSION = 2;
  */
 export type IndexTable =
   | "chat_digests"
-  | "linked_files"
   | "task_apps"
   | "task_hosts"
   | "task_standings";
 
 const TABLES: IndexTable[] = [
   "chat_digests",
-  "linked_files",
   "task_apps",
   "task_hosts",
   "task_standings",

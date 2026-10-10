@@ -11,7 +11,7 @@ pnpm monorepo for the Instrument desktop app platform.
 ## Product terminology
 
 - The user's unit of work is a **task** everywhere: copy, code, routes, RPC, types, tool names, and on-disk layout.
-- On disk, a chat lives under `chats/<id>/` and the tasks it started under `chats/<id>/tasks/<id>/`, each with `.instrument/{task.db,settings.json}`. Every task belongs to the chat that started it; `tasks/<id>/` at the root is only where 1.x left tasks for the layout migration to move into chats. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. One record file: what the app knows about the task at the top level, where the user left off under `state`. Where a record's folder is says what it is and which chat a task belongs to; nothing in the record does. A chat's own marks (starred, archived, unread) are on its session record in its `task.db`. An app's connection record holds the chat waiting on its sign-in (`askedIn`).
+- On disk, a chat lives under `chats/<id>/` and the tasks it started under `chats/<id>/tasks/<id>/`, each with `.instrument/{task.db,settings.json}`. Every task belongs to the chat that started it; `tasks/<id>/` at the root is only where 1.x left tasks for the layout migration to move into chats. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. A draft (a chat not yet started) lives under `drafts/<id>/`: its words in `draft.md`, what was pasted into it beside them, and the rest in `.instrument/settings.json`. One record file: what the app knows about the task at the top level, where the user left off under `state`. Where a record's folder is says what it is and which chat a task belongs to; nothing in the record does. A chat's own marks (starred, archived, unread) are on its session record in its `task.db`. An app's connection record holds the chat waiting on its sign-in (`askedIn`).
 
 ## UI copy
 
@@ -23,6 +23,8 @@ What to avoid:
 - **Negative contrast**, "X, never Y" or "not X but Y", which adds emphasis by denying something nobody claimed: "Adds to your memories, never replaces them."
 - **Clipped commands with a vague "it"**: "Repeat it for each AI you use."
 - **Narrating the mechanism** instead of saying what the person gets: "Instrument reads it in a new chat and keeps what is worth keeping."
+- **Spelling out the obvious**: a clause describing what the person can already see or would assume anyway, which makes a short line long and a little condescending. "Drag a file here to add it to this folder you're looking at" is "Drag a file here to add it."
+- **Inventories** in a label, button or placeholder that list every kind of thing it covers: "Find tasks, files, people, and settings…" The results show the range; the label names the act in a few plain words. Labels, buttons and placeholders are the one place copy is not a full sentence.
 
 A line that works: "Importing adds to what Instrument remembers, so you can bring in memories from every AI you use."
 

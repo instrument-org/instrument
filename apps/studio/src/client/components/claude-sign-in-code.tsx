@@ -1,14 +1,19 @@
 import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
 import { rpcClient } from "@/client/rpc/client";
-import { useState } from "react";
-import { toast } from "sonner";
+import { useEffect, useState } from "react";
+import { toast } from "@/client/lib/toast";
+
+/** How long a sign-in waits before its link speaks to the email on a phone. */
+const EMAIL_HINT_DELAY_MS = 15_000;
 
 /**
- * For a Claude sign-in whose browser cannot get back to this computer: on
- * another device, or where `localhost` is blocked. The person opens
- * Anthropic's sign-in link wherever they like, and pastes the code the page
- * ends on, which goes straight on to Claude Code.
+ * For a Claude sign-in that stalls away from this computer. Most often
+ * Anthropic's email went to a phone, and its code typed into this
+ * computer's browser finishes the sign-in. Otherwise the browser cannot get
+ * back to this computer (another device, or `localhost` blocked): the person
+ * opens Anthropic's sign-in link wherever they like, and pastes the code the
+ * page ends on, which goes straight on to Claude Code.
  */
 export function ClaudeSignInCode({
   className,
@@ -22,6 +27,16 @@ export function ClaudeSignInCode({
   const [code, setCode] = useState("");
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const [stalled, setStalled] = useState(false);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setStalled(true);
+    }, EMAIL_HINT_DELAY_MS);
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, []);
 
   if (!open) {
     return (
@@ -33,7 +48,9 @@ export function ClaudeSignInCode({
           }}
           type="button"
         >
-          Signing in on another device?
+          {stalled
+            ? "Got Claude's email on your phone?"
+            : "Signing in on another device?"}
         </button>
       </p>
     );
@@ -56,8 +73,12 @@ export function ClaudeSignInCode({
     <div className={className}>
       <div className="flex flex-col gap-2 text-left text-xs text-muted-foreground">
         <p>
-          Open this sign-in link in any browser, sign in, and paste the code
-          Claude shows you here.
+          Type the code from Claude's email into the sign-in page in your
+          browser.
+        </p>
+        <p>
+          Or open this sign-in link on another device, sign in there, and paste
+          the code Claude shows you here.
         </p>
         <div>
           <Button

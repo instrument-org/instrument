@@ -9,6 +9,13 @@ import { files } from "./files";
 
 vi.mock("electron", () => ({ shell: {} }));
 vi.mock("@/electron-main/rpc/base", () => ({ base: os }));
+// A Finder alias resolves through the Mac module; here every alias leads to
+// whatever `aliasTargets` names for it.
+const aliasTargets = new Map<string, string>();
+vi.mock("@/electron-main/lib/mac-native", () => ({
+  resolveAlias: (filePath: string) =>
+    Promise.resolve(aliasTargets.get(filePath)),
+}));
 
 // Neither route reads its context, and the base it is built on is mocked
 // out, so an empty one stands in for the window's.
@@ -86,4 +93,25 @@ it("creates a file that is not there yet", async () => {
   );
   expect(written.ok).toBe(true);
   expect(await fs.readFile(file, "utf8")).toBe("new");
+});
+
+// An alias is followed the way a symbolic link is, so a text editor opened
+// on one reads and writes the file it leads to, not the bookmark.
+it("reads and writes the file a Finder alias leads to", async () => {
+  const target = path.join(dir, "notes.md");
+  const alias = path.join(dir, "notes.md alias");
+  await fs.writeFile(target, "# notes");
+  await fs.writeFile(alias, "book\0\0\0\0mark");
+  aliasTargets.set(alias, target);
+
+  const read = await call(files.read, { path: alias }, options);
+  expect(read).toMatchObject({ content: "# notes", utf8: true });
+  await call(
+    files.write,
+    { baseVersion: read.version, content: "# notes!", path: alias },
+    options,
+  );
+
+  expect(await fs.readFile(target, "utf8")).toBe("# notes!");
+  expect(await fs.readFile(alias, "utf8")).toBe("book\0\0\0\0mark");
 });

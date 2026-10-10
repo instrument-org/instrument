@@ -5,20 +5,14 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  getWorkspaceServerPort,
-  setWorkspaceServerPort,
-} from "../logic/server/url";
 import { TaskDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
 import { createBashEnv } from "./create-bash-env";
 
-// The shell's network commands go through `createSandboxFetch` rather than
-// just-bash's own fetch, and only a real request through a real shell proves
-// that wiring holds: the command, the fetch handed to just-bash, and the
-// refusal of the workspace server's port, redirects included.
+// Only a real request through a real shell proves the network config handed
+// to just-bash holds: the internet, loopback, and redirects across origins.
 const REACHABLE_HOST = "registry.npmjs.org";
 const REACHABLE_URL = `https://${REACHABLE_HOST}/-/ping`;
 
@@ -71,40 +65,33 @@ describe("bash sandbox networking", () => {
 });
 
 describe("bash sandbox networking on this computer", () => {
-  // Two loopback servers: one standing in for a service the agent started or
-  // one on the user's network, the other for the workspace server, whose port
-  // is the one the shell's fetch refuses.
+  // Two loopback servers, each a different origin: one standing in for a
+  // service the agent started or one on the user's network, the other for
+  // the host a redirect from it lands on.
   let service: http.Server;
   let serviceUrl: string;
-  let workspaceServer: http.Server;
-  let workspaceServerHits: number;
-  let originalPort: number;
+  let elsewhere: http.Server;
+  let elsewhereAuthorization: string | undefined;
 
   beforeAll(async () => {
-    workspaceServerHits = 0;
-    workspaceServer = await listen((_req, res) => {
-      workspaceServerHits++;
-      res.end("workspace server");
+    elsewhere = await listen((req, res) => {
+      elsewhereAuthorization = req.headers.authorization;
+      res.end("elsewhere");
     });
-    const workspacePort = portOf(workspaceServer);
+    const elsewherePort = portOf(elsewhere);
     service = await listen((req, res) => {
-      if (req.url === "/to-workspace-server") {
-        res.writeHead(302, {
-          Location: `http://127.0.0.1:${workspacePort}/_instrument/cdp`,
-        });
+      if (req.url === "/to-elsewhere") {
+        res.writeHead(302, { Location: `http://127.0.0.1:${elsewherePort}/` });
         res.end();
         return;
       }
       res.end("pool temperature 28C");
     });
     serviceUrl = `http://127.0.0.1:${portOf(service)}`;
-    originalPort = getWorkspaceServerPort();
-    setWorkspaceServerPort(workspacePort);
   });
 
   afterAll(async () => {
-    setWorkspaceServerPort(originalPort);
-    await Promise.all([close(service), close(workspaceServer)]);
+    await Promise.all([close(service), close(elsewhere)]);
   });
 
   it("reaches a loopback server with curl", async () => {
@@ -123,21 +110,14 @@ describe("bash sandbox networking on this computer", () => {
     expect(result.exitCode).toBe(0);
   });
 
-  it("refuses the workspace server's port", async () => {
-    const port = portOf(workspaceServer);
-    const result = await run(`curl -sS http://localhost:${port}/`);
+  it("drops the Authorization header on a redirect to another origin", async () => {
+    elsewhereAuthorization = "unset";
+    const result = await run(
+      `curl -sSL -H 'Authorization: Bearer secret' ${serviceUrl}/to-elsewhere`,
+    );
 
-    expect(result.stderr).toContain("workspace server");
-    expect(result.exitCode).toBe(7);
-    expect(workspaceServerHits).toBe(0);
-  });
-
-  it("refuses a redirect into the workspace server", async () => {
-    const result = await run(`curl -sSL ${serviceUrl}/to-workspace-server`);
-
-    expect(result.stderr).toContain("workspace server");
-    expect(result.exitCode).toBe(7);
-    expect(workspaceServerHits).toBe(0);
+    expect(result.stdout).toBe("elsewhere");
+    expect(elsewhereAuthorization).toBeUndefined();
   });
 });
 

@@ -36,16 +36,15 @@ What a native interpreter reached, unaudited: the workspace server's other route
 
 An OS-level network boundary around the sandbox, the only thing that would have made the block real, is a different class of change than a flag, and nothing in the architecture provides it. Scoping loopback to a task's own ports needs port attribution per task, which does not exist either.
 
-So the block went the other way: the tools the agent reaches for first reach what the native interpreters already could, and the single refusal kept is the one this record found unaudited, the workspace server's own port (`lib/workspace-server-address.ts`), for `curl`, `web_fetch`, and app requests alike, on every redirect hop.
+So the block went the other way: the tools the agent reaches for first reach what the native interpreters already could. A refusal of the workspace server's own port was kept at first and then dropped, since both of that server's routes already require a per-launch secret ([decision record](../decisions/2026-10-10-the-workspace-server-guards-itself.md)).
 
 ## Guidance
 
-- The workspace-server refusal is friction on the obvious path, the same shape the old block was, not a boundary: `node` and `python-native` reach that port directly. Do not build anything on it that assumes the agent _cannot_ call the workspace server.
-- Any new HTTP path the agent drives should refuse the same port through `isWorkspaceServerUrl`, checked per hop, so the tools agree about the one address they refuse.
+- The agent can reach the workspace server's port with any tool. A route added there must require a per-launch secret of its own, the way the model proxy and the CDP bridge do; an address check in the agent's tools would not protect it.
 
 ## Related
 
-- `packages/workspace/src/lib/create-bash-env.ts` and `sandbox-fetch.ts` — the shell's fetch, and the env allowlist that keeps the gateway key out of the sandbox.
+- `packages/workspace/src/lib/create-bash-env.ts` — the shell's network config, and the env allowlist that keeps the gateway key out of the sandbox.
 - `packages/workspace/src/tools/bash.ts` — joins stderr into model-visible output.
 - `packages/ai-gateway/src/lib/auth-middleware.ts` and `key-for-provider.ts` — why loopback exposure of the gateway is not credential exposure.
 - `docs/findings/private-dir-masking-is-not-a-boundary.md` — the same friction-not-a-boundary shape, same underlying cause.

@@ -24,7 +24,6 @@ function RouteComponent() {
             {debugNavigationRoutes.map((route) => {
               return (
                 <InternalLink
-                  activeOptions={{ exact: route.to === "/debug" }}
                   activeProps={{
                     className: linkActiveClasses,
                   }}

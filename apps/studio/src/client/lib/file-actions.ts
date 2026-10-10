@@ -1,6 +1,6 @@
 import { APP_PROTOCOL } from "@instrument-org/shared";
 import { safe } from "@orpc/client";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { type ViewerFile } from "../atoms/task-file-viewer";
 import { rpcClient } from "../rpc/client";
@@ -20,15 +20,7 @@ export async function copyFileToClipboard({
     }),
   );
   if (error) {
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : "The file could not be copied to clipboard";
-    toast.error("Failed to copy file", {
-      closeButton: true,
-      description: errorMessage,
-      duration: 5000,
-    });
+    toast.error("Couldn't copy the file", { cause: error });
     throw error;
   }
 }
@@ -45,15 +37,7 @@ export async function downloadFile(file: ViewerFile) {
       blob,
     });
   } catch (error) {
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : "An unknown error occurred while saving the file";
-    toast.error("Failed to save file", {
-      closeButton: true,
-      description: errorMessage,
-      duration: 10_000,
-    });
+    toast.error("Couldn't save the file", { cause: error });
     throw error;
   }
 }

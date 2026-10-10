@@ -6,6 +6,7 @@ import { app } from "electron";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
@@ -47,8 +48,15 @@ function bridgeFile(name: string): string | undefined {
   return existsSync(file) ? file : undefined;
 }
 
-/** The helper behind the agent's `calendar` and `contacts` commands, when this build carries it. */
+/**
+ * The helper behind the agent's `calendar` and `contacts` commands, when this
+ * build carries it and this Mac can run it: it is built for macOS 14 (Darwin
+ * 23), and an older loader refuses it outright.
+ */
 export function macHelperBinPath(): string | undefined {
+  if (Number.parseInt(os.release(), 10) < 23) {
+    return undefined;
+  }
   return bridgeFile("instrument-mac");
 }
 

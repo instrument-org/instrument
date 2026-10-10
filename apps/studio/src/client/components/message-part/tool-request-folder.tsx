@@ -7,7 +7,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { Button } from "../ui/button";
 import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";
@@ -38,18 +38,14 @@ export function ToolRequestFolder({
   const answer = useMutation(
     rpcClient.workspace.session.answerToolCall.mutationOptions({
       onError: (error) => {
-        toast.error("Could not answer the request", {
-          description: error.message,
-        });
+        toast.error("Couldn't send your answer", { cause: error });
       },
     }),
   );
   const attach = useMutation(
     rpcClient.workspace.task.state.attachFolder.mutationOptions({
       onError: (error) => {
-        toast.error("Could not attach the folder", {
-          description: error.message,
-        });
+        toast.error("Couldn't attach the folder", { cause: error });
       },
     }),
   );

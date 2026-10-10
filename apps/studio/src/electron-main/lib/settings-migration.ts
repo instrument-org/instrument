@@ -1,5 +1,13 @@
+import { DRAFTS_KEY } from "@/shared/kept-state";
 import fs from "node:fs";
 import path from "node:path";
+
+import {
+  createDraftsFolder,
+  DRAFTS_DIR_NAME,
+  draftDirOf,
+  freeNameIn,
+} from "../stores/workspace/drafts-folder";
 
 import {
   hasWorkspaceIdentity,
@@ -23,9 +31,12 @@ import {
  * exception is a take-in that stopped partway: the stores then open at the new
  * location and write their defaults there, so the retry overwrites targets
  * rather than keeping those defaults over the user's legacy files.
+ *
+ * Version 2 moves a workspace's drafts out of its settings into a folder each
+ * at its root.
  */
 
-const CURRENT_SETTINGS_VERSION = 1;
+export const CURRENT_SETTINGS_VERSION = 2;
 
 /** Electron-store names of the machine stores, at the root of userData. */
 export const MACHINE_PREFERENCES_NAME = "machine-preferences";
@@ -146,39 +157,115 @@ export function migrateWorkspaceSettings({
       return done;
     }
 
-    const marker = path.join(
-      workspaceSettingsDirOf(workspace.path),
-      TAKE_IN_MARKER,
-    );
-    if (workspace.isDefault) {
-      const overwrite = fs.existsSync(marker);
-      writeJsonAtomic(marker, { pid: process.pid });
-      takeInLegacyRootFiles({
-        done,
-        overwrite,
-        packaged,
-        userDataDir,
-        workspacePath: workspace.path,
+    if (identity.settingsVersion < 1) {
+      const marker = path.join(
+        workspaceSettingsDirOf(workspace.path),
+        TAKE_IN_MARKER,
+      );
+      if (workspace.isDefault) {
+        const overwrite = fs.existsSync(marker);
+        writeJsonAtomic(marker, { pid: process.pid });
+        takeInLegacyRootFiles({
+          done,
+          overwrite,
+          packaged,
+          userDataDir,
+          workspacePath: workspace.path,
+        });
+      }
+      writeWorkspaceIdentity(workspace.path, {
+        ...identity,
+        // A folder pinned from outside with nothing to say about itself is
+        // named after the folder.
+        name: workspace.isDefault
+          ? "Default"
+          : hadIdentity
+            ? identity.name
+            : path.basename(workspace.path),
+        settingsVersion: 1,
       });
+      fs.rmSync(marker, { force: true });
     }
 
+    moveKeptDraftsToFolders(workspace.path, done);
+
     writeWorkspaceIdentity(workspace.path, {
-      ...identity,
-      // A folder pinned from outside with nothing to say about itself is
-      // named after the folder.
-      name: workspace.isDefault
-        ? "Default"
-        : hadIdentity
-          ? identity.name
-          : path.basename(workspace.path),
+      ...readWorkspaceIdentity(workspace.path),
       settingsVersion: CURRENT_SETTINGS_VERSION,
     });
-    fs.rmSync(marker, { force: true });
     done.push(`settings at version ${CURRENT_SETTINGS_VERSION.toString()}`);
   } catch (error) {
     done.push(`workspace settings migration stopped: ${String(error)}`);
   }
   return done;
+}
+
+/**
+ * Version 2: a 2.0 beta kept the drafts as one list in the settings'
+ * `drafts.json`, and what was pasted into each in `.instrument/drafts/<id>/`
+ * one folder per item. Each draft becomes a folder of its own at the
+ * workspace root, with what was pasted into it beside its words. A draft
+ * whose folder is already there is left as it is. `history.json`, which kept
+ * a list nothing reads any longer, goes too.
+ */
+function moveKeptDraftsToFolders(workspacePath: string, done: string[]) {
+  const settingsDir = workspaceSettingsDirOf(workspacePath);
+  const keptFile = path.join(settingsDir, "drafts.json");
+  const stagedRoot = path.join(workspacePrivateDir(workspacePath), "drafts");
+  const kept = readObject(keptFile)?.[DRAFTS_KEY];
+  if (Array.isArray(kept) && kept.length > 0) {
+    const root = path.join(workspacePath, DRAFTS_DIR_NAME);
+    const folder = createDraftsFolder(root);
+    const read = folder.read()[DRAFTS_KEY];
+    const onDisk: unknown[] = Array.isArray(read) ? read : [];
+    const present = new Set(
+      onDisk.flatMap((draft) =>
+        isObject(draft) && typeof draft.id === "string" ? [draft.id] : [],
+      ),
+    );
+    const moved = kept.flatMap((draft: unknown) => {
+      if (
+        !isObject(draft) ||
+        typeof draft.id !== "string" ||
+        present.has(draft.id)
+      ) {
+        return [];
+      }
+      const dir = draftDirOf(root, draft.id);
+      const staged = path.join(stagedRoot, draft.id) + path.sep;
+      const attached = Array.isArray(draft.attached)
+        ? draft.attached.map((item: unknown) => {
+            if (
+              !isObject(item) ||
+              typeof item.path !== "string" ||
+              !item.path.startsWith(staged) ||
+              !fs.existsSync(item.path)
+            ) {
+              return item;
+            }
+            fs.mkdirSync(dir, { recursive: true });
+            const to = path.join(
+              dir,
+              freeNameIn(dir, path.basename(item.path)),
+            );
+            fs.renameSync(item.path, to);
+            return { ...item, path: to };
+          })
+        : undefined;
+      return [{ ...draft, ...(attached ? { attached } : {}) }];
+    });
+    folder.write({
+      [DRAFTS_KEY]: [...onDisk, ...moved],
+    });
+    done.push(`moved ${moved.length.toString()} drafts into their folders`);
+  }
+  fs.rmSync(keptFile, { force: true });
+  fs.rmSync(path.join(settingsDir, "history.json"), { force: true });
+  fs.rmSync(stagedRoot, { force: true, recursive: true });
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 export function pageThumbnailsDirOf(workspacePath: string): string {
@@ -322,28 +409,6 @@ function takeInLegacyRootFiles({
     done,
     overwrite,
   );
-
-  // The app window ran on Electron's default session before it ran on the
-  // workspace's own, so its localStorage (tabs, drafts, history) is copied
-  // across. Copied, not moved: the default session still owns that directory,
-  // and an older build still reads it. Copied beside the target and renamed
-  // into place, so a crash partway leaves no half database that the "target
-  // exists" check would then keep forever.
-  const legacyLocalStorage = path.join(userDataDir, "Local Storage");
-  const workspaceLocalStorage = path.join(
-    appSessionDirOf(workspacePath),
-    "Local Storage",
-  );
-  if (
-    fs.existsSync(legacyLocalStorage) &&
-    !keepTarget(workspaceLocalStorage, overwrite)
-  ) {
-    const partial = `${workspaceLocalStorage}.partial-${process.pid.toString()}`;
-    fs.rmSync(partial, { force: true, recursive: true });
-    fs.cpSync(legacyLocalStorage, partial, { recursive: true });
-    fs.renameSync(partial, workspaceLocalStorage);
-    done.push("copied Local Storage");
-  }
 }
 
 /** Write `value` as a new store file, unless one is already there. */

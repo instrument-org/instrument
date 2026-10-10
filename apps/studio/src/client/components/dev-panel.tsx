@@ -1,4 +1,3 @@
-import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { featuresAtom } from "@/client/atoms/features";
 import { openLogin } from "@/client/atoms/login-modal";
 import { openSettings } from "@/client/atoms/settings-modal";
@@ -48,20 +47,17 @@ import { steppedZoom } from "@/shared/zoom";
 import { PORTS } from "@instrument-org/shared";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
-import { DatabaseIcon } from "@phosphor-icons/react/Database";
 import { MagnifyingGlassMinusIcon } from "@phosphor-icons/react/MagnifyingGlassMinus";
 import { MagnifyingGlassPlusIcon } from "@phosphor-icons/react/MagnifyingGlassPlus";
 import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { MoonIcon } from "@phosphor-icons/react/Moon";
-import { NavigationArrowIcon } from "@phosphor-icons/react/NavigationArrow";
-import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 import { WarningOctagonIcon } from "@phosphor-icons/react/WarningOctagon";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 type NavigateTo = Parameters<ReturnType<typeof useNavigate>>[0]["to"];
 
@@ -101,7 +97,6 @@ export function DevPanel() {
   const navigate = useNavigate();
   const [hidden, setHidden] = useState(false);
   const [crash, setCrash] = useState(false);
-  const setDevToolsPanel = useSetAtom(devToolsPanelAtom);
   const [zoom, setZoom] = useAtom(zoomAtom);
   const [forceWindowControls, setForceWindowControls] = useAtom(
     forceWindowControlsAtom,
@@ -517,40 +512,6 @@ export function DevPanel() {
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>
-              <MenubarSub>
-                <MenubarSubTrigger className="font-mono text-xs">
-                  Tools
-                </MenubarSubTrigger>
-                <MenubarSubContent>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      setDevToolsPanel("router-devtools");
-                    }}
-                  >
-                    <NavigationArrowIcon className="size-3" />
-                    Router
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      setDevToolsPanel("query-devtools");
-                    }}
-                  >
-                    <DatabaseIcon className="size-3" />
-                    Query
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      setDevToolsPanel("agentation");
-                    }}
-                  >
-                    <NotePencilIcon className="size-3" />
-                    Agentation
-                  </MenubarItem>
-                </MenubarSubContent>
-              </MenubarSub>
               <WorkspaceMenu
                 onCreate={() => {
                   setWorkspaceDialog("new");
@@ -731,7 +692,7 @@ export function DevPanel() {
                 className="font-mono text-xs"
                 onSelect={() => {
                   setDeveloperMode({ enabled: false });
-                  toast("Developer mode disabled");
+                  toast.dev("Developer mode is off");
                 }}
               >
                 Exit developer mode

@@ -2,7 +2,6 @@ import { type Dirent } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { unique } from "radashi";
 import { z } from "zod";
 
 import { type FolderAttachment } from "../../schemas/folder-attachment";
@@ -10,7 +9,6 @@ import { type TaskId } from "../../schemas/task-id";
 import { getMimeType } from "../get-mime-type";
 import { pathIsWithin } from "../path-is-within";
 import { type ReadRefusal, readRefusalOf } from "../read-refusal";
-import { resolveExistingFilePath } from "../resolve-agent-path";
 import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
@@ -32,7 +30,6 @@ import {
   iCloudDrivePath,
   resolveICloudPath,
 } from "./icloud-drive";
-import { linkedFiles } from "./linked-files";
 import { resolveChat } from "../record-folders";
 
 /**
@@ -41,9 +38,6 @@ import { resolveChat } from "../record-folders";
  * rather than a scattering through it.
  */
 const MAX_ENTRIES = 2000;
-
-/** How many of the files the conversation showed the recents list carries. */
-const RECENTS_MAX = 20;
 
 const ComputerEntrySchema = z.object({
   createdAt: z.number().optional(),
@@ -95,20 +89,14 @@ const ComputerAccessSchema = z.object({
 type ComputerAccess = z.output<typeof ComputerAccessSchema>;
 
 /**
- * A file the conversation showed, with whether the agent can reach it. A
- * listing answers that once for the folder it lists; these files come from all
- * over, so each carries its own answer.
+ * A file named by its path rather than met in a folder, with whether the
+ * agent can reach it. A listing answers that once for the folder it lists;
+ * these files come from all over, so each carries its own answer.
  */
-export const ComputerRecentSchema = ComputerEntrySchema.extend({
+export const ComputerFileEntrySchema = ComputerEntrySchema.extend({
   access: ComputerAccessSchema.optional(),
-  /**
-   * When the conversation put this file in front of the user, which is what
-   * orders the list. Not the file's own dates: a file found last week and
-   * edited by hand this morning was still shown last week.
-   */
-  shownAt: z.number(),
 });
-export type ComputerRecent = z.output<typeof ComputerRecentSchema>;
+export type ComputerFileEntry = z.output<typeof ComputerFileEntrySchema>;
 
 const ComputerListingSchema = z.object({
   access: ComputerAccessSchema.optional(),
@@ -308,61 +296,36 @@ async function iCloudAppEntries(
 }
 
 /**
- * The files the conversation has shown the user, newest shown first.
- *
- * A log of what the agent handed over rather than a report on the computer.
- * The scan this replaces read every place a person keeps things and the
- * folders under those, which on a Mac is a permission prompt per protected
- * folder and answers with a list mostly of files the user made themselves,
- * none of which this app has anything to say about. What the agent decided to
- * put on screen is the thing worth listing, and it already said so in the
- * reply, so nothing has to be kept up to date for this to be true.
- *
- * A file that has since been moved or thrown away drops off, since a row that
- * opens nothing is worse than a shorter list.
+ * Files of the computer by host path, each as the browser shows it and with
+ * whether the chat `taskId` can reach it, in the order asked. A path that is
+ * no longer there, or is no longer a file, is left out: the caller keeps a
+ * list of paths from all over (what the user opened), and a row that opens
+ * nothing is worse than a shorter list.
  */
-export async function recentComputerFiles(): Promise<ComputerRecent[]> {
-  // Each path is read the way the chat that named it reads it: `/task` is
-  // that chat's own folder, and its tasks are the ones mounted for it.
-  const views = new Map<TaskId, ReturnType<typeof chatView>>();
-  const viewOf = (chatId: TaskId) => {
-    const known = views.get(chatId);
-    if (known) {
-      return known;
-    }
-    const view = chatView(chatId);
-    views.set(chatId, view);
-    return view;
-  };
-  const shown = await linkedFiles();
+export async function describeComputerFiles({
+  paths,
+  taskId,
+}: {
+  paths: readonly string[];
+  taskId: TaskId;
+}): Promise<ComputerFileEntry[]> {
+  // Listing the tasks reads every one of them, so only when a path is among
+  // them, as for a folder's access.
+  const tasksRoot = path.dirname(taskDir(taskId));
+  const { roots } = await chatView(taskId, {
+    withChildren: paths.some((hostPath) => isInsideFolder(hostPath, tasksRoot)),
+  });
   const described = await Promise.all(
-    shown.map(async (file) => {
-      const { layout, roots } = await viewOf(file.chatId);
-      const resolved = resolveExistingFilePath({
-        inputPath: file.path,
-        layout,
-      });
-      const entry = resolved.isErr()
-        ? undefined
-        : await describeShownFile(resolved.value.absolutePath);
+    paths.map(async (hostPath) => {
+      const entry = await describeFile(hostPath);
       if (!entry) {
         return;
       }
       const access = accessIn(roots, entry.path);
-      return {
-        ...entry,
-        shownAt: file.at,
-        ...(access === undefined ? {} : { access }),
-      };
+      return access === undefined ? entry : { ...entry, access };
     }),
   );
-  // One row per file, however many chats showed it, cut to length after the
-  // missing ones have gone, so a run of files that have since been thrown
-  // away does not empty the list.
-  return unique(
-    described.filter((entry) => entry !== undefined),
-    (entry) => entry.path,
-  ).slice(0, RECENTS_MAX);
+  return described.filter((entry) => entry !== undefined);
 }
 
 /** Folders first, then by name as a person reads one: `file 2` before `file 10`. */
@@ -461,12 +424,8 @@ async function describeEntry(
   };
 }
 
-/**
- * One shown file as the browser shows it. Nothing when it is no longer there,
- * or is no longer a file: the list says what the user was handed, and they are
- * free to move, replace or throw away anything on it afterwards.
- */
-async function describeShownFile(
+/** One file as the browser shows it; nothing when it is no longer there, or is no longer a file. */
+async function describeFile(
   hostPath: string,
 ): Promise<ComputerEntry | undefined> {
   let stats;

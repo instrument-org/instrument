@@ -50,7 +50,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { useFileActionVisibility } from "../hooks/use-file-action-visibility";
 import { useFileDrag } from "../hooks/use-file-drag";

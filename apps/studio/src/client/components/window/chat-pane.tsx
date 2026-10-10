@@ -4,7 +4,7 @@ import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { spokenMessage, toast } from "@/client/lib/toast";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { ChatList } from "./chat-list";
@@ -78,7 +78,11 @@ export function ChatPane({
   const topics: Topic[] = topicsQuery.data ?? [];
   const afterTopicChange = {
     onError: (error: Error) => {
-      toast.error(error.message);
+      // A name a topic can't take comes back in words written for people.
+      toast.error("Couldn't change the topic", {
+        cause: error,
+        description: spokenMessage(error, ["BAD_REQUEST"]),
+      });
     },
     onSuccess: () => void topicsQuery.refetch(),
   };

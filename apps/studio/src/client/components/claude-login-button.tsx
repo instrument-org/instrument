@@ -4,7 +4,7 @@ import { ClaudeSignInCode } from "@/client/components/claude-sign-in-code";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * Connects a Claude account, the way Continue with ChatGPT does: one press

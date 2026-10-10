@@ -165,12 +165,12 @@ export type FileSystemFileItem = {
    */
   previewPageCount?: number;
   /**
-   * When this file was put in front of the user, for a list that is a log of
-   * what they were shown rather than a folder. Sortable, and nothing else: a
-   * file's own dates say when it was made and changed, which is a different
-   * question and often a different answer.
+   * When the person last opened this file, for a list that is a log of what
+   * they opened rather than a folder. Sortable, and nothing else: a file's own
+   * dates say when it was made and changed, which is a different question and
+   * often a different answer.
    */
-  shownAt?: string;
+  openedAt?: string;
   size?: number;
   /** The Kind column's text, where the system names it: "Application". */
   typeName?: string;
@@ -201,6 +201,13 @@ export type FileSystemProps = {
   /** The order the browser opens in, when name ascending is the wrong one. */
   defaultSort?: FileSystemSortState;
   defaultView?: FileSystemView;
+  /**
+   * What the browser says when there is nothing to list and nothing is
+   * searched or filtered, in every view: a list with nothing in it yet,
+   * which a plain "This folder is empty" would misdescribe. Left out, an
+   * empty folder says that.
+   */
+  emptyState?: { description: string; title: string };
   /** Resolve a URL (e.g. presigned) for a file without one. */
   getFileUrl?: (file: FileSystemFileItem) => Promise<string> | string;
   /**
@@ -689,8 +696,8 @@ export type FileSystemSortKey =
   | "kind"
   | "name"
   // Not in SORT_OPTIONS, so it never appears in the toolbar: only a list whose
-  // items carry `shownAt` can be in this order, and it opens in it.
-  | "shownAt"
+  // items carry `openedAt` can be in this order, and it opens in it.
+  | "openedAt"
   | "size"
   | "updatedAt";
 export type FileSystemSortState = {
@@ -832,13 +839,13 @@ function defaultSortDirection(key: FileSystemSortKey) {
 }
 function entrySortTimestamp(
   entry: FileSystemEntry,
-  key: "createdAt" | "shownAt" | "updatedAt",
+  key: "createdAt" | "openedAt" | "updatedAt",
 ) {
-  // A folder is never shown to anyone, so it has no `shownAt` to read.
+  // The recents list only files, so a folder has no `openedAt` to read.
   const value =
-    key === "shownAt"
+    key === "openedAt"
       ? entry.kind === "file"
-        ? entry.shownAt
+        ? entry.openedAt
         : undefined
       : entry[key];
   const time = value ? Date.parse(value) : Number.NaN;
@@ -1622,6 +1629,7 @@ export function FileSystem({
   defaultSelectedPath,
   defaultSort,
   defaultView = "icons",
+  emptyState,
   getFileUrl,
   getHostPath,
   items,
@@ -3132,6 +3140,18 @@ export function FileSystem({
             role="status"
           >
             <Spinner className="size-5 text-muted-foreground" delay={1000} />
+          </div>
+        ) : currentEntries.length === 0 &&
+          emptyState &&
+          !isSearching &&
+          !hasActiveFilters ? (
+          <div className="flex size-full flex-col items-center justify-center gap-1 px-6 text-center">
+            <p className="text-sm font-medium text-foreground">
+              {emptyState.title}
+            </p>
+            <p className="max-w-72 text-sm text-muted-foreground">
+              {emptyState.description}
+            </p>
           </div>
         ) : currentEntries.length === 0 &&
           (view !== "columns" || isSearching || hasActiveFilters) ? (

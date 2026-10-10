@@ -15,7 +15,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";
@@ -245,9 +245,9 @@ function setArchived(
       repaintChats(queryClient);
       toast.error(
         archived
-          ? "Failed to archive the chat"
-          : "Failed to move the chat to the inbox",
-        { description: error instanceof Error ? error.message : String(error) },
+          ? "Couldn't archive the chat"
+          : "Couldn't move the chat to the inbox",
+        { cause: error },
       );
     },
   );

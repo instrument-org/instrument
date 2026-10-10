@@ -1,12 +1,17 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { MACHINE_PREFERENCES_NAME } from "@/electron-main/lib/settings-migration";
 import { publisher } from "@/electron-main/rpc/publisher";
+import {
+  NO_SIDEBAR_CHANGES,
+  SidebarPlacesSchema,
+} from "@/shared/sidebar-places";
 import Store from "electron-store";
 import { z } from "zod";
 
 /**
  * What a person chose for this computer, whichever workspace is open: which
- * builds it updates to. Per-workspace choices are in `workspace/preferences.ts`.
+ * builds it updates to, and what the Files sidebar pins, whose paths are this
+ * computer's. Per-workspace choices are in `workspace/preferences.ts`.
  */
 export const MachinePreferencesSchema = z.object({
   // Release channels are not exposed to the user and are used internally for testing
@@ -14,6 +19,8 @@ export const MachinePreferencesSchema = z.object({
     .enum(["latest", "beta", "alpha"])
     .optional()
     .catch(undefined),
+  sidebarPlaces:
+    SidebarPlacesSchema.catch(NO_SIDEBAR_CHANGES).default(NO_SIDEBAR_CHANGES),
 });
 
 type MachinePreferences = z.output<typeof MachinePreferencesSchema>;

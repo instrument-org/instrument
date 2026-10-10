@@ -15,11 +15,10 @@ import { Route as DebugRouteRouteImport } from './routes/debug/route'
 import { Route as OnboardingRouteRouteImport } from './routes/onboarding/route'
 import { Route as AppBrowserRouteImport } from './routes/_app/browser'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
+import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as DebugIndexRouteImport } from './routes/debug/index'
-import { Route as DebugBrowserViewsRouteImport } from './routes/debug/browser-views'
 import { Route as DebugComponentsRouteImport } from './routes/debug/components'
-import { Route as DebugErrorsRouteImport } from './routes/debug/errors'
 import { Route as DebugNotificationsRouteImport } from './routes/debug/notifications'
 import { Route as OnboardingIndexRouteImport } from './routes/onboarding/index'
 import { Route as OnboardingProvidersRouteImport } from './routes/onboarding/providers'
@@ -31,7 +30,6 @@ import { Route as AppChatsIdRouteImport } from './routes/_app/chats/$id'
 import { Route as AppSitesIdRouteImport } from './routes/_app/sites/$id'
 import { Route as AppTasksIndexRouteImport } from './routes/_app/tasks/index'
 import { Route as AppTasksIdRouteImport } from './routes/_app/tasks/$id'
-import { Route as DebugBrowserViewTargetIdRouteImport } from './routes/debug/browser-view.$targetId'
 import { Route as DebugComponentsIndexRouteImport } from './routes/debug/components/index'
 import { Route as DebugComponentsAlertsRouteImport } from './routes/debug/components/alerts'
 import { Route as DebugComponentsAppIconsRouteImport } from './routes/debug/components/app-icons'
@@ -81,6 +79,11 @@ const AppFilesRoute = AppFilesRouteImport.update({
   path: '/files',
   getParentRoute: () => AppRouteRoute,
 } as any)
+const AppNewTabRoute = AppNewTabRouteImport.update({
+  id: '/new-tab',
+  path: '/new-tab',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
   id: '/release-notes',
   path: '/release-notes',
@@ -91,19 +94,9 @@ const DebugIndexRoute = DebugIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DebugRouteRoute,
 } as any)
-const DebugBrowserViewsRoute = DebugBrowserViewsRouteImport.update({
-  id: '/browser-views',
-  path: '/browser-views',
-  getParentRoute: () => DebugRouteRoute,
-} as any)
 const DebugComponentsRoute = DebugComponentsRouteImport.update({
   id: '/components',
   path: '/components',
-  getParentRoute: () => DebugRouteRoute,
-} as any)
-const DebugErrorsRoute = DebugErrorsRouteImport.update({
-  id: '/errors',
-  path: '/errors',
   getParentRoute: () => DebugRouteRoute,
 } as any)
 const DebugNotificationsRoute = DebugNotificationsRouteImport.update({
@@ -161,12 +154,6 @@ const AppTasksIdRoute = AppTasksIdRouteImport.update({
   path: '/tasks/$id',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const DebugBrowserViewTargetIdRoute =
-  DebugBrowserViewTargetIdRouteImport.update({
-    id: '/browser-view/$targetId',
-    path: '/browser-view/$targetId',
-    getParentRoute: () => DebugRouteRoute,
-  } as any)
 const DebugComponentsIndexRoute = DebugComponentsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -282,10 +269,9 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/browser': typeof AppBrowserRoute
   '/files': typeof AppFilesRoute
+  '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
-  '/debug/browser-views': typeof DebugBrowserViewsRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
-  '/debug/errors': typeof DebugErrorsRoute
   '/debug/notifications': typeof DebugNotificationsRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
@@ -295,7 +281,6 @@ export interface FileRoutesByFullPath {
   '/chats/$id': typeof AppChatsIdRoute
   '/sites/$id': typeof AppSitesIdRoute
   '/tasks/$id': typeof AppTasksIdRoute
-  '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
@@ -323,9 +308,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/browser': typeof AppBrowserRoute
   '/files': typeof AppFilesRoute
+  '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
-  '/debug/browser-views': typeof DebugBrowserViewsRoute
-  '/debug/errors': typeof DebugErrorsRoute
   '/debug/notifications': typeof DebugNotificationsRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
@@ -335,7 +319,6 @@ export interface FileRoutesByTo {
   '/chats/$id': typeof AppChatsIdRoute
   '/sites/$id': typeof AppSitesIdRoute
   '/tasks/$id': typeof AppTasksIdRoute
-  '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
@@ -366,10 +349,9 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRouteRouteWithChildren
   '/_app/browser': typeof AppBrowserRoute
   '/_app/files': typeof AppFilesRoute
+  '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
-  '/debug/browser-views': typeof DebugBrowserViewsRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
-  '/debug/errors': typeof DebugErrorsRoute
   '/debug/notifications': typeof DebugNotificationsRoute
   '/onboarding/providers': typeof OnboardingProvidersRoute
   '/onboarding/theme': typeof OnboardingThemeRoute
@@ -379,7 +361,6 @@ export interface FileRoutesById {
   '/_app/chats/$id': typeof AppChatsIdRoute
   '/_app/sites/$id': typeof AppSitesIdRoute
   '/_app/tasks/$id': typeof AppTasksIdRoute
-  '/debug/browser-view/$targetId': typeof DebugBrowserViewTargetIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
@@ -411,10 +392,9 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/browser'
     | '/files'
+    | '/new-tab'
     | '/release-notes'
-    | '/debug/browser-views'
     | '/debug/components'
-    | '/debug/errors'
     | '/debug/notifications'
     | '/onboarding/providers'
     | '/onboarding/theme'
@@ -424,7 +404,6 @@ export interface FileRouteTypes {
     | '/chats/$id'
     | '/sites/$id'
     | '/tasks/$id'
-    | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
     | '/debug/components/colors'
@@ -452,9 +431,8 @@ export interface FileRouteTypes {
     | '/'
     | '/browser'
     | '/files'
+    | '/new-tab'
     | '/release-notes'
-    | '/debug/browser-views'
-    | '/debug/errors'
     | '/debug/notifications'
     | '/onboarding/providers'
     | '/onboarding/theme'
@@ -464,7 +442,6 @@ export interface FileRouteTypes {
     | '/chats/$id'
     | '/sites/$id'
     | '/tasks/$id'
-    | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
     | '/debug/components/colors'
@@ -494,10 +471,9 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/_app/browser'
     | '/_app/files'
+    | '/_app/new-tab'
     | '/_app/release-notes'
-    | '/debug/browser-views'
     | '/debug/components'
-    | '/debug/errors'
     | '/debug/notifications'
     | '/onboarding/providers'
     | '/onboarding/theme'
@@ -507,7 +483,6 @@ export interface FileRouteTypes {
     | '/_app/chats/$id'
     | '/_app/sites/$id'
     | '/_app/tasks/$id'
-    | '/debug/browser-view/$targetId'
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
     | '/debug/components/colors'
@@ -583,6 +558,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppFilesRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/new-tab': {
+      id: '/_app/new-tab'
+      path: '/new-tab'
+      fullPath: '/new-tab'
+      preLoaderRoute: typeof AppNewTabRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/_app/release-notes': {
       id: '/_app/release-notes'
       path: '/release-notes'
@@ -597,25 +579,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugIndexRouteImport
       parentRoute: typeof DebugRouteRoute
     }
-    '/debug/browser-views': {
-      id: '/debug/browser-views'
-      path: '/browser-views'
-      fullPath: '/debug/browser-views'
-      preLoaderRoute: typeof DebugBrowserViewsRouteImport
-      parentRoute: typeof DebugRouteRoute
-    }
     '/debug/components': {
       id: '/debug/components'
       path: '/components'
       fullPath: '/debug/components'
       preLoaderRoute: typeof DebugComponentsRouteImport
-      parentRoute: typeof DebugRouteRoute
-    }
-    '/debug/errors': {
-      id: '/debug/errors'
-      path: '/errors'
-      fullPath: '/debug/errors'
-      preLoaderRoute: typeof DebugErrorsRouteImport
       parentRoute: typeof DebugRouteRoute
     }
     '/debug/notifications': {
@@ -694,13 +662,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/tasks/$id'
       preLoaderRoute: typeof AppTasksIdRouteImport
       parentRoute: typeof AppRouteRoute
-    }
-    '/debug/browser-view/$targetId': {
-      id: '/debug/browser-view/$targetId'
-      path: '/browser-view/$targetId'
-      fullPath: '/debug/browser-view/$targetId'
-      preLoaderRoute: typeof DebugBrowserViewTargetIdRouteImport
-      parentRoute: typeof DebugRouteRoute
     }
     '/debug/components/': {
       id: '/debug/components/'
@@ -841,6 +802,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteRouteChildren {
   AppBrowserRoute: typeof AppBrowserRoute
   AppFilesRoute: typeof AppFilesRoute
+  AppNewTabRoute: typeof AppNewTabRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppAppsSlugRoute: typeof AppAppsSlugRoute
   AppChatsIdRoute: typeof AppChatsIdRoute
@@ -854,6 +816,7 @@ interface AppRouteRouteChildren {
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppBrowserRoute: AppBrowserRoute,
   AppFilesRoute: AppFilesRoute,
+  AppNewTabRoute: AppNewTabRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppAppsSlugRoute: AppAppsSlugRoute,
   AppChatsIdRoute: AppChatsIdRoute,
@@ -931,21 +894,15 @@ const DebugComponentsRouteWithChildren = DebugComponentsRoute._addFileChildren(
 )
 
 interface DebugRouteRouteChildren {
-  DebugBrowserViewsRoute: typeof DebugBrowserViewsRoute
   DebugComponentsRoute: typeof DebugComponentsRouteWithChildren
-  DebugErrorsRoute: typeof DebugErrorsRoute
   DebugNotificationsRoute: typeof DebugNotificationsRoute
   DebugIndexRoute: typeof DebugIndexRoute
-  DebugBrowserViewTargetIdRoute: typeof DebugBrowserViewTargetIdRoute
 }
 
 const DebugRouteRouteChildren: DebugRouteRouteChildren = {
-  DebugBrowserViewsRoute: DebugBrowserViewsRoute,
   DebugComponentsRoute: DebugComponentsRouteWithChildren,
-  DebugErrorsRoute: DebugErrorsRoute,
   DebugNotificationsRoute: DebugNotificationsRoute,
   DebugIndexRoute: DebugIndexRoute,
-  DebugBrowserViewTargetIdRoute: DebugBrowserViewTargetIdRoute,
 }
 
 const DebugRouteRouteWithChildren = DebugRouteRoute._addFileChildren(

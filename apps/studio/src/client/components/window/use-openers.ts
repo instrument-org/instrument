@@ -1,10 +1,13 @@
 import { openSettings } from "@/client/atoms/settings-modal";
 import { CHATS_HREF } from "@/client/atoms/window";
+import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import {
   type ChatId,
+  encodeBrowserTargetId,
   isFolderPath,
+  StoreId,
   WINDOW_ID,
   type WindowTabAnswer,
   type WindowTabRequest,
@@ -12,7 +15,7 @@ import {
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { newSiteGroup, pageHrefOf, type useAppTabs } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
@@ -127,10 +130,17 @@ export function useOpeners({
       }
       case "new-page": {
         revealPane();
-        return browser?.open(
-          url,
-          placement.replacesUp && active ? { replacing: active } : undefined,
-        );
+        const replacing =
+          placement.replacesUp && active ? { replacing: active } : undefined;
+        const id = browser?.open(url, replacing);
+        // A page taking the place of what the person was in takes the
+        // keyboard with it; one an agent asked for a tab of its own does not.
+        if (replacing && !options.ownTab && id !== undefined) {
+          takeKeyboardOnArrival(
+            encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(id)),
+          );
+        }
+        return id;
       }
       case "own-tab": {
         revealPane();
@@ -143,6 +153,11 @@ export function useOpeners({
         const group = newSiteGroup();
         const id = browser?.open(url, { group });
         appTabs.navigate(pageHrefOf(group), { replace: placement.replace });
+        if (!options.ownTab && id !== undefined) {
+          takeKeyboardOnArrival(
+            encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(id)),
+          );
+        }
         return id;
       }
       case "window-tab": {

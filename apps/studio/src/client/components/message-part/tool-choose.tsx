@@ -7,7 +7,7 @@ import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -258,9 +258,7 @@ export function ToolChoose({
   const answer = useMutation(
     rpcClient.workspace.session.answerToolCall.mutationOptions({
       onError: (error) => {
-        toast.error("Could not send the answer", {
-          description: error.message,
-        });
+        toast.error("Couldn't send your answer", { cause: error });
       },
     }),
   );

@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { workspaceSettingsDirOf } from "./settings-migration";
+import {
+  CURRENT_SETTINGS_VERSION,
+  workspaceSettingsDirOf,
+} from "./settings-migration";
 import {
   createdWorkspacesDir,
   DEFAULT_WORKSPACE_ID,
@@ -303,7 +306,7 @@ function populateWorkspace({
     color,
     createdBy: { kind: "person" },
     name,
-    settingsVersion: 1,
+    settingsVersion: CURRENT_SETTINGS_VERSION,
   });
 }
 

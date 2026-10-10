@@ -1,4 +1,3 @@
-import { useTabSurface } from "@/client/hooks/use-tab-surface";
 import { BROWSER_HREF } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
@@ -361,30 +360,6 @@ export function ChatWindow({
     });
     showUp();
   };
-  // Cmd+T in the window opens a browser in the chat, and Cmd+W over what it
-  // shows (drawn large, or peeked at) closes that.
-  const surfaceRef = useRef<HTMLDivElement>(null);
-  const shownRef = useRef<HTMLDivElement>(null);
-  useTabSurface({
-    anchor: surfaceRef,
-    closeTabUp: () => {
-      const shown = showsItem ? up : peekTab;
-      if (!shown) {
-        return false;
-      }
-      closeTab(shown.id);
-      setPeekId(undefined);
-      return true;
-    },
-    openTab: () => {
-      openHere(BROWSER_HREF);
-    },
-    tabIds: tabs.map((tab) => tab.id),
-    tabsAnchor: shownRef,
-    // Grown, Cmd+W in the conversation shrinks the window as any hold
-    // closes; small, it closes the window the way its × does.
-    ...(isExpanded ? {} : { closeSurface: onClose }),
-  });
   const openPage = (url: string) => {
     const id = appWindow.browser?.openOrFocus(url, { group: chatId });
     if (id !== undefined) {
@@ -429,7 +404,6 @@ export function ChatWindow({
 
   return (
     <motion.div
-      ref={surfaceRef}
       animate={{ opacity: 1, right: isExpanded ? 0 : right, y: 0 }}
       // On the page's ground rather than the card's: the conversation is
       // drawn for that ground, its bubbles on the card's and its fades from
@@ -515,6 +489,7 @@ export function ChatWindow({
             <MinusIcon className="size-4" />
           </WindowButton>
           <WindowButton
+            keepsFocus
             label={isExpanded ? "Shrink" : "Expand"}
             onClick={() => {
               onPlacementChange(isExpanded ? "docked" : "expanded");
@@ -648,7 +623,6 @@ export function ChatWindow({
           <div
             className="absolute inset-x-2 top-2 z-20 flex flex-col overflow-hidden rounded-xl bg-background shadow-xl-soft ring-1 ring-gray-300 [--guest-bottom-radius:var(--radius-xl)] dark:ring-gray-600"
             data-slot="chat-peek"
-            ref={shownRef}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
                 setPeekId(undefined);
@@ -671,10 +645,7 @@ export function ChatWindow({
           </div>
         )}
         {showsItem && (
-          <div
-            className="flex min-w-0 flex-1 flex-col bg-sidebar"
-            ref={shownRef}
-          >
+          <div className="flex min-w-0 flex-1 flex-col bg-sidebar">
             <div className="min-h-0 flex-1">
               <GroupItem
                 closeTab={closeTab}

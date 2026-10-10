@@ -15,7 +15,7 @@ import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { useAtom } from "jotai";
 import { type ReactNode, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { AppIcon } from "./app-icon";
 import { computerName } from "./computer-name";
@@ -144,8 +144,8 @@ export function WebStart({
       .then(() => {
         toast("Removed all Recent Pages");
       })
-      .catch(() => {
-        toast.error("Could not remove Recent Pages");
+      .catch((error: unknown) => {
+        toast.error("Couldn't clear Recent Pages", { cause: error });
       });
   };
   // A bookmark is an address the person chose, so opening one counts the

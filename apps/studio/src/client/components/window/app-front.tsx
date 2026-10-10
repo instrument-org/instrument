@@ -48,7 +48,7 @@ import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /** How many of the pages visited in the app its front lists. */
 const VISITS_SHOWN = 12;
@@ -131,9 +131,7 @@ export function AppFront({
   const setAccount = useMutation(
     rpcClient.apps.setAccount.mutationOptions({
       onError: (error) => {
-        toast.error("Could not name the account", {
-          description: error.message,
-        });
+        toast.error("Couldn't name the account", { cause: error });
       },
     }),
   );
@@ -163,16 +161,14 @@ export function AppFront({
   const disconnect = useMutation(
     rpcClient.apps.disconnect.mutationOptions({
       onError: (error) => {
-        toast.error("Could not disconnect", { description: error.message });
+        toast.error(`Couldn't disconnect ${name}`, { cause: error });
       },
     }),
   );
   const remove = useMutation(
     rpcClient.apps.remove.mutationOptions({
       onError: (error) => {
-        toast.error("Could not remove the app", {
-          description: error.message,
-        });
+        toast.error(`Couldn't remove ${name}`, { cause: error });
       },
       onSuccess: () => {
         onToApps();
@@ -182,16 +178,14 @@ export function AppFront({
   const test = useMutation(
     rpcClient.apps.test.mutationOptions({
       onError: (error) => {
-        toast.error("Could not test the app", { description: error.message });
+        toast.error(`Couldn't test ${name}`, { cause: error });
       },
       onSuccess: (report) => {
         if (!report.passed) {
           const failure = report.checks.find(
             (check) => check.status === "fail",
           );
-          toast.error(`${name} did not connect`, {
-            description: failure?.detail.split("\n")[0],
-          });
+          toast.error(`Couldn't connect ${name}`, { cause: failure?.detail });
         }
       },
     }),

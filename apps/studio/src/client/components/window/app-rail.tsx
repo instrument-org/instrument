@@ -20,7 +20,7 @@ import { type ReactNode } from "react";
  * The places, in the order the rail draws them, each drawn filled while it
  * is the place stood in.
  */
-const PLACES: { id: AppPlace; label: string }[] = [
+export const PLACES: { id: AppPlace; label: string }[] = [
   { id: "chat", label: "Chat" },
   { id: "files", label: "Files" },
   { id: "browser", label: "Browser" },

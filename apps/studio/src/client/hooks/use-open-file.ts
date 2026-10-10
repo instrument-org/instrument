@@ -1,16 +1,14 @@
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 // Opens a file with the application the computer would use for it.
 export function useOpenFile() {
   const openPathMutation = useMutation(
     rpcClient.utils.openPath.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to open file", {
-          description: error.message,
-        });
+        toast.error("Couldn't open the file", { cause: error });
       },
     }),
   );
@@ -25,9 +23,7 @@ export function useOpenFileWith() {
   const openFileWithMutation = useMutation(
     rpcClient.utils.openFileWith.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to open file", {
-          description: error.message,
-        });
+        toast.error("Couldn't open the file", { cause: error });
       },
     }),
   );

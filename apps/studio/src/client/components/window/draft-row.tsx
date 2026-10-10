@@ -157,7 +157,10 @@ function DraftMarks({ draft }: { draft: Draft }) {
   return (
     <span className="flex min-w-0 items-center gap-1 text-muted-foreground [&_img]:size-3.5 [&_img]:rounded-xs [&_svg]:size-3.5">
       {shown.slice(0, ROW_MARKS).map((mark) => (
-        <span className="grid size-4 shrink-0 place-items-center" key={mark.key}>
+        <span
+          className="grid size-4 shrink-0 place-items-center"
+          key={mark.key}
+        >
           {mark.icon}
         </span>
       ))}

@@ -32,7 +32,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { ChatStream, TypingRow } from "../chat-stream";
 import { ComposerDraftContext } from "../composer-draft-context";
@@ -147,14 +147,14 @@ export function TaskChat({
   const createMessage = useMutation(
     createMessageOptions({
       onError: (error) => {
-        toast.error("Failed to create message", { description: error.message });
+        toast.error("Couldn't send your message", { cause: error });
       },
     }),
   );
   const runTurn = useMutation(
     rpcClient.workspace.session.run.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to try again", { description: error.message });
+        toast.error("Couldn't try again", { cause: error });
       },
     }),
   );
@@ -282,7 +282,9 @@ export function TaskChat({
       return;
     }
     if (!selectedModelURI) {
-      toast.error("Failed to retry", { description: "No model selected" });
+      toast.error("Couldn't try again", {
+        description: "Choose a model first.",
+      });
       return;
     }
     createMessage.mutate({
@@ -301,7 +303,9 @@ export function TaskChat({
       return;
     }
     if (!selectedModelURI) {
-      toast.error("Failed to try again", { description: "No model selected" });
+      toast.error("Couldn't try again", {
+        description: "Choose a model first.",
+      });
       return;
     }
     runTurn.mutate({

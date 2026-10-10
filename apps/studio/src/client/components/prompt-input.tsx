@@ -62,7 +62,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 import { ulid } from "ulid";
 
 import { featuresAtom } from "../atoms/features";
@@ -487,7 +487,7 @@ export const PromptInput = ({
       rpcClient.utils.showFolderPicker.call({}),
     );
     if (error) {
-      toast.error("Failed to open folder picker");
+      toast.error("Couldn't open the folder picker", { cause: error });
       return;
     }
     if (!result) {
@@ -685,7 +685,6 @@ export const PromptInput = ({
           },
         }),
         ...(detail && { description: detail }),
-        duration: 7000,
       });
       return false;
     }

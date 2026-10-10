@@ -19,7 +19,6 @@ import { type StoreId } from "../schemas/store-id";
 import { type TaskId } from "../schemas/task-id";
 import { TOOL_NAMES } from "../tools/name";
 import { bashWorkerEnabled, createRemoteBash } from "./bash-worker/client";
-import { createSandboxFetch } from "./sandbox-fetch";
 import {
   AGENT_BROWSER_COMMAND,
   agentBrowserCommandDescription,
@@ -581,7 +580,7 @@ export function createBashDescription({
     A background process is stopped once it has run for ${ms(MAX_RUNNING_AGE_MS, { long: true })}, whatever it is doing. \`${JOBS_COMMAND.name}\` reports that as \`stopped (${ms(MAX_RUNNING_AGE_MS)} cap)\` rather than as a failure or a kill; start it again if the work still needs it.
     Only output written by real binaries (\`${PNPM_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${PYTHON_NATIVE_COMMAND.name}\`, \`${UV_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, ...) streams while a process runs; a long shell pipeline of builtins, or a \`${PYTHON_COMMAND.name}\`/\`${JS_EXEC_COMMAND.name}\` run, reports its output only when it finishes.
 
-    \`curl\` reaches the internet and this computer's own network alike: \`localhost\`, a server you started (\`curl http://127.0.0.1:<port>/\`; pick an explicit port when you start it so you know which one to call), and devices on the user's local network such as \`192.168.x.x\` or \`name.local\` hosts. The one address it refuses is Instrument's own workspace server.
+    \`curl\` reaches the internet and this computer's own network alike: \`localhost\`, a server you started (\`curl http://127.0.0.1:<port>/\`; pick an explicit port when you start it so you know which one to call), and devices on the user's local network such as \`192.168.x.x\` or \`name.local\` hosts.
 
     Prefer specialized tools over shell equivalents:
       - Use the \`${TOOL_NAMES.readFile}\` tool instead of \`cat\`/\`head\`/\`tail\`.
@@ -703,7 +702,7 @@ export async function createLocalBashEnv({
         createChatCommand(),
         createMemoryCommand({ chatId: chat.id, sessionId }),
         createAppCommand({ taskId }),
-        createTabCommand({ chatId: chat.id }),
+        createTabCommand({ chatId: chat.id, layout }),
       ]
     : [
         createAppCommand({ taskId }),
@@ -762,9 +761,15 @@ export async function createLocalBashEnv({
       maxTraversalWork: chat ? CHAT_MAX_TRAVERSAL : SANDBOX_MAX_TRAVERSAL,
     },
     // `curl`, `js-exec`'s `fetch` and `python`'s `jb_http` reach every
-    // address the native interpreters can, the local network included, except
-    // Instrument's own workspace server.
-    fetch: createSandboxFetch({ maxResponseSize: SANDBOX_MAX_BYTES }),
+    // address the native interpreters can, the local network and loopback
+    // included. The workspace server on loopback needs a per-launch key the
+    // sandbox never sees, so reaching it gets a 401 and nothing more.
+    network: {
+      dangerouslyAllowFullInternetAccess: true,
+      // Defaults to on when NODE_ENV is production.
+      denyPrivateRanges: false,
+      maxResponseSize: SANDBOX_MAX_BYTES,
+    },
     // Seed with process.env so PATH and other system vars are available to
     // commands that pass ctx.env explicitly (e.g. pnpm, tsx). pnpm shim files
     // also use sed, uname, etc when on unix systems.

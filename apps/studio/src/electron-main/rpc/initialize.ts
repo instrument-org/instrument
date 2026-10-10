@@ -9,7 +9,6 @@ import { RPCHandler } from "@orpc/server/message-port";
 import { ipcMain } from "electron";
 import { EventEmitter } from "node:events";
 
-import { type BrowserViewManager } from "../browser-view/manager";
 import { captureServerException } from "../lib/capture-server-exception";
 import { type AppUpdaterHandle } from "../lib/create-app-updater";
 import { type InitialRPCContext } from "./context";
@@ -130,12 +129,10 @@ const handler = new RPCHandler<InitialRPCContext>(router, {
 
 export function initializeRPC({
   appUpdater,
-  browserViewManager,
   workspaceConfig,
   workspaceRef,
 }: {
   appUpdater: AppUpdaterHandle;
-  browserViewManager: BrowserViewManager;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }) {
@@ -162,7 +159,6 @@ export function initializeRPC({
     handler.upgrade(serverPort, {
       context: {
         appUpdater,
-        browserViewManager,
         webContentsId,
         workspaceConfig,
         workspaceRef,

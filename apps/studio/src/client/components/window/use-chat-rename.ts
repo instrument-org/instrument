@@ -2,7 +2,7 @@ import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation } from "@tanstack/react-query";
 import { sleep } from "radashi";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { type Chat } from "./chats";
 
@@ -22,18 +22,14 @@ export function useChatRename(chat: Chat | undefined) {
   const { mutateAsync: renameChat } = useMutation(
     rpcClient.workspace.chats.rename.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to rename the chat", {
-          description: error.message,
-        });
+        toast.error("Couldn't rename the chat", { cause: error });
       },
     }),
   );
   const retitle = useMutation(
     rpcClient.workspace.chats.retitle.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to rename the chat", {
-          description: error.message,
-        });
+        toast.error("Couldn't rename the chat", { cause: error });
       },
     }),
   );

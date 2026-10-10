@@ -4,6 +4,8 @@ Date: 2026-10-06
 
 Supersedes [2026-07-24-web-fetch-private-address-guard.md](2026-07-24-web-fetch-private-address-guard.md).
 
+> The workspace-server exception is superseded by [2026-10-10-the-workspace-server-guards-itself.md](2026-10-10-the-workspace-server-guards-itself.md): that server's routes already required per-launch secrets, so the tools refuse no address and `sandbox-fetch.ts` and `workspace-server-address.ts` are deleted.
+
 ## Context
 
 Instrument is a desktop app that runs only on the user's own computer, and its agent works on the user's behalf. The shell's `curl` ran under just-bash's `denyPrivateRanges`, and `web_fetch` carried a guard of its own (`lib/private-address.ts`) to match it, so both refused loopback, RFC1918, link-local, CGNAT, IPv6 unique-local and link-local addresses, and any name resolving to one, `.local` hosts included. App requests (`lib/apps/safe-url.ts`) refused the same ranges for any app whose base URL was not itself loopback.

@@ -3,7 +3,6 @@ import fs from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { clearCachedPages } from "../lib/web-fetch-cache";
-import { getWorkspaceServerPort } from "../logic/server/url";
 import { RelativePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { TaskIdSchema } from "../schemas/task-id";
@@ -418,41 +417,6 @@ describe("WebFetch addresses", () => {
     const output = await fetchFrom(url, fetchSpy);
 
     expect(output.state).toBe("success");
-    expect(fetchSpy).toHaveBeenCalledOnce();
-  });
-
-  it.each(["127.0.0.1", "[::ffff:127.0.0.1]", "0.0.0.0", "localhost"])(
-    "refuses the workspace server's port on %s",
-    async (host) => {
-      const fetchSpy = vi.fn(page);
-
-      const output = await fetchFrom(
-        `http://${host}:${getWorkspaceServerPort()}/`,
-        fetchSpy,
-      );
-
-      expect(output.state).toBe("failure");
-      expect(fetchSpy).not.toHaveBeenCalled();
-    },
-  );
-
-  it("refuses a redirect into the workspace server", async () => {
-    const fetchSpy = vi.fn(
-      () =>
-        new Response(null, {
-          headers: {
-            Location: `http://127.0.0.1:${getWorkspaceServerPort()}/_instrument/cdp`,
-          },
-          status: 302,
-        }),
-    );
-
-    const output = await fetchFrom("http://192.168.1.1/", fetchSpy);
-
-    expect(output).toMatchObject({ state: "failure" });
-    expect(output.state === "failure" && output.errorMessage).toContain(
-      "workspace server",
-    );
     expect(fetchSpy).toHaveBeenCalledOnce();
   });
 });

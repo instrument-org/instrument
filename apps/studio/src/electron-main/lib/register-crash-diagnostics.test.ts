@@ -5,10 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { registerCrashDiagnostics } from "./register-crash-diagnostics";
 
-const { captureServerException, log } = vi.hoisted(() => ({
+const { captureServerException, crashReporter, log } = vi.hoisted(() => ({
   captureServerException: vi.fn(),
+  crashReporter: { start: vi.fn() },
   log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
 }));
+
+vi.mock("electron", () => ({ crashReporter }));
 
 vi.mock("./electron-logger", () => ({ createScopedLogger: () => log }));
 vi.mock("./capture-server-exception", () => ({ captureServerException }));
@@ -17,13 +20,17 @@ vi.mock("./capture-server-exception", () => ({ captureServerException }));
 // point of the record is that it survives a process the logger does not.
 let crashDir = "";
 const crashRecordPath = () => path.join(crashDir, "last-crash.log");
+const sessionMarkerPath = () => path.join(crashDir, "app.lock");
+const crashDumpsDir = () => path.join(crashDir, "Crashpad");
 
 // Test double for the two `Electron.App` events this module subscribes to; the
 // real interface is far too large to implement.
 function createFakeApp(userData = crashDir) {
   const listeners = new Map<string, ((...args: unknown[]) => void)[]>();
   const app = {
-    getPath: () => userData,
+    getPath: (name: string) =>
+      name === "crashDumps" ? path.join(userData, "Crashpad") : userData,
+    getVersion: () => "2.0.0",
     on: (event: string, listener: (...args: unknown[]) => void) => {
       listeners.set(event, [...(listeners.get(event) ?? []), listener]);
       return app;
@@ -45,6 +52,12 @@ describe("registerCrashDiagnostics", () => {
   let inheritedMonitor: readonly NodeJS.UncaughtExceptionListener[] = [];
   let inheritedUncaught: readonly NodeJS.UncaughtExceptionListener[] = [];
   let inheritedRejection: readonly NodeJS.UnhandledRejectionListener[] = [];
+  let inheritedExit: readonly NodeJS.ExitListener[] = [];
+
+  const addedExitListeners = () =>
+    process
+      .listeners("exit")
+      .filter((listener) => !inheritedExit.includes(listener));
 
   const addedMonitorListeners = () =>
     process
@@ -67,6 +80,7 @@ describe("registerCrashDiagnostics", () => {
     inheritedMonitor = process.listeners("uncaughtExceptionMonitor");
     inheritedUncaught = process.listeners("uncaughtException");
     inheritedRejection = process.listeners("unhandledRejection");
+    inheritedExit = process.listeners("exit");
 
     // The handlers attach to the shared process object, so leaving one on
     // would let this test's registration answer the next test's throw.
@@ -79,6 +93,9 @@ describe("registerCrashDiagnostics", () => {
       }
       for (const listener of addedRejectionListeners()) {
         process.off("unhandledRejection", listener);
+      }
+      for (const listener of addedExitListeners()) {
+        process.off("exit", listener);
       }
       fs.rmSync(crashDir, { force: true, recursive: true });
     };
@@ -341,5 +358,85 @@ describe("registerCrashDiagnostics", () => {
       scopes: ["studio"],
     });
     expect(fs.existsSync(crashRecordPath())).toBe(false);
+  });
+
+  it("keeps native crash dumps on this computer", () => {
+    registerCrashDiagnostics(createFakeApp().app);
+
+    expect(crashReporter.start).toHaveBeenCalledWith({ uploadToServer: false });
+  });
+
+  it("says when the last session never exited, and marks this one", () => {
+    fs.writeFileSync(
+      sessionMarkerPath(),
+      JSON.stringify({
+        pid: 999_999_999,
+        startedAt: "2026-10-09T12:00:00.000Z",
+        version: "2.0.0-beta.40",
+      }),
+    );
+
+    registerCrashDiagnostics(createFakeApp().app);
+
+    expect(log.warn).toHaveBeenCalledWith(
+      "Previous session (2.0.0-beta.40, started 2026-10-09T12:00:00.000Z) did not exit cleanly: it was force-quit, stopped responding, or crashed.",
+    );
+    expect(
+      JSON.parse(fs.readFileSync(sessionMarkerPath(), "utf8")),
+    ).toMatchObject({ pid: process.pid, version: "2.0.0" });
+  });
+
+  it("counts the bare marker an older build left as an unclean exit", () => {
+    fs.writeFileSync(sessionMarkerPath(), "running");
+
+    registerCrashDiagnostics(createFakeApp().app);
+
+    expect(log.warn).toHaveBeenCalledWith(
+      "Previous session did not exit cleanly: it was force-quit, stopped responding, or crashed.",
+    );
+  });
+
+  it("leaves the marker of another instance still running alone", () => {
+    const marker = JSON.stringify({
+      pid: process.ppid,
+      startedAt: "2026-10-10T08:00:00.000Z",
+      version: "2.0.0",
+    });
+    fs.writeFileSync(sessionMarkerPath(), marker);
+
+    registerCrashDiagnostics(createFakeApp().app);
+
+    expect(log.warn).not.toHaveBeenCalled();
+    expect(fs.readFileSync(sessionMarkerPath(), "utf8")).toBe(marker);
+  });
+
+  it("removes its marker on the way out", () => {
+    registerCrashDiagnostics(createFakeApp().app);
+    expect(fs.existsSync(sessionMarkerPath())).toBe(true);
+
+    for (const listener of addedExitListeners()) {
+      listener(0);
+    }
+
+    expect(fs.existsSync(sessionMarkerPath())).toBe(false);
+  });
+
+  it("logs each crash dump once", () => {
+    const completed = path.join(crashDumpsDir(), "completed");
+    fs.mkdirSync(completed, { recursive: true });
+    const dumpPath = path.join(completed, "a.dmp");
+    fs.writeFileSync(dumpPath, "");
+    fs.writeFileSync(path.join(completed, "a.meta"), "");
+
+    registerCrashDiagnostics(createFakeApp().app);
+
+    expect(log.error).toHaveBeenCalledTimes(1);
+    expect(log.error).toHaveBeenCalledWith(
+      expect.stringContaining(`its minidump is ${dumpPath}`),
+    );
+
+    vi.clearAllMocks();
+    registerCrashDiagnostics(createFakeApp().app);
+    expect(log.error).not.toHaveBeenCalled();
   });
 });

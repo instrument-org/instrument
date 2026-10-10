@@ -75,13 +75,18 @@ export type EndedSession = {
  * session that went on to quit normally was survived, and the person saw
  * whatever came of it then, so it stays in the log alone. A session that
  * never exited with a throw or a dump on record crashed; with neither, it
- * most likely stopped responding and was force-quit, which is a hang.
+ * most likely stopped responding and was force-quit, which is a hang. In
+ * development, stopping the dev server or reloading main ends every session
+ * that way, so a hang is only recorded for a packaged build.
  */
 export function recordEndedSession(session: EndedSession) {
   if (!session.unclean) {
     return;
   }
   const crashed = session.crashRecord !== undefined || session.dumps > 0;
+  if (!crashed && !app.isPackaged) {
+    return;
+  }
   const firstLine = session.crashRecord
     ?.split("\n")[0]
     ?.replace(/^\S+ (uncaughtException|unhandledRejection): /, "")

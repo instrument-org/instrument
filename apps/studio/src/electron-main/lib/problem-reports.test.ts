@@ -8,13 +8,20 @@ import { type EndedSession } from "./problem-reports";
 // Loaded fresh for each test, so its store opens in that test's folder.
 let reports: typeof import("./problem-reports");
 
-const { publish, userData } = vi.hoisted(() => ({
+const { electronApp, publish, userData } = vi.hoisted(() => ({
+  electronApp: { isPackaged: true },
   publish: vi.fn(),
   userData: { dir: "" },
 }));
 
 vi.mock("electron", () => ({
-  app: { getPath: () => userData.dir, getVersion: () => "2.0.5" },
+  app: {
+    getPath: () => userData.dir,
+    getVersion: () => "2.0.5",
+    get isPackaged() {
+      return electronApp.isPackaged;
+    },
+  },
 }));
 vi.mock("@/electron-main/rpc/publisher", () => ({ publisher: { publish } }));
 vi.mock("@/electron-main/stores/machine/preferences", () => ({
@@ -53,6 +60,7 @@ describe("problem reports", () => {
     userData.dir = fs.mkdtempSync(path.join(os.tmpdir(), "problem-reports-"));
     vi.resetModules();
     reports = await import("./problem-reports");
+    electronApp.isPackaged = true;
     return () => {
       fs.rmSync(userData.dir, { force: true, recursive: true });
     };
@@ -95,6 +103,14 @@ describe("problem reports", () => {
       kind: "hang",
       title: "Instrument didn't close properly",
     });
+  });
+
+  it("leaves a hang out of the bell in development, where stopping the dev server ends every session", () => {
+    electronApp.isPackaged = false;
+    ended({});
+    ended({ dumps: 1 });
+
+    expect(reports.listPendingProblems()).toMatchObject([{ kind: "crash" }]);
   });
 
   it("counts the same crash again instead of listing it twice", () => {

@@ -41,7 +41,7 @@ it("picks how long a toast stays from what it carries", () => {
   const rows = cases.map(([name, show]) => {
     calls.length = 0;
     show();
-    return `${name}: ${calls.map((c) => `${c.kind} ${c.data?.duration}`).join()}`;
+    return `${name}: ${calls.map((c) => `${c.kind} ${String(c.data?.duration)}`).join()}`;
   });
   expect(rows).toMatchInlineSnapshot(`
     [

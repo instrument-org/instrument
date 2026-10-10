@@ -33,7 +33,12 @@ export const toast = Object.assign(
   (message: Message, data?: ExternalToast) =>
     sonnerToast(message, withDuration(data)),
   {
-    ...sonnerToast,
+    custom: sonnerToast.custom,
+    dismiss: sonnerToast.dismiss,
+    getHistory: sonnerToast.getHistory,
+    getToasts: sonnerToast.getToasts,
+    loading: sonnerToast.loading,
+    promise: sonnerToast.promise,
     message: (message: Message, data?: ExternalToast) =>
       sonnerToast.message(message, withDuration(data)),
     success: (message: Message, data?: ExternalToast) =>

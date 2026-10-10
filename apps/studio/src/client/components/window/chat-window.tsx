@@ -381,6 +381,9 @@ export function ChatWindow({
     },
     tabIds: tabs.map((tab) => tab.id),
     tabsAnchor: shownRef,
+    // Grown, Cmd+W in the conversation shrinks the window as any hold
+    // closes; small, it closes the window the way its × does.
+    ...(isExpanded ? {} : { closeSurface: onClose }),
   });
   const openPage = (url: string) => {
     const id = appWindow.browser?.openOrFocus(url, { group: chatId });

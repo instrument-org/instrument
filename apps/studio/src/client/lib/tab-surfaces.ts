@@ -15,9 +15,11 @@ import { decodeBrowserTargetId } from "@instrument-org/workspace/client";
  * chord is that surface's:
  *
  * - Cmd+T anywhere in it opens a tab there, the way its own add button does.
- * - Cmd+W only in the part that shows its tabs closes the one up there, so
- *   the caret in the words never closes something the person is not
- *   looking at.
+ * - Cmd+W in the part that shows its tabs closes the one up there, so the
+ *   caret in the words never closes something the person is not looking
+ *   at. Elsewhere in it, Cmd+W closes the surface itself when it is a window
+ *   of its own (a draft's, a chat's popped out), and so does Cmd+W in its
+ *   tabs with none up.
  *
  * With the keyboard in none of them, the chord is the window's own. Only
  * surfaces on screen count: every window tab stays mounted, hidden with
@@ -26,6 +28,8 @@ import { decodeBrowserTargetId } from "@instrument-org/workspace/client";
 type TabSurface = {
   /** The surface's outermost element; null while it is not mounted. */
   anchor: () => Element | null;
+  /** Closes the surface itself, for Cmd+W outside its tabs; false when it is not a window that closes, and the window's own chord stands. */
+  closeSurface: () => boolean;
   /** Closes the tab up in the surface; false when none is up and the window's own chord stands. */
   closeTabUp: () => boolean;
   /** A page of the surface's own holds the keyboard: its `<webview>` is mounted on the body, outside the surface. */
@@ -90,10 +94,18 @@ export function openTabForKeyboard(): boolean {
   return true;
 }
 
-/** Closes the tab up in the tabs the keyboard is in; false when it is in none. */
+/** Closes the tab up in the tabs the keyboard is in, or the window it is in; false when it is in neither. */
 export function closeTabForKeyboard(): boolean {
   const chosen = surfaceForKeyboard();
-  return chosen?.isInTabs === true && chosen.target.closeTabUp();
+  if (!chosen) {
+    return false;
+  }
+  // A window with no tab up to close (a draft's lone new tab) closes itself,
+  // as a window does when its last tab goes.
+  return (
+    (chosen.isInTabs && chosen.target.closeTabUp()) ||
+    chosen.target.closeSurface()
+  );
 }
 
 /** Whether the page holding the keyboard is one of these tabs. */

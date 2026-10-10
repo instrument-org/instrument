@@ -594,6 +594,15 @@ export function ComposeWindow({
     openTab: showsStrip ? openNewTab : openBrowser,
     tabIds: tabs.map((tab) => tab.id),
     tabsAnchor: bandRef,
+    // Grown, the window holds the row, and Cmd+W in the words shrinks it
+    // as any hold closes; docked, it closes the window the way its × does.
+    ...(isExpanded
+      ? {}
+      : {
+          closeSurface: () => {
+            onClose(words);
+          },
+        }),
   });
 
   const content = (() => {
@@ -632,6 +641,22 @@ export function ComposeWindow({
     // page is placed again as it moves (see the host's `place`).
     <motion.div
       ref={surfaceRef}
+      // Docked, Escape puts the draft down to its bar, the way grown it
+      // shrinks back to the foot (the layer's). One a menu or picker took
+      // for itself is passed over, as the layer passes it over; the prompt
+      // editor marks every Escape handled, so one from it is free.
+      onKeyDown={(event) => {
+        if (
+          !isExpanded &&
+          event.key === "Escape" &&
+          (!event.defaultPrevented ||
+            (event.target instanceof Element &&
+              event.target.closest(".ProseMirror") !== null))
+        ) {
+          event.preventDefault();
+          onPlacementChange("bar");
+        }
+      }}
       animate={{ opacity: 1, right: isExpanded ? 0 : right, y: 0 }}
       className={cn(
         // An opaque edge, and the shadow ramp without its own hairline: these

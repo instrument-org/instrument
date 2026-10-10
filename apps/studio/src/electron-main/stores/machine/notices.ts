@@ -6,7 +6,7 @@ import Store from "electron-store";
 import { z } from "zod";
 
 /** How often to ask when the service doesn't say. */
-export const DEFAULT_POLL_SECONDS = 6 * 60 * 60;
+const DEFAULT_POLL_SECONDS = 6 * 60 * 60;
 
 /** What the person has done with one notice, by its id. */
 const NoticeMarksSchema = z.object({

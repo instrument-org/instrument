@@ -110,6 +110,10 @@ export async function latestMessages(
  */
 export async function latestStep(taskId: TaskId): Promise<string | undefined> {
   for await (const message of newestFirst(taskId)) {
+    // What a fork inherited is the chat's work, not a step of its own.
+    if (message.metadata.inherited === true) {
+      break;
+    }
     const step = latestStepIn([message]);
     if (step !== undefined) {
       return step;
@@ -251,6 +255,10 @@ export async function runningLines(
   let askRead = false;
   let step: string | undefined;
   for await (const message of newestFirst(taskId)) {
+    // What a fork inherited is the chat's work, not a step of its own.
+    if (message.metadata.inherited === true) {
+      break;
+    }
     if (!askRead && message.role === "assistant") {
       waiting = askIn([message]);
       askRead = true;

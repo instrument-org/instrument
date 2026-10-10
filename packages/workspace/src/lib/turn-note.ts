@@ -16,7 +16,7 @@ import { isTypedByUser } from "./typed-by-user";
  * never stored. A fork gets none: nobody reads its lines as they come.
  */
 export const TURN_NOTE = systemNote`
-  Before using any tool, write one sentence to the user about what you'll do, then nothing more until the outcome. If no tool is needed, just answer.
+  Before using any tool, tell the user in a few words what you are doing ("Reading the lease."), the work rather than their request said back, then nothing more until the outcome. If no tool is needed, just answer.
 `;
 
 /**

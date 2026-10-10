@@ -128,9 +128,9 @@ describe("opensTypedTurn", () => {
     expect(opensTypedTurn(messages)).toBe(expected);
   });
 
-  it("asks for one sentence, then quiet until the outcome", () => {
+  it("asks for a few words, then quiet until the outcome", () => {
     expect(systemNoteBody(TURN_NOTE)).toMatchInlineSnapshot(
-      `"Before using any tool, write one sentence to the user about what you'll do, then nothing more until the outcome. If no tool is needed, just answer."`,
+      `"Before using any tool, tell the user in a few words what you are doing (\"Reading the lease.\"), the work rather than their request said back, then nothing more until the outcome. If no tool is needed, just answer."`,
     );
   });
 });

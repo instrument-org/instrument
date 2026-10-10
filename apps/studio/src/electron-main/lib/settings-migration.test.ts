@@ -132,15 +132,15 @@ describe("settings migration", () => {
               ]),
         ].toSorted(),
       );
+      // 1.x's localStorage held only how its window looked, and stays behind.
       expect(
-        fs.readFileSync(
+        fs.existsSync(
           path.join(
             defaultWorkspacePath(userDataDir),
-            ".instrument/app-session/Local Storage/leveldb/000003.log",
+            ".instrument/app-session/Local Storage",
           ),
-          "utf8",
         ),
-      ).toBe("tabs");
+      ).toBe(false);
       expect(
         fs.existsSync(
           path.join(
@@ -258,24 +258,6 @@ describe("settings migration", () => {
         path.join(
           workspaceSettingsDirOf(defaultWorkspacePath(userDataDir)),
           "chatgpt-account.json",
-        ),
-      ),
-    ).toBe(true);
-  });
-
-  it("copies Local Storage even past a partial copy a crash left behind", () => {
-    seedLegacy("dev");
-    const partial = path.join(
-      defaultWorkspacePath(userDataDir),
-      ".instrument/app-session/Local Storage.partial-1",
-    );
-    fs.mkdirSync(partial, { recursive: true });
-    migrateBoth();
-    expect(
-      fs.existsSync(
-        path.join(
-          defaultWorkspacePath(userDataDir),
-          ".instrument/app-session/Local Storage/leveldb/000003.log",
         ),
       ),
     ).toBe(true);

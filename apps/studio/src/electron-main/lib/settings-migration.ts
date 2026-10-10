@@ -327,28 +327,6 @@ function takeInLegacyRootFiles({
     done,
     overwrite,
   );
-
-  // The app window ran on Electron's default session before it ran on the
-  // workspace's own, so its localStorage (tabs, drafts, history) is copied
-  // across. Copied, not moved: the default session still owns that directory,
-  // and an older build still reads it. Copied beside the target and renamed
-  // into place, so a crash partway leaves no half database that the "target
-  // exists" check would then keep forever.
-  const legacyLocalStorage = path.join(userDataDir, "Local Storage");
-  const workspaceLocalStorage = path.join(
-    appSessionDirOf(workspacePath),
-    "Local Storage",
-  );
-  if (
-    fs.existsSync(legacyLocalStorage) &&
-    !keepTarget(workspaceLocalStorage, overwrite)
-  ) {
-    const partial = `${workspaceLocalStorage}.partial-${process.pid.toString()}`;
-    fs.rmSync(partial, { force: true, recursive: true });
-    fs.cpSync(legacyLocalStorage, partial, { recursive: true });
-    fs.renameSync(partial, workspaceLocalStorage);
-    done.push("copied Local Storage");
-  }
 }
 
 /** Write `value` as a new store file, unless one is already there. */

@@ -21,7 +21,7 @@ import { getDebugRoute } from "./-debug-routes";
 
 type Entry = Snapshot["entries"][number];
 type Snapshot = RPCOutput["debug"]["browserViewManager"]["snapshot"];
-type TaskBrowser = Snapshot["taskBrowsers"][number];
+type ChatBrowser = Snapshot["chatBrowsers"][number];
 type Tone = "danger" | "muted" | "ok" | "warn";
 
 const toneClass: Record<Tone, string> = {
@@ -182,7 +182,7 @@ function RouteComponent() {
           <div className="min-w-0">
             <h1 className="text-base font-semibold">Agent browsers</h1>
             <p className="text-xs text-muted-foreground">
-              Live view of every agent-controlled browser plus the per-task
+              Live view of every agent-controlled browser plus the per-chat
               machines that decide when to clean them up.
             </p>
           </div>
@@ -212,17 +212,17 @@ function RouteComponent() {
 
         <section className="flex flex-col gap-2">
           <SectionHeader
-            count={data?.taskBrowsers.length}
-            help="One per task. Tracks which sessions are watching, and reaps idle browsers after the cleanup delay."
+            count={data?.chatBrowsers.length}
+            help="One per chat. Tracks which sessions are watching, and reaps idle browsers after the cleanup delay."
             title="Cleanup machines"
           />
-          {data && data.taskBrowsers.length === 0 ? (
+          {data && data.chatBrowsers.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              No tasks have spawned a browser machine yet.
+              No chats have spawned a browser machine yet.
             </p>
           ) : (
-            data?.taskBrowsers.map((pb) => (
-              <TaskBrowserCard key={pb.id} taskBrowser={pb} />
+            data?.chatBrowsers.map((pb) => (
+              <ChatBrowserCard key={pb.id} chatBrowser={pb} />
             ))
           )}
         </section>
@@ -259,22 +259,22 @@ function StatusBadge({ label, tone }: { label: string; tone: Tone }) {
   );
 }
 
-function TaskBrowserCard({ taskBrowser }: { taskBrowser: TaskBrowser }) {
-  const status = taskBrowserStatus(taskBrowser.state);
+function ChatBrowserCard({ chatBrowser }: { chatBrowser: ChatBrowser }) {
+  const status = chatBrowserStatus(chatBrowser.state);
   return (
     <Card className="overflow-hidden">
       <CardHeader className="gap-2 space-y-0 pb-3">
         <div className="flex min-w-0 items-start gap-2">
           <div className="min-w-0 flex-1 space-y-0.5">
-            <CardTitle className="truncate text-sm">{taskBrowser.id}</CardTitle>
+            <CardTitle className="truncate text-sm">{chatBrowser.id}</CardTitle>
             <p className="text-xs text-muted-foreground">{status.help}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-1">
           <StatusBadge label={status.label} tone={status.tone} />
-          {taskBrowser.pendingReapResolverCount > 0 && (
+          {chatBrowser.pendingReapResolverCount > 0 && (
             <StatusBadge
-              label={`${taskBrowser.pendingReapResolverCount} waiting`}
+              label={`${chatBrowser.pendingReapResolverCount} waiting`}
               tone="warn"
             />
           )}
@@ -282,12 +282,12 @@ function TaskBrowserCard({ taskBrowser }: { taskBrowser: TaskBrowser }) {
       </CardHeader>
       <CardContent className="space-y-2 pt-0">
         <Field label="Open pages">
-          {taskBrowser.knownTargets.length === 0 ? (
+          {chatBrowser.knownTargets.length === 0 ? (
             <span className="text-muted-foreground">none</span>
           ) : (
             <div className="space-y-1">
-              {taskBrowser.knownTargets.map(
-                (t: TaskBrowser["knownTargets"][number]) => (
+              {chatBrowser.knownTargets.map(
+                (t: ChatBrowser["knownTargets"][number]) => (
                   <Mono key={t.sessionId}>
                     <span className="text-muted-foreground">{t.sessionId}</span>
                     {t.targetId ? ` → ${t.targetId}` : " (not yet attached)"}
@@ -297,9 +297,9 @@ function TaskBrowserCard({ taskBrowser }: { taskBrowser: TaskBrowser }) {
             </div>
           )}
         </Field>
-        {taskBrowser.destroyedExternallyTargetIds.length > 0 && (
+        {chatBrowser.destroyedExternallyTargetIds.length > 0 && (
           <Field label="Closed elsewhere">
-            <Mono>{taskBrowser.destroyedExternallyTargetIds.join(" ")}</Mono>
+            <Mono>{chatBrowser.destroyedExternallyTargetIds.join(" ")}</Mono>
           </Field>
         )}
 
@@ -310,16 +310,16 @@ function TaskBrowserCard({ taskBrowser }: { taskBrowser: TaskBrowser }) {
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2 space-y-2">
             <Field label="Machine state">
-              <Mono>{taskBrowser.state}</Mono>
+              <Mono>{chatBrowser.state}</Mono>
             </Field>
             <Field label="Profile dir">
-              <Mono>{taskBrowser.partitionDir ?? "(none)"}</Mono>
+              <Mono>{chatBrowser.partitionDir ?? "(none)"}</Mono>
             </Field>
             <Field label="Watched">
-              {taskBrowser.watchedTargetIds.length === 0 ? (
+              {chatBrowser.watchedTargetIds.length === 0 ? (
                 <span className="text-muted-foreground">none</span>
               ) : (
-                <Mono>{taskBrowser.watchedTargetIds.join(" ")}</Mono>
+                <Mono>{chatBrowser.watchedTargetIds.join(" ")}</Mono>
               )}
             </Field>
           </CollapsibleContent>
@@ -329,7 +329,7 @@ function TaskBrowserCard({ taskBrowser }: { taskBrowser: TaskBrowser }) {
   );
 }
 
-function taskBrowserStatus(state: string): {
+function chatBrowserStatus(state: string): {
   help: string;
   label: string;
   tone: Tone;
@@ -343,14 +343,14 @@ function taskBrowserStatus(state: string): {
   }
   if (state.includes("Stopped")) {
     return {
-      help: "All browsers for this task have been reaped.",
+      help: "All browsers for this chat have been reaped.",
       label: "stopped",
       tone: "danger",
     };
   }
   if (state.includes("Active")) {
     return {
-      help: "Agent or user is actively using a browser in this task.",
+      help: "Agent or user is actively using a browser in this chat.",
       label: "running",
       tone: "ok",
     };

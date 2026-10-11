@@ -6,7 +6,7 @@ import { lastBrowserAgentActivity } from "../../lib/browser-agent-activity";
 import { navigateTarget, restoreLastPage } from "../../lib/browser-state";
 import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
 import { getBrowserSessionDir } from "../../lib/chat-dir-utils";
-import { BrowserPresenceLevelSchema } from "../../machines/task-browser";
+import { BrowserPresenceLevelSchema } from "../../machines/chat-browser";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { BrowserTargetIdSchema, encodeBrowserTargetId } from "../../types";
@@ -15,11 +15,11 @@ import { publisher } from "../publisher";
 
 const PresenceSchema = z.object({ active: z.literal(true) });
 
-// Create (or reuse) the browser guest for this task/session so the user can open
+// Create (or reuse) the browser guest for this chat/session so the user can open
 // it from the UI without waiting for the agent to run `agent-browser` first.
 // createTarget is idempotent per (chatId, sessionId): the agent's later commands
 // reuse the same guest (page, cookies, debugger). We register the target with the
-// taskBrowser lifecycle machine so a user-only browser (no agent CDP traffic) is
+// chatBrowser lifecycle machine so a user-only browser (no agent CDP traffic) is
 // still tracked and reaped rather than leaking until app quit.
 //
 // `url` is what a caller opening the browser *at* something passes, and it is
@@ -86,11 +86,11 @@ const open = base
 
 /**
  * A hold, not a query: subscribing acquires presence and aborting releases it,
- * so the subscription's lifetime is the whole payload. A viewer keeps the task's
- * browser alive; drop the subscription and the taskBrowser machine starts the
+ * so the subscription's lifetime is the whole payload. A viewer keeps the chat's
+ * browser alive; drop the subscription and the chatBrowser machine starts the
  * clock that matches the lease that was dropped.
  *
- * `retained` is held for as long as the client keeps the task page alive and
+ * `retained` is held for as long as the client keeps the chat page alive and
  * `visible` only while it is on screen, so a client that shows one page at a
  * time holds both for that page and `retained` alone for the rest. What decides
  * either is entirely the client's business.
@@ -132,7 +132,7 @@ const presence = base
   });
 
 /**
- * Ticks while the agent is driving this task's browser.
+ * Ticks while the agent is driving this chat's browser.
  *
  * A counter rather than a flag, because where a stretch of agent browser work
  * ends is not a question this side can answer: the commands arrive as separate
@@ -148,14 +148,14 @@ const agentActivity = base
   .input(
     z.object({
       id: ChatIdSchema,
-      /** One guest of the task's rather than all of them: a tab of the window's, driven by whichever task was handed it. */
+      /** One guest of the chat's rather than all of them: a tab of the window's, driven by whichever task was handed it. */
       targetId: BrowserTargetIdSchema.optional(),
     }),
   )
   .output(
     eventIterator(
       z.object({
-        /** When an agent last worked in the one guest asked about, in ms; absent when none has, or when the whole task is asked about. */
+        /** When an agent last worked in the one guest asked about, in ms; absent when none has, or when the whole chat is asked about. */
         lastAt: z.number().optional(),
         revision: z.number(),
       }),
@@ -185,7 +185,7 @@ const agentActivity = base
   });
 
 /**
- * Closes a task's browser for good: the guest goes, and the task is told on
+ * Closes a chat's browser for good: the guest goes, and the chat is told on
  * its next turn that its page is gone. What closing one of the window's tabs
  * means, as against hiding the panel it is drawn in.
  */

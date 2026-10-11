@@ -8,7 +8,7 @@ import { type BrowserTargetId } from "../../types";
 
 export type WorkspaceServerParentEvent =
   // Surfaced by the CDP bridge when an agent-browser daemon connects so the
-  // workspace's taskBrowser machine can track the originating session id
+  // workspace's chatBrowser machine can track the originating session id
   // for daemon-close fan-out at reap time.
   | {
       type: "workspaceServer.attachAgentSession";
@@ -16,7 +16,7 @@ export type WorkspaceServerParentEvent =
     }
   // Surfaced by the CDP bridge for every non-intercepted CDP command sent by
   // agent-browser. Acts as the agent-activity heartbeat that resets the
-  // taskBrowser machine's idle timer.
+  // chatBrowser machine's idle timer.
   | { type: "workspaceServer.error"; value: { error: Error } }
   | { type: "workspaceServer.started"; value: { port: number } }
   | {

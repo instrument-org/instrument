@@ -23,10 +23,10 @@ import {
 import {
   AGENT_IDLE_TIMEOUT_MS,
   RETAINED_TIMEOUT_MS,
-  taskBrowserMachine,
-  type TaskBrowserParentEvent,
+  chatBrowserMachine,
+  type ChatBrowserParentEvent,
   USER_PRESENCE_TIMEOUT_MS,
-} from "./task-browser";
+} from "./chat-browser";
 
 function asyncNoop(): Promise<void> {
   return Promise.resolve();
@@ -76,38 +76,38 @@ function makeBrowser(): BrowserConfig {
   };
 }
 
-const id = ChatIdSchema.parse("test-task");
+const id = ChatIdSchema.parse("test-chat");
 const partitionDir = "/tmp/partition" as AbsolutePath;
 
 interface Harness {
-  actor: ActorRefFrom<typeof taskBrowserMachine>;
+  actor: ActorRefFrom<typeof chatBrowserMachine>;
   browser: BrowserConfig;
-  parentEvents: TaskBrowserParentEvent[];
+  parentEvents: ChatBrowserParentEvent[];
   parentRef: AnyActorRef;
 }
 
 function spawnHarness(): Harness {
   const browser = makeBrowser();
-  const parentEvents: TaskBrowserParentEvent[] = [];
+  const parentEvents: ChatBrowserParentEvent[] = [];
 
   const parentMachine = setup({
-    actors: { taskBrowserMachine },
+    actors: { chatBrowserMachine },
     types: {
       context: {} as {
-        childRef: ActorRefFrom<typeof taskBrowserMachine> | null;
+        childRef: ActorRefFrom<typeof chatBrowserMachine> | null;
       },
-      events: {} as TaskBrowserParentEvent,
+      events: {} as ChatBrowserParentEvent,
     },
   }).createMachine({
     context: ({ spawn }) => ({
-      childRef: spawn("taskBrowserMachine", {
+      childRef: spawn("chatBrowserMachine", {
         id: "child",
         input: { browser, id },
       }),
     }),
     id: "harnessParent",
     on: {
-      "taskBrowser.stopped": {
+      "chatBrowser.stopped": {
         actions: ({ event }) => {
           parentEvents.push(event);
         },
@@ -129,7 +129,7 @@ const TARGET_A: BrowserTargetId = encodeBrowserTargetId(id, SESSION_A);
 
 const captureException = vi.fn();
 
-describe("taskBrowserMachine", () => {
+describe("chatBrowserMachine", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.mocked(closeAgentBrowserSessionsForSessions).mockClear();
@@ -204,7 +204,7 @@ describe("taskBrowserMachine", () => {
     actor.send({ type: "acquirePresence", value: { level: "retained" } });
     actor.send({ type: "acquirePresence", value: { level: "visible" } });
 
-    // The user turns to another task. The page they left is still open, so the
+    // The user turns to another chat. The page they left is still open, so the
     // short clock -- and the agent's own idle clock -- must not touch it.
     actor.send({ type: "releasePresence", value: { level: "visible" } });
     expect(actor.getSnapshot().value).toBe("Retained");
@@ -305,7 +305,7 @@ describe("taskBrowserMachine", () => {
       SESSION_A,
     ]);
     expect(parentEvents).toEqual([
-      { type: "taskBrowser.stopped", value: { id } },
+      { type: "chatBrowser.stopped", value: { id } },
     ]);
   });
 
@@ -434,7 +434,7 @@ describe("taskBrowserMachine", () => {
     ]);
   });
 
-  it("closes one view per session for multi-session tasks", async () => {
+  it("closes one view per session for multi-session chats", async () => {
     const { actor, browser } = spawnHarness();
     const sessionB = StoreId.newSessionId();
     const targetB: BrowserTargetId = encodeBrowserTargetId(id, sessionB);

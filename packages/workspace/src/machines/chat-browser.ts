@@ -21,12 +21,12 @@ export const RETAINED_TIMEOUT_MS = ms("8 hours");
 export const USER_PRESENCE_TIMEOUT_MS = ms("5 minutes");
 
 /**
- * The two claims a viewer can hold on a task's browser.
+ * The two claims a viewer can hold on a chat's browser.
  *
  * `visible` is the page the user is looking at. `retained` is a page that is
- * mounted but off screen, which is the ordinary state of a task the user has
+ * mounted but off screen, which is the ordinary state of a chat the user has
  * open and will come back to. Keeping them apart is what lets a browser outlive
- * a glance at another task without outliving the task page itself: the client
+ * a glance at another chat without outliving the chat page itself: the client
  * holds `retained` for as long as it keeps the page alive and `visible` only
  * while showing it, so whatever decides that -- a background tab today, a
  * router's retained route tomorrow -- never has to be named here.
@@ -35,8 +35,8 @@ export const BrowserPresenceLevelSchema = z.enum(["retained", "visible"]);
 
 export type BrowserPresenceLevel = z.output<typeof BrowserPresenceLevelSchema>;
 
-export interface TaskBrowserParentEvent {
-  type: "taskBrowser.stopped";
+export interface ChatBrowserParentEvent {
+  type: "chatBrowser.stopped";
   value: { id: ChatId };
 }
 
@@ -47,28 +47,28 @@ interface DestroyAndCloseInput {
   chatId: ChatId;
 }
 
-interface TaskBrowserContext {
+interface ChatBrowserContext {
   browser: BrowserConfig;
   // Set when an entry was destroyed by the host (renderer crash, window
   // close) so the reap path skips closeTarget but still cleans daemons.
   destroyedExternallyTargets: Set<BrowserTargetId>;
   id: ChatId;
-  // Per-task map of (sessionId -> live target id). Value is undefined
+  // Per-chat map of (sessionId -> live target id). Value is undefined
   // for sessions seeded by `attachAgentSession` before any updateCdpHeartbeat
   // observed a real target id; the next updateCdpHeartbeat fills it in. We still
   // record the session so daemon cleanup runs even if no CDP traffic was
   // ever observed before reap.
   knownTargets: Map<StoreId.Session, BrowserTargetId | undefined>;
   partitionDir: AbsolutePath | null;
-  // One count per lease level, because a task page can be mounted more than
-  // once (the same task in two tabs) and each mount holds its own.
+  // One count per lease level, because a chat page can be mounted more than
+  // once (the same chat in two tabs) and each mount holds its own.
   presence: Record<BrowserPresenceLevel, number>;
   // Targets we've already spawned a destruction watcher for. Used to gate
   // duplicate spawns on subsequent updateCdpHeartbeats for the same target.
   watchedTargets: Set<BrowserTargetId>;
 }
 
-type TaskBrowserEvent =
+type ChatBrowserEvent =
   | { type: "acquirePresence"; value: { level: BrowserPresenceLevel } }
   | { type: "attachAgentSession"; value: { sessionId: StoreId.Session } }
   | { type: "forceReap" }
@@ -98,7 +98,7 @@ type TaskBrowserEvent =
 // machine event. Spawned per target on first observation; unsubscribes when
 // the parent state stops (i.e. when we transition to Stopping/Stopped).
 const watchTargetDestructionLogic = fromCallback<
-  TaskBrowserEvent,
+  ChatBrowserEvent,
   { browser: BrowserConfig; targetId: BrowserTargetId }
 >(({ input, sendBack }) =>
   input.browser.onTargetDestroyed(input.targetId, () => {
@@ -129,7 +129,7 @@ const destroyAndCloseLogic = fromPromise<undefined, DestroyAndCloseInput>(
   },
 );
 
-export const taskBrowserMachine = setup({
+export const chatBrowserMachine = setup({
   actions: {
     acquirePresence: assign({
       presence: ({ context }, { level }: { level: BrowserPresenceLevel }) => ({
@@ -181,7 +181,7 @@ export const taskBrowserMachine = setup({
     }),
 
     notifyParentStopped: sendParent(({ context }) => ({
-      type: "taskBrowser.stopped" as const,
+      type: "chatBrowser.stopped" as const,
       value: { id: context.id },
     })),
 
@@ -247,8 +247,8 @@ export const taskBrowserMachine = setup({
   },
 
   types: {
-    context: {} as TaskBrowserContext,
-    events: {} as TaskBrowserEvent,
+    context: {} as ChatBrowserContext,
+    events: {} as ChatBrowserEvent,
     input: {} as { browser: BrowserConfig; id: ChatId },
   },
 }).createMachine({
@@ -261,7 +261,7 @@ export const taskBrowserMachine = setup({
     presence: { retained: 0, visible: 0 },
     watchedTargets: new Set<BrowserTargetId>(),
   }),
-  id: "taskBrowser",
+  id: "chatBrowser",
   initial: "Unobserved",
   on: {
     // Leases only move counts. Which state that leaves the browser in is decided
@@ -286,8 +286,8 @@ export const taskBrowserMachine = setup({
         type: "releasePresence",
       },
     },
-    // One of the task's pages closed on its own (its tab closed, its window
-    // went): the browser stops only once it was the last. A task holds a page
+    // One of the chat's pages closed on its own (its tab closed, its window
+    // went): the browser stops only once it was the last. A chat holds a page
     // per tab, and the window holds every page the person has open,
     // so stopping on the first would close all the others with it.
     targetDestroyedExternally: [
@@ -311,7 +311,7 @@ export const taskBrowserMachine = setup({
     ],
   },
   states: {
-    // Nobody has the task page open any more: it was closed, or a router
+    // Nobody has the chat page open any more: it was closed, or a router
     // dropped it from whatever it keeps mounted. The page state a user could
     // return to went with it, so this is the short clock.
     GracePeriod: {
@@ -342,7 +342,7 @@ export const taskBrowserMachine = setup({
         },
       },
     },
-    // The user is looking at this task's page (visible presence is scoped to
+    // The user is looking at this chat's page (visible presence is scoped to
     // whatever is on screen, so at most one browser is Observed at a time).
     // While they are, the browser stays alive regardless of agent idleness --
     // reaping only happens once the page goes off screen (Retained), is closed
@@ -370,12 +370,12 @@ export const taskBrowserMachine = setup({
         },
       },
     },
-    // The task page is still open, just not on screen. A user who turns to
-    // another task for a few minutes has not abandoned this one, and the page
+    // The chat page is still open, just not on screen. A user who turns to
+    // another chat for a few minutes has not abandoned this one, and the page
     // they left behind is theirs to come back to, so this clock is long enough
     // to cover a working day's worth of switching away and back. It is also the
     // clock that ends an app session left running overnight, since a guest is a
-    // painted renderer and holding every task's forever is not free.
+    // painted renderer and holding every chat's forever is not free.
     Retained: {
       after: {
         RETAINED_TIMEOUT_MS: { target: "Stopping" },
@@ -446,4 +446,4 @@ export const taskBrowserMachine = setup({
   },
 });
 
-export type TaskBrowserActorRef = ActorRefFrom<typeof taskBrowserMachine>;
+export type ChatBrowserActorRef = ActorRefFrom<typeof chatBrowserMachine>;

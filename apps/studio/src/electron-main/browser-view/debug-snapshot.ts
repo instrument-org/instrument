@@ -1,4 +1,4 @@
-// Debug-only snapshot of the browser view manager and the taskBrowser
+// Debug-only snapshot of the browser view manager and the chatBrowser
 // XState machines that reap it.
 
 import { devOnly } from "@/electron-main/rpc/base";
@@ -14,7 +14,7 @@ import { z } from "zod";
 
 import { type BrowserViewManager } from "./manager";
 
-const TaskBrowserDebugEntrySchema = z.object({
+const ChatBrowserDebugEntrySchema = z.object({
   destroyedExternallyTargetIds: z.array(z.string()),
   id: z.string(),
   knownTargets: z.array(
@@ -53,7 +53,7 @@ const BrowserViewManagerDebugSnapshotSchema = z.object({
   capturedAt: z.string(),
   developerMode: z.boolean(),
   entries: z.array(BrowserViewDebugEntrySchema),
-  taskBrowsers: z.array(TaskBrowserDebugEntrySchema),
+  chatBrowsers: z.array(ChatBrowserDebugEntrySchema),
   totalEntries: z.number(),
 });
 
@@ -61,7 +61,7 @@ type BrowserViewDebugEntry = z.output<typeof BrowserViewDebugEntrySchema>;
 type BrowserViewManagerDebugSnapshot = z.output<
   typeof BrowserViewManagerDebugSnapshotSchema
 >;
-type TaskBrowserDebugEntry = z.output<typeof TaskBrowserDebugEntrySchema>;
+type ChatBrowserDebugEntry = z.output<typeof ChatBrowserDebugEntrySchema>;
 
 function buildBrowserViewEntries(
   manager: BrowserViewManager,
@@ -110,18 +110,18 @@ function buildSnapshot({
     capturedAt: new Date().toISOString(),
     developerMode: isDeveloperMode(),
     entries: buildBrowserViewEntries(manager),
-    taskBrowsers: buildTaskBrowserEntries(workspaceRef),
+    chatBrowsers: buildChatBrowserEntries(workspaceRef),
     totalEntries: manager.getDebugEntries().size,
   };
 }
 
-function buildTaskBrowserEntries(
+function buildChatBrowserEntries(
   workspaceRef: WorkspaceActorRef,
-): TaskBrowserDebugEntry[] {
+): ChatBrowserDebugEntry[] {
   const snapshot = workspaceRef.getSnapshot();
-  const out: TaskBrowserDebugEntry[] = [];
+  const out: ChatBrowserDebugEntry[] = [];
 
-  for (const [id, ref] of snapshot.context.taskBrowserRefs) {
+  for (const [id, ref] of snapshot.context.chatBrowserRefs) {
     const childSnapshot = ref.getSnapshot();
     const ctx = childSnapshot.context;
     const knownTargets = [...ctx.knownTargets.entries()].map(
@@ -150,7 +150,7 @@ function buildTaskBrowserEntries(
 
 // Heartbeat keeps reaping countdowns visually fresh between explicit publish
 // events (which only fire on entry add/remove/title changes, not on the
-// taskBrowser machine's `after` timers ticking down). Re-publishing on a
+// chatBrowser machine's `after` timers ticking down). Re-publishing on a
 // timer wakes up every active subscriber.
 const BROWSER_VIEW_HEARTBEAT_MS = 1000;
 
@@ -178,13 +178,13 @@ const snapshotLive = devOnly
       publisher.publish("debug.browser-view-manager.updated", null);
     };
 
-    // Subscribe to every taskBrowser child actor so state-machine value
+    // Subscribe to every chatBrowser child actor so state-machine value
     // transitions (Active -> Stopping -> Stopped, parallel sub-states, etc.)
     // push updates instead of waiting on the heartbeat. Resubscribes whenever
-    // the workspace machine spawns a new taskBrowser.
+    // the workspace machine spawns a new chatBrowser.
     const childSubs = new Map<string, () => void>();
     const refreshChildSubs = () => {
-      const refs = context.workspaceRef.getSnapshot().context.taskBrowserRefs;
+      const refs = context.workspaceRef.getSnapshot().context.chatBrowserRefs;
       const seen = new Set<string>();
       for (const [id, ref] of refs) {
         const key = String(id);
@@ -246,8 +246,8 @@ const openAsTab = devOnly
     if (!entry) {
       return;
     }
-    // The owning task's page, where its browser is.
-    openAppScreen(`/tasks/${entry.id}`);
+    // The owning chat's page, where its browser is.
+    openAppScreen(`/chats/${entry.id}`);
   });
 
 export const browserViewManagerDebugRoutes = {

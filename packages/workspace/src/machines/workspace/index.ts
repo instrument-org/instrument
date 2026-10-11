@@ -50,14 +50,14 @@ import {
 } from "../session";
 import {
   type BrowserPresenceLevel,
-  taskBrowserMachine,
-  type TaskBrowserParentEvent,
-} from "../task-browser";
+  chatBrowserMachine,
+  type ChatBrowserParentEvent,
+} from "../chat-browser";
 import { type WorkspaceContext } from "./types";
 
 export type WorkspaceEvent =
   | SessionMachineParentEvent
-  | TaskBrowserParentEvent
+  | ChatBrowserParentEvent
   | WorkspaceServerParentEvent
   | {
       type: "acquireBrowserPresence";
@@ -161,10 +161,10 @@ export const workspaceMachine = setup({
         { id, level }: { id: ChatId; level: BrowserPresenceLevel },
       ) => {
         enqueue.assign(({ context, spawn }) => {
-          const existing = context.taskBrowserRefs.get(id);
+          const existing = context.chatBrowserRefs.get(id);
           const ref =
             existing ??
-            spawn("taskBrowserMachine", {
+            spawn("chatBrowserMachine", {
               input: {
                 browser: context.config.browser,
                 id,
@@ -175,7 +175,7 @@ export const workspaceMachine = setup({
             return {};
           }
           return {
-            taskBrowserRefs: new Map(context.taskBrowserRefs).set(id, ref),
+            chatBrowserRefs: new Map(context.chatBrowserRefs).set(id, ref),
           };
         });
       },
@@ -209,7 +209,7 @@ export const workspaceMachine = setup({
         { context },
         { id, sessionId }: { id: ChatId; sessionId: StoreId.Session },
       ) => {
-        const ref = context.taskBrowserRefs.get(id);
+        const ref = context.chatBrowserRefs.get(id);
         ref?.send({
           type: "attachAgentSession",
           value: { sessionId },
@@ -217,11 +217,11 @@ export const workspaceMachine = setup({
       },
     ),
 
-    // Get-or-spawn the task's browser machine and forward a target event to it.
+    // Get-or-spawn the chat's browser machine and forward a target event to it.
     // The user-open (`registerTarget`) and agent CDP (`updateCdpHeartbeat`) paths
     // carry the same payload and differ only in which event the ref receives;
     // the ref decides how each affects its liveness state.
-    forwardToTaskBrowser: enqueueActions(
+    forwardToChatBrowser: enqueueActions(
       (
         { enqueue },
         {
@@ -239,10 +239,10 @@ export const workspaceMachine = setup({
         },
       ) => {
         enqueue.assign(({ context, spawn }) => {
-          const existing = context.taskBrowserRefs.get(id);
+          const existing = context.chatBrowserRefs.get(id);
           const ref =
             existing ??
-            spawn("taskBrowserMachine", {
+            spawn("chatBrowserMachine", {
               input: {
                 browser: context.config.browser,
                 id,
@@ -256,21 +256,21 @@ export const workspaceMachine = setup({
             return {};
           }
           return {
-            taskBrowserRefs: new Map(context.taskBrowserRefs).set(id, ref),
+            chatBrowserRefs: new Map(context.chatBrowserRefs).set(id, ref),
           };
         });
       },
     ),
 
-    handleTaskBrowserStopped: enqueueActions(
+    handleChatBrowserStopped: enqueueActions(
       ({ context, enqueue }, { id }: { id: ChatId }) => {
-        const ref = context.taskBrowserRefs.get(id);
+        const ref = context.chatBrowserRefs.get(id);
         if (ref) {
           enqueue.stopChild(ref);
         }
-        const nextRefs = new Map(context.taskBrowserRefs);
+        const nextRefs = new Map(context.chatBrowserRefs);
         nextRefs.delete(id);
-        enqueue.assign({ taskBrowserRefs: nextRefs });
+        enqueue.assign({ chatBrowserRefs: nextRefs });
 
         const resolvers = context.pendingBrowserReapResolvers.get(id);
         if (resolvers && resolvers.length > 0) {
@@ -313,7 +313,7 @@ export const workspaceMachine = setup({
         { context },
         { id, level }: { id: ChatId; level: BrowserPresenceLevel },
       ) => {
-        context.taskBrowserRefs
+        context.chatBrowserRefs
           .get(id)
           ?.send({ type: "releasePresence", value: { level } });
       },
@@ -350,7 +350,7 @@ export const workspaceMachine = setup({
   actors: {
     sessionMachine,
 
-    taskBrowserMachine,
+    chatBrowserMachine,
 
     workspaceServerLogic,
   },
@@ -440,7 +440,7 @@ export const workspaceMachine = setup({
       config: workspaceConfig,
       pendingBrowserReapResolvers: new Map(),
       sessionRefsByChatId: new Map(),
-      taskBrowserRefs: new Map(),
+      chatBrowserRefs: new Map(),
       chatsBeingTrashed: [],
       workspaceServerRef: spawn("workspaceServerLogic", {
         input: {
@@ -558,9 +558,9 @@ export const workspaceMachine = setup({
           chatsBeingTrashed: [...context.chatsBeingTrashed, event.value.id],
         });
 
-        // Reap the trashed task's taskBrowser, if one exists.
+        // Reap the trashed chat's chatBrowser, if one exists.
         const matchingChatIds: ChatId[] = [];
-        const browserRef = context.taskBrowserRefs.get(event.value.id);
+        const browserRef = context.chatBrowserRefs.get(event.value.id);
         if (browserRef) {
           matchingChatIds.push(event.value.id);
           browserRef.send({ type: "forceReap" });
@@ -573,7 +573,7 @@ export const workspaceMachine = setup({
             // proceed without blocking.
             resolver();
           } else {
-            // Wait for every matching taskBrowser.stopped before resolving.
+            // Wait for every matching chatBrowser.stopped before resolving.
             enqueue.assign({
               pendingBrowserReapResolvers: () => {
                 const next = new Map(context.pendingBrowserReapResolvers);
@@ -603,7 +603,7 @@ export const workspaceMachine = setup({
     registerBrowserTarget: {
       actions: {
         params: ({ event }) => ({ event: "registerTarget", ...event.value }),
-        type: "forwardToTaskBrowser",
+        type: "forwardToChatBrowser",
       },
     },
     releaseBrowserPresence: {
@@ -672,10 +672,10 @@ export const workspaceMachine = setup({
       },
     },
 
-    "taskBrowser.stopped": {
+    "chatBrowser.stopped": {
       actions: {
         params: ({ event }) => ({ id: event.value.id }),
-        type: "handleTaskBrowserStopped",
+        type: "handleChatBrowserStopped",
       },
     },
 
@@ -741,7 +741,7 @@ export const workspaceMachine = setup({
           sessionId: event.value.sessionId,
           targetId: event.value.targetId,
         }),
-        type: "forwardToTaskBrowser",
+        type: "forwardToChatBrowser",
       },
     },
   },

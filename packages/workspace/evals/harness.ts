@@ -38,6 +38,8 @@ import { getUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { session as sessionRoute } from "../src/rpc/routes/session";
+import { chatFolders } from "../src/rpc/routes/chat/folders";
+import { MOUNT } from "../src/mount-points";
 import { type FileUpload } from "../src/schemas/file-upload";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
@@ -320,6 +322,13 @@ export interface EvalCase {
    */
   declinesFolders?: boolean;
   files?: FileUpload.Type[];
+  /**
+   * The folders the user picks for each `request_folder` the agent asks,
+   * in the order it asks, granted and answered the way the card does once
+   * a folder is chosen in the picker. A request past the end of the list
+   * goes unanswered, as one nobody clicks.
+   */
+  folderPicks?: string[];
   /**
    * `inPlace` attaches the folder where it is rather than a per-run copy:
    * for a folder under the run's home, which `setup` made and which a
@@ -678,6 +687,7 @@ export async function runEvals(
       // Each question once: a part is published again on every update.
       const askedIds = new Set<string>();
       const declinedIds = new Set<string>();
+      const folderAskIds = new Set<string>();
       // See `FollowUp.duringWork`: the run's own finished tool calls, and
       // who is waiting for one to be in flight after enough of them.
       const ownToolsDone = new Set<string>();
@@ -829,6 +839,38 @@ export async function runEvals(
                   workWaiter.resolve();
                   workWaiter = undefined;
                 }
+              }
+            }
+
+            if (
+              part.type === "tool-request_folder" &&
+              part.state === "input-available" &&
+              !folderAskIds.has(part.toolCallId)
+            ) {
+              folderAskIds.add(part.toolCallId);
+              const picked = evalCase.folderPicks?.[folderAskIds.size - 1];
+              write(
+                `${evalPrefix(label)}${c.cyan}request_folder${c.reset}${c.dim} asked: ${part.input.reason}${picked ? `; picking ${picked}` : ""}${c.reset}\n`,
+              );
+              if (picked) {
+                const reached = await call(
+                  chatFolders.grant,
+                  { id, path: picked },
+                  { context },
+                );
+                void call(
+                  sessionRoute.answerToolCall,
+                  {
+                    id,
+                    output: {
+                      mountPoint: `${MOUNT.folders}/${reached.mountName}`,
+                      status: "granted",
+                    },
+                    toolCallId: part.toolCallId,
+                    toolName: "request_folder",
+                  },
+                  { context },
+                );
               }
             }
 

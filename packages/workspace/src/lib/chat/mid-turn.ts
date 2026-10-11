@@ -9,11 +9,13 @@ import { systemNote } from "../system-note";
  * is; one about something else gets its answer, with the work handed to a
  * task when it still has a way to go.
  *
- * A message that calls the work off is the exception, and stops the turn at
- * once.
+ * A message that is nothing but a call-off is the exception, and stops the
+ * turn at once: "stop", "cancel that", "never mind", with at most a "please"
+ * or an "ok" and trailing punctuation. Anything more ("stop using tabs, use
+ * the API") is an instruction about the work, and joins the turn.
  */
 const CALLS_IT_OFF =
-  /^\W*(?:stop|cancel|abort|halt|never\s*mind|forget (?:it|that))\b/i;
+  /^\s*(?:(?:please|ok(?:ay)?)[\s,.!]+)?(?:stop(?:\s+it)?|cancel(?:\s+that)?|never\s*mind|nvm|forget\s+(?:it|that)|abort|halt)(?:[\s,]+(?:please|ok(?:ay)?))?[\s.!?]*$/i;
 
 /** Whether a message the user sent mid-turn calls the turn's work off. */
 export function callsItOff(message: SessionMessage.UserWithParts): boolean {

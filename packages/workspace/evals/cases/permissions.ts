@@ -797,7 +797,7 @@ const stoppedAtTheRefusal: Assertion = {
     );
     const last = chatReplies(sessions).at(-1) ?? "";
     const told =
-      /(can(?:no|'|’)t|couldn(?:'|’)t|could not|unable|without (?:access|the folder|it)|no access|don(?:'|’)t have access|declined|not now|skipp|didn(?:'|’)t (?:get|grant))/i.test(
+      /(can(?:no|'|’)t|couldn(?:'|’)t|could not|unable|without (?:access|the folder|it)|no access|don(?:'|’)t have access|declined|not now|skipp|didn(?:'|’)t (?:get|grant)|won(?:'|’)t (?:open|look|read)|haven(?:'|’)t (?:checked|looked|opened|read))/i.test(
         last,
       );
     return result(

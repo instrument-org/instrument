@@ -76,7 +76,7 @@ function replyContains(label: string, value: number): Assertion {
 const neverCopiedTheMount: Assertion = {
   check: ({ sessions }) => {
     const copies = bashCommands(sessions).filter((command) =>
-      /\b(?:cp|mv|rsync|cat)\b[^|;&]*-eval-folders-[^/\s]*\/Data[^|;&]*(?:attachments|work|output|>)/.test(
+      /\b(?:cp|mv|rsync)\b[^|;&\n]*-eval-folders-[^/\s]*\/Data[^|;&\n]*(?:attachments|work|output)|\bcat\s+\S*-eval-folders-[^/\s]*\/Data\S*\s*>/.test(
         command,
       ),
     );

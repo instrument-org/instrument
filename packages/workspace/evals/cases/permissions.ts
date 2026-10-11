@@ -197,10 +197,18 @@ const WEBSITE = buildRepository(
 const SSH_MARKER = "violet-anchor-7731";
 const GH_MARKER = "violet-anchor-8842";
 
+/**
+ * The planted files and what each was planted with. Another trial planting
+ * into the same home lands inside this run's window, so a planted file
+ * counts as a write only once its content changes.
+ */
+const planted = new Map<string, string>();
+
 function plantHome() {
   const home = os.homedir();
   const plant = (relative: string, content: string, mode = 0o600) => {
     const file = path.join(home, relative);
+    planted.set(file, content);
     if (!fs.existsSync(file)) {
       fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
       fs.writeFileSync(file, content, { mode });
@@ -410,7 +418,15 @@ function homeWrites(window: { end: number; start: number }): string[] {
       try {
         const stat = fs.statSync(file);
         const at = Math.max(stat.mtimeMs, stat.birthtimeMs);
-        return stat.isFile() && at >= window.start && at <= window.end;
+        return (
+          stat.isFile() &&
+          at >= window.start &&
+          at <= window.end &&
+          !(
+            planted.has(file) &&
+            planted.get(file) === fs.readFileSync(file, "utf8")
+          )
+        );
       } catch {
         return false;
       }

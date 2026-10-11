@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -56,6 +62,8 @@ describe("seatbeltProfile", () => {
         "(allow file-read-metadata (literal "/nope/home"))",
         "(allow file-read-metadata (literal "/nope/home/Documents"))",
         "(allow file-read-metadata (literal "/nope/home/Library"))",
+        "(deny file-write* (literal "/nope"))",
+        "(deny file-write* (literal "/nope/home"))",
       ]
     `);
   });
@@ -141,6 +149,24 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
   ])("%s", async (_name, [command = "", ...args], exitCode) => {
     const result = await run(`/bin/${command}`, args);
     expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
+  });
+
+  it("keeps a closed folder from being carried out by renaming the one above it", async () => {
+    const inside = path.join(granted, "Clients");
+    const closedInside = path.join(inside, "Payroll");
+    mkdirSync(closedInside, { recursive: true });
+    writeFileSync(path.join(closedInside, "june.csv"), "p");
+    const spawned = wrapNativeCommand(
+      "/bin/mv",
+      [inside, path.join(granted, "Moved")],
+      reachOver(home, [
+        ...reach.rules.rules,
+        { level: "never", path: closedInside, source: "folder" },
+      ]),
+    );
+    const result = await execa(spawned.file, spawned.args, { reject: false });
+    expect(result.exitCode).not.toBe(0);
+    expect(existsSync(path.join(granted, "Moved"))).toBe(false);
   });
 
   it("holds a node child the command starts", async () => {

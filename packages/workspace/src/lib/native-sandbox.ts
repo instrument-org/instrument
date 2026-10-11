@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -178,9 +178,42 @@ export function seatbeltProfile(reach: NativeReach): string {
       text: `(allow file-read-metadata (literal ${sbplString(folder)}))`,
     })),
   );
-  return ["(version 1)", "(allow default)", ...ordered.map((e) => e.text)].join(
-    "\n",
-  );
+  // A closed folder stays closed only where it is: renaming a folder above
+  // it would carry it out from under its rule, so the folders above every
+  // closed one are kept from being moved or removed. Creating and changing
+  // what is in them is a different path and stays as the rules say.
+  const closedAbove = new Set<string>();
+  for (const rule of rules) {
+    const level = rule.level === "ask" && withoutAsking ? "allow" : rule.level;
+    if (level === "allow" || level === "readOnly" || rule.dotEntries) {
+      continue;
+    }
+    for (const spelled of spellings(rule.path)) {
+      for (
+        let folder = path.dirname(spelled);
+        folder !== path.dirname(folder);
+        folder = path.dirname(folder)
+      ) {
+        closedAbove.add(folder);
+      }
+    }
+  }
+  const texts = [
+    ...ordered.map((e) => e.text),
+    ...[...closedAbove]
+      .toSorted()
+      .map((folder) => `(deny file-write* (literal ${sbplString(folder)}))`),
+  ];
+  // The Keychain is reached through a service rather than a file, so a closed
+  // passwords place closes the service too. Certificate checks go through a
+  // different one, so https still works.
+  const passwords = rules.find((rule) => rule.place === "passwords");
+  if (passwords && passwords.level !== "allow") {
+    texts.push(
+      '(deny mach-lookup (global-name "com.apple.SecurityServer") (global-name "com.apple.securityd.xpc"))',
+    );
+  }
+  return ["(version 1)", "(allow default)", ...texts].join("\n");
 }
 
 function depthOf(hostPath: string): number {
@@ -360,8 +393,19 @@ export function bwrapArgs(reach: NativeReach): string[] {
   const ordered = entries.toSorted(
     (a, b) => a.depth - b.depth || a.rank - b.rank,
   );
+  // A tool's cache or the chat's own folder that is not there yet is made
+  // before it is bound, so a first run on a new computer can write it: an
+  // unbound folder would stay read-only with the home folder around it.
+  const ours = new Set([...tools.caches, ...reach.readWrite]);
   for (const entry of ordered) {
     const real = resolveReal(entry.path);
+    if (!existsSync(real) && ours.has(entry.path)) {
+      try {
+        mkdirSync(real, { recursive: true });
+      } catch {
+        // Left unbound, as a folder that could not be made.
+      }
+    }
     if (!existsSync(real)) {
       continue;
     }

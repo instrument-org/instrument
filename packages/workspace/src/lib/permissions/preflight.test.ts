@@ -26,6 +26,11 @@ it.each([
     [{ op: "write", path: "/Users/sam/Downloads/old" }],
   ],
   ["ls work | wc -l", []],
+  ["ls /Volumes/Backup 2>&1 | head; cat x 2>/dev/null", [{ op: "read", path: "/Volumes/Backup" }]],
+  [
+    "cd /Volumes/Backup/Receipts && echo 5 > total.txt",
+    [{ base: "/Volumes/Backup/Receipts", op: "write", path: "total.txt" }],
+  ],
 ])("%s", (command, expected) => {
   expect(commandPaths(command)).toEqual(expected);
 });

@@ -294,6 +294,12 @@ const TREE_QUIET_MS = 6000;
 /** How often the tree is sampled while waiting for it to go quiet. */
 const TREE_POLL_MS = 500;
 
+/**
+ * How long an answer to a card waits for the asking session's turn to end
+ * before it goes in anyway, for an agent that keeps working past an ask.
+ */
+const ANSWER_AFTER_TURN_MAX_MS = 120_000;
+
 export interface EvalCase {
   /**
    * What the user answers to each `choose` the agent puts to them, in the
@@ -878,16 +884,31 @@ export async function runEvals(
                 `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : picked ? `; picking ${picked}` : allows ? "; allowing" : ""}${c.reset}\n`,
               );
               if (declines || picked || allows) {
-                void call(
-                  permissionsRoute.answer,
-                  {
-                    askId: ask.id,
-                    decision: declines ? "declined" : "allowed",
-                    id,
-                    ...(picked && { path: picked }),
-                  },
-                  { context },
-                );
+                // Answered once the asking session's turn is over, as a
+                // person reading the card would, so the answer arrives as a
+                // wake rather than mid-turn.
+                void (async () => {
+                  const until = Date.now() + ANSWER_AFTER_TURN_MAX_MS;
+                  while (isWorking(id, ask.sessionId) && Date.now() < until) {
+                    await new Promise((resolve) =>
+                      setTimeout(resolve, TREE_POLL_MS),
+                    );
+                  }
+                  await call(
+                    permissionsRoute.answer,
+                    {
+                      askId: ask.id,
+                      decision: declines ? "declined" : "allowed",
+                      id,
+                      ...(picked && { path: picked }),
+                    },
+                    { context },
+                  );
+                })().catch((error: unknown) => {
+                  process.stderr.write(
+                    `${evalPrefix(label)}${c.red}answering the ${ask.kind} ask failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
+                  );
+                });
               }
             }
 

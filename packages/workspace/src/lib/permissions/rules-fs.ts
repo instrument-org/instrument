@@ -11,11 +11,17 @@ import { folderToAskFor, reachOf, type Rules } from "./rules";
  * agent meets as missing rather than refused.
  */
 export function ruleRefusal({
+  asks = true,
   hostPath,
   op,
   rules,
   spell,
 }: {
+  /**
+   * Whether running into it raises a card. A walk that passes a closed
+   * folder on its way is not asking for it.
+   */
+  asks?: boolean;
   hostPath: string;
   op: "read" | "write";
   rules: Rules;
@@ -36,7 +42,13 @@ export function ruleRefusal({
     isDirectory: false,
     rule: reach.rule,
   });
-  if (!rules.asker) {
+  // The home folder or the disk whole is never the thing to ask for.
+  if (
+    !asks ||
+    !rules.asker ||
+    folder === rules.home ||
+    folder === nodePath.parse(folder).root
+  ) {
     return `${spell(hostPath)} needs the person's yes first.`;
   }
   raiseAsk(rules.asker, "folder", folder);
@@ -69,7 +81,12 @@ export function rulesFs({
   const hostOf = (mountPath: string) => nodePath.join(hostRoot, mountPath);
   const isHidden = (mountPath: string) =>
     reachOf(rules, hostOf(mountPath), "read").level === "hidden";
-  const check = (op: "read" | "write", syscall: string, mountPath: string) => {
+  const check = (
+    op: "read" | "write",
+    syscall: string,
+    mountPath: string,
+    asks = true,
+  ) => {
     if (isHidden(mountPath)) {
       throw Object.assign(
         new Error(
@@ -79,6 +96,7 @@ export function rulesFs({
       );
     }
     const refusal = ruleRefusal({
+      asks,
       hostPath: hostOf(mountPath),
       op,
       rules,
@@ -131,7 +149,9 @@ export function rulesFs({
       if (key === "readdir" || key === "readdirWithFileTypes") {
         return async (...args: unknown[]) => {
           const dir = String(args[0]);
-          check("read", key, dir);
+          // A listing is how a walk passes through; the folders it names
+          // up front were asked for before the command ran.
+          check("read", key, dir, false);
           const listed = await call(...args);
           // The app's internals are left out of a listing, the way a missing
           // folder would be.

@@ -58,42 +58,71 @@ function words(command: string): string[] {
   return out;
 }
 
-/** The paths a command names, each with whether the command changes it. */
+/**
+ * The paths a command names, each with whether the command changes it, and
+ * the folder an earlier `cd` in the line moved to, which a relative path is
+ * read against.
+ */
 export function commandPaths(
   command: string,
-): { op: "read" | "write"; path: string }[] {
-  const found: { op: "read" | "write"; path: string }[] = [];
+): { base?: string; op: "read" | "write"; path: string }[] {
+  const named: { op: "read" | "write"; path: string; segment: number }[] = [];
   const segments: string[][] = [[]];
   let redirect = false;
+  let redirectDup = false;
   for (const word of words(command)) {
     if (word === ">" || word === ">>") {
       redirect = true;
+      continue;
+    }
+    if (redirect) {
+      redirect = false;
+      // `2>&1` duplicates a descriptor, and a device is no folder to ask for.
+      if (word === "&" || word.startsWith("/dev/")) {
+        redirectDup = word === "&";
+        continue;
+      }
+      named.push({ op: "write", path: word, segment: segments.length - 1 });
+      continue;
+    }
+    if (redirectDup) {
+      redirectDup = false;
       continue;
     }
     if (/^(?:;|&&|\|\||\||&|\(|\)|<)$/.test(word)) {
       segments.push([]);
       continue;
     }
-    if (redirect) {
-      found.push({ op: "write", path: word });
-      redirect = false;
-      continue;
-    }
     segments.at(-1)?.push(word);
   }
-  for (const [name = "", ...args] of segments) {
+  segments.forEach(([name = "", ...args], segment) => {
     const positional = args.filter((arg) => !arg.startsWith("-"));
     positional.forEach((arg, index) => {
-      if (!/^(?:\/|~\/|\.\.?\/)/.test(arg)) {
+      if (name === "cd" || !/^(?:\/|~\/|\.\.?\/)/.test(arg)) {
         return;
       }
       const changes =
         CHANGES_ITS_ARGUMENTS.has(name) ||
         (CHANGES_ITS_LAST.has(name) && index === positional.length - 1);
-      found.push({ op: changes ? "write" : "read", path: arg });
+      named.push({ op: changes ? "write" : "read", path: arg, segment });
     });
-  }
-  return found;
+  });
+  // Where each segment runs from: the folder the `cd`s before it moved to.
+  const bases: (string | undefined)[] = [undefined];
+  segments.forEach(([name, target], segment) => {
+    const base = bases[segment];
+    bases.push(
+      name === "cd" && target
+        ? base === undefined || /^(?:\/|~\/)/.test(target)
+          ? target
+          : `${base}/${target}`
+        : base,
+    );
+  });
+  return named.map(({ op, path, segment }) => {
+    const base = bases[segment];
+    return base === undefined ? { op, path } : { base, op, path };
+  });
 }
 
 /**
@@ -121,11 +150,14 @@ export async function preflightCommand({
   const asker = { chatId, partId, sessionId };
   const asked: string[] = [];
   for (const named of commandPaths(command)) {
+    const expand = (spelled: string) =>
+      spelled === "~" || spelled.startsWith("~/")
+        ? path.join(os.homedir(), spelled.slice(2))
+        : spelled;
     const hostPath = path.resolve(
       cwd,
-      named.path.startsWith("~/")
-        ? path.join(os.homedir(), named.path.slice(2))
-        : named.path,
+      expand(named.base ?? "."),
+      expand(named.path),
     );
     const reach = reachOf(rules, hostPath, named.op);
     if (reach.level !== "ask") {
@@ -137,6 +169,10 @@ export async function preflightCommand({
       isDirectory: existsSync(hostPath) && statSync(hostPath).isDirectory(),
       rule: reach.rule,
     });
+    // The home folder or the disk whole is never the thing to ask for.
+    if (folder === rules.home || folder === path.parse(folder).root) {
+      continue;
+    }
     if (!asked.includes(folder)) {
       raiseAsk(asker, "folder", folder);
       asked.push(folder);

@@ -85,7 +85,7 @@ describe("initializeChat", () => {
     `);
     await expect(
       fs.readFile(path.join(chatDir(chatId), "package.json"), "utf8"),
-    ).resolves.toContain('"name": "@instrument-org/task"');
+    ).resolves.toContain('"name": "@instrument-org/chat"');
     // Snapshotted in full so the supply-chain settings a task installs under
     // stay visible: weakening the age gate or the build allowlist has to show
     // up as a diff here.

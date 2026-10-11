@@ -296,7 +296,7 @@ export async function prepareModelMessages({
     // its chat, which replaces it on its own next turn, so only this session's
     // own are removed.
     for (const message of contextMessages.filter(
-      (message) => message.metadata.sessionId === sessionId,
+      (stored) => stored.metadata.sessionId === sessionId,
     )) {
       const removeResult = await Store.removeMessage(
         message.id,

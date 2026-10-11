@@ -6,6 +6,7 @@ import { debug } from "./routes/debug";
 import { decision } from "./routes/decision";
 import { memory } from "./routes/memory";
 import { message } from "./routes/message";
+import { permissions } from "./routes/permissions";
 
 import { session } from "./routes/session";
 import { skill } from "./routes/skill";
@@ -22,6 +23,7 @@ export const router = {
   decision,
   memory,
   message,
+  permissions,
   session,
   skill,
   storage,

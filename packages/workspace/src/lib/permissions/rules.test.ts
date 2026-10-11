@@ -78,6 +78,26 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
       "allow",
     );
   });
+
+  it("lets an Always allow outrank a not now", () => {
+    const allowedLater = rulesFor({
+      denials: [`${home}/Desktop/Trip`],
+      home,
+      settings: {
+        ...settings,
+        folders: [
+          {
+            addedAt: new Date(0),
+            level: "allow",
+            path: AbsolutePathSchema.parse(`${home}/Desktop`),
+          },
+        ],
+      },
+    });
+    expect(
+      reachOf(allowedLater, `${home}/Desktop/Trip/a.png`, "read").level,
+    ).toBe("allow");
+  });
 });
 
 describe("folderToAskFor", () => {

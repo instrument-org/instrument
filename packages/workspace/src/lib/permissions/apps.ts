@@ -48,7 +48,12 @@ export async function appDenied(chatId: ChatId, app: string): Promise<boolean> {
  * id.
  */
 export async function appReach(chatId: ChatId, app: string): Promise<Level> {
-  if (await appDenied(chatId, app)) {
+  const rule = (await readPermissionSettings()).apps.find((known) =>
+    isFor(known, app),
+  );
+  // An Always allow, given in Settings or from any chat's card, outranks a
+  // chat's earlier "Not now".
+  if (rule?.level !== "allow" && (await appDenied(chatId, app))) {
     return "never";
   }
   if (chatId !== WINDOW_ID) {
@@ -57,9 +62,6 @@ export async function appReach(chatId: ChatId, app: string): Promise<Level> {
       return "allow";
     }
   }
-  const rule = (await readPermissionSettings()).apps.find((known) =>
-    isFor(known, app),
-  );
   return rule?.level ?? "ask";
 }
 

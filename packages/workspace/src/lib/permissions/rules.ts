@@ -167,7 +167,17 @@ export function rulesFor({
   ]) {
     rules.push({ level: "allow", path: allowed, source: "grant" });
   }
+  // An Always allow for the folder or one holding it, given in Settings or
+  // from any chat's card, outranks a chat's earlier "Not now".
+  const alwaysAllowed = settings.folders
+    .filter((folder) => folder.level === "allow")
+    .map((folder) => folder.path);
   for (const denied of denials) {
+    if (
+      alwaysAllowed.some((allowed) => hostPathWithin(allowed, denied) !== null)
+    ) {
+      continue;
+    }
     rules.push({ denied: true, level: "never", path: denied, source: "grant" });
   }
   return { home, rules, withoutAsking: settings.withoutAsking };

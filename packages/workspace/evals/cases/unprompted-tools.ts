@@ -6,14 +6,16 @@
  * research long enough for a background task with a quick question while it
  * runs, a price on a website, a printable code a skill covers, earlier work
  * to pick up, a folder the chat does not reach, a small build in parts, two
- * short jobs at once, and a folder of many files. This is a measurement, not
- * a target: each case scores the outcome, and `toolsChosen` records which of
- * the tools it used (tasks, the browser, skills, `chat search`/`chat read`,
- * `request_folder`) as evidence without scoring it, so a run that does the
- * job without them passes.
+ * short jobs at once, a folder of many files, and a read across 200 files
+ * long enough to outlast a quick question asked partway through. This is a
+ * measurement, not a target: each case scores the outcome, and `toolsChosen`
+ * records which of the tools it used (tasks, the browser, skills, `chat
+ * search`/`chat read`, `request_folder`) as evidence without scoring it, so a
+ * run that does the job without them passes.
  */
 import fs from "node:fs";
 import path from "node:path";
+import { z } from "zod";
 
 import { ensureChat } from "../../src/lib/chat/chat-records";
 import { createSession } from "../../src/lib/create-session";
@@ -684,6 +686,88 @@ const indexedTheNotes: Assertion = {
 };
 
 // ---------------------------------------------------------------------------
+// inspection-report: a long read across 200 files, then a quick question
+// ---------------------------------------------------------------------------
+
+const INSPECTIONS_DIR = () => path.join(HOME, "Documents", "Site Inspections");
+const SITES = [
+  "Alder Street",
+  "Bayview Depot",
+  "Cedar Mill",
+  "Dockside",
+  "Eastgate",
+  "Foundry Row",
+  "Granite Yard",
+  "Harbor Point",
+];
+
+/**
+ * 200 reports, 25 to a site, each written by a model as its own prose; the
+ * 25 marked `unsafe` describe the `finding` in the writer's words, spread
+ * across the sites, and the rest mostly say outright that nothing was unsafe.
+ */
+const InspectionsSchema = z.array(
+  z.object({
+    body: z.string(),
+    date: z.string(),
+    finding: z.string().optional(),
+    inspector: z.string(),
+    number: z.string(),
+    site: z.string(),
+    unsafe: z.boolean(),
+  }),
+);
+
+function inspections(): z.output<typeof InspectionsSchema> {
+  return InspectionsSchema.parse(
+    JSON.parse(
+      readText(
+        path.resolve(import.meta.dirname, "../fixtures/site-inspections.json"),
+      ),
+    ),
+  );
+}
+
+function seedInspections() {
+  fs.mkdirSync(INSPECTIONS_DIR(), { recursive: true });
+  for (const one of inspections()) {
+    fs.writeFileSync(
+      path.join(INSPECTIONS_DIR(), `${one.number}.txt`),
+      `Inspection ${one.number}\nSite: ${one.site}\nDate: ${one.date}\nInspector: ${one.inspector}\n\n${one.body}\n`,
+    );
+  }
+}
+
+const reportedTheInspections: Assertion = {
+  check: async (ctx) => {
+    const text =
+      "a report naming 23+ of the 25 unsafe inspections and the 25-per-site counts";
+    const plan = inspections();
+    const unsafe = plan.filter((one) => one.unsafe).map((one) => one.number);
+    const report = (await writtenTexts(ctx, [INSPECTIONS_DIR()]))
+      .filter((one) => !/INS-\d+\.txt$/.test(one.file))
+      .map((one) => ({
+        ...one,
+        named: unsafe.filter((number) => one.body.includes(number)).length,
+        wrong: plan.filter((p) => !p.unsafe && one.body.includes(p.number))
+          .length,
+      }))
+      .toSorted((a, b) => b.named - b.wrong - (a.named - a.wrong))[0];
+    const body = report?.body ?? replies(ctx);
+    const named =
+      report?.named ?? unsafe.filter((n) => body.includes(n)).length;
+    const counted = SITES.every((site) =>
+      new RegExp(`${site}[^\\n]{0,40}\\b25\\b`).test(body),
+    );
+    const evidence = `${report ? short(report.file) : "reply"}: ${String(named)}/${String(unsafe.length)} unsafe named${report ? `, ${String(report.wrong)} safe named` : ""}, per-site counts ${counted ? "right" : "missing or wrong"}`;
+    return named >= unsafe.length - 2 && counted
+      ? pass(text, evidence)
+      : fail(text, evidence);
+  },
+  text: "a report naming 23+ of the 25 unsafe inspections and the 25-per-site counts",
+};
+
+// ---------------------------------------------------------------------------
 
 export const UNPROMPTED_TOOL_EVALS = [
   defineEval({
@@ -750,5 +834,18 @@ export const UNPROMPTED_TOOL_EVALS = [
     prompt:
       "These are my meeting notes from the last two months. Can you make me an index, one line per meeting with the date, who was there, and any decision, and pull every action item into a checklist grouped by person?",
     setup: seedNotes,
+  }),
+  defineEval({
+    assertions: [reportedTheInspections, answeredTheQuickQuestion, toolsChosen],
+    folders: [{ inPlace: true, path: INSPECTIONS_DIR() }],
+    followUps: [
+      { afterMs: 20_000, prompt: "unrelated, quick: what's 18% of 240?" },
+    ],
+    kind: "chat",
+    marks: [{ after: "18% of 240", match: QUICK_ANSWER, name: "quick answer" }],
+    name: "unprompted-inspection-report",
+    prompt:
+      "These are this quarter's site inspection reports, about 200 of them. Can you go through them and write me a report: how many inspections each site had, and every visit where the inspector found something unsafe, with the report number and what it was?",
+    setup: seedInspections,
   }),
 ];

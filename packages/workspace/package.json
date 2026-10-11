@@ -29,7 +29,7 @@
     "script:clt-shim-audit": "cross-env NODE_ENV=development node --import tsx scripts/clt-shim-audit.ts",
     "script:dump-session-transcript": "tsx scripts/dump-session-transcript.ts",
     "script:dump-sessions": "tsx scripts/dump-sessions.ts",
-    "script:query-task-db": "tsx scripts/query-task-db.ts",
+    "script:query-chat-db": "tsx scripts/query-chat-db.ts",
     "script:record-fixture-session": "tsx scripts/record-fixture-session.ts",
     "script:refresh-agent-browser-guide": "tsx scripts/refresh-agent-browser-guide.ts",
     "script:refresh-directory-icons": "tsx scripts/refresh-directory-icons.ts",

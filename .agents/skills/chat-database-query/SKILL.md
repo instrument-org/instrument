@@ -1,14 +1,14 @@
 ---
-name: task-database-query
+name: chat-database-query
 description: Read a chat's .instrument/chat.db with safe read-only SQL. Use when an Instrument chat or task investigation needs raw messages, parts, sessions, or any other stored records.
 ---
 
-# Task Database Query
+# Chat Database Query
 
 Run the generic query tool, which lives in `packages/workspace`. The filter is what lets the command run from anywhere in the monorepo rather than only from that package:
 
 ```bash
-pnpm --filter @instrument-org/workspace run script:query-task-db <workspace>/chats/<chat-id> \
+pnpm --filter @instrument-org/workspace run script:query-chat-db <workspace>/chats/<chat-id> \
   --sql "select key, created_at, updated_at from sessions order by updated_at desc limit 20" \
   --format table
 ```

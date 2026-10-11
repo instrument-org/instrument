@@ -16,7 +16,7 @@ const { positionals, values } = parseArgs({
 const inputPath = positionals[0];
 if (!inputPath) {
   throw new TypeError(
-    "Usage: pnpm run script:query-task-db <task-directory-or.db> --sql <query>",
+    "Usage: pnpm run script:query-chat-db <chat-directory-or.db> --sql <query>",
   );
 }
 

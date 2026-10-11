@@ -414,7 +414,20 @@ interface ChildTaskSessions {
 
 type ChooseAnswer = z.output<typeof Choose.outputSchema>;
 
-interface FollowUp {
+type FollowUp = FollowUpTiming &
+  (
+    | { prompt: string }
+    | {
+        /**
+         * The user pressing Stop on one of the chat's tasks, by its handle,
+         * in place of a message: what the task's page and the chat's task
+         * list do.
+         */
+        stopTask: string;
+      }
+  );
+
+interface FollowUpTiming {
   afterMs?: number;
   /**
    * Sent while the conversation's own agent is mid tool work: once it has
@@ -425,7 +438,6 @@ interface FollowUp {
    * counts those.
    */
   duringWork?: { afterToolCalls: number };
-  prompt: string;
   settled?: boolean;
 }
 
@@ -970,6 +982,23 @@ export async function runEvals(
         // and that turn's end is the one still awaited; sent to a session at
         // rest, it starts a turn of its own.
         await evalCase.beforeFollowUp?.(position);
+        if ("stopTask" in followUp) {
+          const task = (await listChildTasks(id)).find(
+            (child) => child.handle === followUp.stopTask,
+          );
+          write(
+            `${evalPrefix(label)}${c.dim}Stop: ${followUp.stopTask}${task ? "" : " (no such task)"}${c.reset}\n`,
+          );
+          if (task) {
+            await call(
+              sessionRoute.stop,
+              { id, sessionId: task.id },
+              { context },
+            );
+          }
+          lastSentAt = Date.now();
+          continue;
+        }
         const steering = isTimed(followUp) && isWorking(id, sessionId);
         write(
           `${evalPrefix(label)}${c.dim}Follow-up${steering ? " (mid-turn)" : ""}: ${followUp.prompt.slice(0, 60)}${c.reset}\n`,
@@ -1501,7 +1530,7 @@ async function standInForTasks(
 ) {
   const resolved = resolveChat(chatId);
   for (const child of resolved ? await listChildTasks(resolved) : []) {
-    expectStop(child.id);
+    expectStop(child.id, { by: "chat", wakesChat: false });
     workspaceRef.send({
       type: "stopSessions",
       value: { id: chatId, sessionId: child.id },

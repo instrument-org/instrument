@@ -23,6 +23,7 @@ import {
   type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
+import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode } from "react";
@@ -47,10 +48,13 @@ export function ChildTranscript({
   chat,
   isWorking,
   sessionId,
+  stoppedBy,
 }: {
   chat: ChatId;
   isWorking: boolean;
   sessionId: StoreId.Session;
+  /** Who stopped its last turn, which the transcript ends by saying. */
+  stoppedBy?: "chat" | "user";
 }) {
   // The chat's record, which the task runs in: its folder, model and apps.
   const record = useQuery(
@@ -107,6 +111,14 @@ export function ChildTranscript({
                   />
                 </FileOpenContext>
               </TaskSessionProvider>
+              {stoppedBy && (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <StopCircleIcon className="size-3.5 shrink-0" />
+                  {stoppedBy === "user"
+                    ? "You stopped this task."
+                    : "The chat stopped this task."}
+                </p>
+              )}
             </MessageScrollerContent>
           </MessageScrollerViewport>
         </MessageScroller>

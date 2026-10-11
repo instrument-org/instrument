@@ -1,9 +1,10 @@
 import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
+import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 
 /**
  * The line that marks why the chat woke: a task it created finished a
- * turn. One line per task, in the muted voice of a note rather than a
+ * turn, or the user stopped one. One line per task, in the muted voice of a note rather than a
  * message, since the chat's own reply is what the reader is waiting
  * for.
  */
@@ -19,13 +20,19 @@ export function TaskEventNote({
           className="flex items-center gap-1.5 text-xs text-muted-foreground"
           key={event.sessionId}
         >
-          <CheckCircleIcon className="size-3.5 shrink-0" />
+          {event.stoppedBy ? (
+            <StopCircleIcon className="size-3.5 shrink-0" />
+          ) : (
+            <CheckCircleIcon className="size-3.5 shrink-0" />
+          )}
           <span>
-            {event.status === "error"
-              ? "Stopped: "
-              : event.status === "overdue"
-                ? "Still working: "
-                : "Finished: "}
+            {event.stoppedBy
+              ? "You stopped: "
+              : event.status === "error"
+                ? "Stopped: "
+                : event.status === "overdue"
+                  ? "Still working: "
+                  : "Finished: "}
             {event.title}
             {/* Past tense on purpose: the note is written once, and what was
                 left running then may have been stopped since. */}

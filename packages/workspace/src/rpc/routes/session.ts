@@ -4,7 +4,9 @@ import { call, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { changedMessageBatches } from "../../lib/changed-message-batches";
-import { runningForks, stopFork } from "../../lib/shell-commands/task/fork";
+import { isWorking } from "../../lib/chat/activity";
+import { childTask, listChildTasks } from "../../lib/chat/children";
+import { expectStop } from "../../lib/chat/wake";
 import { resolveChat } from "../../lib/record-folders";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
@@ -123,10 +125,23 @@ const stop = base
   )
   .handler(async ({ context, input }) => {
     const chatId = resolveChat(input.id);
-    if (chatId && input.sessionId === undefined) {
-      // A task's stop is the chat's doing, and not news to wake it with.
-      for (const forkId of await runningForks(chatId)) {
-        stopFork(chatId, forkId);
+    if (chatId) {
+      // The user's stop, which the task's page ends on. One task stopped
+      // while the chat carries on is news to wake the chat with; the
+      // chat's own Stop ends the chat's turn too, and wakes nothing.
+      const stopped =
+        input.sessionId === undefined
+          ? await listChildTasks(chatId, (id) => isWorking(chatId, id))
+          : isWorking(chatId, input.sessionId)
+            ? [await childTask(chatId, input.sessionId)]
+            : [];
+      for (const task of stopped) {
+        if (task) {
+          expectStop(task.id, {
+            by: "user",
+            wakesChat: input.sessionId !== undefined,
+          });
+        }
       }
     }
     context.workspaceRef.send({

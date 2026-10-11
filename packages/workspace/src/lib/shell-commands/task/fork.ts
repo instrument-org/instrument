@@ -1,12 +1,6 @@
 import { type ChatId } from "../../../schemas/chat-id";
 import { StoreId } from "../../../schemas/store-id";
-import { isWorking } from "../../chat/activity";
-import {
-  addChildTask,
-  type ChatTask,
-  listChildTasks,
-} from "../../chat/children";
-import { expectStop } from "../../chat/wake";
+import { addChildTask, type ChatTask } from "../../chat/children";
 import { defaultTaskName } from "../../default-task-name";
 import {
   handOverBackgroundProcesses,
@@ -251,23 +245,4 @@ async function startFork({
     },
   });
   return task;
-}
-
-/**
- * The chat's tasks still running, for a stop of the chat to end with them:
- * Stop means all of the user's work, wherever it is running.
- */
-export async function runningForks(chatId: ChatId): Promise<StoreId.Session[]> {
-  return (await listChildTasks(chatId, (id) => isWorking(chatId, id))).map(
-    (task) => task.id,
-  );
-}
-
-/** Ends a task's turn, as a stop the chat expects rather than news. */
-export function stopFork(chatId: ChatId, sessionId: StoreId.Session): void {
-  expectStop(sessionId);
-  getWorkspaceActorRef().send({
-    type: "stopSessions",
-    value: { id: chatId, sessionId },
-  });
 }

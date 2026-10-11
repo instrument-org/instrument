@@ -74,11 +74,22 @@ const OVERDUE_STEPS = 6;
 const overdueReportedAt = new Map<StoreId.Session, number>();
 
 /**
- * Tasks the chat itself told to stop, by their sessions. The turn that ends
- * is the one it ended, so there is nothing to wake it about; the next finish
- * after that is news again.
+ * Who stopped a task's working turn, and whether the chat hears of it.
+ * The chat's own `task stop` is a step it took, and the user's Stop on the
+ * whole chat stops the chat too, so neither wakes it. The user stopping one
+ * task while the chat carries on does, so the chat knows the task did not
+ * finish and leaves it stopped.
  */
-const stoppedByChat = new Set<StoreId.Session>();
+interface ExpectedStop {
+  by: "chat" | "user";
+  wakesChat: boolean;
+}
+
+/**
+ * Stops on their way, by the task's session. Held until the turn they end
+ * is done; the next finish after that is news again.
+ */
+const expectedStops = new Map<StoreId.Session, ExpectedStop>();
 
 /**
  * Wakes a chat about one of its tasks with an event composed elsewhere,
@@ -93,9 +104,9 @@ export function wakeChatWithTaskEvent(
   schedule(chatId, event, workspaceRef);
 }
 
-/** Says a task's turn is ending at the chat's word, by the task's session. */
-export function expectStop(sessionId: StoreId.Session) {
-  stoppedByChat.add(sessionId);
+/** Says a task's working turn is ending on a stop, and whose. */
+export function expectStop(sessionId: StoreId.Session, stop: ExpectedStop) {
+  expectedStops.set(sessionId, stop);
 }
 
 const pending = new Map<
@@ -263,14 +274,17 @@ async function onSessionDone(
   // from its words, so a turn that ended blocked reads as waiting rather than
   // finished and the fence is not said twice.
   const needs = said === undefined ? [] : needsNamedIn(said);
+  const stop = expectedStops.get(sessionId);
+  expectedStops.delete(sessionId);
   await touchTask(chatId, sessionId, {
     status: ending?.failed ? "failed" : needs.length > 0 ? "waiting" : "done",
+    stoppedBy: stop?.by,
   });
   // The pages it leaves open, read while it still drives them, then given
   // back: a tab has one driver, and a finished task drives nothing.
   const tabs = await openTabsOf(ref);
   await returnTabsToChat(chatId, sessionId);
-  if (stoppedByChat.delete(sessionId)) {
+  if (stop && !stop.wakesChat) {
     return;
   }
   // A chat nobody has written in has no conversation to report to: the eval
@@ -305,6 +319,7 @@ async function onSessionDone(
       ...(needs.length > 0 ? { needs } : {}),
       ...(running.length > 0 ? { running } : {}),
       status: ending?.failed ? "error" : "done",
+      ...(stop?.by === "user" ? { stoppedBy: stop.by } : {}),
       summary,
       sessionId,
       ...(tabs.length > 0 ? { tabs } : {}),

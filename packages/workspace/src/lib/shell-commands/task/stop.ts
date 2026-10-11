@@ -141,7 +141,7 @@ async function stopBackground(task: ChatTask, wanted?: string) {
 /** Ends a working task's turn, and says whether it went idle in time. */
 async function stopTurn(task: ChatTask, context: TaskCommandContext) {
   // The wake would report the turn this ends as a finish; it is not news.
-  expectStop(task.id);
+  expectStop(task.id, { by: "chat", wakesChat: false });
   getWorkspaceActorRef().send({
     type: "stopSessions",
     value: { id: task.chatId, sessionId: task.id },

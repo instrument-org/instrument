@@ -18,8 +18,9 @@ export function taskEventModelNote(
   const lines = data.events.map((event) => {
     // What the `task` command takes for it.
     const id = event.handle ?? event.sessionId;
-    const outcome =
-      event.status === "error"
+    const outcome = event.stoppedBy
+      ? `was ${asClause(event.ended ?? "Stopped").replace(/^stopped/, "stopped by the user")} and did not finish`
+      : event.status === "error"
         ? `stopped with an error${event.ended ? `, "${event.ended}"` : ""}`
         : event.status === "overdue"
           ? "is still working"
@@ -85,7 +86,11 @@ export function taskEventModelNote(
       event.running && event.running.length > 0
         ? `\n  It left running in the background: ${event.running.map((process) => describeLeftRunning(process)).join(", ")}. Stop what the user does not need with \`${TASK_COMMAND.name} stop ${id} <bg id>\`, or all of it with \`${TASK_COMMAND.name} stop ${id} --all\`; a server they are using stays.`
         : "";
-    return `- ${id} ("${event.title}") ${outcome}${cost}.${steps}${summary}${inFlight}${needs}${tabs}${running}`;
+    // The user's stop is a decision, not a turn to pick up again.
+    const leave = event.stoppedBy
+      ? ` Leave it stopped unless they ask for it again.`
+      : "";
+    return `- ${id} ("${event.title}") ${outcome}${cost}.${leave}${steps}${summary}${inFlight}${needs}${tabs}${running}`;
   });
 
   // What to do about a wake is the prompt's business (When a task finishes);
@@ -102,9 +107,14 @@ export function taskEventModelNote(
   const waiting = data.events.every(
     (event) => event.needs && event.needs.length > 0,
   );
+  const stopped = data.events.every((event) => event.stoppedBy === "user");
   return systemNote`
     ${
-      waiting
+      stopped
+        ? data.events.length === 1
+          ? "The user stopped a task you created:"
+          : "The user stopped tasks you created:"
+        : waiting
         ? data.events.length === 1
           ? "A task you created is waiting on you:"
           : "Tasks you created are waiting on you:"

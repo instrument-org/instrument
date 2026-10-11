@@ -14,11 +14,15 @@
  * - **It hands the task the user's tab.** `task new --tab` makes the task
  *   the tab's one driver, and the tab goes back to the chat when the task
  *   finishes.
+ * - **It leaves a task the user stopped alone.** Stop on t1 wakes the chat
+ *   with a note saying the user stopped it; the chat says so and starts
+ *   nothing again.
  */
 import fs from "node:fs";
 import path from "node:path";
 
 import { getChatState } from "../../src/lib/chat-record";
+import { listChildTasks } from "../../src/lib/chat/children";
 import { outputFolderPath } from "../../src/lib/chat/output-folder";
 import { chatDir } from "../../src/lib/record-folders";
 import { type Session } from "../../src/schemas/session";
@@ -177,6 +181,73 @@ const tabCameBack: Assertion = {
   text: "the tab went back to the chat when the task finished",
 };
 
+/**
+ * The chat's turn the user's stop woke: its reply, and the commands it ran,
+ * from the note on.
+ */
+function afterTheStop(sessions: Session.WithMessagesAndParts[]) {
+  const messages = sessions.flatMap((session) => session.messages);
+  const woke = messages.findIndex((message) =>
+    message.parts.some(
+      (part) =>
+        part.type === "data-taskEvent" &&
+        part.data.events.some((event) => event.stoppedBy === "user"),
+    ),
+  );
+  if (woke === -1) {
+    return undefined;
+  }
+  const after = messages.slice(woke + 1);
+  return {
+    commands: commandsIn(
+      sessions.map((session) => ({
+        ...session,
+        messages: session.messages.filter((message) => after.includes(message)),
+      })),
+    ),
+    reply: after
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) =>
+        message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])),
+      )
+      .join("\n"),
+  };
+}
+
+/** The wake said the user stopped t1, and the chat told them so. */
+const toldOfTheStop: Assertion = {
+  check: async (ctx: Context) => {
+    const text = "woke on the user's stop and said the task was stopped";
+    const after = afterTheStop(ctx.sessions);
+    const [task] = await listChildTasks(ctx.chatId);
+    if (!after) {
+      return fail(text, `no stop note; t1 stopped by ${task?.stoppedBy ?? "nobody"}`);
+    }
+    const said = /\bstop/i.test(after.reply);
+    return (said && task?.stoppedBy === "user" ? pass : fail)(
+      text,
+      `t1 stopped by ${task?.stoppedBy ?? "nobody"}; reply: ${after.reply.slice(0, 200) || "(none)"}`,
+    );
+  },
+  text: "woke on the user's stop and said the task was stopped",
+};
+
+/** Nothing the user stopped was started again. */
+const leftItStopped: Assertion = {
+  check: (ctx: Context) => {
+    const text = "started nothing again after the stop";
+    const after = afterTheStop(ctx.sessions);
+    const restarted = (after?.commands ?? []).filter((command) =>
+      /(?:^|[\n;&|])\s*task (?:new|send)\b/.test(command),
+    );
+    return (restarted.length === 0 ? pass : fail)(
+      text,
+      restarted.join(" | ") || "no task new or send",
+    );
+  },
+  text: "started nothing again after the stop",
+};
+
 export const TASK_SESSION_EVALS = [
   defineEval({
     assertions: [
@@ -224,5 +295,13 @@ export const TASK_SESSION_EVALS = [
       screen: "browser",
       url: PAGE,
     },
+  }),
+  defineEval({
+    assertions: [startedOneTaskAsT1, toldOfTheStop, leftItStopped],
+    followUps: [{ afterMs: 20_000, stopTask: "t1" }],
+    kind: "chat",
+    name: "task-session-user-stop",
+    prompt:
+      "Start a background task for this, please: write twenty haiku about tea, one at a time, checking each one's syllable counts before the next, and save them as tea-haiku.md in the workspace folder.",
   }),
 ];

@@ -69,6 +69,7 @@ export function TaskPage({
           isWorking={task.stoppable}
           key={sessionId}
           sessionId={sessionId}
+          stoppedBy={task.stoppable ? undefined : task.stoppedBy}
         />
       </div>
     </div>

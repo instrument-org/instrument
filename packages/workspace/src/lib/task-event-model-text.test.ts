@@ -235,4 +235,29 @@ describe("taskEventModelNote", () => {
       </instrument-system-note>"
     `);
   });
+
+  it("says the user stopped a task, and that it stays stopped", () => {
+    const note = taskEventModelNote({
+      events: [
+        {
+          activeMs: 42_000,
+          ended: "Stopped while reading the vault",
+          handle: "t1",
+          status: "done",
+          stoppedBy: "user",
+          sessionId: TASK_ID,
+          title: "Audit the vault",
+          tokens: 12_000,
+        },
+      ],
+    });
+    expect(note).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      The user stopped a task you created:
+      - t1 ("Audit the vault") was stopped by the user while reading the vault and did not finish (42 seconds of work, 12K tokens so far). Leave it stopped unless they ask for it again.
+      Nobody typed anything; this note is why you are awake.
+      </instrument-system-note>"
+    `);
+  });
 });

@@ -74,6 +74,12 @@ export namespace Session {
      * in. Absent on the chat's own session.
      */
     status: z.enum(["done", "failed", "running", "waiting"]).optional(),
+    /**
+     * Who ended a task's last turn with a stop: the user, from the task or
+     * the chat's Stop, or the chat's agent with `task stop`. Absent when
+     * the turn ended on its own, and on the chat's own session.
+     */
+    stoppedBy: z.enum(["chat", "user"]).optional(),
     title: z.string(),
     /**
      * When the chat's title stopped being the app's to change: its one

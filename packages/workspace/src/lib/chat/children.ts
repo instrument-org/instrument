@@ -18,6 +18,8 @@ export const ChatTaskSchema = z.object({
   handle: z.string(),
   id: StoreId.SessionSchema,
   status: z.enum(["done", "failed", "running", "waiting"]).optional(),
+  /** Who stopped its last turn, when a stop ended it. */
+  stoppedBy: z.enum(["chat", "user"]).optional(),
   title: z.string(),
   updatedAt: z.date(),
 });
@@ -133,7 +135,7 @@ export function isTaskSession(
 export function touchTask(
   chatId: ChatId,
   sessionId: StoreId.Session,
-  changes: Pick<Session.Type, "status"> = {},
+  changes: Pick<Session.Type, "status" | "stoppedBy"> = {},
 ): Promise<void> {
   return taskWrites(sessionId, async () => {
     const session = await Store.getSession(sessionId, chatId);
@@ -157,6 +159,7 @@ function taskOf(chatId: ChatId, session: Session.Type): ChatTask {
     handle: session.handle ?? session.id,
     id: session.id,
     ...(session.status ? { status: session.status } : {}),
+    ...(session.stoppedBy ? { stoppedBy: session.stoppedBy } : {}),
     title: session.title,
     updatedAt: session.updatedAt ?? session.createdAt,
   };

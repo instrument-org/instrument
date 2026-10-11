@@ -485,6 +485,13 @@ export namespace SessionMessageDataPart {
            */
           status: z.enum(["done", "error", "overdue"]),
           /**
+           * Set when the user stopped the task, from its page or the chat's
+           * task list: the turn did not finish, and it is not the chat's to
+           * start again unless the user asks. A stop the chat made itself
+           * wakes nothing.
+           */
+          stoppedBy: z.literal("user").optional(),
+          /**
            * The activities the child's agent set this turn, oldest first and
            * capped to the latest few. On an overdue event, so the conversation
            * reads where the task has been going rather than one snapshot.

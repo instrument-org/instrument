@@ -1,6 +1,6 @@
 # Plan: an AI usage panel in Settings
 
-Status: spiked. Capture, store, RPC and the Settings section are built and checked against real requests; the open items are listed under "Known gaps".
+Status: landed. Capture, store, RPC and the Settings section are built and checked against real requests; what is left is listed under "Known gaps".
 
 ## Problem
 

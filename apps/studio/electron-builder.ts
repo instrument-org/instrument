@@ -139,7 +139,7 @@ const config: Configuration = {
     {
       filter: ["**/*"],
       from: "../../packages/workspace/templates/default",
-      to: "default-task-template",
+      to: "chat-template",
     },
     {
       filter: ["**/*.json"],

@@ -17,7 +17,7 @@ export function createStubWorkspaceConfig({
 }: {
   // For the parts a script actually exercises. The defaults below point at
   // paths that need only be well-formed, not real; a script that creates tasks
-  // has to supply a real `defaultTaskTemplateDir`, for one.
+  // has to supply a real `chatTemplateDir`, for one.
   overrides?: Partial<WorkspaceConfig>;
   rootDir?: string;
   tasksDir: string;
@@ -36,8 +36,8 @@ export function createStubWorkspaceConfig({
     captureException: () => {
       return;
     },
-    defaultTaskTemplateDir: AbsolutePathSchema.parse(
-      path.join(absoluteRootDir, "default-task-template"),
+    chatTemplateDir: AbsolutePathSchema.parse(
+      path.join(absoluteRootDir, "chat-template"),
     ),
     getAIProviderConfigs: () => [],
     // On for the dev harnesses, which exist to exercise the real thing. The

@@ -50,7 +50,7 @@ import { getRegistryDir } from "./registry-dir";
 import { quitExitCode } from "./relaunch";
 import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
 
-const DEFAULT_TASK_TEMPLATE_DIR_NAME = "default-task-template";
+const CHAT_TEMPLATE_DIR_NAME = "chat-template";
 const SYSTEM_SKILLS_DIR_NAME = "system-skills";
 
 /**
@@ -59,7 +59,7 @@ const SYSTEM_SKILLS_DIR_NAME = "system-skills";
  * whole grace period does not spend the other two's budget as well.
  */
 const QUIT_TEARDOWN_SLACK_MS = ms("2 seconds");
-const UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR = path.resolve(
+const UNPACKAGED_CHAT_TEMPLATE_DIR = path.resolve(
   import.meta.dirname,
   "../../../../packages/workspace/templates/default",
 );
@@ -137,9 +137,9 @@ export function createWorkspaceActor() {
       browser: browserViewManager.browser,
       captureEvent: captureServerEvent,
       captureException: captureServerException,
-      defaultTaskTemplateDir: app.isPackaged
-        ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
-        : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
+      chatTemplateDir: app.isPackaged
+        ? path.join(process.resourcesPath, CHAT_TEMPLATE_DIR_NAME)
+        : UNPACKAGED_CHAT_TEMPLATE_DIR,
       ensureOutputFolderIcon,
       macHelperBinPath: macHelperBinPath(),
       getAIProviderConfigs,

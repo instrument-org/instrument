@@ -64,8 +64,8 @@ export function buildReportWorkspaceConfig(
     captureException: () => {
       return;
     },
-    defaultTaskTemplateDir: AbsolutePathSchema.parse(
-      path.join(absoluteWorkspaceDir, "default-task-template"),
+    chatTemplateDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, "chat-template"),
     ),
     getAIProviderConfigs: () => [],
     isExternalBrowserEnabled: () => true,

@@ -145,8 +145,8 @@ setWorkspaceConfig({
   captureException: () => {
     return;
   },
-  defaultTaskTemplateDir: AbsolutePathSchema.parse(
-    path.join(rootDir, "default-task-template"),
+  chatTemplateDir: AbsolutePathSchema.parse(
+    path.join(rootDir, "chat-template"),
   ),
   getAIProviderConfigs: () => [],
   isExternalBrowserEnabled: () => true,

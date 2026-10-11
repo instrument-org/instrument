@@ -523,7 +523,7 @@ export async function runEvals(
       captureException: (...args: unknown[]) => {
         console.error("captureException", ...args);
       },
-      defaultTaskTemplateDir: path.resolve(
+      chatTemplateDir: path.resolve(
         import.meta.dirname,
         "../templates/default",
       ),

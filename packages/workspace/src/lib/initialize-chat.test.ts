@@ -40,7 +40,7 @@ describe("initializeChat", () => {
         path.join(rootDir, "workspace", "chats"),
       ),
       rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
-      defaultTaskTemplateDir: AbsolutePathSchema.parse(
+      chatTemplateDir: AbsolutePathSchema.parse(
         path.resolve(import.meta.dirname, "../../templates/default"),
       ),
     });
@@ -153,7 +153,7 @@ describe("ensureWorkFolder", () => {
   it("scaffolds a chat that holds only its record, and leaves a scaffolded one alone", async () => {
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
-      defaultTaskTemplateDir: AbsolutePathSchema.parse(
+      chatTemplateDir: AbsolutePathSchema.parse(
         path.resolve(import.meta.dirname, "../../templates/default"),
       ),
       chatsDir: AbsolutePathSchema.parse(

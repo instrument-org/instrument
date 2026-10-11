@@ -27,7 +27,7 @@ beforeEach(async () => {
   trashed = [];
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    defaultTaskTemplateDir: AbsolutePathSchema.parse(
+    chatTemplateDir: AbsolutePathSchema.parse(
       path.join(rootDir, "template"),
     ),
     chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),

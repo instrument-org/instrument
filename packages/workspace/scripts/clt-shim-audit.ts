@@ -130,7 +130,7 @@ async function installSkill({
   // The scaffold initializeTask lays down. `work/` has to arrive from the
   // template: its package.json and pnpm-workspace.yaml are what make the
   // skill's own `pnpm install` a nested workspace install rather than an error.
-  await fs.cp(getWorkspaceConfig().defaultTaskTemplateDir, dir, {
+  await fs.cp(getWorkspaceConfig().chatTemplateDir, dir, {
     force: false,
     recursive: true,
   });
@@ -433,7 +433,7 @@ for (const mode of args.modes) {
 
   setWorkspaceConfig({
     ...createStubWorkspaceConfig({ tasksDir: path.join(root, "tasks") }),
-    defaultTaskTemplateDir: AbsolutePathSchema.parse(
+    chatTemplateDir: AbsolutePathSchema.parse(
       path.join(repoRoot, "packages/workspace/templates/default"),
     ),
     pnpmBinPath,

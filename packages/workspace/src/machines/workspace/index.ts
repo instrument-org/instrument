@@ -365,7 +365,7 @@ export const workspaceMachine = setup({
       browser: BrowserConfig;
       captureEvent: CaptureEventFunction;
       captureException: CaptureExceptionFunction;
-      defaultTaskTemplateDir: string;
+      chatTemplateDir: string;
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
@@ -398,8 +398,8 @@ export const workspaceMachine = setup({
       browser: input.browser,
       captureEvent: input.captureEvent,
       captureException: input.captureException,
-      defaultTaskTemplateDir: AbsolutePathSchema.parse(
-        input.defaultTaskTemplateDir,
+      chatTemplateDir: AbsolutePathSchema.parse(
+        input.chatTemplateDir,
       ),
       getAIProviderConfigs: input.getAIProviderConfigs,
       ...(input.ensureOutputFolderIcon

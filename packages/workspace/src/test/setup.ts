@@ -55,8 +55,8 @@ setWorkspaceConfig({
   },
   captureEvent: noop,
   captureException: noop,
-  defaultTaskTemplateDir: AbsolutePathSchema.parse(
-    path.join(rootDir, "default-task-template"),
+  chatTemplateDir: AbsolutePathSchema.parse(
+    path.join(rootDir, "chat-template"),
   ),
   getAIProviderConfigs: () => [],
   isExternalBrowserEnabled: () => false,

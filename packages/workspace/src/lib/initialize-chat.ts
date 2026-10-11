@@ -126,7 +126,7 @@ function scaffoldWorkFolder(dir: ChatDir, workspaceConfig: WorkspaceConfig) {
   return safeTry(async function* () {
     yield* copyChatFolder({
       includePrivateFolder: false,
-      sourceDir: workspaceConfig.defaultTaskTemplateDir,
+      sourceDir: workspaceConfig.chatTemplateDir,
       targetDir: dir,
     });
     for (const dirName of [

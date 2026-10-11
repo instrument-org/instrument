@@ -78,7 +78,7 @@ beforeEach(async () => {
   });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    defaultTaskTemplateDir: AbsolutePathSchema.parse(
+    chatTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../../templates/default"),
     ),
     chatsDir: AbsolutePathSchema.parse(

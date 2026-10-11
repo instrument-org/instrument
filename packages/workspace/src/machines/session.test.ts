@@ -420,7 +420,7 @@ describe("sessionMachine", () => {
 
   beforeEach(() => {
     mockFs({
-      [MOCK_WORKSPACE_DIRS.defaultTaskTemplate]: {
+      [MOCK_WORKSPACE_DIRS.chatTemplate]: {
         "package.json": "{}",
       },
       [MOCK_WORKSPACE_DIRS.chats]: {

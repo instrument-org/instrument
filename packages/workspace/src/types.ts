@@ -183,7 +183,7 @@ export interface WorkspaceConfig {
   browser: BrowserConfig;
   captureEvent: CaptureEventFunction;
   captureException: CaptureExceptionFunction;
-  defaultTaskTemplateDir: AbsolutePath;
+  chatTemplateDir: AbsolutePath;
   /** Desktop decoration after the default output folder exists. */
   ensureOutputFolderIcon?: (folderPath: string) => Promise<void>;
   getAIProviderConfigs: GetProviderConfigs;

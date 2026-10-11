@@ -56,7 +56,7 @@ beforeEach(async () => {
       path.join(path.join(rootDir, "workspace"), "chats"),
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
-    defaultTaskTemplateDir: AbsolutePathSchema.parse(
+    chatTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../templates/default"),
     ),
   });

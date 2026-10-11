@@ -57,7 +57,7 @@ import {
 // workspace, not inside it, as a user's own folders are.
 const FOLDERS_DIR_NAME = "folders";
 
-const DEFAULT_TASK_TEMPLATE_DIR = path.resolve(
+const CHAT_TEMPLATE_DIR = path.resolve(
   import.meta.dirname,
   "../../templates/default",
 );
@@ -101,8 +101,8 @@ export async function seedWorkspace({
     overrides: {
       // The one stub path the seeder reads through rather than merely names:
       // task creation copies this template into every task it makes.
-      defaultTaskTemplateDir: AbsolutePathSchema.parse(
-        DEFAULT_TASK_TEMPLATE_DIR,
+      chatTemplateDir: AbsolutePathSchema.parse(
+        CHAT_TEMPLATE_DIR,
       ),
     },
     rootDir,
@@ -433,7 +433,7 @@ function seedLegacyTaskFolder({
   const dir = placeChat(id, sessionId);
   return copyChatFolder({
     includePrivateFolder: false,
-    sourceDir: workspaceConfig.defaultTaskTemplateDir,
+    sourceDir: workspaceConfig.chatTemplateDir,
     targetDir: dir,
   }).andThen(() =>
     updateChatSettings(id, {

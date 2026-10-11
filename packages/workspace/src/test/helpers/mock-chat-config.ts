@@ -43,7 +43,7 @@ import { StoreId } from "../../schemas/store-id";
 const MOCK_WORKSPACE_DIR = "/tmp/workspace";
 
 export const MOCK_WORKSPACE_DIRS = {
-  defaultTaskTemplate: `${MOCK_WORKSPACE_DIR}/default-task-template`,
+  chatTemplate: `${MOCK_WORKSPACE_DIR}/chat-template`,
   registry: `${MOCK_WORKSPACE_DIR}/registry`,
   systemSkills: `${MOCK_WORKSPACE_DIR}/system-skills`,
   chats: `${MOCK_WORKSPACE_DIR}/${CHATS_DIR_NAME}`,
@@ -126,8 +126,8 @@ export function createMockChatConfig(
     captureException: (...args: unknown[]) => {
       console.error("captureException", args);
     },
-    defaultTaskTemplateDir: AbsolutePathSchema.parse(
-      MOCK_WORKSPACE_DIRS.defaultTaskTemplate,
+    chatTemplateDir: AbsolutePathSchema.parse(
+      MOCK_WORKSPACE_DIRS.chatTemplate,
     ),
     getAIProviderConfigs: () => [...mockProviderConfigs.values()],
     // Off by default, as it ships: a test that wants the external-browser path

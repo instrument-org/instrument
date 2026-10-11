@@ -47,7 +47,8 @@ type FacetField =
 
 const PAGE_SIZE = 100;
 const ROW_HEIGHT = 36;
-const COLUMNS = "grid-cols-[112px_118px_116px_minmax(0,1fr)_132px_52px_60px]";
+const COLUMNS =
+  "grid-cols-[112px_118px_116px_minmax(0,1fr)_150px_64px_52px_60px]";
 
 const KIND_LABELS: Record<Row["kind"], string> = {
   decision: "Decision model",
@@ -153,6 +154,25 @@ function shortModel(id: null | string) {
   return id?.split("/").at(-1) ?? "";
 }
 
+/**
+ * A model's name as the model picker shows it, or its short id for one the
+ * catalog does not list (a decision model, or one no longer offered).
+ */
+function useModelName() {
+  const { data } = useQuery(
+    rpcClient.gateway.models.live.list.experimental_liveOptions(),
+  );
+  const names = new Map<string, string>();
+  for (const model of data?.models ?? []) {
+    names.set(model.canonicalId, model.name);
+    names.set(shortModel(model.canonicalId), model.name);
+  }
+  return (id: null | string) =>
+    id === null
+      ? ""
+      : (names.get(id) ?? names.get(shortModel(id)) ?? shortModel(id));
+}
+
 function originOf(row: Row) {
   if (row.chatId) {
     return row.chatTitle ?? "Deleted chat";
@@ -244,6 +264,7 @@ function UsageLog({
     queryKey: ["ai-usage", "list", filter, sort],
   });
   const rows = pages.data?.pages.flat() ?? [];
+  const modelName = useModelName();
   const filtered =
     FIELDS.some((field) => (filter[field]?.length ?? 0) > 0) ||
     filter.since !== undefined;
@@ -274,7 +295,7 @@ function UsageLog({
         return KIND_LABELS[value as Row["kind"]] ?? value; // a facet value is one of the stored kinds
       }
       case "model": {
-        return shortModel(value);
+        return modelName(value);
       }
       case "origin": {
         if (value.startsWith("surface:")) {
@@ -301,10 +322,10 @@ function UsageLog({
     <div className="flex min-h-0 flex-1 flex-col gap-5">
       <div
         className="flex shrink-0 items-start gap-4"
-        {...settingAnchor("ai-usage")}
+        {...settingAnchor("usage")}
       >
         <div className="min-w-0 flex-1">
-          <h3 className="text-base font-semibold">AI usage</h3>
+          <h3 className="text-base font-semibold">Usage</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             {`Every request ${APP_NAME} sends to an AI shows up here, with the model that answered and the tokens it used. We keep these details on your computer, but we don't keep what was said.`}
           </p>
@@ -502,6 +523,7 @@ function LogTable({
   sort: Sort;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const modelName = useModelName();
   // Every row is one line at a fixed height, so nothing is measured and the
   // window's zoom has nothing to throw off.
   const virtualizer = useVirtualizer({
@@ -560,6 +582,7 @@ function LogTable({
         ))}
         <span>Origin</span>
         {header("model", "Model")}
+        <span>Result</span>
         {header("totalTokens", "Tokens", true)}
         {header("durationMs", "Duration", true)}
       </div>
@@ -590,16 +613,7 @@ function LogTable({
                   {dateFormat.format(row.startedAt)}
                 </span>
                 <span className="truncate">{KIND_LABELS[row.kind]}</span>
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate">
-                    {PURPOSE_LABELS[row.purpose]}
-                  </span>
-                  {row.status === "finished" ? null : (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {STATUS_LABELS[row.status]}
-                    </span>
-                  )}
-                </span>
+                <span className="truncate">{PURPOSE_LABELS[row.purpose]}</span>
                 <span
                   className={cn(
                     "truncate text-muted-foreground",
@@ -610,7 +624,17 @@ function LogTable({
                 </span>
                 <span className="flex min-w-0 items-center gap-1.5">
                   <ConnectionMark type={row.connectionType} />
-                  <span className="truncate">{shortModel(modelOf(row))}</span>
+                  <span className="truncate">{modelName(modelOf(row))}</span>
+                </span>
+                <span
+                  className={cn(
+                    "truncate",
+                    row.status === "failed"
+                      ? "text-destructive"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {STATUS_LABELS[row.status]}
                 </span>
                 <span className="text-right text-muted-foreground tabular-nums">
                   {row.totalTokens === null
@@ -650,7 +674,7 @@ function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
           type="button"
         >
           <ArrowLeftIcon className="size-4" />
-          AI usage
+          Usage
         </button>
         <span className="flex-1" />
         {row?.chatId && row.chatTitle && open ? (

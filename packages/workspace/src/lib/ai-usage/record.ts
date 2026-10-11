@@ -8,6 +8,7 @@ import {
   type Telemetry,
   type TelemetryOptions,
 } from "ai";
+import { APP_NAME, OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
@@ -70,7 +71,10 @@ export function recordAIUsage(
     insertAIUsage({
       chatId: call.chatId ?? null,
       connectionId: call.connection?.id ?? null,
-      connectionName: call.connection?.displayName ?? null,
+      // Our own connection carries no name, so it goes by the app's.
+      connectionName:
+        call.connection?.displayName ??
+        (call.connection?.type === OUR_PROVIDER_CONFIG.type ? APP_NAME : null),
       connectionType: call.connection?.type ?? null,
       kind: call.kind ?? "language",
       purpose: call.purpose,

@@ -59,7 +59,8 @@ const ORIGIN =
   "CASE WHEN chat_id IS NOT NULL THEN 'chat:' || chat_id WHEN surface IS NOT NULL THEN 'surface:' || surface END";
 
 const FACET_EXPRESSIONS: Record<AIUsageFacet, string> = {
-  connection: "connection_type",
+  // A connection by the name Providers shows it under, or its kind when it has none.
+  connection: "COALESCE(connection_name, connection_type)",
   kind: "kind",
   model: MODEL,
   origin: ORIGIN,

@@ -114,10 +114,10 @@ export const SETTINGS_INDEX = [
   },
   {
     detail: `Every request ${APP_NAME} sends to an AI, with its model, tokens, and time`,
-    id: "ai-usage",
+    id: "usage",
     page: true,
-    tab: "AI usage",
-    title: "AI usage",
+    tab: "Usage",
+    title: "Usage",
   },
   {
     detail: "Ask for a skill that teaches a new way of working.",
@@ -214,7 +214,7 @@ export const SETTINGS_PAGES: Record<
   Providers: {
     detail: `The AI models ${APP_NAME} can use: your ChatGPT or Claude plan, or a provider you add with your own key.`,
   },
-  "AI usage": {
+  Usage: {
     detail: `Every request ${APP_NAME} made to an AI model, which you can filter, sort, and export.`,
   },
   Skills: {

@@ -469,7 +469,7 @@ function SettingsSectionBody({
   tab: SettingsTab;
 }) {
   switch (tab) {
-    case "AI usage": {
+    case "Usage": {
       return <AIUsageSection />;
     }
     case "Debug": {
@@ -525,8 +525,8 @@ function useNavItems(): NavItem[] {
     },
     {
       icon: PulseIcon,
-      tab: "AI usage",
-      title: "AI usage",
+      tab: "Usage",
+      title: "Usage",
     },
     {
       icon: CubeIcon,

@@ -219,11 +219,7 @@ function NoticeItem({
         <p className="mt-0.5 text-xs text-muted-foreground">{notice.body}</p>
         <div className="mt-2 flex gap-1.5">
           {notice.action && (
-            <Button
-              onClick={onAction}
-              size="xs"
-              variant="outline"
-            >
+            <Button onClick={onAction} size="xs" variant="outline">
               {notice.action.label}
             </Button>
           )}

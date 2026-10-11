@@ -9,23 +9,14 @@ import {
 } from "ai";
 import { alphabetical } from "radashi";
 
-import { type MountedFolder } from "../schemas/mounted-folder";
 import { type Session } from "../schemas/session";
 import { SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
-import { folderMountPoint } from "./folder-mounts";
-import { buildFoldersText } from "./build-folders-text";
-import {
-  buildProjectContextText,
-  projectFoldersIntro,
-} from "./build-project-context-text";
-import { getEffectiveProjectContext } from "./effective-project-context";
 import { isUntitledChatSessionTitle } from "./generate-session-title";
 import { isToolPart } from "./is-tool-part";
-import { normalizeProjectInstructions } from "./project-instructions";
 import { Store } from "./store";
 import { chatDir } from "./record-folders";
 import { getChatSettings } from "./chat-settings";
@@ -329,14 +320,6 @@ export async function sessionToMarkdown(
       "> These are the latest context messages retained for this session. Context can be refreshed during long sessions, so this snapshot may differ from context used by earlier responses. Turn-level injected context is reconstructed by the currently running app version.",
       "",
     );
-  }
-
-  const projectContextLines = renderProjectContext(
-    rootSession,
-    includeContextMessages,
-  );
-  if (projectContextLines.length > 0) {
-    parts.push(...projectContextLines, "");
   }
 
   let userTurn = 0;
@@ -978,107 +961,6 @@ function renderPersistedAssistantParts(
   }
 
   return lines;
-}
-
-// Reproduces, verbatim, the standing project-context blocks the agent receives
-// for a task started from a project (instructions + folder-handling guidance),
-// using the same builders as the agent so the transcript stays truthful. Sourced
-// from the raw session parts because data parts are stripped from the model
-// messages the rest of the transcript renders from. Skipped when full context
-// messages are included, since the real blocks are already rendered there.
-function renderProjectContext(
-  session: Session.WithMessagesAndParts,
-  includeContextMessages: boolean,
-): string[] {
-  if (includeContextMessages) {
-    return [];
-  }
-
-  const allParts = session.messages.flatMap((message) => message.parts);
-
-  const projectPart = allParts.find(
-    (part) => part.type === "data-projectContext",
-  );
-  if (!projectPart) {
-    return [];
-  }
-
-  // Fold project-folder names from the creation snapshot with later
-  // `data-projectChanges` additions/removals and `data-folderChanges`
-  // renames so the list matches what the agent currently sees, keyed by path
-  // so removals/renames touch the right entry.
-  const projectFoldersByPath = new Map<
-    string,
-    { access: MountedFolder.Access; name: string }
-  >();
-  for (const part of allParts) {
-    switch (part.type) {
-      case "data-folderChanges": {
-        for (const folder of part.data.renamed) {
-          const current = projectFoldersByPath.get(folder.path);
-          if (current) {
-            projectFoldersByPath.set(folder.path, {
-              ...current,
-              name: folder.newName,
-            });
-          }
-        }
-        break;
-      }
-      case "data-projectChanges": {
-        for (const folder of part.data.foldersRemoved) {
-          projectFoldersByPath.delete(folder.path);
-        }
-        for (const folder of part.data.foldersAdded) {
-          projectFoldersByPath.set(folder.path, {
-            access: folder.access,
-            name: folder.name,
-          });
-        }
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  }
-  const projectFolders = [...projectFoldersByPath.entries()].map(
-    ([path, folder]) => ({ ...folder, path }),
-  );
-
-  const blocks: string[] = [];
-
-  const effective = getEffectiveProjectContext(allParts);
-  // Capped the same way the session context is, so the transcript reproduces
-  // what the agent was given rather than the whole file behind it.
-  const instructions = normalizeProjectInstructions(
-    effective?.instructions ?? "",
-  );
-  blocks.push(
-    buildProjectContextText({
-      instructions,
-      name: projectPart.data.projectName,
-    }),
-  );
-
-  if (projectFolders.length > 0) {
-    blocks.push(
-      buildFoldersText({
-        folders: projectFolders.map(({ access, name, path }) => ({
-          access,
-          mountPoint: folderMountPoint(name),
-          path,
-        })),
-        intro: projectFoldersIntro(projectPart.data.projectName),
-      }),
-    );
-  }
-
-  if (blocks.length === 0) {
-    return [];
-  }
-
-  return ["## Project Context", "", fenceText(blocks.join("\n\n"), "xml")];
 }
 
 function renderSystemMessage(

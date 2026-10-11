@@ -30,7 +30,6 @@ import { isToolPart } from "../../lib/is-tool-part";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { memoryModelNote } from "../../lib/memory-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
-import { projectChangesModelNote } from "../../lib/project-changes-model-text";
 import { replyModelNote } from "../../lib/reply-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
 import { taskEventModelNote } from "../../lib/task-event-model-text";
@@ -469,20 +468,6 @@ export namespace SessionMessage {
         );
         if (folderChangesPart) {
           const note = folderChangesModelNote(folderChangesPart.data);
-          if (note) {
-            injectedParts.push({ text: note, type: "text" });
-          }
-        }
-
-        const projectChangesPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-projectChanges";
-          } => part.type === "data-projectChanges",
-        );
-        if (projectChangesPart) {
-          const note = projectChangesModelNote(projectChangesPart.data);
           if (note) {
             injectedParts.push({ text: note, type: "text" });
           }

@@ -9,7 +9,6 @@ import {
 import {
   AbsolutePathSchema,
   MountedFolder,
-  ProjectIdSchema,
   RelativePathSchema,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
@@ -149,13 +148,3 @@ export function platformFailure({
   };
 }
 
-/**
- * The project a task was started from, frozen onto its first message.
- *
- * Written out rather than minted, since a project id carries a timestamp and a
- * freshly minted one would make a scenario read differently every time it was
- * built.
- */
-export const PROJECT_ID = ProjectIdSchema.parse(
-  "prj_01H8XGJWBWBAQ4ZQ9NG0R8FZ0G",
-);

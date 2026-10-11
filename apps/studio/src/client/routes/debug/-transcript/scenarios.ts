@@ -7,7 +7,6 @@ import {
   folder,
   OUR_MODEL,
   platformFailure,
-  PROJECT_ID,
 } from "./parts";
 import {
   type Act,
@@ -1322,27 +1321,6 @@ done`,
             ],
           },
           type: "data-attachments",
-        },
-        {
-          data: {
-            instructions: "Prefer Tailwind utilities.",
-            projectId: PROJECT_ID,
-            projectName: "Marketing Site",
-          },
-          type: "data-projectContext",
-        },
-        {
-          data: {
-            foldersAdded: [
-              { access: "read-only", name: "assets", path: "/tmp/assets" },
-            ],
-            foldersRemoved: [],
-            instructions: "Prefer Tailwind utilities. Keep copy concise.",
-            instructionsChanged: true,
-            projectId: PROJECT_ID,
-            projectName: "Marketing Site",
-          },
-          type: "data-projectChanges",
         },
         { data: { names: ["wireframe"] }, type: "data-skillMentions" },
         {

@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import { MountedFolder } from "../mounted-folder";
 import { RelativePathSchema } from "../paths";
-import { ProjectIdSchema } from "../project-id";
 import { StoreId } from "../store-id";
 
 export namespace SessionMessageDataPart {
@@ -12,12 +11,11 @@ export namespace SessionMessageDataPart {
    *
    * - **Event**: something that happened on this turn -- `asks`,
    *   `attachments`, `contextRollover`, `fromChat`, `intent`, `maxSteps`, `reply`,
-   *   `skillChanges`, `skillMentions`, and `projectContext` and
-   *   `chatContext`, which is written once at creation. A repeat is
-   *   impossible by construction; nothing to guard.
-   * - **Diff**: what changed since last time -- `projectChanges`,
-   *   `folderChanges`, `modelChange`. Self-limiting: no change, no
-   *   part.
+   *   `skillChanges`, `skillMentions`, and `chatContext`, which is written
+   *   once at creation. A repeat is impossible by construction; nothing to
+   *   guard.
+   * - **Diff**: what changed since last time -- `folderChanges`,
+   *   `modelChange`. Self-limiting: no change, no part.
    * - **State**: the whole current picture -- `backgroundProcesses`,
    *   `browserStatus`, `memory`, `chatTopics`, `viewContext`.
    *   These are the ones that will restate an unchanged fact on every single
@@ -50,8 +48,6 @@ export namespace SessionMessageDataPart {
     "memory",
     "messageGap",
     "modelChange",
-    "projectChanges",
-    "projectContext",
     "reply",
     "taskEvent",
     "chatContext",
@@ -116,45 +112,6 @@ export namespace SessionMessageDataPart {
 
   export type FileAttachmentsDataPart = z.output<
     typeof FileAttachmentsDataPartSchema
-  >;
-
-  // Project identity and instructions snapshotted onto the first message when a
-  // task is created from a project. Frozen at creation, so later project edits
-  // or deletion don't change the task. Project folders are not listed here; each
-  // attachment carries its own `source` so consumers tell them apart.
-  const ProjectContextDataPartSchema = z.object({
-    instructions: z.string().optional(),
-    projectId: ProjectIdSchema,
-    projectName: z.string(),
-  });
-
-  export type ProjectContextDataPart = z.output<
-    typeof ProjectContextDataPartSchema
-  >;
-
-  // Drift detected between the frozen project snapshot and the live project when
-  // a user message is sent (no live watching: a single read at send time).
-  // Instructions ride along here; added/removed folders are also written to the
-  // task's attached folders so they become standing context. `instructions` is
-  // the new value when `instructionsChanged` is true (omitted when it was
-  // cleared), so the latest such part is the effective project instructions.
-  const ProjectChangesDataPartSchema = z.object({
-    foldersAdded: z.array(
-      z.object({
-        access: MountedFolder.AccessSchema,
-        name: z.string(),
-        path: z.string(),
-      }),
-    ),
-    foldersRemoved: z.array(z.object({ name: z.string(), path: z.string() })),
-    instructions: z.string().optional(),
-    instructionsChanged: z.boolean(),
-    projectId: ProjectIdSchema,
-    projectName: z.string(),
-  });
-
-  export type ProjectChangesDataPart = z.output<
-    typeof ProjectChangesDataPartSchema
   >;
 
   /**
@@ -930,8 +887,6 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.memory]: MemoryDataPartSchema,
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
-    [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
-    [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
     [NameSchema.enum.reply]: ReplyDataPartSchema,
     [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,

@@ -43,7 +43,6 @@ import {
   TranscriptGroup,
   TranscriptGroupHead,
 } from "./message-part/transcript-group";
-import { ProjectContextNote } from "./project-context-note";
 import { SentReplyQuote } from "./reply-quote";
 import {
   type TranscriptExpansion,
@@ -546,7 +545,6 @@ export function ChatStream({
 
       // Attachments are hoisted into per-message chrome below.
       const fileAttachments: SessionMessagePart.Type[] = [];
-      let projectContextPart: SessionMessagePart.DataPart | undefined;
       let replyPart: SessionMessageDataPart.ReplyDataPart | undefined;
       let sentChips: SessionMessageDataPart.SentChip[] = [];
       const seenSourceIds = new Set<string>();
@@ -609,11 +607,6 @@ export function ChatStream({
 
         if (message.role === "user" && part.type === "data-attachments") {
           fileAttachments.push(part);
-          continue;
-        }
-
-        if (message.role === "user" && part.type === "data-projectContext") {
-          projectContextPart = part;
           continue;
         }
 
@@ -718,10 +711,6 @@ export function ChatStream({
             ? fileAttachmentsPart.data
             : undefined;
 
-        const projectData =
-          projectContextPart?.type === "data-projectContext"
-            ? projectContextPart.data
-            : undefined;
         const userFolders = attachmentsData?.folders ?? [];
         const files = attachmentsData?.files ?? [];
 
@@ -750,15 +739,6 @@ export function ChatStream({
         if (sentChips.length > 0) {
           messageElements.unshift(
             <SentChips chips={sentChips} key={`sent-chips-${message.id}`} />,
-          );
-        }
-
-        if (projectData) {
-          messageElements.unshift(
-            <ProjectContextNote
-              data={projectData}
-              key={`project-context-${message.id}`}
-            />,
           );
         }
 

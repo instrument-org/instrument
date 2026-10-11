@@ -17,7 +17,6 @@ import { ChatDevOnly } from "./dev-mode-card";
 import { type RenderPartContext } from "./chat-stream-render-part";
 import { ModelChangeNote } from "./model-change-note";
 import { ModelContextDebugCard } from "./model-context-debug-card";
-import { ProjectChangesNote } from "./project-changes-note";
 import { SkillChangesCard } from "./skill-changes-card";
 import { TaskEventNote } from "./task-event-note";
 import { SentAsksNote } from "./window/ask-pills";
@@ -77,8 +76,6 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // is the user's own choice, so naming the moment it changed describes
   // something they did rather than something our assembly did.
   "data-modelChange": "always",
-  "data-projectChanges": "always",
-  "data-projectContext": "hidden",
   // Drawn by the chat stream over the user's bubble, not in the part's place
   // under it.
   "data-reply": "hidden",
@@ -163,7 +160,6 @@ export function renderDataPart({
       );
     }
     case "data-attachments":
-    case "data-projectContext":
     case "data-reply": {
       return null;
     }
@@ -324,9 +320,6 @@ export function renderDataPart({
     }
     case "data-modelChange": {
       return <ModelChangeNote data={part.data} key={part.metadata.id} />;
-    }
-    case "data-projectChanges": {
-      return <ProjectChangesNote data={part.data} key={part.metadata.id} />;
     }
     case "data-skillChanges": {
       return (

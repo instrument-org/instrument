@@ -172,26 +172,6 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-modelChange": {
       return `<data-modelChange from="${part.data.from.modelId}" to="${part.data.to.modelId}" />`;
     }
-    case "data-projectChanges": {
-      const projectName = ` projectName="${part.data.projectName}"`;
-      const instructions = part.data.instructionsChanged
-        ? ` instructionsChanged`
-        : "";
-      const added =
-        part.data.foldersAdded.length > 0
-          ? ` added="${part.data.foldersAdded.map((folder) => folder.name).join(",")}"`
-          : "";
-      const removed =
-        part.data.foldersRemoved.length > 0
-          ? ` removed="${part.data.foldersRemoved.map((folder) => folder.name).join(",")}"`
-          : "";
-      return `<data-projectChanges${projectName}${instructions}${added}${removed} />`;
-    }
-    case "data-projectContext": {
-      const projectName = ` projectName="${part.data.projectName}"`;
-      const instructions = part.data.instructions ? ` instructions` : "";
-      return `<data-projectContext${projectName}${instructions} />`;
-    }
     case "data-reply": {
       return `<data-reply>${part.data.text}</data-reply>`;
     }

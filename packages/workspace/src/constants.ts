@@ -71,19 +71,6 @@ export const AGENT_MESSAGE_LANGUAGE = "message";
  */
 export const AGENT_NEEDS_LANGUAGE = "needs";
 
-/**
- * Character budget for the project instructions inlined into a task's standing
- * context.
- *
- * The instructions are an `AGENTS.md` the user can paste anything into, and they
- * ride in the session-context message on every turn, so an unbounded one eats
- * the context window before the task starts. Characters rather than tokens for
- * the same reason as the skill catalog's budget: no tokenizer is right for every
- * provider we run against. This is roughly 4,200 tokens of Markdown prose, and
- * closer to 13,000 if the file is written in CJK.
- */
-export const MAX_PROJECT_INSTRUCTIONS_LENGTH = 20_000;
-
 export const TOOL_ACTIVITY_PARAM_NAME = "activity";
 
 export const TOOL_EXPLANATION_PARAM_NAME = "explanation";

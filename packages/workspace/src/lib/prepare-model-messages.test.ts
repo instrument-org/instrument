@@ -637,6 +637,48 @@ describe("prepareModelMessages", () => {
       );
     });
 
+    it("leaves a task's inherited baseline to its chat when rebuilding", async () => {
+      const chatSessionId = sessionId;
+      await save(
+        contextMessage(new Date(), "The prompt the previous build wrote."),
+      );
+      const forkedAt = userMessage("Look into it in the background.");
+      await save(forkedAt);
+      sessionId = StoreId.newSessionId();
+      await Store.saveSession(
+        {
+          createdAt: new Date(),
+          forkedAtMessageId: forkedAt.id,
+          id: sessionId,
+          parentId: chatSessionId,
+          title: "Task",
+        },
+        chatId,
+      );
+      contextMessages = [
+        contextMessage(new Date(), "The prompt this build writes."),
+      ];
+
+      const messages = await prepare();
+
+      expect(JSON.stringify(messages)).toContain(
+        "The prompt this build writes.",
+      );
+      expect(JSON.stringify(messages)).not.toContain(
+        "The prompt the previous build wrote.",
+      );
+      const chatOwn = await Store.getMessagesWithParts({
+        chatId,
+        inherited: false,
+        sessionId: chatSessionId,
+      });
+      expect(
+        chatOwn
+          ._unsafeUnwrap()
+          .filter((message) => message.role === "session-context"),
+      ).toHaveLength(1);
+    });
+
     it("rebuilds a baseline whose system prompt this build no longer writes, once", async () => {
       await save(
         contextMessage(new Date(), "The prompt the previous build wrote."),

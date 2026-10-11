@@ -292,8 +292,12 @@ export async function prepareModelMessages({
   if (contextMessages.length === 0 || hasOutdatedBaseline) {
     // Replaced rather than added to: two baselines in the store are two
     // baselines in every later request, and the superseded one would keep being
-    // sent for the rest of the session.
-    for (const message of contextMessages) {
+    // sent for the rest of the session. A task's inherited baseline belongs to
+    // its chat, which replaces it on its own next turn, so only this session's
+    // own are removed.
+    for (const message of contextMessages.filter(
+      (message) => message.metadata.sessionId === sessionId,
+    )) {
       const removeResult = await Store.removeMessage(
         message.id,
         message.metadata.sessionId,

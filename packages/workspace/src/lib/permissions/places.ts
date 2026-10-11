@@ -86,6 +86,8 @@ const PASSWORD_PLACES = [
   "AppData/Local/Microsoft/Edge/User Data",
   "AppData/Local/BraveSoftware/Brave-Browser/User Data",
   "AppData/Roaming/Mozilla/Firefox",
+  "AppData/Local/Vivaldi/User Data",
+  "AppData/Roaming/Opera Software",
 ];
 
 /**

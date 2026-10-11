@@ -68,6 +68,12 @@ const FACET_EXPRESSIONS: Record<AIUsageFacet, string> = {
   status: "status",
 };
 
+// The facets whose values are shown with their connection's mark.
+const FACETS_WITH_CONNECTION_TYPE = new Set<AIUsageFacet>([
+  "connection",
+  "model",
+]);
+
 const SORT_EXPRESSIONS: Record<AIUsageSort["column"], string> = {
   durationMs: "duration_ms",
   kind: "kind",
@@ -298,6 +304,13 @@ export function getAIUsage(id: string): AIUsageRow | undefined {
   return row ? AIUsageRowSchema.parse(row) : undefined;
 }
 
+type FacetEntry = {
+  count: number;
+  /** The connection kind behind a model or connection value, for its mark. */
+  connectionType?: null | string;
+  value: string;
+};
+
 /**
  * The totals under the filters, and for each field the values it can take
  * with how many rows have each, counted under every filter but that field's
@@ -306,11 +319,8 @@ export function getAIUsage(id: string): AIUsageRow | undefined {
 export function summarizeAIUsage(filter: AIUsageFilter) {
   const db = openStore();
   const facets = Object.fromEntries(
-    AI_USAGE_FACETS.map((facet) => [
-      facet,
-      [] as { count: number; value: string }[],
-    ]),
-  ) as Record<AIUsageFacet, { count: number; value: string }[]>; // filled per facet below
+    AI_USAGE_FACETS.map((facet) => [facet, [] as FacetEntry[]]),
+  ) as Record<AIUsageFacet, FacetEntry[]>; // filled per facet below
   if (!db) {
     return { facets, requests: 0, tokens: 0 };
   }
@@ -328,9 +338,9 @@ export function summarizeAIUsage(filter: AIUsageFilter) {
       : `WHERE ${expression} IS NOT NULL`;
     facets[facet] = db
       .prepare(
-        `SELECT ${expression} AS value, COUNT(*) AS count FROM requests ${scopedWhere} GROUP BY value ORDER BY count DESC, value LIMIT 50`,
+        `SELECT ${expression} AS value, COUNT(*) AS count${FACETS_WITH_CONNECTION_TYPE.has(facet) ? ", MAX(connection_type) AS connectionType" : ""} FROM requests ${scopedWhere} GROUP BY value ORDER BY count DESC, value LIMIT 50`,
       )
-      .all(...scoped.params) as { count: number; value: string }[]; // the two columns selected above
+      .all(...scoped.params) as FacetEntry[]; // the columns selected above
   }
   return { facets, requests: totals.requests, tokens: totals.tokens };
 }

@@ -1336,6 +1336,78 @@ a.cursor-pointer {
   opacity: 1;
 }
 
+/* The same fades for a scroller that cannot hold them as flex items, such as
+   a virtualized table with a sticky header. They stand over the scroller's
+   edges inside a wrapper that carries the same `data-scroll-*` marks, kept up
+   to date by measuring. `--scroll-edge-inset-top` keeps them clear of a header
+   that must stay legible, and `--scroll-edge-surface` is what they fade to. */
+.scroll-edge-fade {
+  --scroll-edge-size: 1.5rem;
+
+  position: absolute;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms;
+}
+
+.scroll-edge-fade[data-edge="start"],
+.scroll-edge-fade[data-edge="end"] {
+  top: var(--scroll-edge-inset-top, 0px);
+  bottom: 0;
+  width: var(--scroll-edge-size);
+}
+
+.scroll-edge-fade[data-edge="top"],
+.scroll-edge-fade[data-edge="bottom"] {
+  right: 0;
+  left: 0;
+  height: var(--scroll-edge-size);
+}
+
+.scroll-edge-fade[data-edge="start"] {
+  left: 0;
+  background: linear-gradient(
+    to right,
+    var(--scroll-edge-surface, var(--background)),
+    transparent
+  );
+}
+
+.scroll-edge-fade[data-edge="end"] {
+  right: 0;
+  background: linear-gradient(
+    to left,
+    var(--scroll-edge-surface, var(--background)),
+    transparent
+  );
+}
+
+.scroll-edge-fade[data-edge="top"] {
+  top: var(--scroll-edge-inset-top, 0px);
+  background: linear-gradient(
+    to bottom,
+    var(--scroll-edge-surface, var(--background)),
+    transparent
+  );
+}
+
+.scroll-edge-fade[data-edge="bottom"] {
+  bottom: 0;
+  background: linear-gradient(
+    to top,
+    var(--scroll-edge-surface, var(--background)),
+    transparent
+  );
+}
+
+[data-scroll-start] > .scroll-edge-fade[data-edge="start"],
+[data-scroll-end] > .scroll-edge-fade[data-edge="end"],
+[data-scroll-top] > .scroll-edge-fade[data-edge="top"],
+[data-scroll-bottom] > .scroll-edge-fade[data-edge="bottom"] {
+  opacity: 1;
+}
+
 /* Copy and expand, hung off the table's top corner at the trailing end. Where
    the transcript has room beside the table they stand in it, level with the top
    of the header row; where it has none they lift above the header instead,

@@ -3,7 +3,16 @@ import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { settingAnchor } from "@/client/components/settings/settings-index";
+import { CopyButton } from "@/client/components/copy-button";
 import { Button } from "@/client/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/client/components/ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -16,28 +25,30 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { useModalBack } from "@/client/hooks/use-modal-back";
-import {
-  useGesturesFor,
-  useOpenGestures,
-} from "@/client/hooks/use-open-target";
+import { useGesturesFor } from "@/client/hooks/use-open-target";
+import { keptAtom } from "@/client/lib/kept-state";
 import { toast } from "sonner";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCInput, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME, AIProviderTypeSchema } from "@instrument-org/shared";
 import { ArrowDownIcon } from "@phosphor-icons/react/ArrowDown";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
-import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
-import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { FunnelSimpleIcon } from "@phosphor-icons/react/FunnelSimple";
 import { PulseIcon } from "@phosphor-icons/react/Pulse";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  type Column,
+  type ColumnDef,
+  getCoreRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { type ReactNode, useEffect, useState } from "react";
 
 type Filter = RPCInput["workspace"]["aiUsage"]["list"]["filter"];
 type Sort = RPCInput["workspace"]["aiUsage"]["list"]["sort"];
@@ -52,23 +63,9 @@ type FacetField =
 
 const PAGE_SIZE = 100;
 const ROW_HEIGHT = 36;
-/**
- * The log's columns in order, with the width each starts at in layout px.
- * Origin takes what the others leave, so it has no width of its own.
- */
-const COLUMN_WIDTHS = {
-  date: 112,
-  durationMs: 64,
-  kind: 76,
-  model: 150,
-  origin: undefined,
-  purpose: 116,
-  status: 64,
-  totalTokens: 60,
-} as const;
-type ColumnKey = keyof typeof COLUMN_WIDTHS;
-type Widths = Partial<Record<ColumnKey, number>>;
-const COLUMN_ORDER: ColumnKey[] = [
+const MAX_COLUMN_WIDTH = 640;
+
+const COLUMN_IDS = [
   "date",
   "kind",
   "purpose",
@@ -77,27 +74,110 @@ const COLUMN_ORDER: ColumnKey[] = [
   "status",
   "totalTokens",
   "durationMs",
-];
-const MIN_COLUMN_WIDTH = 44;
-const MIN_ORIGIN_WIDTH = 120;
+] as const;
+type ColumnId = (typeof COLUMN_IDS)[number];
 
-function gridColumns(widths: Widths) {
-  return COLUMN_ORDER.map((key) => {
-    const width = widths[key] ?? COLUMN_WIDTHS[key];
-    return width === undefined
-      ? `minmax(${MIN_ORIGIN_WIDTH}px,1fr)`
-      : `${width}px`;
-  }).join(" ");
+type ColumnSpec = {
+  /** The row field the column reads. */
+  field: keyof Row;
+  label: string;
+  /** The narrowest the column resizes to, in layout px. */
+  min: number;
+  right?: boolean;
+  /** The column the server orders by, for the columns it can order by. */
+  sort?: Sort["column"];
+  /** The width the column starts at, in layout px. */
+  size: number;
+};
+
+const COLUMNS: Record<ColumnId, ColumnSpec> = {
+  date: {
+    field: "startedAt",
+    label: "Date",
+    min: 96,
+    size: 112,
+    sort: "startedAt",
+  },
+  durationMs: {
+    field: "durationMs",
+    label: "Duration",
+    min: 60,
+    right: true,
+    size: 84,
+    sort: "durationMs",
+  },
+  kind: { field: "kind", label: "Type", min: 56, size: 76, sort: "kind" },
+  model: {
+    field: "modelServed",
+    label: "Model",
+    min: 96,
+    size: 150,
+    sort: "model",
+  },
+  origin: { field: "chatId", label: "Origin", min: 96, size: 220 },
+  purpose: {
+    field: "purpose",
+    label: "Purpose",
+    min: 72,
+    size: 116,
+    sort: "purpose",
+  },
+  status: { field: "status", label: "Result", min: 60, size: 76 },
+  totalTokens: {
+    field: "totalTokens",
+    label: "Tokens",
+    min: 56,
+    right: true,
+    size: 76,
+    sort: "totalTokens",
+  },
+};
+
+function isColumnId(value: unknown): value is ColumnId {
+  return COLUMN_IDS.some((id) => id === value);
 }
 
-/** The narrowest the table gets before it scrolls sideways instead. */
-function tableMinWidth(widths: Widths) {
-  return COLUMN_ORDER.reduce(
-    (sum, key) =>
-      sum + (widths[key] ?? COLUMN_WIDTHS[key] ?? MIN_ORIGIN_WIDTH) + 10,
-    24,
-  );
-}
+type ColumnPrefs = {
+  hidden: ColumnId[];
+  widths: Record<string, number>;
+};
+
+/** The columns a person hid and the widths they dragged, kept per viewer. */
+const columnPrefsAtom = keptAtom<ColumnPrefs>(
+  "view",
+  "usage.columns.v1",
+  { hidden: [], widths: {} },
+  (value, initial) => {
+    if (typeof value !== "object" || value === null) {
+      return initial;
+    }
+    const hidden =
+      "hidden" in value && Array.isArray(value.hidden)
+        ? value.hidden.filter(
+            (id): id is ColumnId => isColumnId(id) && id !== "date",
+          )
+        : [];
+    const widths: ColumnPrefs["widths"] = {};
+    if (
+      "widths" in value &&
+      typeof value.widths === "object" &&
+      value.widths !== null
+    ) {
+      for (const [id, width] of Object.entries(value.widths)) {
+        if (
+          isColumnId(id) &&
+          typeof width === "number" &&
+          Number.isFinite(width) &&
+          width >= COLUMNS[id].min &&
+          width <= MAX_COLUMN_WIDTH
+        ) {
+          widths[id] = width;
+        }
+      }
+    }
+    return { hidden, widths };
+  },
+);
 
 const KIND_LABELS: Record<Row["kind"], string> = {
   decision: "Decision",
@@ -138,7 +218,7 @@ const STATUS_LABELS: Record<Row["status"], string> = {
 };
 
 const FIELD_LABELS: Record<FacetField, string> = {
-  connection: "Connection",
+  connection: "Provider",
   kind: "Type",
   model: "Model",
   origin: "Origin",
@@ -251,6 +331,141 @@ function ConnectionMark({ type }: { type: null | string }) {
   );
 }
 
+/** Where a request came from, as a link to it when it is somewhere that still exists. */
+function OriginLink({ row }: { row: Row }) {
+  const gesturesFor = useGesturesFor();
+  const closeSettings = useSetAtom(settingsModalAtom);
+  const href = originHref(row);
+  const gestures = href ? gesturesFor({ href, kind: "screen" }) : undefined;
+  const label = originOf(row);
+  if (!gestures) {
+    return (
+      <span
+        className={cn("truncate", row.chatId && !row.chatTitle && "italic")}
+      >
+        {label}
+      </span>
+    );
+  }
+  return (
+    <button
+      className="flex min-w-0 items-center gap-1 hover:text-foreground hover:underline"
+      onAuxClick={(event) => {
+        event.stopPropagation();
+        gestures.onAuxClick(event);
+      }}
+      onClick={(event) => {
+        event.stopPropagation();
+        gestures.onClick(event);
+        closeSettings(null);
+      }}
+      title={`Open ${label}`}
+      type="button"
+    >
+      <span className="truncate">{label}</span>
+      <ArrowUpRightIcon className="size-3 shrink-0" />
+    </button>
+  );
+}
+
+function ModelLabel({ mark = true, row }: { mark?: boolean; row: Row }) {
+  const modelName = useModelName();
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      {mark ? <ConnectionMark type={row.connectionType} /> : null}
+      {modelOf(row) === null ? (
+        <span className="truncate text-muted-foreground italic">Unknown</span>
+      ) : (
+        <span className="truncate">{modelName(modelOf(row))}</span>
+      )}
+    </span>
+  );
+}
+
+function ProviderLabel({ row }: { row: Row }) {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <ConnectionMark type={row.connectionType} />
+      <span className="truncate">
+        {row.connectionName ?? row.connectionType ?? "Unknown"}
+      </span>
+    </span>
+  );
+}
+
+function ResultText({ row }: { row: Row }) {
+  return (
+    <span className={cn(row.status === "failed" && "text-destructive")}>
+      {STATUS_LABELS[row.status]}
+    </span>
+  );
+}
+
+/** A token count in compact form, with the exact count on hover. */
+function Tokens({
+  count,
+  empty = "",
+}: {
+  count: null | number;
+  empty?: string;
+}) {
+  return count === null ? (
+    empty
+  ) : (
+    <span title={wholeNumber.format(count)}>{compactNumber.format(count)}</span>
+  );
+}
+
+/** What each column shows for a row, in the table and wherever else the same fact appears. */
+const CELLS: Record<ColumnId, (row: Row) => ReactNode> = {
+  date: (row) => (
+    <span className="truncate text-muted-foreground tabular-nums">
+      {dateFormat.format(row.startedAt)}
+    </span>
+  ),
+  durationMs: (row) => (
+    <span className="truncate text-muted-foreground tabular-nums">
+      {formatDuration(row.durationMs)}
+    </span>
+  ),
+  kind: (row) => <span className="truncate">{KIND_LABELS[row.kind]}</span>,
+  model: (row) => <ModelLabel row={row} />,
+  origin: (row) => (
+    <span className="flex min-w-0 text-muted-foreground">
+      <OriginLink row={row} />
+    </span>
+  ),
+  purpose: (row) => (
+    <span className="truncate">{PURPOSE_LABELS[row.purpose]}</span>
+  ),
+  status: (row) => (
+    <span className="truncate text-muted-foreground">
+      <ResultText row={row} />
+    </span>
+  ),
+  totalTokens: (row) => (
+    <span className="truncate text-muted-foreground tabular-nums">
+      <Tokens count={row.totalTokens} />
+    </span>
+  ),
+};
+
+const columnDefs: ColumnDef<Row>[] = COLUMN_IDS.map((id) => {
+  const spec = COLUMNS[id];
+  return {
+    accessorFn: (row) => row[spec.field],
+    cell: ({ row }) => CELLS[id](row.original),
+    enableHiding: id !== "date",
+    enableSorting: spec.sort !== undefined,
+    header: spec.label,
+    id,
+    maxSize: MAX_COLUMN_WIDTH,
+    minSize: spec.min,
+    size: spec.size,
+    sortDescFirst: true,
+  };
+});
+
 /**
  * Every model request the app made, newest first: a log you can filter,
  * sort, and open a request from to see everything recorded about it.
@@ -269,7 +484,6 @@ export function AIUsageSection() {
     column: "startedAt",
     direction: "desc",
   });
-  const [widths, setWidths] = useState<Widths>({});
 
   if (openId !== null) {
     return (
@@ -290,9 +504,7 @@ export function AIUsageSection() {
       setFilter={setFilter}
       setPeriod={setPeriod}
       setSort={setSort}
-      setWidths={setWidths}
       sort={sort}
-      widths={widths}
     />
   );
 }
@@ -304,9 +516,7 @@ function UsageLog({
   setFilter,
   setPeriod,
   setSort,
-  setWidths,
   sort,
-  widths,
 }: {
   filter: Filter;
   onOpen: (id: string) => void;
@@ -314,9 +524,7 @@ function UsageLog({
   setFilter: (filter: Filter) => void;
   setPeriod: (period: Period) => void;
   setSort: (sort: Sort) => void;
-  setWidths: (widths: Widths) => void;
   sort: Sort;
-  widths: Widths;
 }) {
   const { data: summary } = useQuery(
     rpcClient.workspace.aiUsage.summary.queryOptions({ input: { filter } }),
@@ -474,7 +682,7 @@ function UsageLog({
                     {FIELD_LABELS[field]}
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent className="max-h-80 w-64 overflow-y-auto">
-                    {values.map(({ count, value }) => (
+                    {values.map(({ connectionType, count, value }) => (
                       <DropdownMenuCheckboxItem
                         checked={(filter[field] ?? []).includes(value)}
                         key={value}
@@ -485,8 +693,8 @@ function UsageLog({
                           event.preventDefault();
                         }}
                       >
-                        {field === "connection" ? (
-                          <ConnectionMark type={value} />
+                        {field === "connection" || field === "model" ? (
+                          <ConnectionMark type={connectionType ?? null} />
                         ) : null}
                         <span className="min-w-0 flex-1 truncate">
                           {labelFor(field, value)}
@@ -523,9 +731,7 @@ function UsageLog({
           onOpen={onOpen}
           rows={rows}
           setSort={setSort}
-          setWidths={setWidths}
           sort={sort}
-          widths={widths}
         />
       )}
     </div>
@@ -578,52 +784,156 @@ function EmptyLog({ filtered }: { filtered: boolean }) {
   );
 }
 
+/** Which edges of a scroller have more content past them. */
+function useScrollEdges(scroller: HTMLDivElement | null) {
+  const [edges, setEdges] = useState({
+    bottom: false,
+    end: false,
+    start: false,
+    top: false,
+  });
+  useEffect(() => {
+    if (!scroller) {
+      return;
+    }
+    const measure = () => {
+      const next = {
+        bottom:
+          scroller.scrollTop + scroller.clientHeight <
+          scroller.scrollHeight - 1,
+        end:
+          scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1,
+        start: scroller.scrollLeft > 1,
+        top: scroller.scrollTop > 1,
+      };
+      setEdges((previous) =>
+        previous.bottom === next.bottom &&
+        previous.end === next.end &&
+        previous.start === next.start &&
+        previous.top === next.top
+          ? previous
+          : next,
+      );
+    };
+    measure();
+    scroller.addEventListener("scroll", measure, { passive: true });
+    // The scroller's own box changes with the window, and its content's with
+    // the rows loaded and the column widths.
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    if (scroller.firstElementChild) {
+      observer.observe(scroller.firstElementChild);
+    }
+    return () => {
+      scroller.removeEventListener("scroll", measure);
+      observer.disconnect();
+    };
+  }, [scroller]);
+  return edges;
+}
+
 function LogTable({
   hasMore,
   loadMore,
   onOpen,
   rows,
   setSort,
-  setWidths,
   sort,
-  widths,
 }: {
   hasMore: boolean;
   loadMore: () => void;
   onOpen: (id: string) => void;
   rows: Row[];
   setSort: (sort: Sort) => void;
-  setWidths: (widths: Widths) => void;
   sort: Sort;
-  widths: Widths;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const modelName = useModelName();
-  const gesturesFor = useGesturesFor();
-  const closeSettings = useSetAtom(settingsModalAtom);
-  const columns = gridColumns(widths);
-  const resizable = (key: ColumnKey, cell: ReactNode) => {
-    const width = widths[key] ?? COLUMN_WIDTHS[key];
-    return (
-      <span className="relative min-w-0" key={key}>
-        {cell}
-        {width === undefined ? null : (
-          <ResizeHandle
-            onResize={(next) => {
-              setWidths({ ...widths, [key]: next });
-            }}
-            width={width}
-          />
-        )}
-      </span>
-    );
-  };
-  // Every row is one line at a fixed height, so nothing is measured and the
-  // window's zoom has nothing to throw off.
+  // `useReactTable` holds a mutable instance across renders, which the compiler
+  // cannot memoize safely. See TanStack/table#6137.
+  "use no memo";
+
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+  const edges = useScrollEdges(scroller);
+  const [prefs, setPrefs] = useAtom(columnPrefsAtom);
+  // The column a right click landed on, for the menu's sort and hide items.
+  const [menuColumn, setMenuColumn] = useState<ColumnId | null>(null);
+
+  // oxlint-disable-next-line react/incompatible-library
+  const table = useReactTable({
+    columnResizeMode: "onChange",
+    columns: columnDefs,
+    data: rows,
+    enableMultiSort: false,
+    enableSortingRemoval: false,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (row) => row.id,
+    manualSorting: true,
+    onColumnSizingChange: (updater) => {
+      setPrefs((previous) => ({
+        ...previous,
+        widths:
+          typeof updater === "function" ? updater(previous.widths) : updater,
+      }));
+    },
+    onColumnVisibilityChange: (updater) => {
+      setPrefs((previous) => {
+        const current = Object.fromEntries(
+          previous.hidden.map((id) => [id, false]),
+        );
+        const next = typeof updater === "function" ? updater(current) : updater;
+        return {
+          ...previous,
+          hidden: COLUMN_IDS.filter(
+            (id) => id !== "date" && next[id] === false,
+          ),
+        };
+      });
+    },
+    onSortingChange: (updater) => {
+      const current = [{ desc: sort.direction === "desc", id: sortIdOf(sort) }];
+      const next = (
+        typeof updater === "function" ? updater(current) : updater
+      )[0];
+      const column =
+        next && isColumnId(next.id) ? COLUMNS[next.id].sort : undefined;
+      if (next && column) {
+        setSort({ column, direction: next.desc ? "desc" : "asc" });
+      }
+    },
+    state: {
+      columnSizing: prefs.widths,
+      columnVisibility: Object.fromEntries(
+        prefs.hidden.map((id) => [id, false]),
+      ),
+      sorting: [{ desc: sort.direction === "desc", id: sortIdOf(sort) }],
+    },
+  });
+
+  const tableRows = table.getRowModel().rows;
+  const columns = table.getVisibleLeafColumns();
+  const totalWidth = table.getTotalSize();
+
+  // Every row is one line at a fixed height, so only the scrollport is
+  // measured, in layout px: inside the window's CSS `zoom` the default reads
+  // the on-screen rect.
   const virtualizer = useVirtualizer({
-    count: rows.length,
+    count: tableRows.length,
     estimateSize: () => ROW_HEIGHT,
-    getScrollElement: () => scrollRef.current,
+    getScrollElement: () => scroller,
+    observeElementRect: (instance, callback) => {
+      const element = instance.scrollElement;
+      if (!element) {
+        return;
+      }
+      const measure = () => {
+        callback({ height: element.offsetHeight, width: element.offsetWidth });
+      };
+      measure();
+      const observer = new ResizeObserver(measure);
+      observer.observe(element);
+      return () => {
+        observer.disconnect();
+      };
+    },
     overscan: 12,
   });
   const items = virtualizer.getVirtualItems();
@@ -634,204 +944,266 @@ function LogTable({
     }
   }, [hasMore, last, loadMore, rows.length]);
 
-  const header = (column: Sort["column"], label: string, right = false) => {
-    const active = sort.column === column;
-    return (
-      <button
-        className={cn(
-          "flex items-center gap-1 text-left hover:text-foreground",
-          right && "justify-end",
-          active && "text-foreground",
-        )}
-        onClick={() => {
-          setSort({
-            column,
-            direction: active && sort.direction === "desc" ? "asc" : "desc",
-          });
-        }}
-        type="button"
-      >
-        {label}
-        {active ? (
-          sort.direction === "desc" ? (
-            <ArrowDownIcon className="size-3" />
-          ) : (
-            <ArrowUpIcon className="size-3" />
-          )
-        ) : null}
-      </button>
-    );
-  };
+  const menuTarget = menuColumn ? table.getColumn(menuColumn) : undefined;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-card shadow-sm">
-      <div className="min-h-0 flex-1 overflow-auto" ref={scrollRef}>
-        <div
-          className="sticky top-0 z-10 grid items-center gap-2.5 border-b bg-card px-3 py-2 text-xs font-medium text-muted-foreground"
-          style={{
-            gridTemplateColumns: columns,
-            minWidth: tableMinWidth(widths),
-          }}
-        >
-          {resizable("date", header("startedAt", "Date"))}
-          {resizable("kind", header("kind", "Type"))}
-          {resizable("purpose", header("purpose", "Purpose"))}
-          {resizable("origin", <span>Origin</span>)}
-          {resizable("model", header("model", "Model"))}
-          {resizable("status", <span>Result</span>)}
-          {resizable("totalTokens", header("totalTokens", "Tokens", true))}
-          {resizable("durationMs", header("durationMs", "Duration", true))}
-        </div>
-        <div
-          className="relative"
-          style={{
-            height: virtualizer.getTotalSize(),
-            minWidth: tableMinWidth(widths),
-          }}
-        >
-          {items.map((item) => {
-            const row = rows[item.index];
-            if (!row) {
-              return null;
-            }
-            const href = originHref(row);
-            const originGestures = href
-              ? gesturesFor({ href, kind: "screen" })
-              : undefined;
-            return (
+    <div
+      className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-card shadow-sm [--scroll-edge-inset-top:--spacing(9)] [--scroll-edge-surface:var(--card)]"
+      data-scroll-bottom={edges.bottom || undefined}
+      data-scroll-end={edges.end || undefined}
+      data-scroll-start={edges.start || undefined}
+      data-scroll-top={edges.top || undefined}
+    >
+      <div className="min-h-0 flex-1 overflow-auto" ref={setScroller}>
+        <div className="relative" style={{ minWidth: totalWidth }}>
+          <ContextMenu>
+            <ContextMenuTrigger asChild>
               <div
-                className="absolute inset-x-0 grid items-center gap-2.5 border-b px-3 text-left text-sm hover:bg-muted/60"
-                key={row.id}
-                onClick={() => {
-                  onOpen(row.id);
+                className="sticky top-0 z-10 flex h-9 items-center border-b bg-card text-xs font-medium text-muted-foreground"
+                onContextMenuCapture={() => {
+                  setMenuColumn(null);
                 }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onOpen(row.id);
-                  }
-                }}
-                role="button"
-                style={{
-                  gridTemplateColumns: columns,
-                  height: ROW_HEIGHT,
-                  top: item.start,
-                }}
-                tabIndex={0}
+                role="row"
+                style={{ minWidth: totalWidth }}
               >
-                <span className="truncate text-muted-foreground tabular-nums">
-                  {dateFormat.format(row.startedAt)}
-                </span>
-                <span className="truncate">{KIND_LABELS[row.kind]}</span>
-                <span className="truncate">{PURPOSE_LABELS[row.purpose]}</span>
-                {originGestures ? (
-                  <button
-                    className="flex min-w-0 items-center gap-1 justify-self-start text-muted-foreground hover:text-foreground hover:underline"
-                    onAuxClick={(event) => {
-                      event.stopPropagation();
-                      originGestures.onAuxClick(event);
-                    }}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      originGestures.onClick(event);
-                      closeSettings(null);
-                    }}
-                    title={`Open ${originOf(row)}`}
-                    type="button"
-                  >
-                    <span className="truncate">{originOf(row)}</span>
-                    <ArrowUpRightIcon className="size-3 shrink-0" />
-                  </button>
-                ) : (
-                  <span
-                    className={cn(
-                      "truncate text-muted-foreground",
-                      row.chatId && !row.chatTitle && "italic",
-                    )}
-                  >
-                    {originOf(row)}
-                  </span>
-                )}
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <ConnectionMark type={row.connectionType} />
-                  {modelOf(row) === null ? (
-                    <span className="truncate text-muted-foreground italic">
-                      Unknown
-                    </span>
-                  ) : (
-                    <span className="truncate">{modelName(modelOf(row))}</span>
-                  )}
-                </span>
-                <span
-                  className={cn(
-                    "truncate",
-                    row.status === "failed"
-                      ? "text-destructive"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {STATUS_LABELS[row.status]}
-                </span>
-                <span className="text-right text-muted-foreground tabular-nums">
-                  {row.totalTokens === null
-                    ? ""
-                    : compactNumber.format(row.totalTokens)}
-                </span>
-                <span className="text-right text-muted-foreground tabular-nums">
-                  {formatDuration(row.durationMs)}
-                </span>
+                {table.getFlatHeaders().map((header) => {
+                  const id = header.column.id;
+                  if (!isColumnId(id) || !header.column.getIsVisible()) {
+                    return null;
+                  }
+                  return (
+                    <HeaderCell
+                      column={header.column}
+                      id={id}
+                      key={id}
+                      onContextMenu={() => {
+                        setMenuColumn(id);
+                      }}
+                      onResize={(width) => {
+                        table.setColumnSizing((previous) => ({
+                          ...previous,
+                          [id]: width,
+                        }));
+                      }}
+                    />
+                  );
+                })}
               </div>
-            );
-          })}
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              {menuTarget?.getCanSort() ? (
+                <>
+                  <ContextMenuItem
+                    onSelect={() => {
+                      menuTarget.toggleSorting(false);
+                    }}
+                  >
+                    Sort ascending
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    onSelect={() => {
+                      menuTarget.toggleSorting(true);
+                    }}
+                  >
+                    Sort descending
+                  </ContextMenuItem>
+                </>
+              ) : null}
+              {menuTarget?.getCanHide() ? (
+                <ContextMenuItem
+                  onSelect={() => {
+                    menuTarget.toggleVisibility(false);
+                  }}
+                >
+                  Hide column
+                </ContextMenuItem>
+              ) : null}
+              {menuTarget ? <ContextMenuSeparator /> : null}
+              {table.getAllLeafColumns().map((column) => (
+                <ContextMenuCheckboxItem
+                  checked={column.getIsVisible()}
+                  disabled={!column.getCanHide()}
+                  key={column.id}
+                  onCheckedChange={(checked) => {
+                    column.toggleVisibility(checked);
+                  }}
+                  onSelect={(event) => {
+                    // Kept open, so several columns can be shown or hidden in one go.
+                    event.preventDefault();
+                  }}
+                >
+                  {isColumnId(column.id) ? COLUMNS[column.id].label : column.id}
+                </ContextMenuCheckboxItem>
+              ))}
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                onSelect={() => {
+                  table.resetColumnSizing();
+                }}
+              >
+                Reset column widths
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+          <div
+            className="relative"
+            style={{ height: virtualizer.getTotalSize() }}
+          >
+            {items.map((item) => {
+              const record = tableRows[item.index];
+              if (!record) {
+                return null;
+              }
+              return (
+                <div
+                  className="absolute inset-x-0 flex items-center border-b text-left text-sm hover:bg-muted/60"
+                  key={record.id}
+                  onClick={() => {
+                    onOpen(record.id);
+                  }}
+                  onKeyDown={(event) => {
+                    if (
+                      event.target === event.currentTarget &&
+                      (event.key === "Enter" || event.key === " ")
+                    ) {
+                      event.preventDefault();
+                      onOpen(record.id);
+                    }
+                  }}
+                  role="button"
+                  style={{
+                    height: ROW_HEIGHT,
+                    minWidth: totalWidth,
+                    top: item.start,
+                  }}
+                  tabIndex={0}
+                >
+                  {columns.map((column) => {
+                    const id = column.id;
+                    return isColumnId(id) ? (
+                      <div
+                        className={cn(
+                          "flex min-w-0 shrink-0 items-center px-2",
+                          COLUMNS[id].right && "justify-end",
+                        )}
+                        key={id}
+                        style={{ width: column.getSize() }}
+                      >
+                        {CELLS[id](record.original)}
+                      </div>
+                    ) : null;
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
+      <span aria-hidden className="scroll-edge-fade" data-edge="start" />
+      <span aria-hidden className="scroll-edge-fade" data-edge="end" />
+      <span aria-hidden className="scroll-edge-fade" data-edge="top" />
+      <span aria-hidden className="scroll-edge-fade" data-edge="bottom" />
     </div>
   );
 }
 
-/**
- * A drag handle on a column's right edge. The pointer moves in on-screen px
- * and the column is sized in layout px, so the drag is divided by the zoom.
- */
-function ResizeHandle({
+/** The id of the table column that orders by a server sort column. */
+function sortIdOf(sort: Sort): ColumnId {
+  return COLUMN_IDS.find((id) => COLUMNS[id].sort === sort.column) ?? "date";
+}
+
+function HeaderCell({
+  column,
+  id,
+  onContextMenu,
   onResize,
-  width,
 }: {
+  column: Column<Row>;
+  id: ColumnId;
+  onContextMenu: () => void;
   onResize: (width: number) => void;
-  width: number;
 }) {
+  "use no memo";
+
   const zoom = useAtomValue(zoomAtom);
+  const sorted = column.getIsSorted();
+  const label = COLUMNS[id].label;
   return (
-    <span
-      aria-hidden
-      className="absolute inset-y-[-8px] -right-2.5 z-10 w-3 cursor-col-resize after:absolute after:inset-y-2 after:left-1/2 after:w-px after:bg-border hover:after:bg-foreground/40"
-      onClick={(event) => {
-        event.stopPropagation();
-      }}
-      onPointerDown={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const handle = event.currentTarget;
-        const startX = event.clientX;
-        handle.setPointerCapture(event.pointerId);
-        const move = (moved: PointerEvent) => {
-          onResize(
-            Math.max(
-              MIN_COLUMN_WIDTH,
-              Math.round(width + (moved.clientX - startX) / zoom),
-            ),
-          );
-        };
-        const end = () => {
-          handle.removeEventListener("pointermove", move);
-          handle.removeEventListener("pointerup", end);
-          handle.removeEventListener("pointercancel", end);
-        };
-        handle.addEventListener("pointermove", move);
-        handle.addEventListener("pointerup", end);
-        handle.addEventListener("pointercancel", end);
-      }}
-    />
+    <div
+      className="relative flex h-full shrink-0 items-center px-2"
+      onContextMenu={onContextMenu}
+      role="columnheader"
+      style={{ width: column.getSize() }}
+    >
+      {column.getCanSort() ? (
+        <button
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-1 text-left hover:text-foreground",
+            COLUMNS[id].right && "justify-end",
+            sorted && "text-foreground",
+          )}
+          onClick={() => {
+            column.toggleSorting();
+          }}
+          type="button"
+        >
+          <span className="truncate">{label}</span>
+          {sorted === "desc" ? (
+            <ArrowDownIcon className="size-3 shrink-0" />
+          ) : null}
+          {sorted === "asc" ? (
+            <ArrowUpIcon className="size-3 shrink-0" />
+          ) : null}
+        </button>
+      ) : (
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            COLUMNS[id].right && "text-right",
+          )}
+        >
+          {label}
+        </span>
+      )}
+      {/* The pointer moves in on-screen px and the column is sized in layout
+          px, so the drag is divided by the zoom. */}
+      <span
+        aria-hidden
+        className="absolute inset-y-0 right-0 z-10 w-2 cursor-col-resize after:absolute after:inset-y-2 after:right-0 after:w-px after:bg-border hover:after:bg-foreground/40"
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
+        onDoubleClick={() => {
+          column.resetSize();
+        }}
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const handle = event.currentTarget;
+          const startX = event.clientX;
+          const startWidth = column.getSize();
+          handle.setPointerCapture(event.pointerId);
+          const move = (moved: PointerEvent) => {
+            const width = Math.min(
+              column.columnDef.maxSize ?? MAX_COLUMN_WIDTH,
+              Math.max(
+                column.columnDef.minSize ?? 0,
+                Math.round(startWidth + (moved.clientX - startX) / zoom),
+              ),
+            );
+            onResize(width);
+          };
+          const end = () => {
+            handle.removeEventListener("pointermove", move);
+            handle.removeEventListener("pointerup", end);
+            handle.removeEventListener("pointercancel", end);
+          };
+          handle.addEventListener("pointermove", move);
+          handle.addEventListener("pointerup", end);
+          handle.addEventListener("pointercancel", end);
+        }}
+      />
+    </div>
   );
 }
 
@@ -840,12 +1212,6 @@ function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const { data: row } = useQuery(
     rpcClient.workspace.aiUsage.byId.queryOptions({ input: { id } }),
   );
-  const closeSettings = useSetAtom(settingsModalAtom);
-  const gestures = useOpenGestures({
-    href: `${CHATS_HREF}/${row?.chatId ?? ""}`,
-    kind: "screen",
-  });
-  const open = gestures.destinations.find((entry) => entry.id === "open");
 
   return (
     <div className="space-y-6">
@@ -859,31 +1225,15 @@ function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
           Usage
         </button>
         <span className="flex-1" />
-        {row?.chatId && row.chatTitle && open ? (
-          <Button
-            onClick={() => {
-              open.run();
-              closeSettings(null);
-            }}
-            size="sm"
-            variant="outline"
-          >
-            <ArrowSquareOutIcon />
-            Open chat
-          </Button>
-        ) : null}
         {row ? (
-          <Button
-            onClick={() => {
-              void navigator.clipboard.writeText(JSON.stringify(row, null, 2));
-              toast.success("Copied the request's details");
-            }}
-            size="sm"
-            variant="outline"
-          >
-            <CopyIcon />
-            Copy details
-          </Button>
+          <CopyButton
+            className="rounded-sm p-1 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+            label="Copy details"
+            onCopy={() =>
+              navigator.clipboard.writeText(JSON.stringify(row, null, 2))
+            }
+            tooltip="Copy details"
+          />
         ) : null}
       </div>
       {row ? (
@@ -908,14 +1258,18 @@ function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
                 {formatDuration(row.durationMs) || "Not recorded"}
               </Detail>
               <Detail label="Result">
-                {STATUS_LABELS[row.status]}
+                <ResultText row={row} />
                 {row.finishReason ? `, ${row.finishReason}` : ""}
               </Detail>
               {row.error ? <ErrorDetail error={row.error} /> : null}
               <Detail label="Origin">
-                {row.chatId && !row.chatTitle
-                  ? "A chat you've since deleted"
-                  : originOf(row) || "None"}
+                {originOf(row) ? (
+                  <span className="flex">
+                    <OriginLink row={row} />
+                  </span>
+                ) : (
+                  "None"
+                )}
               </Detail>
               <Detail code label="Request ID">
                 {row.id}
@@ -927,8 +1281,11 @@ function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
               ) : null}
             </DetailGroup>
             <DetailGroup title="Model">
-              <Detail label="Connection">
-                {row.connectionName ?? row.connectionType ?? "Unknown"}
+              <Detail label="Provider">
+                <ProviderLabel row={row} />
+              </Detail>
+              <Detail label="Model">
+                <ModelLabel mark={false} row={row} />
               </Detail>
               <Detail code={row.modelRequested !== null} label="Asked for">
                 {row.modelRequested ?? "Not recorded"}
@@ -938,34 +1295,32 @@ function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
               </Detail>
             </DetailGroup>
             <DetailGroup title="Tokens">
-              <Detail label="Input">{tokens(row.inputTokens)}</Detail>
+              <Detail label="Input">
+                <Tokens count={row.inputTokens} empty="Not reported" />
+              </Detail>
               {row.cacheReadTokens ? (
                 <Detail label="From cache">
-                  {tokens(row.cacheReadTokens)}
+                  <Tokens count={row.cacheReadTokens} />
                 </Detail>
               ) : null}
               {row.cacheWriteTokens ? (
                 <Detail label="Cache write">
-                  {tokens(row.cacheWriteTokens)}
+                  <Tokens count={row.cacheWriteTokens} />
                 </Detail>
               ) : null}
-              <Detail label="Output">{tokens(row.outputTokens)}</Detail>
+              <Detail label="Output">
+                <Tokens count={row.outputTokens} empty="Not reported" />
+              </Detail>
               {row.reasoningTokens ? (
-                <Detail label="Reasoning">{tokens(row.reasoningTokens)}</Detail>
+                <Detail label="Reasoning">
+                  <Tokens count={row.reasoningTokens} />
+                </Detail>
               ) : null}
             </DetailGroup>
           </div>
         </>
       ) : null}
     </div>
-  );
-}
-
-function tokens(count: null | number) {
-  return count === null ? (
-    "Not reported"
-  ) : (
-    <span title={wholeNumber.format(count)}>{compactNumber.format(count)}</span>
   );
 }
 

@@ -71,6 +71,8 @@ const byId = base
 
 const FacetValueSchema = z.object({
   count: z.number(),
+  /** The connection kind behind a model or connection value. */
+  connectionType: z.string().nullable().optional(),
   /** A chat's title for an origin that is a chat, when the chat still exists. */
   label: z.string().nullable(),
   value: z.string(),

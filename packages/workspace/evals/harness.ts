@@ -49,6 +49,7 @@ import { type ChatId } from "../src/schemas/chat-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type Choose } from "../src/tools/choose";
+import { ToolNameSchema } from "../src/tools/name";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import { createStandInWindow } from "./lib/stand-in-window";
 import { startRun } from "./lib/start-run";
@@ -67,6 +68,12 @@ import { ensureChat } from "../src/lib/chat/chat-records";
 import { createTopic, updateTopic } from "../src/lib/chat/topics";
 import { StoreId } from "../src/schemas/store-id";
 import { type WorkspaceConfig } from "../src/types";
+
+/** The tools that ask the user to let the agent control an app. */
+const APP_ASK_TOOLS: ReadonlySet<string> = new Set([
+  "request_access",
+  "request_app_control",
+]);
 
 /** The Mac helper a checkout builds, when it has; see the harness input. */
 const MAC_HELPER_BIN = path.resolve(
@@ -334,6 +341,11 @@ export interface EvalCase {
    * Cancel in the picker: for what the agent does once a folder is refused.
    */
   declinesFolders?: boolean;
+  /**
+   * Every ask to control an app (`request_app_control`, or `request_access`
+   * should the two asks merge) is answered as the user saying not now.
+   */
+  declinesApps?: boolean;
   files?: FileUpload.Type[];
   /**
    * The folders the user picks for each `request_folder` the agent asks,
@@ -939,6 +951,33 @@ export async function runEvals(
                   output: { status: "declined" },
                   toolCallId: part.toolCallId,
                   toolName: "request_folder",
+                },
+                { context },
+              );
+            }
+
+            // Parsed and looked up by name, so a build with neither tool
+            // still compiles and simply never matches.
+            const appAsk = ToolNameSchema.safeParse(part.type.slice(5)).data;
+            if (
+              evalCase.declinesApps &&
+              isToolPart(part) &&
+              appAsk !== undefined &&
+              APP_ASK_TOOLS.has(appAsk) &&
+              part.state === "input-available" &&
+              !declinedIds.has(part.toolCallId)
+            ) {
+              declinedIds.add(part.toolCallId);
+              write(
+                `${evalPrefix(label)}${c.cyan}${appAsk}${c.reset}${c.dim} declined: ${JSON.stringify(part.input)}${c.reset}\n`,
+              );
+              void call(
+                sessionRoute.answerToolCall,
+                {
+                  id,
+                  output: { status: "declined" },
+                  toolCallId: part.toolCallId,
+                  toolName: appAsk,
                 },
                 { context },
               );

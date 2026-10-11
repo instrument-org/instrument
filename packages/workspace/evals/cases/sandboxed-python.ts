@@ -169,11 +169,10 @@ const didNotRetryTheSandboxedImport: Assertion = {
 /** The script the prompt asked for ran as a file, under either interpreter, both of which read the folder in place. */
 const ranTheScriptFileWithPython: Assertion = {
   check: ({ sessions }) => {
-    const runs = bashCommands(sessions).filter(
-      (command) =>
-        /(?:^|[\s;&|(])python(?:3|-native)?\s+(?:\S+\s+)*\S*count\.py\b/.test(
-          command,
-        ),
+    const runs = bashCommands(sessions).filter((command) =>
+      /(?:^|[\s;&|(])python(?:3|-native)?\s+(?:\S+\s+)*\S*count\.py\b/.test(
+        command,
+      ),
     );
     return {
       evidence:

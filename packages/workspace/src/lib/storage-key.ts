@@ -84,14 +84,6 @@ export namespace StorageKey {
     return "sessions";
   }
 
-  // Per-session baseline of the apps the task may reach, diffed against its
-  // settings when composing a user message so an app handed to it (or taken
-  // back) after it started reaches the model at all. Keyed by session for the
-  // same reason the folder baseline is.
-  export function taskAppsBaseline(sessionId: StoreId.Session) {
-    return ["task-apps-baseline", sessionId].join(SEPARATOR);
-  }
-
   // Per-session record of the workspace's apps and whether each was connected,
   // as a chat's agent last heard: diffed when the user next writes, so a
   // disconnect or a removal made outside the conversation reaches it then,

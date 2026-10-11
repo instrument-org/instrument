@@ -448,7 +448,7 @@ export function defineEval(evalCase: EvalCase): EvalCase {
 /**
  * The short model name a run is labeled and filed under. A report generated
  * from a past workspace has no runs to read this from, only the model URI each
- * task recorded, so the derivation has to be available on its own.
+ * chat recorded, so the derivation has to be available on its own.
  */
 export function modelLabelFor(uri: string): string {
   const parsed = AIGatewayModelURI.parse(uri);

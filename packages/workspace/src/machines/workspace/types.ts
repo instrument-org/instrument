@@ -9,15 +9,15 @@ export interface WorkspaceContext {
   config: WorkspaceConfig;
   error?: unknown;
   // Resolvers waiting for the taskBrowser at `id` to reach Stopped
-  // before trash-task deletes the directory. Drained when the matching
+  // before trashChat deletes the directory. Drained when the matching
   // taskBrowser.stopped event arrives (or immediately if no machine
-  // existed when prepareToTrashTask ran).
+  // existed when prepareToTrashChat ran).
   pendingBrowserReapResolvers: Map<ChatId, (() => void)[]>;
   sessionRefsByChatId: Map<ChatId, SessionActorRef[]>;
   // One taskBrowser actor per task id with browser activity or an
   // active task-page presence subscription. Spawned lazily and reaped on
   // taskBrowser.stopped.
   taskBrowserRefs: Map<ChatId, TaskBrowserActorRef>;
-  tasksBeingTrashed: ChatId[];
+  chatsBeingTrashed: ChatId[];
   workspaceServerRef: WorkspaceServerActorRef;
 }

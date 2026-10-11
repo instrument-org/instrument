@@ -88,7 +88,7 @@ Ownership moves in one case: when the chat hands work to a task partway, `task n
 | Trigger | Reaches | Where |
 |---|---|---|
 | `kill bg_1` | one process | [`background-jobs.ts`](../../packages/workspace/src/lib/shell-commands/background-jobs.ts) |
-| Chat trashed | every process of the chat and its tasks | `killChatBackgroundProcesses` in [`lib/trash-task.ts`](../../packages/workspace/src/lib/trash-task.ts) |
+| Chat trashed | every process of the chat and its tasks | `killChatBackgroundProcesses` in [`lib/trash-chat.ts`](../../packages/workspace/src/lib/trash-chat.ts) |
 | App quits | everything | [`create-workspace-actor.ts:349`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts#L349) |
 | 2 hours old | that process | `ageTimer` in `promoteBackgroundProcess` |
 | **Turn ends** | **nothing — deliberate** | — |

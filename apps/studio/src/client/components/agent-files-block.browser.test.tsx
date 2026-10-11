@@ -10,7 +10,7 @@ import { MarkdownTaskContext } from "./markdown-task-context";
 // Where the task's files are, answered without a task: every path under one
 // folder, so the fence has somewhere to read a file from.
 vi.mock("@/client/hooks/use-host-paths", () => ({
-  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+  useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
     Object.fromEntries(
       filePaths.map((filePath) => [
         filePath,

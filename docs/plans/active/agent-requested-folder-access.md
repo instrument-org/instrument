@@ -115,7 +115,7 @@ Friction ends up proportional to how protected the path really is.
 
 ### 6. Access level
 
-[FolderAttachment.AccessSchema](../../../packages/workspace/src/schemas/folder-attachment.ts) already carries `read-only` and `read-write`, the layout already honors it, and the agent prompt already tells the model that attached folders are one or the other. The tool suggests, the card defaults to the suggestion, the user can change it.
+[MountedFolder.AccessSchema](../../../packages/workspace/src/schemas/mounted-folder.ts) already carries `read-only` and `read-write`, the layout already honors it, and the agent prompt already tells the model that attached folders are one or the other. The tool suggests, the card defaults to the suggestion, the user can change it.
 
 Two rules belong in the tool schema rather than the prompt, so the model cannot drift off them:
 

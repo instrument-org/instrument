@@ -88,7 +88,7 @@ export default async (app, args = {}) => {
   const tasks = chat
     ? await app.rpc("workspace.chats.tasks", { id: chat.id })
     : [];
-  const taskId = tasks[0]?.id;
+  const taskSession = tasks[0]?.id;
 
   const routes = [
     "/chats",
@@ -97,7 +97,7 @@ export default async (app, args = {}) => {
     "/apps",
     slug && `/apps/${slug}`,
     chat && `/tasks?chat=${chat.id}`,
-    taskId && `/tasks/${taskId}?chat=${chat.id}`,
+    taskSession && `/tasks/${taskSession}?chat=${chat.id}`,
     "/release-notes",
     // The inbox again last: a screen can leave something behind that only the
     // next navigation off it surfaces, and the last screen in the list never
@@ -124,7 +124,7 @@ export default async (app, args = {}) => {
   const skipped = [
     slug ? undefined : "no connected app, so /apps/$slug",
     chat ? undefined : "no chat, so /tasks?chat=$chat",
-    taskId ? undefined : "no task in the first chat, so /tasks/$id",
+    taskSession ? undefined : "no task in the first chat, so /tasks/$id",
   ].filter(Boolean);
 
   return {

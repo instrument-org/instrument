@@ -47,7 +47,7 @@ const listWithParts = base
   });
 
 /**
- * One send at a time per task, in the order they arrived. The opening
+ * One send at a time per chat, in the order they arrived. The opening
  * message of a chat reads the other chats before it is stored, which can
  * take a moment, and a message sent into the chat meanwhile would otherwise
  * be stored, numbered, and handed to the agent ahead of the one it follows.
@@ -217,7 +217,7 @@ const create = base
         });
 
         // A settings write, which the record change feed reports: what moves
-        // the task in the list.
+        // the chat in the list.
         await recordChatActivity(chatId);
 
         return { sessionId: message.metadata.sessionId };

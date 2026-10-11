@@ -8,7 +8,7 @@ import { TypedError } from "./errors";
 import { getIgnore } from "./get-ignore";
 import { normalizePath } from "./normalize-path";
 
-export function copyTask({
+export function copyChatFolder({
   includePrivateFolder,
   sourceDir,
   targetDir,
@@ -21,7 +21,7 @@ export function copyTask({
     getIgnore(sourceDir),
     (error) =>
       new TypedError.FileSystem(
-        `Failed to get ignore patterns for task copy: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to get ignore patterns for the folder copy: ${error instanceof Error ? error.message : String(error)}`,
         { cause: error },
       ),
   ).andThen((ignore) =>
@@ -44,7 +44,7 @@ export function copyTask({
       }),
       (error) =>
         new TypedError.FileSystem(
-          `Failed to copy task files: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to copy the folder's files: ${error instanceof Error ? error.message : String(error)}`,
           { cause: error },
         ),
     ).map(() => true),

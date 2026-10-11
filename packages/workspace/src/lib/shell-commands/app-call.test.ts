@@ -19,7 +19,6 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { loadApp } from "../apps/store";
 import { createLocalBashEnv } from "../create-bash-env";
 import { chatDir } from "../record-folders";
-import { updateChatSettings } from "../chat-settings";
 import { getWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
 import { knowChat } from "../../test/helpers/mock-chat-config";
@@ -231,18 +230,6 @@ ${use}`,
     expect(result.stdout).toMatchInlineSnapshot(`
       "tools.tracker.broken: project is required
       The tool refused the call. If the arguments were the problem, \`app tool tracker broken\` shows the JSON it takes.
-      "
-    `);
-  });
-
-  it("refuses an app the task was not handed", async () => {
-    const scoped = ChatIdSchema.parse("app-call-scoped-task");
-    knowChat(scoped);
-    (await updateChatSettings(scoped, { apps: ["notes"] }))._unsafeUnwrap();
-    const result = await script(`await tools.${slug}.issues();`, scoped);
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).toMatchInlineSnapshot(`
-      "at <stdin>:1:26: tools.tracker.issues: this task was not handed the app "tracker". Apps it has: notes.
       "
     `);
   });

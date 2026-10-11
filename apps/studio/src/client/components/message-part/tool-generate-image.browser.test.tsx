@@ -10,7 +10,7 @@ import { ToolGenerateImage } from "./tool-generate-image";
 // Where the task's images are, answered without a task, at an address nothing
 // serves: the card is drawn for a file the browser cannot load.
 vi.mock("@/client/hooks/use-host-paths", () => ({
-  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+  useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
     Object.fromEntries(
       filePaths.map((filePath) => [filePath, `/Users/casey/tasks/${filePath}`]),
     ),

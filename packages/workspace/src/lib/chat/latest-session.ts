@@ -56,7 +56,7 @@ export function lastAssistantTextIn(
 }
 
 /**
- * The session a task's next message goes into, created when the task has
+ * The session a chat's next message goes into, created when the chat has
  * never had one: what a wake, a `task send`, and the window's first open all
  * need before they can write.
  */
@@ -78,8 +78,8 @@ export async function latestOrNewSessionId(
 }
 
 /**
- * The session a task's next message goes into: its newest top-level one, or
- * none for a task that has never had a session. Session ids are ulids, so
+ * The session a chat's next message goes into: its newest top-level one, or
+ * none for a chat that has never had a session. Session ids are ulids, so
  * alphabetical order is creation order.
  */
 export function latestSessionId(chatId: ChatId) {

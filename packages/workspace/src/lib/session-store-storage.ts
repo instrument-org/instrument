@@ -19,8 +19,8 @@ import { type WrappedStorage, wrapStorage } from "./wrap-storage";
 import { STORE_TABLE } from "./store-table";
 
 /**
- * How many task databases stay open once they have gone idle. Building the
- * chat list touches every chat and every task filed from one, which is
+ * How many chat databases stay open once they have gone idle. Building the
+ * chat list touches every chat's database, which is
  * hundreds of databases in a workspace that has been used for a while, and
  * none of them would otherwise be closed until the process ends.
  */
@@ -40,13 +40,13 @@ interface OpenStore {
 }
 
 /**
- * Where each task's database is in this process.
+ * Where each chat's database is in this process.
  *
  * - No entry: never opened, or disposed since. The next open migrates the
  *   store and sweeps interrupted tool calls, which is only right before any
  *   run of this process has started on it.
  * - `opening`: an open under way, which concurrent first reads share.
- * - `open`: at most one per task, so SQLite never sees two writers from here.
+ * - `open`: at most one per chat, so SQLite never sees two writers from here.
  * - `closed`: closed for being idle. Reopens without migrating or sweeping:
  *   the migrations have nothing left to do, and runs may have started.
  * - `disposing`: being closed as a process ending would. Nothing opens or
@@ -60,10 +60,10 @@ type StoreEntry =
 
 const STORES = new Map<ChatId, StoreEntry>();
 
-/** The storage each task's callers hold, which outlives any one open of its database. */
+/** The storage each chat's callers hold, which outlives any one open of its database. */
 const HANDLES = new Map<ChatId, WrappedStorage>();
 
-/** Tasks being deleted, which no open may recreate until the deletion is over. */
+/** Chats being deleted, which no open may recreate until the deletion is over. */
 const DELETING = new Set<ChatId>();
 
 /** How long a dispose waits for operations under way before closing anyway. */
@@ -71,7 +71,7 @@ const DRAIN_TIMEOUT_MS = 5000;
 
 let sweepTimer: ReturnType<typeof setTimeout> | undefined;
 
-/** Closes a task's database as a process ending would: the next open migrates and sweeps again. */
+/** Closes a chat's database as a process ending would: the next open migrates and sweeps again. */
 export function disposeSessionsStoreStorage(id: ChatId) {
   bumpStoreGeneration(id);
   HANDLES.delete(id);
@@ -205,7 +205,7 @@ function openCount() {
   return count;
 }
 
-/** The storage a task's callers hold: each call reaches its open database, reopening it if it was closed for being idle. */
+/** The storage a chat's callers hold: each call reaches its open database, reopening it if it was closed for being idle. */
 function handleFor(chatId: ChatId): WrappedStorage {
   const known = HANDLES.get(chatId);
   if (known) {
@@ -338,21 +338,21 @@ function startOpen(
       }
       // Before the storage is cached, so nothing can read through it until
       // its data matches what this build expects. Caching after also means
-      // this runs once per task per process rather than per read.
+      // this runs once per chat per process rather than per read.
       return runStoreMigrations({ storage: wrappedStorage })
         .andThen(() =>
           // Also before caching, and for a stronger reason than cost: a tool
           // call still marked in flight belongs to a process that is gone,
           // and that is only certain while no run of this process can have
-          // started, which a task with no entry guarantees. A sweep that fails
+          // started, which a chat with no entry guarantees. A sweep that fails
           // leaves the parts as they were, which is no worse than not
-          // sweeping; opening the task is not held to it.
+          // sweeping; opening the chat is not held to it.
           sweepInterruptedToolCalls({ storage: wrappedStorage }).orElse(
             (error) => {
               if (hasWorkspaceConfig()) {
                 getWorkspaceConfig().captureException(error);
               } else {
-                // A script reading a task outside the app has nowhere else
+                // A script reading a chat outside the app has nowhere else
                 // to report to.
                 console.error("Failed to sweep interrupted tool calls", error);
               }
@@ -384,7 +384,7 @@ function startOpen(
   let entry: StoreEntry | undefined;
   const opening = (async () => {
     const result = await opened;
-    // Kept only while this open is still the task's: a dispose that began
+    // Kept only while this open is still the chat's: a dispose that began
     // meanwhile closes it rather than leaving it open on a folder going away.
     const current = STORES.get(chatId);
     const isCurrent = current === entry;

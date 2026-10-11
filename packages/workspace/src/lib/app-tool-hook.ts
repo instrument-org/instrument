@@ -1,4 +1,3 @@
-import { type ChatId } from "../schemas/chat-id";
 import { invokeAppTool } from "./shell-commands/app";
 
 /**
@@ -14,10 +13,8 @@ export type AppToolInvoker = (
 ) => Promise<string>;
 
 /**
- * The hook for a task's shell: `tools.<slug>.<tool>(args)` calls that app's
- * MCP tool through the same checks `app call` makes for this task.
+ * The hook for the agent's shell: `tools.<slug>.<tool>(args)` calls that
+ * app's MCP tool through the same checks `app call` makes.
  */
-export function appToolHook(chatId: ChatId): AppToolInvoker {
-  return (path, argsJson, signal) =>
-    invokeAppTool({ chatId }, path, argsJson, signal);
-}
+export const appToolHook: AppToolInvoker = (path, argsJson, signal) =>
+  invokeAppTool(path, argsJson, signal);

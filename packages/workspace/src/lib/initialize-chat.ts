@@ -9,7 +9,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { type ChatSettingsUpdate } from "../schemas/chat-settings";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
-import { copyTask } from "./copy-task";
+import { copyChatFolder } from "./copy-chat-folder";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
 import { pathExists } from "./path-exists";
@@ -53,8 +53,8 @@ async function initializeRecord({
   chatId: ChatId;
   workspaceConfig: WorkspaceConfig;
 }) {
-  // Lets go of the id reserved below when any later step fails, so a chat or
-  // task that was never made does not hold its name in the index.
+  // Lets go of the id reserved below when any later step fails, so a chat
+  // that was never made does not hold its name in the index.
   let release: (() => void) | undefined;
   return safeTry(async function* () {
     // The id is reserved in the index before its folder exists, which is
@@ -71,7 +71,7 @@ async function initializeRecord({
       forgetChat(chatId);
     };
 
-    // Ensure the parent dir exists (idempotent), then create the task
+    // Ensure the parent dir exists (idempotent), then create the chat's
     // dir non-recursively so it acts as an atomic existence guard. With
     // deterministic date+slug names, two concurrent creates can both pass a
     // separate access check, so we rely on mkdir failing with EEXIST instead.
@@ -87,7 +87,7 @@ async function initializeRecord({
       fs.mkdir(dir, { recursive: false }),
       (error) =>
         error instanceof Error && "code" in error && error.code === "EEXIST"
-          ? new TypedError.Conflict(`Task directory already exists: ${dir}`)
+          ? new TypedError.Conflict(`Chat directory already exists: ${dir}`)
           : new TypedError.FileSystem(
               error instanceof Error ? error.message : "Unknown error",
               { cause: error },
@@ -98,7 +98,7 @@ async function initializeRecord({
 
     yield* updateChatSettings(chatId, {
       ...initialSettings,
-      // Stamped from the start so a task that has never been messaged still
+      // Stamped from the start so a chat that has never been messaged still
       // lists by when it was made rather than by whatever last touched a file
       // beneath it.
       createdAt,
@@ -124,7 +124,7 @@ async function initializeRecord({
  */
 function scaffoldWorkFolder(dir: ChatDir, workspaceConfig: WorkspaceConfig) {
   return safeTry(async function* () {
-    yield* copyTask({
+    yield* copyChatFolder({
       includePrivateFolder: false,
       sourceDir: workspaceConfig.defaultTaskTemplateDir,
       targetDir: dir,
@@ -147,7 +147,7 @@ function scaffoldWorkFolder(dir: ChatDir, workspaceConfig: WorkspaceConfig) {
 }
 
 /**
- * Scaffolds the folder a task or chat works in when it has none: a chat made
+ * Scaffolds the folder a chat works in when it has none: a chat made
  * before chats did their own work holds only its record, and its agent
  * expects a package root to install into. A folder with a `package.json`
  * already is left as it is.

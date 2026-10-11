@@ -112,11 +112,11 @@ describe("workspaceMachine task trashing", () => {
       .context.sessionRefsByChatId.get(siblingId)?.[0];
     expect(siblingRef).toBeDefined();
 
-    actor.send({ type: "prepareToTrashTask", value: { id: trashedId } });
+    actor.send({ type: "prepareToTrashChat", value: { id: trashedId } });
 
-    const { sessionRefsByChatId, tasksBeingTrashed } =
+    const { sessionRefsByChatId, chatsBeingTrashed } =
       actor.getSnapshot().context;
-    expect(tasksBeingTrashed).toEqual([trashedId]);
+    expect(chatsBeingTrashed).toEqual([trashedId]);
     expect(sessionRefsByChatId.has(siblingId)).toBe(true);
     expect(siblingRef?.getSnapshot().status).toBe("active");
 
@@ -132,7 +132,7 @@ describe("workspaceMachine task trashing", () => {
     const actor = createWorkspaceActor();
     actor.start();
 
-    actor.send({ type: "prepareToTrashTask", value: { id: trashedId } });
+    actor.send({ type: "prepareToTrashChat", value: { id: trashedId } });
     spawnSession(actor, newId);
 
     expect(actor.getSnapshot().context.sessionRefsByChatId.has(newId)).toBe(

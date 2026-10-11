@@ -4,7 +4,7 @@ import { constants, DatabaseSync } from "node:sqlite";
 
 import { CHAT_DB_FILE_NAME, CHAT_FOLDER_NAMES } from "../constants";
 
-interface TaskDatabaseQueryResult {
+interface ChatDatabaseQueryResult {
   columns: string[];
   rows: Record<string, unknown>[];
 }
@@ -19,20 +19,20 @@ const READ_ONLY_ACTIONS = new Set([
 
 const READ_ONLY_SQL = /^\s*(?:explain|pragma|select|with)\b/i;
 
-export function queryTaskDatabase({
+export function queryChatDatabase({
   databasePath,
   sql,
 }: {
   databasePath: string;
   sql: string;
-}): TaskDatabaseQueryResult {
+}): ChatDatabaseQueryResult {
   if (!READ_ONLY_SQL.test(sql)) {
     throw new TypeError(
       "Only SELECT, WITH, EXPLAIN, and PRAGMA statements are allowed",
     );
   }
 
-  const database = new DatabaseSync(resolveTaskDatabasePath(databasePath), {
+  const database = new DatabaseSync(resolveChatDatabasePath(databasePath), {
     allowExtension: false,
     readOnly: true,
   });
@@ -53,14 +53,14 @@ export function queryTaskDatabase({
   }
 }
 
-export function resolveTaskDatabasePath(inputPath: string): string {
+export function resolveChatDatabasePath(inputPath: string): string {
   const absoluteInputPath = path.resolve(inputPath);
   const databasePath = fs.statSync(absoluteInputPath).isDirectory()
     ? path.join(absoluteInputPath, CHAT_FOLDER_NAMES.private, CHAT_DB_FILE_NAME)
     : absoluteInputPath;
 
   if (!fs.statSync(databasePath).isFile()) {
-    throw new TypeError(`Task database not found: ${databasePath}`);
+    throw new TypeError(`Chat database not found: ${databasePath}`);
   }
 
   return databasePath;

@@ -2,7 +2,7 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { chatFolderName } from "../chat-folder-name";
 import { getCurrentDate } from "../get-current-date";
-import { initializeChat } from "../initialize-task";
+import { initializeChat } from "../initialize-chat";
 import {
   chatIds,
   chatOfSession,
@@ -12,14 +12,8 @@ import {
 import { getWorkspaceConfig } from "../workspace-config";
 
 /**
- * The name on a chat's record. A chat's title is its session's; this is
- * what the record answers with where a task's name would be read.
- */
-const CHAT_RECORD_NAME = "Instrument";
-
-/**
  * A chat's record, made the first time something is sent in it, and named on
- * disk the way a task is: the day it began and a few words of what was asked.
+ * disk for the day it began and a few words of what was asked.
  * It runs the conversation's agent, and holds only the folders sent in it
  * (what else it reaches is in folder-reach.ts). Asked again for the same
  * session, it answers with the chat it made.
@@ -41,7 +35,7 @@ export async function ensureChat(
   );
   const made = await initializeChat({
     chatId,
-    initialSettings: { name: CHAT_RECORD_NAME },
+    initialSettings: {},
     sessionId,
     workspaceConfig: getWorkspaceConfig(),
   });

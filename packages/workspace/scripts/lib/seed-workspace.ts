@@ -23,8 +23,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { TASKS_DIR_NAME } from "../../src/constants";
-import { copyTask } from "../../src/lib/copy-task";
-import { initializeChat } from "../../src/lib/initialize-task";
+import { copyChatFolder } from "../../src/lib/copy-chat-folder";
+import { initializeChat } from "../../src/lib/initialize-chat";
 import { newChatId } from "../../src/lib/new-chat-id";
 import { resolvePathWithinTaskDir } from "../../src/lib/resolve-path-within-task-dir";
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
@@ -431,7 +431,7 @@ function seedLegacyTaskFolder({
   workspaceConfig: WorkspaceConfig;
 }) {
   const dir = placeChat(id, sessionId);
-  return copyTask({
+  return copyChatFolder({
     includePrivateFolder: false,
     sourceDir: workspaceConfig.defaultTaskTemplateDir,
     targetDir: dir,

@@ -134,9 +134,9 @@ export const BrowserTargetIdSchema = z
       });
       return;
     }
-    const taskIdResult = ChatIdSchema.safeParse(val.slice(0, slash));
-    if (!taskIdResult.success) {
-      for (const issue of taskIdResult.error.issues) {
+    const chatIdResult = ChatIdSchema.safeParse(val.slice(0, slash));
+    if (!chatIdResult.success) {
+      for (const issue of chatIdResult.error.issues) {
         ctx.addIssue({ ...issue, path: ["id", ...issue.path] });
       }
     }

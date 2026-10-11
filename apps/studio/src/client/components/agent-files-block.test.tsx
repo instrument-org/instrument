@@ -47,7 +47,7 @@ vi.mock("@/client/rpc/client", () => ({
   ),
 }));
 vi.mock("@/client/hooks/use-host-paths", () => ({
-  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+  useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
     Object.fromEntries(
       filePaths.map((filePath) => [
         filePath,

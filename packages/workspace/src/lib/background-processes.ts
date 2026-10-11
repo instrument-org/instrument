@@ -137,7 +137,7 @@ export interface BackgroundRunHandle {
  * Who asked a process to stop. The agent reads each differently: its own
  * `kill` is a step it took, the user's stop button is a decision it must not
  * undo by starting the process again, and the conversation's `task stop` is
- * the assistant that briefed it stepping in.
+ * the chat stepping in on a task's command.
  */
 export type StoppedBy = "agent" | "conversation" | "user";
 
@@ -297,11 +297,11 @@ export function killSessionBackgroundProcesses(
           `Could not confirm that every background process for session ${sessionId} stopped.`,
         );
       }
-      const taskIds = new Set(
+      const chatIds = new Set(
         [...records.values()].map(({ chatId }) => chatId),
       );
       recordsBySession.delete(sessionId);
-      for (const chatId of taskIds) {
+      for (const chatId of chatIds) {
         publishChanged(chatId);
       }
     } finally {

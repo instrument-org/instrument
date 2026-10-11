@@ -497,7 +497,7 @@ describe("app new --web", () => {
     const result = await app("call", "zoom-call", "list_meetings");
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatchInlineSnapshot(`
-      "app: "zoom-call" is a web app: the user is signed in to it in Instrument's browser, and no \`app\` call reaches it. Work it in a tab: brief a task with https://zoom.us, or hand it a tab already open there with \`task new --tab <id>\`.
+      "app: "zoom-call" is a web app: the user is signed in to it in Instrument's browser, and no \`app\` call reaches it. Work it in a tab: open https://zoom.us, where the sign-in holds, or use a tab already open there.
       "
     `);
   });

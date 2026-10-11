@@ -88,7 +88,7 @@ export function bashWorkerEnabled(): boolean {
 export function createRemoteBash(
   options: BashEnvOptions,
   mainBashFactory: () => Promise<BashRunner>,
-  invokeTool: AppToolInvoker = appToolHook(options.chatId),
+  invokeTool: AppToolInvoker = appToolHook,
 ): BashRunner {
   return {
     exec: (command, { signal, ...execOptions }: ExecOptions = {}) =>

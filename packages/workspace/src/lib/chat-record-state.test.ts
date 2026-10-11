@@ -69,7 +69,7 @@ describe("the state beside the settings", () => {
    * other has not written, and whichever lands second erases the other's half.
    */
   it("does not lose a generated title to a state write at the same time", async () => {
-    await updateChatSettings(chatId, { name: "Untitled task" });
+    await updateChatSettings(chatId, { name: "Untitled chat" });
 
     await Promise.all([
       updateChatSettings(chatId, { name: "Generated title" }),

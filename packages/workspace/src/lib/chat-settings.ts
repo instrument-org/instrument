@@ -15,11 +15,11 @@ import { readChatRecord, updateChatRecord } from "./chat-record";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
- * What the app knows about a task: its title, whether it is pinned or unread,
- * which project it belongs to, and when it was made and last worked in.
+ * What the app knows about a chat: when it was made and last worked in, the
+ * model and effort its sessions run with, and the folders granted in it.
  *
- * One of the two views over the task record; the state beside it is the other.
- * See task-record.ts for what separates them.
+ * One of the two views over the chat's settings file; the state beside it is
+ * the other. See chat-record.ts for what separates them.
  */
 export async function getChatSettings(
   dir: ChatDir,
@@ -29,9 +29,9 @@ export async function getChatSettings(
 }
 
 /**
- * Mark that something happened in this task, which is what orders the list.
+ * Mark that something happened in this chat, which is what orders the list.
  *
- * Best-effort: a task whose activity stamp fails to write sorts by the old
+ * Best-effort: a chat whose activity stamp fails to write sorts by the old
  * filesystem fallback, which is worse but not wrong, and losing the turn over
  * it would be.
  */
@@ -53,7 +53,7 @@ export function updateChatSettings(
     if (!parseResult.success) {
       return err(
         new TypedError.Parse(
-          `Invalid task settings updates: ${parseResult.error.message}`,
+          `Invalid chat settings updates: ${parseResult.error.message}`,
           { cause: parseResult.error },
         ),
       );
@@ -63,7 +63,7 @@ export function updateChatSettings(
       writeMergedSettings(chatId, parseResult.data),
       (error) =>
         new TypedError.FileSystem(
-          `Failed to write task settings: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to write chat settings: ${error instanceof Error ? error.message : String(error)}`,
           { cause: error },
         ),
     );

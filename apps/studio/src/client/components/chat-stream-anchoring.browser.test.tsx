@@ -31,7 +31,7 @@ import {
 // A reply's file is drawn once the main process says where it is on the
 // computer, which it cannot here, so every path is answered with one.
 vi.mock("@/client/hooks/use-host-paths", () => ({
-  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+  useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
     Object.fromEntries(filePaths.map((path) => [path, `/computer/${path}`])),
 }));
 

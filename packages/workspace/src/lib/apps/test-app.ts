@@ -3,7 +3,6 @@ import { APP_NAME } from "@instrument-org/shared";
 import { MOUNT } from "../../mount-points";
 import { type AbsolutePath } from "../../schemas/paths";
 import { APP_COMMAND } from "../shell-commands/app-command";
-import { TASK_COMMAND } from "../shell-commands/task-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isConnected, readConnection, recordConnection } from "./connection";
 import {
@@ -453,7 +452,7 @@ async function testWebApp({
         },
   );
   checks.push({
-    detail: `This test cannot check the session itself: whether the user is still signed in shows only when a page of the site loads. Work it in the browser: brief a task with ${manifest.url} (it opens the site in a tab of its own, where the sign-in holds), or hand it a tab already open there with \`${TASK_COMMAND.name} new --tab <id>\`. \`${APP_COMMAND.name} call\` and \`${APP_COMMAND.name} request\` do not reach a web app.`,
+    detail: `This test cannot check the session itself: whether the user is still signed in shows only when a page of the site loads. Work it in the browser: open ${manifest.url} in a tab, where the sign-in holds, or use a tab already open there. \`${APP_COMMAND.name} call\` and \`${APP_COMMAND.name} request\` do not reach a web app.`,
     name: "canary",
     status: "skip",
   });

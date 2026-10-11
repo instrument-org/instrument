@@ -128,33 +128,6 @@ export function ChildTranscript({
 }
 
 /**
- * The apps this task may reach. Three states worth telling apart: a list it
- * was handed, none at all, and the absent setting a person's own task carries,
- * which reaches everything connected.
- */
-function AppsChip({ apps }: { apps: string[] | undefined }) {
-  if (!apps) {
-    return (
-      <Chip label="Apps" title="This task can use every connected app">
-        every connected app
-      </Chip>
-    );
-  }
-  if (apps.length === 0) {
-    return (
-      <Chip label="Apps" title="This task can’t use any connected apps.">
-        none
-      </Chip>
-    );
-  }
-  return (
-    <Chip label="Apps" title={apps.join(", ")}>
-      {apps.join(", ")}
-    </Chip>
-  );
-}
-
-/**
  * One fact about the task: a label in muted type, the value beside it, and an
  * optional note for where the value came from when that is not the task's own
  * doing.
@@ -244,11 +217,10 @@ function HeldTabChip({ sessionId }: { sessionId: string }) {
 /**
  * Everything that constrains the task, along the top, for whoever is checking
  * its work: the model it runs on and the level it thinks at, the folders it
- * reaches and whether it may write to them, the apps it may reach, and the
- * tabs it drives. One chip per thing something enforces, and nothing else -- what
- * the brief asked of the task is the first message below, in the words it was
- * asked in, where it cannot be mistaken for a rule. Chips open to their full
- * value on hover.
+ * reaches and whether it may write to them, and the tabs it drives. One chip
+ * per thing something enforces, and nothing else -- what the chat asked of
+ * the task is the first message below, in the words it was asked in, where
+ * it cannot be mistaken for a rule. Chips open to their full value on hover.
  */
 function TaskBrief({
   chatInfo,
@@ -299,7 +271,6 @@ function TaskBrief({
           </span>
         </span>
       ))}
-      <AppsChip apps={chatInfo.apps} />
       {heldTabs.map((sessionId) => (
         <HeldTabChip key={sessionId} sessionId={sessionId} />
       ))}

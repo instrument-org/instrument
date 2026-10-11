@@ -9,7 +9,7 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
 import { chatFor } from "../test/helpers/chat-record";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { ensureWorkFolder, initializeChat } from "./initialize-task";
+import { ensureWorkFolder, initializeChat } from "./initialize-chat";
 import { chatDir } from "./record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
@@ -18,7 +18,7 @@ const ISO_TIMESTAMP = /\d{4}-\d{2}-\d{2}T[\d:.]+Z/g;
 let rootDir: string;
 
 beforeEach(async () => {
-  rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "initialize-task-"));
+  rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "initialize-chat-"));
   // The settings file is snapshotted whole, and it carries the activity stamp
   // a new task starts with.
 });

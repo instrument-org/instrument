@@ -8,13 +8,10 @@ import { ChatIdSchema } from "./chat-id";
 
 /**
  * What a chat's settings say about it, read from its folder: its title,
- * when it was made and last worked in, and the apps, model and reasoning
- * effort its sessions run with.
+ * when it was made and last worked in, and the model and reasoning effort
+ * its sessions run with.
  */
 export const ChatInfoSchema = z.object({
-  // The apps this chat may reach, by slug. Absent means every connected app;
-  // empty means none. See ChatSettingsSchema, whose field this carries.
-  apps: z.array(z.string()).optional(),
   createdAt: z.date(),
   id: ChatIdSchema,
   // The model the chat's sessions run on, absent until the composer first

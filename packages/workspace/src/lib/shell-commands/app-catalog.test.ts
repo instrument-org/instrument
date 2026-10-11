@@ -28,11 +28,8 @@ describe("app catalog", () => {
   // minutes; the helper answers in a query, so where the build carries it
   // the set-up line names it.
   it.each([
-    [undefined, "brief a task to do it with osascript on this Mac"],
-    [
-      "/app/bin/instrument-mac",
-      "brief a task to do it with the `calendar` command",
-    ],
+    [undefined, "do it with osascript on this Mac"],
+    ["/app/bin/instrument-mac", "do it with the `calendar` command"],
   ])("sends Reminders through the helper when it is %s", async (bin, line) => {
     const config = getWorkspaceConfig();
     const { macHelperBinPath: _absent, ...without } = config;

@@ -39,7 +39,7 @@ const freshChat = () => {
 };
 
 /** A chat of the conversation: a session under a title. */
-async function chat(_taskId: ChatId, title: string) {
+async function chat(_chatId: ChatId, title: string) {
   const sessionId = StoreId.newSessionId();
   chatFor(sessionId);
   await Store.saveSession(
@@ -51,7 +51,7 @@ async function chat(_taskId: ChatId, title: string) {
 
 /** A reply in a chat, said at a given moment. */
 async function said(
-  _taskId: ChatId,
+  _chatId: ChatId,
   sessionId: StoreId.Session,
   text: string,
   at: Date,

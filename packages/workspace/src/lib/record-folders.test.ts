@@ -9,7 +9,7 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import { WINDOW_ID } from "../schemas/window-id";
 import { chatFolderName } from "./chat-folder-name";
 import { getChatInfos } from "./chat-info";
-import { initializeChat } from "./initialize-task";
+import { initializeChat } from "./initialize-chat";
 import { newChatId } from "./new-chat-id";
 import {
   chatDir,

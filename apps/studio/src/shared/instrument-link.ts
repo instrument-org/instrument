@@ -5,7 +5,7 @@ export interface InstrumentLink {
   /** The screen address the window opens it at. */
   href: string;
   kind: InstrumentLinkKind;
-  /** The thing's own name: a slug, a task id, a session id or its prefix. */
+  /** The thing's own name: a slug, a session id or its prefix. */
   name: string;
 }
 

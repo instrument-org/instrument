@@ -6,16 +6,16 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CHAT_DB_FILE_NAME, CHAT_FOLDER_NAMES } from "../constants";
 import {
-  queryTaskDatabase,
-  resolveTaskDatabasePath,
-} from "./task-database-query";
+  queryChatDatabase,
+  resolveChatDatabasePath,
+} from "./chat-database-query";
 
 let rootDir: string;
 let chatDir: string;
 let databasePath: string;
 
 beforeEach(async () => {
-  rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-database-query-"));
+  rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "chat-database-query-"));
   chatDir = path.join(rootDir, "task");
   const privateDir = path.join(chatDir, CHAT_FOLDER_NAMES.private);
   await fs.mkdir(privateDir, { recursive: true });
@@ -39,14 +39,14 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-describe("queryTaskDatabase", () => {
+describe("queryChatDatabase", () => {
   it("queries a task directory read-only and returns raw rows", () => {
-    const result = queryTaskDatabase({
+    const result = queryChatDatabase({
       databasePath: chatDir,
       sql: "select key, cast(blob as text) as payload from sessions",
     });
 
-    expect(resolveTaskDatabasePath(chatDir)).toBe(databasePath);
+    expect(resolveChatDatabasePath(chatDir)).toBe(databasePath);
     expect(result.columns).toEqual(["key", "payload"]);
     expect(result.rows).toEqual([
       {
@@ -58,7 +58,7 @@ describe("queryTaskDatabase", () => {
 
   it("rejects write statements", () => {
     expect(() =>
-      queryTaskDatabase({
+      queryChatDatabase({
         databasePath,
         sql: "delete from sessions",
       }),

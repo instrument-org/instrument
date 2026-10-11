@@ -1,4 +1,4 @@
-import { initializeChat } from "../../lib/initialize-task";
+import { initializeChat } from "../../lib/initialize-chat";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { type ChatId } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";

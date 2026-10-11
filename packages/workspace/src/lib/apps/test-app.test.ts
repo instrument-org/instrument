@@ -337,7 +337,7 @@ describe("a web app", () => {
     expect(report.checks.find((check) => check.name === "canary"))
       .toMatchInlineSnapshot(`
         {
-          "detail": "This test cannot check the session itself: whether the user is still signed in shows only when a page of the site loads. Work it in the browser: brief a task with https://drive.google.com (it opens the site in a tab of its own, where the sign-in holds), or hand it a tab already open there with \`task new --tab <id>\`. \`app call\` and \`app request\` do not reach a web app.",
+          "detail": "This test cannot check the session itself: whether the user is still signed in shows only when a page of the site loads. Work it in the browser: open https://drive.google.com in a tab, where the sign-in holds, or use a tab already open there. \`app call\` and \`app request\` do not reach a web app.",
           "name": "canary",
           "status": "skip",
         }

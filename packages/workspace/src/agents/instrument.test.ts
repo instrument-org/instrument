@@ -285,7 +285,7 @@ describe("instrumentAgent", () => {
     expect(prompt).toContain("task folder --add");
   });
 
-  it("carries nothing of briefed tasks or their folders", () => {
+  it("names no flag or mount the task command does not have", () => {
     for (const gone of [
       "--fresh",
       "--folder",

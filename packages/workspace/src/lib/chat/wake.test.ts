@@ -52,8 +52,8 @@ async function chatWithTask() {
   if (written.isErr()) {
     throw written.error;
   }
-  const taskId = await chatTaskFor(chatId, { title: "Audit the vault" });
-  return { chatId, taskId };
+  const taskSession = await chatTaskFor(chatId, { title: "Audit the vault" });
+  return { chatId, taskSession };
 }
 
 /** The task events of the wakes sent to `chatId`. */
@@ -74,36 +74,36 @@ function wakesOf(chatId: string) {
 
 describe("a stopped task", () => {
   it("wakes the chat saying the user stopped it, and keeps who did on its row", async () => {
-    const { chatId, taskId } = await chatWithTask();
+    const { chatId, taskSession } = await chatWithTask();
 
-    expectStop(taskId, { by: "user", wakesChat: true });
-    publisher.publish("session.done", { id: chatId, sessionId: taskId });
+    expectStop(taskSession, { by: "user", wakesChat: true });
+    publisher.publish("session.done", { id: chatId, sessionId: taskSession });
 
     await vi.waitFor(() => {
       expect(wakesOf(chatId)).toHaveLength(1);
     }, 5000);
     expect(wakesOf(chatId)[0]).toMatchObject({
-      sessionId: taskId,
+      sessionId: taskSession,
       stoppedBy: "user",
       title: "Audit the vault",
     });
-    expect((await childTask(chatId, taskId))?.stoppedBy).toBe("user");
+    expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("user");
   });
 
   it("wakes nothing when the chat stopped it, and forgets the stop once its next turn ends", async () => {
-    const { chatId, taskId } = await chatWithTask();
+    const { chatId, taskSession } = await chatWithTask();
 
-    expectStop(taskId, { by: "chat", wakesChat: false });
-    publisher.publish("session.done", { id: chatId, sessionId: taskId });
+    expectStop(taskSession, { by: "chat", wakesChat: false });
+    publisher.publish("session.done", { id: chatId, sessionId: taskSession });
     await vi.waitFor(async () => {
-      expect((await childTask(chatId, taskId))?.stoppedBy).toBe("chat");
+      expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("chat");
     });
 
-    publisher.publish("session.done", { id: chatId, sessionId: taskId });
+    publisher.publish("session.done", { id: chatId, sessionId: taskSession });
     await vi.waitFor(() => {
       expect(wakesOf(chatId)).toHaveLength(1);
     }, 5000);
     expect(wakesOf(chatId)[0]).not.toHaveProperty("stoppedBy");
-    expect((await childTask(chatId, taskId))?.stoppedBy).toBeUndefined();
+    expect((await childTask(chatId, taskSession))?.stoppedBy).toBeUndefined();
   });
 });

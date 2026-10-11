@@ -25,7 +25,7 @@ import {
   resolveChat,
   sessionOfChat,
 } from "../../lib/record-folders";
-import { trashChat } from "../../lib/trash-task";
+import { trashChat } from "../../lib/trash-chat";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { chatRoutes } from "./chat";

@@ -288,7 +288,7 @@ describe("Markdown links", () => {
     renderWithProviders(
       <WindowContext value={context}>
         <Markdown
-          markdown="I started [the hotel search](instrument://task/lisbon-hotel)."
+          markdown="I started [the hotel search](instrument://task/ses_01J9TASK)."
           chatId={TASK_ID}
         />
       </WindowContext>,
@@ -296,7 +296,7 @@ describe("Markdown links", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "the hotel search" }));
 
-    expect(openScreen).toHaveBeenCalledWith("/tasks/lisbon-hotel");
+    expect(openScreen).toHaveBeenCalledWith("/tasks/ses_01J9TASK");
   });
 });
 

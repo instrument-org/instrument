@@ -56,7 +56,6 @@ import { catalogWayIn, parseAuth } from "../apps/way-in";
 import { formatAppTestReport, runAppTest } from "../apps/test-app";
 import { chatDir } from "../record-folders";
 import { getChatState, setChatState } from "../chat-record";
-import { getChatSettings } from "../chat-settings";
 import { truncateMiddle } from "../truncate-buffer";
 import { getWorkspaceConfig } from "../workspace-config";
 import { APP_COMMAND } from "./app-command";
@@ -67,7 +66,6 @@ import {
   subcommand,
 } from "./subcommands";
 import { JS_EXEC_COMMAND } from "./js-exec";
-import { TASK_COMMAND } from "./task-command";
 import { subprocessStdin } from "./utils";
 
 export { APP_COMMAND } from "./app-command";
@@ -174,18 +172,18 @@ const runApp = defineSubcommands<AppCommandContext>({
   subcommands: {
     account: subcommand({
       booleans: ["clear"],
-      run: (input, context) => runAccount(input, context),
+      run: (input) => runAccount(input),
     }),
     call: subcommand({
       flags: ["out"],
-      run: (input, context, shell) => runCall(input, context, shell),
+      run: (input, _context, shell) => runCall(input, shell),
     }),
     catalog: subcommand({
       run: ({ positional }, _, { signal }) => runCatalog(positional, signal),
     }),
     disconnect: subcommand({
       positional: 1,
-      run: ({ positional }, context) => runDisconnect(positional, context),
+      run: ({ positional }) => runDisconnect(positional),
     }),
     guide: subcommand({
       positional: 1,
@@ -194,10 +192,9 @@ const runApp = defineSubcommands<AppCommandContext>({
     }),
     icon: subcommand({
       positional: 2,
-      run: ({ positional }, context, shell) =>
-        runIcon(positional, context, shell),
+      run: ({ positional }, _context, shell) => runIcon(positional, shell),
     }),
-    list: subcommand({ positional: 0, run: (_, context) => runList(context) }),
+    list: subcommand({ positional: 0, run: () => runList() }),
     new: subcommand({
       booleans: ["force"],
       flags: [
@@ -215,7 +212,7 @@ const runApp = defineSubcommands<AppCommandContext>({
         "web",
       ],
       repeatable: ["arg", "header"],
-      run: (input, context) => runNew(input, context),
+      run: (input) => runNew(input),
     }),
     request: subcommand({
       flags: ["param"],
@@ -225,34 +222,24 @@ const runApp = defineSubcommands<AppCommandContext>({
     }),
     test: subcommand({
       positional: 1,
-      run: ({ positional }, context, { signal }) =>
-        runTest(positional, context, signal),
+      run: ({ positional }, _context, { signal }) =>
+        runTest(positional, signal),
     }),
     // `app tools linear save_comment` is how the singular gets reached for,
     // so the two mean the same thing.
     tool: subcommand({
       positional: 2,
-      run: ({ positional }, context, { signal }) =>
-        runTools(positional, context, signal, positional[1]),
+      run: ({ positional }, _context, { signal }) =>
+        runTools(positional, signal, positional[1]),
     }),
     tools: subcommand({
       positional: 2,
-      run: ({ positional }, context, { signal }) =>
-        runTools(positional, context, signal, positional[1]),
+      run: ({ positional }, _context, { signal }) =>
+        runTools(positional, signal, positional[1]),
     }),
   },
   usage: USAGE,
 });
-
-/**
- * The apps a task may reach: the ones the chat handed it, by slug, or
- * every app for a task nobody scoped (the chat itself, a task a person
- * made). Undefined means every app.
- */
-async function allowedSlugs(chatId: ChatId): Promise<Set<string> | undefined> {
-  const settings = await getChatSettings(chatDir(chatId));
-  return settings?.apps ? new Set(settings.apps) : undefined;
-}
 
 /** Mac apps the bundled helper answers for, by bundle id, with the task command that reaches each. */
 const NATIVE_COMMANDS: Record<string, string> = {
@@ -301,8 +288,8 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
         : way.kind === "api"
           ? `${start} --api ${way.endpoint} --auth ${way.auth} --test ${way.test ?? "<a cheap GET, such as /me>"}`
           : way.kind === "mac-app"
-            ? `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, brief a task to do it ${native === undefined ? `with osascript on this Mac, and macOS asks the user once to let ${APP_NAME} control it` : `with the \`${native}\` command, ${APP_NAME}'s own way into ${way.name} (fast, and it reads every account added there; never osascript for it), and macOS asks the user once for access`}. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
-            : `${start} --web ${way.url}${way.signIn ? ` --sign-in '${way.signIn}'` : ""}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and a task works it in a tab)`;
+            ? `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, do it ${native === undefined ? `with osascript on this Mac, and macOS asks the user once to let ${APP_NAME} control it` : `with the \`${native}\` command, ${APP_NAME}'s own way into ${way.name} (fast, and it reads every account added there; never osascript for it), and macOS asks the user once for access`}. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
+            : `${start} --web ${way.url}${way.signIn ? ` --sign-in '${way.signIn}'` : ""}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and it is worked in a tab)`;
   const keySurface =
     way.kind === "mcp" || way.kind === "api"
       ? entry.interfaces.find((surface) => surface.endpoint === way.endpoint)
@@ -387,25 +374,17 @@ async function redactorFor(app: AppInfo, credential: null | string) {
 }
 
 /**
- * The app a subcommand names, when this task may reach it. With `connected`,
+ * The app a subcommand names. With `connected`,
  * only one whose connection record is current, so a call never goes out on a
  * manifest nobody tested.
  */
 async function requireApp(
   rawSlug: string | undefined,
-  context: AppCommandContext,
   { connected }: { connected: boolean },
 ): Promise<AppInfo> {
   if (!rawSlug) {
     throw new Error(
       `an app slug is required. See \`${APP_COMMAND.name} list\`.`,
-    );
-  }
-  const allowed = await allowedSlugs(context.chatId);
-  if (allowed && !allowed.has(rawSlug)) {
-    const yours = [...allowed].join(", ") || "none";
-    throw new Error(
-      `this task was not handed the app "${rawSlug}". Apps it has: ${yours}.`,
     );
   }
   const loaded = await loadApp(getWorkspaceConfig().appsDir, rawSlug);
@@ -425,27 +404,25 @@ async function requireApp(
 }
 
 /**
- * One MCP tool call with every check `call` makes: the task was handed the
- * app, it is connected on the manifest that passed its test, it is an MCP
- * app, and its credential is here. A failed connection throws with what to do
+ * One MCP tool call with every check `call` makes: the app is connected on
+ * the manifest that passed its test, it is an MCP app, and its credential
+ * is here. A failed connection throws with what to do
  * next; a refusal comes back with `isError` for the caller to report. Nothing
  * in the result is redacted yet; `redact` does that.
  */
 async function callAppTool({
   args,
-  context,
   signal,
   slug,
   tool,
 }: {
   /** The tool's arguments, read once the app is known to take a call. */
   args: () => Record<string, unknown>;
-  context: AppCommandContext;
   signal: AbortSignal | undefined;
   slug: string | undefined;
   tool: string | undefined;
 }) {
-  const app = await requireApp(slug, context, { connected: true });
+  const app = await requireApp(slug, { connected: true });
   const manifest = app.manifest;
   if (manifest.type === "web") {
     throw new Error(webAppRefusal(app.slug, manifest.url));
@@ -484,17 +461,12 @@ function refusalHint(slug: string, tool: string): string {
   return `The tool refused the call. If the arguments were the problem, \`${APP_COMMAND.name} tool ${slug} ${tool}\` shows the JSON it takes.`;
 }
 
-async function runCall(
-  input: SubcommandInput,
-  context: AppCommandContext,
-  shell: SubcommandShell,
-) {
+async function runCall(input: SubcommandInput, shell: SubcommandShell) {
   const { signal, stdin } = shell;
   const [slug, rawTool, inline] = input.positional;
   const out = input.value("out");
   const { app, isError, redact, structured, text, tool } = await callAppTool({
     args: () => jsonFrom(inline, stdin, "The tool's arguments"),
-    context,
     signal,
     slug,
     tool: rawTool,
@@ -537,7 +509,6 @@ async function runCall(
  * The string returned is that value as JSON, which is what just-bash parses.
  */
 export async function invokeAppTool(
-  context: AppCommandContext,
   path: string,
   argsJson: string,
   signal?: AbortSignal,
@@ -549,7 +520,6 @@ export async function invokeAppTool(
   try {
     const result = await callAppTool({
       args: () => jsonFrom(argsJson, EMPTY_BYTES, "The tool's argument"),
-      context,
       signal,
       slug,
       tool: tool || undefined,
@@ -674,13 +644,8 @@ async function runCatalog(args: string[], signal: AbortSignal | undefined) {
   return ok(`${detailed}${more}\n`);
 }
 
-async function runDisconnect(args: string[], context: AppCommandContext) {
-  if (await allowedSlugs(context.chatId)) {
-    throw new Error(
-      "only the conversation disconnects apps; a task uses them.",
-    );
-  }
-  const app = await requireApp(args[0], context, { connected: false });
+async function runDisconnect(args: string[]) {
+  const app = await requireApp(args[0], { connected: false });
   await getWorkspaceConfig().apps.disconnect(app.slug);
   return ok(
     `Disconnected ${app.slug}. Its folder at ${MOUNT.apps}/${app.slug}/ stays; connect_app asks the user again.\n`,
@@ -692,12 +657,9 @@ async function runGuide(
   context: AppCommandContext,
   stdin: ByteString,
 ) {
-  const app = await requireApp(args[0], context, { connected: false });
+  const app = await requireApp(args[0], { connected: false });
   const written = subprocessStdin(stdin)?.toString("utf8").trim();
   if (written) {
-    if (await allowedSlugs(context.chatId)) {
-      throw new Error("only the conversation sets apps up; a task uses them.");
-    }
     await writeAppGuide(app.dir, written);
     const left = guidePlaceholdersLeft(app.manifest, written);
     return ok(
@@ -716,15 +678,8 @@ async function runGuide(
   return ok(`${guide.trimEnd()}\n`);
 }
 
-async function runIcon(
-  args: string[],
-  context: AppCommandContext,
-  ctx: SubcommandShell,
-) {
-  if (await allowedSlugs(context.chatId)) {
-    throw new Error("only the conversation sets apps up; a task uses them.");
-  }
-  const app = await requireApp(args[0], context, { connected: false });
+async function runIcon(args: string[], ctx: SubcommandShell) {
+  const app = await requireApp(args[0], { connected: false });
   const source = args[1];
   if (!source) {
     throw new Error(
@@ -748,9 +703,9 @@ async function runIcon(
   );
 }
 
-async function runAccount(input: SubcommandInput, context: AppCommandContext) {
+async function runAccount(input: SubcommandInput) {
   const [slug, ...words] = input.positional;
-  const app = await requireApp(slug, context, { connected: false });
+  const app = await requireApp(slug, { connected: false });
   const named = words.join(" ").trim();
   if (input.has("clear")) {
     await setAppAccount(getWorkspaceConfig().appsDir, app.slug, undefined);
@@ -775,34 +730,28 @@ async function runAccount(input: SubcommandInput, context: AppCommandContext) {
   );
 }
 
-async function runList(context: AppCommandContext) {
+async function runList() {
   const config = getWorkspaceConfig();
-  const [{ apps, invalid }, connections, allowed] = await Promise.all([
+  const [{ apps, invalid }, connections] = await Promise.all([
     listApps(config.appsDir),
     config.apps.connections.list(),
-    allowedSlugs(context.chatId),
   ]);
-  const visible = apps.filter((app) => !allowed || allowed.has(app.slug));
-  if (visible.length === 0 && invalid.length === 0) {
+  if (apps.length === 0 && invalid.length === 0) {
     return ok(
-      allowed
-        ? "This task was handed no apps.\n"
-        : `No apps yet. \`${APP_COMMAND.name} catalog <name>\` to look one up, \`${APP_COMMAND.name} new\` to write its folder.\n`,
+      `No apps yet. \`${APP_COMMAND.name} catalog <name>\` to look one up, \`${APP_COMMAND.name} new\` to write its folder.\n`,
     );
   }
-  const lines = visible.map(
+  const lines = apps.map(
     (app) =>
       `${app.slug}  ${app.manifest.name}${app.manifest.account ? ` (${app.manifest.account})` : ""}  ${app.manifest.type}  ${describeConnection(connections[app.slug], app.manifestHash)}`,
   );
   for (const entry of invalid) {
-    if (!allowed || allowed.has(entry.slug)) {
-      lines.push(`${entry.slug}  broken manifest: ${entry.message}`);
-    }
+    lines.push(`${entry.slug}  broken manifest: ${entry.message}`);
   }
   return ok(`${lines.join("\n")}\n`);
 }
 
-async function runNew(input: SubcommandInput, context: AppCommandContext) {
+async function runNew(input: SubcommandInput) {
   const force = input.has("force");
   const rawSlug = input.positional[0];
   const slugResult = AppSlugSchema.safeParse(rawSlug ?? "");
@@ -812,10 +761,6 @@ async function runNew(input: SubcommandInput, context: AppCommandContext) {
     );
   }
   const slug = slugResult.data;
-  const allowed = await allowedSlugs(context.chatId);
-  if (allowed) {
-    throw new Error("only the conversation sets apps up; a task uses them.");
-  }
   const name = input.value("name")?.trim();
   if (!name) {
     throw new Error("new needs --name '<Name>', the service's own name.");
@@ -829,7 +774,7 @@ async function runNew(input: SubcommandInput, context: AppCommandContext) {
     input.value("mac-app") !== undefined
   ) {
     throw new Error(
-      `a Mac app a task drives with osascript needs no app folder and no \`${APP_COMMAND.name} new\`: brief a task to do what the user asked in it.`,
+      `a Mac app a task drives with osascript needs no app folder and no \`${APP_COMMAND.name} new\`: do what the user asked in it with osascript.`,
     );
   }
   if ([mcp, api, local, web].filter(Boolean).length !== 1) {
@@ -1046,7 +991,7 @@ async function runRequest(
   signal: AbortSignal | undefined,
 ) {
   const [slug, rawMethod, requestPath, inlineBody] = input.positional;
-  const app = await requireApp(slug, context, { connected: true });
+  const app = await requireApp(slug, { connected: true });
   if (app.manifest.type === "web") {
     throw new Error(webAppRefusal(app.slug, app.manifest.url));
   }
@@ -1121,12 +1066,8 @@ async function runRequest(
     : { exitCode: 0, stderr: `${statusLine}${note}`, stdout: shown };
 }
 
-async function runTest(
-  args: string[],
-  context: AppCommandContext,
-  signal: AbortSignal | undefined,
-) {
-  const app = await requireApp(args[0], context, { connected: false });
+async function runTest(args: string[], signal: AbortSignal | undefined) {
+  const app = await requireApp(args[0], { connected: false });
   const report = await runAppTest({
     appsDir: getWorkspaceConfig().appsDir,
     signal: withTimeout(signal, TEST_TIMEOUT_MS),
@@ -1138,11 +1079,10 @@ async function runTest(
 
 async function runTools(
   args: string[],
-  context: AppCommandContext,
   signal: AbortSignal | undefined,
   only?: string,
 ) {
-  const app = await requireApp(args[0], context, { connected: true });
+  const app = await requireApp(args[0], { connected: true });
   const manifest = app.manifest;
   if (manifest.type === "web") {
     throw new Error(webAppRefusal(app.slug, manifest.url));
@@ -1217,7 +1157,7 @@ function summarizeCatalogEntry(entry: AppCatalogEntry): string {
 
 /** Why `call`, `tools`, and `request` refuse a web app, and how it is worked instead. */
 function webAppRefusal(slug: string, url: string): string {
-  return `"${slug}" is a web app: the user is signed in to it in ${APP_NAME}'s browser, and no \`${APP_COMMAND.name}\` call reaches it. Work it in a tab: brief a task with ${url}, or hand it a tab already open there with \`${TASK_COMMAND.name} new --tab <id>\`.`;
+  return `"${slug}" is a web app: the user is signed in to it in ${APP_NAME}'s browser, and no \`${APP_COMMAND.name}\` call reaches it. Work it in a tab: open ${url}, where the sign-in holds, or use a tab already open there.`;
 }
 
 /** The call's own signal, bounded by a timeout so a hung service cannot hold a turn. */

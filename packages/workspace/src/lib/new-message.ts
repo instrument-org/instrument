@@ -25,7 +25,6 @@ import { folderReach } from "./chat/folder-reach";
 import { listTopics, type TopicFolder } from "./chat/topics";
 import { tabHolders } from "./chat/window-tab";
 import { Store } from "./store";
-import { detectTaskAppChanges } from "./task-app-changes";
 import { resolveChat } from "./record-folders";
 import { updateChatSettings } from "./chat-settings";
 import { grantFolder } from "./chat/grants";
@@ -293,20 +292,6 @@ export async function newMessage({
     if (memoryPart) {
       parts.push(memoryPart);
     }
-  }
-
-  // The apps a task may reach are named in the session context, which is never
-  // rewritten, so an app handed over after it started arrives here or nowhere.
-  const appChanges = await detectTaskAppChanges({
-    messageId,
-    sessionId,
-    chatId,
-  });
-  if (appChanges.isErr()) {
-    // Awareness of app changes is best-effort; never block sending.
-    getWorkspaceConfig().captureException(appChanges.error);
-  } else if (appChanges.value) {
-    parts.push(appChanges.value);
   }
 
   // A chat's apps are listed in its session context, written once; one

@@ -14,18 +14,18 @@ import { recordChanged } from "./record-changes";
 import { getChatPrivateDir } from "./chat-dir-utils";
 
 /**
- * The one file a task keeps beside its conversation, and the only writer of it.
+ * The one file a chat keeps beside its database (`settings.json`), and the
+ * only writer of it.
  *
  * It holds two kinds of thing and the difference is worth knowing, because it
  * is the reason `state` is a nested key rather than more fields:
  *
- * - Everything at the top level is what the app asks *about* a task -- title,
- *   pin, unread, project, timestamps. The task list reads it for every task in
- *   the workspace, and a future cross-task index projects exactly these and is
- *   rebuilt from them.
- * - `state` is where the user left off *inside* one task -- open tabs,
- *   chosen model, attached folders. Read when a task is open, never queried
- *   across tasks, and nothing will ever index it.
+ * - Everything at the top level is what the app knows *about* a chat --
+ *   timestamps, model and effort, the folders granted in it. The chat list
+ *   reads it for every chat in the workspace.
+ * - `state` is where the user left off *inside* one chat -- its browser tabs
+ *   and the session driving each. Read when a chat is open, never queried
+ *   across chats, and nothing will ever index it.
  *
  * Two views over one file rather than two files: see the finding on the task
  * list following file timestamps for why they were split and why that reason
@@ -52,17 +52,17 @@ export interface ChatRecord {
    * The file is there and could not be read: truncated JSON, something that is
    * not an object, a permission error.
    *
-   * Reads answer empty for it, the same answer a task with no file gets, since
-   * a caller asking for a title has nothing better to show. Writes must not:
-   * that empty answer plus whatever the caller is changing *becomes* the file,
-   * so a model pick would replace a title, a pin and every open tab with one
+   * Reads answer empty for it, the same answer a chat with no file gets, since
+   * a caller asking for its settings has nothing better to show. Writes must
+   * not: that empty answer plus whatever the caller is changing *becomes* the
+   * file, so a model pick would replace the grants and every open tab with one
    * field.
    */
   unreadable: boolean;
 }
 
 /**
- * Where the user left off in a task.
+ * Where the user left off in a chat.
  *
  * Total rather than optional, unlike the settings view: an empty state means
  * nothing has been set, where an absent settings means the file could not be
@@ -77,13 +77,13 @@ export async function getChatState(dir: ChatDir): Promise<ChatState> {
  * Reads both views, each tolerant of the other failing.
  *
  * They are parsed separately on purpose. A state written by a newer build, or a
- * field holding something the schema rejects, must not cost the task its title
- * and its place in the list -- and a title that cannot be read must not cost the
- * attached folders that decide what the agent can reach.
+ * field holding something the schema rejects, must not cost the chat its
+ * grants and its place in the list -- and settings that cannot be read must
+ * not cost the tabs the chat's sessions drive.
  */
 export async function readChatRecord(dir: ChatDir): Promise<ChatRecord> {
   const read = await readJsonRecord(recordPath(dir));
-  // A task nobody has written a record for yet is the one case a write may
+  // A chat nobody has written a settings file for yet is the one case a write may
   // create from nothing; anything else is a file we have but cannot read.
   return read.kind === "read"
     ? recordFrom(read.record)

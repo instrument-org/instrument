@@ -4,6 +4,7 @@ import {
 } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
+import { UNTITLED_CHAT_TITLE } from "../constants";
 import { AbsolutePathSchema } from "./paths";
 import { StoreId } from "./store-id";
 
@@ -23,40 +24,36 @@ const ChatGrantSchema = z.object({
 export type ChatGrant = z.output<typeof ChatGrantSchema>;
 
 // Load-bearing that this stays a plain object schema: it is parsed against the
-// whole task record, whose `state` key it is meant to ignore rather than reject.
-// Making it strict would fail every task's settings at once and take every title
-// in the workspace with them.
+// whole settings file, whose `state` key it is meant to ignore rather than
+// reject. Making it strict would fail every chat's settings at once and take
+// every title in the workspace with them.
 export const ChatSettingsSchema = z.object({
-  // The apps this task may reach through the `app` command, by slug: set on
-  // a briefed task, possibly to none. Absent on a chat, which reaches every
-  // app.
-  apps: z.array(z.string()).optional(),
-  // On a chat's record, the one session it holds. A chat's folder is named for
-  // what it is about, so this is how a session finds its chat. Whether a
-  // record is a chat, and which chat a task belongs to, is where its folder
-  // is (record-folders.ts), never a field here.
+  // The chat's own conversation: the session in its `chat.db` with no parent.
+  // A chat's folder is named for what it is about, so this is how a session
+  // finds its chat. Whether a folder is a chat is where it is
+  // (record-folders.ts), never a field here.
   chatSessionId: StoreId.SessionSchema.optional(),
-  // When the task was made, recorded for the same reason as `lastActivityAt`:
-  // the observable answer is the session database's birth time, which is when
-  // the task was first opened, and for a branched or imported task it is when
-  // the copy happened.
+  // When the chat was made, recorded for the same reason as
+  // `lastActivityAt`: the observable answer is the database's birth time,
+  // which is when the chat was first opened, and for an imported chat it is
+  // when the copy happened.
   createdAt: z.coerce.date().optional(),
   createdWithAppVersion: z.string().optional(),
   // The folders granted in this chat, oldest first. One that will not parse
   // costs the chat its grants rather than its title.
   grants: z.array(ChatGrantSchema).optional().catch(undefined),
-  // When something happened in this task, as opposed to when a file under it
-  // was last written. It orders the task list, and it is recorded rather than
+  // When something happened in this chat, as opposed to when a file under it
+  // was last written. It orders the chat list, and it is recorded rather than
   // observed because the observable timestamps do not mean what the list needs:
-  // the session database is rewritten by the act of opening a task, so sorting
-  // on its mtime moves a task to the top for having been read.
+  // the database is rewritten by the act of opening a chat, so sorting on its
+  // mtime moves a chat to the top for having been read.
   lastActivityAt: z.coerce.date().optional(),
   // The model every session of the chat runs on, its tasks' included: the
   // one the composer last sent with. A URI this build cannot parse (a
   // provider since renamed or removed) reads as none, so the chat opens on
   // the default model rather than failing to open.
   modelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
-  name: z.string().default("Untitled task"),
+  name: z.string().default(UNTITLED_CHAT_TITLE),
   // How hard the chat's model is asked to think, on every turn any of its
   // sessions takes. Absent leaves the model's own default. Nothing picks it
   // yet; a picker would write it here.

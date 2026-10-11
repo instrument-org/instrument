@@ -53,7 +53,6 @@ export namespace SessionMessageDataPart {
     "projectChanges",
     "projectContext",
     "reply",
-    "taskAppChanges",
     "taskEvent",
     "chatContext",
     "chatTopics",
@@ -895,39 +894,14 @@ export namespace SessionMessageDataPart {
   export type FileChangesDataPart = z.output<typeof FileChangesDataPartSchema>;
 
   /**
-   * The apps this task may reach, changed since the model last looked --
-   * attached to the user message that carries the change in.
-   *
-   * A task reaches the apps it was handed and no others, and which those are is
-   * written into the session context, which is composed once and never
-   * rewritten. So a task handed an app after it started could call it while its
-   * standing context says it cannot, which reads to the model as a refusal
-   * rather than a capability. The usual reason one arrives late is that the app
-   * did not exist when the task did: the task needed a service, the
-   * conversation asked the user to sign in, and the task is still waiting on it.
-   */
-  const TaskAppChangesDataPartSchema = z.object({
-    added: z
-      .array(z.object({ name: z.string(), slug: z.string() }))
-      .default([]),
-    removed: z
-      .array(z.object({ name: z.string(), slug: z.string() }))
-      .default([]),
-  });
-
-  export type TaskAppChangesDataPart = z.output<
-    typeof TaskAppChangesDataPartSchema
-  >;
-
-  /**
    * What a data part becomes when it cannot be read as the type it claims.
    *
-   * Two ways in, both of them a task outliving a schema: a type this build has
-   * no schema for at all (`data-gitCommit` is still sitting in tasks from before
-   * git-based file versioning was removed), and a payload written before a field
-   * the schema now describes. The part is kept rather than dropped, because
-   * `attachments` is a data part too and silently losing a turn's uploads is a
-   * worse answer than a row saying something could not be read.
+   * Two ways in, both of them a chat outliving a schema: a type this build has
+   * no schema for at all (a part a retired feature wrote), and a payload
+   * written before a field the schema now describes. The part is kept rather
+   * than dropped, because `attachments` is a data part too and silently
+   * losing a turn's uploads is a worse answer than a row saying something
+   * could not be read.
    *
    * Nothing writes one. It exists only on the way out of the store.
    */
@@ -961,7 +935,6 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.reply]: ReplyDataPartSchema,
     [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
-    [NameSchema.enum.taskAppChanges]: TaskAppChangesDataPartSchema,
     [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,
     [NameSchema.enum.viewContext]: ViewContextDataPartSchema,

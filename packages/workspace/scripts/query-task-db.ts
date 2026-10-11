@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import { parseArgs } from "node:util";
 
-import { queryTaskDatabase } from "../src/lib/task-database-query";
+import { queryChatDatabase } from "../src/lib/chat-database-query";
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -42,7 +42,7 @@ if (!sql) {
   throw new TypeError("Provide --sql, --file, or --schema");
 }
 
-const result = queryTaskDatabase({ databasePath: inputPath, sql });
+const result = queryChatDatabase({ databasePath: inputPath, sql });
 process.stdout.write(
   values.format === "table"
     ? formatTable(result)

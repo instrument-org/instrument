@@ -12,7 +12,7 @@ import { AssistantMessage } from "./assistant-message";
 import { MarkdownTaskContext } from "./markdown-task-context";
 
 vi.mock("@/client/hooks/use-host-paths", () => ({
-  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+  useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
     Object.fromEntries(
       filePaths.map((filePath) => [filePath, `/Users/casey/${filePath}`]),
     ),

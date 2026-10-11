@@ -8,7 +8,7 @@ import { type ChatInfo } from "../schemas/chat-info";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { type ChatSettings } from "../schemas/chat-settings";
 import { TypedError } from "./errors";
-import { getTaskDirTimestamps } from "./get-task-dir-timestamps";
+import { getChatDirTimestamps } from "./chat-dir-timestamps";
 import { isChatId } from "./is-chat-id";
 import { chatDir, chatIds, resolveChat } from "./record-folders";
 import { getChatSettings } from "./chat-settings";
@@ -70,7 +70,6 @@ async function readChatInfo({ dir }: { dir: ChatDir }) {
   const settings = await getChatSettings(dir);
   const info: ChatInfo = {
     ...(await chatTimestamps(dir, settings)),
-    apps: settings?.apps,
     id: parsed.data,
     ...(settings?.modelURI ? { modelURI: settings.modelURI } : {}),
     reasoningEffort: settings?.reasoningEffort,
@@ -129,7 +128,7 @@ async function chatTimestamps(
     };
   }
 
-  const observed = await getTaskDirTimestamps(dir);
+  const observed = await getChatDirTimestamps(dir);
   return {
     createdAt: settings?.createdAt ?? observed.createdAt,
     updatedAt: settings?.lastActivityAt ?? observed.updatedAt,

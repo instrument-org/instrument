@@ -16,7 +16,7 @@ import { buildFoldersText } from "../lib/build-folders-text";
 import { folderReach } from "../lib/chat/folder-reach";
 import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
-import { ensureWorkFolder } from "../lib/initialize-task";
+import { ensureWorkFolder } from "../lib/initialize-chat";
 import { isToolPart } from "../lib/is-tool-part";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";

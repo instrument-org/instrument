@@ -29,7 +29,7 @@ afterEach(async () => {
 
 describe("updateChatSettings", () => {
   it("keeps both fields when two updates overlap", async () => {
-    await updateChatSettings(chatId, { name: "Untitled task" });
+    await updateChatSettings(chatId, { name: "Untitled chat" });
 
     // The real pair: a generated title landing while a sent message records
     // activity. Read-modify-write without a queue loses whichever wrote first.

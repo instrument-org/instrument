@@ -345,7 +345,7 @@ describe("SessionMessage.toModelMessages", () => {
             {
               "text": "
       <instrument-system-note>
-      An in-app browser tab is already open for this task (opened by you or the user). Current URL: https://example.com. Page title: Example. Drive it with \`agent-browser\`.
+      An in-app browser tab is already open for this conversation (opened by you or the user). Current URL: https://example.com. Page title: Example. Drive it with \`agent-browser\`.
       </instrument-system-note>",
               "type": "text",
             },
@@ -501,7 +501,7 @@ describe("SessionMessage.toModelMessages", () => {
             {
               "text": "
       <instrument-system-note>
-      An in-app browser tab is already open for this task (opened by you or the user). Current URL: https://example.com. Page title: Example. Drive it with \`agent-browser\`.
+      An in-app browser tab is already open for this conversation (opened by you or the user). Current URL: https://example.com. Page title: Example. Drive it with \`agent-browser\`.
       </instrument-system-note>",
               "type": "text",
             },

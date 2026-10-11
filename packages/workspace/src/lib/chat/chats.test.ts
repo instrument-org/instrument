@@ -114,7 +114,7 @@ beforeEach(() => {
 
 const at = (minute: number) => new Date(Date.UTC(2026, 8, 16, 12, minute));
 
-async function agentAsks(_taskId: ChatId, sessionId: StoreId.Session) {
+async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
   const messageId = StoreId.newMessageId();
   const message: SessionMessage.AssistantWithParts = {
     id: messageId,
@@ -143,7 +143,7 @@ async function agentAsks(_taskId: ChatId, sessionId: StoreId.Session) {
 
 /** A finished reply, with words and whatever tool calls it made. */
 async function agentSays(
-  _taskId: ChatId,
+  _chatId: ChatId,
   sessionId: StoreId.Session,
   text: string,
   {
@@ -206,7 +206,7 @@ function partMetadata(ids: {
 }
 
 /** A chat: a chat's folder and its one session. */
-async function session(_taskId: ChatId, title: string, minute = 0) {
+async function session(_chatId: ChatId, title: string, minute = 0) {
   const id = StoreId.newSessionId();
   chatFor(id);
   await Store.saveSession(
@@ -217,7 +217,7 @@ async function session(_taskId: ChatId, title: string, minute = 0) {
 }
 
 async function userSays(
-  _taskId: ChatId,
+  _chatId: ChatId,
   sessionId: StoreId.Session,
   text: string,
   minute = 0,

@@ -27,7 +27,7 @@ const record: { browserTabs?: HeldTab[] } = {};
 vi.mock("../../../lib/held-tabs", () => ({
   heldTabs: () => Promise.resolve([...(record.browserTabs ?? [])]),
   updateHeldTabs: (
-    _taskId: unknown,
+    _chatId: unknown,
     _sessionId: unknown,
     change: (tabs: HeldTab[]) => HeldTab[],
   ) => {

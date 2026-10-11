@@ -8,7 +8,7 @@ import { chatFor } from "../test/helpers/chat-record";
 import { chatTaskFor } from "../test/helpers/chat-task";
 import { forgetChatFolders, resolveChat, chatDir } from "./record-folders";
 import { Store } from "./store";
-import { trashChat } from "./trash-task";
+import { trashChat } from "./trash-chat";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { ChatIdSchema } from "../schemas/chat-id";
 

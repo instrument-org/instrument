@@ -9,11 +9,11 @@ import {
 describe("instrumentLinkOf", () => {
   it.each([
     [
-      "instrument://task/lisbon-hotel",
+      "instrument://task/ses_01J9TASK",
       {
-        href: "/tasks/lisbon-hotel",
+        href: "/tasks/ses_01J9TASK",
         kind: "task",
-        name: "lisbon-hotel",
+        name: "ses_01J9TASK",
       },
     ],
     [
@@ -61,11 +61,11 @@ describe("instrumentLinkOf", () => {
       },
     ],
     [
-      "INSTRUMENT://Task/lisbon-hotel",
+      "INSTRUMENT://Task/ses_01J9TASK",
       {
-        href: "/tasks/lisbon-hotel",
+        href: "/tasks/ses_01J9TASK",
         kind: "task",
-        name: "lisbon-hotel",
+        name: "ses_01J9TASK",
       },
     ],
   ])("reads %s", (url, expected) => {
@@ -74,11 +74,11 @@ describe("instrumentLinkOf", () => {
 
   it.each([
     ["a task with no id", "instrument://task"],
-    ["a name with a path under it", "instrument://task/lisbon-hotel/files"],
+    ["a name with a path under it", "instrument://task/ses_01J9TASK/files"],
     ["a name with characters no name has", "instrument://memory/no%20stevia"],
     ["a noun the app has no screen for", "instrument://settings/general"],
     ["the file channel", "instrument://computer-abc123/Users/me/notes.md"],
-    ["a web address", "https://instrument.page/task/lisbon-hotel"],
+    ["a web address", "https://instrument.page/task/ses_01J9TASK"],
     ["a path", "work/report.md"],
     ["nothing", ""],
   ])("names nothing for %s", (_case, url) => {
@@ -88,7 +88,7 @@ describe("instrumentLinkOf", () => {
 
 describe("instrumentUrlOf", () => {
   it.each([
-    ["/tasks/lisbon-hotel", "instrument://task/lisbon-hotel"],
+    ["/tasks/ses_01J9TASK", "instrument://task/ses_01J9TASK"],
     ["/chats/ses_01J9", "instrument://chat/ses_01J9"],
     ["/memory/no-stevia", "instrument://memory/no-stevia"],
     ["/apps/linear", "instrument://app/linear"],
@@ -107,7 +107,7 @@ describe("instrumentUrlOf", () => {
     ["the apps as a whole", "/apps"],
     ["a screen with no noun", "/activity"],
     ["the new tab", "/new-tab"],
-    ["a thing under a thing", "/tasks/lisbon-hotel/files"],
+    ["a thing under a thing", "/tasks/ses_01J9TASK/files"],
   ])("writes nothing for %s", (_case, href) => {
     expect(instrumentUrlOf(href)).toBeUndefined();
   });

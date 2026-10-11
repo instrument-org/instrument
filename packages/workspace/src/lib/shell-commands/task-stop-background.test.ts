@@ -14,7 +14,7 @@ import {
   promoteBackgroundProcess,
   startBackgroundRun,
 } from "../background-processes";
-import { initializeChat } from "../initialize-task";
+import { initializeChat } from "../initialize-chat";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { logSubcommand } from "./task/log";

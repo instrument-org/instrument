@@ -87,3 +87,9 @@ export const MAX_PROJECT_INSTRUCTIONS_LENGTH = 20_000;
 export const TOOL_ACTIVITY_PARAM_NAME = "activity";
 
 export const TOOL_EXPLANATION_PARAM_NAME = "explanation";
+
+/**
+ * What a chat is called until it is named: its session's title, and its
+ * settings' name, until the first exchange retitles it.
+ */
+export const UNTITLED_CHAT_TITLE = "Untitled chat";

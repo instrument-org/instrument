@@ -82,8 +82,8 @@ const liveUsageSummary = base
   .input(UsageOfSchema)
   .output(eventIterator(UsageSummarySchema))
   .handler(async function* ({ context, input, signal }) {
-    // Coalesce this task's message/part events so a streaming turn recomputes
-    // the (whole-task) summary once per batch instead of once per event.
+    // Coalesce this chat's message/part events so a streaming turn recomputes
+    // the (whole-chat) summary once per batch instead of once per event.
     const batches = changedMessageBatches(input, signal);
     try {
       yield call(usageSummary, input, { context, signal });

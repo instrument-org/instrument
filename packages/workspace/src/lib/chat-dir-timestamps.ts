@@ -4,14 +4,14 @@ import { type ChatDir } from "../schemas/paths";
 import { getCurrentDate } from "./get-current-date";
 
 /**
- * The task folder's own timestamps, for a task with nothing recorded.
+ * The chat folder's own timestamps, for a chat with nothing recorded.
  *
- * The folder and not the session database inside it: opening a task checkpoints
- * that database, so its mtime says a task was worked on when it was only read.
+ * The folder and not the database inside it: opening a chat checkpoints that
+ * database, so its mtime says a chat was worked on when it was only read.
  *
  * See docs/findings/task-list-order-followed-file-mtimes.md.
  */
-export async function getTaskDirTimestamps(dir: ChatDir) {
+export async function getChatDirTimestamps(dir: ChatDir) {
   try {
     return await fs.stat(dir).then((stats) => ({
       createdAt: stats.birthtime,

@@ -23,7 +23,7 @@ describe("AIGatewayModel.Schema tags", () => {
     ).toEqual(["coding", "recommended"]);
   });
 
-  // A task recorded by a build that still wrote "premium" has to stay readable.
+  // A message recorded by a build that still wrote "premium" has to stay readable.
   it("drops a retired tag instead of failing the model", () => {
     expect(
       AIGatewayModel.Schema.parse(model(["premium", "coding"])).tags,

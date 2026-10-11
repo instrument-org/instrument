@@ -1,11 +1,12 @@
+import { UNTITLED_CHAT_TITLE } from "../constants";
 import { type ChatId } from "../schemas/chat-id";
 import { Store } from "./store";
 import { chatDir } from "./record-folders";
 import { getChatSettings } from "./chat-settings";
 
-const DEFAULT_UNTITLED_BASE = "Untitled chat";
-
-const defaultUntitledChatPattern = /^Untitled chat(?: \d+)?$/;
+const defaultUntitledChatPattern = new RegExp(
+  `^${UNTITLED_CHAT_TITLE}(?: \\d+)?$`,
+);
 
 export async function generateSessionTitle({
   signal,
@@ -14,7 +15,7 @@ export async function generateSessionTitle({
   signal?: AbortSignal;
   chatId: ChatId;
 }): Promise<string> {
-  const baseTitle = DEFAULT_UNTITLED_BASE;
+  const baseTitle = UNTITLED_CHAT_TITLE;
 
   const sessionsResult = await Store.getSessions(chatId, {
     includeChildSessions: true,

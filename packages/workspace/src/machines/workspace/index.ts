@@ -99,7 +99,7 @@ export type WorkspaceEvent =
       };
     }
   | {
-      type: "prepareToTrashTask";
+      type: "prepareToTrashChat";
       value: { id: ChatId; onBrowserReaped?: () => void };
     }
   | {
@@ -115,7 +115,7 @@ export type WorkspaceEvent =
       type: "releaseBrowserPresence";
       value: { id: ChatId; level: BrowserPresenceLevel };
     }
-  | { type: "removeTaskBeingTrashed"; value: { id: ChatId } }
+  | { type: "removeChatBeingTrashed"; value: { id: ChatId } }
   | {
       type: "runTurn";
       value: {
@@ -441,7 +441,7 @@ export const workspaceMachine = setup({
       pendingBrowserReapResolvers: new Map(),
       sessionRefsByChatId: new Map(),
       taskBrowserRefs: new Map(),
-      tasksBeingTrashed: [],
+      chatsBeingTrashed: [],
       workspaceServerRef: spawn("workspaceServerLogic", {
         input: {
           aiGatewayApp: input.aiGatewayApp,
@@ -549,13 +549,13 @@ export const workspaceMachine = setup({
       }),
       guard: ({ context, event }) => {
         const id = event.value.chatId;
-        return !context.tasksBeingTrashed.includes(id);
+        return !context.chatsBeingTrashed.includes(id);
       },
     },
-    prepareToTrashTask: {
+    prepareToTrashChat: {
       actions: enqueueActions(({ context, enqueue, event }) => {
         enqueue.assign({
-          tasksBeingTrashed: [...context.tasksBeingTrashed, event.value.id],
+          chatsBeingTrashed: [...context.chatsBeingTrashed, event.value.id],
         });
 
         // Reap the trashed task's taskBrowser, if one exists.
@@ -569,7 +569,7 @@ export const workspaceMachine = setup({
         if (event.value.onBrowserReaped) {
           const resolver = event.value.onBrowserReaped;
           if (matchingChatIds.length === 0) {
-            // Nothing to wait for: resolve immediately so trash-task can
+            // Nothing to wait for: resolve immediately so trashChat can
             // proceed without blocking.
             resolver();
           } else {
@@ -612,10 +612,10 @@ export const workspaceMachine = setup({
         type: "releaseBrowserPresence",
       },
     },
-    removeTaskBeingTrashed: {
+    removeChatBeingTrashed: {
       actions: assign(({ context, event }) => {
         return {
-          tasksBeingTrashed: context.tasksBeingTrashed.filter(
+          chatsBeingTrashed: context.chatsBeingTrashed.filter(
             (id) => id !== event.value.id,
           ),
         };

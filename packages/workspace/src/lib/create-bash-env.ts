@@ -693,7 +693,7 @@ export async function createLocalBashEnv({
   sessionId,
   standIn,
   chatId,
-  invokeTool = appToolHook(chatId),
+  invokeTool = appToolHook,
 }: BashEnvOptions & {
   /**
    * Answers a `js-exec` script's `tools.<slug>.<tool>()`; the bash worker

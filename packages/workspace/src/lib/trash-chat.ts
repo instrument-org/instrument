@@ -18,12 +18,6 @@ import {
   unmarkStorageAsDisposing,
 } from "./session-store-storage";
 
-interface RemoveTaskOptions {
-  id: ChatId;
-  workspaceConfig: WorkspaceConfig;
-  workspaceRef: WorkspaceActorRef;
-}
-
 /**
  * Puts a chat in the trash with every task it started, which are sessions in
  * its store. Every agent of the chat's, its tasks' included, is stopped and
@@ -36,28 +30,24 @@ export async function trashChat({
   id,
   workspaceConfig,
   workspaceRef,
-}: Omit<RemoveTaskOptions, "id"> & { id: ChatId }) {
-  return await trashTask({ id, workspaceConfig, workspaceRef });
-}
-
-async function trashTask({
-  id,
-  workspaceConfig,
-  workspaceRef,
-}: RemoveTaskOptions) {
+}: {
+  id: ChatId;
+  workspaceConfig: WorkspaceConfig;
+  workspaceRef: WorkspaceActorRef;
+}) {
   return ResultAsync.fromPromise(
     (async () => {
-      // Block until every taskBrowser for this id has fully reaped
+      // Block until the chat's browser has fully reaped
       // its WebContentsView and agent-browser daemon sessions, so the
       // Chromium profile is no longer locked when we delete the app dir.
       const browserReaped = new Promise<void>((resolve) => {
         workspaceRef.send({
-          type: "prepareToTrashTask",
+          type: "prepareToTrashChat",
           value: { id, onBrowserReaped: resolve },
         });
       });
 
-      // Background processes outlive the turn that started them, so the task
+      // Background processes outlive the turn that started them, so the chat
       // going away is what ends them. Wait for that here: their logs live inside
       // the directory about to be deleted, and an orphaned dev server would go on
       // writing into the trashed folder and holding its port.
@@ -65,9 +55,9 @@ async function trashTask({
 
       // Awaited rather than raced, because it is already bounded and its logs are
       // about to be deleted. A process that will not confirm it stopped is still
-      // recorded rather than thrown, so it cannot make the task undeletable.
+      // recorded rather than thrown, so it cannot make the chat undeletable.
       // Browser teardown remains best-effort for the same reason: a stuck
-      // WebContents must not wedge task deletion forever.
+      // WebContents must not wedge chat deletion forever.
       await backgroundCleanedUp.catch((error: unknown) => {
         workspaceConfig.captureException(error);
       });
@@ -105,10 +95,10 @@ async function trashTask({
           recordRemoved(chatId);
         }
 
-        // In the off chance that a future task with the same id is
-        // created, we remove the app being trashed.
+        // In the off chance that a future chat with the same id is
+        // created, it is no longer marked as being trashed.
         workspaceRef.send({
-          type: "removeTaskBeingTrashed",
+          type: "removeChatBeingTrashed",
           value: { id },
         });
 

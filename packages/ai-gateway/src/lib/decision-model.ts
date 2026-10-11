@@ -36,6 +36,11 @@ const DECISION_MODELS = new Map<
 ]);
 const DECISION_PROVIDER_TYPES = [...DECISION_MODELS.keys()];
 
+/** The model a decision request through `providerType` asks for first. */
+export function decisionModelFor(providerType: string): string | undefined {
+  return DECISION_MODELS.get(providerType)?.models[0];
+}
+
 /**
  * A decision request the provider refused, with the HTTP status it answered,
  * so a caller can tell a request at fault (400) from a provider that can't

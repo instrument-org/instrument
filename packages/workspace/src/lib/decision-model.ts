@@ -1,5 +1,6 @@
 import {
   type AIGatewayProviderConfig,
+  decisionModelFor,
   DecisionRequestError,
   requestDecision,
   selectDecisionConfigs,
@@ -103,6 +104,7 @@ export async function askDecisionModel({
       connection: config,
       kind: "decision",
     };
+    const modelRequested = decisionModelFor(config.type) ?? null;
     try {
       const response = DecisionResponseSchema.parse(
         await requestDecision({
@@ -117,6 +119,7 @@ export async function askDecisionModel({
       recordAIUsage(call, {
         durationMs: elapsed,
         inputTokens: response.usage?.input_tokens ?? null,
+        modelRequested,
         modelServed: response.model,
         startedAt,
         status: "finished",
@@ -130,6 +133,7 @@ export async function askDecisionModel({
       recordAIUsage(call, {
         durationMs: performance.now() - started,
         error: error instanceof Error ? error.message : String(error),
+        modelRequested,
         startedAt,
         status: signal?.aborted ? "stopped" : "failed",
       });

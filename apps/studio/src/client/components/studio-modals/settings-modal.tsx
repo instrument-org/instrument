@@ -207,7 +207,6 @@ function SettingsModalContent({
     <DialogContent
       aria-describedby={undefined}
       className="h-full gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none"
-      maxHeight="50rem"
       maxWidth="70rem"
       data-find-surface
       onExitComplete={onExitComplete}

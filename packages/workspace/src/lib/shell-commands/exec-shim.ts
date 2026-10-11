@@ -86,10 +86,15 @@ export async function execShim(
      * to act on its own, such as a script to an app they allowed.
      */
     unsandboxed?: true;
+    /**
+     * A walk, whose paths were checked before it ran: a folder the sandbox
+     * refuses on the way is skipped quietly, with no card and no note.
+     */
+    walks?: true;
   },
 ) {
   const sink = currentShellOutputSink();
-  const { cancelSignal, unsandboxed, ...subprocessOptions } = options;
+  const { cancelSignal, unsandboxed, walks, ...subprocessOptions } = options;
   const spawned = wrapNativeCommand(file, args, unsandboxed ? null : undefined);
   const subprocess = execa(spawned.file, spawned.args, {
     ...subprocessOptions,
@@ -115,7 +120,7 @@ export async function execShim(
   const stderr = typeof result.stderr === "string" ? result.stderr : "";
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
   const refused =
-    spawned.reach && result.exitCode !== 0
+    spawned.reach && !walks && result.exitCode !== 0
       ? refusedPathIn(`${stderr}\n${stdout}`, spawned.reach)
       : undefined;
   return {

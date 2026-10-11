@@ -1,5 +1,5 @@
 import { defineCommand } from "just-bash";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import nodePath from "node:path";
 
 import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
@@ -8,12 +8,15 @@ import { filterShellOutput } from "../filter-shell-output";
 import { hostPathWithin } from "../host-path";
 import { normalizePath } from "../normalize-path";
 import { isAtOrUnder } from "../path-containment";
+import { ruleRefusal } from "../permissions/rules-fs";
 import { RG_DISK_PATH } from "../ripgrep";
 import {
   nonTaskMounts,
   classifyVirtualPath,
   outsideMountRefusal,
+  resolveHostPath,
   resolveReadOnlyHostPath,
+  shellPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
@@ -123,6 +126,9 @@ export function createRgCommand({
         cwd: taskCwd,
         env,
         maxBuffer: { stdout: RG_MAX_STDOUT },
+        // What it named was checked above; a folder its walk is refused is
+        // skipped without asking, the way the shell's own walks skip one.
+        walks: true,
         // ripgrep picks between reading stdin and walking the working directory
         // by stat'ing fd 0, so the piped bytes have to reach it as a real pipe.
         // Handing it an ignored stdin instead makes `cmd | rg PATTERN` search
@@ -227,19 +233,25 @@ function bridgePathArgs(
       // way the shell's own commands refuse it, and asked for the same way,
       // rather than read by the real binary the rules hold to less.
       const resolved = isOperand ? resolveVirtual(arg) : undefined;
-      if (
-        resolved !== undefined &&
-        !mountPoints.some((mountPoint) => isAtOrUnder(mountPoint, resolved))
-      ) {
-        const refusal = outsideMountRefusal(layout, resolved, "read");
-        if (refusal) {
-          return {
-            error: `${RG_COMMAND.name}: ${arg}: Permission denied\n${refusal}`,
-          };
-        }
+      const refusal =
+        resolved === undefined
+          ? undefined
+          : mountPoints.some((mountPoint) => isAtOrUnder(mountPoint, resolved))
+            ? operandRefusal(layout, resolved)
+            : outsideMountRefusal(layout, resolved, "read");
+      if (refusal) {
+        return {
+          error: `${RG_COMMAND.name}: ${arg}: Permission denied\n${refusal}`,
+        };
       }
       bridged.push(arg);
       continue;
+    }
+    const refusal = operandRefusal(layout, arg);
+    if (refusal) {
+      return {
+        error: `${RG_COMMAND.name}: ${arg}: Permission denied\n${refusal}`,
+      };
     }
     const hostPath = resolveReadOnlyHostPath(layout, arg);
     if (hostPath === null) {
@@ -250,6 +262,27 @@ function bridgePathArgs(
     bridged.push(hostPath);
   }
   return { args: bridged };
+}
+
+/**
+ * What the agent reads about a path it named that the rules keep from it,
+ * with a card raised where the folder asks first. A path the walk passes is
+ * left to the native sandbox, which skips it without asking.
+ */
+function operandRefusal(
+  layout: WorkspaceFsLayout,
+  virtualPath: string,
+): string | undefined {
+  const resolved = resolveHostPath(layout, virtualPath);
+  if (resolved === null || !existsSync(resolved.hostPath)) {
+    return undefined;
+  }
+  return ruleRefusal({
+    hostPath: resolved.hostPath,
+    op: "read",
+    rules: layout.rules,
+    spell: shellPath,
+  });
 }
 
 /** A path's real location, or null for one that does not exist. */

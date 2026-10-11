@@ -119,9 +119,11 @@ export function commandPaths(
         : base,
     );
   });
-  return named.map(({ op, path, segment }) => {
+  return named.map(({ op, path: spelled, segment }) => {
     const base = bases[segment];
-    return base === undefined ? { op, path } : { base, op, path };
+    return base === undefined
+      ? { op, path: spelled }
+      : { base, op, path: spelled };
   });
 }
 

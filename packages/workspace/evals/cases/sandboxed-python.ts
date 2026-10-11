@@ -166,19 +166,20 @@ const didNotRetryTheSandboxedImport: Assertion = {
   text: "did not keep retrying the sandboxed import",
 };
 
-/** The script the prompt asked for ran as a file, under the sandboxed interpreter. */
+/** The script the prompt asked for ran as a file, under either interpreter, both of which read the folder in place. */
 const ranTheScriptFileWithPython: Assertion = {
   check: ({ sessions }) => {
     const runs = bashCommands(sessions).filter(
       (command) =>
-        /(?:^|[\s;&|(])python3?\s+(?:\S+\s+)*\S*count\.py\b/.test(command) &&
-        !command.includes("python-native"),
+        /(?:^|[\s;&|(])python(?:3|-native)?\s+(?:\S+\s+)*\S*count\.py\b/.test(
+          command,
+        ),
     );
     return {
       evidence:
         runs.length > 0
           ? `ran ${runs.length}x: ${(runs[0] ?? "").slice(0, 200)}`
-          : `Never ran count.py with python. Commands: ${bashCommands(sessions).join(" | ").slice(0, 400)}`,
+          : `Never ran count.py with either python. Commands: ${bashCommands(sessions).join(" | ").slice(0, 400)}`,
       passed: runs.length > 0,
       text: "ran the script file with python",
     };

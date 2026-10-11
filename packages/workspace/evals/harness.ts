@@ -9,6 +9,7 @@ import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { call } from "@orpc/server";
 import { execa } from "execa";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import * as _ from "radashi";
@@ -71,6 +72,18 @@ import { type WorkspaceConfig } from "../src/types";
 const MAC_HELPER_BIN = path.resolve(
   import.meta.dirname,
   "../../../apps/studio/native/mac-helper/.build/bridge/instrument-mac",
+);
+
+// The pnpm the app ships, as its JS entry: the workspace runs pnpm with node,
+// so a shell shim from PATH (pnpm's own installer writes one) dies on line 2.
+const PNPM_BIN = path.join(
+  path.dirname(
+    createRequire(
+      path.resolve(import.meta.dirname, "../../../apps/studio/package.json"),
+    ).resolve("pnpm"),
+  ),
+  "bin",
+  "pnpm.mjs",
 );
 
 export interface Assertion {
@@ -553,9 +566,7 @@ export async function runEvals(
         : {}),
       modelCache: noopModelCache,
       nodeExecEnv: {},
-      pnpmBinPath: await execa({ reject: false })`which pnpm`.then(
-        (result) => result.stdout.trim() || "pnpm",
-      ),
+      pnpmBinPath: PNPM_BIN,
       preparedSkillsDir: path.join(workspaceRootDir, "prepared-skills"),
       registryDir,
       rootDir: workspaceRootDir,

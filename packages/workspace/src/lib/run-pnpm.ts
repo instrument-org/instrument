@@ -1,5 +1,6 @@
 import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
+import { nodeToolsEnv } from "./tool-isolation";
 import { commandLineToolsEnv } from "./command-line-tools-env";
 import { execaNodeForTask } from "./execa-node-for-task";
 import { filterShellOutput } from "./filter-shell-output";
@@ -52,6 +53,8 @@ export async function runPnpmCommand({
         // node_modules, which fails without a TTY (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY).
         // Must come after ...env so ctx.env (which contains HOME=/) cannot override it.
         ...(process.env.HOME && { HOME: process.env.HOME }),
+        // The app's own store, caches and config, never the person's.
+        ...nodeToolsEnv(),
         pnpm_config_reporter: "append-only",
         ...(pnpmLogLevel === "error" ? { pnpm_config_loglevel: "error" } : {}),
       },

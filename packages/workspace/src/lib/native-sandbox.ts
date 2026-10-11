@@ -21,29 +21,17 @@ import { getWorkspaceConfig } from "./workspace-config";
 const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
 
 /**
- * Places in the home folder that native tools keep as their own: caches and
- * package stores they write, and the settings they read on start. A command
- * held out of the person's folders still has to install a package or warm a
- * cache, so these stay open whatever the rules say about the places around
- * them. The settings stay read-only, since a command that rewrote them could
- * change what the person's own tools do next.
+ * Places in the home folder a native command still writes whatever the
+ * rules say. The app's own pnpm, uv and node-gyp keep their stores, caches
+ * and config in the app's folders (`tool-isolation.ts`, `uv.ts`), never the
+ * person's, so only the system's own caches stay open here, for the
+ * frameworks a native tool loads.
  */
 const TOOL_CACHES = [
-  ".cache",
-  ".npm",
-  ".local/share/uv",
-  ".local/share/pnpm",
-  ".local/state",
+  // The system's own caches, which frameworks a native tool loads write to.
   "Library/Caches",
-  "Library/pnpm",
 ];
-const TOOL_SETTINGS = [
-  ".npmrc",
-  ".gitconfig",
-  ".config/git",
-  ".config/uv",
-  ".config/pip",
-];
+const TOOL_SETTINGS: string[] = [];
 
 /** The places native tools keep as their own, in `home`. */
 export function toolPlaces(home = os.homedir()): {

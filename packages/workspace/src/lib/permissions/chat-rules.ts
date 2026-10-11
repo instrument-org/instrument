@@ -8,6 +8,7 @@ import { WINDOW_ID } from "../../schemas/window-id";
 import { folderReach } from "../chat/folder-reach";
 import { chatGrants } from "../chat/grants";
 import { type NativeReach } from "../native-sandbox";
+import { nodeToolsDir } from "../tool-isolation";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { readPermissionSettings, type Rules, rulesFor } from "./rules";
@@ -74,6 +75,7 @@ export function nativeReachFor(
     readWrite: [
       layout.task.hostRoot,
       getWorkspaceConfig().uvDataDir,
+      nodeToolsDir(),
       ...(layout.apps ? [layout.apps.hostRoot] : []),
     ],
     rules,

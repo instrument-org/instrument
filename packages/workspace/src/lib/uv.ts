@@ -4,6 +4,7 @@ import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { commandLineToolsEnv } from "./command-line-tools-env";
+import { uvToolsEnvFor } from "./tool-isolation-env";
 import { getWorkspaceConfig } from "./workspace-config";
 import { workDir } from "./work-dir";
 
@@ -86,13 +87,9 @@ export function uvSubprocessEnv({
     PATH: pathDirs.join(path.delimiter),
     TERM: "dumb",
     U2NET_HOME: path.join(uvDataDir, "u2net"),
-    UV_CACHE_DIR: path.join(uvDataDir, "cache"),
-    UV_NO_CONFIG: "1",
     UV_PYTHON_DOWNLOADS: "automatic",
-    UV_PYTHON_INSTALL_DIR: path.join(uvDataDir, "python"),
     UV_PYTHON_PREFERENCE: "only-managed",
-    UV_TOOL_DIR: path.join(uvDataDir, "tools"),
     VIRTUAL_ENV: venvDir,
-    XDG_CACHE_HOME: path.join(uvDataDir, "cache-home"),
+    ...uvToolsEnvFor(uvDataDir),
   };
 }

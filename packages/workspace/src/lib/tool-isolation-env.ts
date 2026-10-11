@@ -1,0 +1,78 @@
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+// Depends on nothing of the workspace's, so the sandbox bake-off probe runs
+// the same isolation the app does.
+
+/**
+ * The environment that pins pnpm, npm and node-gyp to `dir` and its own
+ * config, whatever the person's setup holds: their `~/.npmrc` (a registry,
+ * `ignore-scripts`), `~/.config/pnpm/rc`, `PNPM_HOME`, global store and
+ * caches are never read or written. The config files are the app's own and
+ * empty; what a chat's install needs comes from its own
+ * `pnpm-workspace.yaml`.
+ */
+export function nodeToolsEnvFor(dir: string): Record<string, string> {
+  const userConfig = path.join(dir, "npmrc");
+  const globalConfig = path.join(dir, "npmrc-global");
+  if (!existsSync(userConfig) || !existsSync(globalConfig)) {
+    mkdirSync(dir, { recursive: true });
+    for (const file of [userConfig, globalConfig]) {
+      if (!existsSync(file)) {
+        writeFileSync(file, "");
+      }
+    }
+  }
+  return {
+    PNPM_HOME: path.join(dir, "pnpm-home"),
+    XDG_CONFIG_HOME: path.join(dir, "config"),
+    XDG_DATA_HOME: path.join(dir, "data"),
+    XDG_STATE_HOME: path.join(dir, "state"),
+    // npm, node-gyp and anything else that reads npm's own settings.
+    npm_config_cache: path.join(dir, "npm-cache"),
+    npm_config_devdir: path.join(dir, "node-gyp"),
+    npm_config_globalconfig: globalConfig,
+    npm_config_userconfig: userConfig,
+    // pnpm 11 reads its settings from `pnpm_config_*` alone.
+    pnpm_config_cache_dir: path.join(dir, "pnpm-cache"),
+    // A chat folder installed against an earlier store is reinstalled
+    // against this one without asking, since nobody answers a prompt here.
+    pnpm_config_confirm_modules_purge: "false",
+    pnpm_config_global_bin_dir: path.join(dir, "global-bin"),
+    pnpm_config_global_dir: path.join(dir, "global"),
+    pnpm_config_globalconfig: globalConfig,
+    pnpm_config_npmrc_auth_file: userConfig,
+    pnpm_config_state_dir: path.join(dir, "pnpm-state"),
+    pnpm_config_store_dir: path.join(dir, "pnpm-store"),
+    pnpm_config_userconfig: userConfig,
+  };
+}
+
+/** How many days old a package must be before an install takes it. */
+const RELEASE_AGE_DAYS = 7;
+
+/**
+ * The environment that pins uv (and anything that runs the real pip) to
+ * `uvDataDir`: its cache, the Pythons it installs and the tools it puts on a
+ * PATH, with no config of the person's read (`uv.toml` in their home or a
+ * parent folder, `pip.conf`). A release younger than a week is not
+ * installed, the gate a chat's `pnpm-workspace.yaml` holds npm packages to.
+ */
+export function uvToolsEnvFor(
+  uvDataDir: string,
+  now = new Date(),
+): Record<string, string> {
+  return {
+    PIP_CONFIG_FILE: os.devNull,
+    UV_CACHE_DIR: path.join(uvDataDir, "cache"),
+    UV_EXCLUDE_NEWER: new Date(
+      now.getTime() - RELEASE_AGE_DAYS * 24 * 60 * 60 * 1000,
+    ).toISOString(),
+    UV_NO_CONFIG: "1",
+    UV_PYTHON_INSTALL_DIR: path.join(uvDataDir, "python"),
+    UV_TOOL_BIN_DIR: path.join(uvDataDir, "tools", "bin"),
+    UV_TOOL_DIR: path.join(uvDataDir, "tools"),
+    XDG_CACHE_HOME: path.join(uvDataDir, "cache-home"),
+  };
+}

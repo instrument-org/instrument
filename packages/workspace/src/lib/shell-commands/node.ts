@@ -5,6 +5,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
+import { nodeToolsEnv } from "../tool-isolation";
 import { getWorkspaceConfig } from "../workspace-config";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
@@ -38,6 +39,9 @@ function execNode(
     env: {
       ...getWorkspaceConfig().nodeExecEnv,
       ...env,
+      // A script that installs or builds a native addon uses the app's own
+      // npm config, store and node-gyp headers, never the person's.
+      ...nodeToolsEnv(),
       // After ...env so the ffmpeg dirs win over ctx.env's host PATH.
       ...ffmpegSubprocessEnv(env?.PATH),
     },

@@ -1,8 +1,11 @@
 import { fileUrlOfHostPath } from "../local-page-address";
 import { normalizePath } from "../normalize-path";
+import { reachOf } from "../permissions/rules";
+import { ruleRefusal } from "../permissions/rules-fs";
 import {
   classifyHostPath,
   resolveHostPath,
+  shellPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import { parseAgentBrowserArgs } from "./agent-browser-args";
@@ -68,6 +71,19 @@ export async function rewriteNavigationArgToFileUrl(
     classifyHostPath(layout, resolved.hostPath, resolved.mount)?.masked !==
       undefined
   ) {
+    return { error: unreachableFileMessage(target.value) };
+  }
+  // A page the agent opens is a file it reads, held to the same rules.
+  const refusal = ruleRefusal({
+    hostPath: resolved.hostPath,
+    op: "read",
+    rules: layout.rules,
+    spell: shellPath,
+  });
+  if (refusal) {
+    return { error: refusal };
+  }
+  if (reachOf(layout.rules, resolved.hostPath, "read").level === "hidden") {
     return { error: unreachableFileMessage(target.value) };
   }
 

@@ -1,6 +1,7 @@
 import { withoutPageEditParam } from "@instrument-org/shared";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { reachOf } from "./permissions/rules";
 import {
   classifyHostPath,
   nonTaskMounts,
@@ -48,7 +49,10 @@ function agentPathOfHostFile(
   hostPath: string,
 ): null | string {
   const found = classifyHostPath(layout, hostPath);
-  return found === null || found.masked !== undefined || found.escapes
+  return found === null ||
+    found.masked !== undefined ||
+    found.escapes ||
+    reachOf(layout.rules, hostPath, "read").level !== "allow"
     ? null
     : found.virtualPath;
 }

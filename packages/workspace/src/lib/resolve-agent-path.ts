@@ -15,6 +15,7 @@ import { type MaskedEntry } from "./mask-private-dir-fs";
 import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
+import { reachOf } from "./permissions/rules";
 import { ruleRefusal } from "./permissions/rules-fs";
 import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
 import {
@@ -265,12 +266,13 @@ function heldToRules(
   resolved: ReturnType<typeof resolveVirtualAbsolutePath>,
   op: "read" | "write",
 ): ReturnType<typeof resolveVirtualAbsolutePath> {
-  if (resolved.isErr() || !layout.rules) {
+  if (resolved.isErr()) {
     return resolved;
   }
-  const { absolutePath, mount } = resolved.value;
-  if (!mount || !layout.folders.includes(mount)) {
-    return resolved;
+  const { absolutePath, displayPath } = resolved.value;
+  // The app's internals answer as missing, the way the shell shows them.
+  if (reachOf(layout.rules, absolutePath, "read").level === "hidden") {
+    return executeError(`No such file or directory: ${displayPath}`);
   }
   const refusal = ruleRefusal({
     hostPath: absolutePath,

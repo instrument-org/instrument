@@ -5,6 +5,7 @@ import {
   OverlayFs,
   ReadWriteFs,
 } from "just-bash";
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import os from "node:os";
 import nodePath from "node:path";
@@ -12,7 +13,7 @@ import nodePath from "node:path";
 import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { rulesFs } from "./permissions/rules-fs";
-import { type Rule, type Rules } from "./permissions/rules";
+import { reachOf, type Rule, type Rules } from "./permissions/rules";
 import { type AbsolutePath, type ChatDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import {
@@ -68,10 +69,11 @@ export interface WorkspaceFsLayout {
   /** The folders the chat reaches, under `/mnt`. */
   folders: WorkspaceFsMount[];
   /**
-   * What Settings › Permissions and the chat's grants allow inside those
-   * folders. Absent, the folders are held to their mounts alone.
+   * What Settings › Permissions, the chat's grants and the app's own rules
+   * allow inside those folders. Built with the layout, so every consumer
+   * holds to the same rules.
    */
-  rules?: Rules;
+  rules: Rules;
   /**
    * One per skill source, at `/skills/<source>/`. The source segment is what
    * carries provenance and writability, so the agent reads both off the path
@@ -137,7 +139,30 @@ export async function buildBashFs(
     onRefusal?: (refusal: string) => void;
   },
 ): Promise<IFileSystem> {
-  const fs = new MountableFs({ base: new ReadOnlyBaseFs() });
+  const { rules } = layout;
+  // The rest of the disk is not mounted: the shell's own commands would find
+  // host binaries on its PATH there. A read of a folder that exists outside
+  // every mount says how to reach it, since builtins report it as missing.
+  const fs = new MountableFs({
+    base: new ReadOnlyBaseFs((path) => {
+      // The shell looking a command up on its PATH is not the agent asking,
+      // and a folder above a mount answers as one, which a walk to the mount
+      // looks at first.
+      if (
+        SHELL_PATH_DIRS.has(nodePath.posix.dirname(path)) ||
+        allMounts(layout).some((mount) =>
+          mount.mountPoint.startsWith(`${path === "/" ? "" : path}/`),
+        )
+      ) {
+        return;
+      }
+      if (onRefusal && existsSync(hostPathOf(path))) {
+        onRefusal(
+          `${path} is outside the folders you reach. Ask for the folder with request_folder.`,
+        );
+      }
+    }),
+  });
 
   // just-bash seeds these into its default filesystem, but only for one it can
   // initialize itself -- a mounted layout gets no /dev, so `cmd > /dev/null`
@@ -162,7 +187,6 @@ export async function buildBashFs(
   // each is the rules' to say, the app's own folders included: its internals
   // are missing, the skills it ships are read-only, and the chat's folder is
   // open.
-  const rules = layoutRules(layout);
   const workspaceSkills = layout.skills.find((mount) => !mount.readOnly);
   for (const mount of await mountRoots(layout)) {
     const readOnly = mount.readOnly && !holdsWritable(layout, mount);
@@ -246,7 +270,7 @@ export function buildWorkspaceFsLayout({
     }),
   );
 
-  return {
+  const layout: Omit<WorkspaceFsLayout, "rules"> & { rules?: Rules } = {
     ...(apps
       ? {
           apps: {
@@ -269,6 +293,10 @@ export function buildWorkspaceFsLayout({
       readOnly: false,
     },
   };
+  // Every consumer of the layout (the shell, the file tools, the native
+  // sandbox) holds to the same rules, the app's own over its folders among
+  // them.
+  return { ...layout, rules: layoutRules(layout) };
 }
 
 /**
@@ -420,9 +448,12 @@ export function resolveReadOnlyHostPath(
   // binary would happily follow it, so the containment has to be re-checked
   // here rather than inherited. Not asked of the task mount, whose own contents
   // the agent writes and reads by relative path in any case.
+  // Nor do the rules reach a real binary on every platform, so a place they
+  // keep closed or ask about is refused here too.
   return found === null ||
     found.masked !== undefined ||
-    (resolved.mount !== layout.task && found.escapes)
+    (resolved.mount !== layout.task && found.escapes) ||
+    reachOf(layout.rules, resolved.hostPath, "read").level !== "allow"
     ? null
     : resolved.hostPath;
 }
@@ -587,6 +618,13 @@ function taskMaskedEntries(taskHostRoot: ChatDir): MaskedEntry[] {
 }
 
 /**
+ * The shell's PATH: system folders it does not mount, so a command lookup
+ * falls to the shell's own commands rather than a host binary.
+ */
+export const SHELL_PATH = "/usr/local/bin:/usr/bin:/bin";
+const SHELL_PATH_DIRS = new Set(SHELL_PATH.split(":"));
+
+/**
  * The path the agent's shell names a host path by. The same path on macOS
  * and Linux; on Windows, the drive-letter spelling Git Bash uses
  * (`/c/Users/sam`), since the shell is POSIX.
@@ -624,7 +662,9 @@ export function hostPathOf(shellSpelled: string): string {
  * workspace is missing to the agent but for the chat's folder, the skills it
  * reads and the apps it writes; the chat's internals are missing inside it.
  */
-function layoutRules(layout: WorkspaceFsLayout): Rules {
+function layoutRules(
+  layout: Omit<WorkspaceFsLayout, "rules"> & { rules?: Rules },
+): Rules {
   const given: Rules = layout.rules ?? {
     home: os.homedir(),
     rules: layout.folders.map((mount) => ({

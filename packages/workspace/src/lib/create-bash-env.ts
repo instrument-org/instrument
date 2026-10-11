@@ -48,6 +48,7 @@ import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
 import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import { withNativeReach } from "./native-sandbox";
+import { SHELL_PATH } from "./workspace-fs-layout";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
 import { type Rules } from "./permissions/rules";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -654,9 +655,6 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
  * reaches, the skills, and for the chat its apps, held to the chat's rules.
  * rg, du, and the output a promoted command streams all take it from here.
  */
-/** The shell's PATH: system folders it does not mount, so lookups fall to its own commands. */
-const SHELL_PATH = "/usr/local/bin:/usr/bin:/bin";
-
 export function shellLayout({
   folders,
   chat,
@@ -845,7 +843,7 @@ export async function createLocalBashEnv({
   bash.registerTransformPlugin(resetEachCommand(homeWalkBudget));
 
   // Every native command this shell spawns is held to the same rules.
-  const reach = nativeReachFor(rules, layout);
+  const reach = nativeReachFor(layout.rules, layout);
   const exec = bash.exec.bind(bash);
   bash.exec = async (...execArgs) => {
     refusals.clear();

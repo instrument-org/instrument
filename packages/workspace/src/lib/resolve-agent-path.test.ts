@@ -289,6 +289,25 @@ describe("a chat's tasks dir", () => {
   });
 });
 
+describe("another chat's folder, reached through a folder that holds the workspace", () => {
+  const chat = ChatDirSchema.parse(path.join(chatsDir(), "2026-09-26-chat"));
+  const other = path.join(chatsDir(), "2026-09-26-other", "work", "notes.md");
+  const layout = buildWorkspaceFsLayout({
+    folders: {
+      above: attachment("id-above", path.dirname(chatsDir())),
+    },
+    taskHostRoot: chat,
+  });
+
+  it("answers as missing for reading and writing", () => {
+    const read = resolveAgentPath({ inputPath: other, layout });
+    expect(read.isErr() && read.error.message).toMatch(/No such file/);
+    expect(resolveWritableToolPath({ inputPath: other, layout }).isErr()).toBe(
+      true,
+    );
+  });
+});
+
 describe("resolveAgentPath (full paths)", () => {
   const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
   const layout = buildWorkspaceFsLayout({

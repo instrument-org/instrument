@@ -129,45 +129,69 @@ export async function buildBashFs(
   },
 ): Promise<IFileSystem> {
   const { rules } = layout;
+  /**
+   * A path outside every mount that the person could allow: the nearest
+   * folder on disk that holds it, asked for (never the home folder whole or
+   * the disk root), with the refusal reported. Undefined for the system's own
+   * folders, a lookup on the shell's PATH, a folder above a mount, and a
+   * path nothing on disk holds.
+   */
+  const outsideFolder = (
+    path: string,
+    op: "read" | "write",
+  ): string | undefined => {
+    // The shell looking a command up on its PATH is not the agent asking,
+    // and a folder above a mount answers as one, which a walk to the mount
+    // looks at first.
+    if (
+      SHELL_PATH_DIRS.has(nodePath.posix.dirname(path)) ||
+      allMounts(layout).some((mount) =>
+        mount.mountPoint.startsWith(`${path === "/" ? "" : path}/`),
+      )
+    ) {
+      return undefined;
+    }
+    const hostPath = hostPathOf(path);
+    // The system's own folders are nothing to ask the person for.
+    if (SYSTEM_FOLDERS.some((system) => pathIsWithin(hostPath, system))) {
+      return undefined;
+    }
+    let folder = hostPath;
+    if (op === "write") {
+      // A file being made is not on disk yet; the folder it goes in is.
+      while (!existsSync(folder) && folder !== nodePath.dirname(folder)) {
+        folder = nodePath.dirname(folder);
+      }
+    }
+    if (!existsSync(folder)) {
+      return undefined;
+    }
+    if (!statSync(folder).isDirectory()) {
+      folder = nodePath.dirname(folder);
+    }
+    if (
+      rules.asker &&
+      folder !== rules.home &&
+      folder !== nodePath.parse(folder).root
+    ) {
+      raiseAsk(rules.asker, "folder", folder);
+      onRefusal?.(waitingNote(shellPath(folder)));
+    } else {
+      onRefusal?.(`${path} is outside the folders you reach.`);
+    }
+    return folder;
+  };
+
   // The rest of the disk is not mounted: the shell's own commands would find
   // host binaries on its PATH there. A read of a folder that exists outside
   // every mount is refused rather than missing, and says how to reach it.
   const fs = new MountableFs({
-    base: new ReadOnlyBaseFs((path) => {
-      // The shell looking a command up on its PATH is not the agent asking,
-      // and a folder above a mount answers as one, which a walk to the mount
-      // looks at first.
-      if (
-        SHELL_PATH_DIRS.has(nodePath.posix.dirname(path)) ||
-        allMounts(layout).some((mount) =>
-          mount.mountPoint.startsWith(`${path === "/" ? "" : path}/`),
-        )
-      ) {
-        return undefined;
-      }
-      const hostPath = hostPathOf(path);
-      // The system's own folders are nothing to ask the person for.
-      if (SYSTEM_FOLDERS.some((system) => pathIsWithin(hostPath, system))) {
-        return undefined;
-      }
-      if (onRefusal && existsSync(hostPath)) {
-        const folder = statSync(hostPath).isDirectory()
-          ? hostPath
-          : nodePath.dirname(hostPath);
-        if (
-          rules.asker &&
-          folder !== rules.home &&
-          folder !== nodePath.parse(folder).root
-        ) {
-          raiseAsk(rules.asker, "folder", folder);
-          onRefusal(waitingNote(shellPath(folder)));
-        } else {
-          onRefusal(`${path} is outside the folders you reach.`);
-        }
-        return "refused";
-      }
-      return undefined;
-    }),
+    base: new ReadOnlyBaseFs(
+      (path) => (outsideFolder(path, "read") ? "refused" : undefined),
+      (path) => {
+        outsideFolder(path, "write");
+      },
+    ),
   });
 
   // just-bash seeds these into its default filesystem, but only for one it can

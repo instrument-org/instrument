@@ -853,7 +853,18 @@ export async function createLocalBashEnv({
   const exec = bash.exec.bind(bash);
   bash.exec = async (...execArgs) => {
     refusals.clear();
-    const result = await withNativeReach(reach, () => exec(...execArgs));
+    let result: Awaited<ReturnType<typeof exec>>;
+    try {
+      result = await withNativeReach(reach, () => exec(...execArgs));
+    } catch (error) {
+      // A write outside every mount throws out of the whole call rather
+      // than failing its command; what the rules said still goes with it.
+      await asksWritten();
+      if (refusals.size > 0 && error instanceof Error) {
+        error.message = `${error.message}\n${[...refusals].join("\n")}`;
+      }
+      throw error;
+    }
     await asksWritten();
     if (refusals.size === 0) {
       return result;

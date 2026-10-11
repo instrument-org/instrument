@@ -8,8 +8,8 @@ import { type IFileSystem, InMemoryFs } from "just-bash";
  * Everything the agent may change lives on a mount (the chat's folder and
  * each folder it reaches). Writes here fail with EROFS instead of landing in a
  * writable per-call InMemoryFs that silently evaporates when the bash call
- * ends -- the loud failure steers the agent to put the file in its own folder
- * instead of losing it.
+ * ends, and `onWrite` hears each, so a folder the person could allow is asked
+ * for rather than worked around.
  */
 export class ReadOnlyBaseFs implements IFileSystem {
   private readonly empty = new InMemoryFs();
@@ -17,7 +17,13 @@ export class ReadOnlyBaseFs implements IFileSystem {
   constructor(
     private readonly onMissing: (path: string) => "refused" | undefined = () =>
       undefined,
+    private readonly onWrite: (path: string) => void = () => undefined,
   ) {}
+
+  private refuseWrite(op: string, path: string): Promise<never> {
+    this.onWrite(path);
+    return Promise.reject(erofs(op, path));
+  }
 
   private missing<T>(path: string, read: () => Promise<T>): Promise<T> {
     return read().catch((error: unknown) => {
@@ -32,17 +38,17 @@ export class ReadOnlyBaseFs implements IFileSystem {
   }
 
   appendFile: IFileSystem["appendFile"] = (path) =>
-    Promise.reject(erofs("appendFile", path));
-  chmod: IFileSystem["chmod"] = (path) => Promise.reject(erofs("chmod", path));
-  cp: IFileSystem["cp"] = (_src, dest) => Promise.reject(erofs("cp", dest));
+    this.refuseWrite("appendFile", path);
+  chmod: IFileSystem["chmod"] = (path) => this.refuseWrite("chmod", path);
+  cp: IFileSystem["cp"] = (_src, dest) => this.refuseWrite("cp", dest);
   exists: IFileSystem["exists"] = (path) => this.empty.exists(path);
   getAllPaths: IFileSystem["getAllPaths"] = () => this.empty.getAllPaths();
   link: IFileSystem["link"] = (_existingPath, newPath) =>
-    Promise.reject(erofs("link", newPath));
+    this.refuseWrite("link", newPath);
   lstat: IFileSystem["lstat"] = (path) =>
     this.missing(path, () => this.empty.lstat(path));
-  mkdir: IFileSystem["mkdir"] = (path) => Promise.reject(erofs("mkdir", path));
-  mv: IFileSystem["mv"] = (_src, dest) => Promise.reject(erofs("mv", dest));
+  mkdir: IFileSystem["mkdir"] = (path) => this.refuseWrite("mkdir", path);
+  mv: IFileSystem["mv"] = (_src, dest) => this.refuseWrite("mv", dest);
   readdir: IFileSystem["readdir"] = (path) =>
     this.missing(path, () => this.empty.readdir(path));
   readFile: IFileSystem["readFile"] = (path, options) =>
@@ -55,21 +61,20 @@ export class ReadOnlyBaseFs implements IFileSystem {
     this.missing(path, () => this.empty.realpath(path));
   resolvePath: IFileSystem["resolvePath"] = (base, path) =>
     this.empty.resolvePath(base, path);
-  rm: IFileSystem["rm"] = (path) => Promise.reject(erofs("rm", path));
+  rm: IFileSystem["rm"] = (path) => this.refuseWrite("rm", path);
   stat: IFileSystem["stat"] = (path) =>
     this.missing(path, () => this.empty.stat(path));
   symlink: IFileSystem["symlink"] = (_target, linkPath) =>
-    Promise.reject(erofs("symlink", linkPath));
+    this.refuseWrite("symlink", linkPath);
   utimes: IFileSystem["utimes"] = (path) =>
-    Promise.reject(erofs("utimes", path));
+    this.refuseWrite("utimes", path);
   writeFile: IFileSystem["writeFile"] = (path) =>
-    Promise.reject(erofs("writeFile", path));
+    this.refuseWrite("writeFile", path);
 }
 
 function erofs(op: string, path: string) {
   return new Error(
     `EROFS: read-only file system, ${op} '${path}' -- only this ` +
-      `conversation's folder and the folders you reach are writable; put ` +
-      `files in this conversation's folder (the working directory) instead`,
+      `conversation's folder and the folders you reach can be changed`,
   );
 }

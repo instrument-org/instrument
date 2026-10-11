@@ -44,6 +44,7 @@ import {
 } from "./focus-guard";
 import { isBlocking } from "./content-blocking";
 import { attachGuestInteractions } from "./guest-interactions";
+import { noteUserInput } from "./external-app-links";
 import { guests } from "./guest-registry";
 import { configureGuestSession } from "./guest-session";
 import {
@@ -378,6 +379,13 @@ export function createBrowserViewManager(): BrowserViewManager {
     });
     guest.on("focus", () => {
       focusGuard.onGuestFocus(targetId);
+    });
+    guest.on("input-event", (_event, input) => {
+      noteUserInput(
+        guests.get(guest.id),
+        input.type,
+        focusGuard.isGuarded(targetId),
+      );
     });
 
     guest.on(

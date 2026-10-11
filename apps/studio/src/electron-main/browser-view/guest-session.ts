@@ -9,6 +9,8 @@ import {
   enableContentBlocking,
 } from "./content-blocking";
 import { routeGuestDownloads } from "./downloads";
+import { mayOpenInAnotherApp } from "./external-app-links";
+import { askToOpenInAnotherApp } from "./external-app-prompt";
 import { guests } from "./guest-registry";
 import { refusePasskeys } from "./passkey-policy";
 import {
@@ -73,10 +75,29 @@ export function configureGuestSession(profileDir: string): Session {
   // `navigator.clipboard.writeText` rejects under a denial, and most pages
   // swallow that rejection, so the button does nothing. Reading the clipboard
   // stays denied; a page overwriting it is a click the user made, a page
-  // reading it is the user's clipboard handed over.
-  guestSession.setPermissionRequestHandler((_wc, permission, callback) => {
-    callback(permission === "clipboard-sanitized-write");
-  });
+  // reading it is the user's clipboard handed over. A link to another app
+  // (`slack://`) goes to that app when a person just used the tab and says
+  // yes, or said its site always may.
+  guestSession.setPermissionRequestHandler(
+    (wc, permission, callback, details) => {
+      if (permission !== "openExternal") {
+        callback(permission === "clipboard-sanitized-write");
+        return;
+      }
+      if (!mayOpenInAnotherApp(guests.get(wc.id))) {
+        callback(false);
+        return;
+      }
+      const externalURL =
+        "externalURL" in details ? (details.externalURL ?? "") : "";
+      askToOpenInAnotherApp(wc, externalURL, details.requestingUrl).then(
+        callback,
+        () => {
+          callback(false);
+        },
+      );
+    },
+  );
   guestSession.setPermissionCheckHandler(
     (_wc, permission) => permission === "clipboard-sanitized-write",
   );

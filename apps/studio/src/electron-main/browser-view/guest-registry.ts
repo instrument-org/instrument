@@ -61,6 +61,12 @@ export interface GuestRecord {
   readonly frames: Map<string, FrameId & { url: string }>;
   readonly id: number;
   readonly role: GuestRole;
+  /**
+   * When a person last clicked, tapped or pressed a key in this contents, by
+   * `Date.now()`, or 0 if never. Input an agent's CDP command dispatches is
+   * not counted; see `noteUserInput` in `external-app-links.ts`.
+   */
+  userInputAt: number;
 }
 
 const keyOf = ({ processId, routingId }: FrameId) =>
@@ -97,6 +103,7 @@ export function createGuestRegistry() {
       frames: new Map(),
       id,
       role,
+      userInputAt: 0,
     };
     records.set(id, record);
     contents.on(

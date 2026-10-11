@@ -157,7 +157,11 @@ describe("updateChatRecord", () => {
   // have been the settings and the tabs replaced by one model choice.
   it("refuses to replace a record it could not read", async () => {
     await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
-    await fs.writeFile(recordPath(), '{ "createdWithAppVersion": "2.0.0", "state', "utf8");
+    await fs.writeFile(
+      recordPath(),
+      '{ "createdWithAppVersion": "2.0.0", "state',
+      "utf8",
+    );
 
     await expect(
       setChatState(chatDir(chatId), { appGuidesRead: ["new draft"] }),

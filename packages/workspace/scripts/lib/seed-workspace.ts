@@ -101,9 +101,7 @@ export async function seedWorkspace({
     overrides: {
       // The one stub path the seeder reads through rather than merely names:
       // task creation copies this template into every task it makes.
-      chatTemplateDir: AbsolutePathSchema.parse(
-        CHAT_TEMPLATE_DIR,
-      ),
+      chatTemplateDir: AbsolutePathSchema.parse(CHAT_TEMPLATE_DIR),
     },
     rootDir,
     tasksDir,

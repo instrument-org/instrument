@@ -398,9 +398,7 @@ export const workspaceMachine = setup({
       browser: input.browser,
       captureEvent: input.captureEvent,
       captureException: input.captureException,
-      chatTemplateDir: AbsolutePathSchema.parse(
-        input.chatTemplateDir,
-      ),
+      chatTemplateDir: AbsolutePathSchema.parse(input.chatTemplateDir),
       getAIProviderConfigs: input.getAIProviderConfigs,
       ...(input.ensureOutputFolderIcon
         ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }

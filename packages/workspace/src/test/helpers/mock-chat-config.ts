@@ -126,9 +126,7 @@ export function createMockChatConfig(
     captureException: (...args: unknown[]) => {
       console.error("captureException", args);
     },
-    chatTemplateDir: AbsolutePathSchema.parse(
-      MOCK_WORKSPACE_DIRS.chatTemplate,
-    ),
+    chatTemplateDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chatTemplate),
     getAIProviderConfigs: () => [...mockProviderConfigs.values()],
     // Off by default, as it ships: a test that wants the external-browser path
     // opts into it the same way a user does.

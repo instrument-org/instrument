@@ -24,9 +24,7 @@ beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "children-"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    chatTemplateDir: AbsolutePathSchema.parse(
-      path.join(rootDir, "template"),
-    ),
+    chatTemplateDir: AbsolutePathSchema.parse(path.join(rootDir, "template")),
     chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
     rootDir: WorkspaceDirSchema.parse(rootDir),
     legacyTasksDir: WorkspaceDirSchema.parse(path.join(rootDir, "tasks")),

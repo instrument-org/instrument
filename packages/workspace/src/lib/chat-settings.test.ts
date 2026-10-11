@@ -74,7 +74,10 @@ describe("updateChatSettings", () => {
     await updateChatSettings(chatId, { createdWithAppVersion: "2.0.0" });
     await fs.writeFile(
       path.join(getChatPrivateDir(chatDir(chatId)), "settings.json"),
-      JSON.stringify({ createdWithAppVersion: "2.0.0", state: { browserTabs: "broken" } }),
+      JSON.stringify({
+        createdWithAppVersion: "2.0.0",
+        state: { browserTabs: "broken" },
+      }),
       "utf8",
     );
 
@@ -102,7 +105,10 @@ describe("updateChatSettings", () => {
     await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
     await fs.writeFile(
       recordPath,
-      JSON.stringify({ createdWithAppVersion: "2.0.0", reasoningEffort: "loud" }),
+      JSON.stringify({
+        createdWithAppVersion: "2.0.0",
+        reasoningEffort: "loud",
+      }),
       "utf8",
     );
 

@@ -10,12 +10,7 @@ import { type ChatSettings } from "../schemas/chat-settings";
 import { TypedError } from "./errors";
 import { getChatDirTimestamps } from "./chat-dir-timestamps";
 import { isChatId } from "./is-chat-id";
-import {
-  chatDir,
-  chatIds,
-  resolveChat,
-  sessionOfChat,
-} from "./record-folders";
+import { chatDir, chatIds, resolveChat, sessionOfChat } from "./record-folders";
 import { getChatSettings } from "./chat-settings";
 import { Store } from "./store";
 

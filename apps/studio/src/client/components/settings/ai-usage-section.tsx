@@ -1,5 +1,6 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
-import { CHATS_HREF } from "@/client/atoms/window";
+import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
+import { zoomAtom } from "@/client/atoms/zoom";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { Button } from "@/client/components/ui/button";
@@ -15,7 +16,10 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { useModalBack } from "@/client/hooks/use-modal-back";
-import { useOpenGestures } from "@/client/hooks/use-open-target";
+import {
+  useGesturesFor,
+  useOpenGestures,
+} from "@/client/hooks/use-open-target";
 import { toast } from "sonner";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCInput, type RPCOutput } from "@/client/rpc/client";
@@ -24,6 +28,7 @@ import { ArrowDownIcon } from "@phosphor-icons/react/ArrowDown";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
+import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { FunnelSimpleIcon } from "@phosphor-icons/react/FunnelSimple";
@@ -31,7 +36,7 @@ import { PulseIcon } from "@phosphor-icons/react/Pulse";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 type Filter = RPCInput["workspace"]["aiUsage"]["list"]["filter"];
@@ -47,14 +52,58 @@ type FacetField =
 
 const PAGE_SIZE = 100;
 const ROW_HEIGHT = 36;
-const COLUMNS =
-  "grid-cols-[112px_118px_116px_minmax(0,1fr)_150px_64px_52px_60px]";
+/**
+ * The log's columns in order, with the width each starts at in layout px.
+ * Origin takes what the others leave, so it has no width of its own.
+ */
+const COLUMN_WIDTHS = {
+  date: 112,
+  durationMs: 64,
+  kind: 76,
+  model: 150,
+  origin: undefined,
+  purpose: 116,
+  status: 64,
+  totalTokens: 60,
+} as const;
+type ColumnKey = keyof typeof COLUMN_WIDTHS;
+type Widths = Partial<Record<ColumnKey, number>>;
+const COLUMN_ORDER: ColumnKey[] = [
+  "date",
+  "kind",
+  "purpose",
+  "origin",
+  "model",
+  "status",
+  "totalTokens",
+  "durationMs",
+];
+const MIN_COLUMN_WIDTH = 44;
+const MIN_ORIGIN_WIDTH = 120;
+
+function gridColumns(widths: Widths) {
+  return COLUMN_ORDER.map((key) => {
+    const width = widths[key] ?? COLUMN_WIDTHS[key];
+    return width === undefined
+      ? `minmax(${MIN_ORIGIN_WIDTH}px,1fr)`
+      : `${width}px`;
+  }).join(" ");
+}
+
+/** The narrowest the table gets before it scrolls sideways instead. */
+function tableMinWidth(widths: Widths) {
+  return COLUMN_ORDER.reduce(
+    (sum, key) =>
+      sum + (widths[key] ?? COLUMN_WIDTHS[key] ?? MIN_ORIGIN_WIDTH) + 10,
+    24,
+  );
+}
 
 const KIND_LABELS: Record<Row["kind"], string> = {
-  decision: "Decision model",
-  image: "Image model",
-  language: "Language model",
-  search: "Web search",
+  decision: "Decision",
+  image: "Image",
+  language: "LLM",
+  search: "Search",
 };
 
 const PURPOSE_LABELS: Record<Row["purpose"], string> = {
@@ -115,12 +164,6 @@ const PERIODS = {
 type Period = keyof typeof PERIODS;
 const PERIOD_ORDER: Period[] = ["all", "day", "week", "month"];
 
-const SORTABLE: { column: Sort["column"]; label: string; right?: true }[] = [
-  { column: "startedAt", label: "Date" },
-  { column: "kind", label: "Type" },
-  { column: "purpose", label: "Purpose" },
-];
-
 const dateFormat = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
   hour: "numeric",
@@ -173,6 +216,25 @@ function useModelName() {
       : (names.get(id) ?? names.get(shortModel(id)) ?? shortModel(id));
 }
 
+/** The screen a row's origin opens, when it is somewhere that still exists. */
+function originHref(row: Row) {
+  if (row.chatId) {
+    return row.chatTitle ? `${CHATS_HREF}/${row.chatId}` : undefined;
+  }
+  switch (row.surface) {
+    case "apps": {
+      return APPS_HREF;
+    }
+    case "chats":
+    case "topics": {
+      return CHATS_HREF;
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
 function originOf(row: Row) {
   if (row.chatId) {
     return row.chatTitle ?? "Deleted chat";
@@ -207,6 +269,7 @@ export function AIUsageSection() {
     column: "startedAt",
     direction: "desc",
   });
+  const [widths, setWidths] = useState<Widths>({});
 
   if (openId !== null) {
     return (
@@ -227,7 +290,9 @@ export function AIUsageSection() {
       setFilter={setFilter}
       setPeriod={setPeriod}
       setSort={setSort}
+      setWidths={setWidths}
       sort={sort}
+      widths={widths}
     />
   );
 }
@@ -239,7 +304,9 @@ function UsageLog({
   setFilter,
   setPeriod,
   setSort,
+  setWidths,
   sort,
+  widths,
 }: {
   filter: Filter;
   onOpen: (id: string) => void;
@@ -247,7 +314,9 @@ function UsageLog({
   setFilter: (filter: Filter) => void;
   setPeriod: (period: Period) => void;
   setSort: (sort: Sort) => void;
+  setWidths: (widths: Widths) => void;
   sort: Sort;
+  widths: Widths;
 }) {
   const { data: summary } = useQuery(
     rpcClient.workspace.aiUsage.summary.queryOptions({ input: { filter } }),
@@ -454,7 +523,9 @@ function UsageLog({
           onOpen={onOpen}
           rows={rows}
           setSort={setSort}
+          setWidths={setWidths}
           sort={sort}
+          widths={widths}
         />
       )}
     </div>
@@ -513,17 +584,40 @@ function LogTable({
   onOpen,
   rows,
   setSort,
+  setWidths,
   sort,
+  widths,
 }: {
   hasMore: boolean;
   loadMore: () => void;
   onOpen: (id: string) => void;
   rows: Row[];
   setSort: (sort: Sort) => void;
+  setWidths: (widths: Widths) => void;
   sort: Sort;
+  widths: Widths;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const modelName = useModelName();
+  const gesturesFor = useGesturesFor();
+  const closeSettings = useSetAtom(settingsModalAtom);
+  const columns = gridColumns(widths);
+  const resizable = (key: ColumnKey, cell: ReactNode) => {
+    const width = widths[key] ?? COLUMN_WIDTHS[key];
+    return (
+      <span className="relative min-w-0" key={key}>
+        {cell}
+        {width === undefined ? null : (
+          <ResizeHandle
+            onResize={(next) => {
+              setWidths({ ...widths, [key]: next });
+            }}
+            width={width}
+          />
+        )}
+      </span>
+    );
+  };
   // Every row is one line at a fixed height, so nothing is measured and the
   // window's zoom has nothing to throw off.
   const virtualizer = useVirtualizer({
@@ -571,60 +665,102 @@ function LogTable({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-card shadow-sm">
-      <div
-        className={cn(
-          "grid shrink-0 items-center gap-2.5 border-b px-3 py-2 text-xs font-medium text-muted-foreground",
-          COLUMNS,
-        )}
-      >
-        {SORTABLE.map(({ column, label }) => (
-          <span key={column}>{header(column, label)}</span>
-        ))}
-        <span>Origin</span>
-        {header("model", "Model")}
-        <span>Result</span>
-        {header("totalTokens", "Tokens", true)}
-        {header("durationMs", "Duration", true)}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto" ref={scrollRef}>
+      <div className="min-h-0 flex-1 overflow-auto" ref={scrollRef}>
+        <div
+          className="sticky top-0 z-10 grid items-center gap-2.5 border-b bg-card px-3 py-2 text-xs font-medium text-muted-foreground"
+          style={{
+            gridTemplateColumns: columns,
+            minWidth: tableMinWidth(widths),
+          }}
+        >
+          {resizable("date", header("startedAt", "Date"))}
+          {resizable("kind", header("kind", "Type"))}
+          {resizable("purpose", header("purpose", "Purpose"))}
+          {resizable("origin", <span>Origin</span>)}
+          {resizable("model", header("model", "Model"))}
+          {resizable("status", <span>Result</span>)}
+          {resizable("totalTokens", header("totalTokens", "Tokens", true))}
+          {resizable("durationMs", header("durationMs", "Duration", true))}
+        </div>
         <div
           className="relative"
-          style={{ height: virtualizer.getTotalSize() }}
+          style={{
+            height: virtualizer.getTotalSize(),
+            minWidth: tableMinWidth(widths),
+          }}
         >
           {items.map((item) => {
             const row = rows[item.index];
             if (!row) {
               return null;
             }
+            const href = originHref(row);
+            const originGestures = href
+              ? gesturesFor({ href, kind: "screen" })
+              : undefined;
             return (
-              <button
-                className={cn(
-                  "absolute inset-x-0 grid items-center gap-2.5 border-b px-3 text-left text-sm hover:bg-muted/60",
-                  COLUMNS,
-                )}
+              <div
+                className="absolute inset-x-0 grid items-center gap-2.5 border-b px-3 text-left text-sm hover:bg-muted/60"
                 key={row.id}
                 onClick={() => {
                   onOpen(row.id);
                 }}
-                style={{ height: ROW_HEIGHT, top: item.start }}
-                type="button"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onOpen(row.id);
+                  }
+                }}
+                role="button"
+                style={{
+                  gridTemplateColumns: columns,
+                  height: ROW_HEIGHT,
+                  top: item.start,
+                }}
+                tabIndex={0}
               >
                 <span className="truncate text-muted-foreground tabular-nums">
                   {dateFormat.format(row.startedAt)}
                 </span>
                 <span className="truncate">{KIND_LABELS[row.kind]}</span>
                 <span className="truncate">{PURPOSE_LABELS[row.purpose]}</span>
-                <span
-                  className={cn(
-                    "truncate text-muted-foreground",
-                    row.chatId && !row.chatTitle && "italic",
-                  )}
-                >
-                  {originOf(row)}
-                </span>
+                {originGestures ? (
+                  <button
+                    className="flex min-w-0 items-center gap-1 justify-self-start text-muted-foreground hover:text-foreground hover:underline"
+                    onAuxClick={(event) => {
+                      event.stopPropagation();
+                      originGestures.onAuxClick(event);
+                    }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      originGestures.onClick(event);
+                      closeSettings(null);
+                    }}
+                    title={`Open ${originOf(row)}`}
+                    type="button"
+                  >
+                    <span className="truncate">{originOf(row)}</span>
+                    <ArrowUpRightIcon className="size-3 shrink-0" />
+                  </button>
+                ) : (
+                  <span
+                    className={cn(
+                      "truncate text-muted-foreground",
+                      row.chatId && !row.chatTitle && "italic",
+                    )}
+                  >
+                    {originOf(row)}
+                  </span>
+                )}
                 <span className="flex min-w-0 items-center gap-1.5">
                   <ConnectionMark type={row.connectionType} />
-                  <span className="truncate">{modelName(modelOf(row))}</span>
+                  {modelOf(row) === null ? (
+                    <span className="truncate text-muted-foreground italic">
+                      Unknown
+                    </span>
+                  ) : (
+                    <span className="truncate">{modelName(modelOf(row))}</span>
+                  )}
                 </span>
                 <span
                   className={cn(
@@ -644,12 +780,58 @@ function LogTable({
                 <span className="text-right text-muted-foreground tabular-nums">
                   {formatDuration(row.durationMs)}
                 </span>
-              </button>
+              </div>
             );
           })}
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * A drag handle on a column's right edge. The pointer moves in on-screen px
+ * and the column is sized in layout px, so the drag is divided by the zoom.
+ */
+function ResizeHandle({
+  onResize,
+  width,
+}: {
+  onResize: (width: number) => void;
+  width: number;
+}) {
+  const zoom = useAtomValue(zoomAtom);
+  return (
+    <span
+      aria-hidden
+      className="absolute inset-y-[-8px] -right-2.5 z-10 w-3 cursor-col-resize after:absolute after:inset-y-2 after:left-1/2 after:w-px after:bg-border hover:after:bg-foreground/40"
+      onClick={(event) => {
+        event.stopPropagation();
+      }}
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const handle = event.currentTarget;
+        const startX = event.clientX;
+        handle.setPointerCapture(event.pointerId);
+        const move = (moved: PointerEvent) => {
+          onResize(
+            Math.max(
+              MIN_COLUMN_WIDTH,
+              Math.round(width + (moved.clientX - startX) / zoom),
+            ),
+          );
+        };
+        const end = () => {
+          handle.removeEventListener("pointermove", move);
+          handle.removeEventListener("pointerup", end);
+          handle.removeEventListener("pointercancel", end);
+        };
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", end);
+        handle.addEventListener("pointercancel", end);
+      }}
+    />
   );
 }
 
@@ -729,7 +911,7 @@ function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
                 {STATUS_LABELS[row.status]}
                 {row.finishReason ? `, ${row.finishReason}` : ""}
               </Detail>
-              {row.error ? <Detail label="Error">{row.error}</Detail> : null}
+              {row.error ? <ErrorDetail error={row.error} /> : null}
               <Detail label="Origin">
                 {row.chatId && !row.chatTitle
                   ? "A chat you've since deleted"
@@ -780,7 +962,52 @@ function RequestDetail({ id, onBack }: { id: string; onBack: () => void }) {
 }
 
 function tokens(count: null | number) {
-  return count === null ? "Not reported" : wholeNumber.format(count);
+  return count === null ? (
+    "Not reported"
+  ) : (
+    <span title={wholeNumber.format(count)}>{compactNumber.format(count)}</span>
+  );
+}
+
+/**
+ * An error as a person reads it: the message a provider put in a JSON body
+ * when there is one, with the whole text kept below it.
+ */
+function readableError(error: string) {
+  const start = error.indexOf("{");
+  if (start === -1) {
+    return { message: error, raw: undefined };
+  }
+  try {
+    const body: unknown = JSON.parse(error.slice(start));
+    const nested =
+      typeof body === "object" && body !== null && "error" in body
+        ? body.error
+        : body;
+    const message =
+      typeof nested === "object" && nested !== null && "message" in nested
+        ? nested.message
+        : undefined;
+    return typeof message === "string"
+      ? { message, raw: error }
+      : { message: error, raw: undefined };
+  } catch {
+    return { message: error, raw: undefined };
+  }
+}
+
+function ErrorDetail({ error }: { error: string }) {
+  const { message, raw } = readableError(error);
+  return (
+    <Detail label="Error">
+      <span className="block">{message}</span>
+      {raw ? (
+        <code className="mt-1 block font-mono text-xs break-all whitespace-pre-wrap text-muted-foreground">
+          {raw}
+        </code>
+      ) : null}
+    </Detail>
+  );
 }
 
 function DetailGroup({

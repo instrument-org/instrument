@@ -53,7 +53,13 @@ import { PulseIcon } from "@phosphor-icons/react/Pulse";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
-import { type RefObject, useEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 /** The letters of a result a search matched, tinted so they read at a glance. */
 const MATCH_CLASS = "rounded-xs bg-brand-500/35 font-semibold text-foreground";
@@ -207,7 +213,8 @@ function SettingsModalContent({
     <DialogContent
       aria-describedby={undefined}
       className="h-full gap-0 overflow-hidden p-0 outline-none focus:outline-none focus-visible:outline-none"
-      maxWidth="70rem"
+      maxHeight="60rem"
+      maxWidth="80rem"
       data-find-surface
       onExitComplete={onExitComplete}
       showCloseButton={false}
@@ -225,7 +232,12 @@ function SettingsModalContent({
           Settings
         </div>
         <div className="flex min-h-0 flex-1 overflow-x-auto px-3">
-          <SidebarProvider className="h-full min-h-0" defaultOpen>
+          <SidebarProvider
+            className="h-full min-h-0"
+            defaultOpen
+            // Wide enough for the longest page name; CSSProperties has no custom properties.
+            style={{ "--sidebar-width": "11rem" } as CSSProperties}
+          >
             <Sidebar
               className="h-full max-w-[40%] shrink-0 bg-transparent"
               collapsible="none"

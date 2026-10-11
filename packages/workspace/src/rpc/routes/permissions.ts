@@ -15,6 +15,7 @@ import {
   updatePermissionSettings,
 } from "../../lib/permissions/rules";
 import {
+  appBundleId,
   appReach,
   grantApp,
   reachesEveryFile,
@@ -216,13 +217,19 @@ const allowApp = base
   .handler(async ({ input }) => {
     await grantApp(input.id, input.app);
     if (input.always) {
+      const bundleId = await appBundleId(input.app);
       await updatePermissionSettings((settings) => ({
         ...settings,
         apps: [
           ...settings.apps.filter(
             (app) => app.name.toLowerCase() !== input.app.toLowerCase(),
           ),
-          { addedAt: getCurrentDate(), level: "allow", name: input.app },
+          {
+            addedAt: getCurrentDate(),
+            bundleId,
+            level: "allow",
+            name: input.app,
+          },
         ],
       }));
     }
@@ -231,9 +238,7 @@ const allowApp = base
 /** What the rules make of an app for one chat, for its card. */
 const appReachRoute = base
   .input(z.object({ app: z.string(), id: ChatIdSchema }))
-  .output(
-    z.object({ level: LevelSchema, reachesEveryFile: z.boolean() }),
-  )
+  .output(z.object({ level: LevelSchema, reachesEveryFile: z.boolean() }))
   .handler(async ({ input }) => ({
     level: await appReach(input.id, input.app),
     reachesEveryFile: reachesEveryFile(input.app),

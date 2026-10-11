@@ -1,3 +1,6 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
 import { type ChatId } from "../../schemas/chat-id";
 import { type ChatAppGrant } from "../../schemas/chat-settings";
 import { WINDOW_ID } from "../../schemas/window-id";
@@ -7,26 +10,44 @@ import { chatDir } from "../record-folders";
 import { type Level } from "./places";
 import { readPermissionSettings } from "./rules";
 
+const execFileAsync = promisify(execFile);
+
 /** Two spellings of an app's name are one app: `"Mail"` and `"mail "`. */
 function sameApp(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
+/** Whether a grant or rule, by name and bundle id, is for `app`. */
+function isFor(
+  known: { bundleId?: string; name: string },
+  app: string,
+): boolean {
+  return (
+    sameApp(known.name, app) ||
+    (known.bundleId !== undefined && sameApp(known.bundleId, app))
+  );
+}
+
 /**
- * Whether the agent may control `app` in this chat: a rule in Settings ›
- * Permissions where there is one, an allow where the chat holds a grant for
- * it, and otherwise ask first. A grant only comes from a card, which a closed
- * app never shows, so a grant wins over the rule as a folder's does.
+ * Whether the agent may use `app`, by its name or its bundle id, in this
+ * chat: a rule in Settings › Permissions where there is one, an allow where
+ * the chat holds a grant for it, and otherwise ask first. A grant only comes
+ * from a card, which a closed app never shows, so a grant wins over the rule
+ * as a folder's does.
+ *
+ * An app's grant covers every route to it: a script's Apple Events, and any
+ * other way the agent acts on the app, which asks here by the app's bundle
+ * id.
  */
 export async function appReach(chatId: ChatId, app: string): Promise<Level> {
   if (chatId !== WINDOW_ID) {
     const grants = await chatAppGrants(chatId);
-    if (grants.some((grant) => sameApp(grant.app, app))) {
+    if (grants.some((grant) => isFor({ ...grant, name: grant.app }, app))) {
       return "allow";
     }
   }
   const rule = (await readPermissionSettings()).apps.find((known) =>
-    sameApp(known.name, app),
+    isFor(known, app),
   );
   return rule?.level ?? "ask";
 }
@@ -36,18 +57,68 @@ async function chatAppGrants(chatId: ChatId): Promise<ChatAppGrant[]> {
   return record.settings?.appGrants ?? [];
 }
 
-/** Lets this chat control `app`. A grant already held stays as it was. */
+/** Lets this chat use `app`. A grant already held stays as it was. */
 export async function grantApp(chatId: ChatId, app: string): Promise<void> {
+  const bundleId = await appBundleId(app);
   await updateChatRecord(chatDir(chatId), "settings", (record) => {
     const grants = record.settings?.appGrants ?? [];
-    if (grants.some((grant) => sameApp(grant.app, app))) {
+    if (grants.some((grant) => isFor({ ...grant, name: grant.app }, app))) {
       return record.raw;
     }
     return {
       ...record.raw,
-      appGrants: [...grants, { app: app.trim(), grantedAt: getCurrentDate() }],
+      appGrants: [
+        ...grants,
+        { app: app.trim(), bundleId, grantedAt: getCurrentDate() },
+      ],
     };
   });
+}
+
+const bundleIds = new Map<string, Promise<string | undefined>>();
+
+/**
+ * An app's bundle id, from its name as a script tells it: the app Spotlight
+ * finds by that name, read from its own Info.plist. A name that already is
+ * a bundle id answers itself; off macOS, or where no app goes by the name,
+ * there is none.
+ */
+export function appBundleId(app: string): Promise<string | undefined> {
+  const name = app.trim();
+  if (/^[\w-]+(?:\.[\w-]+){2,}$/.test(name)) {
+    return Promise.resolve(name);
+  }
+  if (process.platform !== "darwin") {
+    return Promise.resolve(undefined);
+  }
+  let known = bundleIds.get(name.toLowerCase());
+  if (!known) {
+    known = (async () => {
+      try {
+        const { stdout } = await execFileAsync(
+          "/usr/bin/mdfind",
+          [
+            `kMDItemContentType == "com.apple.application-bundle" && kMDItemFSName == "${name.replaceAll('"', "")}.app"c`,
+          ],
+          { timeout: 3000 },
+        );
+        const bundle = stdout.split("\n").find((line) => line.endsWith(".app"));
+        if (!bundle) {
+          return undefined;
+        }
+        const id = await execFileAsync(
+          "/usr/libexec/PlistBuddy",
+          ["-c", "Print :CFBundleIdentifier", `${bundle}/Contents/Info.plist`],
+          { timeout: 3000 },
+        );
+        return id.stdout.trim() || undefined;
+      } catch {
+        return undefined;
+      }
+    })();
+    bundleIds.set(name.toLowerCase(), known);
+  }
+  return known;
 }
 
 /**

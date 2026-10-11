@@ -45,6 +45,7 @@ function isAskingTheUser(part: SessionMessagePart.ToolPart): boolean {
   return (
     part.type === "tool-choose" ||
     part.type === "tool-connect_app" ||
+    part.type === "tool-request_app_control" ||
     part.type === "tool-request_folder"
   );
 }

@@ -4,11 +4,7 @@ import { APP_NAME } from "@instrument-org/shared";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { TOOL_NAMES } from "../../tools/name";
-import {
-  appReach,
-  runsCodeOutside,
-  scriptTargets,
-} from "../permissions/apps";
+import { appReach, runsCodeOutside, scriptTargets } from "../permissions/apps";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getWorkspaceConfig } from "../workspace-config";

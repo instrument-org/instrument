@@ -28,6 +28,9 @@ export type ChatGrant = z.output<typeof ChatGrantSchema>;
  */
 const ChatAppGrantSchema = z.object({
   app: z.string().min(1),
+  // The app's bundle id where it could be found, so a route that knows the
+  // app by its id (computer use, by the pid it acts on) meets the same grant.
+  bundleId: z.string().optional(),
   grantedAt: z.coerce.date(),
 });
 

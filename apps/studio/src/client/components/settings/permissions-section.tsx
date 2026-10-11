@@ -21,6 +21,7 @@ import { isLinux, isWindows } from "@/client/lib/utils";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CloudIcon } from "@phosphor-icons/react/Cloud";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
@@ -96,6 +97,18 @@ export function PermissionsSection() {
   );
   const removeFolder = useMutation(
     rpcClient.workspace.permissions.removeFolder.mutationOptions({
+      onError,
+      onSuccess: refresh,
+    }),
+  );
+  const setApp = useMutation(
+    rpcClient.workspace.permissions.setApp.mutationOptions({
+      onError,
+      onSuccess: refresh,
+    }),
+  );
+  const removeApp = useMutation(
+    rpcClient.workspace.permissions.removeApp.mutationOptions({
       onError,
       onSuccess: refresh,
     }),
@@ -223,6 +236,41 @@ export function PermissionsSection() {
             <PlusIcon className="size-4" />
             Add folder…
           </Button>
+        </div>
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-muted-foreground">
+            Your apps
+          </h4>
+          <div className="divide-y overflow-hidden rounded-lg border">
+            {view.apps.length === 0 ? (
+              <p className="p-4 text-center text-sm text-muted-foreground">
+                Instrument hasn't asked to control any apps yet.
+              </p>
+            ) : (
+              view.apps.map((app) => (
+                <PermissionRow
+                  control={
+                    <LevelSelect
+                      label={app.name}
+                      level={app.level}
+                      onRemove={() => {
+                        removeApp.mutate({ name: app.name });
+                      }}
+                      onSelect={(level) => {
+                        setApp.mutate({ level, name: app.name });
+                      }}
+                    />
+                  }
+                  key={app.name}
+                  line={undefined}
+                  mark={
+                    <AppWindowIcon className="size-4 text-muted-foreground" />
+                  }
+                  name={app.name}
+                />
+              ))
+            )}
+          </div>
         </div>
         <Collapsible className="space-y-2">
           <CollapsibleTrigger className="group flex items-center gap-1 text-sm font-medium text-muted-foreground">

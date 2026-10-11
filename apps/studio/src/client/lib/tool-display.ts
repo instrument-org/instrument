@@ -1,5 +1,6 @@
 import { type ToolName } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { BookOpenIcon } from "@phosphor-icons/react/BookOpen";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
@@ -21,6 +22,7 @@ const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   generate_image: "Generated image",
   load_skill: "Loaded skill",
   read_file: "Read",
+  request_app_control: "Asked to control an app",
   request_folder: "Asked for a folder",
   unavailable: "Used unknown tool",
   web_fetch: "Read web page",
@@ -36,6 +38,7 @@ const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   generate_image: "Generating an image",
   load_skill: "Loading skill",
   read_file: "Reading file",
+  request_app_control: "Waiting for an app",
   request_folder: "Waiting for a folder",
   unavailable: "Using unknown tool",
   web_fetch: "Reading web page",
@@ -54,6 +57,7 @@ const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
   generate_image: "Generating",
   load_skill: "Loading skill",
   read_file: "Reading",
+  request_app_control: TOOL_STREAMING_DISPLAY_NAMES.request_app_control,
   request_folder: TOOL_STREAMING_DISPLAY_NAMES.request_folder,
   unavailable: TOOL_STREAMING_DISPLAY_NAMES.unavailable,
   web_fetch: "Reading",
@@ -69,6 +73,7 @@ const TOOL_TRIED_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
   generate_image: "Tried to generate image",
   load_skill: "Tried to load skill",
   read_file: "Tried to read file",
+  request_app_control: "Tried to ask to control an app",
   request_folder: "Tried to ask for a folder",
   unavailable: "Tried unknown tool",
   web_fetch: "Tried to read web page",
@@ -103,6 +108,7 @@ const TOOL_SUMMARY_PHRASES: Record<
     plural: (count) => `read ${count} files`,
     singular: "read a file",
   },
+  request_app_control: { singular: "asked to control an app" },
   request_folder: { singular: "asked for a folder" },
   unavailable: { singular: "used an unknown tool" },
   web_fetch: {
@@ -124,6 +130,7 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   generate_image: ImageIcon,
   load_skill: BookOpenIcon,
   read_file: EyeIcon,
+  request_app_control: AppWindowIcon,
   request_folder: FolderOpenIcon,
   unavailable: WrenchIcon,
   web_fetch: GlobeIcon,

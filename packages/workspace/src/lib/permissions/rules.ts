@@ -30,6 +30,7 @@ const PermissionSettingsSchema = z.object({
     .array(
       z.object({
         addedAt: z.coerce.date(),
+        bundleId: z.string().optional(),
         level: LevelSchema,
         name: z.string().min(1),
       }),

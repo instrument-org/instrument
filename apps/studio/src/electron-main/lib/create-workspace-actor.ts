@@ -23,7 +23,6 @@ import {
   attachChats,
   BACKGROUND_PROCESS_TEARDOWN_MS,
   closeAllAgentBrowserSessions,
-  credentialPlaces,
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
   prepareBundledSkills,
@@ -172,7 +171,7 @@ export function createWorkspaceActor() {
         ELECTRON_RUN_AS_NODE: "1",
       },
       // Passwords and sign-ins stay out of every native command's reach.
-      nativeSandboxPlaces: credentialPlaces(),
+      nativeSandbox: true,
       pnpmBinPath: getPNPMBinPath(),
       // Beside the app-managed `bin` and `uv`, and outside the workspace: the
       // set is prepared per machine, so several workspaces or a workspace the

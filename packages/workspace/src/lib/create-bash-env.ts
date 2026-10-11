@@ -48,6 +48,8 @@ import { JS_EXEC_BOOTSTRAP } from "./shell-commands/js-exec-bootstrap";
 import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
 import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
+import { withNativeReach } from "./native-sandbox";
+import { chatRules, nativeReachFor } from "./permissions/chat-rules";
 import { getWorkspaceConfig } from "./workspace-config";
 import {
   CALENDAR_COMMAND,
@@ -832,6 +834,12 @@ export async function createLocalBashEnv({
   bash.registerTransformPlugin(waitAliasPlugin);
   bash.registerTransformPlugin(commandOrderPlugin);
   bash.registerTransformPlugin(resetEachCommand(homeWalkBudget));
+
+  // Every native command this shell spawns is held to the chat's rules, read
+  // as they stand when the shell is made, which is once per bash call.
+  const reach = nativeReachFor(await chatRules({ chatId, folders }), layout);
+  const exec = bash.exec.bind(bash);
+  bash.exec = (...execArgs) => withNativeReach(reach, () => exec(...execArgs));
 
   return bash;
 }

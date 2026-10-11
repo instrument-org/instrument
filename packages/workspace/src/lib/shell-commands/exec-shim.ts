@@ -1,8 +1,8 @@
 import { execa, type Options } from "execa";
 
 import {
-  deniedPlaceIn,
-  deniedPlaceNote,
+  refusalNote,
+  refusedPathIn,
   wrapNativeCommand,
 } from "../native-sandbox";
 
@@ -102,9 +102,9 @@ export async function execShim(
   await finishTreeTermination?.();
   const stderr = typeof result.stderr === "string" ? result.stderr : "";
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
-  const deniedPlace =
-    spawned.sandboxed && result.exitCode !== 0
-      ? deniedPlaceIn(`${stderr}\n${stdout}`, spawned.denied)
+  const refused =
+    spawned.reach && result.exitCode !== 0
+      ? refusedPathIn(`${stderr}\n${stdout}`, spawned.reach)
       : undefined;
   return {
     exitCode: result.exitCode,
@@ -121,8 +121,8 @@ export async function execShim(
     // (when `encoding` is set). Neither is settable here, so the string branch
     // is the only reachable one; narrowing rather than asserting keeps that
     // guarantee checked.
-    stderr: deniedPlace
-      ? `${stderr}${stderr.endsWith("\n") || stderr === "" ? "" : "\n"}${deniedPlaceNote(deniedPlace)}\n`
+    stderr: refused
+      ? `${stderr}${stderr.endsWith("\n") || stderr === "" ? "" : "\n"}${refusalNote(refused)}\n`
       : stderr,
     stdout,
   };

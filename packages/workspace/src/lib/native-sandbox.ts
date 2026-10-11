@@ -1,76 +1,188 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { APP_NAME } from "@instrument-org/shared";
+import { AsyncLocalStorage } from "node:async_hooks";
+
+import { canonicalizeThroughMissing } from "./host-path";
+import { placePaths } from "./permissions/places";
+import { folderToAskFor, type Reach, reachOf, type Rules } from "./permissions/rules";
 import { getWorkspaceConfig } from "./workspace-config";
 
 const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
 
 /**
- * Places in the home folder that hold sign-ins rather than work: keys, cloud
- * and CLI credentials, password stores, and browser profiles with their
- * cookies. A native command never needs to read one to do a task, and any of
- * them is enough to act as the person somewhere else.
- *
- * `~/.npmrc` and `~/.gitconfig` stay reachable: pnpm and uv read them for
- * registry and proxy settings, and git's own env already ignores the config.
+ * Places in the home folder that native tools keep as their own: caches and
+ * package stores they write, and the settings they read on start. A command
+ * held out of the person's folders still has to install a package or warm a
+ * cache, so these stay open whatever the rules say about the places around
+ * them. The settings stay read-only, since a command that rewrote them could
+ * change what the person's own tools do next.
  */
-const CREDENTIAL_PLACES = [
-  ".ssh",
-  ".gnupg",
-  ".aws",
-  ".azure",
-  ".config/gcloud",
-  ".kube",
-  ".docker/config.json",
-  ".netrc",
-  ".git-credentials",
-  ".config/gh",
-  ".config/op",
-  ".password-store",
-  "Library/Keychains",
-  "Library/Cookies",
-  "Library/Application Support/Google/Chrome",
-  "Library/Application Support/BraveSoftware",
-  "Library/Application Support/Microsoft Edge",
-  "Library/Application Support/Arc",
-  "Library/Application Support/Firefox",
-  "Library/Group Containers/2BUA8C4S2C.com.1password",
+const TOOL_CACHES = [
+  ".cache",
+  ".npm",
+  ".local/share/uv",
+  ".local/share/pnpm",
+  ".local/state",
+  "Library/Caches",
+  "Library/pnpm",
+];
+const TOOL_SETTINGS = [
+  ".npmrc",
+  ".gitconfig",
+  ".config/git",
+  ".config/uv",
+  ".config/pip",
 ];
 
-/** The credential places as absolute paths in this person's home folder. */
-export function credentialPlaces(home = os.homedir()): string[] {
-  return CREDENTIAL_PLACES.map((place) => path.join(home, place));
+/** The places native tools keep as their own, in `home`. */
+export function toolPlaces(home = os.homedir()): {
+  caches: string[];
+  settings: string[];
+} {
+  const inHome = (names: string[]) =>
+    names.map((place) => path.join(home, place));
+  return { caches: inHome(TOOL_CACHES), settings: inHome(TOOL_SETTINGS) };
 }
 
 /**
- * A Seatbelt profile that allows everything but reading or writing the given
- * paths. Allow-by-default keeps every system directory, cache, and device a
- * binary expects where it was, so a command that worked unsandboxed works the
- * same unless it reaches into a denied place.
+ * The paths a native command may not read or write when nothing narrower
+ * applies: the passwords and sign-ins place, as the built-in rules spell it.
+ */
+export function credentialPlaces(home = os.homedir()): string[] {
+  return placePaths(home).find((place) => place.id === "passwords")?.paths ?? [];
+}
+
+/** What a native command spawned for a chat is held to. */
+export interface NativeReach {
+  /** Folders the command may read but not change, such as the skills. */
+  readOnly: readonly string[];
+  /** Folders the command may change whatever the rules say: its chat's own. */
+  readWrite: readonly string[];
+  rules: Rules;
+}
+
+const reachStorage = new AsyncLocalStorage<NativeReach>();
+
+/** Runs `run` with every native command it spawns held to `reach`. */
+export function withNativeReach<T>(reach: NativeReach, run: () => T): T {
+  return reachStorage.run(reach, run);
+}
+
+/**
+ * A Seatbelt profile from the rules. Allow-by-default keeps every system
+ * directory, device and service a binary expects where it was; then, ordered
+ * shallow to deep because Seatbelt lets the last matching rule win, nothing in
+ * the home folder may be changed, and each rule opens or closes its folder.
+ * So a folder allowed inside a place that asks is open, and a folder closed
+ * inside it is closed again, the same as `reachOf` decides.
  *
  * Seatbelt compares real paths, so each one is resolved through any symlink
- * first; a path that does not exist yet is denied as written.
+ * first, including a missing path under a linked folder.
  */
-export function seatbeltProfile(denied: readonly string[]): string {
-  const rules = denied.map((deniedPath) => {
-    const real = resolveReal(deniedPath);
-    return `(deny file-read* file-write* (subpath ${sbplString(real)}))`;
-  });
-  return ["(version 1)", "(allow default)", ...rules].join("\n");
+export function seatbeltProfile(reach: NativeReach): string {
+  const { home, rules, withoutAsking } = reach.rules;
+  const entries: {
+    depth: number;
+    /** The folder the entry opens, for an allow. */
+    opened?: string;
+    rank: number;
+    text: string;
+  }[] = [
+    {
+      depth: depthOf(home),
+      rank: -1,
+      text: `(deny file-write* (subpath ${sbplString(resolveReal(home))}))`,
+    },
+  ];
+  for (const rule of rules) {
+    const level = rule.level === "ask" && withoutAsking ? "allow" : rule.level;
+    const access = "file-read* file-write*";
+    entries.push(
+      ...spellings(rule.path).map((spelled) => ({
+        depth: depthOf(rule.path) + (rule.dotEntries ? 1 : 0),
+        opened: level === "allow" && !rule.dotEntries ? spelled : undefined,
+        rank: { folder: 1, grant: 2, place: 0 }[rule.source],
+        text: `(${level === "allow" ? "allow" : "deny"} ${access} ${
+          rule.dotEntries
+            ? `(regex #"^${regexEscape(spelled)}/\\.[^/]+(/|$)")`
+            : `(subpath ${sbplString(spelled)})`
+        })`,
+      })),
+    );
+  }
+  const opens = (paths: readonly string[], access: string) =>
+    paths.flatMap((opened) =>
+      spellings(opened).map((spelled) => ({
+        depth: depthOf(opened),
+        opened: spelled,
+        rank: 3,
+        text: `(allow ${access} (subpath ${sbplString(spelled)}))`,
+      })),
+    );
+  const tools = toolPlaces(home);
+  entries.push(
+    ...opens(tools.caches, "file-read* file-write*"),
+    ...opens(tools.settings, "file-read*"),
+    ...opens(reach.readOnly, "file-read*"),
+    ...opens(reach.readWrite, "file-read* file-write*"),
+  );
+  const ordered = entries.toSorted(
+    (a, b) => a.depth - b.depth || a.rank - b.rank,
+  );
+  // A tool opening a file in an open folder looks at each folder above it on
+  // the way (sqlite and `mkdir -p` both do), so those answer what they are
+  // without listing what is in them.
+  const above = new Set<string>();
+  for (const { opened } of ordered) {
+    for (
+      let folder = opened && path.dirname(opened);
+      folder && folder !== path.dirname(folder);
+      folder = path.dirname(folder)
+    ) {
+      above.add(folder);
+    }
+  }
+  ordered.push(
+    ...[...above].toSorted().map((folder) => ({
+      depth: 0,
+      rank: 0,
+      text: `(allow file-read-metadata (literal ${sbplString(folder)}))`,
+    })),
+  );
+  return ["(version 1)", "(allow default)", ...ordered.map((e) => e.text)].join(
+    "\n",
+  );
+}
+
+function depthOf(hostPath: string): number {
+  return path.resolve(hostPath).split(path.sep).filter(Boolean).length;
 }
 
 function resolveReal(target: string): string {
-  try {
-    return realpathSync(target);
-  } catch {
-    return target;
-  }
+  return canonicalizeThroughMissing(target) ?? target;
+}
+
+/**
+ * A path as written and, where a link is on the way, where it really is.
+ * Seatbelt checks both the link it opens through and what it lands on, so a
+ * rule names the two.
+ */
+function spellings(target: string): string[] {
+  const written = path.resolve(target);
+  const real = resolveReal(target);
+  return real === written ? [written] : [written, real];
 }
 
 function sbplString(value: string): string {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
+function regexEscape(value: string): string {
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 let available: boolean | undefined;
@@ -103,62 +215,98 @@ export function seatbeltAvailable(): boolean {
 }
 
 /**
- * The command to spawn for a native binary, held out of `denied` on macOS.
- * Elsewhere, or when Seatbelt cannot apply, the command comes back unchanged
- * and `sandboxed` says so.
+ * The command to spawn for a native binary, held to the chat's rules on macOS
+ * when it runs for a chat, and out of the passwords place when it runs for
+ * the app. Elsewhere, or when Seatbelt cannot apply, the command comes back
+ * unchanged and `reach` is absent.
  */
 export function wrapNativeCommand(
   file: string,
   args: readonly string[],
-  denied: readonly string[] = getWorkspaceConfig().nativeSandboxPlaces ?? [],
-): {
-  args: string[];
-  denied: readonly string[];
-  file: string;
-  sandboxed: boolean;
-} {
+  reach: NativeReach | undefined = currentReach(),
+): { args: string[]; file: string; reach?: NativeReach } {
   // A binary that is not there is left to fail as itself, so the shim's
   // not-found diagnostic names it rather than sandbox-exec's execvp error.
   if (
-    denied.length === 0 ||
+    !reach ||
     !seatbeltAvailable() ||
     (path.isAbsolute(file) && !existsSync(file))
   ) {
-    return { args: [...args], denied, file, sandboxed: false };
+    return { args: [...args], file };
   }
   return {
-    args: ["-p", seatbeltProfile(denied), file, ...args],
-    denied,
+    args: ["-p", seatbeltProfile(reach), file, ...args],
     file: SANDBOX_EXEC,
-    sandboxed: true,
+    reach,
+  };
+}
+
+function currentReach(): NativeReach | undefined {
+  const held = reachStorage.getStore();
+  if (held) {
+    return held;
+  }
+  if (!getWorkspaceConfig().nativeSandbox) {
+    return undefined;
+  }
+  const home = os.homedir();
+  return {
+    readOnly: [],
+    readWrite: [],
+    rules: {
+      home,
+      rules: credentialPlaces(home).map((denied) => ({
+        level: "never",
+        path: denied,
+        place: "passwords",
+        source: "place",
+      })),
+      withoutAsking: false,
+    },
   };
 }
 
 /**
- * The denied place a failed command's output names, if any, so the agent is
- * told the place was kept from it on purpose rather than left to read a bare
- * "Operation not permitted" as something to work around.
+ * The first path a failed command's output says it was not permitted to use
+ * that the rules keep from it, so the agent is told why rather than left to
+ * read a bare "Operation not permitted" as something to work around.
  */
-export function deniedPlaceIn(
+export function refusedPathIn(
   output: string,
-  denied: readonly string[],
-): string | undefined {
-  if (!output.includes("not permitted")) {
-    return undefined;
+  reach: NativeReach,
+): undefined | { hostPath: string; reach: Reach } {
+  for (const line of output.split("\n")) {
+    if (!line.includes("not permitted")) {
+      continue;
+    }
+    for (const match of line.matchAll(/\/[^\s:'"`]+/g)) {
+      const hostPath = match[0];
+      const decided = reachOf(reach.rules, hostPath, "write");
+      if (decided.level !== "allow") {
+        return { hostPath, reach: decided };
+      }
+    }
   }
-  return denied.find(
-    (deniedPath) =>
-      output.includes(deniedPath) || output.includes(resolveReal(deniedPath)),
-  );
+  return undefined;
 }
 
-/** What the agent reads when a denied place stopped a native command. */
-export function deniedPlaceNote(
-  deniedPath: string,
+/** What the agent reads when the rules stopped a native command. */
+export function refusalNote(
+  refused: { hostPath: string; reach: Reach },
   home = os.homedir(),
 ): string {
-  const shown = deniedPath.startsWith(`${home}/`)
-    ? `~/${deniedPath.slice(home.length + 1)}`
-    : deniedPath;
-  return `${shown} is kept out of reach of the commands Instrument runs, because it holds passwords or sign-ins. Don't look for another way in; tell the person what you needed it for.`;
+  const shown = (shownPath: string) =>
+    shownPath.startsWith(`${home}/`)
+      ? `~/${shownPath.slice(home.length + 1)}`
+      : shownPath;
+  if (refused.reach.level === "never") {
+    return `${shown(refused.hostPath)} is closed to ${APP_NAME} in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.`;
+  }
+  const folder = folderToAskFor({
+    home,
+    hostPath: refused.hostPath,
+    isDirectory: false,
+    rule: refused.reach.rule,
+  });
+  return `${shown(refused.hostPath)} needs the person's yes first. Ask for ${shown(folder)} with request_folder, then run the command again.`;
 }

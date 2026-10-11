@@ -1,25 +1,23 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
-import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { taskLayout } from "../../test/helpers/task-layout";
-import { chatDir } from "../record-folders";
 import { createShortcutsCommand } from "./shortcuts";
 
 vi.mock("execa");
 
-const ctx = createCommandContext({
-  cwd: "/task",
-  env: new Map<string, string>(),
-  fs: new InMemoryFs(),
-  stdin: EMPTY_BYTES,
-});
-
 describe("shortcuts", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("shortcuts-test"));
-  const command = createShortcutsCommand(chatId, taskLayout(chatId));
+  const layout = taskLayout(chatId);
+  const command = createShortcutsCommand(chatId, layout);
+  const ctx = createCommandContext({
+    cwd: layout.task.mountPoint,
+    env: new Map<string, string>(),
+    fs: new InMemoryFs(),
+    stdin: EMPTY_BYTES,
+  });
 
   afterEach(() => {
     vi.resetAllMocks();
@@ -42,15 +40,18 @@ describe("shortcuts", () => {
     );
   });
 
-  it("writes a run's result into the task folder", async () => {
+  it("passes a run's output path through unchanged", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({ all: "", exitCode: 0 } as never);
 
-    await command.execute(["run", "Resize", "-o", "/task/out.png"], ctx);
+    await command.execute(
+      ["run", "Resize", "-o", `${layout.task.mountPoint}/out.png`],
+      ctx,
+    );
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       "/usr/bin/shortcuts",
-      ["run", "Resize", "-o", path.join(chatDir(chatId), "out.png")],
+      ["run", "Resize", "-o", `${layout.task.mountPoint}/out.png`],
       expect.anything(),
     );
   });

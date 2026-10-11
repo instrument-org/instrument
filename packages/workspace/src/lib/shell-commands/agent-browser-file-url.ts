@@ -1,4 +1,3 @@
-import { MOUNT } from "../../mount-points";
 import { fileUrlOfHostPath } from "../local-page-address";
 import { normalizePath } from "../normalize-path";
 import {
@@ -21,8 +20,8 @@ const SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i;
 /**
  * Point the browser at a file the agent can reach, by the address the person
  * would see it at: its `file://` URL on this computer. The agent asks for
- * `work/report.html`, `/task/work/report.html`, `/mnt/Docs/page.html`, or
- * `file:///task/work/report.html` and the page loads where the person's own
+ * `work/report.html`, `/Users/sam/Docs/page.html`, or
+ * `file:///Users/sam/Docs/page.html` and the page loads where the person's own
  * tab would load it, with the same folder rules, so what the agent checks is
  * what the person sees. The browser's output is spelled back in the agent's
  * paths ({@link agentSpellingOfFileUrls}).
@@ -98,7 +97,7 @@ async function parseSandboxTarget(
       return undefined;
     }
     // `file://host/path` addresses another machine; only the local forms
-    // (`file:///path`, `file://localhost/path`) name a sandbox path.
+    // (`file:///path`, `file://localhost/path`) name a path in the shell.
     if (url.host !== "" && url.host !== "localhost") {
       return undefined;
     }
@@ -133,5 +132,5 @@ async function parseSandboxTarget(
 }
 
 function unreachableFileMessage(arg: string) {
-  return `${arg} is not a file you can open. Open a file by the path you reach it at (agent-browser open work/page.html, or ${MOUNT.folders}/<folder>/page.html).`;
+  return `${arg} is not a file you can open. Open a file by its path (agent-browser open work/page.html, or the full path of a file in one of your folders).`;
 }

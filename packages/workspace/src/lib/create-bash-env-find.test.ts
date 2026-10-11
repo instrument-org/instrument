@@ -37,7 +37,6 @@ async function run(command: string) {
       Home: {
         access: "read-only",
         id: MountedFolder.IdSchema.parse("home-id"),
-        mountName: "Home",
         path: ChatDirSchema.parse(attachedDir),
       },
     },
@@ -71,19 +70,21 @@ afterEach(async () => {
 
 describe.skipIf(asRoot)("find over an unreadable directory in a mount", () => {
   it("reports the directory and keeps going", async () => {
-    const result = await run("find /mnt/Home -name '*.md'");
+    const result = await run(`find ${attachedDir} -name '*.md'`);
 
-    expect(result.stdout).toBe("/mnt/Home/Documents/notes.md\n");
-    expect(result.stderr).toBe("find: /mnt/Home/.Trash: Permission denied\n");
+    expect(result.stdout).toBe(`${attachedDir}/Documents/notes.md\n`);
+    expect(result.stderr).toBe(
+      `find: ${attachedDir}/.Trash: Permission denied\n`,
+    );
     expect(result.exitCode).toBe(1);
   });
 
   it("keeps the results reachable through a pipeline", async () => {
     const result = await run(
-      "find /mnt/Home -name '*.md' 2>/dev/null | head -1",
+      `find ${attachedDir} -name '*.md' 2>/dev/null | head -1`,
     );
 
-    expect(result.stdout).toBe("/mnt/Home/Documents/notes.md\n");
+    expect(result.stdout).toBe(`${attachedDir}/Documents/notes.md\n`);
     expect(result.exitCode).toBe(0);
   });
 });
@@ -100,11 +101,13 @@ describe.skipIf(asRoot)("find's time predicates", () => {
     await fs.utimes(notes, new Date(), new Date());
 
     const since = await run(
-      "find /mnt/Home/Documents -name '*.md' -newermt 2026-06-01",
+      `find ${attachedDir}/Documents -name '*.md' -newermt 2026-06-01`,
     );
-    const recent = await run("find /mnt/Home/Documents -name '*.md' -mmin -5");
+    const recent = await run(
+      `find ${attachedDir}/Documents -name '*.md' -mmin -5`,
+    );
 
-    expect(since.stdout).toBe("/mnt/Home/Documents/notes.md\n");
-    expect(recent.stdout).toBe("/mnt/Home/Documents/notes.md\n");
+    expect(since.stdout).toBe(`${attachedDir}/Documents/notes.md\n`);
+    expect(recent.stdout).toBe(`${attachedDir}/Documents/notes.md\n`);
   });
 });

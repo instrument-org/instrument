@@ -57,24 +57,20 @@ export namespace SessionMessageDataPart {
 
   export type Name = z.output<typeof NameSchema>;
 
-  // Folders granted in the chat, taken back, or moved to a new mount since
-  // the session last heard -- attached to the user message that starts the
-  // next turn so the model knows of a folder granted mid-conversation and
-  // stops relying on a mount that has gone or moved. The standing folder
+  // Folders granted in the chat or taken back since the session last heard --
+  // attached to the user message that starts the next turn so the model knows
+  // of a folder granted mid-conversation and stops relying on one that has
+  // gone. The standing folder
   // list lives in the session context, which is written once and rebuilt at
   // most hourly, so this is what gets a change to the model the same turn.
   const FolderChangesDataPartSchema = z.object({
     added: z.array(
       z.object({
         access: MountedFolder.AccessSchema,
-        name: z.string(),
         path: z.string(),
       }),
     ),
-    removed: z.array(z.object({ name: z.string(), path: z.string() })),
-    renamed: z.array(
-      z.object({ newName: z.string(), oldName: z.string(), path: z.string() }),
-    ),
+    removed: z.array(z.object({ path: z.string() })),
   });
 
   export type FolderChangesDataPart = z.output<

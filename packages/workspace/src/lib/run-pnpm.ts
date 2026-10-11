@@ -8,7 +8,6 @@ import {
   currentShellOutputSink,
 } from "./shell-commands/output-sink";
 import { watchSubprocessTree } from "./subprocess-tree";
-import { type WorkspaceFsLayout } from "./workspace-fs-layout";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export const PNPM_NAME = "pnpm";
@@ -17,7 +16,6 @@ export async function runPnpmCommand({
   args,
   cwd,
   env,
-  layout,
   pnpmLogLevel,
   signal,
   stdin,
@@ -26,8 +24,6 @@ export async function runPnpmCommand({
   args: string[];
   cwd?: AbsolutePath;
   env?: Record<string, string>;
-  /** What the output's host paths are rewritten against. */
-  layout: WorkspaceFsLayout;
   /** Forwarded to pnpm as `pnpm_config_loglevel`. Only `"error"` is supported (suppresses info noise; not `silent`). */
   pnpmLogLevel?: "error";
   signal?: AbortSignal;
@@ -79,7 +75,7 @@ export async function runPnpmCommand({
   await streamed;
   await finishTreeTermination?.();
   const clean = (text: unknown) =>
-    typeof text === "string" ? filterShellOutput(text, layout) : "";
+    typeof text === "string" ? filterShellOutput(text) : "";
   return {
     command: `${PNPM_NAME} ${args.join(" ")}`,
     exitCode: execResult.exitCode ?? 1,

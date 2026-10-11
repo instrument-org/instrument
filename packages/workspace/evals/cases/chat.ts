@@ -28,7 +28,6 @@ import { getCurrentFileInfo } from "../../src/lib/get-file-info";
 import { filesNamedIn } from "../../src/lib/parse-files-block";
 import { chatDir } from "../../src/lib/record-folders";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
-import { MOUNT } from "../../src/mount-points";
 import { WorkspaceFilePathSchema } from "../../src/schemas/paths";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
@@ -214,7 +213,7 @@ function landedInAppFolder(slug: string, file: string): Assertion {
       const target = path.join(getWorkspaceConfig().appsDir, slug, file);
       return fs.existsSync(target)
         ? pass(text, `${fs.statSync(target).size} bytes`)
-        : fail(text, `nothing at ${MOUNT.apps}/${slug}/${file}`);
+        : fail(text, `nothing at ${target}`);
     },
     text,
   };

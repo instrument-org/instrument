@@ -9,10 +9,7 @@ import { folderLabel, folderParentLabel } from "./folder-parent-label";
  * The list of folders the model reads: every folder the chat reaches.
  *
  * A folder is introduced by the name the user knows it by, taken from its path,
- * with its mount path beside it as an address rather than a label. The two come
- * apart because the mount name has to be unique per chat and the user's name for
- * a folder does not: told only "Documents-test", a model reports back that it
- * wrote to "the documents-test folder", naming something the user never created.
+ * with its path beside it as an address rather than a label.
  *
  * The parent appears only where two folders share a name, which is the only
  * case where the user needs it to tell them apart.
@@ -82,14 +79,14 @@ export function buildFoldersText({
   // Lines, not a `- ` list: the folder list above already is one, and a second
   // list under it reads as more folders.
   const rules = [
-    `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
-    `Read, list, and search by mount path with \`${TOOL_NAMES.readFile}\` or bash (\`ls\`, \`rg\`, \`find\`), like any other directory. On a large folder \`rg\` is the one that finishes: \`rg --files -g '<glob>'\` lists and \`rg -l\` searches a whole home folder in seconds, where \`find\` stops part way with a traversal limit and returns nothing. Narrow it to a glob or a subdirectory either way, since an unfiltered \`rg --files\` over a home folder is millions of lines.`,
+    `Call a folder by its quoted name when you write to the user. The path is its address, not its name.`,
+    `Read, list, and search by path with \`${TOOL_NAMES.readFile}\` or bash (\`ls\`, \`rg\`, \`find\`), like any other directory. On a large folder \`rg\` is the one that finishes: \`rg --files -g '<glob>'\` lists and \`rg -l\` searches a whole home folder in seconds, where \`find\` stops part way with a traversal limit and returns nothing. Narrow it to a glob or a subdirectory either way, since an unfiltered \`rg --files\` over a home folder is millions of lines.`,
     writable
       ? `In the read-and-write folders you may also create, edit, move, rename, and delete, with \`${TOOL_NAMES.writeFile}\`, \`${TOOL_NAMES.editFile}\`, and bash. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
       : null,
-    `Some folders inside these need the person's yes, and some they closed to ${APP_NAME}. "Operation not permitted" says which: ask for the folder it names with \`${TOOL_NAMES.requestFolder}\`, set to its mount path, or tell the person what you couldn't reach. Never look for another way in.`,
-    `\`cp\`, \`mv\`, the file tools, the sandboxed script runtimes (\`python\`, \`js-exec\`), and \`git\` reach a mount directly, one mount to another included, so reading a file, parsing it in a script, or putting one where it belongs takes no copy through the task. A real subprocess (python-native, node, ffmpeg, pnpm) is the exception: it cannot see a mount at all, so copy in first and run it on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
-    `A repository in a folder is read in place: \`git -C '<mount path>' log\`, or \`cd\` there first. In a read-only folder git may only read (log, show, diff, blame, status); committing or changing files there needs the repository's own folder, which \`${TOOL_NAMES.requestFolder}\` asks for.`,
+    `Some folders inside these need the person's yes, and some they closed to ${APP_NAME}. "Operation not permitted" says which: ask for the folder it names with \`${TOOL_NAMES.requestFolder}\`, or tell the person what you couldn't reach. Never look for another way in.`,
+    `Every command works on these folders in place, the native ones (\`python-native\`, \`node\`, \`ffmpeg\`) included, so reading a file, parsing it in a script, or putting one where it belongs takes no copy through your folder.`,
+    `A repository in a folder is read in place: \`git -C '<folder>' log\`, or \`cd\` there first. In a read-only folder git may only read (log, show, diff, blame, status); committing or changing files there needs the repository's own folder, which \`${TOOL_NAMES.requestFolder}\` asks for.`,
   ]
     .filter((line) => line !== null)
     .join("\n");

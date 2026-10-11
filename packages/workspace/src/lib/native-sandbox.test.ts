@@ -9,6 +9,7 @@ import {
   type NativeReach,
   refusalNote,
   refusedPathIn,
+  bwrapAvailable,
   seatbeltAvailable,
   seatbeltProfile,
   wrapNativeCommand,
@@ -72,7 +73,9 @@ describe("refusedPathIn", () => {
       "PermissionError: [Errno 1] Operation not permitted: '/Users/someone/Documents/Acme/a.csv'",
       "ask",
     ],
-    ["cat: /Users/someone/.ssh/config: No such file or directory", undefined],
+    // bubblewrap leaves a closed folder empty, so its refusal reads as missing.
+    ["cat: /Users/someone/.ssh/config: No such file or directory", "never"],
+    ["cat: /Users/someone/notes.md: No such file or directory", undefined],
   ])("%s", (output, level) => {
     expect(refusedPathIn(output, reach)?.reach.level).toBe(level);
   });
@@ -147,5 +150,47 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
     ]);
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("Operation not permitted");
+  });
+});
+
+describe.runIf(bwrapAvailable())("a wrapped command on this Linux", () => {
+  const home = realpathSync(
+    mkdtempSync(path.join(os.tmpdir(), "native-sandbox-")),
+  );
+  const closed = path.join(home, "closed");
+  const asks = path.join(home, "Documents");
+  const granted = path.join(asks, "Acme");
+  for (const dir of [closed, granted]) {
+    mkdirSync(dir, { recursive: true });
+  }
+  writeFileSync(path.join(closed, "key"), "s");
+  writeFileSync(path.join(asks, "other.txt"), "o");
+  writeFileSync(path.join(granted, "brief.md"), "b");
+  writeFileSync(path.join(home, "notes.md"), "n");
+  mkdirSync(path.join(home, ".hidden"));
+  writeFileSync(path.join(home, ".hidden", "x"), "h");
+  const reach = reachOver(home, [
+    { level: "never", path: closed, source: "place" },
+    { level: "ask", path: asks, source: "place" },
+    { dotEntries: true, level: "ask", path: home, source: "place" },
+    { level: "allow", path: granted, source: "grant" },
+  ]);
+
+  it.each([
+    ["reads a file nothing holds", `cat ${path.join(home, "notes.md")}`, 0],
+    ["reads in a granted folder", `cat ${path.join(granted, "brief.md")}`, 0],
+    ["writes in a granted folder", `echo x > ${path.join(granted, "new")}`, 0],
+    ["refuses a closed folder", `cat ${path.join(closed, "key")}`, 1],
+    ["refuses a place that asks", `cat ${path.join(asks, "other.txt")}`, 1],
+    ["refuses a hidden folder", `cat ${path.join(home, ".hidden", "x")}`, 1],
+    [
+      "refuses a change nothing allows",
+      `echo x > ${path.join(home, "new")}`,
+      1,
+    ],
+  ])("%s", async (_name, script, exitCode) => {
+    const spawned = wrapNativeCommand("/bin/sh", ["-c", script], reach);
+    const result = await execa(spawned.file, spawned.args, { reject: false });
+    expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
   });
 });

@@ -21,7 +21,15 @@ export interface WalkBudget {
   /** Counts again from zero. */
   reset: () => void;
   /** `fs` with its directory listings counted against this budget. */
-  wrap: (fs: IFileSystem, mountPoint: string) => IFileSystem;
+  /**
+   * `fs` with its directory listings counted against this budget, but for
+   * listings `exempt` says are walked at the sandbox's own budget instead.
+   */
+  wrap: (
+    fs: IFileSystem,
+    mountPoint: string,
+    exempt?: (path: string) => boolean,
+  ) => IFileSystem;
 }
 
 export function createWalkBudget(limit: number): WalkBudget {
@@ -39,22 +47,24 @@ export function createWalkBudget(limit: number): WalkBudget {
     reset: () => {
       listed = 0;
     },
-    wrap: (fs, mountPoint) =>
+    wrap: (fs, mountPoint, exempt = () => false) =>
       // A proxy rather than a copy of the methods, so every other call
       // reaches the filesystem as it is, with `this` bound to it.
       new Proxy(fs, {
         get(target, property, receiver) {
           if (property === "readdir") {
-            return async (path: string) =>
-              counted(await target.readdir(path), mountPoint);
+            return async (path: string) => {
+              const entries = await target.readdir(path);
+              return exempt(path) ? entries : counted(entries, mountPoint);
+            };
           }
           if (property === "readdirWithFileTypes") {
             return target.readdirWithFileTypes
-              ? async (path: string) =>
-                  counted(
-                    (await target.readdirWithFileTypes?.(path)) ?? [],
-                    mountPoint,
-                  )
+              ? async (path: string) => {
+                  const entries =
+                    (await target.readdirWithFileTypes?.(path)) ?? [];
+                  return exempt(path) ? entries : counted(entries, mountPoint);
+                }
               : undefined;
           }
           const value: unknown = Reflect.get(target, property, receiver);

@@ -59,7 +59,7 @@ export function useDrafts({
   /** Where the window's tab up stands, which a draft opened over a screen of its own is opened on. */
   activeHref: string;
   /** The folders the window reaches, for how the agent reaches a file an ask is on. */
-  folders: Record<string, { mountName: string; path: string }>;
+  folders: Record<string, { path: string }>;
   /** The windows along the row's foot, which a draft is written in. */
   compose: ReturnType<typeof useCompose>;
   /** What a draft's window has up, read as its chat starts. */

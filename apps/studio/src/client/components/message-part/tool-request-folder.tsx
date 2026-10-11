@@ -1,7 +1,6 @@
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
-  MOUNT,
   type SessionMessagePart,
   type ChatId,
 } from "@instrument-org/workspace/client";
@@ -9,7 +8,9 @@ import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { ORPCError } from "@orpc/client";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
+import { hostPathFromShellPath, folderLabel } from "@/client/lib/path-utils";
 import { toast } from "@/client/lib/toast";
+import { isWindows } from "@/client/lib/utils";
 
 import { Button } from "../ui/button";
 import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";
@@ -58,13 +59,10 @@ export function ToolRequestFolder({
   const isPending = isUnanswered && isWaitedOn;
   const isBusy = grant.isPending || answer.isPending;
 
-  const granted = (mountName: string) => {
+  const granted = (path: string) => {
     answer.mutate({
       id: chatId,
-      output: {
-        mountPoint: `${MOUNT.folders}/${mountName}`,
-        status: "granted",
-      },
+      output: { path, status: "granted" },
       toolCallId: part.toolCallId,
       toolName: "request_folder",
     });
@@ -81,7 +79,7 @@ export function ToolRequestFolder({
     }
     try {
       granted(
-        (await grant.mutateAsync({ id: chatId, path: picked.path })).mountName,
+        (await grant.mutateAsync({ id: chatId, path: picked.path })).path,
       );
     } catch (error) {
       toast.error("Couldn't allow the folder", { cause: error });
@@ -90,7 +88,7 @@ export function ToolRequestFolder({
 
   const allow = async (always: boolean) => {
     const hostPath = askedFolder
-      ? await hostPathOf(chatId, askedFolder)
+      ? hostPathFromShellPath(askedFolder, isWindows())
       : undefined;
     if (!hostPath) {
       await choose();
@@ -98,8 +96,7 @@ export function ToolRequestFolder({
     }
     try {
       granted(
-        (await grant.mutateAsync({ always, id: chatId, path: hostPath }))
-          .mountName,
+        (await grant.mutateAsync({ always, id: chatId, path: hostPath })).path,
       );
     } catch (error) {
       if (isSystemRefusal(error)) {
@@ -179,7 +176,7 @@ export function ToolRequestFolder({
         ) : part.state === "output-available" ? (
           <p className="mt-2 text-xs text-muted-foreground">
             {part.output.status === "granted"
-              ? `You allowed "${part.output.mountPoint.slice(MOUNT.folders.length + 1)}".`
+              ? `You allowed "${folderLabel(part.output.path)}".`
               : "You said not now."}
           </p>
         ) : null}
@@ -194,33 +191,4 @@ function isSystemRefusal(error: unknown): boolean {
     error instanceof ORPCError &&
     z.object({ refusedBy: z.literal("system") }).safeParse(error.data).success
   );
-}
-
-/**
- * Where on disk a folder the conversation reaches is, given the path it is
- * mounted at: the mount it sits in, and the rest of the path inside that.
- */
-async function hostPathOf(
-  chatId: ChatId,
-  mountPath: string,
-): Promise<string | undefined> {
-  const prefix = `${MOUNT.folders}/`;
-  if (!mountPath.startsWith(prefix)) {
-    return undefined;
-  }
-  const inside = mountPath.slice(prefix.length).replace(/\/+$/, "");
-  const folders = await rpcClient.workspace.chats.folders.get.call({
-    id: chatId,
-  });
-  const mount = Object.values(folders)
-    .filter(
-      ({ mountName }) =>
-        inside === mountName || inside.startsWith(`${mountName}/`),
-    )
-    .toSorted((a, b) => b.mountName.length - a.mountName.length)[0];
-  if (!mount) {
-    return undefined;
-  }
-  const rest = inside.slice(mount.mountName.length);
-  return `${mount.path}${rest}`;
 }

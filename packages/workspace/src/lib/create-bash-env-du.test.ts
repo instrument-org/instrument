@@ -23,6 +23,7 @@ const sessionId = StoreId.newSessionId();
 const WIDE_FILES = 21_000;
 
 let tmpDir: string;
+let taskRoot: string;
 let homeDir: string;
 let wideDir: string;
 let chatId: ChatId;
@@ -52,7 +53,7 @@ async function run(command: string, { chat = false } = {}) {
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-du-"));
-  const taskRoot = path.join(tmpDir, "tasks", "test");
+  taskRoot = path.join(tmpDir, "tasks", "test");
   homeDir = path.join(tmpDir, "Home");
   wideDir = path.join(tmpDir, "Wide");
 
@@ -94,15 +95,16 @@ afterAll(async () => {
 
 describe("du", () => {
   it("prints a file's size in bytes and in GNU's rounded-up human form", async () => {
-    const bytes = await run("du -b /mnt/Home/notes/one.txt");
-    const human = await run("du --apparent-size -h /mnt/Home/notes/one.txt");
+    const file = `${homeDir}/notes/one.txt`;
+    const bytes = await run(`du -b '${file}'`);
+    const human = await run(`du --apparent-size -h '${file}'`);
 
-    expect(bytes.stdout).toBe("1500\t/mnt/Home/notes/one.txt\n");
-    expect(human.stdout).toBe("1.5K\t/mnt/Home/notes/one.txt\n");
+    expect(bytes.stdout).toBe(`1500\t${file}\n`);
+    expect(human.stdout).toBe(`1.5K\t${file}\n`);
   });
 
   it("lists children before their parent, down to the depth asked", async () => {
-    const result = await run("du -b -d 1 /mnt/Home");
+    const result = await run(`du -b -d 1 '${homeDir}'`);
     const lines = result.stdout.trim().split("\n");
     const paths = lines.map((line) => line.split("\t")[1]);
     const size = (target: string) =>
@@ -111,15 +113,15 @@ describe("du", () => {
       );
 
     expect(result.exitCode).toBe(0);
-    expect(paths).toEqual(["/mnt/Home/notes", "/mnt/Home/photos", "/mnt/Home"]);
-    expect(size("/mnt/Home/notes")).toBeGreaterThanOrEqual(4500);
-    expect(size("/mnt/Home")).toBeGreaterThanOrEqual(
-      size("/mnt/Home/notes") + size("/mnt/Home/photos"),
+    expect(paths).toEqual([`${homeDir}/notes`, `${homeDir}/photos`, homeDir]);
+    expect(size(`${homeDir}/notes`)).toBeGreaterThanOrEqual(4500);
+    expect(size(homeDir)).toBeGreaterThanOrEqual(
+      size(`${homeDir}/notes`) + size(`${homeDir}/photos`),
     );
   });
 
   it("prints paths as they were typed, relative ones included", async () => {
-    const result = await run("cd /mnt/Home && du -ab notes");
+    const result = await run(`cd '${homeDir}' && du -ab notes`);
 
     expect(result.stdout.trim().split("\n").at(-1)).toMatch(/^\d+\tnotes$/);
     expect(result.stdout).toContain("\tnotes/deep/two.txt\n");
@@ -128,25 +130,26 @@ describe("du", () => {
 
   it("adds a grand total with -c", async () => {
     const result = await run(
-      "du -cb /mnt/Home/notes/one.txt /mnt/Home/notes/deep/two.txt",
+      `du -cb '${homeDir}/notes/one.txt' '${homeDir}/notes/deep/two.txt'`,
     );
 
     expect(result.stdout.trim().split("\n").at(-1)).toBe("4500\ttotal");
   });
 
   it("neither lists nor counts the task's private dir", async () => {
-    const listing = await run("du -ab /task");
-    const total = await run("du -sb /task");
+    const listing = await run(`du -ab '${taskRoot}'`);
+    const total = await run(`du -sb '${taskRoot}'`);
 
     expect(listing.stdout).not.toMatch(/\.instrument/i);
     expect(Number(total.stdout.split("\t")[0])).toBeLessThan(1_000_000);
   });
 
   it.each([
-    [`/task/${CHAT_FOLDER_NAMES.private}`],
-    [`/task/${CHAT_FOLDER_NAMES.private.toUpperCase()}`],
-  ])("reports %s as absent", async (target) => {
-    const result = await run(`du -sb ${target}`);
+    [CHAT_FOLDER_NAMES.private],
+    [CHAT_FOLDER_NAMES.private.toUpperCase()],
+  ])("reports the task's %s as absent", async (name) => {
+    const target = `${taskRoot}/${name}`;
+    const result = await run(`du -sb '${target}'`);
 
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
@@ -155,18 +158,10 @@ describe("du", () => {
     );
   });
 
-  it("sums the mounts inside a virtual directory", async () => {
-    const result = await run("du -sb /mnt");
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe("");
-    expect(result.stdout).toMatch(/^\d+\t\/mnt\n$/);
-  });
-
   it("answers past the chat's traversal budget", async () => {
     // The walk is not the virtual filesystem's, so the budget that stops
     // find and ls over this folder does not apply to it.
-    const result = await run("du -a /mnt/Wide | wc -l", { chat: true });
+    const result = await run(`du -a '${wideDir}' | wc -l`, { chat: true });
 
     expect(result.exitCode).toBe(0);
     expect(Number(result.stdout.trim())).toBe(WIDE_FILES + 1);
@@ -184,7 +179,7 @@ describe("du", () => {
   });
 
   it("leaves a flag it does not implement to just-bash", async () => {
-    const result = await run("du --time /mnt/Home");
+    const result = await run(`du --time '${homeDir}'`);
 
     expect(result.stderr).toContain("--time");
   });

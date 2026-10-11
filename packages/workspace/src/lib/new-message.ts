@@ -2,7 +2,6 @@ import { type AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { extractSkillMentions } from "@instrument-org/shared/skill-mention";
 import { ok } from "neverthrow";
 
-import { MOUNT } from "../mount-points";
 import { type FileUpload } from "../schemas/file-upload";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { type SessionMessage } from "../schemas/session/message";
@@ -27,6 +26,7 @@ import { updateChatSettings } from "./chat-settings";
 import { grantFolder } from "./chat/grants";
 import { chatConversation } from "./chat/children";
 import { getWorkspaceConfig } from "./workspace-config";
+import { shellPath } from "./workspace-fs-layout";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
 import { workDir } from "./work-dir";
 
@@ -362,7 +362,7 @@ async function createChatTopicsPart({
     if (!topic) {
       continue;
     }
-    const folders = topicFolderMounts(reach, topic.folders ?? []);
+    const folders = topicFolderPaths(reach, topic.folders ?? []);
     topics.push({
       ...(topic.about ? { about: topic.about } : {}),
       ...(topic.emoji ? { emoji: topic.emoji } : {}),
@@ -379,19 +379,19 @@ async function createChatTopicsPart({
 }
 
 /**
- * Where each of a topic's folders is mounted in the chat, by the chat's
- * reach. A folder no longer on disk is in no mount, and is left out so the
- * agent is not pointed at nothing.
+ * The path of each of a topic's folders the chat reaches. A folder no longer
+ * on disk is not reached, and is left out so the agent is not pointed at
+ * nothing.
  */
-function topicFolderMounts(
+function topicFolderPaths(
   reach: Record<string, MountedFolder.Type>,
   folders: TopicFolder[],
 ): string[] {
   return folders.flatMap((folder) => {
-    const mounted = Object.values(reach).find(
+    const reached = Object.values(reach).find(
       (entry) => entry.path === folder.path,
     );
-    return mounted ? [`${MOUNT.folders}/${mounted.mountName}`] : [];
+    return reached ? [shellPath(reached.path)] : [];
   });
 }
 

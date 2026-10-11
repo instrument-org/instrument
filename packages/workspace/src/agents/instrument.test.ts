@@ -282,7 +282,9 @@ describe("instrumentAgent", () => {
       "A task is you, continuing in the background with this conversation in hand",
     );
     expect(prompt).toContain("task new --name '<title>' [--tab <id>]");
-    expect(prompt).toContain("task folder --add");
+    expect(prompt).toContain(
+      "this same folder, and the same folders and apps at the same paths",
+    );
   });
 
   it("names no flag or mount the task command does not have", () => {

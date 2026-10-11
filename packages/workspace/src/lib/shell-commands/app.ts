@@ -4,7 +4,6 @@ import { type ByteString, defineCommand, EMPTY_BYTES } from "just-bash";
 import ms from "ms";
 import { isPlainObject } from "radashi";
 
-import { MOUNT } from "../../mount-points";
 import { appChanged } from "../apps/changed";
 import { type ChatId } from "../../schemas/chat-id";
 import {
@@ -61,6 +60,7 @@ import { chatDir } from "../record-folders";
 import { getChatState, setChatState } from "../chat-record";
 import { truncateMiddle } from "../truncate-buffer";
 import { getWorkspaceConfig } from "../workspace-config";
+import { shellPath } from "../workspace-fs-layout";
 import { APP_COMMAND } from "./app-command";
 import {
   defineSubcommands,
@@ -77,6 +77,11 @@ export { APP_COMMAND } from "./app-command";
 export interface AppCommandContext {
   /** The task the call belongs to: which apps it may reach, and whose state the guide gate lives in. */
   chatId: ChatId;
+}
+
+/** The apps folder as the shell spells it. */
+function appsFolder() {
+  return shellPath(getWorkspaceConfig().appsDir);
 }
 
 const REQUEST_TIMEOUT_MS = ms("2 minutes");
@@ -98,7 +103,7 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       filter by name, domain, or category, the services they name first. With
       no words, the whole directory one line each; add a word for the detail.
   ${APP_COMMAND.name} new <slug> --name '<Name>' (--mcp <url> | --api <base-url> | --local <package> | --web <url>) [--sign-in <url>] [--auth oauth|bearer|basic|basic:<user>|header:<Name>|query:<param>|env:<VAR>|none] [--header '<Name>: <value>']... [--arg <arg>]... [--runtime node|python] [--mac-app <bundle-id>] [--test <path>] [--force]
-      Write ${MOUNT.apps}/<slug>/${APP_MANIFEST_FILE_NAME}, and a ${APP_GUIDE_FILE_NAME} when there is
+      Write <slug>/${APP_MANIFEST_FILE_NAME} in the apps folder, and a ${APP_GUIDE_FILE_NAME} when there is
       none, from the directory's entry for the service when it has one. An
       MCP app's guide is done as written; an API app's may leave prompts to
       answer with \`${APP_COMMAND.name} guide\`. An MCP app defaults to oauth (a one-click sign-in, no key);
@@ -657,7 +662,7 @@ async function runDisconnect(args: string[]) {
   const app = await requireApp(args[0], { connected: false });
   await getWorkspaceConfig().apps.disconnect(app.slug);
   return ok(
-    `Disconnected ${app.slug}. Its folder at ${MOUNT.apps}/${app.slug}/ stays; connect_app asks the user again.\n`,
+    `Disconnected ${app.slug}. Its folder at ${appsFolder()}/${app.slug}/ stays; connect_app asks the user again.\n`,
   );
 }
 
@@ -673,14 +678,14 @@ async function runGuide(
     const left = guidePlaceholdersLeft(app.manifest, written);
     return ok(
       left.length > 0
-        ? `Wrote ${MOUNT.apps}/${app.slug}/${APP_GUIDE_FILE_NAME}, but these prompts are still in it: ${left.map((prompt) => `"${prompt}"`).join(" ")} Replace each with its answer and write it again.\n`
-        : `Wrote ${MOUNT.apps}/${app.slug}/${APP_GUIDE_FILE_NAME}. Run \`${APP_COMMAND.name} test ${app.slug}\`, or ask with connect_app.\n`,
+        ? `Wrote ${appsFolder()}/${app.slug}/${APP_GUIDE_FILE_NAME}, but these prompts are still in it: ${left.map((prompt) => `"${prompt}"`).join(" ")} Replace each with its answer and write it again.\n`
+        : `Wrote ${appsFolder()}/${app.slug}/${APP_GUIDE_FILE_NAME}. Run \`${APP_COMMAND.name} test ${app.slug}\`, or ask with connect_app.\n`,
     );
   }
   const guide = await readAppGuide(app.dir);
   if (guide === null) {
     throw new Error(
-      `"${app.slug}" has no ${APP_GUIDE_FILE_NAME}. Write one at ${MOUNT.apps}/${app.slug}/${APP_GUIDE_FILE_NAME}.`,
+      `"${app.slug}" has no ${APP_GUIDE_FILE_NAME}. Write one at ${appsFolder()}/${app.slug}/${APP_GUIDE_FILE_NAME}.`,
     );
   }
   await markGuideRead(context.chatId, app.slug);
@@ -708,7 +713,7 @@ async function runIcon(args: string[], ctx: SubcommandShell) {
   await writeAppIcon(app.dir, bytes, checked.fileName);
   await appChanged(app.slug);
   return ok(
-    `${app.slug} is drawn with ${MOUNT.apps}/${app.slug}/${checked.fileName} now, everywhere it appears.\n`,
+    `${app.slug} is drawn with ${appsFolder()}/${app.slug}/${checked.fileName} now, everywhere it appears.\n`,
   );
 }
 
@@ -895,7 +900,7 @@ async function runNew(input: SubcommandInput) {
   const existing = await loadApp(appsDir, slug);
   if (existing.isOk() && !force) {
     throw new Error(
-      `${MOUNT.apps}/${slug}/${APP_MANIFEST_FILE_NAME} already exists. Edit it with your file tools, or pass --force to replace it.`,
+      `${appsFolder()}/${slug}/${APP_MANIFEST_FILE_NAME} already exists. Edit it with your file tools, or pass --force to replace it.`,
     );
   }
   await refuseWhatCannotConnect(slug, name, manifest);
@@ -940,7 +945,7 @@ async function runNew(input: SubcommandInput) {
       ? ` It is another ${name} account beside ${siblings.map((app) => (app.manifest.account ? `${app.slug} (${app.manifest.account})` : app.slug)).join(", ")}, so it keeps the name ${name}${givenName === name ? "" : ` rather than "${givenName}"`}: its account is what tells them apart, named when the user has signed in.`
       : "";
   return ok(
-    `Wrote ${MOUNT.apps}/${slug}/${APP_MANIFEST_FILE_NAME}${existing.isOk() && !reachChanged ? "" : ` and its ${APP_GUIDE_FILE_NAME}`}.${another}${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole file back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
+    `Wrote ${appsFolder()}/${slug}/${APP_MANIFEST_FILE_NAME}${existing.isOk() && !reachChanged ? "" : ` and its ${APP_GUIDE_FILE_NAME}`}.${another}${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole file back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
   );
 }
 
@@ -1043,7 +1048,7 @@ async function runRequest(
     const guide = await readAppGuide(app.dir);
     if (guide === null) {
       throw new Error(
-        `"${app.slug}" has no ${APP_GUIDE_FILE_NAME}. Write one at ${MOUNT.apps}/${app.slug}/${APP_GUIDE_FILE_NAME}: the endpoints and conventions a request needs.`,
+        `"${app.slug}" has no ${APP_GUIDE_FILE_NAME}. Write one at ${appsFolder()}/${app.slug}/${APP_GUIDE_FILE_NAME}: the endpoints and conventions a request needs.`,
       );
     }
     await markGuideRead(context.chatId, app.slug);

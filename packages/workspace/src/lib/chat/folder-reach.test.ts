@@ -47,12 +47,13 @@ function granted(...grants: { at: number; path: string }[]): ChatGrant[] {
   }));
 }
 
-/** Each mount the agent sees, by name, with the folder behind it. */
+/** The folders the chat reaches, in order. */
 async function reach(grants: ChatGrant[]) {
   const folders = await folderReach(chatId, grants);
-  return Object.entries(folders).map(
-    ([mountName, folder]) => `${mountName} ${folder.path}`,
-  );
+  return Object.entries(folders).map(([key, folder]) => {
+    expect(key).toBe(folder.path);
+    return folder.path;
+  });
 }
 
 function topic(name: string, folders: string[]): Topic {
@@ -103,56 +104,37 @@ describe("folderReach", () => {
 
     const mounts = await reach(granted({ at: 1, path: elsewhere }));
 
-    // The sent folder and the topic's copy of it are one mount.
-    expect(mounts.slice(2)).toEqual([
-      `Archive ${elsewhere}`,
-      `Recipes ${recipes}`,
-    ]);
+    // The sent folder and the topic's copy of it are one folder.
+    expect(mounts.slice(2)).toEqual([elsewhere, recipes]);
   });
 
-  // A topic's folder arrives after the folders already sent, so filing a
-  // chat never moves a folder the agent is working in to another name.
-  it("keeps a sent folder's name when a topic brings a namesake", async () => {
+  // A topic's folder arrives after the folders already sent.
+  it("puts a topic's folder after the folders sent, namesakes included", async () => {
     const otherArchive = path.resolve(path.sep, "Volumes", "Old", "Archive");
     world.topics = [topic("History", [otherArchive])];
     world.tagged = ["top_History"];
 
     const mounts = await reach(granted({ at: 1, path: elsewhere }));
 
-    expect(mounts.slice(2)).toEqual([
-      `Archive ${elsewhere}`,
-      `Old-Archive ${otherArchive}`,
-    ]);
+    expect(mounts.slice(2)).toEqual([elsewhere, otherArchive]);
   });
 
-  // A path the chat already used never moves: whichever was granted first
-  // keeps the plain name, in whatever order the grants are listed, and only
-  // the later namesake is qualified.
-  it("qualifies only the later of two grants that share a name", async () => {
+  it("orders grants by when each was granted, whatever order they are listed in", async () => {
     const otherArchive = path.resolve(path.sep, "Volumes", "Old", "Archive");
 
-    const before = await reach(granted({ at: 1, path: elsewhere }));
     const after = await reach(
       granted({ at: 2, path: otherArchive }, { at: 1, path: elsewhere }),
     );
 
-    expect(before.slice(2)).toEqual([`Archive ${elsewhere}`]);
-    expect(after.slice(2)).toEqual([
-      `Archive ${elsewhere}`,
-      `Old-Archive ${otherArchive}`,
-    ]);
+    expect(after.slice(2)).toEqual([elsewhere, otherArchive]);
   });
 
-  it("leaves a grant's name to a standing folder that holds it", async () => {
+  it("reaches a grant beside the standing folders", async () => {
     const other = path.resolve(path.sep, "Volumes", "Work", "Instrument");
 
     const mounts = await reach(granted({ at: 1, path: other }));
 
-    expect(mounts).toEqual([
-      expect.stringContaining(home),
-      `Instrument ${workspace}`,
-      `Work-Instrument ${other}`,
-    ]);
+    expect(mounts).toEqual([home, workspace, other]);
   });
 
   it("drops a topic's folders once the chat is no longer filed under it", async () => {

@@ -3,7 +3,6 @@ import { realpathSync } from "node:fs";
 import nodePath from "node:path";
 
 import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
-import { MOUNT } from "../../mount-points";
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { hostPathWithin } from "../host-path";
@@ -17,11 +16,7 @@ import {
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
-import {
-  privateDirLiteralError,
-  resolveCommandContext,
-  subprocessStdin,
-} from "./utils";
+import { resolveCommandContext, subprocessStdin } from "./utils";
 
 export const RG_COMMAND = {
   description:
@@ -157,7 +152,6 @@ export function createRgCommand({
     const streams = mapStreams(shimOutput(result, RG_COMMAND.name), (text) =>
       filterShellOutput(
         text,
-        layout,
         // `--path-separator=/` already makes ripgrep print POSIX paths, so the
         // separator rewrite has nothing to fix here and would only corrupt
         // backslashes inside matched lines and `--json` escapes.
@@ -172,11 +166,11 @@ export function createRgCommand({
 }
 
 /**
- * Rewrite the sandbox's virtual paths to the host paths ripgrep has to receive,
- * and refuse the ones that name the private dir.
+ * Rewrite the shell's spelling of a path to the host path ripgrep has to
+ * receive, and refuse the ones that name the private dir.
  *
  * Only arguments that name a mount are rewritten. Anything else starting with
- * `/` is left alone: it is far more likely to be a regex (`rg '/task/'`) than a
+ * `/` is left alone: it is far more likely to be a regex (`rg '/api/'`) than a
  * path, and a real absolute path is no wider a capability than the `python` and
  * `node` hatches already documented in the agent sandbox. A path that resolves
  * into the private dir, or out of its mount through a symlink, is refused.
@@ -205,11 +199,6 @@ function bridgePathArgs(
     const owner = mountPoints.find((mountPoint) =>
       isAtOrUnder(mountPoint, arg),
     );
-    const below = owner === undefined ? mountsBelow(layout, arg) : [];
-    if (below.length > 0) {
-      bridged.push(...below);
-      continue;
-    }
     if (!owner) {
       const isOperand = operandsOnly || !arg.startsWith("-");
       operandsOnly ||= arg === "--";
@@ -218,7 +207,7 @@ function bridgePathArgs(
         : undefined;
       if (masked === CHAT_FOLDER_NAMES.private) {
         return {
-          error: privateDirLiteralError(`${RG_COMMAND.name}: "${arg}"`),
+          error: `${RG_COMMAND.name}: "${arg}" references the private ${CHAT_FOLDER_NAMES.private} directory, which holds chat internals.`,
         };
       }
       // The dir itself is left to the deny globs: a bare `tasks` argument is
@@ -226,7 +215,7 @@ function bridgePathArgs(
       // would cost more than it guards.
       if (
         masked === TASKS_DIR_NAME &&
-        !isMaskedDirItself(resolveVirtual(arg), TASKS_DIR_NAME)
+        !isMaskedDirItself(layout, resolveVirtual(arg), TASKS_DIR_NAME)
       ) {
         return {
           error: `${RG_COMMAND.name}: ${arg}: path is not accessible`,
@@ -244,26 +233,6 @@ function bridgePathArgs(
     bridged.push(hostPath);
   }
   return { args: bridged };
-}
-
-/**
- * The host roots of the mounts under a directory that is no mount itself but
- * holds some: `/mnt`, or `/mnt/Home` in a task handed `/mnt/Home/Downloads`
- * and `/mnt/Home/Desktop` alone. The sandbox shows such a directory as the
- * mounts under it, so a search of it is a search of them. Only under the
- * folder mount's root, so neither `/` nor a pattern elsewhere is read as one.
- */
-function mountsBelow(layout: WorkspaceFsLayout, arg: string): string[] {
-  if (!isAtOrUnder(MOUNT.folders, arg)) {
-    return [];
-  }
-  return nonTaskMounts(layout).flatMap((mount) => {
-    if (mount.mountPoint === arg || !isAtOrUnder(arg, mount.mountPoint)) {
-      return [];
-    }
-    const hostPath = resolveReadOnlyHostPath(layout, mount.mountPoint);
-    return hostPath === null ? [] : [hostPath];
-  });
 }
 
 /** A path's real location, or null for one that does not exist. */
@@ -431,10 +400,14 @@ function maskSearchRoots(
  * Whether a virtual path names a task folder's masked entry itself rather than
  * something inside it.
  */
-function isMaskedDirItself(virtualPath: string, entry: string): boolean {
+function isMaskedDirItself(
+  layout: WorkspaceFsLayout,
+  virtualPath: string,
+  entry: string,
+): boolean {
   return (
     normalizePath(virtualPath).toLowerCase() ===
-    `${MOUNT.task}/${entry}`.toLowerCase()
+    `${layout.task.mountPoint}/${entry}`.toLowerCase()
   );
 }
 

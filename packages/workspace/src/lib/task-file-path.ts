@@ -1,8 +1,6 @@
-import { MOUNT } from "../mount-points";
-
 /**
- * Whether a path is one this app can address at all: somewhere inside the
- * chat's folder, inside a folder the user shared, or inside a skill.
+ * Whether a path is one this app can try to address: relative to the chat's
+ * folder, or an absolute path with no backslash or `..` segment in it.
  *
  * A question about the string rather than about disk, which is what makes it
  * safe to ask while rendering. Every surface that draws a file reference asks
@@ -10,23 +8,15 @@ import { MOUNT } from "../mount-points";
  * reference should not mean different things in different parts of one reply.
  *
  * What it is really for: the references being drawn come from model output, so
- * a host path can appear among them. `/Users/someone/.ssh/id_rsa` has to read
- * as prose, since no version of clicking it opens anything, and an affordance
- * that looks like it would is worse than no affordance at all.
+ * a malformed path can appear among them. Whether the agent may read an
+ * absolute path is decided by the permission rules when it is opened, not by
+ * the string.
  *
  * It lives here rather than in the renderer because `show` and the pane state
  * ask it too, and a grammar with two implementations is a grammar that drifts.
  */
 export function isAddressableTaskFilePath(path: string): boolean {
-  if (path.includes("\\") || path.split("/").includes("..")) {
-    return false;
-  }
-
-  return (
-    !path.startsWith("/") ||
-    path.startsWith(`${MOUNT.folders}/`) ||
-    path.startsWith(`${MOUNT.skills}/`)
-  );
+  return !path.includes("\\") && !path.split("/").includes("..");
 }
 
 /**

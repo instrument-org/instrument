@@ -67,7 +67,7 @@ cpSync(
 
 const chatId = createMockChatConfigForDir(fixturesPath, { model });
 
-// A folder granted to the chat, mounted at /mnt/Test Folder: another copy,
+// A folder granted to the chat: another copy,
 // outside the home folder, which a chat reaches too and which would own a path
 // in the repository's fixtures first.
 const testFolder = path.join(path.dirname(fixturesPath), "Test Folder");
@@ -123,11 +123,9 @@ describe("ReadFile", () => {
       }
     });
 
-    it("collapses the task dir a script wrote into a file, leaving home paths as data", async () => {
-      // A script that resolved an absolute path can write the task dir into a
-      // deliverable; reading it back must not leak the task layout. An unrelated
-      // home path stays untouched -- redacting it risks mangling a legitimately
-      // absolute path the agent then edits.
+    it("returns a file as written, task paths and home paths alike", async () => {
+      // The agent works at real paths, so an absolute path in a file is data
+      // it may need to edit verbatim.
       const home = os.homedir();
       const probePath = path.join(fixturesPath, "redact-probe.txt");
       await fs.writeFile(
@@ -145,8 +143,9 @@ describe("ReadFile", () => {
 
         expect(value.state).toBe("exists");
         if (value.state === "exists") {
-          expect(value.content).toContain("Attachments: ./attachments");
-          expect(value.content).not.toContain(fixturesPath);
+          expect(value.content).toContain(
+            `Attachments: ${fixturesPath}/attachments`,
+          );
           expect(value.content).toContain(`Unrelated: ${home}/elsewhere`);
         }
       } finally {
@@ -895,13 +894,13 @@ describe("ReadFile", () => {
       `);
     }, 60_000);
 
-    it("reads a file from a granted folder by its mount path", async () => {
+    it("reads a file from a granted folder by its full path", async () => {
       const value = (
         await runTool(TOOLS.ReadFile, {
           ...baseInput,
           input: {
             explanation: "read",
-            filePath: "/mnt/Test Folder/grep-test.txt",
+            filePath: path.join(testFolder, "grep-test.txt"),
           },
         })
       )._unsafeUnwrap();
@@ -909,15 +908,18 @@ describe("ReadFile", () => {
       expect(value.state).toBe("exists");
       if (value.state === "exists") {
         expect(value.content).toContain("async function testGrep");
-        expect(value.filePath).toBe("/mnt/Test Folder/grep-test.txt");
+        expect(value.filePath).toBe(path.join(testFolder, "grep-test.txt"));
       }
     });
 
-    it("reads a task file addressed by its /task virtual path", async () => {
+    it("reads a task file addressed by its full path", async () => {
       const value = (
         await runTool(TOOLS.ReadFile, {
           ...baseInput,
-          input: { explanation: "read", filePath: "/task/grep-test.txt" },
+          input: {
+            explanation: "read",
+            filePath: path.join(fixturesPath, "grep-test.txt"),
+          },
         })
       )._unsafeUnwrap();
 
@@ -961,22 +963,6 @@ describe("ReadFile", () => {
         expect(value.offset).toBe(3);
         expect(value.content).toContain("async functions");
       }
-    });
-
-    it("steers a host path inside a granted folder to its mount path", async () => {
-      const error = (
-        await runTool(TOOLS.ReadFile, {
-          ...baseInput,
-          input: {
-            explanation: "read",
-            filePath: path.join(testFolder, "grep-test.txt"),
-          },
-        })
-      )._unsafeUnwrapErr();
-
-      expect(error.message).toContain("Test Folder");
-      expect(error.message).toContain("mount path");
-      expect(error.message).toContain("/mnt/Test Folder");
     });
   });
 });

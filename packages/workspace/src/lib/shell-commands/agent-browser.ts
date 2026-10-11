@@ -9,7 +9,6 @@ import { dedent, sleep } from "radashi";
 import { CHAT_FOLDER_NAMES } from "../../constants";
 import { cdpBridgeUrl } from "../../logic/server/cdp-bridge-path";
 import { getWorkspaceServerPort } from "../../logic/server/url";
-import { MOUNT } from "../../mount-points";
 import { type StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
 import { type BrowserConfig } from "../../types";
@@ -30,10 +29,8 @@ import { agentBrowserGuide } from "../agent-browser-guide";
 import { recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { isChatId } from "../is-chat-id";
-import { virtualizeHostPaths } from "../filter-shell-output";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import { liveHeldTabs } from "../chat/window-tab";
-import { isAtOrUnder } from "../path-containment";
 import { taskFsLayout } from "../resolve-workspace-file-path";
 import {
   getDownloadsDir,
@@ -45,11 +42,6 @@ import { isTaskSession } from "../chat/children";
 import { heldTabs, updateHeldTabs } from "../held-tabs";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
-  buildWorkspaceFsLayout,
-  classifyVirtualPath,
-  resolveNativeHostPath,
-} from "../workspace-fs-layout";
-import {
   agentBrowserFlagName,
   parseAgentBrowserArgs,
 } from "./agent-browser-args";
@@ -59,13 +51,7 @@ import {
   FOLLOW_UP_SNAPSHOT_ARGS,
   FOLLOW_UP_WAIT_ARGS,
 } from "./agent-browser-follow-up";
-import {
-  mountLiteralError,
-  privateDirLiteralError,
-  resolveCommandContext,
-  resolvePathArgs,
-  subprocessStdin,
-} from "./utils";
+import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 import { workDir } from "../work-dir";
 
 const AGENT_BROWSER_SKILL_NAME = "agent-browser";
@@ -269,8 +255,8 @@ const WORKSPACE_HELP_MANAGED = dedent`
 
   Inspecting a file you created:
     agent-browser open work/report.html     Task files load in the browser
-    agent-browser open ${MOUNT.task}/work/x.html  Task-relative, ${MOUNT.task}/..., ${MOUNT.folders}/...,
-                                            and file://${MOUNT.task}/... all work
+    agent-browser open /full/path/x.html    A relative path, a full path, or a
+                                            file:// URL of either all work
   Use this to check an HTML deliverable end to end -- rendered layout, interactivity, and console errors -- not just its source.
 
   Reading page content:
@@ -444,14 +430,13 @@ const FILE_OPERAND_SUBCOMMANDS = new Set([
 ]);
 
 /**
- * Resolve virtual absolute paths in global flag values and in the operands of
- * subcommands that take a file, then validate and bridge every file operand of
- * `upload`. CDP reports success for missing files, so the wrapper must fail
- * before handing them to the browser process.
+ * Spell the file operands of subcommands that take a file as the host does,
+ * and check every file operand of `upload` exists. CDP reports success for
+ * missing files, so the wrapper must fail before handing them to the browser
+ * process.
  */
 export async function resolveAgentBrowserPathArgs(
   args: string[],
-  chatId: ChatId,
   ctx: {
     cwd: string;
     fs: {
@@ -467,39 +452,16 @@ export async function resolveAgentBrowserPathArgs(
       : [],
   );
   const resolved = args.map((arg, index) =>
-    textOperands.has(index)
-      ? arg
-      : (resolvePathArgs([arg], chatId, ctx)[0] ?? arg),
+    textOperands.has(index) ? arg : (hostPathArgs([arg])[0] ?? arg),
   );
   if (subcommand !== "upload") {
     return { args: resolved };
   }
 
-  const layout = buildWorkspaceFsLayout({ taskHostRoot: workDir(chatId) });
-  for (const { index, value } of subArgs.slice(2)) {
-    const virtualPath = ctx.fs.resolvePath(ctx.cwd, value);
-
-    if (isAtOrUnder(MOUNT.folders, virtualPath)) {
-      return { error: mountLiteralError("Upload") };
-    }
-
-    if (classifyVirtualPath(layout, virtualPath)?.masked !== undefined) {
-      return { error: privateDirLiteralError("Upload") };
-    }
-
-    if (!isAtOrUnder(MOUNT.task, virtualPath)) {
-      return {
-        error:
-          `Upload file "${virtualPath}" is outside ${MOUNT.task}. ` +
-          `Copy the file into the task first and use a task-relative path.`,
-      };
-    }
-
-    if (!(await ctx.fs.exists(virtualPath))) {
+  for (const { value } of subArgs.slice(2)) {
+    if (!(await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, value)))) {
       return { error: `Upload file not found: "${value}".` };
     }
-
-    resolved[index] = resolveNativeHostPath(workDir(chatId), virtualPath);
   }
   return { args: resolved };
 }
@@ -735,7 +697,6 @@ export function createAgentBrowserCommand({
     }
     const bridgedArgs = await resolveAgentBrowserPathArgs(
       navigationArgs.args,
-      chatId,
       ctx,
     );
     if ("error" in bridgedArgs) {
@@ -934,8 +895,7 @@ export function createAgentBrowserCommand({
       }
     }
 
-    const scrub = (text: string) =>
-      virtualizeHostPaths(agentSpellingOfFileUrls(text, layout), layout);
+    const scrub = (text: string) => agentSpellingOfFileUrls(text, layout);
 
     const exitCode = result.exitCode ?? 1;
 

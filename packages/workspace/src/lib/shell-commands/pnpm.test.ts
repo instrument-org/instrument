@@ -39,7 +39,9 @@ describe("createPnpmCommand", () => {
     });
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Your package is the task root");
+    expect(result.stderr).toContain(
+      "Your package is this conversation's folder",
+    );
   });
 
   it("strips global flags from the manifest guard suggestion", async () => {
@@ -49,7 +51,9 @@ describe("createPnpmCommand", () => {
     });
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("`cd /task && pnpm add lodash`");
+    expect(result.stderr).toContain(
+      `\`cd ${taskLayout(chatId).task.mountPoint} && pnpm add lodash\``,
+    );
   });
 
   // `dev` and `start` were refused while the runtime was the only thing allowed

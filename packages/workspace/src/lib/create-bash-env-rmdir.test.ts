@@ -31,7 +31,6 @@ async function run(command: string) {
       Docs: {
         access: "read-write",
         id: MountedFolder.IdSchema.parse("docs-id"),
-        mountName: "Docs",
         path: ChatDirSchema.parse(attachedDir),
       },
     },
@@ -61,10 +60,19 @@ afterEach(async () => {
 
 describe("rmdir on a writable mount", () => {
   it.each([
-    ["/task", "work/empty", () => path.join(taskRoot, "work", "empty")],
-    ["/mnt", "/mnt/Docs/empty", () => path.join(attachedDir, "empty")],
+    [
+      "the chat's folder",
+      "work/empty",
+      () => path.join(taskRoot, "work", "empty"),
+    ],
+    [
+      "a granted folder",
+      () => `${attachedDir}/empty`,
+      () => path.join(attachedDir, "empty"),
+    ],
   ])("removes an empty directory in %s", async (_, target, hostPath) => {
-    expect(await run(`rmdir ${target}`)).toEqual({ exitCode: 0, stderr: "" });
+    const arg = typeof target === "function" ? target() : target;
+    expect(await run(`rmdir '${arg}'`)).toEqual({ exitCode: 0, stderr: "" });
     await expect(fs.stat(hostPath())).rejects.toThrow("ENOENT");
   });
 
@@ -93,7 +101,7 @@ describe("rmdir on a writable mount", () => {
   it("leaves an empty folder mount's own directory in place", async () => {
     await fs.rm(path.join(attachedDir, "empty"), { recursive: true });
 
-    expect((await run("rmdir /mnt/Docs")).exitCode).toBe(1);
+    expect((await run(`rmdir '${attachedDir}'`)).exitCode).toBe(1);
     expect((await fs.stat(attachedDir)).isDirectory()).toBe(true);
   });
 
@@ -109,10 +117,11 @@ describe("rmdir on a writable mount", () => {
 });
 
 describe("rm without -r", () => {
-  it.each(["work/empty", "/mnt/Docs/empty"])(
+  it.each(["work/empty", "DOCS/empty"])(
     "refuses the directory %s",
-    async (target) => {
-      const result = await run(`rm ${target}`);
+    async (name) => {
+      const target = name.replace("DOCS", attachedDir);
+      const result = await run(`rm '${target}'`);
       expect(result).toEqual({
         exitCode: 1,
         stderr: `rm: cannot remove '${target}': Is a directory\n`,

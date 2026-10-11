@@ -216,7 +216,7 @@ describe("bash background processes, end to end", () => {
     expect(readOutput.exitCode).toBe(0);
   }, 30_000);
 
-  it("redacts host paths and credentials from streamed output", async () => {
+  it("redacts credentials from streamed output", async () => {
     // A shim redacts the value it returns, which is what a foreground call
     // reports. A promoted call reports the streamed copy instead, so redaction
     // has to hold on the way through the sink as well.
@@ -224,7 +224,6 @@ describe("bash background processes, end to end", () => {
       path.join(taskDirPath, "work", "leaky.js"),
       [
         `setTimeout(() => {`,
-        `  console.log("home: " + ${JSON.stringify(os.homedir())});`,
         `  console.log("remote: https://user:tok3n@example.com/repo.git");`,
         `  console.log("password=hunter2");`,
         `}, 100);`,
@@ -238,8 +237,6 @@ describe("bash background processes, end to end", () => {
     const processId = started.processId ?? "";
     expect(processId).not.toBe("");
 
-    expect(started.output).toContain("home: /mnt/Home");
-    expect(started.output).not.toContain(os.homedir());
     expect(started.output).toContain("https://***@example.com");
     expect(started.output).not.toContain("tok3n");
     expect(started.output).toContain("password=***");
@@ -253,7 +250,6 @@ describe("bash background processes, end to end", () => {
       path.join(chatDir(chatId), started.logFilePath ?? ""),
       "utf8",
     );
-    expect(log).not.toContain(os.homedir());
     expect(log).not.toContain("tok3n");
     expect(log).not.toContain("hunter2");
   }, 30_000);

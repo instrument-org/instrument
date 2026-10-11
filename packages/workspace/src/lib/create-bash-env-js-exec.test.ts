@@ -4,12 +4,18 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MountedFolder } from "../schemas/mounted-folder";
-import { ChatDirSchema } from "../schemas/paths";
+import {
+  AbsolutePathSchema,
+  ChatDirSchema,
+  WorkspaceDirSchema,
+} from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
+import { updatePermissionSettings } from "./permissions/rules";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 /**
  * `js-exec` as the agent meets it: Node code, written by reflex, against a
@@ -26,6 +32,10 @@ let attachedDir: string;
 let taskRoot: string;
 let chatId: ChatId;
 
+function real(text: string) {
+  return text.replaceAll("<docs>", attachedDir).replaceAll("<task>", taskRoot);
+}
+
 async function run(
   command: string,
   access: MountedFolder.Access = "read-only",
@@ -35,14 +45,44 @@ async function run(
       Docs: {
         access,
         id: MountedFolder.IdSchema.parse("docs-id"),
-        mountName: "Docs",
         path: ChatDirSchema.parse(attachedDir),
       },
     },
     sessionId,
     chatId,
   });
-  return bash.exec(command, { signal: AbortSignal.timeout(60_000) });
+  const result = await bash.exec(real(command), {
+    signal: AbortSignal.timeout(60_000),
+  });
+  // Reports what the sandbox said with the test's temp dirs named by token.
+  const named = (text: string) =>
+    text.replaceAll(attachedDir, "<docs>").replaceAll(taskRoot, "<task>");
+  return {
+    ...result,
+    stderr: named(result.stderr),
+    stdout: named(result.stdout),
+  };
+}
+
+/** Closes a folder in Docs through Settings › Permissions, so a write there is refused. */
+async function closeLockedFolder() {
+  await fs.mkdir(path.join(attachedDir, "locked"));
+  // Settings live in the workspace's root, which the mock chats share across
+  // test files, so this test keeps its own.
+  setWorkspaceConfig({
+    ...getWorkspaceConfig(),
+    rootDir: WorkspaceDirSchema.parse(path.join(tmpDir, "workspace")),
+  });
+  await updatePermissionSettings((settings) => ({
+    ...settings,
+    folders: [
+      {
+        addedAt: new Date(),
+        level: "never",
+        path: AbsolutePathSchema.parse(path.join(attachedDir, "locked")),
+      },
+    ],
+  }));
 }
 
 beforeEach(async () => {
@@ -66,17 +106,18 @@ afterEach(async () => {
 });
 
 describe("js-exec inside the sandbox", () => {
-  it("reads a folder mount in place and refuses to write a read-only one", async () => {
+  it("reads a folder in place and refuses to write a closed one", async () => {
+    await closeLockedFolder();
     const read = await run(
-      `js-exec -c "const fs = require('fs'); console.log(fs.readFileSync('/mnt/Docs/readme.txt', 'utf8').trim())"`,
+      `js-exec -c "const fs = require('fs'); console.log(fs.readFileSync('<docs>/readme.txt', 'utf8').trim())"`,
     );
     expect(read).toMatchObject({ exitCode: 0, stdout: "hello docs\n" });
 
     const write = await run(
-      `js-exec -c "require('fs').writeFileSync('/mnt/Docs/new.txt', 'x')"`,
+      `js-exec -c "require('fs').writeFileSync('<docs>/locked/new.txt', 'x')"`,
     );
     expect(write.exitCode).toBe(1);
-    expect(write.stderr).toContain("EROFS: read-only file system");
+    expect(write.stderr).toContain("EACCES: permission denied");
   });
 
   it("sends a missing package to pnpm and node", async () => {
@@ -91,7 +132,7 @@ describe("js-exec inside the sandbox", () => {
 
   it("reports a file the bridge cannot carry", async () => {
     const result = await run(
-      `js-exec -c "console.log(require('fs').readFileSync('/mnt/Docs/big.bin').length)"`,
+      `js-exec -c "console.log(require('fs').readFileSync('<docs>/big.bin').length)"`,
     );
 
     expect(result.exitCode).toBe(1);
@@ -184,7 +225,7 @@ describe("js-exec takes Node's options", () => {
 });
 
 describe("js-exec runs import and export as a module, as node detects them", () => {
-  const imports = `import fs from "node:fs";\nimport { join } from "path";\nconsole.log(fs.readdirSync(join("/mnt", "Docs", "sub")).length);\n`;
+  const imports = `import fs from "node:fs";\nimport { join } from "path";\nconsole.log(fs.readdirSync(join("<docs>", "sub")).length);\n`;
 
   it.each([
     ["a .js file", "work/esm.js", imports],
@@ -201,7 +242,7 @@ describe("js-exec runs import and export as a module, as node detects them", () 
     [
       "a .cjs file using require",
       "work/c.cjs",
-      `const fs = require("fs");\nconsole.log(fs.readdirSync("/mnt/Docs/sub").length);\n`,
+      `const fs = require("fs");\nconsole.log(fs.readdirSync("<docs>/sub").length);\n`,
     ],
     [
       "CommonJS with a dynamic import",
@@ -209,7 +250,7 @@ describe("js-exec runs import and export as a module, as node detects them", () 
       `const important = 2;\nconsole.log(typeof import("fs").then, important);\n`,
     ],
   ])("%s", async (_name, file, source) => {
-    await fs.writeFile(path.join(taskRoot, file), source);
+    await fs.writeFile(path.join(taskRoot, file), real(source));
     const result = await run(`js-exec ${file}`);
     expect(result).toMatchObject({ exitCode: 0, stderr: "" });
     expect(result.stdout).not.toBe("");
@@ -218,11 +259,11 @@ describe("js-exec runs import and export as a module, as node detects them", () 
   it.each([
     [
       "-e",
-      `js-exec -e 'import fs from "fs"; console.log(fs.readdirSync("/mnt/Docs/sub").length)'`,
+      `js-exec -e 'import fs from "fs"; console.log(fs.readdirSync("<docs>/sub").length)'`,
     ],
     [
       "stdin",
-      `printf 'import fs from "fs";\\nconsole.log(fs.readdirSync("/mnt/Docs/sub").length)\\n' | js-exec`,
+      `printf 'import fs from "fs";\\nconsole.log(fs.readdirSync("<docs>/sub").length)\\n' | js-exec`,
     ],
   ])("in %s code", async (_name, command) => {
     const result = await run(command);
@@ -246,7 +287,7 @@ describe("js-exec runs import and export as a module, as node detects them", () 
 
   it("loads a built-in through a dynamic import() in script code", async () => {
     const result = await run(
-      `js-exec -c 'import("node:fs").then((fs) => console.log(fs.readdirSync("/mnt/Docs/sub").length))'`,
+      `js-exec -c 'import("node:fs").then((fs) => console.log(fs.readdirSync("<docs>/sub").length))'`,
     );
     expect(result).toMatchObject({ exitCode: 0, stderr: "", stdout: "2\n" });
   });
@@ -261,7 +302,7 @@ describe("js-exec gives its Node shims Node's shapes", () => {
     const script = await run("js-exec work/args.js a b");
     expect(script).toMatchObject({
       exitCode: 0,
-      stdout: `["js-exec","/task/work/args.js","a","b"] /task/work/args.js /task/work true\n`,
+      stdout: `["js-exec","<task>/work/args.js","a","b"] <task>/work/args.js <task>/work true\n`,
     });
 
     const inline = await run(
@@ -275,7 +316,7 @@ describe("js-exec gives its Node shims Node's shapes", () => {
 
   it("answers statSync with methods and Date fields", async () => {
     const result = await run(
-      `js-exec -e 'const s = fs.statSync("/mnt/Docs/readme.txt"); const d = fs.lstatSync("/mnt/Docs/sub"); s.atime.setTime(0); console.log(s.isFile(), s.isDirectory(), d.isDirectory(), d.isSymbolicLink(), s.size, s.mtime instanceof Date, typeof s.mtimeMs, s.mtime.getTime() === s.mtimeMs, s.birthtime instanceof Date)'`,
+      `js-exec -e 'const s = fs.statSync("<docs>/readme.txt"); const d = fs.lstatSync("<docs>/sub"); s.atime.setTime(0); console.log(s.isFile(), s.isDirectory(), d.isDirectory(), d.isSymbolicLink(), s.size, s.mtime instanceof Date, typeof s.mtimeMs, s.mtime.getTime() === s.mtimeMs, s.birthtime instanceof Date)'`,
     );
     expect(result).toMatchObject({
       exitCode: 0,
@@ -285,15 +326,15 @@ describe("js-exec gives its Node shims Node's shapes", () => {
 
   it("honors withFileTypes and recursive in readdirSync", async () => {
     const dirents = await run(
-      `js-exec -e 'const d = fs.readdirSync("/mnt/Docs", { withFileTypes: true }); console.log(JSON.stringify(d.map((e) => [e.parentPath, e.name, e.isDirectory(), e.isFile()])))'`,
+      `js-exec -e 'const d = fs.readdirSync("<docs>", { withFileTypes: true }); console.log(JSON.stringify(d.map((e) => [e.parentPath, e.name, e.isDirectory(), e.isFile()])))'`,
     );
     expect(dirents).toMatchObject({
       exitCode: 0,
-      stdout: `[["/mnt/Docs","big.bin",false,true],["/mnt/Docs","readme.txt",false,true],["/mnt/Docs","sub",true,false]]\n`,
+      stdout: `[["<docs>","big.bin",false,true],["<docs>","readme.txt",false,true],["<docs>","sub",true,false]]\n`,
     });
 
     const recursive = await run(
-      `js-exec -e 'console.log(JSON.stringify(fs.readdirSync("/mnt/Docs", { recursive: true })))'`,
+      `js-exec -e 'console.log(JSON.stringify(fs.readdirSync("<docs>", { recursive: true })))'`,
     );
     expect(recursive).toMatchObject({
       exitCode: 0,
@@ -301,30 +342,30 @@ describe("js-exec gives its Node shims Node's shapes", () => {
     });
 
     const both = await run(
-      `js-exec -e 'console.log(JSON.stringify(fs.readdirSync("/mnt/Docs/sub", { recursive: true, withFileTypes: true }).map((e) => e.parentPath + "/" + e.name)))'`,
+      `js-exec -e 'console.log(JSON.stringify(fs.readdirSync("<docs>/sub", { recursive: true, withFileTypes: true }).map((e) => e.parentPath + "/" + e.name)))'`,
     );
     expect(both).toMatchObject({
       exitCode: 0,
-      stdout: `["/mnt/Docs/sub/b.txt","/mnt/Docs/sub/deep","/mnt/Docs/sub/deep/c.txt"]\n`,
+      stdout: `["<docs>/sub/b.txt","<docs>/sub/deep","<docs>/sub/deep/c.txt"]\n`,
     });
 
     const plain = await run(
-      `js-exec -e 'console.log(JSON.stringify(fs.readdirSync("/mnt/Docs/sub")))'`,
+      `js-exec -e 'console.log(JSON.stringify(fs.readdirSync("<docs>/sub")))'`,
     );
     expect(plain).toMatchObject({ exitCode: 0, stdout: `["b.txt","deep"]\n` });
 
     const file = await run(
-      `js-exec -e 'try { fs.readdirSync("/mnt/Docs/readme.txt", { recursive: true }) } catch (e) { console.log(e.code, e.syscall, e.path) }'`,
+      `js-exec -e 'try { fs.readdirSync("<docs>/readme.txt", { recursive: true }) } catch (e) { console.log(e.code, e.syscall, e.path) }'`,
     );
     expect(file).toMatchObject({
       exitCode: 0,
-      stdout: "ENOTDIR scandir /mnt/Docs/readme.txt\n",
+      stdout: "ENOTDIR scandir <docs>/readme.txt\n",
     });
   });
 
   it("routes fs.promises and require('fs/promises') through the same shapes", async () => {
     const result = await run(
-      `js-exec -m -e 'const fsp = require("node:fs/promises"); const s = await fsp.stat("/mnt/Docs/readme.txt"); const d = await fs.promises.readdir("/mnt/Docs", { withFileTypes: true }); console.log(s.isFile(), d.find((e) => e.name === "sub").isDirectory(), (await fsp.readFile("/mnt/Docs/readme.txt", "utf8")).trim())'`,
+      `js-exec -m -e 'const fsp = require("node:fs/promises"); const s = await fsp.stat("<docs>/readme.txt"); const d = await fs.promises.readdir("<docs>", { withFileTypes: true }); console.log(s.isFile(), d.find((e) => e.name === "sub").isDirectory(), (await fsp.readFile("<docs>/readme.txt", "utf8")).trim())'`,
     );
     expect(result).toMatchObject({
       exitCode: 0,
@@ -333,53 +374,60 @@ describe("js-exec gives its Node shims Node's shapes", () => {
   });
 
   it("puts code, errno, syscall, and the path as written on an fs error", async () => {
+    await closeLockedFolder();
     const caught = await run(
-      `js-exec -e 'try { fs.readFileSync("/mnt/Docs/nope.txt") } catch (e) { console.log(JSON.stringify({ code: e.code, errno: e.errno, syscall: e.syscall, path: e.path, message: e.message })) }'`,
+      `js-exec -e 'try { fs.readFileSync("<docs>/nope.txt") } catch (e) { console.log(JSON.stringify({ code: e.code, errno: e.errno, syscall: e.syscall, path: e.path, message: e.message })) }'`,
     );
     expect(caught).toMatchObject({
       exitCode: 0,
-      stdout: `{"code":"ENOENT","errno":-2,"syscall":"open","path":"/mnt/Docs/nope.txt","message":"ENOENT: no such file or directory, open '/mnt/Docs/nope.txt'"}\n`,
+      stdout: `{"code":"ENOENT","errno":-2,"syscall":"open","path":"<docs>/nope.txt","message":"ENOENT: no such file or directory, open '<docs>/nope.txt'"}\n`,
     });
 
     await fs.writeFile(
       path.join(taskRoot, "work", "apostrophe.js"),
-      'try { fs.readFileSync("/mnt/Docs/don\'t.txt") } catch (e) { console.log(e.code, e.path); console.log(e.message) }\n',
+      real(
+        'try { fs.readFileSync("<docs>/don\'t.txt") } catch (e) { console.log(e.code, e.path); console.log(e.message) }\n',
+      ),
     );
     const apostrophe = await run("js-exec work/apostrophe.js");
     expect(apostrophe).toMatchObject({
       exitCode: 0,
       stdout:
-        "ENOENT /mnt/Docs/don't.txt\nENOENT: no such file or directory, open '/mnt/Docs/don't.txt'\n",
+        "ENOENT <docs>/don't.txt\nENOENT: no such file or directory, open '<docs>/don't.txt'\n",
     });
 
     const rename = await run(
-      `js-exec -e 'try { fs.renameSync("/mnt/Docs/readme.txt", "/mnt/Docs/moved.txt") } catch (e) { console.log(e.code, e.dest, e.message) }'`,
+      `js-exec -e 'try { fs.renameSync("<docs>/readme.txt", "<docs>/locked/moved.txt") } catch (e) { console.log(e.code, e.dest, e.message) }'`,
     );
     expect(rename).toMatchObject({
       exitCode: 0,
-      stdout: `EROFS /mnt/Docs/moved.txt EROFS: read-only file system, rename '/mnt/Docs/readme.txt' -> '/mnt/Docs/moved.txt'\n`,
+      stdout: `EACCES <docs>/locked/moved.txt EACCES: permission denied, mv '<path>' -- <path> is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for., rename '<docs>/readme.txt' -> '<docs>/locked/moved.txt'\n`,
     });
 
     const rejected = await run(
-      `js-exec -m -e 'try { await fs.promises.access("/mnt/Docs/nope.txt") } catch (e) { console.log(e.code, e.message) }'`,
+      `js-exec -m -e 'try { await fs.promises.access("<docs>/nope.txt") } catch (e) { console.log(e.code, e.message) }'`,
     );
     expect(rejected).toMatchObject({
       exitCode: 0,
       stdout:
-        "ENOENT ENOENT: no such file or directory, access '/mnt/Docs/nope.txt'\n",
+        "ENOENT ENOENT: no such file or directory, access '<docs>/nope.txt'\n",
     });
   });
 
   it("reports an uncaught fs error at the script's own line", async () => {
+    await closeLockedFolder();
     await fs.writeFile(
       path.join(taskRoot, "work", "fail.js"),
-      "const x = 1;\nfs.writeFileSync('/mnt/Docs/x.txt', 'x');\n",
+      real("const x = 1;\nfs.writeFileSync('<docs>/locked/x.txt', 'x');\n"),
     );
     const result = await run("js-exec work/fail.js");
     expect(result.exitCode).toBe(1);
     // The column is the runtime's own reckoning; the line is the agent's.
     expect(result.stderr).toMatch(
-      /^at \/task\/work\/fail\.js:2:\d+: EROFS: read-only file system, open '\/mnt\/Docs\/x\.txt'\n$/,
+      /^at <task>\/work\/fail\.js:2:\d+: EACCES: permission denied, writeFile /,
+    );
+    expect(result.stderr).toContain(
+      "<docs>/locked/x.txt is closed in Settings › Permissions.",
     );
   });
 
@@ -401,7 +449,7 @@ describe("js-exec gives its Node shims Node's shapes", () => {
     );
     const result = await run("js-exec work/fail.js");
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toMatch(/^at \/task\/work\/fail\.js:2:\d+: /);
+    expect(result.stderr).toMatch(/^at <task>\/work\/fail\.js:2:\d+: /);
     expect(result.stderr).toContain(message);
     expect(result.stderr).not.toContain("bootstrap");
   });
@@ -409,7 +457,9 @@ describe("js-exec gives its Node shims Node's shapes", () => {
   it("lets a script declare fs, path, module, and exports at its top level", async () => {
     await fs.writeFile(
       path.join(taskRoot, "work", "shadow.js"),
-      `const fs = require("fs");\nconst path = require("path");\nconst module = { name: "mine" };\nlet exports = 1;\nconsole.log(fs.readdirSync(path.join("/mnt/Docs", "sub")).length, module.name, exports);\n`,
+      real(
+        `const fs = require("fs");\nconst path = require("path");\nconst module = { name: "mine" };\nlet exports = 1;\nconsole.log(fs.readdirSync(path.join("<docs>", "sub")).length, module.name, exports);\n`,
+      ),
     );
     expect(await run("js-exec work/shadow.js")).toMatchObject({
       exitCode: 0,
@@ -420,7 +470,7 @@ describe("js-exec gives its Node shims Node's shapes", () => {
 
   it("prints a Stats without its internal fields", async () => {
     const result = await run(
-      `js-exec -e 'console.log(Object.keys(fs.statSync("/mnt/Docs/readme.txt")).filter((k) => k.startsWith("_")).length, JSON.stringify(fs.statSync("/mnt/Docs/readme.txt")).includes("_kind"))'`,
+      `js-exec -e 'console.log(Object.keys(fs.statSync("<docs>/readme.txt")).filter((k) => k.startsWith("_")).length, JSON.stringify(fs.statSync("<docs>/readme.txt")).includes("_kind"))'`,
     );
     expect(result).toMatchObject({ exitCode: 0, stdout: "0 false\n" });
   });
@@ -448,7 +498,9 @@ describe("js-exec explains the runtime's own limits", () => {
   it("sends an ESM import of a built-in's subpath to the module itself", async () => {
     await fs.writeFile(
       path.join(taskRoot, "work", "p.mjs"),
-      "import { readFile } from 'node:fs/promises';\nconsole.log(await readFile('/mnt/Docs/readme.txt', 'utf8'));\n",
+      real(
+        "import { readFile } from 'node:fs/promises';\nconsole.log(await readFile('<docs>/readme.txt', 'utf8'));\n",
+      ),
     );
     const result = await run("js-exec work/p.mjs");
     expect(result.exitCode).toBe(1);

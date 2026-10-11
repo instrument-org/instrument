@@ -112,7 +112,6 @@ function leave(command: string) {
           reject(new Error("aborted"));
         });
       }),
-    chatId: CHAT_ID,
   });
   const promoted = promoteBackgroundProcess({
     handle,

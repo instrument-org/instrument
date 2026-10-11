@@ -160,7 +160,7 @@ test("draws a folder as a folder, in the place the fence gave it", async () => {
   // slash it ends in leaves the last segment empty.
   originAnswering(404);
   const { getByRole, getByText } = await drawFence(
-    "/mnt/Instrument/notes.md\n/mnt/Instrument/backups/",
+    "/Users/casey/Instrument/notes.md\n/Users/casey/Instrument/backups/",
     { layout: "list" },
   );
 

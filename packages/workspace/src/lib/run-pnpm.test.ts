@@ -4,7 +4,6 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { runPnpmCommand } from "./run-pnpm";
 import { getWorkspaceConfig } from "./workspace-config";
-import { taskLayout } from "../test/helpers/task-layout";
 
 vi.mock(import("./execa-node-for-task"));
 
@@ -19,7 +18,6 @@ describe("runPnpmCommand", () => {
     const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
     await runPnpmCommand({
       args: ["install"],
-      layout: taskLayout(chatId),
       chatId,
     });
 
@@ -59,7 +57,6 @@ describe("runPnpmCommand", () => {
     const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
     await runPnpmCommand({
       args: ["dlx", "jiti@2.6.1", "x.ts"],
-      layout: taskLayout(chatId),
       pnpmLogLevel: "error",
       chatId,
     });

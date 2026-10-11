@@ -41,7 +41,7 @@ import { AskTray } from "./ask-tray";
 import { ComputerPage, type FolderOnScreen } from "./computer-page";
 import { useWindow } from "./context";
 import { FileAskButton } from "./file-ask-button";
-import { mountOfHostPath } from "./file-tabs";
+import { reachablePath } from "./file-tabs";
 import { FileTree } from "./file-tree";
 import { useGroupTab } from "./group-tab";
 import { folderOf, segmentsOf } from "./host-path";
@@ -356,7 +356,7 @@ export function FilesScreen({
   // How the agent reaches the file, when a granted folder covers it: the one
   // thing the conversation is told about the file that the person is not.
   const activeMount = activeFile
-    ? mountOfHostPath(activeFile.hostPath, reach.data?.folders ?? {})
+    ? reachablePath(activeFile.hostPath, reach.data?.folders ?? {})
     : undefined;
 
   useWalkedFolder(

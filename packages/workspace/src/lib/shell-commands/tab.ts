@@ -1,6 +1,5 @@
 import { defineCommand } from "just-bash";
 
-import { MOUNT } from "../../mount-points";
 import { StoreId } from "../../schemas/store-id";
 import {
   type WindowTabAction,
@@ -15,7 +14,6 @@ import {
   WINDOW_TAB_TIMEOUT_MS,
 } from "../chat/window-tab";
 import { agentPathOfFileUrl, isLocalAddress } from "../local-page-address";
-import { isUnder } from "../path-containment";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import {
@@ -275,11 +273,6 @@ async function targetOf(
     return { kind: "page", url: arg };
   }
   const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
-  if (!isUnder(MOUNT.folders, virtualPath)) {
-    return {
-      error: `${TAB_NAME}: "${arg}" is not a page, and not under ${MOUNT.folders}, which holds the files and folders the window can show.`,
-    };
-  }
   let stat;
   try {
     stat = await ctx.fs.stat(virtualPath);

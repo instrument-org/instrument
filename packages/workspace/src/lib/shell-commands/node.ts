@@ -1,6 +1,5 @@
 import { defineCommand, latin1FromBytes } from "just-bash";
 
-import { MOUNT } from "../../mount-points";
 import { type AbsolutePath } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
@@ -9,13 +8,10 @@ import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getWorkspaceConfig } from "../workspace-config";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
-  bridgeFlagValuePath,
-  bridgeInlineCodePaths,
-  extractFileAndScriptArgs,
   firstString,
+  hostPathArgs,
   parseScriptRunnerArgs,
   resolveCommandContext,
-  scanScriptFileForVirtualPaths,
   stringArray,
   subprocessStdin,
 } from "./utils";
@@ -73,16 +69,11 @@ const KNOWN_OPTIONS = {
 } as const;
 
 export const NODE_COMMAND = {
-  description: `Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd, quoted "${MOUNT.task}/..." strings are bridged; ${MOUNT.folders} paths are not available (\`js-exec\` reads them, without packages).`,
+  description: `Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd.`,
   name: "node",
 } as const;
 
-/** What the mount guard offers in place of copying, when no package is involved. */
-const SANDBOXED_ALTERNATIVE = {
-  alternative: `Run it with \`js-exec\` instead, which reads folder mounts directly, if the code imports no package.`,
-};
-
-export function createNodeCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
+export function createNodeCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
   return defineCommand(NODE_COMMAND.name, async (args, ctx) => {
     const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const stdinProgram = latin1FromBytes(ctx.stdin);
@@ -123,7 +114,7 @@ export function createNodeCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
       );
       const streams = mapStreams(
         shimOutput(execResult, NODE_COMMAND.name),
-        (text) => filterShellOutput(text, layout),
+        (text) => filterShellOutput(text),
       );
       return {
         exitCode: execResult.exitCode ?? 1,
@@ -145,11 +136,7 @@ export function createNodeCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
     // verbatim, so an unlisted one degrades to node's own error rather than
     // silently changing what the script does (a dropped `--env-file` left the
     // script running against the wrong environment, exit code 0).
-    const nodeFlags = unknownFlags.map((flag) =>
-      bridgeFlagValuePath(flag, chatId, taskCwd, (p) =>
-        ctx.fs.resolvePath(ctx.cwd, p),
-      ),
-    );
+    const nodeFlags = hostPathArgs(unknownFlags);
     if (values.check === true || values.c === true) {
       nodeFlags.push("--check");
     }
@@ -167,18 +154,9 @@ export function createNodeCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
     }
 
     if (evalCode !== undefined) {
-      const bridged = bridgeInlineCodePaths(
-        evalCode,
-        chatId,
-        taskCwd,
-        SANDBOXED_ALTERNATIVE,
-      );
-      if ("error" in bridged) {
-        return { exitCode: 1, stderr: bridged.error, stdout: "" };
-      }
       const execResult = await execNode(
         chatId,
-        [...nodeFlags, wantsPrint ? "-p" : "-e", bridged.code],
+        [...nodeFlags, wantsPrint ? "-p" : "-e", evalCode],
         ctx.signal,
         taskCwd,
         env,
@@ -186,7 +164,7 @@ export function createNodeCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
       );
       const streams = mapStreams(
         shimOutput(execResult, NODE_COMMAND.name),
-        (text) => filterShellOutput(text, layout),
+        (text) => filterShellOutput(text),
       );
       return {
         exitCode: execResult.exitCode ?? 1,
@@ -196,30 +174,20 @@ export function createNodeCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
 
     if (positionals.length === 0) {
       // With no file, node reads the program itself from stdin
-      // (`node --check < script.js`, heredocs), so bridge sandbox-virtual
-      // paths in it the same way `-e` code is bridged.
+      // (`node --check < script.js`, heredocs).
       if (stdinProgram) {
-        const bridged = bridgeInlineCodePaths(
-          stdinProgram,
-          chatId,
-          taskCwd,
-          SANDBOXED_ALTERNATIVE,
-        );
-        if ("error" in bridged) {
-          return { exitCode: 1, stderr: bridged.error, stdout: "" };
-        }
         const execResult = await execNode(
           chatId,
           nodeFlags,
           ctx.signal,
           taskCwd,
           env,
-          Buffer.from(bridged.code, "latin1"),
+          Buffer.from(stdinProgram, "latin1"),
         );
         return {
           exitCode: execResult.exitCode ?? 1,
           ...mapStreams(shimOutput(execResult, NODE_COMMAND.name), (text) =>
-            filterShellOutput(text, layout),
+            filterShellOutput(text),
           ),
         };
       }
@@ -231,31 +199,15 @@ export function createNodeCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
       };
     }
 
-    const fileAndArgs = extractFileAndScriptArgs(
-      positionals,
-      args,
-      chatId,
-      taskCwd,
-      (p) => ctx.fs.resolvePath(ctx.cwd, p),
+    const [filePath, ...scriptArgs] = hostPathArgs(
+      args.slice(args.indexOf(positionals[0] ?? "")),
     );
-
-    if (fileAndArgs === undefined) {
+    if (filePath === undefined) {
       return {
         exitCode: 1,
         stderr: `${NODE_COMMAND.name} requires a file path argument.`,
         stdout: "",
       };
-    }
-
-    const { filePath, scriptArgs } = fileAndArgs;
-
-    const scanError = await scanScriptFileForVirtualPaths(
-      taskCwd,
-      filePath,
-      SANDBOXED_ALTERNATIVE,
-    );
-    if (scanError !== undefined) {
-      return { exitCode: 1, stderr: scanError, stdout: "" };
     }
 
     const execResult = await execNode(
@@ -268,7 +220,7 @@ export function createNodeCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
     );
     const streams = mapStreams(
       shimOutput(execResult, NODE_COMMAND.name),
-      (text) => filterShellOutput(text, layout),
+      (text) => filterShellOutput(text),
     );
 
     return {

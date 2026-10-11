@@ -15,10 +15,6 @@ const HOME_DIR_BASENAME = path.basename(os.homedir());
  * calls the folder back to the user. The rule is the renderer's rule (see
  * folder-paths.ts in the shared package); what this side adds is the home
  * directory it is read against.
- *
- * The name the folder is mounted under agrees with this wherever it can
- * (assign-mount-names.ts), and parts from it where two folders in one task
- * share a name and only one of them can keep it.
  */
 export function folderLabel(folderPath: string): string {
   return folderLabelFromPath(folderPath, os.homedir());

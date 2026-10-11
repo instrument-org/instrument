@@ -2,7 +2,6 @@ import ms from "ms";
 import { z } from "zod";
 
 import { executeError } from "../lib/execute-error";
-import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 
@@ -21,23 +20,21 @@ export const RequestFolder = setupTool({
       description:
         "One sentence, addressed to the user, saying which folder you need and what for: 'Your Desktop, to put the test file there.'",
     }),
-    folder: z
-      .string()
-      .optional()
-      .meta({
-        description: `The folder you need, as you reach it under ${MOUNT.folders}. The person can allow it as it is or pick another.`,
-      }),
+    folder: z.string().optional().meta({
+      description:
+        "The folder you need, by its path. The person can allow it as it is or pick another.",
+    }),
   }),
   name: "request_folder",
   outputSchema: z.discriminatedUnion("status", [
     z.object({
-      mountPoint: z.string(),
+      path: z.string(),
       status: z.literal("granted"),
     }),
     z.object({ status: z.literal("declined") }),
   ]),
 }).create({
-  description: `Ask the user for a folder: to change files in one you can only look through, to open one that needs their yes, or, without \`folder\`, one outside your mounts for them to pick. The conversation waits while they answer; the answer names where the folder is mounted. Ask for one folder at a time, the one the work is in, and only when the work cannot proceed without it.`,
+  description: `Ask the user for a folder: to change files in one you can only look through, to open one that needs their yes, or, without \`folder\`, one you cannot reach for them to pick. The conversation waits while they answer; the answer names the folder's path. Ask for one folder at a time, the one the work is in, and only when the work cannot proceed without it.`,
   // Reached only in a fork, where a question has nobody to park for.
   execute: () => {
     return Promise.resolve(
@@ -52,7 +49,7 @@ export const RequestFolder = setupTool({
     type: "text",
     value:
       output.status === "granted"
-        ? `The user attached the folder. It is mounted at ${output.mountPoint}, for you and every task you start.`
+        ? `The user allowed ${output.path}. You and every task you start reach it.`
         : "The user declined. Say what you cannot do without the folder and carry on with what you can.",
   }),
 });

@@ -10,8 +10,8 @@ import { effectiveFolderAccess } from "./workspace-fs-layout";
 
 /**
  * Diffs the folders granted in the chat, as the agent reaches them, against
- * the session's baseline to find folders granted, taken back, or moved to a
- * new mount since it was last set, then advances the baseline to the current
+ * the session's baseline to find folders granted or taken back since it was
+ * last set, then advances the baseline to the current
  * set. The standing folder list lives in the session context, which is
  * rebuilt at most hourly, so this is what tells the session the same turn.
  * Returns a `data-folderChanges` part to attach to the user message, or
@@ -44,7 +44,6 @@ export function detectFolderChanges({
           // workspace is never announced as writable while the filesystem
           // refuses the writes.
           access: effectiveFolderAccess(folder),
-          name: folder.mountName,
           path: folder.path,
         }));
 
@@ -57,7 +56,7 @@ export function detectFolderChanges({
       yield* setFoldersBaseline(
         chatId,
         sessionId,
-        current.map(({ name, path }) => ({ name, path })),
+        current.map(({ path }) => ({ path })),
         { signal },
       );
 
@@ -78,27 +77,12 @@ export function detectFolderChanges({
       const removed = baseline.filter(
         (folder) => !currentByPath.has(folder.path),
       );
-      // A grant taken back frees its name, so a later grant that was
-      // qualified around it mounts under the plain name instead.
-      const renamed = baseline.flatMap((folder) => {
-        const currentFolder = currentByPath.get(folder.path);
-        if (currentFolder === undefined || currentFolder.name === folder.name) {
-          return [];
-        }
-        return [
-          {
-            newName: currentFolder.name,
-            oldName: folder.name,
-            path: folder.path,
-          },
-        ];
-      });
-      if (added.length === 0 && removed.length === 0 && renamed.length === 0) {
+      if (added.length === 0 && removed.length === 0) {
         return ok(undefined);
       }
 
       return ok({
-        data: { added, removed, renamed },
+        data: { added, removed },
         metadata: {
           createdAt: new Date(),
           id: StoreId.newPartId(),

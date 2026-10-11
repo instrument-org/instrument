@@ -44,7 +44,6 @@ async function run(command: string) {
       Home: {
         access: "read-only",
         id: MountedFolder.IdSchema.parse("home-id"),
-        mountName: "Home",
         path: ChatDirSchema.parse(attachedDir),
       },
     },
@@ -91,7 +90,7 @@ afterAll(async () => {
 describe("ls over a large folder mount", () => {
   it("lists a large directory in long format in linear time", async () => {
     // Guarded by the test timeout.
-    const result = await run("ls -l /mnt/Home/d00 | wc -l");
+    const result = await run(`ls -l '${attachedDir}/d00' | wc -l`);
 
     expect(result.stderr).toBe("");
     expect(result.stdout.trim()).toBe(String(FILES_PER_DIRECTORY + 1));
@@ -127,7 +126,7 @@ describe("ls over a large folder mount", () => {
   });
 
   it("lists the whole tree from the agent's shell, whose budget is larger", async () => {
-    const result = await run("ls -R /mnt/Home | wc -l");
+    const result = await run(`ls -R '${attachedDir}' | wc -l`);
 
     expect(result.exitCode).toBe(0);
     expect(Number(result.stdout.trim())).toBeGreaterThan(

@@ -4,7 +4,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
-import { MOUNT } from "../mount-points";
 import {
   type AbsolutePath,
   AbsolutePathSchema,
@@ -16,12 +15,10 @@ import { type MaskedEntry } from "./mask-private-dir-fs";
 import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
-import { pathIsWithin } from "./path-is-within";
 import { ruleRefusal } from "./permissions/rules-fs";
 import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
 import {
   classifyHostPath,
-  nonTaskMounts,
   resolveHostPath,
   type WorkspaceFsLayout,
 } from "./workspace-fs-layout";
@@ -309,10 +306,9 @@ function maskedEntryError(displayPath: string, entry: MaskedEntry) {
 }
 
 /**
- * Resolve an absolute virtual path (/task/..., /mnt/<name>/..., /skills/...)
- * through the layout. Absolute paths outside every mount error with steering:
- * real host paths into a mounted directory point at that mount's virtual path,
- * and anything else lists what the layout actually exposes.
+ * Resolve an absolute path in the shell's spelling through the layout.
+ * Absolute paths outside every mount error with steering toward a relative
+ * path or a folder request.
  */
 function resolveVirtualAbsolutePath(
   layout: WorkspaceFsLayout,
@@ -321,25 +317,9 @@ function resolveVirtualAbsolutePath(
   const resolved = resolveHostPath(layout, virtualPath);
 
   if (resolved === null) {
-    const mounts = nonTaskMounts(layout);
-    // The agent passed a real host path that points into a mounted directory.
-    // Steer it to the mount path instead of leaking host paths around.
-    const owner = mounts.find((mount) =>
-      pathIsWithin(virtualPath, mount.hostRoot),
-    );
-    if (owner) {
-      return executeError(
-        `The path "${virtualPath}" is a mounted folder's real location on disk. ` +
-          `Use its mount path "${owner.mountPoint}/..." instead.`,
-      );
-    }
-    const mountHint =
-      mounts.length > 0
-        ? `, or a mount path (${mounts.map((mount) => mount.mountPoint).join(", ")})`
-        : "";
     return executeError(
-      `The absolute path "${virtualPath}" is outside the task. ` +
-        `Use a task-relative path (or ${MOUNT.task}/...)${mountHint}.`,
+      `The absolute path "${virtualPath}" is not in a folder you reach. ` +
+        `Use a path relative to this conversation's folder, or ask the user for the folder with request_folder.`,
     );
   }
 
@@ -354,9 +334,12 @@ function resolveVirtualAbsolutePath(
   }
 
   if (mount === layout.task) {
-    // Normalize /task/... input into the same task-relative form as relative
-    // input so display paths stay consistent across tools.
-    const relative = relativeWithin(MOUNT.task, normalizePath(virtualPath));
+    // Normalize a full path in the chat's folder into the same task-relative
+    // form as relative input so display paths stay consistent across tools.
+    const relative = relativeWithin(
+      layout.task.mountPoint,
+      normalizePath(virtualPath),
+    );
     return ok({
       absolutePath: hostPath,
       displayPath: RelativePathSchema.parse(`.${relative ?? "/"}`),

@@ -5,7 +5,9 @@ import { folderToAskFor, reachOf, type Rules } from "./rules";
 
 /**
  * What the agent reads when the rules keep it from a path, spelled the way it
- * reaches things: `spell` turns a host path into its mount path.
+ * reaches things: `spell` turns a host path into the path the agent uses.
+ * Undefined where the path is open, and for the app's internals, which the
+ * agent meets as missing rather than refused.
  */
 export function ruleRefusal({
   hostPath,
@@ -19,11 +21,13 @@ export function ruleRefusal({
   spell: (hostPath: string) => string;
 }): string | undefined {
   const reach = reachOf(rules, hostPath, op);
-  if (reach.level === "allow") {
+  if (reach.level === "allow" || reach.level === "hidden") {
     return undefined;
   }
   if (reach.level === "never") {
-    return `${spell(hostPath)} is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.`;
+    return reach.rule?.level === "readOnly"
+      ? `${spell(hostPath)} is read-only. Copy what you need out of it and change the copy.`
+      : `${spell(hostPath)} is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.`;
   }
   const folder = folderToAskFor({
     home: rules.home,
@@ -58,7 +62,17 @@ export function rulesFs({
   spell: (hostPath: string) => string;
 }): IFileSystem {
   const hostOf = (mountPath: string) => nodePath.join(hostRoot, mountPath);
+  const isHidden = (mountPath: string) =>
+    reachOf(rules, hostOf(mountPath), "read").level === "hidden";
   const check = (op: "read" | "write", syscall: string, mountPath: string) => {
+    if (isHidden(mountPath)) {
+      throw Object.assign(
+        new Error(
+          `ENOENT: no such file or directory, ${syscall} '${spell(hostOf(mountPath))}'`,
+        ),
+        { code: "ENOENT" },
+      );
+    }
     const refusal = ruleRefusal({
       hostPath: hostOf(mountPath),
       op,
@@ -76,8 +90,6 @@ export function rulesFs({
     }
   };
   const reads = new Set([
-    "readdir",
-    "readdirWithFileTypes",
     "readFile",
     "readFileBuffer",
     "readFileBytes",
@@ -99,6 +111,43 @@ export function rulesFs({
       }
       const call = (...args: unknown[]): unknown =>
         Reflect.apply(value, target, args);
+      if (key === "exists") {
+        return async (mountPath: string) =>
+          !isHidden(mountPath) && (await call(mountPath)) === true;
+      }
+      if (key === "stat" || key === "lstat" || key === "realpath") {
+        return async (...args: unknown[]) => {
+          if (isHidden(String(args[0]))) {
+            check("read", key, String(args[0]));
+          }
+          return call(...args);
+        };
+      }
+      if (key === "readdir" || key === "readdirWithFileTypes") {
+        return async (...args: unknown[]) => {
+          const dir = String(args[0]);
+          check("read", key, dir);
+          const listed = await call(...args);
+          // The app's internals are left out of a listing, the way a missing
+          // folder would be.
+          return Array.isArray(listed)
+            ? listed.filter((entry: unknown) => {
+                const name =
+                  typeof entry === "string"
+                    ? entry
+                    : typeof entry === "object" &&
+                        entry !== null &&
+                        "name" in entry
+                      ? entry.name
+                      : undefined;
+                return (
+                  typeof name !== "string" ||
+                  !isHidden(nodePath.posix.join(dir, name))
+                );
+              })
+            : listed;
+        };
+      }
       if (reads.has(key) || writes.has(key)) {
         return async (...args: unknown[]) => {
           check(reads.has(key) ? "read" : "write", key, String(args[0]));

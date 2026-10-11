@@ -13,7 +13,6 @@ import {
 import ms from "ms";
 import { dedent } from "radashi";
 
-import { MOUNT } from "../mount-points";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { type StoreId } from "../schemas/store-id";
 import { TOOL_NAMES } from "../tools/name";
@@ -338,8 +337,7 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
 
 /**
  * What a custom command is built from: the task, and the layout of the shell
- * it runs in, which every native hatch writes its output's host paths back
- * against and `git` also reaches folder mounts through.
+ * it runs in, which says what each folder it reaches is.
  */
 interface CustomCommandContext {
   layout: WorkspaceFsLayout;
@@ -565,7 +563,6 @@ const CHAT_COMMAND_LINES = [
   `  ${CHAT_COMMAND.name} - ${CHAT_COMMAND.description}`,
   `  ${MEMORY_COMMAND.name} - ${MEMORY_COMMAND.description}`,
   `  ${TAB_COMMAND.name} - ${TAB_COMMAND.description}`,
-  `  (In the chat, the workspace's apps are at \`${MOUNT.apps}\`.)`,
 ];
 
 export function createBashDescription() {
@@ -593,13 +590,13 @@ export function createBashDescription() {
   const specializedCommands = [...described, ...customLines].join("\n");
 
   return dedent`
-    Execute bash commands in the task directory.
+    Execute bash commands in this conversation's folder.
 
-    IMPORTANT: Folders on the user's computer appear as mounts under \`${MOUNT.folders}/\`, each read-only or read-and-write; the folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. The shell builtins, \`rg\`, \`${PYTHON_COMMAND.name}\`, and \`${JS_EXEC_COMMAND.name}\` read mount paths directly. The native hatches (\`${PYTHON_NATIVE_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, \`${PNPM_COMMAND.name}\`, \`${UV_COMMAND.name}\`) cannot resolve one: for those, copy the file into the task first (e.g. \`cp '${MOUNT.folders}/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
+    IMPORTANT: Files are at their real paths on the user's computer, and your working directory is this conversation's folder. The folders list in your context says which of the user's folders you reach; every command reads and writes them where they sit, native ones included. A change there lands on the user's real files immediately, so treat \`rm\` there as permanent. "Operation not permitted" means the person keeps that place closed or wants to be asked first; the message says which and what to do.
 
-    IMPORTANT: Two Pythons. \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) is the default: CPython 3.13 with the whole standard library, running inside the sandbox, so it opens \`${MOUNT.folders}/...\` and \`${MOUNT.task}/...\` paths exactly as written and needs no copying. It has no packages of its own, cannot start processes, and reads a file whole (8 MB at most). \`${PYTHON_NATIVE_COMMAND.name}\` is the real interpreter in the task's virtualenv: it runs anything \`${PIP_COMMAND.name}\` installed and any native binary, but sees only the task folder. \`${PYTHON_COMMAND.name}\` runs there on its own for a program that imports a package \`${PIP_COMMAND.name}\` installed and for a loaded skill's script under work/skills/, so write \`${PYTHON_COMMAND.name}\`, and name \`${PYTHON_NATIVE_COMMAND.name}\` only for a native binary, a process, or a file over 8 MB. JavaScript is the other way around: \`${NODE_COMMAND.name}\` is the default (real process, task packages, task folder only) and \`${JS_EXEC_COMMAND.name}\` is the sandboxed one for reading folder mounts with built-ins only. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside code run by the native hatches, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`${MOUNT.task}/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`${MOUNT.folders}/...\` never is, and paths inside script FILES on disk are never translated.
+    IMPORTANT: Two Pythons. \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) is the default: CPython 3.13 with the whole standard library, running inside the sandbox. It has no packages of its own, cannot start processes, and reads a file whole (8 MB at most). \`${PYTHON_NATIVE_COMMAND.name}\` is the real interpreter in this conversation's virtualenv: it runs anything \`${PIP_COMMAND.name}\` installed and any native binary. \`${PYTHON_COMMAND.name}\` runs there on its own for a program that imports a package \`${PIP_COMMAND.name}\` installed and for a loaded skill's script under work/skills/, so write \`${PYTHON_COMMAND.name}\`, and name \`${PYTHON_NATIVE_COMMAND.name}\` only for a native binary, a process, or a file over 8 MB. JavaScript is the other way around: \`${NODE_COMMAND.name}\` is the default (a real process with this conversation's packages) and \`${JS_EXEC_COMMAND.name}\` is the sandboxed one, with built-ins only. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
 
-    IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${MOUNT.task}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`). Only \`${MOUNT.task}\`, the \`${MOUNT.folders}\` mounts your context lists, and \`${MOUNT.skills}\` exist; any other path, one named in the conversation included, is out of reach, so name it in a needs fence rather than looking for it, and writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files, or \`${MKTEMP_COMMAND.name}\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+    IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory, so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`) inside it. Writing outside the folders you reach (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files, or \`${MKTEMP_COMMAND.name}\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
     A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
@@ -652,13 +649,14 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * What a shell built with these options mounts. The single source of truth
- * for what the agent can see in it: the writable task directory mounted at
- * /task (the working directory), any folders the chat reaches under /mnt, each
- * read-only or writable, and for the chat its tasks and apps. The bash
- * native-binary path bridge, rg, du, and the output a promoted command
- * streams all take it from here so they agree on virtual<->real mapping.
+ * What a shell built with these options mounts, each folder at its real path:
+ * the chat's own folder (the working directory), the folders the chat
+ * reaches, the skills, and for the chat its apps, held to the chat's rules.
+ * rg, du, and the output a promoted command streams all take it from here.
  */
+/** The shell's PATH: system folders it does not mount, so lookups fall to its own commands. */
+const SHELL_PATH = "/usr/local/bin:/usr/bin:/bin";
+
 export function shellLayout({
   folders,
   chat,
@@ -798,7 +796,7 @@ export async function createLocalBashEnv({
         ? standIn(command.name)
         : command,
     ),
-    cwd: MOUNT.task,
+    cwd: layout.task.mountPoint,
     executionLimits: {
       maxJsTimeoutMs: SANDBOX_SCRIPT_TIMEOUT_MS,
       maxOutputSize: SANDBOX_MAX_OUTPUT_BYTES,
@@ -817,13 +815,15 @@ export async function createLocalBashEnv({
       denyPrivateRanges: false,
       maxResponseSize: SANDBOX_MAX_BYTES,
     },
-    // Seed with process.env so PATH and other system vars are available to
-    // commands that pass ctx.env explicitly (e.g. pnpm, tsx). pnpm shim files
-    // also use sed, uname, etc when on unix systems.
+    // The shell's own PATH names no folder it mounts. The home folder is
+    // mounted at its real path, so the host's PATH would put a binary there
+    // (a pnpm or nvm shim under ~/Library or ~/.local) ahead of the command
+    // registered by the same name. The native commands get the host's PATH
+    // from resolveCommandContext and the shims themselves.
     env: {
       NO_COLOR: "1",
+      PATH: SHELL_PATH,
       TZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      ...(process.env.PATH && { PATH: process.env.PATH }),
     },
     fs,
     // The WebAssembly script runtimes: CPython under `python`/`python3` and

@@ -996,7 +996,7 @@ describe("prepareModelMessages", () => {
         );
 
         expect(notice).toContain("No handoff notes were found");
-        expect(notice).toContain("/task/work/handoff-notes.md");
+        expect(notice).toContain("work/handoff-notes.md");
       });
 
       // The failure this exists for was not the turn after the cut. An agent

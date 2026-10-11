@@ -21,18 +21,21 @@ describe("RelativeTaskPathSchema", () => {
 });
 
 describe("WorkspaceFilePathSchema", () => {
-  it.each(["src/index.ts", "./src/index.ts", "/mnt/Photos/cat.png"])(
-    "accepts %s",
-    (filePath) => {
-      expect(WorkspaceFilePathSchema.safeParse(filePath).success).toBe(true);
-    },
-  );
+  it.each([
+    "src/index.ts",
+    "./src/index.ts",
+    "/etc/passwd",
+    "/Users/sam/Photos/cat.png",
+    "/c/Users/sam/Photos/cat.png",
+  ])("accepts %s", (filePath) => {
+    expect(WorkspaceFilePathSchema.safeParse(filePath).success).toBe(true);
+  });
 
   it.each([
-    "/etc/passwd",
-    "/mnt/Photos/../secret.txt",
-    "/mnt//Photos/cat.png",
-    "/mnt/Photos\\cat.png",
+    "/Users/sam/Photos/../secret.txt",
+    "/Users/sam//Photos/cat.png",
+    "/Users/sam/Photos\\cat.png",
+    "C:\\Users\\sam\\cat.png",
   ])("rejects %s", (filePath) => {
     expect(WorkspaceFilePathSchema.safeParse(filePath).success).toBe(false);
   });

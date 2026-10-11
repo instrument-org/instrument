@@ -49,7 +49,6 @@ function startRunning(command: string) {
           { once: true },
         );
       }),
-    chatId,
   });
   const promoted = promoteBackgroundProcess({ handle, sessionId, chatId });
   if ("error" in promoted) {

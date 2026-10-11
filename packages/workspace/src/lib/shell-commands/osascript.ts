@@ -5,13 +5,7 @@ import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getWorkspaceConfig } from "../workspace-config";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
-import {
-  bridgeAppleScriptPaths,
-  resolveCommandContext,
-  resolvePathArgs,
-  subprocessStdin,
-  unreachablePathArgError,
-} from "./utils";
+import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 export const OSASCRIPT_COMMAND = {
   description:
@@ -151,20 +145,11 @@ async function scriptFileSource(
 
 export function createOsascriptCommand(
   chatId: ChatId,
-  layout: WorkspaceFsLayout,
+  _layout: WorkspaceFsLayout,
 ) {
   return defineCommand(OSASCRIPT_COMMAND.name, async (args, ctx) => {
-    // The value after each `-e` is script source, not a path: it is checked
-    // and bridged as code, and only the remaining arguments as paths.
+    // The value after each `-e` is script source, not a path.
     const isScript = args.map((_arg, index) => args[index - 1] === "-e");
-    const unreachable = unreachablePathArgError(
-      OSASCRIPT_COMMAND.name,
-      args.filter((_arg, index) => !isScript[index]),
-      ctx.cwd,
-    );
-    if (unreachable !== undefined) {
-      return { exitCode: 1, stderr: unreachable, stdout: "" };
-    }
     const piped = subprocessStdin(ctx.stdin);
     const sources = [
       ...args.filter((_arg, index) => isScript[index]),
@@ -174,18 +159,9 @@ export function createOsascriptCommand(
     if (sources.some(worksAppWindows)) {
       return { exitCode: 1, stderr: WORKS_APP_WINDOWS_REFUSAL, stdout: "" };
     }
-    const bridgedArgs: string[] = [];
-    for (const [index, arg] of args.entries()) {
-      if (!isScript[index]) {
-        bridgedArgs.push(...resolvePathArgs([arg], chatId, ctx));
-        continue;
-      }
-      const bridged = bridgeAppleScriptPaths(arg, chatId);
-      if ("error" in bridged) {
-        return { exitCode: 1, stderr: bridged.error, stdout: "" };
-      }
-      bridgedArgs.push(addressAppsById(bridged.code));
-    }
+    const hostArgs = args.flatMap((arg, index) =>
+      isScript[index] ? [addressAppsById(arg)] : hostPathArgs([arg]),
+    );
 
     const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     // A script piped in is ASCII where it names an app, so the rewrite reads
@@ -194,7 +170,7 @@ export function createOsascriptCommand(
       ? Buffer.from(addressAppsById(piped.toString("latin1")), "latin1")
       : undefined;
 
-    const result = await execShim(OSASCRIPT_PATH, bridgedArgs, {
+    const result = await execShim(OSASCRIPT_PATH, hostArgs, {
       cancelSignal: ctx.signal,
       cwd: taskCwd,
       env: {
@@ -208,7 +184,7 @@ export function createOsascriptCommand(
 
     const streams = mapStreams(
       shimOutput(result, OSASCRIPT_COMMAND.name),
-      (text) => filterShellOutput(text, layout),
+      (text) => filterShellOutput(text),
     );
     return {
       exitCode: result.exitCode ?? 1,

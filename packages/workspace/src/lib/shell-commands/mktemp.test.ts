@@ -1,18 +1,18 @@
 import { Bash, InMemoryFs } from "just-bash";
 import { describe, expect, it } from "vitest";
 
-import { MOUNT } from "../../mount-points";
 import { createMktempCommand } from "./mktemp";
 
-const TMP_DIR = `${MOUNT.task}/.tmp`;
+const TASK = "/Users/me/chat";
+const TMP_DIR = `${TASK}/.tmp`;
 
 async function makeBash() {
   const fs = new InMemoryFs();
-  await fs.mkdir(MOUNT.task, { recursive: true });
+  await fs.mkdir(TASK, { recursive: true });
   return new Bash({
     commands: ["cat", "echo", "ls", "stat"],
     customCommands: [createMktempCommand()],
-    cwd: MOUNT.task,
+    cwd: TASK,
     fs,
   });
 }
@@ -48,19 +48,17 @@ describe("mktemp", () => {
     expect(result.stdout.trim()).toBe("absent");
   });
 
-  it("writes the file where a native binary can also reach it", async () => {
+  it("writes the file under the working directory rather than /tmp", async () => {
     const bash = await makeBash();
-    // The path has to be one the argv bridge maps, which is the whole reason
-    // this lives under the task rather than at /tmp.
     const result = await bash.exec("mktemp");
-    expect(result.stdout.trim().startsWith(`${MOUNT.task}/`)).toBe(true);
+    expect(result.stdout.trim().startsWith(`${TASK}/`)).toBe(true);
   });
 
   it("resolves a bare template against the working directory, as GNU does", async () => {
     const bash = await makeBash();
     const result = await bash.exec("mktemp note.XXXXXX");
     expect(result.stdout.trim()).toMatch(
-      new RegExp(`^${MOUNT.task}/note\\.[\\dA-Za-z]{6}$`),
+      new RegExp(`^${TASK}/note\\.[\\dA-Za-z]{6}$`),
     );
   });
 
@@ -74,9 +72,9 @@ describe("mktemp", () => {
 
   it("honors a template that names its own directory", async () => {
     const bash = await makeBash();
-    const result = await bash.exec("mktemp /task/work/held.XXXX");
+    const result = await bash.exec(`mktemp ${TASK}/work/held.XXXX`);
     expect(result.stdout.trim()).toMatch(
-      new RegExp(`^${MOUNT.task}/work/held\\.[\\dA-Za-z]{4}$`),
+      new RegExp(`^${TASK}/work/held\\.[\\dA-Za-z]{4}$`),
     );
   });
 

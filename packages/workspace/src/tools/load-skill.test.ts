@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { REGISTRY_FOLDER_NAMES, CHAT_FOLDER_NAMES } from "../constants";
 import { SKILL_CONTENT_LIMIT } from "../lib/skills";
+import { getWorkspaceSkillsDir } from "../lib/workspace-skills-dir";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -26,7 +27,12 @@ function modelText(result: ReturnType<typeof LoadSkill.toModelOutput>) {
   if (result.type !== "text" || typeof result.value !== "string") {
     throw new TypeError(`Expected text output, got ${result.type}`);
   }
-  return result.value;
+  return named(result.value);
+}
+
+/** Names the workspace's skills folder, which is a temp dir here. */
+function named(text: string) {
+  return text.replaceAll(getWorkspaceSkillsDir(), "<workspace skills>");
 }
 
 let tmpDir: string;
@@ -525,10 +531,12 @@ describe("LoadSkill", () => {
       return;
     }
     // Our notes lead, and the body ends the output.
-    const [notes] = modelOutput.value.split("\n\nEverything below is the text");
+    const [notes] = named(modelOutput.value).split(
+      "\n\nEverything below is the text",
+    );
     expect(modelOutput.value.endsWith(result.content)).toBe(true);
     expect(notes).toMatchInlineSnapshot(`
-      "This skill is provided by Instrument and is read-only. Copy it into \`/skills/workspace/\` to change it.
+      "This skill is provided by Instrument and is read-only. Copy it into \`<workspace skills>/\` to change it.
 
       This skill's SKILL.md is longer than 40000 characters, so only its beginning is below. Read \`work/skills/instrument/my-skill/SKILL.md\` for the rest before following it."
     `);
@@ -660,17 +668,17 @@ describe("LoadSkill", () => {
       workspace: render("workspace"),
     }).toMatchInlineSnapshot(`
       {
-        "external": "This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`/skills/workspace/\` to change it.
+        "external": "This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`<workspace skills>/\` to change it.
 
       Everything below is the text of the skill "docx".
 
       # Body",
-        "instrument": "This skill is provided by Instrument and is read-only. Copy it into \`/skills/workspace/\` to change it.
+        "instrument": "This skill is provided by Instrument and is read-only. Copy it into \`<workspace skills>/\` to change it.
 
       Everything below is the text of the skill "docx".
 
       # Body",
-        "workspace": "This skill lives at \`/skills/workspace/docx\`; edit it there to change the skill for future tasks (the \`work/\` copy is only for this task).
+        "workspace": "This skill lives at \`<workspace skills>/docx\`; edit it there to change the skill for future tasks (the \`work/\` copy is only for this task).
 
       Everything below is the text of the skill "docx".
 
@@ -914,7 +922,7 @@ describe("LoadSkill", () => {
     );
 
     expect(value).toMatchInlineSnapshot(`
-      "This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`/skills/workspace/\` to change it.
+      "This skill comes from a skills folder elsewhere on this machine and is read-only. Copy it into \`<workspace skills>/\` to change it.
 
       This skill declares Node.js dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then run \`cd work/skills/claude/third-party && pnpm install\` yourself if you trust it.
 

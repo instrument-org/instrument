@@ -6,13 +6,13 @@ import {
   ReadWriteFs,
 } from "just-bash";
 import { mkdir } from "node:fs/promises";
+import os from "node:os";
 import nodePath from "node:path";
 
 import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
-import { MOUNT } from "../mount-points";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { rulesFs } from "./permissions/rules-fs";
-import { type Rules } from "./permissions/rules";
+import { type Rule, type Rules } from "./permissions/rules";
 import { type AbsolutePath, type ChatDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import {
@@ -20,12 +20,7 @@ import {
   hostPathWithin,
   realRoot,
 } from "./host-path";
-import { assignMountPoints } from "./folder-mounts";
-import {
-  type MaskedEntry,
-  maskedEntryOf,
-  maskPrivateDirFs,
-} from "./mask-private-dir-fs";
+import { type MaskedEntry, maskedEntryOf } from "./mask-private-dir-fs";
 import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
@@ -34,11 +29,7 @@ import { ReadOnlyBaseFs } from "./read-only-base-fs";
 import { chatsDir } from "./record-folders";
 import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
 import { type WalkBudget } from "./walk-budget";
-import {
-  BUNDLED_SOURCE_IDS,
-  getSkillSources,
-  skillsMountSegment,
-} from "./skills";
+import { BUNDLED_SOURCE_IDS, getSkillSources } from "./skills";
 import { getWorkspaceConfig } from "./workspace-config";
 export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
@@ -59,31 +50,6 @@ export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
  * idiom of redirecting output into a sink resolves instead of failing.
  */
 const DEV_MOUNT_POINT = "/dev";
-
-/**
- * The `/dev` entries a real subprocess may receive verbatim in its argv.
- *
- * These are host character devices, not virtual paths, so quarantining them
- * protects nothing: they hold no user data, name no part of the machine's
- * layout, and a subprocess can already open any of them from inside inline
- * code or a script file, neither of which is rewritten. What the quarantine
- * does catch is the standard idiom -- `ffmpeg -pass 1 -f mp4 /dev/null`,
- * `python /dev/stdin` -- which fails with a not-found error naming a path the
- * agent never wrote.
- *
- * Exact names only. A `/dev/` prefix rule would also admit `/dev/disk0`,
- * `/dev/rdisk0`, and `/dev/fd/<n>`, which are raw devices and other processes'
- * descriptors; those stay quarantined.
- */
-const HOST_DEVICE_NAMES = new Set([
-  "null",
-  "random",
-  "stderr",
-  "stdin",
-  "stdout",
-  "urandom",
-  "zero",
-]);
 
 /**
  * The complete virtual filesystem layout for a chat: the writable task mount
@@ -143,9 +109,6 @@ export interface WorkspaceFsMount {
    * When true the mount is read-only: writes throw EROFS in the virtual FS.
    * A folder is read-only when it holds the workspace
    * ({@link effectiveFolderAccess}).
-   *
-   * Independently of this flag, no folder mount's host path is handed to a
-   * real native binary; see {@link resolveNativeHostPath}.
    */
   readOnly: boolean;
 }
@@ -193,92 +156,57 @@ export async function buildBashFs(
     }),
   );
 
-  // The task mount is wrapped so the private dir is masked from the agent's
-  // shell. It holds chat internals the agent must never read: the chat's
-  // database and its settings, grants included. The app reads these
-  // through real fs, not this virtual FS, so the mask is agent-only. Agent-
-  // facing byproducts (screenshots, tool-output) deliberately live under work/,
-  // never here.
-  fs.mount(
-    layout.task.mountPoint,
-    masked(
-      layout.task,
-      new ReadWriteFs({ maxFileReadSize, root: layout.task.hostRoot }),
-    ),
-  );
-
-  for (const mount of layout.folders) {
-    // Folders can be deleted on disk between turns; both filesystems
-    // throw if their root is missing, so skip any that no longer exist.
-    if (!(await pathExists(mount.hostRoot))) {
-      continue;
-    }
-    // A writable folder has to mount through ReadWriteFs, the same filesystem
-    // the task mount uses, because it is the only one that writes to disk.
-    // OverlayFs is copy-on-write into memory, and the filesystem is rebuilt per
-    // bash call, so mounting a writable folder there would report every `mv`
-    // and `cp` as succeeding and leave the user's files untouched.
-    const mounted = heldToRules(
-      layout,
-      mount,
-      masked(
-        mount,
-        mount.readOnly
-          ? new OverlayFs({
-              maxFileReadSize,
-              mountPoint: "/",
-              readOnly: true,
-              root: mount.hostRoot,
-            })
-          : new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot }),
-      ),
-      onRefusal,
-    );
-    fs.mount(
-      mount.mountPoint,
-      homeWalkBudget && folderHoldsWorkspace(mount.hostRoot)
-        ? homeWalkBudget.wrap(mounted, mount.mountPoint)
-        : mounted,
-    );
-  }
-
-  for (const mount of layout.skills) {
-    // The workspace's own directory is always meant to be there, so create it if
-    // a fresh workspace has not yet: skipping it would leave the agent writing
-    // to a path the prompt advertises but that does not exist. Every other
-    // source belongs to something else on this machine, and an absent one just
-    // means that tool is not installed.
-    if (mount.readOnly) {
-      if (!(await pathExists(mount.hostRoot))) {
-        continue;
-      }
-      fs.mount(
-        mount.mountPoint,
-        new OverlayFs({
+  // Every folder the agent reaches is mounted at its own path on the disk,
+  // and a folder inside another is reached through the outer one, since a
+  // mount cannot sit inside another. What the agent may read or change in
+  // each is the rules' to say, the app's own folders included: its internals
+  // are missing, the skills it ships are read-only, and the chat's folder is
+  // open.
+  const rules = layoutRules(layout);
+  const workspaceSkills = layout.skills.find((mount) => !mount.readOnly);
+  for (const mount of await mountRoots(layout)) {
+    const readOnly = mount.readOnly && !holdsWritable(layout, mount);
+    let mounted: IFileSystem = readOnly
+      ? new OverlayFs({
           maxFileReadSize,
           mountPoint: "/",
           readOnly: true,
           root: mount.hostRoot,
-        }),
+        })
+      : new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot });
+    if (workspaceSkills) {
+      const skillsWithin = hostPathWithin(
+        mount.hostRoot,
+        workspaceSkills.hostRoot,
       );
-      continue;
+      if (skillsWithin !== null) {
+        mounted = skillWriteTrackingFs(mounted, (path) =>
+          skillsWithin === "/"
+            ? normalizePath(path)
+            : (relativeWithin(skillsWithin, normalizePath(path)) ?? undefined),
+        );
+      }
     }
-    await mkdir(mount.hostRoot, { recursive: true });
+    mounted = rulesFs({
+      delegate: mounted,
+      hostRoot: mount.hostRoot,
+      onRefusal,
+      rules,
+      spell: (hostPath) => shellPath(hostPath),
+    });
     fs.mount(
       mount.mountPoint,
-      skillWriteTrackingFs(
-        new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot }),
-      ),
-    );
-  }
-
-  // The apps directory is created on demand for the same reason the skills
-  // one is: the prompt advertises it before the first app is written.
-  if (layout.apps) {
-    await mkdir(layout.apps.hostRoot, { recursive: true });
-    fs.mount(
-      layout.apps.mountPoint,
-      new ReadWriteFs({ maxFileReadSize, root: layout.apps.hostRoot }),
+      homeWalkBudget && folderHoldsWorkspace(mount.hostRoot)
+        ? homeWalkBudget.wrap(mounted, mount.mountPoint, (path) => {
+            // The chat's own folder walks at the sandbox's budget wherever
+            // it sits, the home folder included.
+            const inChat = hostPathWithin(
+              layout.task.hostRoot,
+              nodePath.join(mount.hostRoot, path),
+            );
+            return inChat !== null;
+          })
+        : mounted,
     );
   }
 
@@ -306,14 +234,15 @@ export function buildWorkspaceFsLayout({
   rules?: Rules;
   taskHostRoot: ChatDir;
 }): WorkspaceFsLayout {
-  const mounts: WorkspaceFsMount[] = assignMountPoints(folders ?? {}).map(
-    ({ folder, mountPoint }) => ({
+  const mounts: WorkspaceFsMount[] = Object.values(folders ?? {}).map(
+    (folder) => ({
       hostRoot: folder.path,
       // A folder on the user's disk is theirs, and an `.instrument` dir in it
       // is an ordinary directory of theirs rather than one of ours.
       maskedEntries: [],
-      mountPoint,
-      readOnly: effectiveFolderAccess(folder) !== "read-write",
+      mountPoint: shellPath(folder.path),
+      // What may change in it is the rules' to say.
+      readOnly: false,
     }),
   );
 
@@ -325,7 +254,7 @@ export function buildWorkspaceFsLayout({
             // Ours rather than a task's, and it holds no
             // settings: an `.instrument` dir in it would be an ordinary one.
             maskedEntries: [],
-            mountPoint: MOUNT.apps,
+            mountPoint: shellPath(getWorkspaceConfig().appsDir),
             readOnly: false as const,
           },
         }
@@ -336,7 +265,7 @@ export function buildWorkspaceFsLayout({
     task: {
       hostRoot: taskHostRoot,
       maskedEntries: taskMaskedEntries(taskHostRoot),
-      mountPoint: MOUNT.task,
+      mountPoint: shellPath(taskHostRoot),
       readOnly: false,
     },
   };
@@ -424,30 +353,6 @@ export function privateMountPoint(taskMountPoint: string): string {
 }
 
 /**
- * The host spelling of a device path a native binary may receive, or undefined
- * for every other path, which the caller quarantines as usual.
- *
- * Windows has no `/dev`; `NUL` is the only one of these with an equivalent, and
- * it is spelled as a device namespace path so it stays absolute.
- */
-export function resolveHostDevicePath(
-  virtualAbsPath: string,
-): string | undefined {
-  const relative = relativeWithin(
-    DEV_MOUNT_POINT,
-    normalizePath(virtualAbsPath),
-  );
-  const name = relative?.slice(1);
-  if (name === undefined || !HOST_DEVICE_NAMES.has(name)) {
-    return undefined;
-  }
-  if (process.platform === "win32") {
-    return name === "null" ? String.raw`\\.\NUL` : undefined;
-  }
-  return `${DEV_MOUNT_POINT}/${name}`;
-}
-
-/**
  * Resolve a virtual absolute path to the real on-disk path that backs it, plus
  * the mount that owns it. Returns null if no mount owns the path. The longest
  * matching mount point wins, so a folder mount under /mnt takes precedence
@@ -485,51 +390,9 @@ export function resolveHostPath(
 }
 
 /**
- * Map a virtual absolute path to the host path a NATIVE binary may receive.
- *
- * Native binaries (ffmpeg, python, node, ...) run against the real filesystem,
- * so this is the sandbox's outer boundary and it bridges the task mount and
- * nothing else. Every other virtual path quarantines to a path inside the task
- * dir that does not exist, so the binary fails with a not-found error instead
- * of touching the host.
- *
- * That holds for /mnt mounts the user granted write access to, not just the
- * read-only ones. A real host path is read AND write to the operating system,
- * so handing one to a subprocess would put the user's folder outside every
- * containment the sandbox has: no symlink check, no path masking, and no way
- * to tell what a build step touched. The agent copies a file into the task and
- * works on the copy instead. Writes back into the folder go through the virtual
- * filesystem, where the symlink check and the mount's access level still apply.
- * A skill's scripts are no exception: they run from the copy loading the skill
- * puts under the task's `work/skills/`.
- */
-export function resolveNativeHostPath(
-  taskHostRoot: ChatDir,
-  virtualAbsPath: string,
-): AbsolutePath {
-  const normalized = normalizePath(virtualAbsPath);
-  const relative = relativeWithin(MOUNT.task, normalized);
-  if (
-    relative !== null &&
-    maskedEntryOf(relative, taskMaskedEntries(taskHostRoot)) === undefined
-  ) {
-    return absolutePathJoin(
-      taskHostRoot,
-      relative === "/" ? "." : `.${relative}`,
-    );
-  }
-  // Masked paths (and any non-/task virtual path) quarantine to a
-  // non-existent path inside the task dir -- same defense as the read-only /mnt
-  // mounts: a native binary must never receive a real path into chat.db,
-  // state.json, or settings, or into a chat's tasks, so it fails not-found
-  // instead of reaching them.
-  return absolutePathJoin(taskHostRoot, normalized);
-}
-
-/**
  * Map a virtual path to a host path for a native binary that can only READ.
  *
- * Unlike `resolveNativeHostPath` this resolves the whole layout, including the
+ * This resolves the whole layout, including the
  * `/mnt` mounts and `/skills`. That is the point: a search command
  * the user cannot point at their folder mounts is not worth having, and the
  * dedicated grep tool already hands real ripgrep those same host paths.
@@ -688,15 +551,16 @@ function buildSkillMounts(): WorkspaceFsMount[] {
   const mounts = new Map<string, WorkspaceFsMount>();
 
   for (const { dir, id } of getSkillSources(config)) {
-    const mountPoint = `${MOUNT.skills}/${skillsMountSegment(id)}`;
-    // Both bundled ids reach the same segment, and the first one to claim it
-    // brings the prepared directory with it.
-    if (mounts.has(mountPoint)) {
+    const bundled = BUNDLED_SOURCE_IDS.has(id);
+    const hostRoot = bundled ? config.preparedSkillsDir : dir;
+    // Both bundled ids reach the prepared directory, and the first one to
+    // claim it stands for both.
+    if (mounts.has(hostRoot)) {
       continue;
     }
-    const bundled = BUNDLED_SOURCE_IDS.has(id);
-    mounts.set(mountPoint, {
-      hostRoot: bundled ? config.preparedSkillsDir : dir,
+    const mountPoint = shellPath(hostRoot);
+    mounts.set(hostRoot, {
+      hostRoot,
       // Every one of these belongs to a tool rather than to a task,
       // so an `.instrument` dir in one is an ordinary directory of theirs.
       maskedEntries: [],
@@ -706,13 +570,6 @@ function buildSkillMounts(): WorkspaceFsMount[] {
   }
 
   return [...mounts.values()];
-}
-
-/** A mount's filesystem with its masked entries hidden, when it has any. */
-function masked(mount: WorkspaceFsMount, fs: IFileSystem): IFileSystem {
-  return mount.maskedEntries.length > 0
-    ? maskPrivateDirFs(fs, mount.maskedEntries)
-    : fs;
 }
 
 /**
@@ -730,25 +587,113 @@ function taskMaskedEntries(taskHostRoot: ChatDir): MaskedEntry[] {
 }
 
 /**
- * A folder mount held to the layout's rules, which a mount alone cannot say:
- * the home folder is open to look through, with closed folders inside it.
+ * The path the agent's shell names a host path by. The same path on macOS
+ * and Linux; on Windows, the drive-letter spelling Git Bash uses
+ * (`/c/Users/sam`), since the shell is POSIX.
  */
-function heldToRules(
-  layout: WorkspaceFsLayout,
-  mount: WorkspaceFsMount,
-  delegate: IFileSystem,
-  onRefusal?: (refusal: string) => void,
-): IFileSystem {
-  const { rules } = layout;
-  if (!rules) {
-    return delegate;
+export function shellPath(hostPath: string): string {
+  if (process.platform !== "win32") {
+    return hostPath;
   }
-  return rulesFs({
-    delegate,
-    hostRoot: mount.hostRoot,
-    onRefusal,
-    rules,
-    spell: (hostPath) =>
-      classifyHostPath(layout, hostPath)?.virtualPath ?? hostPath,
+  const drive = /^([A-Za-z]):[\\/]?(.*)$/.exec(hostPath);
+  return drive
+    ? `/${(drive[1] ?? "").toLowerCase()}/${(drive[2] ?? "").replaceAll("\\", "/")}`.replace(
+        /\/$/,
+        "",
+      )
+    : hostPath.replaceAll("\\", "/");
+}
+
+/**
+ * The host path a shell path names: the inverse of {@link shellPath}. The same
+ * path on macOS and Linux; on Windows `/c/Users/sam` becomes `C:\Users\sam`.
+ */
+export function hostPathOf(shellSpelled: string): string {
+  if (process.platform !== "win32") {
+    return shellSpelled;
+  }
+  const drive = /^\/([A-Za-z])(?:\/(.*))?$/.exec(shellSpelled);
+  return drive
+    ? `${(drive[1] ?? "").toUpperCase()}:\\${(drive[2] ?? "").replaceAll("/", "\\")}`
+    : shellSpelled.replaceAll("/", "\\");
+}
+
+/**
+ * The rules the layout is held to: the chat's, or where none were given an
+ * allow for each folder it reaches, plus the app's own over its folders. The
+ * workspace is missing to the agent but for the chat's folder, the skills it
+ * reads and the apps it writes; the chat's internals are missing inside it.
+ */
+function layoutRules(layout: WorkspaceFsLayout): Rules {
+  const given: Rules = layout.rules ?? {
+    home: os.homedir(),
+    rules: layout.folders.map((mount) => ({
+      level: "allow",
+      path: mount.hostRoot,
+      source: "grant",
+    })),
+    withoutAsking: false,
+  };
+  const system = (level: Rule["level"], path: string): Rule => ({
+    level,
+    path,
+    source: "system",
   });
+  const own: Rule[] = [
+    system("hidden", getWorkspaceConfig().rootDir),
+    system("allow", layout.task.hostRoot),
+    ...layout.task.maskedEntries.map((entry) =>
+      system("hidden", nodePath.join(layout.task.hostRoot, entry)),
+    ),
+    ...layout.skills.map((mount) =>
+      system(mount.readOnly ? "readOnly" : "allow", mount.hostRoot),
+    ),
+    ...(layout.apps ? [system("allow", layout.apps.hostRoot)] : []),
+  ];
+  return { ...given, rules: [...given.rules, ...own] };
+}
+
+/** The layout's mounts with every one inside another left to the outer. */
+async function mountRoots(
+  layout: WorkspaceFsLayout,
+): Promise<WorkspaceFsMount[]> {
+  const present: WorkspaceFsMount[] = [];
+  // The app's own folders are made when missing; a folder of the person's
+  // that is gone stays gone rather than coming back empty.
+  const ours = [
+    layout.task,
+    ...layout.skills.filter((mount) => !mount.readOnly),
+    ...(layout.apps ? [layout.apps] : []),
+  ];
+  for (const mount of allMounts(layout)) {
+    if (ours.includes(mount)) {
+      await mkdir(mount.hostRoot, { recursive: true }).catch(() => undefined);
+    }
+    if (await pathExists(mount.hostRoot)) {
+      present.push(mount);
+    }
+  }
+  const outermost = present.toSorted(
+    (a, b) => a.hostRoot.length - b.hostRoot.length,
+  );
+  const roots: WorkspaceFsMount[] = [];
+  for (const mount of outermost) {
+    if (!roots.some((root) => hostPathWithin(root.hostRoot, mount.hostRoot))) {
+      roots.push(mount);
+    }
+  }
+  return roots;
+}
+
+/** Whether a read-only mount holds one the agent writes, which it reaches through it. */
+function holdsWritable(
+  layout: WorkspaceFsLayout,
+  outer: WorkspaceFsMount,
+): boolean {
+  return allMounts(layout).some(
+    (mount) =>
+      mount !== outer &&
+      !mount.readOnly &&
+      hostPathWithin(outer.hostRoot, mount.hostRoot) !== null,
+  );
 }

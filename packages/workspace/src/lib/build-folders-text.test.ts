@@ -11,15 +11,15 @@ function listOf(text: string): string[] {
 }
 
 describe("buildFoldersText", () => {
-  // The bug this exists to prevent: the model reads back the mount name as
+  // The bug this exists to prevent: the model reads back a path segment as
   // though it were the folder's name, and the user is told about a
   // "documents-test" folder they never created.
-  it("names a folder the way the user does, whatever its mount is called", () => {
+  it("names a folder the way the user does, whatever its path is", () => {
     const text = buildFoldersText({
       folders: [
         {
           access: "read-write",
-          mountPoint: "/mnt/Documents-test",
+          mountPoint: "/Users/sam/Documents/test",
           path: "/Users/sam/Documents/test",
         },
       ],
@@ -28,36 +28,40 @@ describe("buildFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "test" -> \`/mnt/Documents-test\` (read and write)",
+        "- "test" -> \`/Users/sam/Documents/test\` (read and write)",
       ]
     `);
   });
 
-  it("tells the model to speak the name and address the mount", () => {
+  it("tells the model to speak the name and address the path", () => {
     const text = buildFoldersText({
       folders: [
-        { access: "read-only", mountPoint: "/mnt/notes", path: "/tmp/notes" },
+        { access: "read-only", mountPoint: "/tmp/notes", path: "/tmp/notes" },
       ],
       intro: INTRO,
     });
 
     expect(text).toContain("Call a folder by its quoted name");
-    expect(text).toContain("The mount path is its address, not its name");
+    expect(text).toContain("The path is its address, not its name");
   });
 
   it("leaves a name unqualified when nothing else shares it", () => {
     const text = buildFoldersText({
       folders: [
-        { access: "read-only", mountPoint: "/mnt/test", path: "/tmp/a/test" },
-        { access: "read-only", mountPoint: "/mnt/notes", path: "/tmp/b/notes" },
+        { access: "read-only", mountPoint: "/tmp/a/test", path: "/tmp/a/test" },
+        {
+          access: "read-only",
+          mountPoint: "/tmp/b/notes",
+          path: "/tmp/b/notes",
+        },
       ],
       intro: INTRO,
     });
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "test" -> \`/mnt/test\` (read-only)",
-        "- "notes" -> \`/mnt/notes\` (read-only)",
+        "- "test" -> \`/tmp/a/test\` (read-only)",
+        "- "notes" -> \`/tmp/b/notes\` (read-only)",
       ]
     `);
   });
@@ -69,12 +73,12 @@ describe("buildFoldersText", () => {
       folders: [
         {
           access: "read-write",
-          mountPoint: "/mnt/test",
+          mountPoint: "/Users/sam/Downloads/test",
           path: "/Users/sam/Downloads/test",
         },
         {
           access: "read-only",
-          mountPoint: "/mnt/Documents-test",
+          mountPoint: "/Users/sam/Documents/test",
           path: "/Users/sam/Documents/test",
         },
       ],
@@ -83,8 +87,8 @@ describe("buildFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "test" (in Downloads) -> \`/mnt/test\` (read and write)",
-        "- "test" (in Documents) -> \`/mnt/Documents-test\` (read-only)",
+        "- "test" (in Downloads) -> \`/Users/sam/Downloads/test\` (read and write)",
+        "- "test" (in Documents) -> \`/Users/sam/Documents/test\` (read-only)",
       ]
     `);
   });
@@ -94,25 +98,20 @@ describe("buildFoldersText", () => {
       folders: [
         {
           access: "read-only",
-          mountPoint: "/mnt/test",
+          mountPoint: path.join(os.homedir(), "test"),
           path: path.join(os.homedir(), "test"),
         },
         {
           access: "read-only",
-          mountPoint: "/mnt/Documents-test",
+          mountPoint: path.join(os.homedir(), "Documents", "test"),
           path: path.join(os.homedir(), "Documents", "test"),
         },
       ],
       intro: INTRO,
     });
 
-    expect(listOf(text)).toMatchInlineSnapshot(`
-      [
-        "- "test" (in Home) -> \`/mnt/test\` (read-only)",
-        "- "test" (in Documents) -> \`/mnt/Documents-test\` (read-only)",
-      ]
-    `);
-    expect(text).not.toContain(path.basename(os.homedir()));
+    const hints = listOf(text).map((line) => /\(in ([^)]*)\)/.exec(line)?.[1]);
+    expect(hints).toEqual(["Home", "Documents"]);
   });
 
   // The chat has no file tools and a shell that refuses to write, so
@@ -122,7 +121,7 @@ describe("buildFoldersText", () => {
       folders: [
         {
           access: "read-only",
-          mountPoint: "/mnt/sam",
+          mountPoint: "/Users/sam",
           path: "/Users/sam",
           writableInside: true,
         },
@@ -132,7 +131,7 @@ describe("buildFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "sam" -> \`/mnt/sam\` (look through it; to change anything, ask for the folder inside it with \`request_folder\`)",
+        "- "sam" -> \`/Users/sam\` (look through it; to change anything, ask for the folder inside it with \`request_folder\`)",
       ]
     `);
   });
@@ -141,7 +140,7 @@ describe("buildFoldersText", () => {
     const folders = [
       {
         access: "read-write" as const,
-        mountPoint: "/mnt/Desktop",
+        mountPoint: "/Users/sam/Desktop",
         path: "/Users/sam/Desktop",
       },
     ];
@@ -156,7 +155,7 @@ describe("buildFoldersText", () => {
         {
           access: "read-write",
           missing: true,
-          mountPoint: "/mnt/test",
+          mountPoint: "/tmp/gone/test",
           path: "/tmp/gone/test",
         },
       ],
@@ -165,7 +164,7 @@ describe("buildFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "test" -> \`/mnt/test\` (read and write, no longer exists)",
+        "- "test" -> \`/tmp/gone/test\` (read and write, no longer exists)",
       ]
     `);
   });

@@ -2,7 +2,7 @@ import os from "node:os";
 import { z } from "zod";
 
 import { getCurrentDate } from "../../lib/get-current-date";
-import { seatbeltAvailable } from "../../lib/native-sandbox";
+import { bwrapAvailable, seatbeltAvailable } from "../../lib/native-sandbox";
 import {
   LevelSchema,
   PLACE_DEFAULTS,
@@ -37,10 +37,12 @@ const PermissionsViewSchema = z.object({
   withoutAsking: z.boolean(),
 });
 
-function view(settings: PermissionSettings): z.output<typeof PermissionsViewSchema> {
+function view(
+  settings: PermissionSettings,
+): z.output<typeof PermissionsViewSchema> {
   const home = os.homedir();
   return {
-    enforced: seatbeltAvailable(),
+    enforced: seatbeltAvailable() || bwrapAvailable(),
     folders: settings.folders,
     home,
     places: placePaths(home).map((place) => ({
@@ -94,7 +96,11 @@ const setFolder = base
               )
             : [
                 ...settings.folders,
-                { addedAt: getCurrentDate(), level: input.level, path: input.path },
+                {
+                  addedAt: getCurrentDate(),
+                  level: input.level,
+                  path: input.path,
+                },
               ],
         };
       }),

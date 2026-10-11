@@ -35,12 +35,12 @@ import { listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { Store } from "../src/lib/store";
 import { updateChatSettings } from "../src/lib/chat-settings";
+import { shellPath } from "../src/lib/workspace-fs-layout";
 import { getUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { session as sessionRoute } from "../src/rpc/routes/session";
 import { chatFolders } from "../src/rpc/routes/chat/folders";
-import { MOUNT } from "../src/mount-points";
 import { type FileUpload } from "../src/schemas/file-upload";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
@@ -886,7 +886,7 @@ export async function runEvals(
                   {
                     id,
                     output: {
-                      mountPoint: `${MOUNT.folders}/${reached.mountName}`,
+                      path: shellPath(reached.path),
                       status: "granted",
                     },
                     toolCallId: part.toolCallId,

@@ -2,7 +2,6 @@ import { defineCommand, type IFileSystem } from "just-bash";
 import { randomBytes } from "node:crypto";
 
 import { CHAT_FOLDER_NAMES } from "../../constants";
-import { MOUNT } from "../../mount-points";
 
 export const MKTEMP_COMMAND = {
   description:
@@ -11,14 +10,14 @@ export const MKTEMP_COMMAND = {
 } as const;
 
 /**
- * Where a template-less `mktemp` puts things.
- *
- * The same directory the subprocess hatches get as TMPDIR, so a path from here
- * means the same thing to the shell and to python, ffmpeg, or a script. `/tmp`
- * is not writable and never will be: it is outside every mount, so a file
- * written there would have nowhere to live once the call ended.
+ * Where a template-less `mktemp` puts things: the `tmp` folder of the folder the
+ * call starts in, which is the chat's own and the directory the subprocess
+ * hatches get as TMPDIR, so a path from here means the same thing to the shell
+ * and to python, ffmpeg, or a script. `/tmp` is not writable: it is outside the
+ * folders the agent reaches, so a file written there would have nowhere to live
+ * once the call ended.
  */
-const TMP_DIR = `${MOUNT.task}/${CHAT_FOLDER_NAMES.tmp}`;
+const TMP_FOLDER = CHAT_FOLDER_NAMES.tmp;
 
 /** GNU's default template, used whenever no operand is given. */
 const DEFAULT_TEMPLATE = "tmp.XXXXXXXXXX";
@@ -56,7 +55,8 @@ interface MktempArgs {
  */
 export function createMktempCommand() {
   return defineCommand(MKTEMP_COMMAND.name, async (args, ctx) => {
-    const parsed = parseMktempArgs(args);
+    const tmpDir = ctx.fs.resolvePath(ctx.cwd, TMP_FOLDER);
+    const parsed = parseMktempArgs(args, tmpDir);
     if ("error" in parsed) {
       return {
         exitCode: 1,
@@ -81,7 +81,7 @@ export function createMktempCommand() {
 
     // The default location is created on demand; a caller-supplied template
     // pointing somewhere absent is left to fail on its own.
-    if (parent === TMP_DIR) {
+    if (parent === tmpDir) {
       await ctx.fs.mkdir(parent, { recursive: true });
     }
 
@@ -139,7 +139,10 @@ async function createEntry(
  * operand as a bare name to place in the temp dir, and a template containing a
  * slash is used as written.
  */
-function parseMktempArgs(args: string[]): MktempArgs | { error: string } {
+function parseMktempArgs(
+  args: string[],
+  tmpDir: string,
+): MktempArgs | { error: string } {
   let directory = false;
   let dryRun = false;
   let quiet = false;
@@ -231,13 +234,13 @@ function parseMktempArgs(args: string[]): MktempArgs | { error: string } {
       directory,
       dryRun,
       quiet,
-      template: `${parent ?? TMP_DIR}/${DEFAULT_TEMPLATE}`,
+      template: `${parent ?? tmpDir}/${DEFAULT_TEMPLATE}`,
     };
   }
   // A template with a slash names its own directory, so -p/-t do not apply.
   const template = operand.includes("/")
     ? operand
-    : `${useTmpDir || parent !== undefined ? (parent ?? TMP_DIR) : "."}/${operand}`;
+    : `${useTmpDir || parent !== undefined ? (parent ?? tmpDir) : "."}/${operand}`;
   return { directory, dryRun, quiet, template };
 }
 

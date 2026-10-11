@@ -23,7 +23,7 @@ let rootDir: string;
 let sessionId: StoreId.Session;
 let downloads: string;
 
-async function changesSince(baseline: { name: string; path: string }[]) {
+async function changesSince(baseline: { path: string }[]) {
   const set = await setFoldersBaseline(CHAT_ID, sessionId, baseline);
   if (set.isErr()) {
     throw set.error;
@@ -77,9 +77,7 @@ describe("detectFolderChanges", () => {
 
     const changes = await changesSince([]);
 
-    expect(changes?.added).toEqual([
-      { access: "read-write", name: "Downloads", path: downloads },
-    ]);
+    expect(changes?.added).toEqual([{ access: "read-write", path: downloads }]);
   });
 
   it("reports a removal beside a folder granted since", async () => {
@@ -89,20 +87,16 @@ describe("detectFolderChanges", () => {
     await grantFolder({ chatId: CHAT_ID, path: downloads, source: "card" });
     await revokeGrant({ chatId: CHAT_ID, path: gone });
 
-    const changes = await changesSince([{ name: "Old", path: gone }]);
+    const changes = await changesSince([{ path: gone }]);
 
-    expect(changes?.added).toEqual([
-      { access: "read-write", name: "Downloads", path: downloads },
-    ]);
-    expect(changes?.removed).toEqual([{ name: "Old", path: gone }]);
+    expect(changes?.added).toEqual([{ access: "read-write", path: downloads }]);
+    expect(changes?.removed).toEqual([{ path: gone }]);
   });
 
   it("reports nothing when the folders are as the model last saw them", async () => {
     await grantFolder({ chatId: CHAT_ID, path: downloads, source: "card" });
 
-    const changes = await changesSince([
-      { name: "Downloads", path: downloads },
-    ]);
+    const changes = await changesSince([{ path: downloads }]);
 
     expect(changes).toBeUndefined();
   });

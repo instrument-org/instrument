@@ -106,9 +106,6 @@ export function folder({
     access,
     createdAt: AT,
     id: name,
-    // Mount names are qualified with an ancestor directory, so they never match
-    // what the row displays.
-    mountName: `workspace-${name}`,
     path: AbsolutePathSchema.parse(path),
     source: "user",
   });

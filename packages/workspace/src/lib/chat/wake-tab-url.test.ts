@@ -16,12 +16,15 @@ vi.mock(import("../resolve-workspace-file-path"), async (importOriginal) => ({
     ),
 }));
 
-// The chat is told where a task's page is; a page on this computer must reach
-// it by the chat's own path, never by where it sits on disk.
+// The chat is told where a task's page is; a page in its folders keeps its
+// address, and one outside them is named only as that.
 describe("chatSpellingOfUrl", () => {
   it.each([
     ["https://example.com/a?b=1", "https://example.com/a?b=1"],
-    [`file://${chatRoot}/work/report.html`, "file:///task/work/report.html"],
+    [
+      `file://${chatRoot}/work/report.html`,
+      `file://${chatRoot}/work/report.html`,
+    ],
     [
       "file:///Users/someone/secrets.txt",
       "file://<a file outside your folders>",

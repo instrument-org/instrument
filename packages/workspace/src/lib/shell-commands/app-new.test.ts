@@ -27,6 +27,7 @@ vi.mock("../apps/preflight", () => ({
 }));
 
 const chatId = ChatIdSchema.parse("app-new-task");
+const CHAT_FOLDER = "/Users/me/chat";
 const apps = getWorkspaceConfig().apps;
 
 beforeEach(() => {
@@ -45,7 +46,7 @@ async function appWithStdin(stdin: string | undefined, ...args: string[]) {
   return createAppCommand({ chatId }).execute(
     args,
     createCommandContext({
-      cwd: "/task",
+      cwd: CHAT_FOLDER,
       env: new Map<string, string>(),
       fs: new InMemoryFs(),
       stdin: stdin === undefined ? EMPTY_BYTES : encodeUtf8ToBytes(stdin),
@@ -196,7 +197,9 @@ describe("app test and the guide skeleton", () => {
       "guide",
       "real-guide",
     );
-    expect(written.stdout).toContain("Wrote /apps/real-guide/guide.md.");
+    expect(written.stdout).toContain(
+      `Wrote ${path.join(getWorkspaceConfig().appsDir, "real-guide", "guide.md")}.`,
+    );
     expect(await guideOf("real-guide")).toContain("GET /things");
 
     const result = await app("test", "real-guide");
@@ -402,11 +405,11 @@ describe("app new with a key already stored", () => {
 describe("app icon", () => {
   async function setIcon(slug: string, file: string, svg: string) {
     const taskFs = new InMemoryFs();
-    await taskFs.writeFile(`/task/${file}`, svg);
+    await taskFs.writeFile(`${CHAT_FOLDER}/${file}`, svg);
     return createAppCommand({ chatId }).execute(
       ["icon", slug, file],
       createCommandContext({
-        cwd: "/task",
+        cwd: CHAT_FOLDER,
         env: new Map<string, string>(),
         fs: taskFs,
         stdin: EMPTY_BYTES,

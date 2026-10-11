@@ -8,7 +8,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { chatDir } from "../record-folders";
 import {
   addressAppsById,
   createOsascriptCommand,
@@ -18,13 +17,6 @@ import { taskLayout } from "../../test/helpers/task-layout";
 
 vi.mock("execa");
 
-const mockCtx = createCommandContext({
-  cwd: "/task",
-  env: new Map<string, string>(),
-  fs: new InMemoryFs(),
-  stdin: EMPTY_BYTES,
-});
-
 async function mockExeca() {
   const { execa } = await import("execa");
   vi.mocked(execa).mockResolvedValueOnce({ all: "", exitCode: 0 } as never);
@@ -33,7 +25,15 @@ async function mockExeca() {
 
 describe("osascriptCommand", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
-  const command = createOsascriptCommand(chatId, taskLayout(chatId));
+  const layout = taskLayout(chatId);
+  const command = createOsascriptCommand(chatId, layout);
+  const taskPath = layout.task.mountPoint;
+  const mockCtx = createCommandContext({
+    cwd: taskPath,
+    env: new Map<string, string>(),
+    fs: new InMemoryFs(),
+    stdin: EMPTY_BYTES,
+  });
 
   afterEach(() => {
     vi.resetAllMocks();
@@ -142,28 +142,17 @@ describe("osascriptCommand", () => {
     },
   );
 
-  it("points a quoted task path in the script at the task folder", async () => {
+  it("passes a script's real path through unchanged", async () => {
     const execa = await mockExeca();
+    const script = `read POSIX file "${taskPath}/invite.ics"`;
 
-    await command.execute(
-      ["-e", 'read POSIX file "/task/invite.ics"'],
-      mockCtx,
-    );
+    await command.execute(["-e", script], mockCtx);
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       "/usr/bin/osascript",
-      ["-e", `read POSIX file "${chatDir(chatId)}/invite.ics"`],
+      ["-e", script],
       expect.anything(),
     );
-  });
-
-  it("refuses a quoted folder-mount path in the script", async () => {
-    const result = await command.execute(
-      ["-e", 'read POSIX file "/mnt/Home/invite.ics"'],
-      mockCtx,
-    );
-
-    expect(result.exitCode).toBe(1);
   });
 
   it.each([
@@ -194,7 +183,7 @@ describe("osascriptCommand", () => {
     const script =
       'tell application "System Events" to tell process "Raycast" to click button 1 of window 1';
     const fs = new InMemoryFs();
-    await fs.writeFile("/task/work/drive.applescript", script);
+    await fs.writeFile(`${taskPath}/work/drive.applescript`, script);
 
     const results = [
       await command.execute(["-e", script], mockCtx),
@@ -209,11 +198,5 @@ describe("osascriptCommand", () => {
     expect(vi.mocked(execa)).not.toHaveBeenCalled();
     expect(results.map((result) => result.exitCode)).toEqual([1, 1, 1]);
     expect(results[0]?.stderr).toContain("import or config file");
-  });
-
-  it("refuses a script file on a mount it cannot reach", async () => {
-    const result = await command.execute(["/mnt/Home/script.scpt"], mockCtx);
-
-    expect(result.exitCode).toBe(1);
   });
 });

@@ -8,10 +8,8 @@ import { getSessionsStoreStorage } from "./session-store-storage";
 import { setParsedStorageItem } from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
 
-/** The granted folders a session was last told of, by path and mount name. */
-const FoldersBaselineSchema = z.array(
-  z.object({ name: z.string(), path: z.string() }),
-);
+/** The granted folders a session was last told of, by path. */
+const FoldersBaselineSchema = z.array(z.object({ path: z.string() }));
 
 type FoldersBaseline = z.output<typeof FoldersBaselineSchema>;
 

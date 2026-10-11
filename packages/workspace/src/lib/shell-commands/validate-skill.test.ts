@@ -13,7 +13,6 @@ import {
   vi,
 } from "vitest";
 
-import { WORKSPACE_SKILLS_MOUNT } from "../../mount-points";
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import {
   createMockChatConfigForDir,
@@ -68,26 +67,26 @@ async function writeSkill(name: string, contents: string) {
 
 describe("createValidateSkillCommand", () => {
   it.each([
-    "/mnt/documents/some-skill",
+    "/Users/me/Documents/some-skill",
     "../../etc/passwd",
-    "/task/work/skills/loaded",
+    "work/skills/loaded",
     "nested/name",
     "/skills",
   ])("refuses %j, which is not a workspace skill", async (argument) => {
     const result = await run(argument);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
-      "validate-skill: only skills under /skills/workspace/ can be checked.\n",
+      `validate-skill: only skills under ${skillsDir}/ can be checked.\n`,
     );
   });
 
-  it("accepts a bare name and the mounted path for the same skill", async () => {
+  it("accepts a bare name and the full path for the same skill", async () => {
     await writeSkill(
       "tidy",
       "---\nname: tidy\ndescription: Tidy things. Use when asked to tidy.\n---\n\nBody.\n",
     );
     const byName = await run("tidy");
-    const byPath = await run(`${WORKSPACE_SKILLS_MOUNT}/tidy/`);
+    const byPath = await run(`${skillsDir}/tidy/`);
     expect(byName).toEqual(byPath);
     expect(byName.exitCode).toBe(0);
     expect(byName.stdout).toContain("tidy: ok");
@@ -112,7 +111,7 @@ describe("createValidateSkillCommand", () => {
     const result = await run("ghost");
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(
-      'validate-skill: no skill named "ghost" in /skills/workspace/.\n',
+      `validate-skill: no skill named "ghost" in ${skillsDir}/.\n`,
     );
   });
 

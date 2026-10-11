@@ -2,7 +2,6 @@ import { defineCommand } from "just-bash";
 import fs from "node:fs/promises";
 import { dedent } from "radashi";
 
-import { WORKSPACE_SKILLS_MOUNT } from "../../mount-points";
 import { type AbsolutePath } from "../../schemas/paths";
 import { TOOL_NAMES } from "../../tools/name";
 import { absolutePathJoin } from "../absolute-path-join";
@@ -14,13 +13,13 @@ import {
   validateSkill,
 } from "../validate-skill";
 import { getWorkspaceConfig } from "../workspace-config";
-import { getWorkspaceSkillsDir } from "../workspace-fs-layout";
+import { getWorkspaceSkillsDir, shellPath } from "../workspace-fs-layout";
 
 const VALIDATE_SKILL_NAME = "validate-skill";
 
 export const VALIDATE_SKILL_COMMAND = {
   description: dedent`
-    Check a skill written under \`${WORKSPACE_SKILLS_MOUNT}/\` and report what is wrong with it.
+    Check a skill written in the workspace's skills folder and report what is wrong with it.
     Errors are what the runtime already acts on: a skill that is never discovered, or one \`${TOOL_NAMES.loadSkill}\` refuses. Warnings are authoring rules and context budgets.
     Run it after writing or editing a skill -- a skill with broken frontmatter fails silently, by simply never appearing anywhere.
     Usage: \`${VALIDATE_SKILL_NAME} [<name>...] [--json]\`. With no name it checks every skill in the workspace. Exits non-zero when there are errors.
@@ -31,14 +30,15 @@ export const VALIDATE_SKILL_COMMAND = {
 export function createValidateSkillCommand() {
   return defineCommand(VALIDATE_SKILL_COMMAND.name, async (args, ctx) => {
     const skillsDir = getWorkspaceSkillsDir();
+    const skillsPath = shellPath(skillsDir);
 
     const json = args.includes("--json");
     const requested = args.filter((arg) => !arg.startsWith("-"));
-    const names = requested.map(toSkillName);
+    const names = requested.map((argument) =>
+      toSkillName(argument, skillsPath),
+    );
     if (names.includes(null)) {
-      return fail(
-        `only skills under ${WORKSPACE_SKILLS_MOUNT}/ can be checked.`,
-      );
+      return fail(`only skills under ${skillsPath}/ can be checked.`);
     }
 
     const targets =
@@ -49,13 +49,13 @@ export function createValidateSkillCommand() {
       return {
         exitCode: 0,
         stderr: "",
-        stdout: `No skills in ${WORKSPACE_SKILLS_MOUNT}/ to check.\n`,
+        stdout: `No skills in ${skillsPath}/ to check.\n`,
       };
     }
 
     const missing = await findMissing(skillsDir, targets);
     if (missing) {
-      return fail(`no skill named "${missing}" in ${WORKSPACE_SKILLS_MOUNT}/.`);
+      return fail(`no skill named "${missing}" in ${skillsPath}/.`);
     }
 
     // The catalog and duplicate-name checks are about this skill's place among
@@ -86,7 +86,11 @@ export function createValidateSkillCommand() {
       exitCode: errors.length > 0 ? 1 : 0,
       stderr: "",
       stdout: json
-        ? `${JSON.stringify(reports.map(withSandboxPath), null, 2)}\n`
+        ? `${JSON.stringify(
+            reports.map((report) => withShellPath(report, skillsPath)),
+            null,
+            2,
+          )}\n`
         : reports.map(formatReport).join("\n"),
     };
   });
@@ -153,24 +157,21 @@ async function skillDirectoryNames(skillsDir: string) {
 }
 
 /**
- * Accept a bare name or a path under the skills mount, and nothing else.
+ * Accept a bare name or a path under the workspace's skills folder, and nothing else.
  *
  * Skills elsewhere on the machine belong to other tools and are read-only to
  * us, so reporting on one would only be advice nobody here can act on.
  */
-function toSkillName(argument: string): null | string {
+function toSkillName(argument: string, skillsPath: string): null | string {
   const normalized = argument.replace(/\/+$/, "");
-  const prefix = `${WORKSPACE_SKILLS_MOUNT}/`;
+  const prefix = `${skillsPath}/`;
   const rest = normalized.startsWith(prefix)
     ? normalized.slice(prefix.length)
     : normalized;
   return rest === "" || rest.includes("/") ? null : rest;
 }
 
-/**
- * Address the skill the way the agent can: its real location is a host path
- * that does not exist inside the sandbox and must not leak into output.
- */
-function withSandboxPath(report: SkillReport) {
-  return { ...report, path: `${WORKSPACE_SKILLS_MOUNT}/${report.name}` };
+/** Address the skill by the path the shell spells it with. */
+function withShellPath(report: SkillReport, skillsPath: string) {
+  return { ...report, path: `${skillsPath}/${report.name}` };
 }

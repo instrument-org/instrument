@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
   contextRolloverNotice,
-  HANDOFF_NOTES_PATH,
+  HANDOFF_NOTES_RELATIVE_PATH,
   readHandoffNotes,
 } from "./handoff-notes";
 import { sanitizeSurrogates } from "./sanitize-model-text";
@@ -36,14 +36,16 @@ describe("contextRolloverNotice", () => {
   });
 
   it("names the same path it would be read from when there are none", () => {
-    expect(contextRolloverNotice(undefined)).toContain(HANDOFF_NOTES_PATH);
+    expect(contextRolloverNotice(undefined)).toContain(
+      HANDOFF_NOTES_RELATIVE_PATH,
+    );
   });
 
   // The write instruction and the read both derive from this, so a path that
   // drifted would break the handoff silently rather than loudly.
-  it("names a path under the task mount", () => {
-    expect(HANDOFF_NOTES_PATH).toMatchInlineSnapshot(
-      `"/task/work/handoff-notes.md"`,
+  it("names a path under the chat's work folder", () => {
+    expect(HANDOFF_NOTES_RELATIVE_PATH).toMatchInlineSnapshot(
+      `"work/handoff-notes.md"`,
     );
   });
 

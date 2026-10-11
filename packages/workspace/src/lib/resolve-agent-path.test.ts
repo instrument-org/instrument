@@ -4,7 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { MOUNT } from "../mount-points";
 import { MountedFolder } from "../schemas/mounted-folder";
 import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
 import { chatsDir } from "./record-folders";
@@ -16,7 +15,6 @@ import {
 } from "./resolve-agent-path";
 import {
   buildWorkspaceFsLayout,
-  resolveNativeHostPath,
   resolveReadOnlyHostPath,
 } from "./workspace-fs-layout";
 
@@ -24,19 +22,11 @@ function abs(filePath: string) {
   return AbsolutePathSchema.parse(filePath);
 }
 
-function attachment(
-  id: string,
-  mountName: string,
-  folderPath: string,
-  access: MountedFolder.Access = "read-only",
-) {
+function attachment(id: string, folderPath: string) {
   return {
-    access,
-    createdAt: 0,
+    access: "read-write" as const,
     id: MountedFolder.IdSchema.parse(id),
-    mountName,
     path: abs(folderPath),
-    source: "user" as const,
   };
 }
 
@@ -193,10 +183,13 @@ describe("private-dir (.instrument) restriction", () => {
   });
 
   it.each([
-    { input: "/task/.instrument", label: "the virtual private dir" },
-    { input: "/task/.instrument/state.json", label: "a virtual private file" },
-    { input: "/task/.INSTRUMENT/state.json", label: "an uppercase spelling" },
-    { input: "/task/.Instrument", label: "a mixed-case spelling" },
+    { input: `${dir}/.instrument`, label: "the full path of the private dir" },
+    {
+      input: `${dir}/.instrument/state.json`,
+      label: "the full path of a private file",
+    },
+    { input: `${dir}/.INSTRUMENT/state.json`, label: "an uppercase spelling" },
+    { input: `${dir}/.Instrument`, label: "a mixed-case spelling" },
   ])("rejects $label via resolveAgentPath", ({ input }) => {
     const result = resolveAgentPath({ inputPath: input, layout });
     expect(result.isErr()).toBe(true);
@@ -215,18 +208,18 @@ describe("private-dir (.instrument) restriction", () => {
     },
   );
 
-  describe("a mount's private dir", () => {
+  describe("a folder's private dir", () => {
     // A folder the user attached is theirs, and a directory of that name in it
     // is an ordinary one rather than ours to hide.
-    it("leaves a folder mount's own .instrument dir alone", () => {
+    it("leaves a folder's own .instrument dir alone", () => {
       const attachedLayout = buildWorkspaceFsLayout({
-        folders: { a: attachment("id-a", "Docs", "/ext/one/Docs") },
+        folders: { a: attachment("id-a", "/ext/one/Docs") },
         taskHostRoot: dir,
       });
 
       expect(
         resolveAgentPath({
-          inputPath: `${MOUNT.folders}/Docs/.instrument/notes.md`,
+          inputPath: "/ext/one/Docs/.instrument/notes.md",
           layout: attachedLayout,
         }).isOk(),
       ).toBe(true);
@@ -240,16 +233,15 @@ describe("private-dir (.instrument) restriction", () => {
 describe("a chat's tasks dir", () => {
   const chat = ChatDirSchema.parse(path.join(chatsDir(), "2026-09-26-chat"));
   const childId = "2026-09-26-child";
-  const child = ChatDirSchema.parse(path.join(chat, "tasks", childId));
   const layout = buildWorkspaceFsLayout({ taskHostRoot: chat });
 
   it.each([
     `tasks/${childId}/.instrument/settings.json`,
     `tasks/${childId}/output/report.md`,
     "tasks",
-    `${MOUNT.task}/tasks/${childId}/.instrument/settings.json`,
-    `${MOUNT.task}/tasks/${childId}/output/report.md`,
-    `${MOUNT.task}/TASKS/${childId}/output/report.md`,
+    `${chat}/tasks/${childId}/.instrument/settings.json`,
+    `${chat}/tasks/${childId}/output/report.md`,
+    `${chat}/TASKS/${childId}/output/report.md`,
   ])("refuses %s for reading and writing", (input) => {
     const read = resolveAgentPath({ inputPath: input, layout });
     expect(read.isErr()).toBe(true);
@@ -263,16 +255,8 @@ describe("a chat's tasks dir", () => {
 
   it("refuses the read-only host path a real binary receives", () => {
     expect(
-      resolveReadOnlyHostPath(layout, `${MOUNT.task}/tasks/${childId}`),
+      resolveReadOnlyHostPath(layout, `${chat}/tasks/${childId}`),
     ).toBeNull();
-  });
-
-  it("quarantines the native host path", () => {
-    const native = resolveNativeHostPath(
-      chat,
-      `${MOUNT.task}/tasks/${childId}/.instrument/settings.json`,
-    );
-    expect(native.startsWith(path.join(child, ".instrument"))).toBe(false);
   });
 
   it("leaves the chat's own files writable", () => {
@@ -305,19 +289,16 @@ describe("a chat's tasks dir", () => {
   });
 });
 
-describe("resolveAgentPath (virtual layout paths)", () => {
+describe("resolveAgentPath (full paths)", () => {
   const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
   const layout = buildWorkspaceFsLayout({
-    folders: {
-      a: attachment("id-a", "Docs", "/ext/one/Docs"),
-      b: attachment("id-b", "Docs", "/ext/two/Docs"),
-    },
+    folders: { a: attachment("id-a", "/ext/one/Docs") },
     taskHostRoot: dir,
   });
 
-  it("resolves /task/... into the task like a relative path", () => {
+  it("resolves the chat's folder path into the chat like a relative path", () => {
     const result = resolveAgentPath({
-      inputPath: "/task/work/notes.md",
+      inputPath: "/tmp/task/work/notes.md",
       layout,
     });
     expect(result._unsafeUnwrap()).toEqual({
@@ -327,8 +308,8 @@ describe("resolveAgentPath (virtual layout paths)", () => {
     });
   });
 
-  it("resolves /task itself to the task root", () => {
-    const result = resolveAgentPath({ inputPath: "/task", layout });
+  it("resolves the chat's folder itself to the chat's root", () => {
+    const result = resolveAgentPath({ inputPath: "/tmp/task", layout });
     expect(result._unsafeUnwrap()).toEqual({
       absolutePath: "/tmp/task",
       displayPath: "./",
@@ -336,47 +317,29 @@ describe("resolveAgentPath (virtual layout paths)", () => {
     });
   });
 
-  it("resolves a mount path to the folder mount's host path", () => {
+  it("resolves a path in a folder the chat reaches to itself", () => {
     const result = resolveAgentPath({
-      inputPath: "/mnt/Docs/report.pdf",
+      inputPath: "/ext/one/Docs/report.pdf",
       layout,
     });
     const value = result._unsafeUnwrap();
     expect(value.absolutePath).toBe("/ext/one/Docs/report.pdf");
-    expect(value.displayPath).toBe("/mnt/Docs/report.pdf");
-    expect(value.mount?.readOnly).toBe(true);
+    expect(value.displayPath).toBe("/ext/one/Docs/report.pdf");
+    expect(value.mount?.hostRoot).toBe("/ext/one/Docs");
   });
 
-  it("resolves a deduplicated mount path to the second same-named folder", () => {
-    const result = resolveAgentPath({
-      inputPath: "/mnt/Docs (2)/report.pdf",
-      layout,
-    });
-    expect(result._unsafeUnwrap().absolutePath).toBe(
-      "/ext/two/Docs/report.pdf",
-    );
-  });
-
-  it("steers a real host path to its assigned mount path", () => {
-    const result = resolveAgentPath({
-      inputPath: "/ext/two/Docs/report.pdf",
-      layout,
-    });
-    // The second same-named folder gets a deduplicated mount point; the
-    // steering error must advertise that assigned path, not a recomputed one.
-    expect(result._unsafeUnwrapErr().message).toContain('"/mnt/Docs (2)/..."');
-  });
-
-  it("rejects unknown absolute paths, listing the available mounts", () => {
+  it("rejects a path outside every folder, pointing at request_folder", () => {
     const result = resolveAgentPath({ inputPath: "/etc/passwd", layout });
     const message = result._unsafeUnwrapErr().message;
-    expect(message).toContain("/task");
-    expect(message).toContain("/mnt/Docs");
-    expect(message).toContain("/mnt/Docs (2)");
+    expect(message).toContain('"/etc/passwd" is not in a folder you reach');
+    expect(message).toContain("request_folder");
   });
 
-  it("rejects traversal out of the task via /task/..", () => {
-    const result = resolveAgentPath({ inputPath: "/task/../etc", layout });
+  it("rejects traversal out of the chat's folder through ..", () => {
+    const result = resolveAgentPath({
+      inputPath: "/tmp/task/../etc",
+      layout,
+    });
     expect(result.isErr()).toBe(true);
   });
 });
@@ -384,31 +347,55 @@ describe("resolveAgentPath (virtual layout paths)", () => {
 describe("resolveWritableToolPath", () => {
   const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
   const layout = buildWorkspaceFsLayout({
-    folders: { a: attachment("id-a", "Docs", "/ext/one/Docs") },
+    folders: { a: attachment("id-a", "/ext/one/Docs") },
     taskHostRoot: dir,
   });
 
-  it("resolves relative and /task paths into the task", () => {
+  it("resolves relative and full paths into the chat", () => {
     expect(
       resolveWritableToolPath({ inputPath: "output/report.md", layout })
         ._unsafeUnwrap()
         .absolutePath.toString(),
     ).toBe("/tmp/task/output/report.md");
     expect(
-      resolveWritableToolPath({ inputPath: "/task/output/report.md", layout })
+      resolveWritableToolPath({
+        inputPath: "/tmp/task/output/report.md",
+        layout,
+      })
         ._unsafeUnwrap()
         .absolutePath.toString(),
     ).toBe("/tmp/task/output/report.md");
   });
 
-  it("rejects writes into a read-only mount with copy-into-task guidance", () => {
-    const result = resolveWritableToolPath({
-      inputPath: "/mnt/Docs/report.pdf",
+  it("resolves a write into a folder the chat reaches", () => {
+    const resolved = resolveWritableToolPath({
+      inputPath: "/ext/one/Docs/report.pdf",
       layout,
+    })._unsafeUnwrap();
+    expect(resolved.absolutePath).toBe("/ext/one/Docs/report.pdf");
+  });
+
+  it("rejects a write the rules keep from a folder, and still allows a read", () => {
+    const held = buildWorkspaceFsLayout({
+      folders: { a: attachment("id-a", "/ext/one/Docs") },
+      rules: {
+        home: "/Users/sam",
+        rules: [{ level: "readOnly", path: "/ext/one/Docs", source: "system" }],
+        withoutAsking: false,
+      },
+      taskHostRoot: dir,
     });
-    const message = result._unsafeUnwrapErr().message;
-    expect(message).toContain("read-only");
-    expect(message).toContain("cp '/mnt/Docs/report.pdf' attachments/");
+    const write = resolveWritableToolPath({
+      inputPath: "/ext/one/Docs/report.pdf",
+      layout: held,
+    });
+    expect(write._unsafeUnwrapErr().message).toContain("is read-only");
+    expect(
+      resolveAgentPath({
+        inputPath: "/ext/one/Docs/report.pdf",
+        layout: held,
+      }).isOk(),
+    ).toBe(true);
   });
 
   it("rejects unknown absolute write targets", () => {
@@ -420,7 +407,7 @@ describe("resolveWritableToolPath", () => {
   });
 });
 
-describe("symlink containment on a read-write mount", () => {
+describe("symlink containment in a folder", () => {
   let tmpDir: string;
   let layout: ReturnType<typeof buildWorkspaceFsLayout>;
 
@@ -437,14 +424,7 @@ describe("symlink containment on a read-write mount", () => {
       path.join(tmpDir, "Docs", "escape"),
     );
     layout = buildWorkspaceFsLayout({
-      folders: {
-        Docs: attachment(
-          "docs",
-          "Docs",
-          path.join(tmpDir, "Docs"),
-          "read-write",
-        ),
-      },
+      folders: { Docs: attachment("docs", path.join(tmpDir, "Docs")) },
       taskHostRoot: ChatDirSchema.parse(path.join(tmpDir, "task")),
     });
   });
@@ -455,7 +435,7 @@ describe("symlink containment on a read-write mount", () => {
 
   it("resolves a plain path inside the mount", () => {
     const result = resolveWritableToolPath({
-      inputPath: "/mnt/Docs/notes.md",
+      inputPath: path.join(tmpDir, "Docs", "notes.md"),
       layout,
     });
     expect(result.isOk()).toBe(true);
@@ -466,22 +446,20 @@ describe("symlink containment on a read-write mount", () => {
     }
   });
 
-  // A read-only mount only ever had to contain reads, so containment could rely
-  // on the target existing. A writable mount is a write primitive: the path a
-  // write creates does not exist yet, and the directories leading to it may not
-  // either.
+  // Containment cannot rely on the target existing: a write creates the path,
+  // and the directories leading to it may not exist either.
   it.each([
-    { input: "/mnt/Docs/escape/existing.txt", label: "an existing file" },
+    { input: "escape/existing.txt", label: "an existing file" },
+    { input: "escape/new-file.txt", label: "a file yet to be created" },
     {
-      input: "/mnt/Docs/escape/new-file.txt",
-      label: "a file yet to be created",
-    },
-    {
-      input: "/mnt/Docs/escape/deeper/new-file.txt",
+      input: "escape/deeper/new-file.txt",
       label: "a file under directories yet to be created",
     },
-  ])("refuses $label behind a symlink out of the mount", ({ input }) => {
-    const result = resolveWritableToolPath({ inputPath: input, layout });
+  ])("refuses $label behind a symlink out of the folder", ({ input }) => {
+    const result = resolveWritableToolPath({
+      inputPath: path.join(tmpDir, "Docs", input),
+      layout,
+    });
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
       expect(result.error.message).toMatch(/resolves outside its mount/);

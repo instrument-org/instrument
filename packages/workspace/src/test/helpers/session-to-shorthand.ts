@@ -90,9 +90,7 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     }
     case "data-folderChanges": {
       const foldersList = part.data.removed
-        .map(
-          (folder) => `<folder name="${folder.name}" path="${folder.path}" />`,
-        )
+        .map((folder) => `<folder path="${folder.path}" />`)
         .join("\n");
       return `<data-folderChanges>\n${indent(foldersList)}\n</data-folderChanges>`;
     }

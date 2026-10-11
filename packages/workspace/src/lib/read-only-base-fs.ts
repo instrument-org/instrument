@@ -1,13 +1,11 @@
 import { type IFileSystem, InMemoryFs } from "just-bash";
 
-import { MOUNT, WORKSPACE_SKILLS_MOUNT } from "../mount-points";
-
 /**
  * The empty, read-only base filesystem underneath the workspace mounts.
  *
- * Everything the agent may touch lives on a mount (/task, /mnt/<name>); the
- * base exists only so the mount tree has a root. Reads behave like an empty
- * filesystem, so `ls /` shows just the mount points. Writes fail with EROFS
+ * Everything the agent may touch lives on a mount (the chat's folder and each
+ * folder it reaches); the base exists only so the mount tree has a root. Reads
+ * behave like an empty filesystem, so `ls /` shows just the mount points. Writes fail with EROFS
  * instead of landing in a writable per-call InMemoryFs that silently
  * evaporates when the bash call ends -- the loud failure steers the agent to
  * put the file under the task instead of losing it.
@@ -46,13 +44,9 @@ export class ReadOnlyBaseFs implements IFileSystem {
 }
 
 function erofs(op: string, path: string) {
-  // A write that lands beside the skill sources is a skill being authored, and
-  // the task is the wrong place to send it.
-  const hint = path.startsWith(`${MOUNT.skills}/`)
-    ? `write skills under ${WORKSPACE_SKILLS_MOUNT}/ instead`
-    : "put files under the task (cwd) instead";
   return new Error(
-    `EROFS: read-only file system, ${op} '${path}' -- only the task ` +
-      `and its mounts are writable; ${hint}`,
+    `EROFS: read-only file system, ${op} '${path}' -- only this ` +
+      `conversation's folder and the folders you reach are writable; put ` +
+      `files in this conversation's folder (the working directory) instead`,
   );
 }

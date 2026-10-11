@@ -4,16 +4,22 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MountedFolder } from "../schemas/mounted-folder";
-import { ChatDirSchema } from "../schemas/paths";
+import {
+  AbsolutePathSchema,
+  ChatDirSchema,
+  WorkspaceDirSchema,
+} from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
+import { updatePermissionSettings } from "./permissions/rules";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 /**
  * The sandboxed `python` as the agent meets it: reading a folder mount in
- * place, refusing to write a read-only one, and explaining the limits of a
+ * place, refusing to write a closed one, and explaining the limits of a
  * WebAssembly interpreter in terms of the native one that has none of them.
  * `create-bash-env-js-exec.test.ts` is the same for `js-exec`.
  *
@@ -31,23 +37,54 @@ let attachedDir: string;
 let taskRoot: string;
 let chatId: ChatId;
 
-async function run(
-  command: string,
-  access: MountedFolder.Access = "read-only",
-) {
+function real(text: string) {
+  return text.replaceAll("<docs>", attachedDir).replaceAll("<task>", taskRoot);
+}
+
+/** Closes a folder in Docs through Settings › Permissions, so a write there is refused. */
+async function closeLockedFolder() {
+  await fs.mkdir(path.join(attachedDir, "locked"));
+  // Settings live in the workspace's root, which the mock chats share across
+  // test files, so this test keeps its own.
+  setWorkspaceConfig({
+    ...getWorkspaceConfig(),
+    rootDir: WorkspaceDirSchema.parse(path.join(tmpDir, "workspace")),
+  });
+  await updatePermissionSettings((settings) => ({
+    ...settings,
+    folders: [
+      {
+        addedAt: new Date(),
+        level: "never",
+        path: AbsolutePathSchema.parse(path.join(attachedDir, "locked")),
+      },
+    ],
+  }));
+}
+
+async function run(command: string) {
   const bash = await createBashEnv({
     folders: {
       Docs: {
-        access,
+        access: "read-write",
         id: MountedFolder.IdSchema.parse("docs-id"),
-        mountName: "Docs",
         path: ChatDirSchema.parse(attachedDir),
       },
     },
     sessionId,
     chatId,
   });
-  return bash.exec(command, { signal: AbortSignal.timeout(60_000) });
+  const result = await bash.exec(real(command), {
+    signal: AbortSignal.timeout(60_000),
+  });
+  // Reports what the sandbox said with the test's temp dirs named by token.
+  const named = (text: string) =>
+    text.replaceAll(attachedDir, "<docs>").replaceAll(taskRoot, "<task>");
+  return {
+    ...result,
+    stderr: named(result.stderr),
+    stdout: named(result.stdout),
+  };
 }
 
 beforeEach(async () => {
@@ -78,8 +115,7 @@ afterEach(async () => {
 describe("python inside the sandbox", () => {
   it("refuses to append to a file over the read limit rather than replace it", async () => {
     const result = await run(
-      `python3 -c "open('/mnt/Docs/big.bin', 'a').write('x')"`,
-      "read-write",
+      `python3 -c "open('<docs>/big.bin', 'a').write('x')"`,
     );
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("File too large");
@@ -93,12 +129,10 @@ describe("python inside the sandbox", () => {
     await fs.writeFile(path.join(attachedDir, "a", "one.pdf"), "");
     await fs.writeFile(path.join(attachedDir, "a", "b", "two.PDF"), "");
     const result = await run(
-      `python3 -c "from pathlib import Path; print(sorted(str(p) for p in Path('/mnt/Docs').rglob('*.pdf', case_sensitive=False)))"`,
+      `python3 -c "from pathlib import Path; print(sorted(str(p) for p in Path('<docs>').rglob('*.pdf', case_sensitive=False)))"`,
     );
     expect(result.stderr).toBe("");
-    expect(result.stdout).toBe(
-      "['/mnt/Docs/a/b/two.PDF', '/mnt/Docs/a/one.pdf']\n",
-    );
+    expect(result.stdout).toBe("['<docs>/a/b/two.PDF', '<docs>/a/one.pdf']\n");
   });
 
   it("exits with the script's own status", async () => {
@@ -112,26 +146,32 @@ describe("python inside the sandbox", () => {
     expect(message).toMatchObject({ exitCode: 1, stderr: "bad news\n" });
   });
 
-  it("reads a folder mount in place and refuses to write a read-only one", async () => {
+  it("reads a folder in place and refuses to write a closed one", async () => {
+    await closeLockedFolder();
     const read = await run(
-      `python -c "from pathlib import Path; print(Path('/mnt/Docs/readme.txt').read_text(), end='')"`,
+      `python -c "from pathlib import Path; print(Path('<docs>/readme.txt').read_text(), end='')"`,
     );
     expect(read).toMatchObject({ exitCode: 0, stdout: "hello docs\n" });
 
     const write = await run(
-      `python -c "f = open('/mnt/Docs/new.txt', 'w'); f.write('x'); f.close()"`,
+      `python -c "f = open('<docs>/locked/new.txt', 'w'); f.write('x'); f.close()"`,
     );
     expect(write.exitCode).toBe(1);
-    expect(write.stderr).toContain(
-      "OSError: [Errno 69] Read-only file system: '/mnt/Docs/new.txt'",
-    );
-    await expect(fs.stat(path.join(attachedDir, "new.txt"))).rejects.toThrow();
+    expect(write.stderr).toMatchInlineSnapshot(`
+      "Traceback (most recent call last):
+        File "<string>", line 1, in <module>
+      PermissionError: [Errno 2] Permission denied: '<docs>/locked/new.txt'
+      <docs>/locked/new.txt is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
+      "
+    `);
+    await expect(
+      fs.stat(path.join(attachedDir, "locked", "new.txt")),
+    ).rejects.toThrow();
   });
 
-  it("writes a read-and-write folder and the task alike", async () => {
+  it("writes a folder and the chat's own alike", async () => {
     const result = await run(
-      `python -c "open('/mnt/Docs/out.txt', 'w').write('mount'); open('work/out.txt', 'w').write('task')"`,
-      "read-write",
+      `python -c "open('<docs>/out.txt', 'w').write('mount'); open('work/out.txt', 'w').write('task')"`,
     );
     expect(result).toMatchObject({ exitCode: 0, stderr: "" });
     await expect(
@@ -149,10 +189,10 @@ describe("python inside the sandbox", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatchInlineSnapshot(`
       "Traceback (most recent call last):
-        File "/task/work/report.py", line 8, in <module>
+        File "<task>/work/report.py", line 8, in <module>
           fail()
           ~~~~^^
-        File "/task/work/report.py", line 6, in fail
+        File "<task>/work/report.py", line 6, in fail
           raise ValueError('boom')
       ValueError: boom
       "
@@ -160,13 +200,13 @@ describe("python inside the sandbox", () => {
   });
 
   it("names <string> for inline code and strips the interpreter's own frames", async () => {
-    const result = await run(`python -c "open('/mnt/Docs/missing.txt')"`);
+    const result = await run(`python -c "open('<docs>/missing.txt')"`);
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatchInlineSnapshot(`
       "Traceback (most recent call last):
         File "<string>", line 1, in <module>
-      FileNotFoundError: [Errno 44] No such file or directory: '/mnt/Docs/missing.txt'
+      FileNotFoundError: [Errno 44] No such file or directory: '<docs>/missing.txt'
       "
     `);
   });
@@ -206,12 +246,12 @@ describe("python inside the sandbox", () => {
 
   it("reports a file the bridge cannot carry as too large, once", async () => {
     const result = await run(
-      `python -c "print(len(open('/mnt/Docs/big.bin', 'rb').read()))"`,
+      `python -c "print(len(open('<docs>/big.bin', 'rb').read()))"`,
     );
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
-      "OSError: [Errno 22] File too large: '/mnt/Docs/big.bin'",
+      "OSError: [Errno 22] File too large: '<docs>/big.bin'",
     );
     expect(result.stderr).toContain(
       "python: this sandboxed python reads a file whole through an 8 MB bridge",
@@ -221,13 +261,12 @@ describe("python inside the sandbox", () => {
 
   it("refuses to append to a file the bridge cannot carry rather than replace it", async () => {
     const result = await run(
-      `python -c "f = open('/mnt/Docs/big.bin', 'a'); f.write('tail'); f.close()"`,
-      "read-write",
+      `python -c "f = open('<docs>/big.bin', 'a'); f.write('tail'); f.close()"`,
     );
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
-      "OSError: [Errno 22] File too large: '/mnt/Docs/big.bin'",
+      "OSError: [Errno 22] File too large: '<docs>/big.bin'",
     );
     const stat = await fs.stat(path.join(attachedDir, "big.bin"));
     expect(stat.size).toBe(9 * 1024 * 1024);
@@ -262,89 +301,6 @@ print(__main__ is sys.modules['__main__'], pickle.loads(pickle.dumps(Point(7))).
     expect(result.stderr).toContain("runs under `python-native`");
   });
 
-  it("runs a loaded skill's script natively", async () => {
-    // The native interpreter needs a virtualenv this test has no uv to build,
-    // so the carve-out shows as the mount guard the native path answers with,
-    // which the sandboxed interpreter would never have raised.
-    await fs.writeFile(
-      path.join(taskRoot, "work", "skills", "demo", "scripts", "run.py"),
-      "print('skill')\n",
-    );
-    const result = await run(
-      "python work/skills/demo/scripts/run.py /mnt/Docs/readme.txt",
-    );
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(
-      "python: /mnt/Docs/readme.txt is inside a folder mount, which python cannot read.",
-    );
-    // A skill script has no sandboxed run to be redirected to.
-    expect(result.stderr).not.toContain("Run it with `python` instead");
-    expect(result.stderr).toContain("Copy the file into the task first");
-  });
-
-  it("runs a program importing an installed package natively", async () => {
-    // As with the skill script above, the native run shows as the mount guard
-    // it answers with, since this test has no uv to build the virtualenv.
-    await fs.mkdir(
-      path.join(
-        taskRoot,
-        ".venv",
-        "lib",
-        "python3.12",
-        "site-packages",
-        "numpy",
-      ),
-      { recursive: true },
-    );
-    await fs.writeFile(
-      path.join(taskRoot, "work", "stats.py"),
-      "import sys\nimport numpy as np\nprint(open(sys.argv[1]).read())\n",
-    );
-    const result = await run("python work/stats.py /mnt/Docs/readme.txt");
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(
-      "python: this program imports numpy, installed in the task's virtualenv, so it runs there, as `python-native` does.",
-    );
-    expect(result.stderr).not.toContain("Run it with `python` instead");
-    expect(result.stderr).toContain("Copy the file into the task first");
-  });
-
-  it.each([
-    {
-      command: `python -c "import numpy; open('/mnt/Docs/readme.txt')"`,
-      shape: "-c code",
-    },
-    {
-      command: "python <<'PY'\nimport numpy\nopen('/mnt/Docs/readme.txt')\nPY",
-      shape: "a heredoc",
-    },
-  ])(
-    "refuses an folder-mount path in $shape it sends to the native interpreter",
-    async ({ command }) => {
-      await fs.mkdir(
-        path.join(
-          taskRoot,
-          ".venv",
-          "lib",
-          "python3.12",
-          "site-packages",
-          "numpy",
-        ),
-        { recursive: true },
-      );
-      const result = await run(command);
-
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain(
-        "python: this program imports numpy, installed in the task's virtualenv, so it runs there, as `python-native` does.",
-      );
-      expect(result.stderr).toContain("/mnt");
-      expect(result.stderr).not.toContain("Run it with `python` instead");
-    },
-  );
-
   it("keeps a program in the sandbox when the package it imports is not installed", async () => {
     await fs.mkdir(
       path.join(
@@ -358,7 +314,7 @@ print(__main__ is sys.modules['__main__'], pickle.loads(pickle.dumps(Point(7))).
       { recursive: true },
     );
     const result = await run(
-      `python -c "import json; print(open('/mnt/Docs/readme.txt').read().strip())"`,
+      `python -c "import json; print(open('<docs>/readme.txt').read().strip())"`,
     );
 
     expect(result).toMatchObject({ exitCode: 0, stdout: "hello docs\n" });
@@ -372,21 +328,5 @@ print(__main__ is sys.modules['__main__'], pickle.loads(pickle.dumps(Point(7))).
       exitCode: 0,
       stdout: "python\npython3\npython-native\njs-exec\n",
     });
-  });
-});
-
-describe("python-native", () => {
-  it("offers the sandboxed python for a mount it cannot read", async () => {
-    const result = await run(
-      "python-native work/report.py /mnt/Docs/readme.txt",
-    );
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(
-      "python-native: /mnt/Docs/readme.txt is inside a folder mount, which python-native cannot read.",
-    );
-    expect(result.stderr).toContain(
-      "Run it with `python` instead, which reads folder mounts directly, if the script needs no installed package. Otherwise copy the file into the task first (cp '/mnt/Docs/readme.txt' attachments/) and run python-native on the copy.",
-    );
   });
 });

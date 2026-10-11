@@ -18,7 +18,6 @@ import path from "node:path";
 
 import { AGENT_FILES_LANGUAGE } from "../../src/constants";
 import { getCurrentFileInfo } from "../../src/lib/get-file-info";
-import { MOUNT } from "../../src/mount-points";
 import { type WorkspaceFilePath } from "../../src/schemas/paths";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, defineEval } from "../harness";
@@ -243,18 +242,14 @@ function namesEditedNote(text: string): string[] {
  * assertions could pass on a note nobody changed.
  */
 const assertNoteEdited: Assertion = {
-  check: async ({ chatId }) => {
+  check: () => {
     const text = "Added the items at the bottom of the first section";
-    // Read at the mount the conversation sees, whatever it said, so the edit
+    // Read where the folder is, whatever the conversation said, so the edit
     // is scored apart from whether anyone handed it over.
-    const resolved = await getCurrentFileInfo({
-      filePath: `${MOUNT.folders}/Journal/${EDITED_NOTE}` as WorkspaceFilePath,
-      chatId,
-    });
-    if (resolved.isErr()) {
-      return { evidence: resolved.error.message, passed: false, text };
-    }
-    const note = fs.readFileSync(resolved.value.hostPath, "utf8");
+    const note = fs.readFileSync(
+      path.join(FIXTURES, "Journal", EDITED_NOTE),
+      "utf8",
+    );
     const [first = "", second = ""] = note.split(/^## Reading$/mu);
     const firstLines = first.trim().split("\n");
     const tail = firstLines.slice(-ADDED_ITEMS.length).join("\n").toLowerCase();
@@ -272,7 +267,7 @@ const assertNoteEdited: Assertion = {
 // A link whose target is the note, either as its path or as the app's own
 // address for a file; both draw the same chip the fence's card opens.
 const NOTE_LINK = new RegExp(
-  String.raw`\[[^\]]*\]\(\s*((?:${APP_NAME_SLUG}://file/)?/*${MOUNT.folders.slice(1)}/[^)\s]*${EDITED_NOTE.replaceAll(".", String.raw`\.`)})\s*\)`,
+  String.raw`\[[^\]]*\]\(\s*((?:${APP_NAME_SLUG}://file/)?/*[^)\s]*${EDITED_NOTE.replaceAll(".", String.raw`\.`)})\s*\)`,
   "giu",
 );
 

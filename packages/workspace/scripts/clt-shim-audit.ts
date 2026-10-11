@@ -53,7 +53,6 @@ import { runPnpmCommand } from "../src/lib/run-pnpm";
 import { getSkillRuntime } from "../src/lib/skill-runtime";
 import { placeChat } from "../src/lib/record-folders";
 import { taskVenvPython } from "../src/lib/uv";
-import { buildWorkspaceFsLayout } from "../src/lib/workspace-fs-layout";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -156,7 +155,6 @@ async function installSkill({
     const { exitCode, stderr, stdout } = await runPnpmCommand({
       args: ["install"],
       cwd: dir,
-      layout: buildWorkspaceFsLayout({ taskHostRoot: dir }),
       signal,
       chatId,
     });

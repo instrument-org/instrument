@@ -61,16 +61,27 @@ export async function updatePermissionSettings(
   return PermissionSettingsSchema.parse(written);
 }
 
+/**
+ * What a rule makes of its folder: a person's level, or one of the two the
+ * app sets for its own folders. "hidden" is its internals, which the agent
+ * meets as missing; "readOnly" is what it may read and never change, such
+ * as the skills the app ships.
+ */
+export type Access = "hidden" | "readOnly" | Level;
+
 /** One rule at one path, and where it came from. */
 export interface Rule {
   /** Every hidden entry directly in `path`, rather than `path` itself. */
   dotEntries?: true;
-  level: Level;
+  level: Access;
   path: string;
   /** Present for a built-in place's rule. */
   place?: PlaceId;
-  /** Ranks rules at the same path: a chat's grant over a folder rule over a place. */
-  source: "folder" | "grant" | "place";
+  /**
+   * Ranks rules at the same path: the app's own over a chat's grant over a
+   * folder rule over a place.
+   */
+  source: "folder" | "grant" | "place" | "system";
 }
 
 /** Everything that decides one chat's reach, resolved once and checked often. */
@@ -129,12 +140,17 @@ export function rulesFor({
 
 /** What the rules make of one path. */
 export interface Reach {
-  level: Level;
+  level: "allow" | "ask" | "hidden" | "never";
   /** The rule that decided, absent where nothing but the defaults did. */
   rule?: Rule;
 }
 
-const SOURCE_RANK = { folder: 1, grant: 2, place: 0 } as const;
+export const SOURCE_RANK = {
+  folder: 1,
+  grant: 2,
+  place: 0,
+  system: 3,
+} as const;
 
 /**
  * Whether the agent may read or change `hostPath`. The deepest rule holding
@@ -151,44 +167,74 @@ export function reachOf(
   hostPath: string,
   op: "read" | "write",
 ): Reach {
+  const target = fold(path.resolve(hostPath));
   let best: undefined | { depth: number; rule: Rule };
-  for (const rule of rules.rules) {
-    const depth = holdingDepth(rule, hostPath);
-    if (depth === null) {
+  for (const { depth, prefix, root, rule } of compiled(rules)) {
+    let held: number | undefined;
+    if (rule.dotEntries) {
+      // The rule's folder's hidden entries, one level in: `<root>/.x...`.
+      if (target.startsWith(`${prefix}.`)) {
+        held = depth + 1;
+      }
+    } else if (target === root || target.startsWith(prefix)) {
+      held = depth;
+    }
+    if (held === undefined) {
       continue;
     }
     if (
       !best ||
-      depth > best.depth ||
-      (depth === best.depth &&
+      held > best.depth ||
+      (held === best.depth &&
         SOURCE_RANK[rule.source] > SOURCE_RANK[best.rule.source])
     ) {
-      best = { depth, rule };
+      best = { depth: held, rule };
     }
   }
-  const level = best ? best.rule.level : op === "read" ? "allow" : "ask";
+  const access = best ? best.rule.level : op === "read" ? "allow" : "ask";
+  const level =
+    access === "readOnly" ? (op === "read" ? "allow" : "never") : access;
   return {
     level: level === "ask" && rules.withoutAsking ? "allow" : level,
     rule: best?.rule,
   };
 }
 
-/** How deep the rule's path is, if it holds `hostPath`. */
-function holdingDepth(rule: Rule, hostPath: string): null | number {
-  const within = hostPathWithin(rule.path, hostPath);
-  if (within === null) {
-    return null;
-  }
-  const depth = segments(rule.path);
-  if (!rule.dotEntries) {
-    return depth;
-  }
-  const first = within.split("/")[1];
-  return first?.startsWith(".") ? depth + 1 : null;
+/**
+ * Disks that ignore case: the default on macOS and Windows, where
+ * `~/documents` opens `~/Documents` and a rule has to hold both.
+ */
+const CASE_INSENSITIVE =
+  process.platform === "darwin" || process.platform === "win32";
+
+function fold(value: string): string {
+  return CASE_INSENSITIVE ? value.toLowerCase() : value;
 }
 
-function segments(hostPath: string): number {
-  return path.resolve(hostPath).split(path.sep).filter(Boolean).length;
+/**
+ * The rules as plain string prefixes, made once per set: a shell asks of
+ * every entry a walk passes, tens of thousands of times a call.
+ */
+const compiledRules = new WeakMap<
+  Rules,
+  { depth: number; prefix: string; root: string; rule: Rule }[]
+>();
+
+function compiled(rules: Rules) {
+  let known = compiledRules.get(rules);
+  if (!known) {
+    known = rules.rules.map((rule) => {
+      const root = fold(path.resolve(rule.path));
+      return {
+        depth: root.split(path.sep).filter(Boolean).length,
+        prefix: root.endsWith(path.sep) ? root : `${root}${path.sep}`,
+        root,
+        rule,
+      };
+    });
+    compiledRules.set(rules, known);
+  }
+  return known;
 }
 
 /**

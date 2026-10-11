@@ -3,7 +3,6 @@ import os from "node:os";
 import { type ChatGrant } from "../../schemas/chat-settings";
 import { MountedFolder } from "../../schemas/mounted-folder";
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { assignMountNames } from "../assign-mount-names";
 import { pathExists } from "../path-exists";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { sessionOfChat } from "../record-folders";
@@ -15,7 +14,7 @@ import { listTopics } from "./topics";
 import { type ChatId } from "../../schemas/chat-id";
 
 /**
- * The folders a chat reaches, by the name each is mounted under: the home
+ * The folders a chat reaches: the home
  * folder and the workspace folder always, the folders granted in the chat,
  * the folders of the topics it is filed under while it is, and the folders
  * Settings › Permissions allows everywhere. Only the
@@ -25,12 +24,9 @@ import { type ChatId } from "../../schemas/chat-id";
  *
  * The window, which no chat is, reaches the two standing folders alone.
  *
- * Names are derived, never stored, and assigned in a fixed order: the two
- * standing folders, then the grants by when each was granted, then the
- * topics' folders. A folder takes its plain name where it is free, so an
- * earlier grant keeps its name and only a later one that collides with it is
- * qualified, and a path the chat already used never moves when a folder is
- * granted after it.
+ * Keyed by path, in a fixed order: the two standing folders, then the
+ * grants by when each was granted, then the topics' folders, then the
+ * folders allowed everywhere.
  */
 export async function folderReach(
   chatId: ChatId,
@@ -53,7 +49,6 @@ export async function folderReach(
       add({
         access: "read-write",
         id: MountedFolder.IdSchema.parse(`grant:${grant.path}`),
-        mountName: "",
         path: grant.path,
       });
     }
@@ -69,15 +64,7 @@ export async function folderReach(
     }
   }
 
-  const names = assignMountNames(folders);
-  // Every folder a chat reaches is its to read and write, short of what
-  // effectiveFolderAccess keeps read-only: anything holding the workspace.
-  return Object.fromEntries(
-    folders.map((folder) => {
-      const mountName = names.get(folder.id) ?? folder.id;
-      return [mountName, { ...folder, mountName }];
-    }),
-  );
+  return Object.fromEntries(folders.map((folder) => [folder.path, folder]));
 }
 
 /**
@@ -88,7 +75,6 @@ function standingFolder(folderPath: string): MountedFolder.Type {
   return {
     access: "read-write",
     id: MountedFolder.IdSchema.parse(`reach:${folderPath}`),
-    mountName: "",
     path: AbsolutePathSchema.parse(folderPath),
   };
 }

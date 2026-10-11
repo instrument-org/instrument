@@ -19,7 +19,6 @@ function layoutFor(taskRoot: string, docsRoot: string) {
       docs: {
         access: "read-only",
         id: MountedFolder.IdSchema.parse("docs"),
-        mountName: "Docs",
         path: AbsolutePathSchema.parse(docsRoot),
       },
     },
@@ -43,9 +42,9 @@ describe("agentSpellingOfFileUrls", () => {
       ),
     ).toMatchInlineSnapshot(`
       "✓ Report
-        file:///task/work/report.html#top
-        file:///mnt/Docs/page.html
-        file:///task"
+        file:///Users/me/Tasks/t1/work/report.html#top
+        file:///Users/me/My Docs/page.html
+        file:///Users/me/Tasks/t1"
     `);
   });
 
@@ -55,7 +54,7 @@ describe("agentSpellingOfFileUrls", () => {
         "file:///Users/me/Tasks/t1/work/page.html?instrument-edit=abc#top",
         layout,
       ),
-    ).toBe("file:///task/work/page.html#top");
+    ).toBe("file:///Users/me/Tasks/t1/work/page.html#top");
   });
 
   it("names a file outside every mount without its place on the computer", () => {
@@ -94,15 +93,15 @@ describe("agentPathOfFileUrl", () => {
   });
 
   it.each([
-    { expected: "/task/work/page.html", file: "task/work/page.html" },
-    { expected: "/mnt/Docs/page.html", file: "docs/page.html" },
-    { expected: null, file: "elsewhere/secret.txt" },
-    { expected: null, file: "task/.instrument/task.db" },
-    { expected: null, file: "task/work/leak/secret.txt" },
-  ])("$file → $expected", ({ expected, file }) => {
+    { file: "task/work/page.html", reachable: true },
+    { file: "docs/page.html", reachable: true },
+    { file: "elsewhere/secret.txt", reachable: false },
+    { file: "task/.instrument/task.db", reachable: false },
+    { file: "task/work/leak/secret.txt", reachable: false },
+  ])("$file → reachable: $reachable", ({ file, reachable }) => {
     expect(
       agentPathOfFileUrl(layout, fileUrlOfHostPath(path.join(root, file))),
-    ).toBe(expected);
+    ).toBe(reachable ? path.join(root, file) : null);
   });
 
   it("finds a mount whose root is spelled through a symlink", async () => {
@@ -114,7 +113,7 @@ describe("agentPathOfFileUrl", () => {
         linked,
         fileUrlOfHostPath(path.join(root, "task/work/page.html")),
       ),
-    ).toBe("/task/work/page.html");
+    ).toBe(path.join(linkedRoot, "work/page.html"));
   });
 
   it("refuses an address that is not a file", () => {

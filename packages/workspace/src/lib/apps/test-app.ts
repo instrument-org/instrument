@@ -1,9 +1,9 @@
 import { APP_NAME } from "@instrument-org/shared";
 
-import { MOUNT } from "../../mount-points";
 import { type AbsolutePath } from "../../schemas/paths";
 import { APP_COMMAND } from "../shell-commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
+import { shellPath } from "../workspace-fs-layout";
 import { isConnected, readConnection, recordConnection } from "./connection";
 import {
   credentialMovedMessage,
@@ -143,7 +143,7 @@ export async function runAppTest({
           ? {
               name: "guide",
               ...failure(
-                `${MOUNT.apps}/${slug}/${APP_GUIDE_FILE_NAME} still has prompts \`${APP_COMMAND.name} new\` left: ${unanswered.length} unanswered. Answer them from what you know about the service before connecting, since this file is what the first request in a task is handed instead of its answer. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
+                `${shellPath(getWorkspaceConfig().appsDir)}/${slug}/${APP_GUIDE_FILE_NAME} still has prompts \`${APP_COMMAND.name} new\` left: ${unanswered.length} unanswered. Answer them from what you know about the service before connecting, since this file is what the first request in a task is handed instead of its answer. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
               ),
             }
           : {

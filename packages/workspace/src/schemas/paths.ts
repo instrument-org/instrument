@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-import { MOUNT } from "../mount-points";
-
 // These schemas are shared with the renderer, so they cannot reach for
 // `node:path`. Matches `path.isAbsolute` for both posix (`/foo`) and win32
 // (`\foo`, `C:\foo`, `C:/foo`) shapes regardless of the host platform.
@@ -41,31 +39,25 @@ export const RelativeTaskPathSchema = RelativePathSchema.refine(
 );
 
 /**
- * An absolute virtual path under a mount the agent reaches outside its own
- * folder: a folder on the user's disk under `MOUNT.folders` (e.g.
- * `/mnt/Photos/cat.png`), or a skill under `MOUNT.skills`.
+ * An absolute path in the shell's spelling (`/Users/sam/Photos/cat.png`, or
+ * `/c/Users/sam/Photos/cat.png` on Windows). Which of them the agent may read
+ * is for the permission rules to say when one is opened.
  */
-const MountedWorkspacePathSchema = z
+const AbsoluteFilePathSchema = z
   .string()
-  .refine(
-    (val) =>
-      val.startsWith(`${MOUNT.folders}/`) ||
-      // A skill, read where its source is mounted (`/skills/<source>/...`).
-      val.startsWith(`${MOUNT.skills}/`),
-    `Mounted path must be under ${MOUNT.folders}/ or ${MOUNT.skills}/`,
-  )
-  .brand("MountedWorkspacePath")
+  .refine((val) => val.startsWith("/"), "Path must be absolute")
+  .brand("AbsoluteFilePath")
   .refine(
     (val) =>
       !val.includes("\\") &&
       !val.includes("//") &&
       !val.split("/").includes(".."),
-    "Mounted path must not contain traversal or invalid separators",
+    "Path must not contain traversal or invalid separators",
   );
 
-/** A task-relative path or a folder mount's absolute virtual mount path. */
+/** A path relative to the chat's folder, or an absolute path in the shell's spelling. */
 export const WorkspaceFilePathSchema = z.union([
   RelativeTaskPathSchema,
-  MountedWorkspacePathSchema,
+  AbsoluteFilePathSchema,
 ]);
 export type WorkspaceFilePath = z.output<typeof WorkspaceFilePathSchema>;

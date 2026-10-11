@@ -4,13 +4,10 @@ import {
   encodeUtf8ToBytes,
   InMemoryFs,
 } from "just-bash";
-import fs from "node:fs/promises";
-import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { chatDir } from "../record-folders";
 import { createPythonNativeCommand, importedModules } from "./python";
 import { taskLayout } from "../../test/helpers/task-layout";
 
@@ -21,55 +18,53 @@ vi.mock("./uv", () => ({
 
 const realFs = new InMemoryFs();
 
-const mockCtx = createCommandContext({
-  cwd: "/task",
-  env: new Map<string, string>(),
-  fs: realFs,
-  stdin: EMPTY_BYTES,
-});
-
 describe("python-native", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
-  const command = createPythonNativeCommand(chatId, taskLayout(chatId));
+  const layout = taskLayout(chatId);
+  const command = createPythonNativeCommand(chatId, layout);
+  const taskPath = layout.task.mountPoint;
+  const mockCtx = createCommandContext({
+    cwd: taskPath,
+    env: new Map<string, string>(),
+    fs: realFs,
+    stdin: EMPTY_BYTES,
+  });
 
   afterEach(() => {
     vi.resetAllMocks();
   });
 
-  it("bridges quoted /task paths inside -c code", async () => {
+  it("passes -c code with a real path through unchanged", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
     } as never);
+    const code = `open("${taskPath}/attachments/chart.svg")`;
 
-    await command.execute(
-      ["-c", 'open("/task/attachments/chart.svg")'],
-      mockCtx,
-    );
+    await command.execute(["-c", code], mockCtx);
 
     const calledArgs = vi.mocked(execa).mock.calls.at(-1)?.[1];
-    expect(calledArgs).toEqual(["-c", 'open("./attachments/chart.svg")']);
+    expect(calledArgs).toEqual(["-c", code]);
   });
 
-  it("bridges quoted /task paths in a heredoc program on stdin", async () => {
+  it("passes a heredoc program on stdin through unchanged", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
     } as never);
+    const program = `print(open("${taskPath}/work/data.csv").read())`;
 
     await command.execute([], {
       ...mockCtx,
-      stdin: encodeUtf8ToBytes('print(open("/task/work/data.csv").read())'),
+      stdin: encodeUtf8ToBytes(program),
     });
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       expect.any(String),
       [],
-      expect.objectContaining({
-        input: Buffer.from('print(open("./work/data.csv").read())'),
-      }),
+      expect.objectContaining({ input: Buffer.from(program) }),
     );
   });
 
@@ -80,7 +75,7 @@ describe("python-native", () => {
       exitCode: 0,
     } as never);
 
-    const data = 'rows mentioning "/task/x" are data, not code';
+    const data = 'rows mentioning "/x" are data, not code';
     await command.execute(["work/script.py"], {
       ...mockCtx,
       stdin: encodeUtf8ToBytes(data),
@@ -112,38 +107,6 @@ describe("python-native", () => {
         input: Buffer.from("print('café → déjà')", "utf8"),
       }),
     );
-  });
-
-  it("blocks a script file with an absolute /task path and explains the fix", async () => {
-    const { execa } = await import("execa");
-    const workDir = path.join(chatDir(chatId), "work");
-    await fs.mkdir(workDir, { recursive: true });
-    const scriptPath = path.join(workDir, "report.py");
-    await fs.writeFile(scriptPath, 'open("/task/output/report.txt", "w")');
-
-    try {
-      const result = await command.execute(["work/report.py"], mockCtx);
-
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain("task-relative");
-      expect(vi.mocked(execa)).not.toHaveBeenCalled();
-    } finally {
-      await fs.rm(scriptPath, { force: true });
-    }
-  });
-
-  it("rejects -c code referencing /mnt paths without spawning", async () => {
-    const { execa } = await import("execa");
-
-    const result = await command.execute(
-      ["-c", 'open("/mnt/Photos/clip.mov")'],
-      mockCtx,
-    );
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Run it with `python` instead");
-    expect(result.stderr).toContain("copy the file into the task first");
-    expect(vi.mocked(execa)).not.toHaveBeenCalled();
   });
 });
 

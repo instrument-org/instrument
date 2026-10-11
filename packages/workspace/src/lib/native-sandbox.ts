@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -13,6 +13,7 @@ import {
   type Reach,
   reachOf,
   type Rules,
+  SOURCE_RANK,
 } from "./permissions/rules";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -107,18 +108,35 @@ export function seatbeltProfile(reach: NativeReach): string {
   ];
   for (const rule of rules) {
     const level = rule.level === "ask" && withoutAsking ? "allow" : rule.level;
-    const access = "file-read* file-write*";
+    const filter = (spelled: string) =>
+      rule.dotEntries
+        ? `(regex #"^${regexEscape(spelled)}/\\.[^/]+(/|$)")`
+        : `(subpath ${sbplString(spelled)})`;
+    // A read-only folder opens for reading and closes to changes; the two
+    // rules sit at one depth, in that order.
+    const texts = (spelled: string) =>
+      level === "allow"
+        ? [`(allow file-read* file-write* ${filter(spelled)})`]
+        : level === "readOnly"
+          ? [
+              `(allow file-read* ${filter(spelled)})`,
+              `(deny file-write* ${filter(spelled)})`,
+            ]
+          : [`(deny file-read* file-write* ${filter(spelled)})`];
     entries.push(
-      ...spellings(rule.path).map((spelled) => ({
-        depth: depthOf(rule.path) + (rule.dotEntries ? 1 : 0),
-        opened: level === "allow" && !rule.dotEntries ? spelled : undefined,
-        rank: { folder: 1, grant: 2, place: 0 }[rule.source],
-        text: `(${level === "allow" ? "allow" : "deny"} ${access} ${
-          rule.dotEntries
-            ? `(regex #"^${regexEscape(spelled)}/\\.[^/]+(/|$)")`
-            : `(subpath ${sbplString(spelled)})`
-        })`,
-      })),
+      ...spellings(rule.path).flatMap((spelled) =>
+        texts(spelled).map((text) => ({
+          depth: depthOf(rule.path) + (rule.dotEntries ? 1 : 0),
+          opened:
+            level !== "allow" && level !== "readOnly"
+              ? undefined
+              : rule.dotEntries
+                ? undefined
+                : spelled,
+          rank: SOURCE_RANK[rule.source],
+          text,
+        })),
+      ),
     );
   }
   const opens = (paths: readonly string[], access: string) =>
@@ -234,18 +252,140 @@ export function wrapNativeCommand(
 ): { args: string[]; file: string; reach?: NativeReach } {
   // A binary that is not there is left to fail as itself, so the shim's
   // not-found diagnostic names it rather than sandbox-exec's execvp error.
-  if (
-    !reach ||
-    !seatbeltAvailable() ||
-    (path.isAbsolute(file) && !existsSync(file))
-  ) {
+  if (!reach || (path.isAbsolute(file) && !existsSync(file))) {
     return { args: [...args], file };
   }
-  return {
-    args: ["-p", seatbeltProfile(reach), file, ...args],
-    file: SANDBOX_EXEC,
-    reach,
+  if (seatbeltAvailable()) {
+    return {
+      args: ["-p", seatbeltProfile(reach), file, ...args],
+      file: SANDBOX_EXEC,
+      reach,
+    };
+  }
+  if (bwrapAvailable()) {
+    return {
+      args: [...bwrapArgs(reach), "--", file, ...args],
+      file: BWRAP,
+      reach,
+    };
+  }
+  return { args: [...args], file };
+}
+
+const BWRAP = "/usr/bin/bwrap";
+
+let bwrapWorks: boolean | undefined;
+
+/**
+ * Whether bubblewrap can make a sandbox from this process: Linux with bwrap
+ * installed and user namespaces open to it. Ubuntu closes them to
+ * unprivileged programs, and the app's own AppArmor profile, which the
+ * `.deb` installs, opens them for the app and what it starts.
+ */
+export function bwrapAvailable(): boolean {
+  if (process.platform !== "linux") {
+    return false;
+  }
+  if (bwrapWorks === undefined) {
+    try {
+      execFileSync(
+        BWRAP,
+        ["--ro-bind", "/", "/", "--dev-bind", "/dev", "/dev", "/usr/bin/true"],
+        { stdio: "ignore", timeout: 5000 },
+      );
+      bwrapWorks = true;
+    } catch {
+      bwrapWorks = false;
+    }
+  }
+  return bwrapWorks;
+}
+
+/**
+ * bubblewrap's arguments for the rules: the whole system as it is, the home
+ * folder read-only, then each rule's folder bound over it from shallow to
+ * deep, the way the Seatbelt profile orders its rules. A closed folder is an
+ * empty one in its place and a closed file is empty; a folder that opens
+ * inside a closed one is bound back over the empty one.
+ *
+ * Hidden entries in the home folder have no pattern form here, so the home
+ * folder is listed and each one is closed by name.
+ */
+export function bwrapArgs(reach: NativeReach): string[] {
+  const { home, rules, withoutAsking } = reach.rules;
+  const entries: {
+    access: "none" | "read" | "write";
+    depth: number;
+    path: string;
+    rank: number;
+  }[] = [];
+  const add = (
+    target: string,
+    access: "none" | "read" | "write",
+    rank: number,
+  ) => {
+    entries.push({ access, depth: depthOf(target), path: target, rank });
   };
+  add(home, "read", -1);
+  for (const rule of rules) {
+    const level = rule.level === "ask" && withoutAsking ? "allow" : rule.level;
+    const access =
+      level === "allow" ? "write" : level === "readOnly" ? "read" : "none";
+    const targets = rule.dotEntries ? dotEntriesIn(rule.path) : [rule.path];
+    for (const target of targets) {
+      add(target, access, SOURCE_RANK[rule.source]);
+    }
+  }
+  const tools = toolPlaces(home);
+  for (const opened of [...tools.caches, ...reach.readWrite]) {
+    add(opened, "write", 3);
+  }
+  for (const opened of [...tools.settings, ...reach.readOnly]) {
+    add(opened, "read", 3);
+  }
+  const args = [
+    "--ro-bind",
+    "/",
+    "/",
+    "--dev-bind",
+    "/dev",
+    "/dev",
+    "--proc",
+    "/proc",
+    "--bind",
+    "/tmp",
+    "/tmp",
+    "--die-with-parent",
+  ];
+  const ordered = entries.toSorted(
+    (a, b) => a.depth - b.depth || a.rank - b.rank,
+  );
+  for (const entry of ordered) {
+    const real = resolveReal(entry.path);
+    if (!existsSync(real)) {
+      continue;
+    }
+    if (entry.access === "write") {
+      args.push("--bind", real, real);
+    } else if (entry.access === "read") {
+      args.push("--ro-bind", real, real);
+    } else if (statSync(real).isDirectory()) {
+      args.push("--tmpfs", real);
+    } else {
+      args.push("--ro-bind", "/dev/null", real);
+    }
+  }
+  return args;
+}
+
+function dotEntriesIn(folder: string): string[] {
+  try {
+    return readdirSync(folder)
+      .filter((name) => name.startsWith("."))
+      .map((name) => path.join(folder, name));
+  } catch {
+    return [];
+  }
 }
 
 function currentReach(): NativeReach | undefined {
@@ -273,6 +413,13 @@ function currentReach(): NativeReach | undefined {
   };
 }
 
+const REFUSALS = [
+  "not permitted",
+  "Permission denied",
+  "No such file",
+  "Read-only file system",
+];
+
 /**
  * The first path a failed command's output says it was not permitted to use
  * that the rules keep from it, so the agent is told why rather than left to
@@ -283,12 +430,23 @@ export function refusedPathIn(
   reach: NativeReach,
 ): undefined | { hostPath: string; reach: Reach } {
   for (const line of output.split("\n")) {
-    if (!line.includes("not permitted")) {
+    // Seatbelt refuses with "Operation not permitted"; bubblewrap leaves a
+    // closed folder empty and a home folder read-only, so the same refusal
+    // reads as a missing file or a read-only disk there.
+    if (!REFUSALS.some((refusal) => line.includes(refusal))) {
       continue;
     }
-    for (const match of line.matchAll(/\/[^\s:'"`]+/g)) {
+    // The path refused is the last one a line names: a shell names itself
+    // first (`/bin/sh: 1: cannot create <path>`).
+    for (const match of [...line.matchAll(/\/[^\s:'"`]+/g)].toReversed()) {
       const hostPath = match[0];
-      const decided = reachOf(reach.rules, hostPath, "write");
+      // A missing file can only be a closed read; anything else may have
+      // been a change.
+      const decided = reachOf(
+        reach.rules,
+        hostPath,
+        line.includes("No such file") ? "read" : "write",
+      );
       if (decided.level !== "allow") {
         return { hostPath, reach: decided };
       }

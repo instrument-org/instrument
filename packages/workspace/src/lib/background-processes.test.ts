@@ -1,12 +1,8 @@
 import { rmSync } from "node:fs";
 import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CHAT_FOLDER_NAMES } from "../constants";
-import { MountedFolder } from "../schemas/mounted-folder";
-import { AbsolutePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
@@ -26,10 +22,6 @@ import {
 import { MAX_RUNNING_AGE_MS } from "./shell-commands/background-job-commands";
 import { currentShellOutputSink } from "./shell-commands/output-sink";
 import { chatDir } from "./record-folders";
-import {
-  buildWorkspaceFsLayout,
-  type WorkspaceFsLayout,
-} from "./workspace-fs-layout";
 
 const usedSessionIds: StoreId.Session[] = [];
 
@@ -118,7 +110,6 @@ function promote(
   options?: {
     explanation?: string;
     settleOnAbort?: boolean;
-    layout?: WorkspaceFsLayout;
   },
 ) {
   const controllable = controllableRun(options);
@@ -127,8 +118,6 @@ function promote(
     command,
     explanation: options?.explanation,
     run: controllable.run,
-    chatId: owner.chatId,
-    ...(options?.layout ? { layout: options.layout } : {}),
   });
   const promoted = promoteBackgroundProcess({ handle, ...owner });
   if ("error" in promoted) {
@@ -307,7 +296,6 @@ describe("background processes", () => {
       callerSignal: caller.signal,
       command: "node work/server.js",
       run: controllable.run,
-      chatId: owner.chatId,
     });
     const promoted = promoteBackgroundProcess({ handle, ...owner });
 
@@ -373,7 +361,6 @@ describe("background processes", () => {
       callerSignal: new AbortController().signal,
       command: "node work/one-too-many.js",
       run: controllableRun().run,
-      chatId: owner.chatId,
     });
     const promoted = promoteBackgroundProcess({ handle, ...owner });
 
@@ -409,7 +396,6 @@ describe("background processes", () => {
       callerSignal: new AbortController().signal,
       command: "node work/one-too-many.js",
       run: controllableRun().run,
-      chatId,
     });
 
     const promoted = promoteBackgroundProcess({ handle, ...extraSession });
@@ -444,7 +430,6 @@ describe("background processes", () => {
       callerSignal: new AbortController().signal,
       command: "node work/one-too-many.js",
       run: controllableRun().run,
-      chatId,
     });
     const promoted = promoteBackgroundProcess({ handle, ...owner });
 
@@ -462,7 +447,6 @@ describe("background processes", () => {
       callerSignal: controller.signal,
       command: "node work/server.js",
       run: controllable.run,
-      chatId: owner.chatId,
     });
     const promoted = promoteBackgroundProcess({ handle, ...owner });
     if ("error" in promoted) {
@@ -483,14 +467,13 @@ describe("background processes", () => {
   });
 
   it("cancels a run that was never promoted when its caller aborts", () => {
-    const owner = makeOwner("unpromoted");
+    makeOwner("unpromoted");
     const controller = new AbortController();
     const controllable = controllableRun();
     startBackgroundRun({
       callerSignal: controller.signal,
       command: "node work/short.js",
       run: controllable.run,
-      chatId: owner.chatId,
     });
 
     controller.abort();
@@ -600,7 +583,7 @@ describe("background processes", () => {
   });
 
   it("cancels a run whose caller had already aborted", () => {
-    const owner = makeOwner("prealigned");
+    makeOwner("prealigned");
     const controller = new AbortController();
     // Stopped between the tool call being scheduled and this running, which
     // fires no listener because the abort already happened.
@@ -616,7 +599,6 @@ describe("background processes", () => {
           // Never settles; the assertion is on the signal it was handed.
         });
       },
-      chatId: owner.chatId,
     });
 
     // What a real shim reads: execa rejects an already-aborted cancelSignal,
@@ -643,53 +625,6 @@ describe("background processes", () => {
     });
     // The streamed copy and the final output agree, so there is nothing to add.
     expect(read?.output).not.toContain("[final shell output]");
-  });
-
-  it("names a mount by its mount point in the live copy, never by its host root", async () => {
-    const owner = makeOwner("mounted");
-    const home = os.homedir();
-    const folders = {
-      Notes: {
-        access: "read-only" as const,
-        createdAt: 0,
-        id: MountedFolder.IdSchema.parse("notes-id"),
-        mountName: "Notes",
-        path: AbsolutePathSchema.parse(path.join(home, "notes")),
-        source: "user" as const,
-      },
-      Vault: {
-        access: "read-only" as const,
-        createdAt: 0,
-        id: MountedFolder.IdSchema.parse("vault-id"),
-        mountName: "Vault",
-        path: AbsolutePathSchema.parse("/Volumes/External/Vault"),
-        source: "user" as const,
-      },
-    };
-    const layout = buildWorkspaceFsLayout({
-      folders,
-      taskHostRoot: chatDir(owner.chatId),
-    });
-    const { controllable, info } = promote(
-      owner,
-      "rg -l status /mnt/Notes /mnt/Vault",
-      { layout },
-    );
-    await controllable.emit(
-      `${path.join(home, "notes", "a.md")}\n/Volumes/External/Vault/b.md\n`,
-    );
-
-    const read = await readBackgroundProcess({
-      id: info.id,
-      sessionId: owner.sessionId,
-      waitMs: 0,
-    });
-    // A mount under the home directory would otherwise be folded into `~`,
-    // which resolves to nothing inside the sandbox; one outside it would reach
-    // the agent as the host path it is never shown.
-    expect(read?.output).toBe("/mnt/Notes/a.md\n/mnt/Vault/b.md\n");
-    expect(read?.output).not.toContain("~/");
-    expect(read?.output).not.toContain("/Volumes/External");
   });
 
   it("does not duplicate output that differs only in path separators", async () => {
@@ -788,7 +723,6 @@ describe("background processes", () => {
             };
           });
         }),
-      chatId: owner.chatId,
     });
     const first = promoteBackgroundProcess({ handle, ...owner });
     if ("error" in first) {
@@ -801,7 +735,6 @@ describe("background processes", () => {
       callerSignal: new AbortController().signal,
       command: "node work/second.js",
       run: controllableRun().run,
-      chatId: owner.chatId,
     });
     const promoted = promoteBackgroundProcess({
       handle: second,
@@ -912,7 +845,6 @@ describe("background processes", () => {
     const handle = startBackgroundRun({
       callerSignal: new AbortController().signal,
       command: "node work/stubborn.js",
-      chatId: owner.chatId,
       // Never settles, even once aborted: stands in for a child that ignores
       // SIGTERM and outlives execa's escalation.
       run: () =>
@@ -960,7 +892,6 @@ describe("background processes", () => {
         new Promise<{ exitCode: number; output: string }>(() => {
           // Never settles, even once aborted, so the kill cannot confirm it.
         }),
-      chatId: owner.chatId,
     });
     const promoted = promoteBackgroundProcess({ handle, ...owner });
     if ("error" in promoted) {

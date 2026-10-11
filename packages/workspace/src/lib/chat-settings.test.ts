@@ -75,7 +75,7 @@ describe("updateChatSettings", () => {
     await updateChatSettings(chatId, { name: "Named" });
     await fs.writeFile(
       path.join(getChatPrivateDir(chatDir(chatId)), "settings.json"),
-      JSON.stringify({ name: "Named", state: { attachedFolders: "broken" } }),
+      JSON.stringify({ name: "Named", state: { browserTabs: "broken" } }),
       "utf8",
     );
 

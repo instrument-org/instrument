@@ -50,12 +50,12 @@ describe("readChatRecord", () => {
   });
 
   // The whole reason the two views are parsed apart. A draft or a pane the
-  // schema rejects must not cost the task its title and its place in the list.
+  // schema rejects must not cost the chat its settings and its place in the list.
   it("keeps the settings when the state cannot be read", async () => {
     await writeRecordFile({
       name: "Still named",
       pinnedAt: "2026-01-01T00:00:00.000Z",
-      state: { attachedFolders: "not a record at all" },
+      state: { browserTabs: "not a list at all" },
     });
 
     const record = await readChatRecord(chatDir(chatId));
@@ -64,8 +64,8 @@ describe("readChatRecord", () => {
     expect(record.state).toEqual({ browserTabs: [] });
   });
 
-  // And the other direction: a title this build cannot read must not silently
-  // unmount the folders the agent is allowed to reach.
+  // And the other direction: settings this build cannot read must not
+  // silently cost the chat what its state holds.
   it("keeps the state when the settings cannot be read", async () => {
     await writeRecordFile({
       name: { not: "a string" },

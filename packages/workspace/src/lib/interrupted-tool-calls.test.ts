@@ -91,10 +91,10 @@ function toolPart(
     sessionId: message.metadata.sessionId,
   };
   const call = {
-    input: { reason: "Your Desktop." },
+    input: { choices: ["Desktop", "Documents"], question: "Where?" },
     metadata,
     toolCallId: `call-${metadata.id}`,
-    type: "tool-request_folder" as const,
+    type: "tool-choose" as const,
   };
   switch (state) {
     case "input-available": {
@@ -107,7 +107,7 @@ function toolPart(
       return {
         ...call,
         metadata: { ...metadata, endedAt: createdAt },
-        output: { status: "declined" as const },
+        output: { declined: true as const, note: undefined },
         state,
       };
     }

@@ -2,6 +2,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
+import { type StoreId } from "../../schemas/store-id";
 import { type MountedFolder } from "../../schemas/mounted-folder";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { folderReach } from "../chat/folder-reach";
@@ -20,12 +21,18 @@ import { readPermissionSettings, type Rules, rulesFor } from "./rules";
 export async function chatRules({
   chatId,
   folders = {},
+  partId,
+  sessionId,
 }: {
   chatId: ChatId;
   folders?: Record<string, MountedFolder.Type>;
+  /** The tool call they hold, whose card draws under it. */
+  partId?: StoreId.Part;
+  /** The session that holds to them, whose refusals raise the card. */
+  sessionId?: StoreId.Session;
 }): Promise<Rules> {
   const home = os.homedir();
-  return rulesFor({
+  const rules = rulesFor({
     extraAllows: Object.values(folders)
       .map((folder) => folder.path)
       .filter((folderPath) => path.resolve(folderPath) !== path.resolve(home)),
@@ -33,15 +40,28 @@ export async function chatRules({
     home,
     settings: await readPermissionSettings(),
   });
+  return sessionId
+    ? {
+        ...rules,
+        asker: { chatId, ...(partId && { partId }), sessionId },
+      }
+    : rules;
 }
 
 /** The folders a chat reaches and the rules over them, for building its layout. */
-export async function chatReach(chatId: ChatId): Promise<{
+export async function chatReach(
+  chatId: ChatId,
+  sessionId?: StoreId.Session,
+  partId?: StoreId.Part,
+): Promise<{
   folders: Record<string, MountedFolder.Type>;
   rules: Rules;
 }> {
   const folders = await folderReach(chatId);
-  return { folders, rules: await chatRules({ chatId, folders }) };
+  return {
+    folders,
+    rules: await chatRules({ chatId, folders, partId, sessionId }),
+  };
 }
 
 /** What a native command the chat's shell spawns is held to. */

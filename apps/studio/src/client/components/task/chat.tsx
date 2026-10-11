@@ -10,6 +10,7 @@ import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn } from "@/client/lib/utils";
+import { PermissionAsksFoot } from "@/client/components/permission-asks";
 import { rpcClient } from "@/client/rpc/client";
 import { outputFolderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
@@ -543,6 +544,7 @@ export function TaskChat({
               {/* Inside the column rather than above it, so it is exactly as wide
               as the composer it belongs to. */}
               {beforeComposer}
+              <PermissionAsksFoot chatId={id} />
               {replyTo && (
                 <ComposerReplyQuote
                   onDismiss={() => {

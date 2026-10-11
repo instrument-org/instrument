@@ -33,6 +33,7 @@ export namespace SessionMessageDataPart {
     "appEvent",
     "asks",
     "folderChanges",
+    "permissionAnswer",
     "attachments",
     "backgroundProcesses",
     "browserStatus",
@@ -520,6 +521,22 @@ export namespace SessionMessageDataPart {
   export type AppEventDataPart = z.output<typeof AppEventDataPartSchema>;
 
   /**
+   * The person's answer to a card the agent's work raised: a folder that asks
+   * first, or an app it may not use. Like an app event, it wakes the session
+   * that ran into it, or joins its turn if it is still going.
+   */
+  export const PermissionAnswerDataPartSchema = z.object({
+    answer: z.enum(["allowed", "always", "declined"]),
+    kind: z.enum(["app", "folder"]),
+    /** The folder's path, or the app's name. */
+    target: z.string(),
+  });
+
+  export type PermissionAnswerDataPart = z.output<
+    typeof PermissionAnswerDataPartSchema
+  >;
+
+  /**
    * What the user was looking at when they sent the message: the folder open
    * in the window's folder view and what was selected in it.
    * Event cadence, written by the surface that sent the message and only when
@@ -871,6 +888,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.appEvent]: AppEventDataPartSchema,
     [NameSchema.enum.asks]: AsksDataPartSchema,
     [NameSchema.enum.folderChanges]: FolderChangesDataPartSchema,
+    [NameSchema.enum.permissionAnswer]: PermissionAnswerDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,

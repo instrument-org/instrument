@@ -96,8 +96,12 @@ const toolsChosen: Assertion = {
       web_fetch: parts.filter((part) => part.type === "tool-web_fetch").length,
       "chat search": count(commands, /(?:^|[\n;&|])\s*chat search\b/g),
       "chat read": count(commands, /(?:^|[\n;&|])\s*chat read\b/g),
-      request_folder: parts.filter(
-        (part) => part.type === "tool-request_folder",
+      "permission asks": parts.filter(
+        (part) =>
+          "output" in part &&
+          JSON.stringify(part.output).includes(
+            "Waiting on the person to allow",
+          ),
       ).length,
     };
     const used = Object.entries(tally)

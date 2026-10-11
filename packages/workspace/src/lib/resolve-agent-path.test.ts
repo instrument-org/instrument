@@ -351,7 +351,6 @@ describe("resolveAgentPath (full paths)", () => {
     const result = resolveAgentPath({ inputPath: "/etc/passwd", layout });
     const message = result._unsafeUnwrapErr().message;
     expect(message).toContain('"/etc/passwd" is not in a folder you reach');
-    expect(message).toContain("request_folder");
   });
 
   it("rejects traversal out of the chat's folder through ..", () => {

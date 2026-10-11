@@ -27,8 +27,8 @@ it("refuses what the rules close, reports it, and leaves the rest alone", async 
   await expect(fs.writeFile("/new.md", "x")).rejects.toThrow(/EACCES/);
   expect(refusals).toMatchInlineSnapshot(`
     [
-      "/mnt/sam/Documents/a.txt needs the person's yes first. Ask for /mnt/sam/Documents with request_folder.",
-      "/mnt/sam/new.md needs the person's yes first. Ask for /mnt/sam with request_folder.",
+      "/mnt/sam/Documents/a.txt needs the person's yes first.",
+      "/mnt/sam/new.md needs the person's yes first.",
     ]
   `);
 });

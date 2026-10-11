@@ -14,7 +14,7 @@ export function asksModelNote(data: SessionMessageDataPart.AsksDataPart) {
     .map((ask, index) => {
       const reach = ask.file.mount
         ? `you reach it at \`${ask.file.mount}\``
-        : "no folder you can reach covers it: ask for it with request_folder";
+        : "no folder you can reach covers it yet: reading it asks the person first";
       const excerpt = ask.excerpt?.trim()
         ? `\n${ask.excerpt
             .trim()

@@ -53,6 +53,13 @@ export type FromWorker =
       type: "capture-exception";
     }
   | { id: number; mountPath: string; type: "skill-mutation" }
+  /** A permission ask, raised on main where the app hears the chat's record change. */
+  | {
+      asker: { chatId: string; sessionId: string };
+      kind: "app" | "folder";
+      target: string;
+      type: "ask";
+    }
   | { id: number; result: WireResult; type: "result" }
   | { id: number; seq: number; text: string; type: "chunk" }
   | { pid: number; state: "settled" | "started"; type: "tree" }

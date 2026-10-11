@@ -49,6 +49,7 @@ import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH } from "./workspace-fs-layout";
+import { asksWritten } from "./permissions/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
 import { type Rules } from "./permissions/rules";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -704,7 +705,7 @@ export async function createLocalBashEnv({
   standIn?: (name: string) => Command;
 }) {
   // Read as they stand when the shell is made, which is once per bash call.
-  const rules = await chatRules({ chatId, folders });
+  const rules = await chatRules({ chatId, folders, sessionId });
   const layout = shellLayout({ folders, chat, chatId, rules });
   // The working folder walks at the sandbox's budget, and the home folder at
   // its own, smaller one.
@@ -848,6 +849,7 @@ export async function createLocalBashEnv({
   bash.exec = async (...execArgs) => {
     refusals.clear();
     const result = await withNativeReach(reach, () => exec(...execArgs));
+    await asksWritten();
     if (refusals.size === 0) {
       return result;
     }

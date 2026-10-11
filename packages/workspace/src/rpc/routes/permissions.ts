@@ -1,4 +1,5 @@
 import os from "node:os";
+import { eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { getCurrentDate } from "../../lib/get-current-date";
@@ -20,7 +21,13 @@ import {
   grantApp,
   reachesEveryFile,
 } from "../../lib/permissions/apps";
+import { closeAsk, openAsks } from "../../lib/permissions/asks";
 import { chatRules } from "../../lib/permissions/chat-rules";
+import { grantFolder } from "../../lib/chat/grants";
+import { wakeSessionForPermission } from "../../lib/chat/wake";
+import { recordChanges } from "../../lib/record-changes";
+import { PermissionAskSchema } from "../../schemas/chat-state";
+import { distinct, liveRead } from "../live-read";
 import { reachOf } from "../../lib/permissions/rules";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
@@ -244,8 +251,106 @@ const appReachRoute = base
     reachesEveryFile: reachesEveryFile(input.app),
   }));
 
+/** The chat's open asks, as its cards draw them, oldest first. */
+const asks = base
+  .input(z.object({ id: ChatIdSchema }))
+  .output(PermissionAskSchema.array())
+  .handler(({ input }) => openAsks(input.id));
+
+/** The same asks, read again whenever the chat's state moves. */
+const liveAsks = base
+  .input(z.object({ id: ChatIdSchema }))
+  .output(eventIterator(PermissionAskSchema.array()))
+  .handler(async function* ({ input, signal }) {
+    yield* distinct(
+      liveRead({
+        changes: [
+          recordChanges(
+            signal,
+            (change) => change.id === input.id && change.kind === "state",
+          ),
+        ],
+        read: () => openAsks(input.id),
+      }),
+    );
+  });
+
+/**
+ * The person's answer to an ask: allowed in this chat, allowed always, or
+ * not now. A folder may be answered with a different one picked in the
+ * system's panel. The session that asked is woken with the answer, or hears
+ * it at its next step if its turn is still going.
+ */
+const answer = base
+  .input(
+    z.object({
+      askId: z.string(),
+      decision: z.enum(["allowed", "always", "declined"]),
+      id: ChatIdSchema,
+      /** A folder picked in place of the one asked for. */
+      path: z.string().optional(),
+    }),
+  )
+  .output(z.void())
+  .handler(async ({ context, input }) => {
+    const ask = await closeAsk(input.id, input.askId);
+    if (!ask) {
+      throw new ORPCError("NOT_FOUND", {
+        message: "That request was already answered.",
+      });
+    }
+    const target =
+      ask.kind === "folder" ? (input.path ?? ask.target) : ask.target;
+    if (input.decision !== "declined") {
+      if (ask.kind === "folder") {
+        await grantFolder({ chatId: input.id, path: target, source: "card" });
+        if (input.decision === "always") {
+          const folder = AbsolutePathSchema.parse(target);
+          await updatePermissionSettings((settings) => ({
+            ...settings,
+            folders: [
+              ...settings.folders.filter((known) => known.path !== folder),
+              { addedAt: getCurrentDate(), level: "allow", path: folder },
+            ],
+          }));
+        }
+      } else {
+        await grantApp(input.id, target);
+        if (input.decision === "always") {
+          const bundleId = await appBundleId(target);
+          await updatePermissionSettings((settings) => ({
+            ...settings,
+            apps: [
+              ...settings.apps.filter(
+                (app) => app.name.toLowerCase() !== target.toLowerCase(),
+              ),
+              {
+                addedAt: getCurrentDate(),
+                bundleId,
+                level: "allow",
+                name: target,
+              },
+            ],
+          }));
+        }
+      }
+    }
+    await wakeSessionForPermission(
+      {
+        data: { answer: input.decision, kind: ask.kind, target },
+        type: "data-permissionAnswer",
+      },
+      context.workspaceRef,
+      input.id,
+      ask.sessionId,
+    );
+  });
+
 export const permissions = {
   allowApp,
+  answer,
+  asks,
+  liveAsks,
   appReach: appReachRoute,
   get,
   removeApp,

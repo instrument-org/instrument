@@ -7,6 +7,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import { canonicalizeThroughMissing } from "./host-path";
+import { raiseAsk, waitingNote } from "./permissions/asks";
 import { DANGEROUS_NAMES, placePaths } from "./permissions/places";
 import {
   folderToAskFor,
@@ -218,8 +219,7 @@ export function seatbeltProfile(reach: NativeReach): string {
   const ownFolders = reach.readWrite.flatMap(spellings);
   texts.push(
     `(deny file-write* (require-all (require-any ${DANGEROUS_NAMES.map(
-      (name) =>
-        `(regex #"/${regexEscape(name)}(/|$)")`,
+      (name) => `(regex #"/${regexEscape(name)}(/|$)")`,
     ).join(" ")}) ${ownFolders
       .map((own) => `(require-not (subpath ${sbplString(own)}))`)
       .join(" ")}))`,
@@ -504,7 +504,7 @@ const REFUSALS = [
 export function refusedPathIn(
   output: string,
   reach: NativeReach,
-): undefined | { hostPath: string; reach: Reach } {
+): undefined | { hostPath: string; reach: Reach; rules: Rules } {
   for (const line of output.split("\n")) {
     // Seatbelt refuses with "Operation not permitted"; bubblewrap leaves a
     // closed folder empty and a home folder read-only, so the same refusal
@@ -524,7 +524,7 @@ export function refusedPathIn(
         line.includes("No such file") ? "read" : "write",
       );
       if (decided.level !== "allow") {
-        return { hostPath, reach: decided };
+        return { hostPath, reach: decided, rules: reach.rules };
       }
     }
   }
@@ -533,7 +533,7 @@ export function refusedPathIn(
 
 /** What the agent reads when the rules stopped a native command. */
 export function refusalNote(
-  refused: { hostPath: string; reach: Reach },
+  refused: { hostPath: string; reach: Reach; rules: Rules },
   home = os.homedir(),
 ): string {
   const shown = (shownPath: string) =>
@@ -549,5 +549,9 @@ export function refusalNote(
     isDirectory: false,
     rule: refused.reach.rule,
   });
-  return `${shown(refused.hostPath)} needs the person's yes first. Ask for ${shown(folder)} with request_folder, then run the command again.`;
+  if (!refused.rules.asker) {
+    return `${shown(refused.hostPath)} needs the person's yes first.`;
+  }
+  raiseAsk(refused.rules.asker, "folder", folder);
+  return `${waitingNote(shown(folder))} Run the command again once they allow it.`;
 }

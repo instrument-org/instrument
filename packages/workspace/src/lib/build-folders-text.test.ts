@@ -131,12 +131,12 @@ describe("buildFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "sam" -> \`/Users/sam\` (look through it; to change anything, ask for the folder inside it with \`request_folder\`)",
+        "- "sam" -> \`/Users/sam\` (look through it; changing anything in it asks the person first)",
       ]
     `);
   });
 
-  it("says what a refusal looks like", () => {
+  it("says a folder that asks shows the person a card", () => {
     const folders = [
       {
         access: "read-write" as const,
@@ -145,7 +145,7 @@ describe("buildFoldersText", () => {
       },
     ];
     expect(buildFoldersText({ folders, intro: INTRO })).toContain(
-      "Operation not permitted",
+      "shows the person a card",
     );
   });
 

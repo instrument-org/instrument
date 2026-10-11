@@ -6,6 +6,7 @@ import { type ChatGrant } from "../../schemas/chat-settings";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { hostPathWithin } from "../host-path";
 import { readJsonRecord, updateJsonRecord } from "../json-record-file";
+import { type Asker } from "./asks";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   type Level,
@@ -103,6 +104,11 @@ export interface Rule {
 
 /** Everything that decides one chat's reach, resolved once and checked often. */
 export interface Rules {
+  /**
+   * The session these rules hold, which a refusal that asks first raises
+   * its card for. Absent, a refusal says what is needed and raises nothing.
+   */
+  asker?: Asker;
   home: string;
   rules: Rule[];
   withoutAsking: boolean;
@@ -234,9 +240,7 @@ function namesDangerous(foldedPath: string): boolean {
   const slashed = foldedPath.replaceAll(path.sep, "/");
   return DANGEROUS_NAMES.some((name) => {
     const folded = fold(name);
-    return (
-      slashed.endsWith(`/${folded}`) || slashed.includes(`/${folded}/`)
-    );
+    return slashed.endsWith(`/${folded}`) || slashed.includes(`/${folded}/`);
   });
 }
 

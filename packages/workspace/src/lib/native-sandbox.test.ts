@@ -100,7 +100,7 @@ describe("refusedPathIn", () => {
     expect(
       refused && refusalNote(refused, "/Users/someone"),
     ).toMatchInlineSnapshot(
-      `"~/Documents/Acme/a.csv needs the person's yes first. Ask for ~/Documents/Acme with request_folder, then run the command again."`,
+      `"~/Documents/Acme/a.csv needs the person's yes first."`,
     );
   });
 });

@@ -1,9 +1,5 @@
 import type { ToolName } from "../tools/types";
 
 export function isInteractiveTool(toolName: ToolName): boolean {
-  return (
-    toolName === "choose" ||
-    toolName === "request_folder" ||
-    toolName === "request_app_control"
-  );
+  return toolName === "choose";
 }

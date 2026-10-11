@@ -1,4 +1,6 @@
 import ms from "ms";
+import { chatRules } from "../lib/permissions/chat-rules";
+import { preflightCommand } from "../lib/permissions/preflight";
 import { ok } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -162,6 +164,26 @@ export const BashTool = setupTool({
   description: () => createBashDescription(),
   async execute({ input, partId, sessionId, signal, chatId }) {
     const folders = await folderReach(chatId);
+    // What the command names that the person must allow first is asked for
+    // before anything runs, with the card under this call.
+    const waiting = await preflightCommand({
+      chatId,
+      command: input.command,
+      cwd: workDir(chatId),
+      partId,
+      rules: await chatRules({ chatId, folders, sessionId }),
+      sessionId,
+    });
+    if (waiting) {
+      return ok({
+        command: input.command,
+        commands: [],
+        durationMs: 0,
+        exitCode: 1,
+        omittedBytes: 0,
+        output: waiting,
+      });
+    }
     const yieldMs = clampYieldMs(input.yieldMs);
     const startedAt = performance.now();
     // The chat's own commands are its conversation's: a task of the chat's

@@ -52,7 +52,7 @@ describe("osascriptCommand", () => {
       mockCtx,
     );
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("request_app_control");
+    expect(result.stderr).toContain("needs the person's yes first");
     expect(vi.mocked(execa)).not.toHaveBeenCalled();
   });
 

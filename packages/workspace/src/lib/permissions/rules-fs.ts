@@ -1,6 +1,7 @@
 import { type IFileSystem } from "just-bash";
 import nodePath from "node:path";
 
+import { raiseAsk, waitingNote } from "./asks";
 import { folderToAskFor, reachOf, type Rules } from "./rules";
 
 /**
@@ -35,7 +36,11 @@ export function ruleRefusal({
     isDirectory: false,
     rule: reach.rule,
   });
-  return `${spell(hostPath)} needs the person's yes first. Ask for ${spell(folder)} with request_folder.`;
+  if (!rules.asker) {
+    return `${spell(hostPath)} needs the person's yes first.`;
+  }
+  raiseAsk(rules.asker, "folder", folder);
+  return waitingNote(spell(folder));
 }
 
 /**

@@ -321,7 +321,7 @@ function resolveVirtualAbsolutePath(
   if (resolved === null) {
     return executeError(
       `The absolute path "${virtualPath}" is not in a folder you reach. ` +
-        `Use a path relative to this conversation's folder, or ask the user for the folder with request_folder.`,
+        `Use a path relative to this conversation's folder, or the full path of a file in one of the user's folders.`,
     );
   }
 

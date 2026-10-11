@@ -269,8 +269,6 @@ describe("instrumentAgent", () => {
         TOOL_NAMES.generateImage,
         TOOL_NAMES.loadSkill,
         TOOL_NAMES.readFile,
-        TOOL_NAMES.requestAppControl,
-        TOOL_NAMES.requestFolder,
         TOOL_NAMES.webFetch,
         TOOL_NAMES.webSearch,
         TOOL_NAMES.writeFile,

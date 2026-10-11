@@ -5,7 +5,7 @@ import {
   OverlayFs,
   ReadWriteFs,
 } from "just-bash";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import os from "node:os";
 import nodePath from "node:path";
@@ -13,6 +13,7 @@ import nodePath from "node:path";
 import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { rulesFs } from "./permissions/rules-fs";
+import { raiseAsk, waitingNote } from "./permissions/asks";
 import { reachOf, type Rule, type Rules } from "./permissions/rules";
 import { type AbsolutePath, type ChatDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
@@ -144,10 +145,21 @@ export async function buildBashFs(
       ) {
         return;
       }
-      if (onRefusal && existsSync(hostPathOf(path))) {
-        onRefusal(
-          `${path} is outside the folders you reach. Ask for the folder with request_folder.`,
-        );
+      const hostPath = hostPathOf(path);
+      // The system's own folders are nothing to ask the person for.
+      if (SYSTEM_FOLDERS.some((system) => pathIsWithin(hostPath, system))) {
+        return;
+      }
+      if (onRefusal && existsSync(hostPath)) {
+        const folder = statSync(hostPath).isDirectory()
+          ? hostPath
+          : nodePath.dirname(hostPath);
+        if (rules.asker) {
+          raiseAsk(rules.asker, "folder", folder);
+          onRefusal(waitingNote(shellPath(folder)));
+        } else {
+          onRefusal(`${path} is outside the folders you reach.`);
+        }
       }
     }),
   });
@@ -609,6 +621,22 @@ function taskMaskedEntries(taskHostRoot: ChatDir): MaskedEntry[] {
  */
 export const SHELL_PATH = "/usr/local/bin:/usr/bin:/bin";
 const SHELL_PATH_DIRS = new Set(SHELL_PATH.split(":"));
+
+/** Folders that hold the system rather than anything of the person's. */
+const SYSTEM_FOLDERS = [
+  "/System",
+  "/Library",
+  "/Applications",
+  "/usr",
+  "/bin",
+  "/sbin",
+  "/etc",
+  "/private/etc",
+  "/opt",
+  "/dev",
+  "/proc",
+  "/sys",
+];
 
 /**
  * The path the agent's shell names a host path by. The same path on macOS

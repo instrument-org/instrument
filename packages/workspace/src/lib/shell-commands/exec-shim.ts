@@ -78,11 +78,17 @@ export function collapseProgress(output: string) {
 export async function execShim(
   file: string,
   args: string[],
-  options: ShimOptions,
+  options: ShimOptions & {
+    /**
+     * Run outside the native sandbox: only for a command the person allowed
+     * to act on its own, such as a script to an app they allowed.
+     */
+    unsandboxed?: true;
+  },
 ) {
   const sink = currentShellOutputSink();
-  const { cancelSignal, ...subprocessOptions } = options;
-  const spawned = wrapNativeCommand(file, args);
+  const { cancelSignal, unsandboxed, ...subprocessOptions } = options;
+  const spawned = wrapNativeCommand(file, args, unsandboxed ? null : undefined);
   const subprocess = execa(spawned.file, spawned.args, {
     ...subprocessOptions,
     all: true,

@@ -4,10 +4,11 @@ import {
   encodeUtf8ToBytes,
   InMemoryFs,
 } from "just-bash";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { grantApp } from "../permissions/apps";
 import {
   addressAppsById,
   createOsascriptCommand,
@@ -35,8 +36,35 @@ describe("osascriptCommand", () => {
     stdin: EMPTY_BYTES,
   });
 
+  beforeAll(async () => {
+    await grantApp(chatId, "Reminders");
+    await grantApp(chatId, "Mail");
+  });
+
   afterEach(() => {
     vi.resetAllMocks();
+  });
+
+  it("refuses an app the person has not allowed, pointing at the card", async () => {
+    const execa = await mockExeca();
+    const result = await command.execute(
+      ["-e", 'tell application "Music" to play'],
+      mockCtx,
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("request_app_control");
+    expect(vi.mocked(execa)).not.toHaveBeenCalled();
+  });
+
+  it("refuses a script that runs a shell, even to an allowed app", async () => {
+    const execa = await mockExeca();
+    const result = await command.execute(
+      ["-e", 'tell application "Mail" to do shell script "cat ~/.ssh/id_test"'],
+      mockCtx,
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("do shell script");
+    expect(vi.mocked(execa)).not.toHaveBeenCalled();
   });
 
   it("runs the system osascript with the script as given", async () => {

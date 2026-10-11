@@ -22,6 +22,17 @@ const ChatGrantSchema = z.object({
 
 export type ChatGrant = z.output<typeof ChatGrantSchema>;
 
+/**
+ * An app on this computer the agent may control in this chat, by the name a
+ * script tells it by: an allow from a card, good in this chat alone.
+ */
+const ChatAppGrantSchema = z.object({
+  app: z.string().min(1),
+  grantedAt: z.coerce.date(),
+});
+
+export type ChatAppGrant = z.output<typeof ChatAppGrantSchema>;
+
 // Load-bearing that this stays a plain object schema: it is parsed against the
 // whole settings file, whose `state` key it is meant to ignore rather than
 // reject. Making it strict would fail every chat's settings at once, and with
@@ -38,6 +49,9 @@ export const ChatSettingsSchema = z.object({
   // when the copy happened.
   createdAt: z.coerce.date().optional(),
   createdWithAppVersion: z.string().optional(),
+  // The apps on this computer the agent may control in this chat. One that
+  // will not parse costs the chat these grants alone.
+  appGrants: z.array(ChatAppGrantSchema).optional().catch(undefined),
   // The folders granted in this chat, oldest first. One that will not parse
   // costs the chat its grants rather than the rest of its settings.
   grants: z.array(ChatGrantSchema).optional().catch(undefined),

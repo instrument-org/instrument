@@ -213,6 +213,15 @@ export function seatbeltProfile(reach: NativeReach): string {
       '(deny mach-lookup (global-name "com.apple.SecurityServer") (global-name "com.apple.securityd.xpc"))',
     );
   }
+  // No Apple Events and no opening apps: a command could otherwise have
+  // another app do what the profile keeps it from, outside any sandbox.
+  // osascript reaches an app only when the person allowed that app, and then
+  // runs unwrapped (osascript.ts).
+  texts.push(
+    "(deny appleevent-send)",
+    "(deny lsopen)",
+    '(deny mach-lookup (global-name "com.apple.coreservices.appleevents"))',
+  );
   return ["(version 1)", "(allow default)", ...texts].join("\n");
 }
 
@@ -281,7 +290,8 @@ export function seatbeltAvailable(): boolean {
 export function wrapNativeCommand(
   file: string,
   args: readonly string[],
-  reach: NativeReach | undefined = currentReach(),
+  /** Null runs the command unwrapped, for an app the person allowed. */
+  reach: NativeReach | null | undefined = currentReach(),
 ): { args: string[]; file: string; reach?: NativeReach } {
   // A binary that is not there is left to fail as itself, so the shim's
   // not-found diagnostic names it rather than sandbox-exec's execvp error.

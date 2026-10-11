@@ -22,6 +22,20 @@ import {
  * every Ask first into a yes. A place nobody changed keeps its default.
  */
 const PermissionSettingsSchema = z.object({
+  /**
+   * Apps on this computer, by the name a script tells them by, that the
+   * agent may control in every chat, asks first about, or never controls.
+   */
+  apps: z
+    .array(
+      z.object({
+        addedAt: z.coerce.date(),
+        level: LevelSchema,
+        name: z.string().min(1),
+      }),
+    )
+    .catch([])
+    .default([]),
   folders: z
     .array(
       z.object({

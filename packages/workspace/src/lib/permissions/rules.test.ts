@@ -4,7 +4,7 @@ import { AbsolutePathSchema } from "../../schemas/paths";
 import { folderToAskFor, reachOf, rulesFor } from "./rules";
 
 const home = "/Users/someone";
-const settings = { folders: [], places: {}, withoutAsking: false };
+const settings = { apps: [], folders: [], places: {}, withoutAsking: false };
 
 describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
   const rules = rulesFor({

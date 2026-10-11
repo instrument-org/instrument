@@ -64,6 +64,9 @@ describe("seatbeltProfile", () => {
         "(allow file-read-metadata (literal "/nope/home/Library"))",
         "(deny file-write* (literal "/nope"))",
         "(deny file-write* (literal "/nope/home"))",
+        "(deny appleevent-send)",
+        "(deny lsopen)",
+        "(deny mach-lookup (global-name "com.apple.coreservices.appleevents"))",
       ]
     `);
   });

@@ -10,6 +10,7 @@ import { EditFile } from "./edit-file";
 import { GenerateImage } from "./generate-image";
 import { LoadSkill } from "./load-skill";
 import { ReadFile } from "./read-file";
+import { RequestAppControl } from "./request-app-control";
 import { RequestFolder } from "./request-folder";
 import { Unavailable } from "./unavailable";
 import { WebFetch } from "./web-fetch";
@@ -24,6 +25,7 @@ export const TOOLS = {
   GenerateImage,
   LoadSkill,
   ReadFile,
+  RequestAppControl,
   RequestFolder,
   Unavailable,
   WebFetch,
@@ -41,6 +43,7 @@ export const TOOLS_BY_NAME = {
   [TOOLS.GenerateImage.name]: TOOLS.GenerateImage,
   [TOOLS.LoadSkill.name]: TOOLS.LoadSkill,
   [TOOLS.ReadFile.name]: TOOLS.ReadFile,
+  [TOOLS.RequestAppControl.name]: TOOLS.RequestAppControl,
   [TOOLS.RequestFolder.name]: TOOLS.RequestFolder,
   [TOOLS.Unavailable.name]: TOOLS.Unavailable,
   [TOOLS.WebFetch.name]: TOOLS.WebFetch,

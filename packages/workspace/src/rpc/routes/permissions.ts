@@ -14,6 +14,11 @@ import {
   readPermissionSettings,
   updatePermissionSettings,
 } from "../../lib/permissions/rules";
+import {
+  appReach,
+  grantApp,
+  reachesEveryFile,
+} from "../../lib/permissions/apps";
 import { chatRules } from "../../lib/permissions/chat-rules";
 import { reachOf } from "../../lib/permissions/rules";
 import { ChatIdSchema } from "../../schemas/chat-id";
@@ -21,6 +26,9 @@ import { AbsolutePathSchema } from "../../schemas/paths";
 import { base } from "../base";
 
 const PermissionsViewSchema = z.object({
+  apps: z.array(
+    z.object({ addedAt: z.date(), level: LevelSchema, name: z.string() }),
+  ),
   /**
    * Whether the programs the agent runs are held to the list by the system,
    * which Settings says plainly where they are not.
@@ -45,6 +53,7 @@ function view(
 ): z.output<typeof PermissionsViewSchema> {
   const home = os.homedir();
   return {
+    apps: settings.apps,
     enforced: seatbeltAvailable() || bwrapAvailable(),
     folders: settings.folders,
     home,
@@ -148,8 +157,94 @@ const reach = base
     return { level: reachOf(rules, input.path, "read").level };
   });
 
+/** Adds or changes an app's own rule. */
+const setApp = base
+  .input(z.object({ level: LevelSchema, name: z.string().trim().min(1) }))
+  .output(PermissionsViewSchema)
+  .handler(async ({ input }) =>
+    view(
+      await updatePermissionSettings((settings) => {
+        const others = settings.apps.filter(
+          (app) => app.name.toLowerCase() !== input.name.toLowerCase(),
+        );
+        const known = settings.apps.find(
+          (app) => app.name.toLowerCase() === input.name.toLowerCase(),
+        );
+        return {
+          ...settings,
+          apps: [
+            ...others,
+            {
+              addedAt: known?.addedAt ?? getCurrentDate(),
+              level: input.level,
+              name: known?.name ?? input.name,
+            },
+          ],
+        };
+      }),
+    ),
+  );
+
+/** Removes an app's rule, so the agent asks about it again. */
+const removeApp = base
+  .input(z.object({ name: z.string() }))
+  .output(PermissionsViewSchema)
+  .handler(async ({ input }) =>
+    view(
+      await updatePermissionSettings((settings) => ({
+        ...settings,
+        apps: settings.apps.filter(
+          (app) => app.name.toLowerCase() !== input.name.toLowerCase(),
+        ),
+      })),
+    ),
+  );
+
+/**
+ * Lets a chat control an app: what answering its card does. "Always" also
+ * allows the app in Settings › Permissions, for every chat from then on.
+ */
+const allowApp = base
+  .input(
+    z.object({
+      always: z.boolean().optional(),
+      app: z.string().trim().min(1),
+      id: ChatIdSchema,
+    }),
+  )
+  .output(z.void())
+  .handler(async ({ input }) => {
+    await grantApp(input.id, input.app);
+    if (input.always) {
+      await updatePermissionSettings((settings) => ({
+        ...settings,
+        apps: [
+          ...settings.apps.filter(
+            (app) => app.name.toLowerCase() !== input.app.toLowerCase(),
+          ),
+          { addedAt: getCurrentDate(), level: "allow", name: input.app },
+        ],
+      }));
+    }
+  });
+
+/** What the rules make of an app for one chat, for its card. */
+const appReachRoute = base
+  .input(z.object({ app: z.string(), id: ChatIdSchema }))
+  .output(
+    z.object({ level: LevelSchema, reachesEveryFile: z.boolean() }),
+  )
+  .handler(async ({ input }) => ({
+    level: await appReach(input.id, input.app),
+    reachesEveryFile: reachesEveryFile(input.app),
+  }));
+
 export const permissions = {
+  allowApp,
+  appReach: appReachRoute,
   get,
+  removeApp,
+  setApp,
   reach,
   removeFolder,
   setFolder,

@@ -14,6 +14,9 @@ import {
   readPermissionSettings,
   updatePermissionSettings,
 } from "../../lib/permissions/rules";
+import { chatRules } from "../../lib/permissions/chat-rules";
+import { reachOf } from "../../lib/permissions/rules";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { base } from "../base";
 
@@ -133,8 +136,21 @@ const setWithoutAsking = base
     ),
   );
 
+/**
+ * What the rules make of a folder for one chat, so a card can tell a folder
+ * the person already closed from one they have not been asked about.
+ */
+const reach = base
+  .input(z.object({ id: ChatIdSchema, path: z.string() }))
+  .output(z.object({ level: z.enum(["allow", "ask", "hidden", "never"]) }))
+  .handler(async ({ input }) => {
+    const rules = await chatRules({ chatId: input.id });
+    return { level: reachOf(rules, input.path, "read").level };
+  });
+
 export const permissions = {
   get,
+  reach,
   removeFolder,
   setFolder,
   setPlace,

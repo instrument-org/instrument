@@ -6,11 +6,14 @@ import {
 } from "@instrument-org/workspace/client";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { ORPCError } from "@orpc/client";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { z } from "zod";
 import { hostPathFromShellPath, folderLabel } from "@/client/lib/path-utils";
 import { toast } from "@/client/lib/toast";
 import { isWindows } from "@/client/lib/utils";
+
+import { openSettings } from "@/client/atoms/settings-modal";
 
 import { Button } from "../ui/button";
 import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";
@@ -49,6 +52,34 @@ export function ToolRequestFolder({
     rpcClient.workspace.chats.folders.grant.mutationOptions(),
   );
   const isWaitedOn = useHasLiveSession(part.metadata.sessionId);
+  // A folder the person already closed in Settings gets no card: they have
+  // answered, so the agent is told no at once and they see why.
+  const closedPath = part.input?.folder
+    ? hostPathFromShellPath(part.input.folder, isWindows())
+    : undefined;
+  const reach = useQuery({
+    ...rpcClient.workspace.permissions.reach.queryOptions({
+      input: { id: chatId, path: closedPath ?? "" },
+    }),
+    enabled: closedPath !== undefined,
+  });
+  const isClosed = reach.data?.level === "never";
+  const declineClosed =
+    isClosed &&
+    isWaitedOn &&
+    part.state === "input-available" &&
+    !answer.isPending &&
+    !answer.isSuccess;
+  useEffect(() => {
+    if (declineClosed) {
+      answer.mutate({
+        id: chatId,
+        output: { closed: true, status: "declined" },
+        toolCallId: part.toolCallId,
+        toolName: "request_folder",
+      });
+    }
+  }, [declineClosed, answer, chatId, part.toolCallId]);
 
   if (!part.input) {
     return <ToolCardEmpty message="The request has not arrived yet." />;
@@ -123,7 +154,20 @@ export function ToolRequestFolder({
           <FolderOpenIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <span>{reason}</span>
         </p>
-        {isPending ? (
+        {isClosed && askedFolder ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {`You marked "${folderLabel(askedFolder)}" Not allowed. `}
+            <button
+              className="underline underline-offset-2"
+              onClick={() => {
+                openSettings({ tab: "Permissions" });
+              }}
+              type="button"
+            >
+              Change it in Settings
+            </button>
+          </p>
+        ) : isPending ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {askedFolder ? (
               <>

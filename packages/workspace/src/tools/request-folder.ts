@@ -1,3 +1,4 @@
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import ms from "ms";
 import { z } from "zod";
 
@@ -31,7 +32,12 @@ export const RequestFolder = setupTool({
       path: z.string(),
       status: z.literal("granted"),
     }),
-    z.object({ status: z.literal("declined") }),
+    z.object({
+      // Set when the person had already marked the folder Not allowed in
+      // Settings, so no card asked them.
+      closed: z.boolean().optional(),
+      status: z.literal("declined"),
+    }),
   ]),
 }).create({
   description: `Ask the user for a folder: to change files in one you can only look through, to open one that needs their yes, or, without \`folder\`, one you cannot reach for them to pick. The conversation waits while they answer; the answer names the folder's path. Ask for one folder at a time, the one the work is in, and only when the work cannot proceed without it.`,
@@ -50,6 +56,8 @@ export const RequestFolder = setupTool({
     value:
       output.status === "granted"
         ? `The user allowed ${output.path}. You and every task you start reach it.`
-        : "The user declined. Say what you cannot do without the folder and carry on with what you can.",
+        : output.closed
+          ? `The user marked that folder Not allowed in Settings › Permissions, so nobody was asked. Say what you skipped without it, link [Permissions](${APP_NAME_SLUG}://settings/permissions) in case they want to change it, and carry on with what you can.`
+          : "The user declined. Say what you cannot do without the folder and carry on with what you can.",
   }),
 });

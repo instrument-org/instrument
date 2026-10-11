@@ -37,7 +37,7 @@ export const WriteFile = setupTool({
   name: "write_file",
   outputSchema: z.object({
     content: z.string(),
-    // Task-relative, or the mount path of a writable folder.
+    // Task-relative, or the absolute path in a writable folder.
     filePath: z.string(),
     isNewFile: z.boolean(),
     modifiedAt: z.number(),

@@ -336,7 +336,7 @@ export function useOpeners({
    * names nothing this window can reach.
    *
    * A path a chat named is read against that chat's own record: its own
-   * folder and grants are what `/task` and `/mnt` mean to it. The window's
+   * folder and grants decide which paths it can reach. The window's
    * reach reads it where no chat is in view.
    */
   const hrefOfNamedPath = async (

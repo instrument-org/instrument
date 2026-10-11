@@ -136,7 +136,7 @@ export const instrumentAgent = setupAgent({
     const skillChanges = await consumeSkillChanges({ id: chatId, sessionId });
 
     // Skills live outside the working folder, in the shared writable
-    // `/skills/workspace` mount, so a turn that only authored a skill leaves
+    // workspace skills folder, so a turn that only authored a skill leaves
     // nothing in the folder.
     const skillChangesPart =
       skillChanges.created.length > 0 || skillChanges.updated.length > 0

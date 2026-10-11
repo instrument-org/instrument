@@ -53,9 +53,9 @@ const GeneratedImageFileSchema = z.object({
 const PARTIAL_THROTTLE_MS = 400;
 
 const SourceImageFileSchema = z.object({
-  // Task-relative, or a folder's mount path (/mnt/<name>/...); mount
-  // paths cannot be served by the task asset server, so the UI falls back to a
-  // name-only chip for them.
+  // Task-relative, or an absolute path in another folder; those cannot be
+  // served by the task asset server, so the UI falls back to a name-only chip
+  // for them.
   filePath: z.string(),
   modifiedAt: z.number(),
 });
@@ -155,13 +155,13 @@ export const GenerateImage = setupTool({
       return;
     }
     // Everything below resolves against the task directory and the tool's
-    // output contract is a task-relative path, so a mount path would land in a
-    // shadow tree inside the task rather than in the user's folder. Generate
+    // output contract is a task-relative path, so a path in another folder
+    // would land in a shadow tree inside the task rather than in that folder. Generate
     // into the task and move the result instead.
     if (filePathResult.value.mount) {
       yield executeError(
         `Images cannot be generated directly into "${filePathResult.value.displayPath}". ` +
-          `Generate into the task (e.g. ${CHAT_FOLDER_NAMES.work}/image.png), then move it there with the bash tool if it belongs in the folder.`,
+          `Generate into this conversation's folder (e.g. ${CHAT_FOLDER_NAMES.work}/image.png), then move it there with the bash tool if it belongs in the folder.`,
       );
       return;
     }
@@ -196,7 +196,7 @@ export const GenerateImage = setupTool({
       const resolvedSources = [];
       for (const inputPath of input.sourceImages) {
         // Sources are reads in our own process (not a native subprocess), so
-        // they resolve like read_file: task paths or folder mounts, with
+        // they resolve like read_file: task paths or paths in other folders, with
         // the same symlink containment.
         const pathResult = resolveExistingFilePath({ inputPath, layout });
         if (pathResult.isErr()) {

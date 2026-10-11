@@ -13,9 +13,9 @@ import {
  * it. The person's browser tab shows that address; the agent's browser loads
  * that same address, so what the agent checks is the page the person sees.
  * The agent names such a page by its own path (`work/report.html`,
- * `/mnt/Docs/page.html`), and these translate between the two spellings at
- * the edge of the agent's browser, the way the shell's path bridge does for
- * native binaries.
+ * `/Users/sam/Docs/page.html`), and these translate between the two spellings
+ * at the edge of the agent's browser. They differ on Windows, where the shell
+ * spells `C:\Users\sam` as `/c/Users/sam`.
  */
 
 /**
@@ -62,9 +62,9 @@ const OUTSIDE_FILE_ADDRESS = "file://<a file outside your folders>";
 
 /**
  * Text the agent's browser printed, with every `file://` address under a mount
- * spelled in the agent's own paths: `file:///Users/.../report.html` becomes
- * `file:///task/work/report.html`, which the agent can hand straight back to
- * `agent-browser open`. A page in Edit carries a parameter the person's own
+ * spelled in the agent's own paths, which the agent can hand straight back to
+ * `agent-browser open`; they differ from the host's on Windows
+ * (`file:///C:/Users/sam/report.html` becomes `file:///c/Users/sam/report.html`). A page in Edit carries a parameter the person's own
  * view of it never shows, and the agent does not see it either. An address
  * outside every mount is a place on this computer the agent has no path for,
  * and is named only as that.

@@ -113,17 +113,17 @@ export async function getSimilarPathSuggestions({
 
 /**
  * Resolve a read-path input against the workspace layout. Accepts task-relative
- * paths, the task's own virtual paths (/task/...), folder mount paths
- * (/mnt/<name>/...), and the workspace skills mount (/skills/...). Any other
- * absolute path is an error that steers the agent back into the layout.
+ * paths and absolute paths in the shell's spelling inside any mounted folder:
+ * the chat's own, a folder it reaches, or a skill source. Any other absolute
+ * path is an error that steers the agent toward a relative path or a folder
+ * request.
  *
  * Returns `{ absolutePath, displayPath, mount }`:
  * - `absolutePath` — real host path; use for all file I/O.
  * - `displayPath` — what to echo back to the agent: task-relative for the task
- *   (./work/...), the virtual mount path everywhere else (/mnt/..., /skills/...).
+ *   (./work/...), the absolute path in the shell's spelling everywhere else.
  * - `mount` — the non-task mount that owns the path, or null when the path is in
- *   the task. A caller that emits host paths must map them back to the mount
- *   path when this is set, so the machine layout stays hidden.
+ *   the task.
  */
 export function resolveAgentPath(options: {
   inputPath?: string;
@@ -184,9 +184,9 @@ export function resolveExistingFilePath(options: {
  * ("work/x", "/work/x") into task-relative form and rejects traversal out of
  * the task, including Windows-style "./subdir\\..\\.." on all platforms.
  *
- * This is the relative-only resolver: virtual absolute paths (/task, /mnt)
- * never reach it from resolveAgentPath/resolveWritableToolPath, which
- * pre-handle them against the layout.
+ * This is the relative-only resolver: absolute paths never reach it from
+ * resolveAgentPath/resolveWritableToolPath, which pre-handle them against the
+ * layout.
  */
 export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
   const fixedPathResult = ensureRelativePath(inputPath);
@@ -212,12 +212,12 @@ export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
 }
 
 /**
- * Resolve a write-path input against the workspace layout. Task-relative paths,
- * the task's own virtual paths (/task/...), and writable mounts (/skills/...,
- * a folder the user granted write access) resolve normally; read-only mounts
- * are rejected with copy-into-task guidance instead of silently landing
- * somewhere else. Whether a non-task mount is writable is decided by its
- * readOnly flag, never by a per-mount special case here.
+ * Resolve a write-path input against the workspace layout. Task-relative paths
+ * and absolute paths in a writable mount (the workspace skills, a folder the
+ * user granted write access) resolve normally; read-only mounts are rejected
+ * with copy-into-task guidance instead of silently landing somewhere else.
+ * Whether a non-task mount is writable is decided by its readOnly flag, never
+ * by a per-mount special case here.
  *
  * `mount` in the result is the mount that owns the path, or null for a path
  * inside the task.
@@ -248,12 +248,12 @@ export function resolveWritableToolPath(options: {
   if (mount?.readOnly) {
     return executeError(
       `"${displayPath}" is in a read-only folder and cannot be written. ` +
-        `Copy the file into the task first (e.g. cp '${displayPath}' attachments/) and work on the copy.`,
+        `Copy what you need into this conversation's folder (e.g. cp '${displayPath}' work/) and change the copy.`,
     );
   }
   // The owning mount rides along so a caller whose output contract is
-  // task-relative can refuse a mount path rather than silently resolving it
-  // against the task directory.
+  // task-relative can refuse a path in another folder rather than silently
+  // resolving it against the task directory.
   return ok({ absolutePath, displayPath, mount });
 }
 

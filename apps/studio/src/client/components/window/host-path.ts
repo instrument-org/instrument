@@ -33,7 +33,7 @@ export function isInside(hostPath: string, folder: string) {
 /**
  * A path on the computer, extended by names below it.
  *
- * The names are spelled the way the path is: a virtual path is always written
+ * The names are spelled the way the path is: a shell path is always written
  * with slashes, and joining one onto a Windows folder with the slashes left in
  * gives `C:\Users\sam\Documents/report.pdf`, which every Windows API accepts
  * and no person there has ever written.

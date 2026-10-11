@@ -79,7 +79,7 @@ type ComputerEntry = z.output<typeof ComputerEntrySchema>;
  */
 const ComputerAccessSchema = z.object({
   access: z.enum(["read-only", "read-write"]),
-  /** The virtual path the agent knows this folder by. */
+  /** The path the agent knows this folder by, in the shell's spelling. */
   mountPath: z.string(),
   /** The host path of the granted folder this one is in. */
   root: z.string(),
@@ -154,10 +154,9 @@ export interface FolderRoot {
 }
 
 /**
- * The deepest granted folder a host path sits in, and the virtual path the
- * agent reaches it by through that grant. Both paths are resolved host paths,
- * so the walk from the root down is in the host's own separators, and the
- * mount path it becomes is in the agent's.
+ * The deepest granted folder a host path sits in, and the path the agent
+ * reaches it by through that grant. The walk from the root down is in the
+ * host's own separators, and the path it becomes is in the shell's.
  */
 export function accessIn(
   roots: FolderRoot[],
@@ -343,7 +342,7 @@ function compareEntries(
 
 /**
  * The grant that covers a host path, if any: the deepest granted folder it is
- * in, and the virtual path the agent reaches it by through that grant.
+ * in, and the path the agent reaches it by through that grant.
  */
 async function computerAccess(
   chatId: ChatId,

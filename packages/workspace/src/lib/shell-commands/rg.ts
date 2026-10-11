@@ -166,10 +166,11 @@ export function createRgCommand({
 }
 
 /**
- * Rewrite the shell's spelling of a path to the host path ripgrep has to
- * receive, and refuse the ones that name the private dir.
+ * Resolve the shell's spelling of a path to the host path ripgrep has to
+ * receive (the same path on macOS and Linux, drive-lettered on Windows), and
+ * refuse the ones that name the private dir.
  *
- * Only arguments that name a mount are rewritten. Anything else starting with
+ * Only arguments that name a mount are resolved. Anything else starting with
  * `/` is left alone: it is far more likely to be a regex (`rg '/api/'`) than a
  * path, and a real absolute path is no wider a capability than the `python` and
  * `node` hatches already documented in the agent sandbox. A path that resolves
@@ -294,15 +295,14 @@ function joinPrinted(parent: string, child: string): string {
  * private dir, and a chat's `tasks/` dir) of every mount the search reaches,
  * with the arguments respelled where a glob could not otherwise name them.
  *
- * ripgrep walks the real directories, so the virtual-filesystem mask does not
- * apply, and no glob applies to a file named on the command line either --
+ * ripgrep walks the real directories, so the shell's mask does not apply, and no glob applies to a file named on the command line either --
  * that half is `bridgePathArgs`'s.
  *
  * A glob cannot simply be anchored at the mount root. ripgrep anchors every
  * glob at its working directory and matches it against each path as printed,
  * after dropping one leading `./` and, from an absolute path, the working
  * directory's own canonical spelling. So a root reached as `..`, `../work/..`
- * or `/Users/.../task` prints as that spelling followed by what is under it,
+ * or an absolute path to the folder prints as that spelling followed by what is under it,
  * and each of those needs a glob of its own: one per masked entry, per
  * operand whose real location holds a masked mount root, plus one for the
  * walk from the working directory itself. Any argument could be the operand
@@ -397,7 +397,7 @@ function maskSearchRoots(
 }
 
 /**
- * Whether a virtual path names a task folder's masked entry itself rather than
+ * Whether a shell path names a task folder's masked entry itself rather than
  * something inside it.
  */
 function isMaskedDirItself(

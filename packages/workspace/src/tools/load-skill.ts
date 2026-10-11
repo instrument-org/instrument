@@ -78,7 +78,7 @@ export const LoadSkill = setupTool({
       name: z.string(),
       // Where the skill came from, so the model can say so and knows whether it
       // can edit the skill in place: "workspace" lives in the writable
-      // /skills/workspace mount, the others are read-only where they were discovered.
+      // workspace skills folder, the others are read-only where they were discovered.
       origin: z.enum(SKILL_ORIGINS),
       skillName: z.string(),
       state: z.literal("success"),

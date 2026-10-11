@@ -35,16 +35,6 @@ import { getWorkspaceConfig } from "./workspace-config";
 export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
 /**
- * Virtual mount point of the writable task directory.
- *
- * The task is mounted under a named home (`/task`) rather than the filesystem
- * root so the agent has a clear, stable place to work and is less prone to
- * hallucinating host paths. Relative paths (work/, attachments/, ...)
- * are unaffected since the working directory is this mount. Every virtual<->real
- * translator routes through the layout, so this is the single value to change.
- */
-
-/**
  * Virtual mount point of the device files.
  *
  * Not part of the agent's working surface: it exists so the ordinary shell
@@ -53,12 +43,12 @@ export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 const DEV_MOUNT_POINT = "/dev";
 
 /**
- * The complete virtual filesystem layout for a chat: the writable task mount
- * (the chat's folder), one mount per skill source, and the folders the chat
- * reaches, each writable unless it holds the workspace. This is the single
- * source of truth shared by the bash sandbox (just-bash filesystem), the
- * native-binary path bridge, and the dedicated file tools, so all three agree
- * on what the agent can see and where.
+ * The complete filesystem layout for a chat: the writable task mount (the
+ * chat's folder), one mount per skill source, and the folders the chat
+ * reaches, each writable unless it holds the workspace. Every mount sits at
+ * its own host path in the shell's spelling. This is the single source of
+ * truth shared by the bash sandbox (just-bash filesystem) and the dedicated
+ * file tools, so both agree on what the agent can see and where.
  */
 export interface WorkspaceFsLayout {
   /**
@@ -66,7 +56,7 @@ export interface WorkspaceFsLayout {
    * apps. Absent for a task, which reaches its apps through the `app` command.
    */
   apps?: WorkspaceFsMount & { readOnly: false };
-  /** The folders the chat reaches, under `/mnt`. */
+  /** The folders the chat reaches. */
   folders: WorkspaceFsMount[];
   /**
    * What Settings › Permissions, the chat's grants and the app's own rules
@@ -75,12 +65,10 @@ export interface WorkspaceFsLayout {
    */
   rules: Rules;
   /**
-   * One per skill source, at `/skills/<source>/`. The source segment is what
-   * carries provenance and writability, so the agent reads both off the path
-   * rather than having to ask: the workspace's own skills are writable because
-   * authoring one is editing a plain package of files, and everything else --
-   * what the app ships, and what a co-installed agent left in its home
-   * directory -- is read-only where it was discovered.
+   * One per skill source, at the source's own directory. The workspace's own
+   * skills are writable because authoring one is editing a plain package of
+   * files, and everything else -- what the app ships, and what a co-installed
+   * agent left in its home directory -- is read-only where it was discovered.
    *
    * Listed whether or not the directory exists, because the layout is built
    * synchronously; `buildBashFs` skips the ones that are not there.
@@ -89,7 +77,7 @@ export interface WorkspaceFsLayout {
   task: WorkspaceFsMount & { hostRoot: ChatDir; readOnly: false };
 }
 
-/** A single virtual->real mount in the workspace filesystem. */
+/** A single mount in the workspace filesystem. */
 export interface WorkspaceFsMount {
   /** Real on-disk directory backing this mount. */
   hostRoot: AbsolutePath;
@@ -105,10 +93,10 @@ export interface WorkspaceFsMount {
    * spelled per consumer is one the next mount does not inherit.
    */
   maskedEntries: readonly MaskedEntry[];
-  /** Absolute, normalized virtual path where the directory appears. */
+  /** Absolute, normalized path in the shell's spelling where the directory appears. */
   mountPoint: string;
   /**
-   * When true the mount is read-only: writes throw EROFS in the virtual FS.
+   * When true the mount is read-only: writes throw EROFS in the shell.
    * A folder is read-only when it holds the workspace
    * ({@link effectiveFolderAccess}).
    */
@@ -117,7 +105,7 @@ export interface WorkspaceFsMount {
 
 /**
  * Build the just-bash filesystem the bash interpreter runs against, from the
- * layout: an empty read-only base holds the virtual root (so stray writes like
+ * layout: an empty read-only base holds the root (so stray writes like
  * /tmp/x fail loudly instead of evaporating with the per-call filesystem), the
  * task mounts writable at its mount point, and the chat's folders mount with
  * the access each gets.
@@ -252,7 +240,7 @@ export function buildWorkspaceFsLayout({
   rules,
   taskHostRoot,
 }: {
-  /** Whether the workspace's apps directory is mounted, writable, at `/apps`. */
+  /** Whether the workspace's apps directory is mounted, writable. */
   apps?: boolean;
   folders?: Record<string, MountedFolder.Type>;
   rules?: Rules;
@@ -375,16 +363,16 @@ export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   ];
 }
 
-/** Virtual mount point of the masked-off private dir under the task mount. */
+/** Mount point of the masked-off private dir under the task mount. */
 export function privateMountPoint(taskMountPoint: string): string {
   return `${taskMountPoint}/${CHAT_FOLDER_NAMES.private}`;
 }
 
 /**
- * Resolve a virtual absolute path to the real on-disk path that backs it, plus
- * the mount that owns it. Returns null if no mount owns the path. The longest
- * matching mount point wins, so a folder mount under /mnt takes precedence
- * over the task mount.
+ * Resolve an absolute path in the shell's spelling to the real on-disk path
+ * that backs it, plus the mount that owns it. Returns null if no mount owns
+ * the path. The longest matching mount point wins, so a folder mount inside
+ * the task mount's folder takes precedence over it.
  */
 export function resolveHostPath(
   layout: WorkspaceFsLayout,
@@ -418,18 +406,16 @@ export function resolveHostPath(
 }
 
 /**
- * Map a virtual path to a host path for a native binary that can only READ.
+ * Map a shell path to a host path for a native binary that can only READ.
  *
- * This resolves the whole layout, including the
- * `/mnt` mounts and `/skills`. That is the point: a search command
- * the user cannot point at their folder mounts is not worth having, and the
- * dedicated grep tool already hands real ripgrep those same host paths.
+ * This resolves the whole layout, including the folders the chat reaches and
+ * the skills. That is the point: a search command the user cannot point at
+ * their folders is not worth having, and the dedicated grep tool already hands
+ * real ripgrep those same host paths.
  *
- * The safety of the wider reach rests entirely on the caller, which MUST:
- * - reject every flag that lets the binary write or execute (for ripgrep:
- *   `--pre`, `--pre-glob`, `--hostname-bin`, `-z`/`--search-zip`), and
- * - map every mount's host root back to its mount point in the binary's output,
- *   so the machine layout does not leak through match paths.
+ * The safety of the wider reach rests entirely on the caller, which MUST
+ * reject every flag that lets the binary write or execute (for ripgrep:
+ * `--pre`, `--pre-glob`, `--hostname-bin`, `-z`/`--search-zip`).
  *
  * Returns null for a path outside every mount, for a masked entry, and for a
  * symlink that resolves out of its own mount, so the caller reports a clean
@@ -459,7 +445,7 @@ export function resolveReadOnlyHostPath(
 }
 
 /**
- * {@link classifyHostPath} for a virtual path, through the mount that owns
+ * {@link classifyHostPath} for a shell path, through the mount that owns
  * it. Null for a path no mount owns.
  */
 export function classifyVirtualPath(
@@ -484,7 +470,7 @@ export function classifyVirtualPath(
  * it), so two spellings of one file get one answer.
  *
  * `via` is the mount the path was reached through, when the caller resolved a
- * virtual path to get it; without one the deepest mount holding the path is
+ * shell path to get it; without one the deepest mount holding the path is
  * taken, by its spelling first and by where it really leads after.
  *
  * Masked is asked of the mount the path is reached through, by its path
@@ -569,7 +555,7 @@ function allMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
 }
 
 /**
- * One mount per skill source, at `/skills/<source>/`.
+ * One mount per skill source, at the source's own directory.
  *
  * Derived from the same source list discovery walks, so a source the agent can
  * load a skill from is a source it can also read and run that skill's files in.
@@ -606,8 +592,8 @@ function buildSkillMounts(): WorkspaceFsMount[] {
 /**
  * What the task mount masks: its private dir, and in a chat's own folder the
  * `tasks/` dir an earlier version kept its tasks in. The chat's folder mounts
- * writable at `/task`, so without this those old folders would sit at
- * `/task/tasks/<id>`, writable and with their private dirs in plain view.
+ * writable, so without this those old folders would sit under it at
+ * `tasks/<id>`, writable and with their private dirs in plain view.
  * Decided by where the folder is rather than by an id so that it holds for
  * every consumer handed only the task's host root.
  */

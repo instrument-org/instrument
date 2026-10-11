@@ -258,7 +258,7 @@ export namespace SessionMessageDataPart {
    * Places in files the user marked and what they want changed at each,
    * gathered on the file before sending and carried beside their words, so
    * the request reads as a list of targets rather than quotes pasted into
-   * the message. Each names the file by its path (and the virtual path the
+   * the message. Each names the file by its path (and the path the
    * agent reaches it by, when a granted folder covers it), where in the file
    * in a reader's words, the words or source at that place, and what the
    * user typed for it, which may be nothing.
@@ -521,7 +521,7 @@ export namespace SessionMessageDataPart {
 
   /**
    * What the user was looking at when they sent the message: the folder open
-   * in the window's folder view and what was selected in it, as virtual paths.
+   * in the window's folder view and what was selected in it.
    * Event cadence, written by the surface that sent the message and only when
    * it had a folder on screen.
    */
@@ -611,7 +611,7 @@ export namespace SessionMessageDataPart {
     /**
      * Files and folders the person picked to go with the message by name,
      * from a menu or a button over them, rather than by having them on
-     * screen: each by its path, and the virtual path the agent reaches it by
+     * screen: each by its path, and the path the agent reaches it by
      * when a granted folder covers it.
      */
     chosen: z
@@ -627,7 +627,7 @@ export namespace SessionMessageDataPart {
     /** A file open on This Mac, as the person writes its path. */
     file: z
       .object({
-        /** The virtual path the agent reaches it by, when a granted folder covers it. */
+        /** The path the agent reaches it by, when a granted folder covers it. */
         mount: z.string().optional(),
         name: z.string(),
         path: z.string(),
@@ -640,7 +640,7 @@ export namespace SessionMessageDataPart {
         access: z.enum(["read-only", "read-write"]).optional(),
         /** As the person writes it: `~/Documents/Instrument`. */
         display: z.string(),
-        /** The virtual path the agent reaches it by; absent means it cannot read it. */
+        /** The path the agent reaches it by; absent means it cannot read it. */
         mount: z.string().optional(),
         /** The names selected in it, a folder's with a trailing slash. */
         selected: z.array(z.string()).default([]),
@@ -792,7 +792,7 @@ export namespace SessionMessageDataPart {
       z.object({
         about: z.string().optional(),
         emoji: z.string().optional(),
-        /** Where the topic's folders are mounted in the chat, as `/mnt/<name>`. */
+        /** The paths of the topic's folders in the chat. */
         folders: z.array(z.string()).optional(),
         /** The topic's instructions as they stood when the message was sent. */
         instructions: z.string().optional(),

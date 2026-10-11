@@ -1,5 +1,5 @@
 /**
- * Is one virtual path at or inside another, and what is the remainder.
+ * Is one path at or inside another, and what is the remainder.
  *
  * Written once because the spelling has three ways to be wrong and none of
  * them announces itself. Compare with `===` alone and the root itself stops

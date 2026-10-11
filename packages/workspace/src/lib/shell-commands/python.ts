@@ -17,7 +17,7 @@ import { ensureTaskVenv } from "./uv";
  *
  * `python` (and `python3`) is CPython compiled to WebAssembly, run by just-bash
  * inside the sandbox: every file call goes through the same virtual filesystem
- * the shell uses, so it reads a folder mount in place and cannot write to
+ * the shell uses, so it reads a folder in place and cannot write to
  * a read-only one. It has the standard library and nothing else.
  *
  * `python-native` is the interpreter in the task's virtualenv, a real process. It is
@@ -132,9 +132,9 @@ function createSandboxedPythonCommand(
  */
 function explainSandboxedPythonFailure(stderr: string): string {
   let text = stderr
-    // The interpreter mounts the virtual filesystem at /host and its own
-    // shims prefix paths with it, so an error names '/host/mnt/...' for a
-    // file the agent wrote as '/mnt/...'.
+    // The interpreter mounts the shell's filesystem at /host and its own
+    // shims prefix paths with it, so an error names '/host/Users/sam/x' for a
+    // file the agent wrote as '/Users/sam/x'.
     .replaceAll(/(['"])\/host\//g, "$1/")
     // Frames inside the interpreter's own path shims, which sit between the
     // agent's line and the OSError it caused and name a file that is not

@@ -76,7 +76,7 @@ export function filePathOfInstrumentLink(url: string): string | undefined {
   if (!SCHEMES.has(parsed.protocol) || parsed.host.toLowerCase() !== "file") {
     return undefined;
   }
-  // `instrument://file//mnt/a.md` and `instrument://file/mnt/a.md` both mean
+  // `instrument://file//Users/sam/a.md` and `instrument://file/Users/sam/a.md` both mean
   // the absolute path the reply had in hand.
   const path = decoded(parsed.pathname).replace(/^\/+/, "/");
   return path === "/" ? undefined : path;

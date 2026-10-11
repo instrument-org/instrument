@@ -19,7 +19,7 @@ const DU_COMMAND = {
   name: "du",
 } as const;
 
-/** One operand: a path inside a mount, or a virtual directory holding mounts. */
+/** One operand: a path inside a mount, or a directory above mounts. */
 type DuOperand =
   | (DuRoot & { kind: "path" })
   | { children: DuRoot[]; display: string; kind: "mounts" }
@@ -293,7 +293,7 @@ function maskedNamesIn(hostRoot: string, mount: WorkspaceFsMount): string[] {
 
 /**
  * Map one operand onto the disk, or null when it is something only the
- * virtual filesystem can answer.
+ * shell's own filesystem can answer.
  */
 function resolveOperand(
   layout: WorkspaceFsLayout,
@@ -317,7 +317,8 @@ function resolveOperand(
     };
   }
 
-  // A virtual directory such as `/mnt` holds mounts but no files of its own.
+  // A directory above mounts, such as `/Users`, holds mounts but no files of
+  // its own as far as the layout knows.
   // Its mounts are listed as its children when they sit directly inside it;
   // anything deeper is left to just-bash, which knows the whole tree.
   const inside = [layout.task, ...nonTaskMounts(layout)].filter(

@@ -55,7 +55,7 @@ export type FromWorker =
   | { id: number; mountPath: string; type: "skill-mutation" }
   /** A permission ask, raised on main where the app hears the chat's record change. */
   | {
-      asker: { chatId: string; sessionId: string };
+      asker: { chatId: string; partId?: string; sessionId: string };
       kind: "app" | "folder";
       target: string;
       type: "ask";

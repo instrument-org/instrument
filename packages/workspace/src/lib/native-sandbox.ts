@@ -549,7 +549,12 @@ export function refusalNote(
     isDirectory: false,
     rule: refused.reach.rule,
   });
-  if (!refused.rules.asker) {
+  // The home folder or the disk whole is never the thing to ask for.
+  if (
+    !refused.rules.asker ||
+    folder === refused.rules.home ||
+    folder === path.parse(folder).root
+  ) {
     return `${shown(refused.hostPath)} needs the person's yes first.`;
   }
   raiseAsk(refused.rules.asker, "folder", folder);

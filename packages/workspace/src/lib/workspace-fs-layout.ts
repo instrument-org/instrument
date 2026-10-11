@@ -154,7 +154,11 @@ export async function buildBashFs(
         const folder = statSync(hostPath).isDirectory()
           ? hostPath
           : nodePath.dirname(hostPath);
-        if (rules.asker) {
+        if (
+          rules.asker &&
+          folder !== rules.home &&
+          folder !== nodePath.parse(folder).root
+        ) {
           raiseAsk(rules.asker, "folder", folder);
           onRefusal(waitingNote(shellPath(folder)));
         } else {

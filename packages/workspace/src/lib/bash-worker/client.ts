@@ -265,9 +265,14 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       const sessionId = StoreId.SessionSchema.safeParse(
         message.asker.sessionId,
       );
+      const partId = StoreId.PartSchema.safeParse(message.asker.partId);
       if (chatId.success && sessionId.success) {
         await recordAsk(
-          { chatId: chatId.data, sessionId: sessionId.data },
+          {
+            chatId: chatId.data,
+            ...(partId.success && { partId: partId.data }),
+            sessionId: sessionId.data,
+          },
           message.kind,
           message.target,
         );

@@ -705,7 +705,12 @@ export async function createLocalBashEnv({
   standIn?: (name: string) => Command;
 }) {
   // Read as they stand when the shell is made, which is once per bash call.
-  const rules = await chatRules({ chatId, folders, sessionId });
+  const rules = await chatRules({
+    chatId,
+    folders,
+    partId: callPartId,
+    sessionId,
+  });
   const layout = shellLayout({ folders, chat, chatId, rules });
   // The working folder walks at the sandbox's budget, and the home folder at
   // its own, smaller one.

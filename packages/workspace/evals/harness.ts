@@ -314,6 +314,11 @@ export interface EvalCase {
    * asks to change, say.
    */
   beforeFollowUp?: (position: number) => Promise<void> | void;
+  /**
+   * Every `request_folder` the agent asks is answered as the user pressing
+   * Cancel in the picker: for what the agent does once a folder is refused.
+   */
+  declinesFolders?: boolean;
   files?: FileUpload.Type[];
   /**
    * `inPlace` attaches the folder where it is rather than a per-run copy:
@@ -672,6 +677,7 @@ export async function runEvals(
       let overBudget: number | undefined;
       // Each question once: a part is published again on every update.
       const askedIds = new Set<string>();
+      const declinedIds = new Set<string>();
       // See `FollowUp.duringWork`: the run's own finished tool calls, and
       // who is waiting for one to be in flight after enough of them.
       const ownToolsDone = new Set<string>();
@@ -861,6 +867,28 @@ export async function runEvals(
                 );
                 void call(sessionRoute.stop, { id }, { context });
               }
+            }
+
+            if (
+              evalCase.declinesFolders &&
+              part.type === "tool-request_folder" &&
+              part.state === "input-available" &&
+              !declinedIds.has(part.toolCallId)
+            ) {
+              declinedIds.add(part.toolCallId);
+              write(
+                `${evalPrefix(label)}${c.cyan}request_folder${c.reset}${c.dim} declined: ${part.input.reason}${c.reset}\n`,
+              );
+              void call(
+                sessionRoute.answerToolCall,
+                {
+                  id,
+                  output: { status: "declined" },
+                  toolCallId: part.toolCallId,
+                  toolName: "request_folder",
+                },
+                { context },
+              );
             }
 
             if (

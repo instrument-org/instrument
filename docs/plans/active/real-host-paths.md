@@ -1,6 +1,6 @@
 # Plan: real host paths, held to the Permissions rules
 
-Status: in progress. Steps 1 and 2 have landed: Seatbelt holds native commands to the Permissions rules on macOS, the shell and file tools follow the same rules, request_folder is a card, and Settings › Permissions edits the rules. Step 3 is under way; [the decision](../../decisions/2026-10-11-the-agent-works-at-real-paths.md) records how. Tracked in FP-1371.
+Status: in progress. Steps 1 to 4 have landed: Seatbelt on macOS and bubblewrap on Linux hold native commands to the Permissions rules, the shell and file tools follow the same rules, the agent works at real paths, request_folder is a card, and Settings › Permissions edits the rules. [The decision](../../decisions/2026-10-11-the-agent-works-at-real-paths.md) records how. Step 5 (Windows) has not landed, so native commands there run unwrapped. Tracked in FP-1371.
 
 ## Summary
 
@@ -20,11 +20,12 @@ One set of rules, from Settings › Permissions: a path at any depth is Allowed,
 
 | Layer | How it applies the rules | Platforms |
 | --- | --- | --- |
-| File tools, `rg`, `du` | `classifyHostPath` per path | All |
+| File tools | `classifyHostPath` and `ruleRefusal` per path | All |
+| `rg`, `du` | `classifyHostPath` per operand, for masked entries and symlinks; `rg` also runs under the OS sandbox below | All |
 | just-bash builtins, sandboxed `python` and `js-exec` | The virtual filesystem, now mounting each reachable folder at its host path | All |
-| In-app browser `file://` reads | The CDP bridge and `tab read` check | All |
-| Native command lines | Every path argument checked before spawning: Not allowed refused, Ask first raises the card | All |
-| What a native command's code reaches on its own | An OS sandbox around the spawn, generated from the rules | macOS now; Linux and Windows per the steps below |
+| In-app browser `file://` reads | The CDP bridge and `tab read` check the layout (folders the chat reaches and their masked entries), not the rules | All |
+| Native command lines | `git` asks the rules before a command that writes; no other command line is checked, and the OS sandbox holds the rest | All (`git`) |
+| What a native command's code reaches on its own | An OS sandbox around the spawn, generated from the rules | macOS and Linux; Windows per step 5 |
 
 The chat's own folder stops being `/task`. The prompt names it as the place the chat works and keeps what it makes, at its real path.
 

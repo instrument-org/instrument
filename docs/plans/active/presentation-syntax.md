@@ -59,11 +59,11 @@ The chip and the fence resolve identically now: both draw from the path and shar
 ```files
 output/revenue.png
 output/costs.png
-/mnt/Reports/regional-split.pdf
+/home/sam/Reports/regional-split.pdf
 ```
 ````
 
-The whole line is the path, so a name with spaces in it needs no quoting and no escaping. Paths are written exactly as the agent passes them to a file tool, which is the only path vocabulary it has: task-relative, or a `/mnt/...` mount path.
+The whole line is the path, so a name with spaces in it needs no quoting and no escaping. Paths are written exactly as the agent passes them to a file tool, which is the only path vocabulary it has: task-relative, or the full path of a file in a folder it reaches.
 
 A fence rather than a directive, decided on evidence rather than taste:
 
@@ -177,7 +177,7 @@ Syntax is the surface. What is built parses to a list of paths, and the shape it
 
 **Nothing resolves over the network while rendering.** A card draws from its path: the basename is the label, the extension gives the type and icon, and `assetBase + path` is the URL. Truth is established when someone clicks. The reasoning is in [file-references-without-a-watcher.md](../completed/file-references-without-a-watcher.md), whose first step this is; what remains here is what the fence itself does with a path.
 
-A line is drawn only if it is **addressable** — task-relative or under the attached-folder mount root, never traversing — because the lines come from model output and a host path among them has to read as prose rather than as an affordance that cannot work ([task-file-path.ts](../../../packages/workspace/src/lib/task-file-path.ts), shared with the chip so one path grammar covers both).
+A line is drawn only if it is **addressable** (task-relative or absolute, with no backslash or `..` segment) because the lines come from model output and a malformed path among them has to read as prose rather than as an affordance that cannot work ([task-file-path.ts](../../../packages/workspace/src/lib/task-file-path.ts), shared with the chip so one path grammar covers both).
 
 Not built: globs and directories, and an item cap.
 

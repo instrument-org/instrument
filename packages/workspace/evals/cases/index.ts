@@ -8,7 +8,6 @@ import { CREATE_PAGE_SKILL_EVALS } from "./create-page-skill";
 import { DOCUMENT_DESIGN_EVALS } from "./document-design";
 import { FILES_FENCE_EVALS } from "./files-fence";
 import { HANDOFF_EVALS } from "./handoff";
-import { GIT_OVER_MOUNTS_EVALS } from "./git-over-mounts";
 import { IMAGE_REGION_EVALS } from "./image-region";
 import { INTERRUPTION_EVALS } from "./interruptions";
 import { INSTRUMENT_GUIDE_EVALS } from "./instrument-guide";
@@ -42,7 +41,6 @@ export const EVALS = [
   ...DOCUMENT_DESIGN_EVALS,
   ...FILES_FENCE_EVALS,
   ...HANDOFF_EVALS,
-  ...GIT_OVER_MOUNTS_EVALS,
   ...IMAGE_REGION_EVALS,
   ...INTERRUPTION_EVALS,
   ...INSTRUMENT_GUIDE_EVALS,

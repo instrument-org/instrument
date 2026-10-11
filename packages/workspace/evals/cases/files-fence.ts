@@ -193,16 +193,25 @@ const assertShownOnlyInFence: Assertion = {
   text: "Showed each file only in the fence",
 };
 
-/** Named a file under a mount, which is the case nothing else can surface. */
+/** The temp folder the harness copies an attached fixture into. */
+const EVAL_FOLDERS = "-eval-folders-";
+
+/**
+ * Named a file in the shared folder at its own path, which is the case
+ * nothing else can surface. The harness attaches a copy of the fixture under
+ * a temp folder named for the run.
+ */
 const assertNamedMountedFile: Assertion = {
   check: ({ sessions }) => {
     const lines = fenceBodies(assistantText(sessions)).flatMap(fenceLines);
-    const mounted = lines.filter((line) => line.startsWith("/mnt/"));
+    const mounted = lines.filter(
+      (line) => line.startsWith("/") && line.includes(EVAL_FOLDERS),
+    );
     return {
       evidence:
         mounted.length > 0
           ? mounted.join(" | ")
-          : `No /mnt path among: ${lines.join(" | ") || "(no fence)"}`,
+          : `No shared folder path among: ${lines.join(" | ") || "(no fence)"}`,
       passed: mounted.length > 0,
       text: "Named the file in the shared folder",
     };

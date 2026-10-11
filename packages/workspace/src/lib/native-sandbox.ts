@@ -7,7 +7,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import { canonicalizeThroughMissing } from "./host-path";
-import { placePaths } from "./permissions/places";
+import { DANGEROUS_NAMES, placePaths } from "./permissions/places";
 import {
   folderToAskFor,
   type Reach,
@@ -213,6 +213,17 @@ export function seatbeltProfile(reach: NativeReach): string {
       '(deny mach-lookup (global-name "com.apple.SecurityServer") (global-name "com.apple.securityd.xpc"))',
     );
   }
+  // A name that runs code when its folder is used stays closed to changes
+  // everywhere but the app's own folders.
+  const ownFolders = reach.readWrite.flatMap(spellings);
+  texts.push(
+    `(deny file-write* (require-all (require-any ${DANGEROUS_NAMES.map(
+      (name) =>
+        `(regex #"/${regexEscape(name)}(/|$)")`,
+    ).join(" ")}) ${ownFolders
+      .map((own) => `(require-not (subpath ${sbplString(own)}))`)
+      .join(" ")}))`,
+  );
   // No Apple Events and no opening apps: a command could otherwise have
   // another app do what the profile keeps it from, outside any sandbox.
   // osascript reaches an app only when the person allowed that app, and then
@@ -385,6 +396,17 @@ export function bwrapArgs(reach: NativeReach): string[] {
   }
   for (const opened of [...tools.settings, ...reach.readOnly]) {
     add(opened, "read", 3);
+  }
+  // bubblewrap has no pattern for a name that runs code when its folder is
+  // used, so the ones already at the top of each allowed folder of the
+  // person's are bound read-only by name.
+  for (const rule of rules) {
+    if (rule.level !== "allow" || rule.source === "system") {
+      continue;
+    }
+    for (const name of DANGEROUS_NAMES) {
+      add(path.join(rule.path, name), "read", 4);
+    }
   }
   const args = [
     "--ro-bind",

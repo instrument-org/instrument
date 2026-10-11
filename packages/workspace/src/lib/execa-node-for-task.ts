@@ -6,6 +6,7 @@ import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { ffmpegSubprocessEnv } from "./ffmpeg";
 import { gitSubprocessEnv } from "./git";
+import { inheritedEnv } from "./native-env";
 import { wrapNativeCommand } from "./native-sandbox";
 import { getWorkspaceConfig } from "./workspace-config";
 import { workDir } from "./work-dir";
@@ -33,7 +34,10 @@ export function execaNodeForTask<
   return execa(spawned.file, spawned.args, {
     ...options,
     cwd: cwd ?? workDir(chatId),
+    // Only what a program needs of the app's own environment; see native-env.
+    extendEnv: false,
     env: {
+      ...inheritedEnv(),
       ...baseEnv,
       // Covers what resolveCommandContext cannot: the user's own app processes
       // (spawn-runtime) and anything else spawned for a task. A build script

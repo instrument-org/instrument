@@ -1,5 +1,7 @@
 import { execa, type Options } from "execa";
 
+import { inheritedEnv } from "../native-env";
+
 import {
   refusalNote,
   refusedPathIn,
@@ -91,6 +93,10 @@ export async function execShim(
   const spawned = wrapNativeCommand(file, args, unsandboxed ? null : undefined);
   const subprocess = execa(spawned.file, spawned.args, {
     ...subprocessOptions,
+    // Only what a program needs of the app's own environment, so a key or
+    // token set for the app never reaches a script the agent runs.
+    env: { ...inheritedEnv(), ...subprocessOptions.env },
+    extendEnv: false,
     all: true,
     cancelSignal: sink ? undefined : cancelSignal,
     detached: sink !== undefined && process.platform !== "win32",

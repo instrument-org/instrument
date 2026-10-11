@@ -11,9 +11,11 @@ import {
   type Level,
   LevelSchema,
   PLACE_DEFAULTS,
+  DANGEROUS_NAMES,
   type PlaceId,
   PlaceIdSchema,
   placePaths,
+  startupPaths,
 } from "./places";
 
 /**
@@ -122,7 +124,11 @@ export function rulesFor({
   home?: string;
   settings: PermissionSettings;
 }): Rules {
-  const rules: Rule[] = [];
+  const rules: Rule[] = startupPaths(home).map((startup) => ({
+    level: "never",
+    path: startup,
+    source: "system",
+  }));
   for (const place of placePaths(home)) {
     const level =
       place.id === "output"
@@ -206,6 +212,15 @@ export function reachOf(
       best = { depth: held, rule };
     }
   }
+  // A name that runs code when its folder is used is closed to changes
+  // anywhere but the app's own folders.
+  if (
+    op === "write" &&
+    !(best?.rule.source === "system" && best.rule.level === "allow") &&
+    namesDangerous(target)
+  ) {
+    return { level: "never", rule: best?.rule };
+  }
   const access = best ? best.rule.level : op === "read" ? "allow" : "ask";
   const level =
     access === "readOnly" ? (op === "read" ? "allow" : "never") : access;
@@ -213,6 +228,16 @@ export function reachOf(
     level: level === "ask" && rules.withoutAsking ? "allow" : level,
     rule: best?.rule,
   };
+}
+
+function namesDangerous(foldedPath: string): boolean {
+  const slashed = foldedPath.replaceAll(path.sep, "/");
+  return DANGEROUS_NAMES.some((name) => {
+    const folded = fold(name);
+    return (
+      slashed.endsWith(`/${folded}`) || slashed.includes(`/${folded}/`)
+    );
+  });
 }
 
 /**

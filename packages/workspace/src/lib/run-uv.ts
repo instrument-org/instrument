@@ -3,6 +3,7 @@ import { execa } from "execa";
 import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { filterShellOutput } from "./filter-shell-output";
+import { inheritedEnv } from "./native-env";
 import { getUvBinPath, uvSubprocessEnv } from "./uv";
 
 export async function runUvCommand({
@@ -22,7 +23,8 @@ export async function runUvCommand({
     all: true,
     cancelSignal: signal,
     cwd,
-    env: uvSubprocessEnv({ chatId }),
+    env: { ...inheritedEnv(), ...uvSubprocessEnv({ chatId }) },
+    extendEnv: false,
     reject: false,
     ...(stdin === undefined ? { stdin: "ignore" } : { input: stdin }),
   });

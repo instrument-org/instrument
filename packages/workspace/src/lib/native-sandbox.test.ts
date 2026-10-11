@@ -64,6 +64,7 @@ describe("seatbeltProfile", () => {
         "(allow file-read-metadata (literal "/nope/home/Library"))",
         "(deny file-write* (literal "/nope"))",
         "(deny file-write* (literal "/nope/home"))",
+        "(deny file-write* (require-all (require-any (regex #"/\\.git/hooks(/|$)") (regex #"/\\.gitconfig(/|$)") (regex #"/\\.vscode(/|$)")) ))",
         "(deny appleevent-send)",
         "(deny lsopen)",
         "(deny mach-lookup (global-name "com.apple.coreservices.appleevents"))",
@@ -170,6 +171,31 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
     const result = await execa(spawned.file, spawned.args, { reject: false });
     expect(result.exitCode).not.toBe(0);
     expect(existsSync(path.join(granted, "Moved"))).toBe(false);
+  });
+
+  it.each([
+    [".vscode/tasks.json", ".vscode"],
+    [".git/hooks/pre-commit", ".git/hooks"],
+  ])("refuses writing %s inside a granted folder", async (file, dir) => {
+    mkdirSync(path.join(granted, dir), { recursive: true });
+    const spawned = wrapNativeCommand(
+      "/bin/sh",
+      ["-c", `echo x > ${path.join(granted, file)}`],
+      reach,
+    );
+    const result = await execa(spawned.file, spawned.args, { reject: false });
+    expect(result.exitCode).not.toBe(0);
+  });
+
+  it("still writes a repository's other files in a granted folder", async () => {
+    mkdirSync(path.join(granted, ".git", "objects"), { recursive: true });
+    const spawned = wrapNativeCommand(
+      "/bin/sh",
+      ["-c", `echo x > ${path.join(granted, ".git", "objects", "o")}`],
+      reach,
+    );
+    const result = await execa(spawned.file, spawned.args, { reject: false });
+    expect(result.exitCode).toBe(0);
   });
 
   it("holds a node child the command starts", async () => {

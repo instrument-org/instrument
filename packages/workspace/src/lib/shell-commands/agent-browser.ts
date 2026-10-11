@@ -6,6 +6,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { dedent, sleep } from "radashi";
 
+import { inheritedEnv } from "../native-env";
 import { CHAT_FOLDER_NAMES } from "../../constants";
 import { cdpBridgeUrl } from "../../logic/server/cdp-bridge-path";
 import { getWorkspaceServerPort } from "../../logic/server/url";
@@ -503,7 +504,9 @@ function executablePathMessage() {
  */
 function externalBrowserBaseEnv(): Record<string, string | undefined> {
   return {
-    ...process.env,
+    // The platform variables the CLI finds Chrome and the user's profiles
+    // by, and not the app's keys or tokens; see native-env.
+    ...inheritedEnv(),
     // Carried by the sandbox env on every other invocation, and not something a
     // host sets, so without it here the CLI colors output the model has to read.
     NO_COLOR: "1",
@@ -1118,6 +1121,9 @@ async function spawnAgentBrowser({
       cancelSignal,
       cwd,
       env,
+      // The env is built whole (sandbox or host); nothing else of the app's
+      // own reaches the CLI.
+      extendEnv: false,
       input,
       reject: false,
       // Keep the final newline; the interpreter concatenates each command's

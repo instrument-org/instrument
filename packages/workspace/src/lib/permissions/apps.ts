@@ -8,6 +8,7 @@ import { readChatRecord, updateChatRecord } from "../chat-record";
 import { getCurrentDate } from "../get-current-date";
 import { chatDir } from "../record-folders";
 import { type Level } from "./places";
+import { chatDenials } from "./denials";
 import { readPermissionSettings } from "./rules";
 
 const execFileAsync = promisify(execFile);
@@ -28,6 +29,13 @@ function isFor(
   );
 }
 
+/** Whether the person said not now to `app` in this chat. */
+export async function appDenied(chatId: ChatId, app: string): Promise<boolean> {
+  return (await chatDenials(chatId)).some(
+    (denial) => denial.kind === "app" && sameApp(denial.target, app),
+  );
+}
+
 /**
  * Whether the agent may use `app`, by its name or its bundle id, in this
  * chat: a rule in Settings › Permissions where there is one, an allow where
@@ -40,6 +48,9 @@ function isFor(
  * id.
  */
 export async function appReach(chatId: ChatId, app: string): Promise<Level> {
+  if (await appDenied(chatId, app)) {
+    return "never";
+  }
   if (chatId !== WINDOW_ID) {
     const grants = await chatAppGrants(chatId);
     if (grants.some((grant) => isFor({ ...grant, name: grant.app }, app))) {

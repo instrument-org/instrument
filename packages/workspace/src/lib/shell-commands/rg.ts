@@ -12,6 +12,7 @@ import { RG_DISK_PATH } from "../ripgrep";
 import {
   nonTaskMounts,
   classifyVirtualPath,
+  outsideMountRefusal,
   resolveReadOnlyHostPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
@@ -221,6 +222,21 @@ function bridgePathArgs(
         return {
           error: `${RG_COMMAND.name}: ${arg}: path is not accessible`,
         };
+      }
+      // A path outside every folder the chat reaches is refused here the
+      // way the shell's own commands refuse it, and asked for the same way,
+      // rather than read by the real binary the rules hold to less.
+      const resolved = isOperand ? resolveVirtual(arg) : undefined;
+      if (
+        resolved !== undefined &&
+        !mountPoints.some((mountPoint) => isAtOrUnder(mountPoint, resolved))
+      ) {
+        const refusal = outsideMountRefusal(layout, resolved, "read");
+        if (refusal) {
+          return {
+            error: `${RG_COMMAND.name}: ${arg}: Permission denied\n${refusal}`,
+          };
+        }
       }
       bridged.push(arg);
       continue;

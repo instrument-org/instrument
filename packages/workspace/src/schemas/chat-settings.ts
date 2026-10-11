@@ -36,6 +36,19 @@ const ChatAppGrantSchema = z.object({
 
 export type ChatAppGrant = z.output<typeof ChatAppGrantSchema>;
 
+/**
+ * A folder or an app the person said not now to in this chat: closed to it
+ * here until they allow it, so asking again through another tool, or the
+ * same one, does not turn the no into a yes.
+ */
+const ChatDenialSchema = z.object({
+  deniedAt: z.coerce.date(),
+  kind: z.enum(["app", "folder"]),
+  target: z.string().min(1),
+});
+
+export type ChatDenial = z.output<typeof ChatDenialSchema>;
+
 // Load-bearing that this stays a plain object schema: it is parsed against the
 // whole settings file, whose `state` key it is meant to ignore rather than
 // reject. Making it strict would fail every chat's settings at once, and with
@@ -55,6 +68,9 @@ export const ChatSettingsSchema = z.object({
   // The apps on this computer the agent may control in this chat. One that
   // will not parse costs the chat these grants alone.
   appGrants: z.array(ChatAppGrantSchema).optional().catch(undefined),
+  // What the person said not now to in this chat. One that will not parse
+  // costs the chat these alone.
+  denials: z.array(ChatDenialSchema).optional().catch(undefined),
   // The folders granted in this chat, oldest first. One that will not parse
   // costs the chat its grants rather than the rest of its settings.
   grants: z.array(ChatGrantSchema).optional().catch(undefined),

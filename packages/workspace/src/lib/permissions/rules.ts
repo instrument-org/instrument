@@ -93,6 +93,8 @@ export interface Rule {
   dotEntries?: true;
   level: Access;
   path: string;
+  /** Set for a folder the person said not now to in this chat. */
+  denied?: true;
   /** Present for a built-in place's rule. */
   place?: PlaceId;
   /**
@@ -120,11 +122,14 @@ export interface Rules {
  * the chat holds without a grant (its own folder, its topics' folders).
  */
 export function rulesFor({
+  denials = [],
   extraAllows = [],
   grants = [],
   home = os.homedir(),
   settings,
 }: {
+  /** Folders the person said not now to in this chat. */
+  denials?: readonly string[];
   extraAllows?: readonly string[];
   grants?: readonly ChatGrant[];
   home?: string;
@@ -161,6 +166,9 @@ export function rulesFor({
     ...extraAllows,
   ]) {
     rules.push({ level: "allow", path: allowed, source: "grant" });
+  }
+  for (const denied of denials) {
+    rules.push({ denied: true, level: "never", path: denied, source: "grant" });
   }
   return { home, rules, withoutAsking: settings.withoutAsking };
 }

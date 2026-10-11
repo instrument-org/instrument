@@ -528,6 +528,9 @@ export function refusalNote(
     shownPath.startsWith(`${home}/`)
       ? `~/${shownPath.slice(home.length + 1)}`
       : shownPath;
+  if (refused.reach.rule?.denied) {
+    return `The person said not now to ${shown(refused.hostPath)} in this chat. Don't look for another way in; say what you skipped without it.`;
+  }
   if (refused.reach.level === "never") {
     return `${shown(refused.hostPath)} is closed to ${APP_NAME} in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.`;
   }

@@ -3,7 +3,12 @@ import { defineCommand } from "just-bash";
 import { APP_NAME } from "@instrument-org/shared";
 
 import { type ChatId } from "../../schemas/chat-id";
-import { appReach, runsCodeOutside, scriptTargets } from "../permissions/apps";
+import {
+  appDenied,
+  appReach,
+  runsCodeOutside,
+  scriptTargets,
+} from "../permissions/apps";
 import { raiseAsk, waitingNote } from "../permissions/asks";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
@@ -174,6 +179,11 @@ export function createOsascriptCommand(
     const targets = sources.flatMap(scriptTargets);
     for (const app of targets) {
       const level = await appReach(chatId, app);
+      if (level === "never" && (await appDenied(chatId, app))) {
+        return refuse(
+          `the person said not now to ${app} in this chat. Don't look for another way to use it; say what you skipped without it.`,
+        );
+      }
       if (level === "never") {
         return refuse(
           `${app} is marked Not allowed in Settings › Permissions, so ${APP_NAME} won't control it. Tell the person what you skipped.`,

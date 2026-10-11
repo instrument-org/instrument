@@ -24,6 +24,7 @@ import {
 import { closeAsk, openAsks } from "../../lib/permissions/asks";
 import { chatRules } from "../../lib/permissions/chat-rules";
 import { grantFolder } from "../../lib/chat/grants";
+import { setDenied } from "../../lib/permissions/denials";
 import { wakeSessionForPermission } from "../../lib/chat/wake";
 import { recordChanges } from "../../lib/record-changes";
 import { PermissionAskSchema } from "../../schemas/chat-state";
@@ -223,6 +224,7 @@ const allowApp = base
   .output(z.void())
   .handler(async ({ input }) => {
     await grantApp(input.id, input.app);
+    await setDenied(input.id, "app", input.app, false);
     if (input.always) {
       const bundleId = await appBundleId(input.app);
       await updatePermissionSettings((settings) => ({
@@ -301,6 +303,7 @@ const answer = base
     }
     const target =
       ask.kind === "folder" ? (input.path ?? ask.target) : ask.target;
+    await setDenied(input.id, ask.kind, target, input.decision === "declined");
     if (input.decision !== "declined") {
       if (ask.kind === "folder") {
         await grantFolder({ chatId: input.id, path: target, source: "card" });

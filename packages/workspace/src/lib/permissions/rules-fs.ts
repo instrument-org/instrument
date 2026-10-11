@@ -32,6 +32,9 @@ export function ruleRefusal({
     return undefined;
   }
   if (reach.level === "never") {
+    if (reach.rule?.denied) {
+      return `${spell(hostPath)}: the person said not now to this folder in this chat. Don't look for another way in; say what you skipped without it.`;
+    }
     return reach.rule?.level === "readOnly"
       ? `${spell(hostPath)} is read-only. Copy what you need out of it and change the copy.`
       : `${spell(hostPath)} is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.`;

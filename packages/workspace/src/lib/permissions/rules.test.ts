@@ -64,6 +64,20 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
     });
     expect(reachOf(open, `${home}/.ssh/config`, "read").level).toBe("allow");
   });
+
+  it("holds a not now over Use folders without asking", () => {
+    const declined = rulesFor({
+      denials: [`${home}/Desktop/Trip`],
+      home,
+      settings: { ...settings, withoutAsking: true },
+    });
+    const reach = reachOf(declined, `${home}/Desktop/Trip/a.png`, "read");
+    expect(reach.level).toBe("never");
+    expect(reach.rule?.denied).toBe(true);
+    expect(reachOf(declined, `${home}/Desktop/b.png`, "read").level).toBe(
+      "allow",
+    );
+  });
 });
 
 describe("folderToAskFor", () => {

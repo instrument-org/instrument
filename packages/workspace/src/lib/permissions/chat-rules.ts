@@ -7,6 +7,7 @@ import { type MountedFolder } from "../../schemas/mounted-folder";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { folderReach } from "../chat/folder-reach";
 import { chatGrants } from "../chat/grants";
+import { chatDenials } from "./denials";
 import { type NativeReach } from "../native-sandbox";
 import { nodeToolsDir } from "../tool-isolation";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -37,6 +38,9 @@ export async function chatRules({
     extraAllows: Object.values(folders)
       .map((folder) => folder.path)
       .filter((folderPath) => path.resolve(folderPath) !== path.resolve(home)),
+    denials: (await chatDenials(chatId))
+      .filter((denial) => denial.kind === "folder")
+      .map((denial) => denial.target),
     grants: chatId === WINDOW_ID ? [] : await chatGrants(chatId),
     home,
     settings: await readPermissionSettings(),

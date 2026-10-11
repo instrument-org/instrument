@@ -1022,9 +1022,6 @@ importers:
       '@instrument-org/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
-      '@oxlint/plugins':
-        specifier: 1.85.0
-        version: 1.85.0
       '@t3-oss/env-core':
         specifier: ^0.13.8
         version: 0.13.11(typescript@5.9.2)(valibot@1.2.0(typescript@5.9.2))(zod@4.6.5)

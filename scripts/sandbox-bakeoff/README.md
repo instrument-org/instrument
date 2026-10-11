@@ -3,10 +3,10 @@
 Runs real native workloads and known escapes under one sandbox candidate, the way the agent spawns a native command, and prints a table of job, result, seconds, and the first error line. Node 24 or later, no dependencies.
 
 ```sh
-node scripts/sandbox-bakeoff/probe.ts --runner seatbelt --home /private/tmp/bakeoff/home --granted /private/tmp/bakeoff/home/work --json seatbelt.json
+node scripts/sandbox-bakeoff/probe.ts --runner seatbelt --home /var/tmp/bakeoff/home --granted /var/tmp/bakeoff/home/work --json seatbelt.json
 ```
 
-- `--home` is a fixture home folder. The probe plants it (a secret at `.ssh/id_test`, a `.zshrc`, the usual cache folders) and runs every job with `HOME` set to it, so no job touches the real home. It must sit outside the OS temp folder, which every candidate leaves writable.
+- `--home` is a fixture home folder. The probe plants it (a secret at `.ssh/id_test`, a `.zshrc`, the usual cache folders) and runs every job with `HOME` set to it, so no job touches the real home. It must sit outside `/tmp` and the OS temp folder, which every candidate leaves writable.
 - `--granted` is the folder the policy grants read and write. Each job runs in its own subfolder, cleared first.
 - `--runner` picks the candidate: `none` (control), `seatbelt` (the profile `native-sandbox.ts` generates), `bwrap` (its bubblewrap arguments), `srt` (Anthropic sandbox-runtime; `--srt <bin>` if it is not on `PATH`), `mxc` (`--mxc-sdk <path to @microsoft/mxc-sdk>`), or a path to a module exporting `exec(script, cwd, env, policy)` that resolves to `{ code, output, stdout }`.
 - `--only a,b` runs a subset; `--registry <dir>` points at the skills registry (defaults to this repo's `registry/`); `--timeout <seconds>` caps each job (default 900).

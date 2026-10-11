@@ -46,10 +46,12 @@ const ensure = (dir: string) => {
 };
 const home = ensure(flags.home);
 const granted = ensure(flags.granted);
-const tmp = realpathSync(os.tmpdir());
-if (home.startsWith(`${tmp}/`)) {
+// The temp folders every candidate leaves writable. pnpm 11 keeps its store
+// locks in /tmp whatever TMPDIR says.
+const tmp = [...new Set([realpathSync(os.tmpdir()), realpathSync("/tmp")])];
+if (tmp.some((dir) => home.startsWith(`${dir}/`))) {
   console.error(
-    `The fixture home must sit outside ${tmp}, which every candidate leaves writable.`,
+    `The fixture home must sit outside ${tmp.join(" and ")}, which every candidate leaves writable.`,
   );
   process.exit(2);
 }
@@ -259,7 +261,7 @@ async function makeRunner(name: string, p: Policy): Promise<Runner> {
     exec: (script, cwd, env) => spawnArgv(wrap(shell(script)), cwd, env),
     name,
   });
-  const writable = [p.granted, ...p.caches, p.tmp];
+  const writable = [p.granted, ...p.caches, ...p.tmp];
   switch (name) {
     case "none":
       return wrapped((argv) => argv);
@@ -281,7 +283,7 @@ async function makeRunner(name: string, p: Policy): Promise<Runner> {
       ]);
     case "srt": {
       const settings = path.join(
-        p.tmp,
+        os.tmpdir(),
         `sandbox-bakeoff-srt-${process.pid}.json`,
       );
       writeFileSync(
@@ -329,7 +331,7 @@ async function makeRunner(name: string, p: Policy): Promise<Runner> {
               filesystem: {
                 deniedPaths: p.denied,
                 readonlyPaths: ["/", p.home],
-                readwritePaths: writable,
+                readwritePaths: [...writable, "/dev/null"],
               },
               network: { egress: { default: "allow" } },
               timeoutMs,
@@ -463,7 +465,7 @@ type Job = {
   script: (cwd: string) => string;
 };
 
-const PNPM = "pnpm add --reporter=silent";
+const PNPM = "pnpm add --loglevel=error";
 const UV_VENV = "uv venv -q --python 3.12 .venv";
 const zshrc = path.join(home, ".zshrc");
 const autostart = mac
@@ -490,7 +492,7 @@ const jobs: Job[] = [
     id: "vite-esbuild",
     kind: "workload",
     script: () =>
-      `${PNPM} esbuild vite && pnpm exec vite build --logLevel error && test -f dist/index.html && node -e "require('esbuild').buildSync({entryPoints:['src/main.js'],bundle:true,outfile:'out.js',logLevel:'error'})" && test -s out.js`,
+      `${PNPM} --allow-build=esbuild esbuild vite && pnpm exec vite build --logLevel error && test -f dist/index.html && node -e "require('esbuild').buildSync({entryPoints:['src/main.js'],bundle:true,outfile:'out.js',logLevel:'error'})" && test -s out.js`,
   },
   {
     id: "better-sqlite3",
@@ -650,7 +652,8 @@ const env: NodeJS.ProcessEnv = {
   ...process.env,
   CI: "1",
   HOME: home,
-  npm_config_store_dir: path.join(
+  // pnpm 11 finds its store from PNPM_HOME, not HOME, so it is named outright.
+  pnpm_config_store_dir: path.join(
     home,
     mac ? "Library/pnpm/store" : ".local/share/pnpm/store",
   ),

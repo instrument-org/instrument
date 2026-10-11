@@ -1,4 +1,3 @@
-import { APP_NAME } from "@instrument-org/shared";
 import ms from "ms";
 import { z } from "zod";
 
@@ -10,14 +9,11 @@ import { setupTool } from "./create-tool";
 /**
  * Ask the user for a folder the work needs.
  *
- * Interactive, like `choose`: the call parks the turn, the user picks a folder
- * in the Mac's own dialog, the folder is attached to the conversation, and the
- * call answers with where it is mounted. Given a folder of the chat's own that
- * macOS refused, the dialog opens at it, since a folder picked there is one
- * the Mac lets the app into from then on. The
- * chat never learns the host path; it gets a mount name it can hand to
- * a task. A user who declines answers that too, so the agent can say so
- * rather than wait.
+ * Interactive, like `choose`: the call parks the turn and the chat shows a
+ * card. Given the folder the agent needs, the card offers to allow it in this
+ * chat or always, or to pick another in the Mac's own panel; without one, it
+ * offers only the panel. A user who declines answers that too, so the agent
+ * can say so rather than wait.
  */
 export const RequestFolder = setupTool({
   inputSchema: BaseInputSchema.extend({
@@ -29,7 +25,7 @@ export const RequestFolder = setupTool({
       .string()
       .optional()
       .meta({
-        description: `A folder under ${MOUNT.folders} that macOS has not let ${APP_NAME} into, as a command refusing it named it. The panel opens at that folder, so letting ${APP_NAME} in is one press.`,
+        description: `The folder you need, as you reach it under ${MOUNT.folders}. The person can allow it as it is or pick another.`,
       }),
   }),
   name: "request_folder",
@@ -41,7 +37,7 @@ export const RequestFolder = setupTool({
     z.object({ status: z.literal("declined") }),
   ]),
 }).create({
-  description: `Ask the user for a folder you do not reach: one outside their home folder (an external drive, another volume), or, given as \`folder\`, one of yours that macOS has not let ${APP_NAME} into. The conversation waits while they pick one; it then arrives mounted under ${MOUNT.folders}, and the answer names the mount. Ask for one folder at a time, and only when the work cannot proceed without it.`,
+  description: `Ask the user for a folder: to change files in one you can only look through, to open one that needs their yes, or, without \`folder\`, one outside your mounts for them to pick. The conversation waits while they answer; the answer names where the folder is mounted. Ask for one folder at a time, the one the work is in, and only when the work cannot proceed without it.`,
   // Reached only in a fork, where a question has nobody to park for.
   execute: () => {
     return Promise.resolve(

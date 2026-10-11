@@ -8,7 +8,12 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import { canonicalizeThroughMissing } from "./host-path";
 import { placePaths } from "./permissions/places";
-import { folderToAskFor, type Reach, reachOf, type Rules } from "./permissions/rules";
+import {
+  folderToAskFor,
+  type Reach,
+  reachOf,
+  type Rules,
+} from "./permissions/rules";
 import { getWorkspaceConfig } from "./workspace-config";
 
 const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
@@ -53,7 +58,9 @@ export function toolPlaces(home = os.homedir()): {
  * applies: the passwords and sign-ins place, as the built-in rules spell it.
  */
 export function credentialPlaces(home = os.homedir()): string[] {
-  return placePaths(home).find((place) => place.id === "passwords")?.paths ?? [];
+  return (
+    placePaths(home).find((place) => place.id === "passwords")?.paths ?? []
+  );
 }
 
 /** What a native command spawned for a chat is held to. */

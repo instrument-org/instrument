@@ -47,7 +47,7 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
     expect(reachOf(rules, target, op).level).toBe(level);
   });
 
-  it("turns asks into allows without asking, never nevers", () => {
+  it("turns asks into allows without asking, never never", () => {
     const relaxed = { ...rules, withoutAsking: true };
     expect(reachOf(relaxed, `${home}/Desktop/a.png`, "write").level).toBe(
       "allow",
@@ -74,7 +74,11 @@ describe("folderToAskFor", () => {
   } as const;
 
   it.each([
-    [`${home}/Documents/Clients/Acme/a.pdf`, false, `${home}/Documents/Clients`],
+    [
+      `${home}/Documents/Clients/Acme/a.pdf`,
+      false,
+      `${home}/Documents/Clients`,
+    ],
     [`${home}/Documents/report.pdf`, false, `${home}/Documents`],
     [`${home}/Documents/Clients`, true, `${home}/Documents/Clients`],
   ])("%s asks for %s", (hostPath, isDirectory, expected) => {

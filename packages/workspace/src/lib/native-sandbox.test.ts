@@ -36,7 +36,12 @@ describe("seatbeltProfile", () => {
     expect(
       profile
         .split("\n")
-        .filter((line) => !line.includes("/.cache") && !line.includes("Library/") && !/\/\.(npm|local|config|gitconfig)/.test(line)),
+        .filter(
+          (line) =>
+            !line.includes("/.cache") &&
+            !line.includes("Library/") &&
+            !/\/\.(npm|local|config|gitconfig)/.test(line),
+        ),
     ).toMatchInlineSnapshot(`
       [
         "(version 1)",
@@ -77,12 +82,18 @@ describe("refusedPathIn", () => {
       "Operation not permitted: '/Users/someone/Documents/Acme/a.csv'",
       reach,
     );
-    expect(refused && refusalNote(refused, "/Users/someone")).toMatchInlineSnapshot(`"~/Documents/Acme/a.csv needs the person's yes first. Ask for ~/Documents/Acme with request_folder, then run the command again."`);
+    expect(
+      refused && refusalNote(refused, "/Users/someone"),
+    ).toMatchInlineSnapshot(
+      `"~/Documents/Acme/a.csv needs the person's yes first. Ask for ~/Documents/Acme with request_folder, then run the command again."`,
+    );
   });
 });
 
 describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
-  const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "native-sandbox-")));
+  const home = realpathSync(
+    mkdtempSync(path.join(os.tmpdir(), "native-sandbox-")),
+  );
   const closed = path.join(home, "closed");
   const asks = path.join(home, "Documents");
   const granted = path.join(asks, "Acme");
@@ -111,11 +122,19 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
   it.each([
     ["reads a file nothing holds", ["cat", path.join(home, "notes.md")], 0],
     ["reads in a granted folder", ["cat", path.join(granted, "brief.md")], 0],
-    ["writes in a granted folder", ["sh", "-c", `echo x > ${path.join(granted, "new")}`], 0],
+    [
+      "writes in a granted folder",
+      ["sh", "-c", `echo x > ${path.join(granted, "new")}`],
+      0,
+    ],
     ["refuses a closed folder", ["cat", path.join(closed, "key")], 1],
     ["refuses a place that asks", ["cat", path.join(asks, "other.txt")], 1],
     ["refuses a hidden folder", ["cat", path.join(home, ".hidden", "x")], 1],
-    ["refuses a change nothing allows", ["sh", "-c", `echo x > ${path.join(home, "new")}`], 1],
+    [
+      "refuses a change nothing allows",
+      ["sh", "-c", `echo x > ${path.join(home, "new")}`],
+      1,
+    ],
   ])("%s", async (_name, [command = "", ...args], exitCode) => {
     const result = await run(`/bin/${command}`, args);
     expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);

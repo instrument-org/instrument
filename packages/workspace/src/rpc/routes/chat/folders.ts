@@ -1,8 +1,13 @@
-import { eventIterator } from "@orpc/server";
+import { APP_NAME } from "@instrument-org/shared";
+import { eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { folderReach } from "../../../lib/chat/folder-reach";
-import { grantFolder } from "../../../lib/chat/grants";
+import { lookInside } from "../../../lib/chat/folder-look";
+import { grantFolder, revokeGrant } from "../../../lib/chat/grants";
+import { updatePermissionSettings } from "../../../lib/permissions/rules";
+import { getCurrentDate } from "../../../lib/get-current-date";
+import { AbsolutePathSchema } from "../../../schemas/paths";
 import { recordChanges } from "../../../lib/record-changes";
 import { effectiveFolderAccess } from "../../../lib/workspace-fs-layout";
 import { MountedFolder } from "../../../schemas/mounted-folder";
@@ -55,18 +60,50 @@ async function reachedFolders(chatId: ChatId) {
 
 /**
  * Grant a chat a folder outside of a message: what answering an agent's
- * request for one does, read and write, in that chat only. The message path
- * stays the way a folder arrives with something the user typed.
+ * request for one does, read and write, in that chat. "Always" also allows
+ * the folder in Settings › Permissions, for every chat from then on.
+ *
+ * The folder is looked inside first, so the system's own ask for a folder it
+ * guards comes up beside the card. A folder the system already refused is not
+ * granted: only the system's folder panel undoes that, and the card opens it.
  */
 const grantFolderRoute = base
-  .input(z.object({ id: ChatIdSchema, path: z.string() }))
+  .input(
+    z.object({
+      always: z.boolean().optional(),
+      id: ChatIdSchema,
+      path: z.string(),
+    }),
+  )
   .output(MountedFolder.Schema)
   .handler(async ({ input }) => {
+    const look = await lookInside(input.path);
+    if (look === "missing") {
+      throw new ORPCError("NOT_FOUND", {
+        message: `There's no folder at ${input.path}.`,
+      });
+    }
+    if (look === "system") {
+      throw new ORPCError("FORBIDDEN", {
+        data: { refusedBy: "system" },
+        message: `macOS hasn't let ${APP_NAME} into ${input.path}.`,
+      });
+    }
     const grant = await grantFolder({
       chatId: input.id,
       path: input.path,
       source: "card",
     });
+    if (input.always) {
+      const path = AbsolutePathSchema.parse(input.path);
+      await updatePermissionSettings((settings) => ({
+        ...settings,
+        folders: [
+          ...settings.folders.filter((folder) => folder.path !== path),
+          { addedAt: getCurrentDate(), level: "allow", path },
+        ],
+      }));
+    }
     // Named the way the agent reaches it, beside the folders a chat reaches
     // without holding.
     const reached = Object.values(await folderReach(input.id)).find(
@@ -78,7 +115,16 @@ const grantFolderRoute = base
     return reached;
   });
 
+/** Takes a folder back from a chat; what the rules say about it still holds. */
+const revokeFolderRoute = base
+  .input(z.object({ id: ChatIdSchema, path: z.string() }))
+  .output(z.void())
+  .handler(async ({ input }) => {
+    await revokeGrant({ chatId: input.id, path: input.path });
+  });
+
 export const chatFolders = {
   get: folders,
   grant: grantFolderRoute,
+  revoke: revokeFolderRoute,
 };

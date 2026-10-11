@@ -117,7 +117,7 @@ describe("buildFoldersText", () => {
 
   // The chat has no file tools and a shell that refuses to write, so
   // its copy names the task as the writer rather than tools it has not got.
-  it("labels the home folder as writable inside without calling it read-only", () => {
+  it("labels the home folder as one to look through and ask inside", () => {
     const text = buildFoldersText({
       folders: [
         {
@@ -132,27 +132,23 @@ describe("buildFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "sam" -> \`/mnt/sam\` (read-only, and \`task folder --add\` gives you write on a folder inside it)",
+        "- "sam" -> \`/mnt/sam\` (look through it; to change anything, ask for the folder inside it with \`request_folder\`)",
       ]
     `);
-    expect(text).not.toContain("Writing into a read-only folder fails");
   });
 
-  it.runIf(process.platform === "darwin")(
-    "says what a refusal from macOS looks like",
-    () => {
-      const folders = [
-        {
-          access: "read-write" as const,
-          mountPoint: "/mnt/Desktop",
-          path: "/Users/sam/Desktop",
-        },
-      ];
-      expect(buildFoldersText({ folders, intro: INTRO })).toContain(
-        "Operation not permitted",
-      );
-    },
-  );
+  it("says what a refusal looks like", () => {
+    const folders = [
+      {
+        access: "read-write" as const,
+        mountPoint: "/mnt/Desktop",
+        path: "/Users/sam/Desktop",
+      },
+    ];
+    expect(buildFoldersText({ folders, intro: INTRO })).toContain(
+      "Operation not permitted",
+    );
+  });
 
   it("marks a folder that is no longer on disk", () => {
     const text = buildFoldersText({

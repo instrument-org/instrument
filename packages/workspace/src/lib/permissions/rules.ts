@@ -21,7 +21,7 @@ import {
  * rule per folder they or an "Always allow" added, and the switch that turns
  * every Ask first into a yes. A place nobody changed keeps its default.
  */
-export const PermissionSettingsSchema = z.object({
+const PermissionSettingsSchema = z.object({
   folders: z
     .array(
       z.object({
@@ -41,7 +41,7 @@ export const PermissionSettingsSchema = z.object({
 export type PermissionSettings = z.output<typeof PermissionSettingsSchema>;
 
 /** Where the workspace keeps Settings › Permissions. */
-export function permissionsFile(): string {
+function permissionsFile(): string {
   return path.join(getWorkspaceConfig().rootDir, "permissions.json");
 }
 

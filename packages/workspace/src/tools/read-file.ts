@@ -49,7 +49,7 @@ import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
-import { folderReach } from "../lib/chat/folder-reach";
+import { chatReach } from "../lib/permissions/chat-rules";
 import { workDir } from "../lib/work-dir";
 
 const DEFAULT_READ_LIMIT = 2000;
@@ -502,7 +502,7 @@ export const ReadFile = setupTool({
     const region = input.region;
     const layout = buildWorkspaceFsLayout({
       apps: chatConversation(chatId, sessionId) !== undefined,
-      folders: await folderReach(chatId),
+      ...(await chatReach(chatId)),
       taskHostRoot: workDir(chatId),
     });
     const pathResult = resolveExistingFilePath({

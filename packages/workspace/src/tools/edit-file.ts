@@ -14,7 +14,7 @@ import {
   LINE_NUMBER_SEPARATOR,
 } from "../lib/add-line-numbers";
 import { executeError } from "../lib/execute-error";
-import { folderReach } from "../lib/chat/folder-reach";
+import { chatReach } from "../lib/permissions/chat-rules";
 import { pathExists } from "../lib/path-exists";
 import { chatConversation } from "../lib/chat/children";
 import {
@@ -778,7 +778,7 @@ export const EditFile = setupTool({
 
     const layout = buildWorkspaceFsLayout({
       apps: chatConversation(chatId, sessionId) !== undefined,
-      folders: await folderReach(chatId),
+      ...(await chatReach(chatId)),
       taskHostRoot: workDir(chatId),
     });
     const pathResult = resolveWritableToolPath({

@@ -17,6 +17,7 @@ import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
+import { ruleRefusal } from "./permissions/rules-fs";
 import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
 import {
   classifyHostPath,
@@ -146,7 +147,11 @@ export function resolveAgentPath(options: {
 
   const trimmedPath = inputPath.trim();
   if (path.isAbsolute(trimmedPath)) {
-    return resolveVirtualAbsolutePath(layout, trimmedPath);
+    return heldToRules(
+      layout,
+      resolveVirtualAbsolutePath(layout, trimmedPath),
+      "read",
+    );
   }
 
   const result = resolveToolPath(layout, trimmedPath);
@@ -233,7 +238,11 @@ export function resolveWritableToolPath(options: {
     }));
   }
 
-  const result = resolveVirtualAbsolutePath(layout, trimmedPath);
+  const result = heldToRules(
+    layout,
+    resolveVirtualAbsolutePath(layout, trimmedPath),
+    "write",
+  );
   if (result.isErr()) {
     return result;
   }
@@ -248,6 +257,32 @@ export function resolveWritableToolPath(options: {
   // task-relative can refuse a mount path rather than silently resolving it
   // against the task directory.
   return ok({ absolutePath, displayPath, mount });
+}
+
+/**
+ * A path in one of the chat's folders, refused where the rules keep the agent
+ * from reading or changing it.
+ */
+function heldToRules(
+  layout: WorkspaceFsLayout,
+  resolved: ReturnType<typeof resolveVirtualAbsolutePath>,
+  op: "read" | "write",
+): ReturnType<typeof resolveVirtualAbsolutePath> {
+  if (resolved.isErr() || !layout.rules) {
+    return resolved;
+  }
+  const { absolutePath, mount } = resolved.value;
+  if (!mount || !layout.folders.includes(mount)) {
+    return resolved;
+  }
+  const refusal = ruleRefusal({
+    hostPath: absolutePath,
+    op,
+    rules: layout.rules,
+    spell: (hostPath) =>
+      classifyHostPath(layout, hostPath)?.virtualPath ?? hostPath,
+  });
+  return refusal ? executeError(refusal) : resolved;
 }
 
 function fileExistsSync(filePath: string): boolean {

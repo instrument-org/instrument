@@ -15,7 +15,7 @@ import { findAvailableName } from "../lib/find-available-name";
 import { formatBytes } from "../lib/format-bytes";
 import { generateImageStream } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
-import { folderReach } from "../lib/chat/folder-reach";
+import { chatReach } from "../lib/permissions/chat-rules";
 import { pathExists } from "../lib/path-exists";
 import { prepareSourceImage } from "../lib/prepare-source-image";
 import {
@@ -147,7 +147,7 @@ export const GenerateImage = setupTool({
   `,
   async *execute({ input, model, sessionId, signal, chatId }) {
     const layout = buildWorkspaceFsLayout({
-      folders: await folderReach(chatId),
+      ...(await chatReach(chatId)),
       taskHostRoot: workDir(chatId),
     });
     const filePathResult = resolveWritableToolPath({

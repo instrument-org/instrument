@@ -8,7 +8,7 @@ import { z } from "zod";
 
 import { CHAT_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { executeError } from "../lib/execute-error";
-import { folderReach } from "../lib/chat/folder-reach";
+import { chatReach } from "../lib/permissions/chat-rules";
 import { pathExists } from "../lib/path-exists";
 import { chatConversation } from "../lib/chat/children";
 import { resolveWritableToolPath } from "../lib/resolve-agent-path";
@@ -54,7 +54,7 @@ export const WriteFile = setupTool({
   execute: async ({ input, sessionId, signal, chatId }) => {
     const layout = buildWorkspaceFsLayout({
       apps: chatConversation(chatId, sessionId) !== undefined,
-      folders: await folderReach(chatId),
+      ...(await chatReach(chatId)),
       taskHostRoot: workDir(chatId),
     });
     const pathResult = resolveWritableToolPath({

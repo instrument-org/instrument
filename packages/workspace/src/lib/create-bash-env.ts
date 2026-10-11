@@ -50,6 +50,7 @@ import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import { withNativeReach } from "./native-sandbox";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
+import { type Rules } from "./permissions/rules";
 import { getWorkspaceConfig } from "./workspace-config";
 import {
   CALENDAR_COMMAND,
@@ -662,12 +663,14 @@ export function shellLayout({
   folders,
   chat,
   chatId,
-}: Pick<BashEnvOptions, "folders" | "chat" | "chatId">) {
+  rules,
+}: Pick<BashEnvOptions, "folders" | "chat" | "chatId"> & { rules?: Rules }) {
   return buildWorkspaceFsLayout({
     // The chat authors apps, so it gets their folders; a task reaches
     // the apps it was handed through the command alone.
     apps: chat !== undefined,
     folders,
+    rules,
     taskHostRoot: workDir(chatId),
   });
 }
@@ -704,13 +707,19 @@ export async function createLocalBashEnv({
   /** Replaces each of `MAIN_THREAD_COMMANDS`; set by the bash worker. */
   standIn?: (name: string) => Command;
 }) {
-  const layout = shellLayout({ folders, chat, chatId });
+  // Read as they stand when the shell is made, which is once per bash call.
+  const rules = await chatRules({ chatId, folders });
+  const layout = shellLayout({ folders, chat, chatId, rules });
   // The working folder walks at the sandbox's budget, and the home folder at
   // its own, smaller one.
   const homeWalkBudget = createWalkBudget(HOME_MAX_TRAVERSAL);
+  // Refusals heard during one exec, told to the agent after its output: a
+  // builtin reports a refused read as a missing file.
+  const refusals = new Set<string>();
   const fs = await buildBashFs(layout, {
     homeWalkBudget,
     maxFileReadSize: SANDBOX_MAX_BYTES,
+    onRefusal: (refusal) => refusals.add(refusal),
   });
 
   const allowedCommands = [
@@ -835,11 +844,22 @@ export async function createLocalBashEnv({
   bash.registerTransformPlugin(commandOrderPlugin);
   bash.registerTransformPlugin(resetEachCommand(homeWalkBudget));
 
-  // Every native command this shell spawns is held to the chat's rules, read
-  // as they stand when the shell is made, which is once per bash call.
-  const reach = nativeReachFor(await chatRules({ chatId, folders }), layout);
+  // Every native command this shell spawns is held to the same rules.
+  const reach = nativeReachFor(rules, layout);
   const exec = bash.exec.bind(bash);
-  bash.exec = (...execArgs) => withNativeReach(reach, () => exec(...execArgs));
+  bash.exec = async (...execArgs) => {
+    refusals.clear();
+    const result = await withNativeReach(reach, () => exec(...execArgs));
+    if (refusals.size === 0) {
+      return result;
+    }
+    const notes = [...refusals].join("\n");
+    const stderr =
+      result.stderr === "" || result.stderr.endsWith("\n")
+        ? result.stderr
+        : `${result.stderr}\n`;
+    return { ...result, stderr: `${stderr}${notes}\n` };
+  };
 
   return bash;
 }

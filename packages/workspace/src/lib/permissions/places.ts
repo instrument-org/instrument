@@ -105,6 +105,8 @@ export function placePaths(home = os.homedir()): PlacePaths[] {
     );
   } else if (process.platform === "linux") {
     places.push(
+      // The system's own /mnt, where Linux mounts a drive by hand.
+      // oxlint-disable-next-line instrument/no-bare-mount-path
       { id: "drives", paths: ["/media", "/run/media", "/mnt"] },
       { homeDotEntries: true, id: "appFiles", paths: [] },
     );

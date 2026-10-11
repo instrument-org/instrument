@@ -9,6 +9,7 @@ import { WINDOW_ID } from "../../schemas/window-id";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { chatGrants } from "./grants";
+import { readPermissionSettings } from "../permissions/rules";
 import { outputFolderPath } from "./output-folder";
 import { listTopics } from "./topics";
 import { type ChatId } from "../../schemas/chat-id";
@@ -16,7 +17,8 @@ import { type ChatId } from "../../schemas/chat-id";
 /**
  * The folders a chat reaches, by the name each is mounted under: the home
  * folder and the workspace folder always, the folders granted in the chat,
- * and the folders of the topics it is filed under while it is. Only the
+ * the folders of the topics it is filed under while it is, and the folders
+ * Settings › Permissions allows everywhere. Only the
  * grants are written to the chat. Worked out on every read, so a topic's
  * folder comes and goes with the topic and a folder granted in one chat
  * stays in that chat. Every session of the chat reaches the same folders.
@@ -57,6 +59,13 @@ export async function folderReach(
     }
     for (const folderPath of await topicFolderPaths(chatId)) {
       add(standingFolder(folderPath));
+    }
+    // Folders allowed in Settings › Permissions, for every chat, after the
+    // chat's own so a name it already uses never moves.
+    for (const folder of (await readPermissionSettings()).folders) {
+      if (folder.level === "allow" && (await pathExists(folder.path))) {
+        add(standingFolder(folder.path));
+      }
     }
   }
 

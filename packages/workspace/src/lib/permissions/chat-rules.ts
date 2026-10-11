@@ -4,6 +4,7 @@ import path from "node:path";
 import { type ChatId } from "../../schemas/chat-id";
 import { type MountedFolder } from "../../schemas/mounted-folder";
 import { WINDOW_ID } from "../../schemas/window-id";
+import { folderReach } from "../chat/folder-reach";
 import { chatGrants } from "../chat/grants";
 import { type NativeReach } from "../native-sandbox";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -32,6 +33,15 @@ export async function chatRules({
     home,
     settings: await readPermissionSettings(),
   });
+}
+
+/** The folders a chat reaches and the rules over them, for building its layout. */
+export async function chatReach(chatId: ChatId): Promise<{
+  folders: Record<string, MountedFolder.Type>;
+  rules: Rules;
+}> {
+  const folders = await folderReach(chatId);
+  return { folders, rules: await chatRules({ chatId, folders }) };
 }
 
 /** What a native command the chat's shell spawns is held to. */

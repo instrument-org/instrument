@@ -11,6 +11,8 @@ import nodePath from "node:path";
 import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import { MOUNT } from "../mount-points";
 import { type MountedFolder } from "../schemas/mounted-folder";
+import { rulesFs } from "./permissions/rules-fs";
+import { type Rules } from "./permissions/rules";
 import { type AbsolutePath, type ChatDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import {
@@ -100,6 +102,11 @@ export interface WorkspaceFsLayout {
   /** The folders the chat reaches, under `/mnt`. */
   folders: WorkspaceFsMount[];
   /**
+   * What Settings › Permissions and the chat's grants allow inside those
+   * folders. Absent, the folders are held to their mounts alone.
+   */
+  rules?: Rules;
+  /**
    * One per skill source, at `/skills/<source>/`. The source segment is what
    * carries provenance and writability, so the agent reads both off the path
    * rather than having to ask: the workspace's own skills are writable because
@@ -155,6 +162,7 @@ export async function buildBashFs(
   {
     homeWalkBudget,
     maxFileReadSize,
+    onRefusal,
   }: {
     /**
      * Counts listings under a folder that holds the workspace (the home
@@ -162,6 +170,8 @@ export async function buildBashFs(
      */
     homeWalkBudget?: WalkBudget;
     maxFileReadSize: number;
+    /** Hears each time the rules refuse the agent a path. */
+    onRefusal?: (refusal: string) => void;
   },
 ): Promise<IFileSystem> {
   const fs = new MountableFs({ base: new ReadOnlyBaseFs() });
@@ -208,16 +218,21 @@ export async function buildBashFs(
     // OverlayFs is copy-on-write into memory, and the filesystem is rebuilt per
     // bash call, so mounting a writable folder there would report every `mv`
     // and `cp` as succeeding and leave the user's files untouched.
-    const mounted = masked(
+    const mounted = heldToRules(
+      layout,
       mount,
-      mount.readOnly
-        ? new OverlayFs({
-            maxFileReadSize,
-            mountPoint: "/",
-            readOnly: true,
-            root: mount.hostRoot,
-          })
-        : new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot }),
+      masked(
+        mount,
+        mount.readOnly
+          ? new OverlayFs({
+              maxFileReadSize,
+              mountPoint: "/",
+              readOnly: true,
+              root: mount.hostRoot,
+            })
+          : new ReadWriteFs({ maxFileReadSize, root: mount.hostRoot }),
+      ),
+      onRefusal,
     );
     fs.mount(
       mount.mountPoint,
@@ -282,11 +297,13 @@ export async function buildBashFs(
 export function buildWorkspaceFsLayout({
   apps = false,
   folders,
+  rules,
   taskHostRoot,
 }: {
   /** Whether the workspace's apps directory is mounted, writable, at `/apps`. */
   apps?: boolean;
   folders?: Record<string, MountedFolder.Type>;
+  rules?: Rules;
   taskHostRoot: ChatDir;
 }): WorkspaceFsLayout {
   const mounts: WorkspaceFsMount[] = assignMountPoints(folders ?? {}).map(
@@ -314,6 +331,7 @@ export function buildWorkspaceFsLayout({
         }
       : {}),
     folders: mounts,
+    ...(rules && { rules }),
     skills: buildSkillMounts(),
     task: {
       hostRoot: taskHostRoot,
@@ -709,4 +727,28 @@ function taskMaskedEntries(taskHostRoot: ChatDir): MaskedEntry[] {
   return nodePath.dirname(taskHostRoot) === chatsDir()
     ? [CHAT_FOLDER_NAMES.private, TASKS_DIR_NAME]
     : [CHAT_FOLDER_NAMES.private];
+}
+
+/**
+ * A folder mount held to the layout's rules, which a mount alone cannot say:
+ * the home folder is open to look through, with closed folders inside it.
+ */
+function heldToRules(
+  layout: WorkspaceFsLayout,
+  mount: WorkspaceFsMount,
+  delegate: IFileSystem,
+  onRefusal?: (refusal: string) => void,
+): IFileSystem {
+  const { rules } = layout;
+  if (!rules) {
+    return delegate;
+  }
+  return rulesFs({
+    delegate,
+    hostRoot: mount.hostRoot,
+    onRefusal,
+    rules,
+    spell: (hostPath) =>
+      classifyHostPath(layout, hostPath)?.virtualPath ?? hostPath,
+  });
 }

@@ -1,6 +1,6 @@
 import { type AbsolutePath, type WorkspaceFilePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
-import { folderReach } from "./chat/folder-reach";
+import { chatReach } from "./permissions/chat-rules";
 import { resolveExistingFilePath } from "./resolve-agent-path";
 import {
   buildWorkspaceFsLayout,
@@ -59,7 +59,7 @@ export async function resolveWorkspaceFilePaths({
  */
 export async function taskFsLayout(chatId: ChatId): Promise<WorkspaceFsLayout> {
   return buildWorkspaceFsLayout({
-    folders: await folderReach(chatId),
+    ...(await chatReach(chatId)),
     taskHostRoot: workDir(chatId),
   });
 }

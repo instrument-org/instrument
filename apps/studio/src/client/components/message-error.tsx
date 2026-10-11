@@ -11,7 +11,7 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { openLogin } from "../atoms/login-modal";
 import { openSettings } from "../atoms/settings-modal";
@@ -396,7 +396,7 @@ function errorActions({
             {
               label: `Try ${APP_NAME}`,
               onClick: () => {
-                openLogin({ hideManualProvider: true });
+                openLogin({ instrumentOnly: true });
               },
             },
           ]

@@ -14,15 +14,16 @@ import { files } from "./files";
 import { gateway } from "./gateway";
 import { history } from "./history";
 import { mac } from "./mac";
+import { notices } from "./notices";
 import { onboarding } from "./onboarding";
 import { pageEditor } from "./page-editor";
 import { plans } from "./plans";
 import { preferences } from "./preferences";
+import { problems } from "./problems";
 import { providerConfig } from "./provider-config";
 import { releases } from "./releases";
 import { stripe } from "./stripe";
 import { syntax } from "./syntax";
-import { telemetry } from "./telemetry";
 import { transcript } from "./transcript";
 import { updates } from "./updates";
 import { user } from "./user";
@@ -45,15 +46,16 @@ export const router = {
   gateway,
   history,
   mac,
+  notices,
   onboarding,
   pageEditor,
   plans,
   preferences,
+  problems,
   providerConfig,
   releases,
   stripe,
   syntax,
-  telemetry,
   transcript,
   updates,
   user,

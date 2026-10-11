@@ -1,3 +1,5 @@
+import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+
 import { type ChatId } from "../../../schemas/chat-id";
 import { StoreId } from "../../../schemas/store-id";
 import { addChildTask, type ChatTask } from "../../chat/children";
@@ -187,7 +189,7 @@ async function startFork({
   chatId: ChatId;
   chatSessionId: StoreId.Session;
   handedTabs?: Awaited<ReturnType<typeof resolveTabs>>;
-  model: Parameters<typeof newMessage>[0]["model"];
+  model: AIGatewayModel.Type;
   modelURI: Parameters<typeof newMessage>[0]["modelURI"];
   name: string;
   /** Called with the task's session before its first turn starts. */
@@ -225,7 +227,6 @@ async function startFork({
 
   const message = await newMessage({
     fromChat: { kind: "assignment", text: assignment },
-    model,
     modelURI,
     prompt: "",
     sessionId,

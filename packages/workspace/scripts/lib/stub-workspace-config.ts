@@ -30,9 +30,6 @@ export function createStubWorkspaceConfig({
     appsDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "apps")),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
-    captureEvent: () => {
-      return;
-    },
     captureException: () => {
       return;
     },

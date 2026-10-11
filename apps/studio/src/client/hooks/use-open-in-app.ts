@@ -3,7 +3,7 @@
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { useFileOpenTarget } from "./use-file-open-target";
 import { useOpenFile } from "./use-open-file";
@@ -48,9 +48,7 @@ export function useOpenInApp(target: OpenInAppTarget | undefined) {
   const openLink = useMutation(
     rpcClient.utils.openExternalLink.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to open the page", {
-          description: error.message,
-        });
+        toast.error("Couldn't open the page", { cause: error });
       },
     }),
   );

@@ -90,7 +90,6 @@ export async function startRun(
   const sent = await newMessage({
     files,
     folders,
-    model,
     modelURI: uri,
     prompt,
     sessionId,

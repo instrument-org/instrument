@@ -15,7 +15,6 @@ import {
   InputGroupInput,
 } from "@/client/components/ui/input-group";
 import { Label } from "@/client/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/client/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -23,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/client/components/ui/select";
-import { Slider } from "@/client/components/ui/slider";
 import { Switch } from "@/client/components/ui/switch";
 import {
   Tabs,
@@ -32,8 +30,8 @@ import {
   TabsTrigger,
 } from "@/client/components/ui/tabs";
 import { Textarea } from "@/client/components/ui/textarea";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { CheckIcon } from "@phosphor-icons/react/Check";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/debug/components/form-elements")({
@@ -43,13 +41,15 @@ export const Route = createFileRoute("/debug/components/form-elements")({
   }),
 });
 
+/** The variants the app draws a button in somewhere. */
 const buttonVariants = [
   "default",
   "brand",
   "secondary",
   "outline",
-  "outline-muted",
+  "outline-opaque",
   "ghost",
+  "ghost-toolbar",
   "destructive",
   "ghost-destructive",
   "link",
@@ -58,18 +58,10 @@ const buttonVariants = [
 
 const buttonSizes = ["xs", "sm", "default", "lg"] as const;
 
-const buttonIconSizes = ["icon-sm", "icon", "icon-lg"] as const;
+const buttonIconSizes = ["icon-sm", "icon"] as const;
 
-const badgeVariants = [
-  "default",
-  "brand",
-  "brand-outline",
-  "secondary",
-  "outline",
-  "destructive",
-  "success",
-  "warning",
-] as const;
+/** The variants the app draws a badge in somewhere. */
+const badgeVariants = ["secondary", "outline", "destructive"] as const;
 
 function Gallery({
   children,
@@ -100,13 +92,16 @@ function RouteComponent() {
             Form elements
           </h1>
           <p className="text-sm text-muted-foreground">
-            Every focusable control in one place. Tab through with the keyboard
-            to validate the CSS-outline focus ring (it should hug the rounded
-            corners and never clip against a container edge).
+            The app&rsquo;s form controls, in the variants it uses. Tab through
+            them with the keyboard to check that each focus ring hugs its
+            rounded corners and never clips against the edge of its container.
           </p>
         </header>
 
-        <Section description="Single-line text field." title="Input">
+        <Section
+          description="A single line of text, with its invalid and disabled states."
+          title="Input"
+        >
           <div className="flex flex-col gap-3">
             <Input placeholder="Default input" />
             <Input aria-invalid placeholder="Invalid input" />
@@ -115,7 +110,7 @@ function RouteComponent() {
         </Section>
 
         <Section
-          description="Auto-growing multi-line field with a capped height."
+          description="Several lines of text. It grows with what is typed until it reaches its cap, then scrolls."
           title="Textarea"
         >
           <div className="flex flex-col gap-3">
@@ -131,21 +126,33 @@ function RouteComponent() {
         </Section>
 
         <Section
-          description="Composed field with addons and an inline button."
+          description="The browser's address bar. Its button shows when you point at the field or type in it."
           title="Input group"
         >
-          <InputGroup>
-            <InputGroupAddon align="inline-start">
-              <MagnifyingGlassIcon />
-            </InputGroupAddon>
-            <InputGroupInput placeholder="Search..." />
-            <InputGroupAddon align="inline-end">
-              <InputGroupButton>Go</InputGroupButton>
+          <InputGroup className="h-8 rounded-lg border border-input from-transparent to-transparent shadow-none dark:bg-transparent">
+            <InputGroupInput
+              className="h-full bg-none text-ellipsis dark:border-0"
+              placeholder="Enter a URL or search"
+              spellCheck={false}
+            />
+            <InputGroupAddon
+              align="inline-end"
+              className="hidden group-focus-within/input-group:flex group-hover/input-group:flex"
+            >
+              <InputGroupButton
+                aria-label="Open in external browser"
+                size="icon-xs"
+              >
+                <ArrowSquareOutIcon />
+              </InputGroupButton>
             </InputGroupAddon>
           </InputGroup>
         </Section>
 
-        <Section description="Radix-backed dropdown." title="Select">
+        <Section
+          description="A dropdown that picks one option from a list."
+          title="Select"
+        >
           <Select>
             <SelectTrigger aria-label="Fruit">
               <SelectValue placeholder="Pick a fruit" />
@@ -197,7 +204,7 @@ function RouteComponent() {
         </Section>
 
         <Section
-          description="Mostly static, but anchor badges are focusable."
+          description="Badges are usually static, but one drawn as a link or button takes focus."
           title="Badge"
         >
           <div className="flex flex-wrap gap-3">
@@ -226,23 +233,6 @@ function RouteComponent() {
           </div>
         </Section>
 
-        <Section title="Radio group">
-          <RadioGroup defaultValue="one">
-            <Label className="flex items-center gap-2">
-              <RadioGroupItem value="one" />
-              Option one
-            </Label>
-            <Label className="flex items-center gap-2">
-              <RadioGroupItem value="two" />
-              Option two
-            </Label>
-            <Label className="flex items-center gap-2">
-              <RadioGroupItem value="three" />
-              Option three
-            </Label>
-          </RadioGroup>
-        </Section>
-
         <Section title="Switch">
           <div className="flex flex-col gap-3">
             <Label className="flex items-center gap-2">
@@ -257,7 +247,7 @@ function RouteComponent() {
         </Section>
 
         <Section
-          description="Triggers should show the focus ring when tabbed to."
+          description="Each tab shows the focus ring when you tab to it."
           title="Tabs"
         >
           <Tabs className="w-full" defaultValue="account">
@@ -302,13 +292,6 @@ function RouteComponent() {
               </AccordionContent>
             </AccordionItem>
           </Accordion>
-        </Section>
-
-        <Section
-          description="Thumb uses a soft box-shadow halo by design (not the outline ring)."
-          title="Slider"
-        >
-          <Slider className="max-w-sm" defaultValue={[50]} max={100} step={1} />
         </Section>
       </div>
     </div>

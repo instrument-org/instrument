@@ -58,9 +58,6 @@ export function buildReportWorkspaceConfig(
     appsDir: AbsolutePathSchema.parse(path.join(absoluteWorkspaceDir, "apps")),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
-    captureEvent: () => {
-      return;
-    },
     captureException: () => {
       return;
     },

@@ -502,6 +502,8 @@ export namespace SessionMessageDataPart {
     events: z
       .array(
         z.object({
+          /** The account the app is signed in as, when it is named. */
+          account: z.string().optional(),
           /** A line of detail: how many tools, what went wrong. */
           detail: z.string().optional(),
           event: z.enum([

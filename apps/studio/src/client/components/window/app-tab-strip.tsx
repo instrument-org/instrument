@@ -1,10 +1,15 @@
 import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
+import {
+  tabsWithoutDeveloperModeAtom,
+  useDeveloperMode,
+} from "@/client/hooks/use-developer-mode";
 import { type TabId } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -12,37 +17,23 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
-import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { XIcon } from "@phosphor-icons/react/X";
+import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
-import { freshTabId } from "@/client/lib/tab-actions";
-import { reopenClosed } from "@/client/lib/tabs-model";
-import { useAtom, useAtomValue } from "jotai";
-import { type ReactNode, useEffect, useState } from "react";
+import { useAtom } from "jotai";
+import { useEffect, useState } from "react";
 
-import {
-  appTabsAtom,
-  groupOfHref,
-  INBOX_HREF,
-  isChatHref,
-  isSiteHref,
-  putAwaySitesAtom,
-} from "./app-tabs";
-import { useAppsBySlug } from "./apps-by-slug";
-import { TabIcon } from "./browser-tabs";
+import { INBOX_HREF } from "./app-tabs";
+import { useAppTabPresentation, useClosedAppTabs } from "./closed-app-tabs";
 import { ClosedTabsMenu } from "./closed-tabs-menu";
-import { pageTabTitle } from "./file-tabs";
-import { useComputerVolumes } from "./computer-volumes";
-import { screenPresentation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
 import { TabStrip } from "./tab-strip";
-import { windowTabsAtom } from "./window-tabs";
 
 /**
  * The window's tabs across its bar, each named for where it stands: a chat
  * by its title, a site by its page, a folder, a file, the apps or an app.
  * Dragged to reorder, closed by the middle button, the cross or a
- * right click, and the plus at the end opens a chat.
+ * right click, and the plus at the end opens a new tab.
  */
 export function AppTabStrip({
   chatTitles,
@@ -72,54 +63,11 @@ export function AppTabStrip({
   selectedId: null | TabId;
   tabs: { id: TabId; pathname: string }[];
 }) {
-  const appsBySlug = useAppsBySlug();
-  const { activeByGroup, tabs: groupTabs } = useAtomValue(windowTabsAtom);
-  const [{ recentlyClosed }, setAppTabs] = useAtom(appTabsAtom);
-  // A closed site's page is kept aside rather than among the group's tabs,
-  // and is what its entry in the closed list is named by.
-  const putAway = useAtomValue(putAwaySitesAtom);
-  const volumes = useComputerVolumes();
+  const presentationOf = useAppTabPresentation({ chatTitles, childTitles });
+  const { closed, reopen } = useClosedAppTabs({ chatTitles, childTitles });
   const [menu, setMenu] = useState<{ id: TabId; x: number; y: number }>();
   const menuStyle = useWindowPointStyle(menu ?? { x: 0, y: 0 });
   const idOf = (key: string) => tabs.find((tab) => tab.id === key)?.id;
-
-  /** A site's tab is named for the page its group has up. */
-  const presentationOf = (
-    href: string,
-  ): { icon: ReactNode; title: string; url?: string | undefined } => {
-    if (isSiteHref(href)) {
-      const group = groupOfHref(href);
-      const open = groupTabs.filter((tab) => tab.group === group);
-      const own = open.length > 0 ? open : (putAway[group ?? ""] ?? []);
-      const up =
-        own.find((tab) => tab.id === activeByGroup[group ?? ""]) ?? own[0];
-      if (up?.kind === "page") {
-        return {
-          icon: <TabIcon favicon={up.favicon} url={up.url} />,
-          title: up.title || pageTabTitle(up) || "Page",
-          url: up.url,
-        };
-      }
-    }
-    if (isChatHref(href) && groupOfHref(href) === undefined) {
-      return { icon: <ChatCircleIcon className="size-3.5" />, title: "Chats" };
-    }
-    return screenPresentation(href, {
-      appsBySlug,
-      chatTitles,
-      taskTitles: childTitles,
-      ...(volumes ? { volumes } : {}),
-    });
-  };
-
-  // The closed tabs that would come back as they were: a site's page is kept
-  // only for this launch, and one closed before it would reopen on nothing.
-  const reopenable = recentlyClosed.flatMap((tab, entry) => {
-    const group = isSiteHref(tab.pathname)
-      ? groupOfHref(tab.pathname)
-      : undefined;
-    return group !== undefined && !putAway[group] ? [] : [{ entry, tab }];
-  });
 
   const whole = tabs.map((tab) => ({
     key: tab.id,
@@ -157,21 +105,7 @@ export function AppTabStrip({
             setMenu({ id, x: event.clientX, y: event.clientY });
           }
         }}
-        newMenu={
-          <ClosedTabsMenu
-            closed={reopenable.map(({ tab }) =>
-              presentationOf(tab.pathname || INBOX_HREF),
-            )}
-            onReopen={(row) => {
-              const entry = reopenable[row]?.entry;
-              if (entry !== undefined) {
-                setAppTabs((current) =>
-                  reopenClosed(current, { entry, id: freshTabId() }),
-                );
-              }
-            }}
-          />
-        }
+        newMenu={<ClosedTabsMenu closed={closed} onReopen={reopen} />}
         onNew={onNew}
         onReorder={(keys) => {
           onReorder(
@@ -226,7 +160,10 @@ export function AppTabStrip({
   );
 }
 
-/** A tab's own menu: reload and copy it, then close it or the tabs around it. */
+/**
+ * A tab's own menu: reload and copy it, then close it or the tabs around it.
+ * In developer mode, a screen's tab can also be shown without it.
+ */
 function TabMenu({
   id,
   isLast,
@@ -246,6 +183,9 @@ function TabMenu({
   onDuplicate: (id: TabId) => void;
   reload: (() => void) | undefined;
 }) {
+  const isDeveloperMode = useDeveloperMode();
+  const [tabsWithout, setTabsWithout] = useAtom(tabsWithoutDeveloperModeAtom);
+
   return (
     <DropdownMenuContent align="start" className="min-w-52" sideOffset={0}>
       {reload && (
@@ -262,6 +202,23 @@ function TabMenu({
         <NewTabIcon className="size-4" />
         <span>Duplicate Tab</span>
       </DropdownMenuItem>
+      {/* A site's page shows nothing developer mode adds, so only a
+          screen's tab offers it. */}
+      {isDeveloperMode && !reload && (
+        <DropdownMenuCheckboxItem
+          checked={!tabsWithout.has(id)}
+          className="text-dev-700 dark:text-dev-300"
+          onCheckedChange={(checked) => {
+            const next = new Set(tabsWithout);
+            if (checked) next.delete(id);
+            else next.add(id);
+            setTabsWithout(next);
+          }}
+        >
+          <WrenchIcon className="size-4 text-dev-700 dark:text-dev-300" />
+          <span>Developer Mode in This Tab</span>
+        </DropdownMenuCheckboxItem>
+      )}
       <DropdownMenuSeparator />
       <DropdownMenuItem
         onClick={() => {

@@ -476,6 +476,49 @@ export function getFileType({
   return "unknown";
 }
 
+// Extensions whose default app runs the file the moment it opens, with no
+// window of its own to say so first. A file an agent wrote carries no
+// quarantine flag, so Gatekeeper never asks either.
+const RUNS_WHEN_OPENED = new Set([
+  "app",
+  "appimage",
+  "bat",
+  "cmd",
+  "com",
+  "command",
+  "desktop",
+  "exe",
+  "jar",
+  "lnk",
+  "run",
+  "scr",
+  "terminal",
+  "tool",
+  "vbe",
+  "vbs",
+  "workflow",
+  "ws",
+  "wsf",
+]);
+
+/**
+ * Whether opening the file should hand it to the app the computer would use,
+ * the way a double-click in the system's file manager does, rather than open
+ * it in a tab here.
+ *
+ * Only a type Instrument has no viewer for: everything else in {@link FileType}
+ * has one. A file with no extension stays here, since the system decides what
+ * those are by their contents and opens an executable one by running it.
+ */
+export function opensInSystemApp(filename: string): boolean {
+  const lower = filename.toLowerCase();
+  const extensionStart = lower.lastIndexOf(".");
+  if (extensionStart <= 0 || getFileType({ filename }) !== "unknown") {
+    return false;
+  }
+  return !RUNS_WHEN_OPENED.has(lower.slice(extensionStart + 1));
+}
+
 /**
  * Whether the file is one a surface previews by showing it rather than by
  * naming it.

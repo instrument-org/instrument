@@ -7,7 +7,6 @@ import { getToolByType } from "../tools/all";
 import { getCurrentDate } from "./get-current-date";
 import { Store } from "./store";
 import { streamTool } from "./stream-tool";
-import { getWorkspaceConfig } from "./workspace-config";
 
 export async function runToolCall({
   model,
@@ -116,12 +115,6 @@ export async function runToolCall({
               chatId,
               { signal },
             ));
-        getWorkspaceConfig().captureEvent("llm.tool_executed", {
-          modelId: model.canonicalId,
-          providerId: model.params.provider,
-          success: output.isOk(),
-          tool_name: part.type,
-        });
       }
     }
   } catch (error) {

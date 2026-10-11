@@ -1,15 +1,11 @@
-import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { filePreviewAtom } from "@/client/atoms/file-preview";
 import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import { Toaster } from "@/client/components/ui/sonner";
-import { UpdatedToast } from "@/client/components/updated-toast";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { useAtomValue } from "jotai";
 import { lazy, type ReactNode, type Ref, Suspense } from "react";
 
-import { useAppTabs } from "./app-tabs";
 import { LinkSurface } from "./link-surface";
 
 // A pasted file opened from a composer, at its full size: loaded the first
@@ -19,22 +15,6 @@ const LazyFilePreviewModal = lazy(() =>
     default: m.FilePreviewModal,
   })),
 );
-
-// The developer panel's Tools: the router's and the query cache's devtools,
-// the analytics toolbar, and page annotation, loaded only once asked for.
-const DevTools = lazy(() =>
-  import("@/client/components/dev-tools").then((m) => ({
-    default: m.DevTools,
-  })),
-);
-
-const Agentation = import.meta.env.DEV
-  ? lazy(() =>
-      import("agentation").then((m) => ({
-        default: m.Agentation,
-      })),
-    )
-  : null;
 
 /**
  * The window's chrome: no title bar, so it drags by its top-left corner,
@@ -57,9 +37,6 @@ export function WindowFrame({
   rowRef?: Ref<HTMLDivElement>;
 }) {
   const isFilePreviewOpen = useAtomValue(filePreviewAtom).isOpen;
-  const isDeveloperMode = useDeveloperMode();
-  const activeDevToolsPanel = useAtomValue(devToolsPanelAtom);
-  const appTabs = useAppTabs();
   return (
     // The band across the top is the window's, so every menu, popover and
     // tooltip is held below it: on macOS the traffic lights are drawn over that
@@ -111,31 +88,9 @@ export function WindowFrame({
             <LazyFilePreviewModal />
           </Suspense>
         )}
-        {isDeveloperMode && (
-          <Suspense fallback={null}>
-            <DevTools />
-          </Suspense>
-        )}
-        {Agentation &&
-          isDeveloperMode &&
-          activeDevToolsPanel === "agentation" && (
-            <Suspense fallback={null}>
-              <Agentation />
-            </Suspense>
-          )}
-        {/* Top right, clear of the drafts at the foot, and below the bar on
-          every platform: the bar holds the traffic lights or the window
-          controls, and a toast over it covers the window's own chrome. */}
-        <Toaster
-          mobileOffset={{ top: TOOLBAR_HEIGHT + 16 }}
-          offset={{ top: TOOLBAR_HEIGHT + 16 }}
-          position="top-right"
-        />
-        <UpdatedToast
-          onWhatsNew={() => {
-            appTabs.open("/release-notes");
-          }}
-        />
+        {/* Bottom left, over the rail's foot: clear of the drafts and the
+          floating chat, which dock at the bottom right. */}
+        <Toaster />
       </div>
     </ChromeInsetProvider>
   );

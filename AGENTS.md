@@ -11,7 +11,7 @@ pnpm monorepo for the Instrument desktop app platform.
 ## Product terminology
 
 - The user talks to one agent in a **chat**, the only record, named by its `ChatId` everywhere: code, routes, RPC, events, types, and on-disk layout. A chat holds **sessions**, each a thread of messages and tool calls (`SessionId`): the chat's own conversation is the session with no parent, and a **task** is a session the chat started in the background, with the chat's session as its parent. "Task" is the word for that child session in the agent's `task` command (which names it by a per-chat handle, `t1`) and in the UI, never in storage.
-- On disk, a chat lives under `chats/<id>/` with `.instrument/{chat.db,settings.json}`. Its folder is the work folder for every session in it, tasks included. `chat.db` holds its sessions and their messages and nothing else; a task's row carries `parentId` and `forkedAtMessageId`, and its history is read as the parent's messages up to that point, then its own, never copied. `tasks/<id>/` at the root is only where 1.x left tasks for the layout migration to turn into chats. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. One settings file per chat: what the app knows about it at the top level (the model and reasoning effort every session runs on, the folders granted in the chat), where the user left off under `state` (the tabs its sessions hold, each naming the task driving it, none meaning the chat). A chat's title, its own marks (starred, archived, unread) and its topics are on its session row in `chat.db`. An app's connection record holds the chat waiting on its sign-in (`askedIn`).
+- On disk, a chat lives under `chats/<id>/` with `.instrument/{chat.db,settings.json}`. Its folder is the work folder for every session in it, tasks included. `chat.db` holds its sessions and their messages and nothing else; a task's row carries `parentId` and `forkedAtMessageId`, and its history is read as the parent's messages up to that point, then its own, never copied. `tasks/<id>/` at the root is only where 1.x left tasks for the layout migration to turn into chats. A topic lives under `topics/<Name>/`, with `.instrument/settings.json` and `instructions.md`. A draft (a chat not yet started) lives under `drafts/<id>/`: its words in `draft.md`, what was pasted into it beside them, and the rest in `.instrument/settings.json`. One settings file per chat: what the app knows about it at the top level (the model and reasoning effort every session runs on, the folders granted in the chat), where the user left off under `state` (the tabs its sessions hold, each naming the task driving it, none meaning the chat). A chat's title, its own marks (starred, archived, unread) and its topics are on its session row in `chat.db`. An app's connection record holds the chat waiting on its sign-in (`askedIn`).
 
 ## UI copy
 
@@ -23,6 +23,8 @@ What to avoid:
 - **Negative contrast**, "X, never Y" or "not X but Y", which adds emphasis by denying something nobody claimed: "Adds to your memories, never replaces them."
 - **Clipped commands with a vague "it"**: "Repeat it for each AI you use."
 - **Narrating the mechanism** instead of saying what the person gets: "Instrument reads it in a new chat and keeps what is worth keeping."
+- **Spelling out the obvious**: a clause describing what the person can already see or would assume anyway, which makes a short line long and a little condescending. "Drag a file here to add it to this folder you're looking at" is "Drag a file here to add it."
+- **Inventories** in a label, button or placeholder that list every kind of thing it covers: "Find tasks, files, people, and settings…" The results show the range; the label names the act in a few plain words. Labels, buttons and placeholders are the one place copy is not a full sentence.
 
 A line that works: "Importing adds to what Instrument remembers, so you can bring in memories from every AI you use."
 
@@ -128,7 +130,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `REVIEW.md` — Repo-specific code review calibration.
 - `.agents/skills/validate-changes/SKILL.md` — **How to check your work.** The ways to run this product (sandbox shell, real agent across models, the app), what each one can and cannot tell you, and which to reach for. Read this before concluding a change works.
 - `.agents/skills/instrument-commit-message/SKILL.md` — This repo's commit scopes and real examples from the history.
-- `.agents/setup.md` — Prerequisites before first `pnpm install` / `./scripts/setup.sh`.
+- `.agents/setup.md` — Prerequisites before the first `pnpm studio`.
 - `.agents/env.md` — Environment variables for Studio and workspace.
 - `docs/architecture/system-overview.md` — Top-level map: packages/layering, main-vs-renderer runtime topology, on-disk layout, and how an agent turn flows. Start here.
 - `docs/architecture/ai-gateway.md` — Model access: the mounted provider-proxy Hono app plus the model-discovery/identity library consumed by workspace and studio.

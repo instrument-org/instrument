@@ -31,7 +31,7 @@ import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { noop } from "radashi";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 import { createActor, fromCallback } from "xstate";
 
 import {
@@ -353,8 +353,8 @@ function serveGuest({
     void queue.run(work);
   };
   // Back to the page as it is, saying why.
-  const giveUp = (message: string, description?: string) => {
-    toast.error(message, description ? { description } : {});
+  const giveUp = (message: string, cause?: unknown) => {
+    toast.error(message, { cause });
     latest.current.setEditing(false);
   };
   const load = async (input: { state: unknown; text?: string }) => {
@@ -366,10 +366,7 @@ function serveGuest({
         ...input,
       });
     } catch (error) {
-      giveUp(
-        "Could not open this page to edit",
-        error instanceof Error ? error.message : undefined,
-      );
+      giveUp("Couldn't open this page to edit", error);
       return;
     }
     generation = result.generation;
@@ -497,7 +494,7 @@ function serveGuest({
         // here shows one.
         if (message.kind === "error") {
           sendBack({ type: "editorFailed" });
-          giveUp("The editor could not start", message.message);
+          giveUp("Couldn't start the editor", message.message);
         }
         break;
       }

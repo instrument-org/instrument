@@ -1,6 +1,8 @@
+import { AppMention, AppMenuRow } from "@/client/components/app-mention";
 import { FaviconFallback } from "@/client/components/favicon";
 import {
   AppChipIcon,
+  ChipBody,
   INLINE_CHIP_CLASS_NAME,
 } from "@/client/components/inline-link";
 import {
@@ -163,8 +165,9 @@ function RouteComponent() {
                 <span key={app.slug}>
                   Look in{" "}
                   <span className={INLINE_CHIP_CLASS_NAME}>
-                    <AppChipIcon slug={app.slug} />
-                    <span className="truncate">{app.name}</span>
+                    <ChipBody icon={<AppChipIcon slug={app.slug} />}>
+                      {app.name}
+                    </ChipBody>
                   </span>{" "}
                   for it.{" "}
                 </span>
@@ -178,13 +181,7 @@ function RouteComponent() {
             <div className="max-w-xl rounded-2xl rounded-br-md bg-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] px-3.5 py-2 text-sm leading-6 dark:bg-[oklch(from_var(--color-brand-500)_0.36_0.06_h)]">
               {chosen.map((app) => (
                 <span key={app.slug}>
-                  Check{" "}
-                  <span
-                    className={cn(INLINE_CHIP_CLASS_NAME, "hover:bg-muted/50")}
-                  >
-                    <AppChipIcon slug={app.slug} />
-                    <span className="truncate">{app.name}</span>
-                  </span>{" "}
+                  Check <AppMention app={app} />{" "}
                 </span>
               ))}
             </div>
@@ -196,20 +193,29 @@ function RouteComponent() {
             <div className="max-w-xl rounded-xl rounded-tr bg-linear-to-b from-card to-gray-25 px-4 py-3 text-sm leading-6 shadow-sm dark:from-card dark:to-card">
               {chosen.map((app) => (
                 <span key={app.slug}>
-                  Check{" "}
-                  <span
-                    className={cn(INLINE_CHIP_CLASS_NAME, "hover:bg-muted/50")}
-                  >
-                    <AppChipIcon slug={app.slug} />
-                    <span className="truncate">{app.name}</span>
-                  </span>{" "}
+                  Check <AppMention app={app} />{" "}
                 </span>
               ))}
             </div>
           </Surface>
+          <Surface label="Slash menu rows" source="app-mention.tsx">
+            <div className="w-64 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md">
+              {chosen.map((app, index) => (
+                <div
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm",
+                    index === 0 && "bg-accent text-accent-foreground",
+                  )}
+                  key={app.slug}
+                >
+                  <AppMenuRow app={app} ranges={null} />
+                </div>
+              ))}
+            </div>
+          </Surface>
           <Surface
-            label="Menu rows: slash menu, add menu, omnibar, hold marks"
-            source="app-mention.tsx, composer-add-menu.tsx, omnibar.tsx, hold-marks.tsx"
+            label="Menu rows: add menu, omnibar, command menu, hold marks"
+            source="composer-add-menu.tsx, omnibar.tsx, command-menu.tsx, hold-marks.tsx"
           >
             <div className="w-64 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md">
               {chosen.map((app, index) => (
@@ -222,7 +228,6 @@ function RouteComponent() {
                 >
                   <AppIcon {...app} size="sm" />
                   <span className="min-w-0 flex-1 truncate">{app.name}</span>
-                  <span className="text-xs text-muted-foreground/70">App</span>
                 </div>
               ))}
             </div>
@@ -286,21 +291,26 @@ function RouteComponent() {
                   className="transition-shadow group-hover:shadow-md"
                   size="xl"
                 />
-                <span className="w-full truncate text-xs">{app.name}</span>
+                <span className="w-full truncate text-[13px] leading-4 font-medium">
+                  {app.name}
+                </span>
               </div>
             ))}
           </Surface>
           <Surface
-            label="Catalog row, plate turned off"
+            label="Catalog tile, plate turned off"
             source="window/apps-home.tsx"
           >
             {chosen.map((app) => (
-              <div className="flex w-56 items-center gap-3" key={app.slug}>
+              <div
+                className="flex h-18 w-64 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs"
+                key={app.slug}
+              >
                 <AppIcon
                   {...app}
                   className="size-9 rounded-lg bg-transparent p-0 shadow-none ring-0"
                 />
-                <span className="truncate text-[15px] font-medium">
+                <span className="truncate text-[15px] leading-snug font-medium">
                   {app.name}
                 </span>
               </div>

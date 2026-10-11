@@ -1,6 +1,6 @@
 # Moving files in the Finder
 
-**Status:** accepted, 2026-10-02: undo-backed drag-to-move. Several selected (phase 1's selection half) and the journal with ⌘Z for the existing actions (rename, duplicate, new folder, move to Trash) are built; `files.transfer`, drops, the pasteboard and the sidebar are not.
+**Status:** accepted, 2026-10-02: undo-backed drag-to-move. Several selected (phase 1's selection half) and the journal with ⌘Z for the existing actions (rename, duplicate, new folder, move to Trash) are built, and so is most of the sidebar's menu half (5a): Recents and Instrument at the top, the Pinned section with Pin to Sidebar, Unpin from Sidebar and Restore Default Places, kept in machine preferences and carried along by a rename. Still to come in 5a: ⌃⌘T, the `+` on the heading, the Desktop, Downloads and Documents glyphs, and dimming a pinned folder that is gone. `files.transfer`, drops and the pasteboard are not built.
 
 ## Thesis
 
@@ -14,7 +14,7 @@ The Finder can show, open, rename, duplicate, trash and drag a file out to anoth
 Two things ride along because they are the same verb from another side:
 
 - **Files in from the computer.** A file or folder dragged from the Mac's Finder, the Desktop or File Explorer and dropped on a folder in ours lands there. Today it does nothing.
-- **A sidebar that is the person's.** Favorites they choose, kept, reordered and removed, added by drag the way every file manager does and by a menu command for anyone who does not think to drag.
+- **A sidebar that is the person's.** Folders they pin, kept, reordered and unpinned, added by drag the way every file manager does and by a menu command for anyone who does not think to drag.
 
 And one rule gates all of it: **no drop in this app may do something the person cannot take back.** A stray click, a jittery release or a DOM drag gone wrong must never leave a folder somewhere it was not meant to be with no way back. The safety model below is what makes that true, and drag-to-move does not ship until it is in place.
 
@@ -27,7 +27,7 @@ What this plan does not try: tags, Get Info, smart folders, compression, burning
 - **Selection.** `FileSystem` (`apps/studio/src/client/components/extend/file-system.tsx`) holds several selected beside the one the keyboard is on, as pure functions in `file-system-selection.ts`; ⌘- and Shift-click, Shift-arrows and ⌘A make several, and the menus act on all of them.
 - **Drops.** Only the chat screen has a `FileDropRegion`, and it deliberately ignores drags this app started (`apps/studio/src/client/lib/self-file-drag.ts`) so a click that drifted past the threshold does not attach a task's own file to itself. The Finder takes no drops at all. Read from the code rather than tried: a file dropped anywhere outside the chat's region falls through to the window's default, a navigation to its `file://` URL, which `guardNavigation` refuses and `openExternal` then blocks and reports as an unsafe protocol. So the present behavior is a silent no-op that files an exception report.
 - **Attaching.** A file dropped on the composer is attached by path, and on send `writeUploadedAttachments` copies it into the task's attachments folder with `fs.copyFile(..., COPYFILE_FICLONE)`. Its comment says that is a copy-on-write clone on APFS; measured, it is not (see "Measured" below): Node on macOS makes a full byte copy. A file the task already holds is attached where it lies, with no copy.
-- **Sidebar.** `computerPlaces()` (`packages/workspace/src/lib/chat/computer-places.ts`) returns a fixed list, each place shown only if it exists: Favorites are Instrument (`~/Documents/Instrument`), the home folder, Desktop, Documents and Downloads (plus Pictures, Music and Videos on Windows and Linux), at the paths the system reports rather than the English names under home. Locations are iCloud Drive, the cloud services' folders, then the disks (`/Volumes` on a Mac, every drive letter on Windows, the root and the desktop's mounts on Linux). Recents sits above both with no heading. Nothing is stored, nothing can be added or removed, and a place's context menu (`PlaceMenu`) offers only opening and pointing at it.
+- **Sidebar.** `computerPlaces()` (`packages/workspace/src/lib/chat/computer-places.ts`) returns the default places, each shown only if it exists: the pinned ones are Instrument (`~/Documents/Instrument`), the home folder, Desktop, Documents and Downloads (plus Pictures, Music and Videos on Windows and Linux), at the paths the system reports rather than the English names under home. Locations are iCloud Drive, the cloud services' folders, then the disks (`/Volumes` on a Mac, every drive letter on Windows, the root and the desktop's mounts on Linux). Recents (the files the person opened) and Instrument sit at the top with no heading; the rest of the defaults and the folders the person pinned are under Pinned (phase 5).
 - **Keyboard.** Return renames, ⌘O / ⌘↓ open, Space is Quick Look, arrows and type-ahead walk the list, ⌘F searches, ⌘Z undoes the newest journaled action. No ⌘⌫, ⌘D, ⇧⌘N, ⌘C/⌘V.
 - **Refresh.** Listings poll every 4s, and the page re-reads after each of its own actions.
 
@@ -134,7 +134,7 @@ Cannot merge before phase 2's journal and undo.
 
 1. A folder row / icon / column cell in the Finder. Highlights after the short rest described in the safety model.
 2. The empty space of the folder on screen, meaning "this folder" (and in columns, the column's own folder).
-3. The Finder sidebar's favorites and locations. A drop on a row moves into that folder; a folder dropped between rows, where an insertion line shows, adds it to Favorites instead (phase 5). That split is the Finder's own.
+3. The Finder sidebar's pinned places and locations. A drop on a row moves into that folder; a folder dropped between rows, where an insertion line shows, pins it instead (phase 5). That split is the Finder's own.
 4. Spring-loaded folders: a folder hovered for ~700ms during a drag opens in place (in columns, opens the next column), and the open folders spring back if the drag leaves without dropping.
 5. The location row's path segments, as drop targets for "up to here".
 
@@ -171,8 +171,8 @@ Folders dragged out of our Finder go through the same path (`startDrag` takes fo
 | Where it lands | From our app | From the computer |
 | --- | --- | --- |
 | A Finder folder, its empty space, a path segment | move (⌥ copies) | copy (⌘ moves) |
-| A Finder favorite or location row | move into it | copy into it |
-| Between Finder sidebar rows | add folder to Favorites | add folder to Favorites |
+| A Finder pinned or location row | move into it | copy into it |
+| Between Finder sidebar rows | pin the folder | pin the folder |
 | The chat's composer or transcript (incl. the floating chat) | attach, unless it never left that chat | attach (exists) |
 | The compose window | attach to the draft | attach to the draft |
 | A file tab | no-drop | no-drop |
@@ -195,35 +195,37 @@ Platforms: drag in works the same on macOS, Windows and Linux (Chromium's drop p
 
 **What the Finder ships.** On current macOS (screenshot, 2026-10), the sidebar opens with **Recents** and **Shared** at the top with no heading, then **Favorites** (Desktop, Downloads, Documents, any folders the person added, Applications, in the person's own order), then **Locations**, which is where **iCloud Drive** now sits alongside disks and servers. Apple's guide still describes separate iCloud and Tags sections; the current Finder folds iCloud Drive into Locations. A new account has the home folder and the boot disk switched off (Finder > Settings > Sidebar). Desktop, Downloads and Documents wear their own glyphs; added folders wear a plain folder.
 
-For reference, Windows 11 has Home and Gallery on top, then Quick access (Desktop, Downloads, Documents, Pictures, Music, Videos pinned), then This PC and Network. We follow the Mac's words and layout on every platform for now, and revisit Windows names if familiarity there starts to matter.
+For reference, Windows 11 has Home and Gallery on top, then Quick access (Desktop, Downloads, Documents, Pictures, Music, Videos pinned), then This PC and Network. We follow the Mac's layout on every platform, and its words except where one would read as the Mac's alone: the section a person keeps folders in is Pinned rather than Favorites.
 
 **Layout:**
 
 | Group | Rows | Notes |
 | --- | --- | --- |
-| No heading | Recents, Instrument | Instrument moves out of Favorites to sit under Recents, the way Shared sits under Recents in the Finder: both are the app's own places rather than folders the person keeps. Neither can be removed. |
-| Favorites | home folder, Desktop, Downloads, Documents, then the person's own | Home stays on by default, unlike the Finder: it helps people who do not know their way around their computer reach everything else. Desktop, Downloads and Documents get their own glyphs, matching the Finder. |
+| No heading | Recents, Instrument | Instrument moves out of Pinned to sit under Recents, the way Shared sits under Recents in the Finder: both are the app's own places rather than folders the person keeps. Neither can be removed. |
+| Pinned | home folder, Desktop, Downloads, Documents, then the person's own | Home stays on by default, unlike the Finder: it helps people who do not know their way around their computer reach everything else. Desktop, Downloads and Documents get their own glyphs, matching the Finder. |
 | Locations | iCloud Drive (when `~/Library/Mobile Documents` exists), the cloud services' folders, then every volume | iCloud Drive under Locations, as the current Finder has it, and the services under `~/Library/CloudStorage` (Google Drive, Dropbox, OneDrive, Box) after it. The boot disk stays, since it is how to reach anything outside home; installer disk images that `/Volumes` lists like any disk are hidden. |
 
 Left out on purpose: Applications (nothing to do with an app here that the Mac's Finder does not do better), Shared, AirDrop, Tags, Network, and Pictures, Music and Movies, which on the Mac are a permission prompt the first time they are read.
 
-**Adding a favorite.** Drag is how both platforms do it, and neither makes it the only way: the Finder has File > Add to Sidebar (⌃⌘T) and Windows has Pin to Quick access on every folder's context menu. So:
+**The section is called Pinned, on every platform.** Favorites is the Finder's word and Quick access with "Pin to Quick access" is Explorer's; Pinned reads naturally on both, and keeps "favorite" and "star" free for files, which get a Starred place of their own the way Recents is one.
 
-- **Add to Sidebar** on every folder's context menu and the More menu, and on the location row for the folder on screen, with ⌃⌘T through the command table. The main affordance, since it is where people already look for things to do to a folder.
+**Pinning a folder.** Drag is how both platforms do it, and neither makes it the only way: the Finder has File > Add to Sidebar (⌃⌘T) and Windows has Pin to Quick access on every folder's context menu. So:
+
+- **Pin to Sidebar** on every folder's context menu and the More menu (Unpin from Sidebar once it is pinned), and on the location row for the folder on screen, with ⌃⌘T through the command table. The main affordance, since it is where people already look for things to do to a folder.
 - **Drag** a folder between two sidebar rows (insertion line, phase 3), from our browser or from the Mac's Finder.
-- **A `+` on the Favorites heading,** shown on hover, opening the system folder picker. For someone who has never favorited anything and does not know the sidebar takes drops; it costs one icon.
-- Folders only in this pass. The Finder takes files with ⌘-drag; a file favorite is rare and raises a question (what does selecting it do) not worth settling now.
+- **A `+` on the Pinned heading,** shown on hover, opening the system folder picker. For someone who has never pinned anything and does not know the sidebar takes drops; it costs one icon.
+- Folders only in this pass. The Finder takes files with ⌘-drag; a pinned file is rare and raises a question (what does selecting it do) not worth settling now, and the Starred place is where a file someone wants to keep at hand goes.
 
 **Keeping, ordering, removing.**
 
-- **Remove from Sidebar** on every favorite's context menu, defaults included. Removing a default hides it rather than deleting a record, and **Restore Default Favorites** on the heading's context menu brings the defaults back. No drag-out-to-remove: the Finder's "drag off until the remove sign shows" is exactly the accident this plan is trying not to have.
-- **Reorder** by dragging a row within Favorites. Locations keep the system's order.
+- **Unpin from Sidebar** on every pinned place's context menu, defaults included. Unpinning a default hides it rather than deleting a record, and **Restore Default Places** on the heading's context menu brings the defaults back and keeps what the person pinned. No drag-out-to-remove: the Finder's "drag off until the remove sign shows" is exactly the accident this plan is trying not to have.
+- **Reorder** by dragging a row within Pinned. Locations keep the system's order.
 - Dragging a sidebar row never moves the folder on disk, wherever it is dropped. It is a reference. Dropping one onto another app gives that app the folder, as a copy, which the native drag already guarantees.
-- **Stored** in main's preferences, per machine rather than per workspace: paths are machine-local, and two workspaces on one Mac should not have two sidebars. A favorite whose folder is gone shows dimmed with Remove from Sidebar. A move or rename made through the app updates any favorite it carries along, since the journal knows both paths. Moves made outside the app are not followed (the Finder uses file bookmarks for that, which is not worth adopting yet).
+- **Stored** in main's preferences (`sidebarPlaces`: the folders pinned and the defaults unpinned, `shared/sidebar-places.ts`), per machine rather than per workspace: paths are machine-local, and two workspaces on one Mac should not have two sidebars. A pinned folder that is gone shows dimmed with Unpin from Sidebar. A move or rename made through the app updates any pin it carries along, since the journal knows both paths. Moves made outside the app are not followed (the Finder uses file bookmarks for that, which is not worth adopting yet).
 - Not importing the Mac's own Finder favorites. They live in `com.apple.LSSharedFileList.FavoriteItems.sfl4`, a keyed archive of bookmarks that changes format across macOS versions. Tempting as a first-run seed, too fragile to depend on.
-- **A favorite is not a grant.** Adding a folder to the sidebar gives the agent nothing; folder access stays where it is granted today.
+- **A pin is not a grant.** Pinning a folder to the sidebar gives the agent nothing; folder access stays where it is granted today.
 
-The sidebar's menu half (Add to Sidebar, remove, restore, the new layout and glyphs) needs nothing from the other phases and can land first.
+The sidebar's menu half (Pin to Sidebar, unpin, restore, the new layout and glyphs) needs nothing from the other phases and can land first.
 
 ## What can go wrong
 
@@ -280,7 +282,7 @@ What this means for the plan: moves are exactly as cheap and reversible as the s
 
 | Phase | Ships | Rough size |
 | --- | --- | --- |
-| 5a. Sidebar, menu half | New layout and glyphs, stored favorites, Add to Sidebar / ⌃⌘T / `+`, remove and restore | Small |
+| 5a. Sidebar, menu half | New layout and glyphs, stored pins, Pin to Sidebar / ⌃⌘T / `+`, unpin and restore | Small |
 | 1. Multi-select | ⌘/⇧-click, ⌘A, rubber band, menus act on the set, multi-file drag out | Large: touches every view in `file-system.tsx` |
 | 2. Transfer and undo | `files.transfer` (same volume only), conflicts sheet, refusals, the journal, `files.undo`, ⌘Z | Medium |
 | 3. Drops | Folder and sidebar targets, files in from the computer, the window-level no-drop handler, rest-before-arm, spring-loading, the drag record in main, the Undo toast, composer attach from the Finder, composed drag image | Medium |
@@ -295,7 +297,7 @@ What this means for the plan: moves are exactly as cheap and reversible as the s
 - Unit: `files.transfer` against a temp tree, `it.each` over move/copy × same folder / sibling / into self / conflict × each answer, and a source on another device (refused).
 - Unit: the refusals, one `it.each` row per protected path class (an `.instrument` file, a chat folder, userData, home, Desktop, a volume root, `~/Library`, a running task's folder, folder into its descendant).
 - Unit: the journal: undo of each operation kind; undo refused when the item has moved since or its old place is taken; entries surviving a reload of the store.
-- Unit: favorites store (add, remove a default then restore, reorder, a journaled rename carried into a favorite).
+- Unit: sidebar places (pin, unpin a default then restore, reorder, a journaled rename carried into a pin).
 - Unit: selection reducer (anchor, ⇧-extend, ⌘-toggle, collapse on plain arrow) as a pure function, separate from the views.
 - The running app, by hand on macOS: drag a file from our Finder to a folder in it (moves, Undo puts it back), with ⌥ (copies), a large folder into a sibling (instant, Undo instant), a release while sweeping across rows (nothing happens), to the Desktop (copies, task keeps its file), from the Desktop into our Finder (copies), back from the Desktop after a long spring-loaded hover (still treated as external), between two Studio windows (moves), several mixed files and folders from the Desktop at once, a file from our Finder onto the composer (attached), a folder onto the sidebar between rows (added, not moved), a drop on the tab strip and on a file tab (no-drop cursor, nothing in the logs), a file from an external disk (refused with the Finder pointer), ⌘Z after quitting and relaunching (still undoes), and the source list under "Files in from the computer". CDP cannot drive a native drag session, so these are hand checks, chained into one session.
 - Windows: one pass of the same list on the test host, expecting the copy cursor on internal moves and copies refused.
@@ -304,8 +306,8 @@ What this means for the plan: moves are exactly as cheap and reversible as the s
 
 Settled:
 
-- **The Mac's words and layout on every platform,** revisited for Windows only if familiarity there becomes a reason.
-- **Instrument sits under Recents,** outside Favorites. **The home folder stays on** in Favorites. **iCloud Drive goes under Locations.**
+- **The Mac's words and layout on every platform,** revisited for Windows only if familiarity there becomes a reason, except the sidebar's **Pinned** section, which is named for every platform at once.
+- **Instrument sits under Recents,** outside Pinned. **The home folder stays on** in Pinned. **iCloud Drive goes under Locations.**
 - **Site tabs keep the browser's drop behavior.**
 - **A file from the Finder dropped on the composer attaches** by reference, per `chat-attachments-by-reference.md`.
 - **External drops copy;** ⌘ moves.

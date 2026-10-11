@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/client/components/ui/select";
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import {
   allTimeNote,
@@ -32,7 +32,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useId, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * Clears what the in-app browser keeps, the way a browser's own dialog does:
@@ -44,7 +44,11 @@ export function ClearBrowsingDataModal() {
   const isOpen = state !== null;
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
-  useBlockTabNavigation(isOpen);
+  useHoldWindow(isOpen, {
+    onClose: () => {
+      setState(null);
+    },
+  });
 
   return (
     <Dialog
@@ -111,10 +115,8 @@ function ClearBrowsingDataContent({
           }),
       ]);
     },
-    onError: () => {
-      toast.error(
-        "Something went wrong while clearing your browsing data. Please try again.",
-      );
+    onError: (error) => {
+      toast.error("Couldn't clear your browsing data", { cause: error });
     },
     onSuccess: () => {
       toast.success(clearedMessage({ ...picked, range }));

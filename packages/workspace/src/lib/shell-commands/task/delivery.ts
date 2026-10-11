@@ -45,7 +45,6 @@ export async function deliver({
   const sessionId = task.id;
   const message = await newMessage({
     fromChat: { kind: "message", text: prompt },
-    model,
     modelURI,
     prompt: "",
     sessionId,

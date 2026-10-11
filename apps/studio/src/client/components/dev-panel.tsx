@@ -1,9 +1,6 @@
-import { devToolsPanelAtom } from "@/client/atoms/dev-tools";
 import { featuresAtom } from "@/client/atoms/features";
 import { openLogin } from "@/client/atoms/login-modal";
-import { openSettings } from "@/client/atoms/settings-modal";
 import { forceWindowControlsAtom } from "@/client/atoms/window-controls";
-import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
 import {
   ManageWorkspacesDialog,
   NewWorkspaceDialog,
@@ -17,6 +14,7 @@ import {
   MenubarCheckboxItem,
   MenubarContent,
   MenubarItem,
+  MenubarLabel,
   MenubarMenu,
   MenubarSeparator,
   MenubarSub,
@@ -31,48 +29,36 @@ import {
 } from "@/client/components/ui/tooltip";
 import { formatAccelerator } from "@/client/lib/format-accelerator";
 import { cn, isMacOS } from "@/client/lib/utils";
-import {
-  componentPages,
-  debugNavigationRoutes,
-  onboardingScreens,
-} from "@/client/routes/debug/-debug-routes";
-import { scenarios } from "@/client/routes/debug/-transcript/scenarios";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
   FEATURE_METADATA,
   type FeatureName,
+  FeatureNameSchema,
   type Features,
 } from "@/shared/features";
 import { SHORTCUTS } from "@/shared/shortcuts";
-import { steppedZoom } from "@/shared/zoom";
 import { PORTS } from "@instrument-org/shared";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
-import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
-import { ChartBarIcon } from "@phosphor-icons/react/ChartBar";
-import { DatabaseIcon } from "@phosphor-icons/react/Database";
-import { MagnifyingGlassMinusIcon } from "@phosphor-icons/react/MagnifyingGlassMinus";
-import { MagnifyingGlassPlusIcon } from "@phosphor-icons/react/MagnifyingGlassPlus";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { BugIcon } from "@phosphor-icons/react/Bug";
+import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
+import { EraserIcon } from "@phosphor-icons/react/Eraser";
+import { EyeSlashIcon } from "@phosphor-icons/react/EyeSlash";
+import { FastForwardIcon } from "@phosphor-icons/react/FastForward";
+import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
+import { SignInIcon } from "@phosphor-icons/react/SignIn";
+import { SignOutIcon } from "@phosphor-icons/react/SignOut";
+import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { MoonIcon } from "@phosphor-icons/react/Moon";
-import { NavigationArrowIcon } from "@phosphor-icons/react/NavigationArrow";
-import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 import { WarningOctagonIcon } from "@phosphor-icons/react/WarningOctagon";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { useState } from "react";
-import { toast } from "sonner";
-
-type NavigateTo = Parameters<ReturnType<typeof useNavigate>>[0]["to"];
-
-const PAGES = [
-  { label: "/release-notes", to: "/release-notes" },
-  { label: "/", to: "/" },
-] as const satisfies {
-  label: string;
-  to: NavigateTo;
-}[];
+import { toast } from "@/client/lib/toast";
 
 // Every control sits inside one hairline pill, so they share a height and read
 // as a single object in the toolbar.
@@ -83,18 +69,13 @@ const controlClassName =
 
 const pillTriggerClassName = `${controlClassName} gap-x-1.5 px-1.5`;
 
-/**
- * One letter per flag. The strip is read by position, so each flag keeps its
- * slot whether it is on or off; letters only have to be distinct from each
- * other, and the Flags menu prints them next to the flag they stand for.
- */
-const FEATURE_CODES: Record<FeatureName, string> = {
-  bash_summary_chip: "b",
-  context_ring: "c",
-  external_browser: "x",
-};
+const FEATURE_NAMES: readonly FeatureName[] = FeatureNameSchema.options;
 
-const FEATURE_NAMES = Object.keys(FEATURE_CODES) as FeatureName[];
+/** A heading over a run of the menu's items, in the panel's own mono. */
+const sectionLabelClassName =
+  "px-2 pt-1.5 pb-0.5 font-mono text-[9px] font-normal tracking-wide text-dev-500/70 uppercase dark:text-dev-400/60";
+
+const itemClassName = "font-mono text-xs";
 
 type AppEnvironment = RPCOutput["debug"]["getAppEnvironment"];
 
@@ -102,8 +83,6 @@ export function DevPanel() {
   const navigate = useNavigate();
   const [hidden, setHidden] = useState(false);
   const [crash, setCrash] = useState(false);
-  const setDevToolsPanel = useSetAtom(devToolsPanelAtom);
-  const [zoom, setZoom] = useAtom(zoomAtom);
   const [forceWindowControls, setForceWindowControls] = useAtom(
     forceWindowControlsAtom,
   );
@@ -122,10 +101,6 @@ export function DevPanel() {
     rpcClient.debug.openOnboarding.mutationOptions(),
   );
 
-  const { mutate: openAuthTestPage } = useMutation(
-    rpcClient.debug.openAuthTestPage.mutationOptions(),
-  );
-
   const { mutate: simulateUpdateDownload } = useMutation(
     rpcClient.debug.trigger.testDownloadNotification.mutationOptions(),
   );
@@ -142,13 +117,8 @@ export function DevPanel() {
     rpcClient.debug.trigger.testSilentNoUpdate.mutationOptions(),
   );
 
-  const { mutate: simulateUpdatedToast } = useMutation(
-    rpcClient.debug.trigger.testUpdatedToast.mutationOptions({
-      // The toast reads its bump once, on mount. Reload so it mounts again.
-      onSuccess: () => {
-        window.location.reload();
-      },
-    }),
+  const { mutate: simulateUpdatedNotice } = useMutation(
+    rpcClient.debug.trigger.testUpdatedNotice.mutationOptions(),
   );
 
   const { data: quitGuardForced, refetch: refetchQuitGuardForced } = useQuery(
@@ -194,12 +164,6 @@ export function DevPanel() {
 
   const isPackaged = appEnvironment?.isPackaged === true;
 
-  function handleNavigate(to: NavigateTo, search?: { scenario: string }) {
-    // `to` is widened to the full route union here, so TS can't correlate it
-    // with a per-route search schema the way a literal `to` would.
-    void navigate({ search, to } as Parameters<typeof navigate>[0]);
-  }
-
   if (hidden) {
     return null;
   }
@@ -237,7 +201,14 @@ export function DevPanel() {
                   build gives its version: how this instance differs from the
                   one started by hand, and nothing at all when it doesn't. */}
               {!isPackaged && instanceTag !== "" && (
-                <span className="font-mono text-[9px] leading-none text-dev-500/70 tabular-nums dark:text-dev-400/60">
+                <span className="flex items-center gap-x-1 font-mono text-[9px] leading-none text-dev-500/70 tabular-nums dark:text-dev-400/60">
+                  {/* The dot this instance wears in its Dock icon's corner. */}
+                  {appEnvironment?.driveColor !== undefined && (
+                    <span
+                      className="size-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: appEnvironment.driveColor }}
+                    />
+                  )}
                   {instanceTag}
                 </span>
               )}
@@ -316,251 +287,26 @@ export function DevPanel() {
               {window.api.windowType === "onboarding" && (
                 <>
                   <MenubarItem
-                    className="font-mono text-xs"
+                    className={itemClassName}
                     onSelect={() => {
                       skipOnboarding();
                     }}
                   >
+                    <FastForwardIcon className="size-3" />
                     Skip onboarding
                   </MenubarItem>
                   <MenubarSeparator />
                 </>
               )}
-              <MenubarSub>
-                <MenubarSubTrigger className="font-mono text-xs">
-                  Pages
-                </MenubarSubTrigger>
-                <MenubarSubContent>
-                  {PAGES.map((page) => (
-                    <MenubarItem
-                      className="font-mono text-xs"
-                      key={page.label}
-                      onSelect={() => {
-                        handleNavigate(page.to);
-                      }}
-                    >
-                      {page.label}
-                    </MenubarItem>
-                  ))}
-                </MenubarSubContent>
-              </MenubarSub>
-              <MenubarSub>
-                <MenubarSubTrigger className="font-mono text-xs">
-                  Debug
-                </MenubarSubTrigger>
-                <MenubarSubContent>
-                  {debugNavigationRoutes.map((route) => (
-                    <MenubarItem
-                      className="font-mono text-xs"
-                      key={route.to}
-                      onSelect={() => {
-                        handleNavigate(route.to);
-                      }}
-                    >
-                      {route.label}
-                    </MenubarItem>
-                  ))}
-                  <MenubarSeparator />
-                  <MenubarSub>
-                    <MenubarSubTrigger className="font-mono text-xs">
-                      Components
-                    </MenubarSubTrigger>
-                    <MenubarSubContent>
-                      {componentPages.map((page) => {
-                        const isOnboardingPage = page.id === "onboarding";
-                        const isTranscriptPage = page.id === "transcript";
-
-                        if (isTranscriptPage) {
-                          return (
-                            <MenubarSub key={page.id}>
-                              <MenubarSubTrigger className="font-mono text-xs">
-                                {page.label}
-                              </MenubarSubTrigger>
-                              <MenubarSubContent>
-                                {scenarios.map((scenario) => (
-                                  <MenubarItem
-                                    className="font-mono text-xs"
-                                    key={scenario.id}
-                                    onSelect={() => {
-                                      handleNavigate(page.to, {
-                                        scenario: scenario.id,
-                                      });
-                                    }}
-                                  >
-                                    {scenario.name}
-                                  </MenubarItem>
-                                ))}
-                              </MenubarSubContent>
-                            </MenubarSub>
-                          );
-                        }
-
-                        if (isOnboardingPage) {
-                          return (
-                            <MenubarSub key={page.id}>
-                              <MenubarSubTrigger className="font-mono text-xs">
-                                {page.label}
-                              </MenubarSubTrigger>
-                              <MenubarSubContent>
-                                <MenubarItem
-                                  className="font-mono text-xs"
-                                  onSelect={() => {
-                                    handleNavigate(page.to);
-                                  }}
-                                >
-                                  Overview
-                                </MenubarItem>
-                                <MenubarSeparator />
-                                {onboardingScreens.map((screen) => (
-                                  <MenubarItem
-                                    className="font-mono text-xs"
-                                    key={screen.id}
-                                    onSelect={() => {
-                                      handleNavigate(screen.to);
-                                    }}
-                                  >
-                                    {screen.label}
-                                  </MenubarItem>
-                                ))}
-                              </MenubarSubContent>
-                            </MenubarSub>
-                          );
-                        }
-
-                        return (
-                          <MenubarItem
-                            className="font-mono text-xs"
-                            key={page.id}
-                            onSelect={() => {
-                              handleNavigate(page.to);
-                            }}
-                          >
-                            {page.label}
-                          </MenubarItem>
-                        );
-                      })}
-                    </MenubarSubContent>
-                  </MenubarSub>
-                </MenubarSubContent>
-              </MenubarSub>
-              <MenubarSub>
-                <MenubarSubTrigger className="font-mono text-xs">
-                  Updates
-                </MenubarSubTrigger>
-                <MenubarSubContent>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      simulateUpdateDownload(undefined);
-                    }}
-                  >
-                    <ArrowLineDownIcon className="size-3" />
-                    Simulate download
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      simulateUpdateError(undefined);
-                    }}
-                  >
-                    <ArrowsClockwiseIcon className="size-3" />
-                    Simulate error
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      simulateNoUpdate(undefined);
-                    }}
-                  >
-                    <ArrowsClockwiseIcon className="size-3" />
-                    Simulate no updates
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      clearUpdateBadge(undefined);
-                    }}
-                  >
-                    <ArrowsClockwiseIcon className="size-3" />
-                    Clear update badge
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      simulateUpdatedToast(undefined);
-                    }}
-                  >
-                    <ArrowsClockwiseIcon className="size-3" />
-                    Simulate updated toast (reloads)
-                  </MenubarItem>
-                </MenubarSubContent>
-              </MenubarSub>
-              <MenubarSub>
-                <MenubarSubTrigger className="font-mono text-xs">
-                  Windows
-                </MenubarSubTrigger>
-                <MenubarSubContent>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      openOnboarding();
-                    }}
-                  >
-                    Onboarding window
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      openAuthTestPage();
-                    }}
-                  >
-                    Auth test page
-                  </MenubarItem>
-                </MenubarSubContent>
-              </MenubarSub>
-              <MenubarSub>
-                <MenubarSubTrigger className="font-mono text-xs">
-                  Tools
-                </MenubarSubTrigger>
-                <MenubarSubContent>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      setDevToolsPanel("router-devtools");
-                    }}
-                  >
-                    <NavigationArrowIcon className="size-3" />
-                    Router
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      setDevToolsPanel("query-devtools");
-                    }}
-                  >
-                    <DatabaseIcon className="size-3" />
-                    Query
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      setDevToolsPanel("analytics-toolbar");
-                    }}
-                  >
-                    <ChartBarIcon className="size-3" />
-                    Analytics
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      setDevToolsPanel("agentation");
-                    }}
-                  >
-                    <NotePencilIcon className="size-3" />
-                    Agentation
-                  </MenubarItem>
-                </MenubarSubContent>
-              </MenubarSub>
+              <MenubarItem
+                className={itemClassName}
+                onSelect={() => {
+                  void navigate({ to: "/debug" });
+                }}
+              >
+                <BugIcon className="size-3" />
+                Debug pages
+              </MenubarItem>
               <WorkspaceMenu
                 onCreate={() => {
                   setWorkspaceDialog("new");
@@ -571,120 +317,152 @@ export function DevPanel() {
                 onSwitch={setSwitchTarget}
               />
               <MenubarSub>
-                <MenubarSubTrigger className="font-mono text-xs">
-                  Open folder
+                <MenubarSubTrigger className={itemClassName}>
+                  Open
                 </MenubarSubTrigger>
                 <MenubarSubContent>
+                  <MenubarLabel className={sectionLabelClassName}>
+                    Folders
+                  </MenubarLabel>
                   <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      openUserDataFolder();
-                    }}
-                  >
-                    User data
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
+                    className={itemClassName}
                     onSelect={() => {
                       openWorkspaceFolder();
                     }}
                   >
+                    <FolderOpenIcon className="size-3" />
                     Workspace
                   </MenubarItem>
-                </MenubarSubContent>
-              </MenubarSub>
-              <MenubarSub>
-                <MenubarSubTrigger className="font-mono text-xs">
-                  Modals
-                </MenubarSubTrigger>
-                <MenubarSubContent>
                   <MenubarItem
-                    className="font-mono text-xs"
+                    className={itemClassName}
+                    onSelect={() => {
+                      openUserDataFolder();
+                    }}
+                  >
+                    <FolderOpenIcon className="size-3" />
+                    User data
+                  </MenubarItem>
+                  <MenubarSeparator />
+                  <MenubarLabel className={sectionLabelClassName}>
+                    Show
+                  </MenubarLabel>
+                  <MenubarItem
+                    className={itemClassName}
+                    onSelect={() => {
+                      openOnboarding();
+                    }}
+                  >
+                    <AppWindowIcon className="size-3" />
+                    Onboarding window
+                  </MenubarItem>
+                  <MenubarItem
+                    className={itemClassName}
                     onSelect={() => {
                       openLogin();
                     }}
                   >
-                    Login
-                  </MenubarItem>
-                  <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={() => {
-                      openSettings();
-                    }}
-                  >
-                    Settings
+                    <SignInIcon className="size-3" />
+                    Sign-in dialog
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>
-              <MenubarSeparator />
-              <MenubarItem
-                className="font-mono text-xs text-destructive focus:text-destructive"
-                onSelect={() => {
-                  // Trip the top-level ErrorBoundary in app-window.tsx by
-                  // throwing during render (event-handler throws aren't caught
-                  // by boundaries), verifying the shell-crash fallback + report.
-                  setCrash(true);
-                }}
-              >
-                <WarningOctagonIcon className="size-3" />
-                Simulate crash
-              </MenubarItem>
               <MenubarSub>
-                <MenubarSubTrigger className="font-mono text-xs">
-                  Zoom
-                  <span className="ml-1 font-mono text-[9px] text-dev-500/70 tabular-nums dark:text-dev-400/60">
-                    {Math.round(zoom * 100)}%
-                  </span>
+                <MenubarSubTrigger className={itemClassName}>
+                  Simulate
                 </MenubarSubTrigger>
                 <MenubarSubContent>
+                  <MenubarLabel className={sectionLabelClassName}>
+                    Updates
+                  </MenubarLabel>
                   <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      setZoom((z) =>
-                        steppedZoom({
-                          direction: "in",
-                          factor: z,
-                          max: ZOOM_MAX,
-                          min: ZOOM_MIN,
-                        }),
-                      );
+                    className={itemClassName}
+                    onSelect={() => {
+                      simulateUpdateDownload(undefined);
                     }}
                   >
-                    <MagnifyingGlassPlusIcon className="size-3" />
-                    Zoom in
+                    <ArrowLineDownIcon className="size-3" />
+                    Downloading
                   </MenubarItem>
                   <MenubarItem
-                    className="font-mono text-xs"
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      setZoom((z) =>
-                        steppedZoom({
-                          direction: "out",
-                          factor: z,
-                          max: ZOOM_MAX,
-                          min: ZOOM_MIN,
-                        }),
-                      );
+                    className={itemClassName}
+                    onSelect={() => {
+                      simulateUpdateError(undefined);
                     }}
                   >
-                    <MagnifyingGlassMinusIcon className="size-3" />
-                    Zoom out
+                    <WarningIcon className="size-3" />
+                    Check fails
+                  </MenubarItem>
+                  <MenubarItem
+                    className={itemClassName}
+                    onSelect={() => {
+                      simulateNoUpdate(undefined);
+                    }}
+                  >
+                    <CheckCircleIcon className="size-3" />
+                    Up to date
+                  </MenubarItem>
+                  <MenubarItem
+                    className={itemClassName}
+                    onSelect={() => {
+                      simulateUpdatedNotice(undefined);
+                    }}
+                  >
+                    <SparkleIcon className="size-3" />
+                    Just updated
+                  </MenubarItem>
+                  <MenubarItem
+                    className={itemClassName}
+                    onSelect={() => {
+                      clearUpdateBadge(undefined);
+                    }}
+                  >
+                    <EraserIcon className="size-3" />
+                    Clear badge
                   </MenubarItem>
                   <MenubarSeparator />
+                  {/* States a dev run on this Mac never reaches by itself:
+                      another platform's window buttons, and the prompt dev
+                      builds skip when an agent is running at quit. */}
+                  <MenubarLabel className={sectionLabelClassName}>
+                    Always show
+                  </MenubarLabel>
+                  {isMacOS() && (
+                    <MenubarCheckboxItem
+                      checked={forceWindowControls}
+                      className={itemClassName}
+                      onCheckedChange={setForceWindowControls}
+                      title="Draw the minimize, maximize, and close buttons Windows and Linux get, for checking the layout around them"
+                    >
+                      Windows-style buttons
+                    </MenubarCheckboxItem>
+                  )}
+                  <MenubarCheckboxItem
+                    checked={quitGuardForced?.forced ?? false}
+                    className={itemClassName}
+                    onCheckedChange={(forced) => {
+                      setQuitGuardForced({ forced });
+                    }}
+                    title="Ask before quitting while an agent is running, which dev builds normally skip. Resets on relaunch; a rebuild while it is on waits on the dialog."
+                  >
+                    Quit prompt
+                  </MenubarCheckboxItem>
+                  <MenubarSeparator />
                   <MenubarItem
-                    className="font-mono text-xs"
+                    className={`${itemClassName} text-destructive focus:text-destructive`}
                     onSelect={() => {
-                      setZoom(1);
+                      // Trip the top-level ErrorBoundary in app-window.tsx by
+                      // throwing during render (event-handler throws aren't caught
+                      // by boundaries), verifying the shell-crash fallback + report.
+                      setCrash(true);
                     }}
                   >
-                    <ArrowsClockwiseIcon className="size-3" />
-                    Reset
+                    <WarningOctagonIcon className="size-3" />
+                    Window crash
                   </MenubarItem>
                 </MenubarSubContent>
               </MenubarSub>
               <MenubarSub>
-                <MenubarSubTrigger className="font-mono text-xs">
+                <MenubarSubTrigger className={itemClassName}>
                   Flags
                   <FeatureFlagStrip features={features} />
                 </MenubarSubTrigger>
@@ -692,7 +470,7 @@ export function DevPanel() {
                   {FEATURE_NAMES.map((feature) => (
                     <MenubarCheckboxItem
                       checked={features[feature]}
-                      className="font-mono text-xs"
+                      className={itemClassName}
                       key={feature}
                       onCheckedChange={(enabled) => {
                         setFeatureEnabled({ enabled, feature });
@@ -701,50 +479,37 @@ export function DevPanel() {
                     >
                       {FEATURE_METADATA[feature].title}
                       <span className="ml-auto pl-4 font-mono text-[9px] text-dev-500/70 dark:text-dev-400/60">
-                        {FEATURE_CODES[feature]}
+                        {FEATURE_METADATA[feature].code}
                       </span>
                     </MenubarCheckboxItem>
                   ))}
                 </MenubarSubContent>
               </MenubarSub>
               <MenubarSeparator />
-              {isMacOS() && (
-                <MenubarCheckboxItem
-                  checked={forceWindowControls}
-                  className="font-mono text-xs"
-                  onCheckedChange={setForceWindowControls}
-                  title="Render the Windows/Linux window controls on macOS for layout debugging"
-                >
-                  Force window controls
-                </MenubarCheckboxItem>
-              )}
-              <MenubarCheckboxItem
-                checked={quitGuardForced?.forced ?? false}
-                className="font-mono text-xs"
-                onCheckedChange={(forced) => {
-                  setQuitGuardForced({ forced });
-                }}
-                title="Run the running-agent quit prompt that dev builds normally skip. Resets on relaunch; a rebuild while it is on will wait on the dialog."
-              >
-                Force quit guard
-              </MenubarCheckboxItem>
-              <MenubarSeparator />
+              <MenubarLabel className={sectionLabelClassName}>
+                Developer mode
+              </MenubarLabel>
               <MenubarItem
-                className="font-mono text-xs"
+                className={itemClassName}
                 onSelect={() => {
                   setHidden(true);
                 }}
               >
-                Hide dev panel
+                <EyeSlashIcon className="size-3" />
+                Hide this panel
+                <span className="ml-auto pl-4 text-[9px] text-dev-500/70 dark:text-dev-400/60">
+                  until reload
+                </span>
               </MenubarItem>
               <MenubarItem
-                className="font-mono text-xs"
+                className={itemClassName}
                 onSelect={() => {
                   setDeveloperMode({ enabled: false });
-                  toast("Developer mode disabled");
+                  toast.dev("Developer mode is off");
                 }}
               >
-                Exit developer mode
+                <SignOutIcon className="size-3" />
+                Turn off
               </MenubarItem>
             </MenubarContent>
           </MenubarMenu>
@@ -791,7 +556,7 @@ function FeatureFlagStrip({ features }: { features: Features }) {
       {FEATURE_NAMES.map((feature) =>
         features[feature] ? (
           <span className="text-dev-600 dark:text-dev-400" key={feature}>
-            {FEATURE_CODES[feature]}
+            {FEATURE_METADATA[feature].code}
           </span>
         ) : (
           <span className="text-dev-700/25 dark:text-dev-300/25" key={feature}>

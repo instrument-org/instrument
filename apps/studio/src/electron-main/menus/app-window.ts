@@ -1,6 +1,7 @@
 import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
+import { resolveAccelerator } from "@/shared/shortcuts";
 import {
   WINDOW_MENU_SHORTCUTS,
   WINDOW_SHORTCUTS,
@@ -47,7 +48,12 @@ function chord(
   id: WindowShortcutId,
   run: () => void = command(id),
 ): WindowChord {
-  return { ...WINDOW_SHORTCUTS[id], run };
+  const { accelerator, label } = WINDOW_SHORTCUTS[id];
+  return {
+    accelerator: resolveAccelerator(accelerator, { isMac: IS_MAC }),
+    label,
+    run,
+  };
 }
 
 const FILE_CHORDS: WindowChord[] = [
@@ -93,6 +99,14 @@ const VIEW_CHORDS: WindowChord[] = [
   // takes every browser guest down with its document. The window decides
   // which page that is (page-chords.ts).
   chord("reloadPage"),
+];
+
+/** The rail's places, the tab up going to one the way a press on the rail takes it. */
+const PLACE_CHORDS: WindowChord[] = [
+  chord("goToChat"),
+  chord("goToFiles"),
+  chord("goToBrowser"),
+  chord("goToApps"),
 ];
 
 /**
@@ -142,6 +156,7 @@ const HISTORY_CHORDS: WindowChord[] = [chord("back"), chord("forward")];
 const WINDOW_CHORDS = [
   ...FILE_CHORDS,
   ...VIEW_CHORDS,
+  ...PLACE_CHORDS,
   ...TAB_CHORDS,
   ...CHAT_CHORDS,
   ...TAB_SWITCH_CHORDS,
@@ -235,6 +250,8 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
     submenu: [
       ...menuItems(VIEW_CHORDS),
       { type: "separator" },
+      ...menuItems(PLACE_CHORDS),
+      { type: "separator" },
       ...(Array.isArray(shared.submenu)
         ? shared.submenu.filter(
             (item) => item.role !== "reload" && item.role !== "forceReload",
@@ -253,6 +270,10 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
     historyMenu,
     createWindowMenu(),
     createHelpMenu({
+      reportProblem: () => {
+        BrowserWindow.getFocusedWindow()?.webContents.focus();
+        publisher.publish("window.command", "reportProblem");
+      },
       shortcutGuide: () => {
         // A focused page guest holds the keyboard, and the guide's search
         // field is the window's, so the window takes the keyboard back first.

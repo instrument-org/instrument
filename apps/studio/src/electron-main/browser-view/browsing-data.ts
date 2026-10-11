@@ -1,4 +1,5 @@
 import { getBrowserSessionDir } from "@instrument-org/workspace/electron";
+import { getExternalAppLinksStore } from "@/electron-main/stores/workspace/external-app-links";
 import { type Cookie, type Session } from "electron";
 import { getDomain } from "tldts";
 
@@ -76,6 +77,9 @@ export async function clearBrowsingData({
     // Cookies and storage are written to disk lazily; flush so a quit right
     // after does not bring back what was just cleared.
     await ses.cookies.flushStore();
+    // The sites told they may always open another app's links are a site's
+    // data too, kept by the app rather than the session.
+    getExternalAppLinksStore().set("allowed", []);
   }
   if (cache) {
     await ses.clearCache();

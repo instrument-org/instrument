@@ -4,7 +4,6 @@ import type {
 } from "@instrument-org/workspace/electron";
 import type { Session, WebContents } from "electron";
 
-import { publisher } from "@/electron-main/rpc/publisher";
 import {
   encodeBrowserTargetId,
   StoreId,
@@ -16,6 +15,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { clearDownloads, listDownloads } from "./download-list";
 import {
   applyDownloadBehavior,
   captureDownloadWillBeginGuid,
@@ -48,6 +48,16 @@ vi.mock("electron", () => ({
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
   getWorkspaceFolder: () => home.workspace,
 }));
+// The download list's saved copy, in memory.
+const saved = vi.hoisted(() => ({ downloads: [] as unknown[] }));
+vi.mock("@/electron-main/stores/workspace/downloads", () => ({
+  getDownloadsStore: () => ({
+    get: () => saved.downloads,
+    set: (_key: string, value: unknown[]) => {
+      saved.downloads = value;
+    },
+  }),
+}));
 
 const SUBDOMAIN = ChatIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
@@ -60,6 +70,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  clearDownloads();
   fs.rmSync(home.dir, { force: true, recursive: true });
   vi.restoreAllMocks();
 });
@@ -107,6 +118,7 @@ function makeFakeItem({
     getReceivedBytes: () => 1024,
     getTotalBytes: () => 1024,
     getURL: () => url,
+    on: emitter.on.bind(emitter),
     setSavePath: vi.fn(),
   });
 }
@@ -256,8 +268,7 @@ describe("routeGuestDownloads", () => {
       );
     });
 
-    it("cancels and says so when no folder takes the file", () => {
-      const publish = vi.spyOn(publisher, "publish");
+    it("cancels and lists it as failed when no folder takes the file", () => {
       home.downloads = unwritableDir();
       home.workspace = home.downloads;
       const entries = new Map<BrowserTargetId, BrowserEntry>();
@@ -271,23 +282,20 @@ describe("routeGuestDownloads", () => {
 
       expect(item.cancel).toHaveBeenCalledOnce();
       expect(item.setSavePath).not.toHaveBeenCalled();
-      expect(publish).toHaveBeenCalledWith("browser.download-finished", {
-        completed: false,
+      expect(listDownloads()[0]).toMatchObject({
         filename: "report.pdf",
-        folder: null,
         path: null,
-        targetId: TARGET_ID,
+        state: "failed",
       });
     });
 
     it.each([
-      { completed: true, state: "completed" as const },
-      { completed: false, state: "interrupted" as const },
-      { completed: false, state: "cancelled" as const },
+      { listed: "completed" as const, state: "completed" as const },
+      { listed: "failed" as const, state: "interrupted" as const },
+      { listed: "canceled" as const, state: "cancelled" as const },
     ])(
-      "tells the guest's window where it ended up when it finishes $state",
-      ({ completed, state }) => {
-        const publish = vi.spyOn(publisher, "publish");
+      "lists where it ended up when it finishes $state",
+      ({ listed, state }) => {
         const entries = new Map<BrowserTargetId, BrowserEntry>();
         const entry = makeEntry();
         entries.set(TARGET_ID, entry);
@@ -298,12 +306,13 @@ describe("routeGuestDownloads", () => {
         trigger(item, entry);
         (item as unknown as EventEmitter).emit("done", {}, state);
 
-        expect(publish).toHaveBeenCalledWith("browser.download-finished", {
-          completed,
+        expect(listDownloads()[0]).toMatchObject({
           filename: "report.pdf",
-          folder: `${path.basename(home.dir)}/Downloads`,
           path: path.join(home.downloads, "report.pdf"),
-          targetId: TARGET_ID,
+          receivedBytes: 1024,
+          state: listed,
+          totalBytes: 1024,
+          url: "https://example.com/report.pdf",
         });
       },
     );

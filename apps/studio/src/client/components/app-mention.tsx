@@ -1,6 +1,7 @@
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import {
   AppChipIcon,
+  ChipBody,
   INLINE_CHIP_CLASS_NAME,
 } from "@/client/components/inline-link";
 import { AppIcon } from "@/client/components/window/app-icon";
@@ -31,8 +32,9 @@ export function AppMention({ app }: { app: AppMentionRef }) {
       className={cn(INLINE_CHIP_CLASS_NAME, "hover:bg-muted/50")}
       data-app={app.slug}
     >
-      <AppChipIcon slug={app.slug} />
-      <span className="truncate">{known?.name ?? app.name}</span>
+      <ChipBody icon={<AppChipIcon slug={app.slug} />}>
+        {known?.name ?? app.name}
+      </ChipBody>
     </span>
   );
 }

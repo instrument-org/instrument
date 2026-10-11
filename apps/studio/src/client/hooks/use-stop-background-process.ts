@@ -1,7 +1,7 @@
 import { rpcClient } from "@/client/rpc/client";
 import { type StoreId, type ChatId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * Stopping what the agent left running, on the user's behalf.
@@ -20,14 +20,14 @@ export function useStopBackgroundProcess(
   const { isPending: isStopping, mutate: stopOne } = useMutation(
     rpcClient.workspace.chats.backgroundProcesses.stop.mutationOptions({
       onError: (error) => {
-        toast.error("Couldn't stop it", { description: error.message });
+        toast.error("Couldn't stop the process", { cause: error });
       },
     }),
   );
   const { isPending: isStoppingAll, mutate: stopEvery } = useMutation(
     rpcClient.workspace.chats.backgroundProcesses.stopAll.mutationOptions({
       onError: (error) => {
-        toast.error("Couldn't stop them", { description: error.message });
+        toast.error("Couldn't stop the processes", { cause: error });
       },
     }),
   );

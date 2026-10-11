@@ -5,6 +5,7 @@ import {
   findersByTabAtom,
   pageSlotsAtom,
 } from "@/client/atoms/window";
+import type { FileSystemView } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FileViewer } from "@/client/components/file-viewer";
 import {
@@ -15,6 +16,7 @@ import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
+import { noteFileOpened } from "@/client/hooks/use-recent-files";
 import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { fileUrlOf } from "@/client/lib/file-url";
@@ -32,7 +34,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { newSiteGroup, pageHrefOf } from "./app-tabs";
 import { AskTray } from "./ask-tray";
@@ -89,6 +91,7 @@ export function FilesScreen({
   select,
   source,
   tree,
+  view,
 }: {
   /** The file this tab shows, by where it is on the computer; the folder when absent. */
   file: string | undefined;
@@ -100,6 +103,8 @@ export function FilesScreen({
   source: boolean;
   /** The folder the tab's own tree is rooted at, for a file opened from the Finder. */
   tree: string | undefined;
+  /** The layout this step of the tab's history shows the folder in; absent on a direct arrival. */
+  view: FileSystemView | undefined;
 }) {
   const { browser, openPage, openScreen, rowLead, rowTail } = useWindow();
   const { allTabs, close, moveToGroup, pageTakesOver, stepVisitOf } =
@@ -164,6 +169,15 @@ export function FilesScreen({
   const activeFile: FileTab | undefined = file
     ? { hostPath: file, name: segmentsOf(file).at(-1) ?? file }
     : undefined;
+  // Every way into a file lands on this screen: a folder, a link in a reply,
+  // a file card, the Finder handing one over. A file coming up in the tab the
+  // person is looking at is a file they opened, so it is told to history here
+  // and nowhere else.
+  useEffect(() => {
+    if (file !== undefined && isActiveTab) {
+      noteFileOpened(file);
+    }
+  }, [file, isActiveTab]);
   const isPageFile =
     activeFile !== undefined &&
     !source &&
@@ -587,6 +601,7 @@ export function FilesScreen({
             path={path}
             root={root}
             select={select}
+            view={view}
             {...quickLook.props}
           />
         )}

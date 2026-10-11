@@ -107,8 +107,6 @@ const run = base
 
     // A settings write, which the record change feed reports: what moves the task in the list.
     await recordChatActivity(chatId);
-
-    context.workspaceConfig.captureEvent("session.run");
   });
 
 /**
@@ -151,8 +149,6 @@ const stop = base
         ...(input.sessionId ? { sessionId: input.sessionId } : {}),
       },
     });
-
-    context.workspaceConfig.captureEvent("session.stopped");
   });
 
 const toMarkdown = base

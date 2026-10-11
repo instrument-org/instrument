@@ -1,9 +1,4 @@
-import {
-  auth,
-  createGoogleProvider,
-  decodeOAuthState,
-  store,
-} from "@/electron-main/auth/client";
+import { exchangeDesktopSignIn, store } from "@/electron-main/auth/client";
 import {
   GOOGLE_MARK,
   newAuthReference,
@@ -20,7 +15,6 @@ import {
   appName,
   getAppsDir,
 } from "@/electron-main/lib/apps";
-import { captureServerEvent } from "@/electron-main/lib/capture-server-event";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { directoryIconDataUri } from "@/electron-main/lib/directory-icons";
 import {
@@ -176,15 +170,27 @@ async function start() {
     return renderAuthPage({ ...page, kind: "failed", reference });
   };
 
-  app.get("/auth/callback/google", async (c) => {
-    const code = c.req.query("code");
+  // The API's Google sign-in lands here with a single-use token, or with the
+  // error that ended it.
+  app.get("/auth/callback", async (c) => {
+    const token = c.req.query("token");
     const state = c.req.query("state");
+    const ended = c.req.query("error");
+    const { codeVerifier } = store;
 
-    if (
-      c.req.query("error") !== undefined &&
-      state !== undefined &&
-      state === store.state
-    ) {
+    if (state === undefined || state !== store.state || codeVerifier === null) {
+      captureServerException(
+        new Error("Sign-in callback received with invalid state"),
+        { scopes: ["auth"] },
+      );
+      focusAppWindow();
+      return c.html(renderAuthPage({ kind: "expired" }), 400);
+    }
+    // One callback per sign-in started.
+    store.state = null;
+    store.codeVerifier = null;
+
+    if (ended === "access_denied") {
       publisher.publish("auth.sign-in-outcome", { outcome: "declined" });
       focusAppWindow();
       return c.html(
@@ -196,65 +202,15 @@ async function start() {
       );
     }
 
-    if (
-      code === undefined ||
-      store.state === null ||
-      state !== store.state ||
-      store.codeVerifier === null
-    ) {
-      captureServerException(
-        new Error("OAuth callback received with invalid state or missing code"),
-        { scopes: ["auth"] },
-      );
-      focusAppWindow();
-      return c.html(renderAuthPage({ kind: "expired" }), 400);
-    }
-
-    const decodedState = decodeOAuthState(state);
-    if (!decodedState) {
-      focusAppWindow();
-      return c.html(renderAuthPage({ kind: "expired" }), 400);
-    }
-
-    const google = createGoogleProvider({ port });
-    const { codeVerifier } = store;
-    const sessionStore = getSessionStore();
-
-    const headers = new Headers();
-    let email: string | undefined;
-
+    let email: string;
     try {
-      const tokens = await google.validateAuthorizationCode(code, codeVerifier);
-      const res = await auth.signIn.social(
-        {
-          // The ID token alone proves who signed in; Google's access and
-          // refresh tokens are never sent to the platform.
-          idToken: { token: tokens.idToken() },
-          provider: "google",
-        },
-        {
-          headers,
-          onSuccess(ctx) {
-            const authToken = ctx.response.headers.get("set-auth-token");
-            sessionStore.set("apiBearerToken", authToken);
-            getWorkspaceState().set("hasCompletedProviderSetup", true);
-          },
-        },
-      );
-
-      if (res.error) {
-        const page = failed(new Error("Login failed", { cause: res.error }));
-        publisher.publish("auth.sign-in-outcome", {
-          error: res.error,
-          outcome: "failed",
-        });
-        focusAppWindow();
-        return await c.html(page, 400);
+      if (token === undefined) {
+        throw new Error(`Sign-in ended with ${ended ?? "no token"}`);
       }
-      // The session is saved by now, so reading the email must not throw
-      // into the catch below and report a sign-in that went through as failed.
-      const { data } = res;
-      email = data && "user" in data ? data.user.email : undefined;
+      const result = await exchangeDesktopSignIn({ codeVerifier, token });
+      getSessionStore().set("apiBearerToken", result.token);
+      getWorkspaceState().set("hasCompletedProviderSetup", true);
+      email = result.user.email;
     } catch (error) {
       const page = failed(new Error("Error signing in", { cause: error }));
       // The button in the app holds until it hears how the sign-in went.
@@ -275,7 +231,7 @@ async function start() {
     // Delay focus so the renderer has time to navigate to the success screen
     // before the window comes to front -- keeps the entrance animation visible.
     setTimeout(focusAppWindow, 400);
-    captureServerEvent("auth.logged_in");
+
     return c.html(
       renderAuthPage({ email, kind: "signed-in", service: googleService }),
     );
@@ -424,9 +380,7 @@ async function start() {
   });
 
   app.get(OPENROUTER_CALLBACK_PATH, async (c) => {
-    const finished = receiveOpenRouterCallback(
-      new URL(c.req.url).searchParams,
-    );
+    const finished = receiveOpenRouterCallback(new URL(c.req.url).searchParams);
     if (!finished) {
       return c.html(renderAuthPage({ kind: "expired" }), 400);
     }
@@ -453,7 +407,9 @@ async function start() {
         );
       }
       case "declined": {
-        return c.html(renderAuthPage({ kind: "declined", service: openRouter }));
+        return c.html(
+          renderAuthPage({ kind: "declined", service: openRouter }),
+        );
       }
     }
   });

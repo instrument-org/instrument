@@ -162,8 +162,11 @@ function CommandList({
 
   return (
     <CommandPrimitive.List
+      // cmdk wraps the children in a sizer of its own; filling the list with
+      // it gives a list of a fixed height to a scroller inside, which would
+      // otherwise grow past it and never scroll.
       className={cn(
-        "max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto",
+        "max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto [&>[cmdk-list-sizer]]:h-full",
         className,
       )}
       data-slot="command-list"

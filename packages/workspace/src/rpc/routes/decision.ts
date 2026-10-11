@@ -11,7 +11,7 @@ import { base } from "../base";
 /**
  * Typed questions about a state, answered by the decision model with a
  * probability for every option. The questions are passed through in the
- * System One contract's own shape (`choice`, `score`, `noul`), so a caller
+ * decision contract's own shape (`choice`, `score`, `noul`), so a caller
  * builds them from its own data and reads the distributions back.
  */
 const ask = base

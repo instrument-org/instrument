@@ -25,6 +25,9 @@ vi.mock("@/client/rpc/client", () => ({
           queryKey: ["browserOpenTarget"],
         }),
       },
+      fileManagerApp: {
+        queryOptions: () => ({ queryFn: skipToken, queryKey: ["fileManager"] }),
+      },
       fileOpenCandidates: {
         queryOptions: () => ({ queryFn: skipToken, queryKey: ["candidates"] }),
       },

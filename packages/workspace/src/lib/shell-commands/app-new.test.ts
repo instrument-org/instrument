@@ -9,6 +9,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { serveRegisteredClient } from "../../test/helpers/serve-registered-client";
+import { resetServedAppCatalog } from "../apps/catalog";
 import { AppManifestSchema } from "../apps/manifest";
 import { createMemoryAppsConfig } from "../apps/memory-config";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
@@ -301,14 +303,27 @@ describe("app test and the guide skeleton", () => {
     // through to a key the user can make on a page the directory names...
     ["asana", "--api https://app.asana.com/api/1.0 --auth bearer"],
     // ...and past a token that takes building an app first, to the web.
-    ["slack", "--web https://app.slack.com"],
     ["hubspot", "--web https://app.hubspot.com"],
+    // Slack, until the directory gives it a client, goes to the web too.
+    ["slack", "--web https://app.slack.com"],
     // One that wants a sign-in gets the card, not --auth none.
     ["semgrep", "--mcp https://mcp.semgrep.ai/mcp\n"],
   ])("sets %s up the way it actually connects", async (slug, line) => {
     const result = await app("catalog", slug);
 
     expect(`${result.stdout}\n`).toContain(line);
+  });
+
+  it("signs in on the card once the directory gives a client", async () => {
+    serveRegisteredClient("slack", "registered-slack-client");
+    try {
+      const result = await app("catalog", "slack");
+      expect(`${result.stdout}\n`).toContain(
+        "--mcp https://mcp.slack.com/mcp\n",
+      );
+    } finally {
+      resetServedAppCatalog();
+    }
   });
 
   it("puts the directory's key test in the set-up line", async () => {
@@ -454,6 +469,7 @@ describe("app new --web", () => {
     );
     expect(await manifestOf("zoom-web")).toEqual({
       name: "Zoom",
+      service: "zoom",
       signIn: "https://zoom.us/signin",
       type: "web",
       url: "https://zoom.us",
@@ -521,6 +537,47 @@ describe("app new refuses what cannot connect", () => {
     );
   });
 
+  it("sets a second account up under the service's name, signing in on its add-account page", async () => {
+    await app(
+      "new",
+      "gmail",
+      "--name",
+      "Gmail",
+      "--web",
+      "https://mail.google.com",
+    );
+    await app("account", "gmail", "jeremy@example.com");
+
+    const result = await app(
+      "new",
+      "gmail-personal",
+      "--name",
+      "Gmail (personal)",
+      "--web",
+      "https://mail.google.com/mail/u/1/",
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(await manifestOf("gmail-personal")).toEqual({
+      name: "Gmail",
+      service: "gmail",
+      signIn:
+        "https://accounts.google.com/AddSession?service=mail&continue=https://mail.google.com/mail/",
+      type: "web",
+      url: "https://mail.google.com/mail/u/1/",
+    });
+    expect(result.stdout).toContain(
+      'It is another Gmail account beside gmail (jeremy@example.com), so it keeps the name Gmail rather than "Gmail (personal)"',
+    );
+    // The next case sets Gmail up as the first of its kind.
+    for (const slug of ["gmail", "gmail-personal"]) {
+      await fs.rm(path.join(getWorkspaceConfig().appsDir, slug), {
+        force: true,
+        recursive: true,
+      });
+    }
+  });
+
   it("starts a listed web app's sign-in on its sign-in page", async () => {
     const result = await app(
       "new",
@@ -539,32 +596,42 @@ describe("app new refuses what cannot connect", () => {
     });
   });
 
-  it("names the sign-in page in a web set-up line", async () => {
-    const result = await app("catalog", "slack");
+  it("starts the web set-up line's sign-in where the directory says", async () => {
+    const line = (await app("catalog", "pagerduty")).stdout;
+    expect(line).toContain("--web https://www.pagerduty.com  (on the web");
 
-    expect(result.stdout).toContain(
-      "--web https://app.slack.com --sign-in 'https://slack.com/signin'",
+    await app(
+      "new",
+      "pagerduty-web",
+      "--name",
+      "PagerDuty",
+      "--web",
+      "https://www.pagerduty.com",
     );
+    expect(await manifestOf("pagerduty-web")).toMatchObject({
+      service: "pagerduty",
+      signIn: "https://app.pagerduty.com/",
+    });
   });
 
   it("refuses a listed server whose sign-in needs a registered client", async () => {
     const result = await app(
       "new",
-      "slack",
+      "pagerduty",
       "--name",
-      "Slack",
+      "PagerDuty",
       "--mcp",
-      "https://mcp.slack.com/mcp",
+      "https://mcp.pagerduty.com/mcp",
     );
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
       "signs in only with a client registered with its vendor ahead of time",
     );
-    expect(result.stderr).toContain("--web https://app.slack.com");
-    expect((await loadApp(getWorkspaceConfig().appsDir, "slack")).isErr()).toBe(
-      true,
-    );
+    expect(result.stderr).toContain("--web https://www.pagerduty.com");
+    expect(
+      (await loadApp(getWorkspaceConfig().appsDir, "pagerduty")).isErr(),
+    ).toBe(true);
   });
 
   it("refuses an unlisted server whose metadata offers no registration", async () => {

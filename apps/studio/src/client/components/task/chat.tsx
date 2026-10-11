@@ -6,7 +6,7 @@ import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn } from "@/client/lib/utils";
@@ -32,7 +32,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { ChatStream, TypingRow } from "../chat-stream";
 import { ComposerDraftContext } from "../composer-draft-context";
@@ -147,14 +147,14 @@ export function TaskChat({
   const createMessage = useMutation(
     createMessageOptions({
       onError: (error) => {
-        toast.error("Failed to create message", { description: error.message });
+        toast.error("Couldn't send your message", { cause: error });
       },
     }),
   );
   const runTurn = useMutation(
     rpcClient.workspace.session.run.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to try again", { description: error.message });
+        toast.error("Couldn't try again", { cause: error });
       },
     }),
   );
@@ -239,7 +239,7 @@ export function TaskChat({
   const isLoadingMessages = messagesQuery.isLoading;
   const refetch = messagesQuery.refetch;
 
-  const isDeveloperMode = useDeveloperMode();
+  const isDeveloperMode = useTabDeveloperMode();
 
   const { isAgentAlive, isAgentRunning } = useAgentSessionStatus({
     id,
@@ -282,7 +282,9 @@ export function TaskChat({
       return;
     }
     if (!selectedModelURI) {
-      toast.error("Failed to retry", { description: "No model selected" });
+      toast.error("Couldn't try again", {
+        description: "Choose a model first.",
+      });
       return;
     }
     createMessage.mutate({
@@ -301,7 +303,9 @@ export function TaskChat({
       return;
     }
     if (!selectedModelURI) {
-      toast.error("Failed to try again", { description: "No model selected" });
+      toast.error("Couldn't try again", {
+        description: "Choose a model first.",
+      });
       return;
     }
     runTurn.mutate({

@@ -8,7 +8,7 @@ import { omit } from "radashi";
 import { type AbsolutePath } from "../../schemas/paths";
 import { absolutePathJoin } from "../absolute-path-join";
 import { APP_COMMAND } from "../shell-commands/app-command";
-import { type AppCatalogEntry } from "./catalog";
+import { type AppCatalogEntry, catalogEntryForApp } from "./catalog";
 import {
   APP_GUIDE_FILE_NAME,
   APP_MANIFEST_FILE_NAME,
@@ -226,6 +226,41 @@ export async function setAppAccount(
   return manifest;
 }
 
+/**
+ * Names the account a web app signed in as and, where the directory has an
+ * address for one account of the service, moves the app there, so its tasks
+ * open that account rather than whichever the site shows first. Moving it
+ * changes the manifest's hash, so the caller records the connection after.
+ */
+export async function setWebAppAccount(
+  appsDir: AbsolutePath,
+  slug: AppSlug,
+  account: string,
+): Promise<AppManifest> {
+  const loaded = await loadApp(appsDir, slug);
+  if (loaded.isErr()) {
+    throw new Error(loaded.error.message);
+  }
+  const current = loaded.value.manifest;
+  const accountHome =
+    current.type === "web"
+      ? catalogEntryForApp(slug, current)?.accountHome
+      : undefined;
+  const manifest = AppManifestSchema.parse({
+    ...current,
+    account,
+    ...(accountHome
+      ? { url: accountHome.replace("{account}", encodeURIComponent(account)) }
+      : {}),
+  });
+  await fs.writeFile(
+    path.join(absolutePathJoin(appsDir, slug), APP_MANIFEST_FILE_NAME),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    "utf8",
+  );
+  return manifest;
+}
+
 export async function writeAppFolder({
   appsDir,
   guide,
@@ -260,13 +295,14 @@ export async function writeAppFolder({
  * parsed value rather than the file's bytes, so reformatting the JSON is not
  * a change. A local app's `macApp` is left out: it only says which icon the
  * app is drawn with, and naming one changes nothing that runs or is sent.
- * Nor is any app's `account`, a label for the account it is signed in as.
+ * Nor is any app's `account`, a label for the account it is signed in as,
+ * or its `service`, which says what it is rather than how it is reached.
  */
 function manifestHash(manifest: AppManifest): string {
   const reached =
     manifest.type === "mcp-local"
-      ? omit(manifest, ["account", "macApp"])
-      : omit(manifest, ["account"]);
+      ? omit(manifest, ["account", "macApp", "service"])
+      : omit(manifest, ["account", "service"]);
   return createHash("sha256")
     .update(JSON.stringify(sortKeys(reached)))
     .digest("hex")

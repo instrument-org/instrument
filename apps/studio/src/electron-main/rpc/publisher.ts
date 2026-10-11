@@ -18,18 +18,16 @@ interface PublisherEvents {
         outcome: Extract<SignInOutcome, "failed">;
       }
     | { outcome: Extract<SignInOutcome, "declined" | "signed-in"> };
-  // A download a person started in a task's browser panel has ended, in their
-  // Downloads folder or not at all. The app window says so; the
-  // agent's own downloads report through agent-browser instead. `folder` is
-  // the directory as the person should read it, home collapsed; both it and
-  // `path` are null when no folder would take the file.
-  "browser.download-finished": {
-    completed: boolean;
-    filename: string;
-    folder: null | string;
-    path: null | string;
-    targetId: BrowserTargetId;
-  };
+  // The notices from us changed: a fetch brought new ones, or one was seen,
+  // dismissed or toasted.
+  "notices.updated": null;
+  // The problems from earlier sessions waiting in the bell changed: one was
+  // found at start, sent, or dismissed.
+  "problems.updated": null;
+  // The in-app browser's download list changed: a download began, moved
+  // along, ended, or was taken off the list. The agent's own downloads report
+  // through agent-browser instead and are not on it.
+  "browser.downloads-changed": null;
   // Ask the renderer to put keyboard focus on a guest before agent keyboard
   // input is dispatched to it. Only renderer-side DOM focus on the `<webview>`
   // element moves Chromium's keyboard focus across the process boundary;
@@ -87,7 +85,6 @@ interface PublisherEvents {
   };
   "server-exceptions.updated": null;
   "session.apiBearerToken.updated": null;
-  "test-notification": null;
   "updates.status": { status: AppUpdaterStatus };
   "updates.trigger-check": null;
   // Asked of the app window by a swipe, a thumb button, a menu
@@ -104,12 +101,17 @@ interface PublisherEvents {
     | "editPage"
     | "findInPage"
     | "forward"
+    | "goToApps"
+    | "goToBrowser"
+    | "goToChat"
+    | "goToFiles"
     | "newChat"
     | "newTab"
     | "nextChat"
     | "nextTab"
     | "openSettings"
     | "openShortcutGuide"
+    | "reportProblem"
     | "previousChat"
     | "previousTab"
     | "reloadPage"

@@ -28,6 +28,7 @@ export async function appChanged(
   const loaded = await loadApp(getWorkspaceConfig().appsDir, slug);
   const manifest = loaded.isOk() ? loaded.value.manifest : undefined;
   publisher.publish("app.event", {
+    ...(manifest?.account === undefined ? {} : { account: manifest.account }),
     ...(happened.detail === undefined ? {} : { detail: happened.detail }),
     event: happened.event,
     name: manifest?.name ?? slug,

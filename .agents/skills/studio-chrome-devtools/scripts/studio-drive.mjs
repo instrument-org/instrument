@@ -57,7 +57,7 @@
 // it is the half that pays for itself when the change is the run's own. Pass
 // `--hot` to boot an instance that reloads all three, for a run that is testing
 // reload behavior or iterating on main. A hand-started instance -- `pnpm dev`,
-// `pnpm dev:studio`, the VS Code launch configs, all of which sit on the
+// `pnpm studio`, the VS Code launch configs, all of which sit on the
 // conventional 48160 -- is untouched by this and hot reloads everything.
 //
 //   node studio-drive.mjs boot --hot --purpose "main process"
@@ -100,12 +100,14 @@
 // `workspaceConfig.chatsDir` to the `ELECTRON_USER_DATA_DIR` it sets.
 
 import { execFileSync, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
   mkdirSync,
   openSync,
   readdirSync,
+  readFileSync,
   rmSync,
   statSync,
   utimesSync,
@@ -115,6 +117,7 @@ import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { DEV_INSTANCE_COLORS } from "../../../../apps/studio/src/shared/dev-instance-colors.ts";
 import {
   CHECKOUT_KEY,
   checkoutPort,
@@ -501,6 +504,7 @@ async function cmdBoot(
 
   const file = sessionFile(INSTANCE);
   mkdirSync(path.dirname(file), { recursive: true });
+  const color = pickColor(purpose, file);
   const logFile = file.replace(/\.json$/, ".log");
   const log = openSync(logFile, "a");
 
@@ -543,6 +547,7 @@ async function cmdBoot(
           process.env.PATH,
         ].join(path.delimiter),
         REMOTE_DEBUGGING_PORT: String(port),
+        STUDIO_DRIVE_COLOR: color,
         STUDIO_DRIVE_PURPOSE: purpose,
         // A seeded workspace has no provider credentials and must not: they
         // cannot be committed. Without this the app opens the onboarding window
@@ -565,6 +570,7 @@ async function cmdBoot(
   child.unref();
 
   const session = {
+    color,
     hot: Boolean(hot),
     ...(inspect && { inspectPort: Number(inspect) }),
     logFile,
@@ -742,6 +748,42 @@ function readStdin() {
 function flag(argv, name, fallback) {
   const index = argv.indexOf(name);
   return index === -1 ? fallback : argv[index + 1];
+}
+
+/**
+ * The color this instance's Dock dot and dev pill wear. Each purpose has a
+ * color of its own, so "hotkeys" comes back the same every time it is booted,
+ * unless a live instance from any checkout already wears it; then it takes the
+ * next one along that none does. Past six live instances, colors repeat.
+ */
+function pickColor(purpose, ownFile) {
+  const names = Object.keys(DEV_INSTANCE_COLORS);
+  const dir = path.dirname(ownFile);
+  const taken = new Set(
+    readdirSync(dir)
+      .filter((name) => name.endsWith(".json"))
+      .map((name) => path.join(dir, name))
+      .filter((file) => file !== ownFile)
+      .map((file) => {
+        try {
+          return JSON.parse(readFileSync(file, "utf8"));
+        } catch {
+          return undefined;
+        }
+      })
+      .filter((session) => session?.pid && isAlive(session.pid))
+      .map((session) => session.color),
+  );
+  const start =
+    createHash("sha256").update(purpose).digest().readUInt16BE(0) %
+    names.length;
+  for (let step = 0; step < names.length; step++) {
+    const name = names[(start + step) % names.length];
+    if (!taken.has(name)) {
+      return name;
+    }
+  }
+  return names[start];
 }
 
 function normalizePurpose(rawPurpose) {

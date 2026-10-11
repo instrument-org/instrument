@@ -140,7 +140,7 @@ still hot reload: an edit landing mid-run resets the state you navigated to.
 
 Two things not to do, each of which costs someone else their session:
 
-- **`pnpm dev` or `pnpm dev:studio` with a `REMOTE_DEBUGGING_PORT` you picked.**
+- **`pnpm studio` or `pnpm dev` with a `REMOTE_DEBUGGING_PORT` you picked.**
   A hand-picked port is either already a window someone is using, and you will
   connect to their app and report confidently about the wrong code, or it is
   nobody's, and nothing can drive what you just started. Either way it is a

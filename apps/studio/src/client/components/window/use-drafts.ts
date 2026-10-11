@@ -21,7 +21,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import ms from "ms";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 import { ulid } from "ulid";
 
 import { appTabsAtom } from "./app-tabs";
@@ -219,14 +219,13 @@ export function useDrafts({
       ),
     );
   }, [draftIds, setDraftSnapshots]);
-  /** Throws a draft away: its window, its record, what its composer held (on disk too), and its tabs. */
+  /** Throws a draft away: its window, its folder with what its composer held, and its tabs. */
   const deleteDraft = (id: string) => {
     // What was marked for it goes back to its file's Ask, to be sent another way.
     returnAsks({ draftId: id, kind: "draft" });
     compose.remove(draftGroupOf(id));
     setDrafts((current) => current.filter((draft) => draft.id !== id));
     windowTabs.dropGroup(draftGroupOf(id));
-    clearKept(id);
   };
   /**
    * Throws a draft away on the person's say, from its window or from Drafts,
@@ -362,9 +361,7 @@ export function useDrafts({
       } catch (error) {
         opened();
         setStartingIds((current) => withoutId(current, id));
-        toast.error("Failed to start the chat", {
-          description: error instanceof Error ? error.message : String(error),
-        });
+        toast.error("Couldn't start the chat", { cause: error });
         return;
       }
       setSentWords((current) => new Map(current).set(chatId, send.prompt));
@@ -398,17 +395,15 @@ export function useDrafts({
           compose.becomeDraft(chatId, id);
         }
         setSentWords((current) => withoutKey(current, chatId));
-        toast.error("Failed to start the chat", {
-          description: error instanceof Error ? error.message : String(error),
-        });
+        toast.error("Couldn't start the chat", { cause: error });
         return;
       } finally {
         opened();
         setStartingIds((current) => withoutId(current, id));
       }
+      // The chat has its own copies of what was attached by now, so the
+      // draft's folder can go with it.
       setDrafts((current) => current.filter((entry) => entry.id !== id));
-      // The chat has its own copies of what was attached by now.
-      clearKept(id);
       removeAsks(marked.map((ask) => ask.id));
       setArrived({ chatId, draftId: id });
       // What the draft gathered becomes the chat's tabs, the pages and
@@ -440,11 +435,6 @@ export function useDrafts({
     startChat,
     startingIds,
   };
-}
-
-/** Lets go of what a draft kept on disk; one left behind goes at the next launch. */
-function clearKept(draftId: string) {
-  void rpcClient.drafts.clear.call({ draftId }).catch(() => undefined);
 }
 
 function withoutId(ids: ReadonlySet<string>, id: string): ReadonlySet<string> {

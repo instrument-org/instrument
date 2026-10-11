@@ -13,6 +13,7 @@ import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import {
   type SettingsEntry,
   type SettingsMatch,
+  settingsTargetOf,
 } from "@/client/components/settings/settings-index";
 import { useSettingsSearch } from "@/client/components/settings/use-settings-search";
 import { Button } from "@/client/components/ui/button";
@@ -32,8 +33,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/client/components/ui/sidebar";
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
-import { useModalBack } from "@/client/hooks/use-modal-back";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useFindTarget } from "@/client/hooks/use-find-target";
@@ -81,10 +81,11 @@ export function SettingsModal() {
   // the instant the dialog starts closing.
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
-  useBlockTabNavigation(isOpen);
-  useModalBack(() => {
-    setState(null);
-  }, isOpen);
+  useHoldWindow(isOpen, {
+    onClose: () => {
+      setState(null);
+    },
+  });
 
   return (
     <Dialog
@@ -97,7 +98,7 @@ export function SettingsModal() {
     >
       {content !== null && (
         <SettingsModalContent
-          activeTab={content.tab ?? "General"}
+          activeTab={content.tab ?? tabOfSetting(content.setting) ?? "General"}
           // One-shot: honored only for the initial Providers section. Switching
           // sections drops it (onSelectTab sets `{ tab }` alone), so revisiting
           // Providers doesn't reopen add-provider.
@@ -107,10 +108,20 @@ export function SettingsModal() {
           onSelectTab={(tab) => {
             setState({ tab });
           }}
+          setting={content.setting}
         />
       )}
     </Dialog>
   );
+}
+
+/** The page a link's setting is on, or none for one Settings searches for instead. */
+function tabOfSetting(setting: string | undefined) {
+  if (setting === undefined) {
+    return undefined;
+  }
+  const target = settingsTargetOf(setting);
+  return target.kind === "search" ? undefined : target.tab;
 }
 
 function SettingsModalContent({
@@ -118,14 +129,25 @@ function SettingsModalContent({
   autoAddProvider,
   onExitComplete,
   onSelectTab,
+  setting,
 }: {
   activeTab: SettingsTab;
   autoAddProvider: boolean;
   onExitComplete: () => void;
   onSelectTab: (tab: SettingsTab) => void;
+  /** The setting a link opened Settings at, which this open starts at. */
+  setting: string | undefined;
 }) {
   const navItems = useNavItems();
-  const [query, setQuery] = useState("");
+  // Settings opened by a link starts at what it names: a row lit, or a
+  // search for a name it has no row for. Read once, since each open is a
+  // fresh mount of this.
+  const [opened] = useState(() =>
+    setting === undefined ? undefined : settingsTargetOf(setting),
+  );
+  const [query, setQuery] = useState(
+    opened?.kind === "search" ? opened.search : "",
+  );
   const isSearching = query.trim().length > 0;
   const search = useSettingsSearch({
     query,
@@ -138,7 +160,11 @@ function SettingsModalContent({
     id: string;
     mark: string | undefined;
     n: number;
-  } | null>(null);
+  } | null>(
+    opened?.kind === "row"
+      ? { id: opened.mark, mark: opened.mark, n: 1 }
+      : null,
+  );
   const contentRef = useRef<HTMLElement>(null);
   useFlashSetting(contentRef, jump);
   // ⌘F anywhere in Settings is its search, over any list's own inside it.

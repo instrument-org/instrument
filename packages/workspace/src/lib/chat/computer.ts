@@ -2,7 +2,6 @@ import { type Dirent } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { unique } from "radashi";
 import { z } from "zod";
 
 import { type MountedFolder } from "../../schemas/mounted-folder";
@@ -10,13 +9,18 @@ import { type ChatId } from "../../schemas/chat-id";
 import { getMimeType } from "../get-mime-type";
 import { pathIsWithin } from "../path-is-within";
 import { type ReadRefusal, readRefusalOf } from "../read-refusal";
-import { resolveExistingFilePath } from "../resolve-agent-path";
 import { chatDir } from "../record-folders";
+import { getWorkspaceConfig } from "../workspace-config";
 import {
   buildWorkspaceFsLayout,
   effectiveFolderAccess,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
+import {
+  type FinderEntry,
+  finderEntriesOf,
+  resolveThroughAliases,
+} from "./finder-entries";
 import { folderReach } from "./folder-reach";
 import { hiddenEntryNames } from "./hidden-entries";
 import {
@@ -25,7 +29,6 @@ import {
   iCloudDrivePath,
   resolveICloudPath,
 } from "./icloud-drive";
-import { linkedFiles } from "./linked-files";
 
 /**
  * How many entries one listing carries. A folder past this shows the first in
@@ -34,24 +37,38 @@ import { linkedFiles } from "./linked-files";
  */
 const MAX_ENTRIES = 2000;
 
-/** How many of the files the conversation showed the recents list carries. */
-const RECENTS_MAX = 20;
-
 const ComputerEntrySchema = z.object({
   createdAt: z.number().optional(),
   /**
-   * Whether the system hides this entry. Absent means it does not, and on the
-   * platforms where hidden-ness is a leading dot it is always absent: the name
-   * says it, and the browser is the one holding the switch.
+   * The name as the system's file manager shows it, where that differs from
+   * `name`: the Finder leaves `.app` off an app, and any extension a person
+   * chose to hide.
+   */
+  displayName: z.string().optional(),
+  /**
+   * Whether the system hides this entry. Absent means it does not, and for a
+   * name with a leading dot it is always absent: the name says it, and the
+   * browser is the one holding the switch.
    */
   hidden: z.boolean().optional(),
+  /**
+   * A file, or a folder the system shows and opens as one item (a package:
+   * an app, a Photos library), which is listed as a file with `package` set.
+   */
   kind: z.enum(["file", "folder"]),
   mimeType: z.string().optional(),
   modifiedAt: z.number().optional(),
   name: z.string(),
+  /**
+   * A folder the system treats as one item. Listed as a file, since that is
+   * how it is opened, and drawn by the system's icon for it.
+   */
+  package: z.literal(true).optional(),
   /** The host path. */
   path: z.string(),
   size: z.number().optional(),
+  /** What the system calls this kind of item, where the name cannot say: "Application". */
+  typeName: z.string().optional(),
 });
 type ComputerEntry = z.output<typeof ComputerEntrySchema>;
 
@@ -70,20 +87,14 @@ const ComputerAccessSchema = z.object({
 type ComputerAccess = z.output<typeof ComputerAccessSchema>;
 
 /**
- * A file the conversation showed, with whether the agent can reach it. A
- * listing answers that once for the folder it lists; these files come from all
- * over, so each carries its own answer.
+ * A file named by its path rather than met in a folder, with whether the
+ * agent can reach it. A listing answers that once for the folder it lists;
+ * these files come from all over, so each carries its own answer.
  */
-export const ComputerRecentSchema = ComputerEntrySchema.extend({
+export const ComputerFileEntrySchema = ComputerEntrySchema.extend({
   access: ComputerAccessSchema.optional(),
-  /**
-   * When the conversation put this file in front of the user, which is what
-   * orders the list. Not the file's own dates: a file found last week and
-   * edited by hand this morning was still shown last week.
-   */
-  shownAt: z.number(),
 });
-export type ComputerRecent = z.output<typeof ComputerRecentSchema>;
+export type ComputerFileEntry = z.output<typeof ComputerFileEntrySchema>;
 
 const ComputerListingSchema = z.object({
   access: ComputerAccessSchema.optional(),
@@ -112,6 +123,11 @@ const ComputerRefusalSchema = z.object({
   /** The path as a person writes it, the home folder as `~`. */
   display: z.string(),
   kind: z.literal("refused"),
+  /**
+   * The folder is a package (a Photos library), which the system's folder
+   * panel cannot pick, so the only way in is the app it belongs to.
+   */
+  package: z.literal(true).optional(),
   /** The host path asked for, `~` expanded. */
   path: z.string(),
   reason: z.enum(["account", "system"]) satisfies z.ZodType<ReadRefusal>,
@@ -185,22 +201,31 @@ export async function listComputerFolder({
   path: string;
   chatId: ChatId;
 }): Promise<ComputerFolder> {
-  const hostPath = await resolveICloudPath(expandHomePath(input), exists);
+  const hostPath = await resolveThroughAliases(
+    await resolveICloudPath(expandHomePath(input), exists),
+    getWorkspaceConfig().resolveAlias,
+  );
   let dirents: Dirent[];
   let hiddenNames: ReadonlySet<string>;
+  let finder: ReadonlyMap<string, FinderEntry>;
   try {
-    [dirents, hiddenNames] = await Promise.all([
+    [dirents, hiddenNames, finder] = await Promise.all([
       fs.readdir(hostPath, { withFileTypes: true }),
       hiddenEntryNames(hostPath),
+      finderEntriesOf(hostPath),
     ]);
   } catch (error) {
     const reason = readRefusalOf(error);
     if (reason === undefined) {
       throw error;
     }
+    const isPackage = (await finderEntriesOf(path.dirname(hostPath))).get(
+      path.basename(hostPath).normalize("NFC"),
+    )?.package;
     return {
       display: displayHostPath(hostPath),
       kind: "refused",
+      ...(isPackage ? { package: true } : {}),
       path: hostPath,
       reason,
     };
@@ -220,7 +245,12 @@ export async function listComputerFolder({
     dirents
       .slice(0, MAX_ENTRIES)
       .map((entry) =>
-        describeEntry(hostPath, entry.name, hiddenNames.has(entry.name)),
+        describeEntry(
+          hostPath,
+          entry.name,
+          hiddenNames.has(entry.name),
+          finder.get(entry.name.normalize("NFC")),
+        ),
       ),
   );
   const appFolders =
@@ -265,6 +295,7 @@ async function iCloudAppEntries(
           path.dirname(folder.path),
           path.basename(folder.path),
           false,
+          undefined,
         )),
         name: folder.name,
       })),
@@ -272,61 +303,31 @@ async function iCloudAppEntries(
 }
 
 /**
- * The files the conversation has shown the user, newest shown first.
- *
- * A log of what the agent handed over rather than a report on the computer.
- * The scan this replaces read every place a person keeps things and the
- * folders under those, which on a Mac is a permission prompt per protected
- * folder and answers with a list mostly of files the user made themselves,
- * none of which this app has anything to say about. What the agent decided to
- * put on screen is the thing worth listing, and it already said so in the
- * reply, so nothing has to be kept up to date for this to be true.
- *
- * A file that has since been moved or thrown away drops off, since a row that
- * opens nothing is worse than a shorter list.
+ * Files of the computer by host path, each as the browser shows it and with
+ * whether the chat `chatId` can reach it, in the order asked. A path that is
+ * no longer there, or is no longer a file, is left out: the caller keeps a
+ * list of paths from all over (what the user opened), and a row that opens
+ * nothing is worse than a shorter list.
  */
-export async function recentComputerFiles(): Promise<ComputerRecent[]> {
-  // Each path is read the way the chat that named it reads it: `/task` is
-  // that chat's own folder, and its tasks are the ones mounted for it.
-  const views = new Map<ChatId, ReturnType<typeof chatView>>();
-  const viewOf = (chatId: ChatId) => {
-    const known = views.get(chatId);
-    if (known) {
-      return known;
-    }
-    const view = chatView(chatId);
-    views.set(chatId, view);
-    return view;
-  };
-  const shown = await linkedFiles();
+export async function describeComputerFiles({
+  paths,
+  chatId,
+}: {
+  paths: readonly string[];
+  chatId: ChatId;
+}): Promise<ComputerFileEntry[]> {
+  const { roots } = await chatView(chatId);
   const described = await Promise.all(
-    shown.map(async (file) => {
-      const { layout, roots } = await viewOf(file.chatId);
-      const resolved = resolveExistingFilePath({
-        inputPath: file.path,
-        layout,
-      });
-      const entry = resolved.isErr()
-        ? undefined
-        : await describeShownFile(resolved.value.absolutePath);
+    paths.map(async (hostPath) => {
+      const entry = await describeFile(hostPath);
       if (!entry) {
         return;
       }
       const access = accessIn(roots, entry.path);
-      return {
-        ...entry,
-        shownAt: file.at,
-        ...(access === undefined ? {} : { access }),
-      };
+      return access === undefined ? entry : { ...entry, access };
     }),
   );
-  // One row per file, however many chats showed it, cut to length after the
-  // missing ones have gone, so a run of files that have since been thrown
-  // away does not empty the list.
-  return unique(
-    described.filter((entry) => entry !== undefined),
-    (entry) => entry.path,
-  ).slice(0, RECENTS_MAX);
+  return described.filter((entry) => entry !== undefined);
 }
 
 /** Folders first, then by name as a person reads one: `file 2` before `file 10`. */
@@ -354,20 +355,47 @@ async function computerAccess(
 
 /**
  * One entry of a folder, with what the Finder shows about it. A symlink is
- * what it points at; one that leads nowhere is left as a bare name.
+ * what it points at; one that leads nowhere is left as a bare name. A package
+ * is a file, by the Finder's name and kind for it.
  */
 async function describeEntry(
   folder: string,
   name: string,
   hidden: boolean,
+  finder: FinderEntry | undefined,
 ): Promise<ComputerEntry> {
   const entryPath = path.join(folder, name);
-  const isHidden = hidden ? { hidden: true } : {};
+  const isHidden =
+    hidden || (finder?.hidden && !name.startsWith(".")) ? { hidden: true } : {};
+  const extensionAt = name.lastIndexOf(".");
+  const displayName =
+    finder?.hidesExtension && extensionAt > 0
+      ? { displayName: name.slice(0, extensionAt) }
+      : {};
+  // An alias is what it leads to, as a symbolic link is, while the entry
+  // stays the alias: renaming or throwing it away is of the alias.
+  const target = finder?.alias
+    ? await resolveThroughAliases(entryPath, getWorkspaceConfig().resolveAlias)
+    : entryPath;
   let stats;
   try {
-    stats = await fs.stat(entryPath);
+    stats = await fs.stat(target);
   } catch {
     return { ...isHidden, kind: "file", name, path: entryPath };
+  }
+  if (stats.isDirectory() && finder?.package) {
+    // No size: a package's is its folder's, which says nothing of what is in it.
+    return {
+      ...isHidden,
+      ...displayName,
+      createdAt: stats.birthtimeMs,
+      kind: "file",
+      modifiedAt: stats.mtimeMs,
+      name,
+      package: true,
+      path: entryPath,
+      ...(finder.kind === undefined ? {} : { typeName: finder.kind }),
+    };
   }
   if (stats.isDirectory()) {
     return {
@@ -381,9 +409,10 @@ async function describeEntry(
   }
   return {
     ...isHidden,
+    ...displayName,
     createdAt: stats.birthtimeMs,
     kind: "file",
-    mimeType: getMimeType(name),
+    mimeType: getMimeType(target === entryPath ? name : path.basename(target)),
     modifiedAt: stats.mtimeMs,
     name,
     path: entryPath,
@@ -391,12 +420,8 @@ async function describeEntry(
   };
 }
 
-/**
- * One shown file as the browser shows it. Nothing when it is no longer there,
- * or is no longer a file: the list says what the user was handed, and they are
- * free to move, replace or throw away anything on it afterwards.
- */
-async function describeShownFile(
+/** One file as the browser shows it; nothing when it is no longer there, or is no longer a file. */
+async function describeFile(
   hostPath: string,
 ): Promise<ComputerEntry | undefined> {
   let stats;

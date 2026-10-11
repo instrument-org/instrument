@@ -27,7 +27,7 @@ import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { TabIcon } from "./browser-tabs";
 import { type OpenOptions, useWindow } from "./context";

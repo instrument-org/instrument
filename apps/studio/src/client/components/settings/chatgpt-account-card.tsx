@@ -20,7 +20,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 const USAGE_URL = "https://chatgpt.com/settings/usage";
 
@@ -74,9 +74,7 @@ export function ChatGPTAccountCard() {
     }
     setWaiting(null);
     if (result.outcome === "failed") {
-      toast.error("Couldn't sign in with ChatGPT", {
-        description: result.error,
-      });
+      toast.error("Couldn't sign in with ChatGPT", { cause: result.error });
       return;
     }
     // Declined, canceled, or signed in without the plan, which the account's

@@ -32,7 +32,6 @@ import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning
 import { sanitizeModelText } from "./sanitize-model-text";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
 import { Store } from "./store";
-import { getWorkspaceConfig } from "./workspace-config";
 
 /**
  * Marks a message said for this request only and kept nowhere. A model that
@@ -344,18 +343,6 @@ export async function prepareModelMessages({
     messages: orderedMessages,
     model,
   });
-
-  if (portableMessagesResult.redactedReasoningDetailsCount > 0) {
-    getWorkspaceConfig().captureEvent("llm.reasoning_details_redacted", {
-      modelId: model.canonicalId,
-      providerId: model.params.provider,
-      redacted_message_count: portableMessagesResult.redactedMessageCount,
-      redacted_reasoning_details_count:
-        portableMessagesResult.redactedReasoningDetailsCount,
-      source_model_ids: portableMessagesResult.sourceModelIds,
-      source_provider_ids: portableMessagesResult.sourceProviderIds,
-    });
-  }
 
   // Including all tools so they can run their toModelOutput even if they are
   // not used in this session

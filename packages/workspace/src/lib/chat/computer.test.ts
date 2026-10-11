@@ -7,7 +7,12 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { accessIn, type FolderRoot, listComputerFolder } from "./computer";
+import {
+  accessIn,
+  describeComputerFiles,
+  type FolderRoot,
+  listComputerFolder,
+} from "./computer";
 
 // Host paths in the running platform's own separators, which is what the
 // listing and the grants both carry: a Windows grant is `C:\Users\casey\Documents`
@@ -203,4 +208,39 @@ describe("listComputerFolder", () => {
       }
     },
   );
+});
+
+describe("describeComputerFiles", () => {
+  const chatId = createMockChatConfig(ChatIdSchema.parse("computer-describe"));
+  let folder: string | undefined;
+
+  afterEach(async () => {
+    if (folder) {
+      await fs.rm(folder, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps the order asked and leaves out what is gone or is a folder", async () => {
+    folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-describe-"));
+    const later = path.join(folder, "later.txt");
+    const earlier = path.join(folder, "earlier.md");
+    await fs.writeFile(later, "a");
+    await fs.writeFile(earlier, "b");
+    await fs.mkdir(path.join(folder, "sub"));
+
+    const files = await describeComputerFiles({
+      paths: [
+        later,
+        path.join(folder, "gone.txt"),
+        path.join(folder, "sub"),
+        earlier,
+      ],
+      chatId,
+    });
+
+    expect(files.map((file) => [file.name, file.kind])).toEqual([
+      ["later.txt", "file"],
+      ["earlier.md", "file"],
+    ]);
+  });
 });

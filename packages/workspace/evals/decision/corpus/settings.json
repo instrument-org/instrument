@@ -37,12 +37,6 @@
       "detail": "View the source, or tell us about something that isn't working."
     },
     {
-      "id": "usage-metrics",
-      "tab": "General",
-      "title": "Usage metrics",
-      "detail": "Help Instrument improve by submitting usage metrics."
-    },
-    {
       "id": "diagnostic-log",
       "tab": "General",
       "title": "Diagnostic log",
@@ -165,16 +159,6 @@
       "query": "bring my chatgpt memories over",
       "must": ["memory-import"],
       "ok": ["chatgpt-account"]
-    },
-    {
-      "query": "stop sending data",
-      "must": ["usage-metrics"],
-      "ok": []
-    },
-    {
-      "query": "tracking",
-      "must": ["usage-metrics"],
-      "ok": []
     },
     {
       "query": "teach it a new trick",

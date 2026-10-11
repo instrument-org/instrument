@@ -8,12 +8,13 @@ Studio reaches macOS frameworks Electron does not cover through a bridge in two 
 | --- | --- | --- |
 | Source | `native/mac-helper/addon/addon.m`, Objective-C over Node-API | `native/mac-helper/Sources/main.swift`, Swift |
 | Runs | inside Studio's main process | as a child process, one command per call |
-| For | what macOS keys to the app's own bundle: notification permission | the user's data: Calendar, Reminders, Contacts, and which iCloud Drive app folders the Finder shows |
-| Reached by | `mac-native.ts` | `mac-native.ts`, the agent's `calendar` and `contacts` commands ([`shell-commands/mac-helper.ts`](../../packages/workspace/src/lib/shell-commands/mac-helper.ts)), and the folder browser's iCloud Drive listing ([`chat/icloud-drive.ts`](../../packages/workspace/src/lib/chat/icloud-drive.ts)) |
+| For | what macOS keys to the app's own bundle: notification permission; and what the file browser asks of every folder it lists: packages, hidden entries, aliases, Finder icons | the user's data: Calendar, Reminders, Contacts, and which iCloud Drive app folders the Finder shows |
+| Reached by | `mac-native.ts`, and the folder browser's listing ([`chat/finder-entries.ts`](../../packages/workspace/src/lib/chat/finder-entries.ts)) and thumbnails ([`file-thumbnails.ts`](../../apps/studio/src/electron-main/lib/file-thumbnails.ts)) | `mac-native.ts`, the agent's `calendar` and `contacts` commands ([`shell-commands/mac-helper.ts`](../../packages/workspace/src/lib/shell-commands/mac-helper.ts)), and the folder browser's iCloud Drive listing ([`chat/icloud-drive.ts`](../../packages/workspace/src/lib/chat/icloud-drive.ts)) |
 
 Which half a capability belongs in is decided by whose identity macOS checks:
 
 - **The app's own identity** goes in the module. Apple's notification center answers only for an app bundle, about that bundle. A child process has none, and asking from one raises an Objective-C exception that ends the process. The module guards against that, answering `unsupported` outside an app bundle (plain `node`, a test), because the same exception in the main process would take the app down.
+- **What is asked too often for a process** also goes in the module, when it reads nothing privacy-guarded: the browser lists a folder every few seconds while it is open, and starting a process per listing would cost more than the answer. Work like this runs on a background queue, since Electron's JS thread is AppKit's main thread.
 - **Privacy-guarded data** goes in the helper. macOS attributes a child's request to the app that launched it, so the prompt names Instrument and the grant covers every later call, from a task or from onboarding. A crash there costs one command, not the app.
 
 ## Adding a capability

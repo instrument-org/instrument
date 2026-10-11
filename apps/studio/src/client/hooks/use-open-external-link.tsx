@@ -1,8 +1,7 @@
 import { rpcClient } from "@/client/rpc/client";
 import { addRef } from "@instrument-org/shared";
-import { isDefinedError } from "@orpc/client";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * Hand a URL to the OS browser, reporting a refusal where the user can act on
@@ -17,30 +16,16 @@ export function useOpenExternalLink() {
   const mutation = useMutation(
     rpcClient.utils.openExternalLink.mutationOptions({
       onError: async (error, variables) => {
-        const errorMessage = isDefinedError(error)
-          ? error.message
-          : "An unknown error occurred";
-
-        try {
-          await navigator.clipboard.writeText(variables.url);
-          toast.error("Unable to open link in your browser", {
-            description: (
-              <div className="w-full space-y-1">
-                <div className="text-sm">Link copied to clipboard.</div>
-                <code className="block w-full overflow-x-auto rounded-sm bg-muted px-1 py-0.5 text-xs">
-                  {variables.url}
-                </code>
-                <div className="text-xs text-muted-foreground">
-                  Error: {errorMessage}
-                </div>
-              </div>
-            ),
-          });
-        } catch {
-          toast.error("Unable to open link in your browser", {
-            description: errorMessage,
-          });
-        }
+        const copied = await navigator.clipboard.writeText(variables.url).then(
+          () => true,
+          () => false,
+        );
+        toast.error("Couldn't open the link in your browser", {
+          cause: error,
+          description: copied
+            ? "The link is copied, so you can paste it into your browser."
+            : undefined,
+        });
       },
     }),
   );
@@ -52,7 +37,7 @@ export function useOpenExternalLink() {
     const finalUrl = addReferral ? addRef(href) : href;
     // Fire-and-forget: mutateAsync rejects on failure, and because this handler
     // is never awaited that rejection surfaces as an unhandled rejection
-    // (captured by PostHog). mutate() routes failures through onError (toast +
+    // (logged as a crash). mutate() routes failures through onError (toast +
     // clipboard copy) without leaking.
     mutation.mutate({ url: finalUrl });
   };

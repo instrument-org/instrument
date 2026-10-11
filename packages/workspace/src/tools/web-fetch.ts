@@ -11,10 +11,6 @@ import { absolutePathJoin } from "../lib/absolute-path-join";
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { SKILL_NAMES } from "../lib/skill-names";
 import {
-  isWorkspaceServerUrl,
-  workspaceServerRefusal,
-} from "../lib/workspace-server-address";
-import {
   CACHE_TTL_SECONDS,
   cachePage,
   readCachedPage,
@@ -355,10 +351,8 @@ async function fetchTextual({
   });
 }
 
-// Follows redirects manually so every hop is checked before it is requested:
-// any address is open, the local network and loopback included, except
-// Instrument's own workspace server, and `fetch`'s built-in `redirect:
-// "follow"` would chase a redirect into it unchecked.
+// Follows redirects manually so every hop is checked to be http(s) before it
+// is requested.
 async function guardedFetch({
   headers,
   signal,
@@ -374,12 +368,6 @@ async function guardedFetch({
     if (!parsed) {
       return {
         error: "Refusing to follow a redirect to a non-http(s) URL.",
-        ok: false,
-      };
-    }
-    if (await isWorkspaceServerUrl(parsed)) {
-      return {
-        error: `Refusing to fetch ${parsed.href}: ${workspaceServerRefusal(parsed)}.`,
         ok: false,
       };
     }

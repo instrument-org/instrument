@@ -2,10 +2,17 @@ import {
   type OAuthClientInformationFull,
   type OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { serveRegisteredClient } from "../../../test/helpers/serve-registered-client";
+import { resetServedAppCatalog } from "../catalog";
 
 import { type OriginBound } from "../origin-bound";
-import { createMcpOAuthProvider, type McpOAuthStore } from "./oauth-provider";
+import {
+  createMcpOAuthProvider,
+  mcpSignInClient,
+  type McpOAuthStore,
+} from "./oauth-provider";
 
 function inMemoryStore(): McpOAuthStore {
   const clientInfo = new Map<string, OriginBound<OAuthClientInformationFull>>();
@@ -184,5 +191,80 @@ describe("createMcpOAuthProvider", () => {
     const url = new URL("https://mcp.linear.app/authorize?x=1");
     await provider.redirectToAuthorization(url);
     expect(openAuthorization).toHaveBeenCalledWith(url);
+  });
+
+  it("uses a registered client as it stands and puts the prefix in front of the state", async () => {
+    const store = inMemoryStore();
+    const provider = createMcpOAuthProvider({
+      ...base,
+      clientId: "registered-id",
+      openAuthorization: vi.fn(),
+      statePrefix: "49200",
+      store,
+    });
+    expect(await provider.clientInformation()).toEqual({
+      client_id: "registered-id",
+    });
+    const state = await provider.state?.();
+    expect(state).toMatch(/^49200\.[0-9a-f-]{36}$/);
+    expect(await store.getState("linear")).toBe(state);
+  });
+});
+
+describe("mcpSignInClient", () => {
+  const loopbackRedirectUrl = "http://127.0.0.1:49200/auth/callback/app";
+  const relayRedirectUrl = (service: string) =>
+    `https://api.example/oauth/${service}/callback`;
+
+  afterEach(resetServedAppCatalog);
+
+  it("leaves a service the directory gives no client on the loopback", () => {
+    expect(
+      mcpSignInClient({
+        loopbackRedirectUrl,
+        relayRedirectUrl,
+        serverUrl: "https://mcp.slack.com/mcp",
+      }).clientId,
+    ).toBeUndefined();
+  });
+
+  it.each(["https://mcp.slack.com/mcp", "https://mcp.slack.com/mcp/"])(
+    "signs in to %s with the client the directory gives",
+    (serverUrl) => {
+      serveRegisteredClient("slack", "registered-slack-client");
+      expect(
+        mcpSignInClient({ loopbackRedirectUrl, relayRedirectUrl, serverUrl }),
+      ).toMatchInlineSnapshot(`
+      {
+        "clientId": "registered-slack-client",
+        "redirectUrl": "https://api.example/oauth/slack/callback",
+        "statePrefix": "49200",
+      }
+    `);
+    },
+  );
+
+  it("leaves a server with no registered client on the loopback", () => {
+    expect(
+      mcpSignInClient({
+        loopbackRedirectUrl,
+        relayRedirectUrl,
+        serverUrl: "https://mcp.linear.app/mcp",
+      }),
+    ).toMatchInlineSnapshot(`
+      {
+        "redirectUrl": "http://127.0.0.1:49200/auth/callback/app",
+      }
+    `);
+  });
+
+  it("never offers the client to another server on the same host", () => {
+    expect(
+      mcpSignInClient({
+        loopbackRedirectUrl,
+        relayRedirectUrl,
+        serverUrl: "https://mcp.slack.com/other",
+      }).clientId,
+    ).toBeUndefined();
   });
 });

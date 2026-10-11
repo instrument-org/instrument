@@ -1,4 +1,5 @@
 import {
+  type AppPlace,
   chatGroupAtom,
   CHATS_HREF,
   type Draft,
@@ -9,6 +10,7 @@ import {
   pageSlotsAtom,
   paneOpenByGroupAtom,
   screenViewsAtom,
+  chatsOutOf,
 } from "@/client/atoms/window";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -35,7 +37,7 @@ import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { setTabPathname } from "@/client/lib/tabs-model";
-import { captureComponentError } from "@/client/lib/telemetry";
+import { captureComponentError } from "@/client/lib/capture-exception";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
@@ -325,12 +327,8 @@ function WindowShell({
         windowTabs.dropGroup(draftGroupOf(draft.id));
       }
     }
+    // A draft's folder goes with it, and what was pasted into it.
     setDrafts((current) => current.filter(isKept));
-    // What drafts kept on disk goes with them, including any whose clear
-    // never ran.
-    void rpcClient.drafts.prune
-      .call({ keep: drafts.filter(isKept).map((draft) => draft.id) })
-      .catch(() => undefined);
     for (const entry of compose.entries) {
       if (
         entry.kind === "draft" &&
@@ -476,19 +474,20 @@ function WindowShell({
   const appsBySlug = useAppsBySlug();
   // What a new tab shows, asked for as the window comes up rather than as the
   // tab mounts, so the page lays out from the cache instead of growing a
-  // section at a time as each answer lands.
+  // section at a time as each answer lands. The new tab's own code is split
+  // from the window's, so it is fetched now too, or the first Cmd+T waits on
+  // it.
   const queryClient = useQueryClient();
+  const { activeRouter } = appTabs;
   useEffect(() => {
     if (!opened) {
       return;
     }
     void queryClient.prefetchQuery(
-      rpcClient.workspace.computer.recents.queryOptions(),
-    );
-    void queryClient.prefetchQuery(
       rpcClient.workspace.computer.places.queryOptions(),
     );
-  }, [opened, queryClient]);
+    void activeRouter?.loadRouteChunk(activeRouter.routesById["/_app/new-tab"]);
+  }, [activeRouter, opened, queryClient]);
 
   const requestClose = (id: string) => {
     // Any group's: a popped-out chat's rail closes its tabs here too.
@@ -586,6 +585,26 @@ function WindowShell({
     topics,
     windowTabs,
   });
+  /**
+   * The tab up to one of the rail's places, from the rail, its chords, or the
+   * command menu. Chat asked for is the inbox asked for too, even where the
+   * row is narrow enough that it stepped aside. Peeked out already, the list
+   * stays where it is drawn rather than sliding in again under it. A place
+   * asked for in a tab of its own waits behind, the way a bookmark
+   * middle-clicked in a browser does.
+   */
+  const choosePlace = (next: AppPlace, { newTab = false } = {}) => {
+    if (next === "chat") {
+      if (inboxPeek.isOpen) {
+        setInboxLandsAtOnce(true);
+      }
+      setInboxOpen(true);
+    }
+    if (next === place && !newTab) {
+      return;
+    }
+    appTabs.goToPlace(next, { behind: newTab, newTab });
+  };
   // The inbox's rows as the tab up lists them, for stepping through them by
   // chord.
   const listedChats = useRef<ChatId[]>([]);
@@ -602,6 +621,7 @@ function WindowShell({
       forward: () => {
         windowSteps.go("forward");
       },
+      goToPlace: choosePlace,
       newChat: newDraft,
       newTab: appTabs.openNewTab,
       // A file from outside the app is the person's own, in a tab of its own.
@@ -742,6 +762,7 @@ function WindowShell({
         !startingIds.has(draft.id) &&
         !discardingIds.has(draft.id),
     ),
+    goToPlace: choosePlace,
     newDraft: () => {
       newDraft();
     },
@@ -838,24 +859,7 @@ function WindowShell({
             }
             rail={
               <AppRail
-                onChoose={(next, { newTab }) => {
-                  // Chat asked for is the inbox asked for too, even where the
-                  // row is narrow enough that it stepped aside. Peeked out
-                  // already, the list stays where it is drawn rather than
-                  // sliding in again under it.
-                  if (next === "chat") {
-                    if (inboxPeek.isOpen) {
-                      setInboxLandsAtOnce(true);
-                    }
-                    setInboxOpen(true);
-                  }
-                  if (next === place && !newTab) {
-                    return;
-                  }
-                  // A place asked for in a tab of its own waits behind, the
-                  // way a bookmark middle-clicked in a browser does.
-                  appTabs.goToPlace(next, { behind: newTab, newTab });
-                }}
+                onChoose={choosePlace}
                 onHoverChat={inboxPeek.onRailHover}
                 onNew={() => {
                   newDraft();
@@ -921,7 +925,18 @@ function WindowShell({
                     inboxPeek.close();
                     showDraft(id);
                   }}
+                  onPopOut={(entry) => {
+                    inboxPeek.close();
+                    compose.float(entry.id);
+                    // The chat up in Chat leaves it for its own window, with
+                    // the inbox back in its column.
+                    if (entry.id === chatUp && isChat) {
+                      appTabs.navigate(INBOX_HREF);
+                      setInboxOpen(true);
+                    }
+                  }}
                   openChatId={chatUp}
+                  outIds={chatsOutOf(compose.entries)}
                 />
               </InboxPeek>
               <CommandMenu

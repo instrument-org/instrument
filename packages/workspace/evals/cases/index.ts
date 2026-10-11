@@ -1,3 +1,4 @@
+import { APP_ACCOUNTS_EVALS } from "./app-accounts";
 import { APP_IMPORT_FILE_EVALS } from "./app-import-file";
 import { APP_SCRIPTING_EVALS } from "./app-scripting";
 import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
@@ -10,6 +11,7 @@ import { HANDOFF_EVALS } from "./handoff";
 import { GIT_OVER_MOUNTS_EVALS } from "./git-over-mounts";
 import { IMAGE_REGION_EVALS } from "./image-region";
 import { INTERRUPTION_EVALS } from "./interruptions";
+import { INSTRUMENT_GUIDE_EVALS } from "./instrument-guide";
 import { LARGE_FOLDER_SEARCH_EVALS } from "./large-folder-search";
 import { MEMORY_EVALS } from "./memory";
 import { MESSAGE_BLOCK_EVALS } from "./message-blocks";
@@ -28,6 +30,7 @@ import { WINDOW_TABS_EVALS } from "./window-tabs";
 import { WORKER_EVALS } from "./worker";
 
 export const EVALS = [
+  ...APP_ACCOUNTS_EVALS,
   ...APP_IMPORT_FILE_EVALS,
   ...APP_SCRIPTING_EVALS,
   ...BACKGROUND_PROCESS_EVALS,
@@ -40,6 +43,7 @@ export const EVALS = [
   ...GIT_OVER_MOUNTS_EVALS,
   ...IMAGE_REGION_EVALS,
   ...INTERRUPTION_EVALS,
+  ...INSTRUMENT_GUIDE_EVALS,
   ...LARGE_FOLDER_SEARCH_EVALS,
   ...MEMORY_EVALS,
   ...MESSAGE_BLOCK_EVALS,

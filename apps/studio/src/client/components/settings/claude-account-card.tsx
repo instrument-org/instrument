@@ -14,7 +14,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { capitalize } from "radashi";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /** A usage window this full is worth pointing out a way past. */
 const RUNNING_LOW_PERCENT = 80;
@@ -148,7 +148,7 @@ function describe(status: Status) {
     return `Getting Claude Code ready, ${percent}% done.`;
   }
   if (status.signingIn) {
-    return `Finish signing in to Claude in your browser. ${APP_NAME} picks it up as soon as you're done.`;
+    return "Finish signing in to Claude in your browser.";
   }
   if (status.install?.state === "failed") {
     return `Claude Code didn't install: ${status.install.failed}`;
@@ -221,7 +221,7 @@ function PlanUsage() {
           </p>
           <Button
             onClick={() => {
-              openLogin({ hideManualProvider: true });
+              openLogin({ instrumentOnly: true });
             }}
             size="sm"
           >

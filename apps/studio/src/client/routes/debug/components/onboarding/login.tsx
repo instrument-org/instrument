@@ -1,12 +1,8 @@
 import { OnboardingLayout } from "@/client/components/onboarding/layout";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
-import {
-  type ProviderSetupPage,
-  ProviderSetupScreen,
-} from "@/client/components/onboarding/provider-setup-screen";
-import { createFileRoute } from "@tanstack/react-router";
+import { ProviderSetupScreen } from "@/client/components/onboarding/provider-setup-screen";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { noop } from "radashi";
-import { useState } from "react";
 
 import { getOnboardingScreen } from "../../-debug-routes";
 import { OnboardingWindowFrame } from "../onboarding";
@@ -23,37 +19,36 @@ export const Route = createFileRoute("/debug/components/onboarding/login")({
 const waitForever = () => new Promise<SignInOutcome>(noop);
 
 function RouteComponent() {
-  const [page1, setPage1] = useState<ProviderSetupPage>("welcome");
-  const [page2, setPage2] = useState<ProviderSetupPage>("welcome");
+  const navigate = useNavigate();
+  // Onboarding sends the manual provider link to its own screen, so this one
+  // does too.
+  const addProvider = () =>
+    void navigate({ to: getOnboardingScreen("providers").to });
   return (
     <div className="flex flex-wrap gap-8">
       <OnboardingWindowFrame>
-        <OnboardingLayout>
+        <OnboardingLayout variant="brand">
           <ProviderSetupScreen
-            onBack={() => {
-              setPage1("welcome");
-            }}
+            onAddProvider={addProvider}
             onContinue={noop}
             onLogin={waitForever}
             onLoginSuccess={noop}
-            onPageChange={setPage1}
-            page={page1}
+            onPageChange={noop}
+            page="welcome"
           />
         </OnboardingLayout>
       </OnboardingWindowFrame>
 
       <OnboardingWindowFrame>
-        <OnboardingLayout>
+        <OnboardingLayout variant="brand">
           <ProviderSetupScreen
             error={new Error("Login failed")}
-            onBack={() => {
-              setPage2("welcome");
-            }}
+            onAddProvider={addProvider}
             onContinue={noop}
             onLogin={waitForever}
             onLoginSuccess={noop}
-            onPageChange={setPage2}
-            page={page2}
+            onPageChange={noop}
+            page="welcome"
           />
         </OnboardingLayout>
       </OnboardingWindowFrame>

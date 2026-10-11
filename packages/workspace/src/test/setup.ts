@@ -53,7 +53,6 @@ setWorkspaceConfig({
     stopScreencast: noop,
     subscribeEvents: noopCleanup,
   },
-  captureEvent: noop,
   captureException: noop,
   chatTemplateDir: AbsolutePathSchema.parse(
     path.join(rootDir, "chat-template"),

@@ -202,9 +202,6 @@ describe("llmRequestLogic", () => {
                 shouldContinue: () => Promise.resolve(true),
                 systemPrompt: () => "You are a helpful assistant.",
               },
-              captureEvent: () => {
-                // no-op
-              },
               emitDeltas: true,
               model,
               self: {

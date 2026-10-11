@@ -41,12 +41,9 @@ describe("MermaidDiagram chunk-load failure", () => {
       </ThemeProvider>,
     );
 
-    // The source block is what a failed diagram falls back to, and with no
-    // retry it is where this one would stay.
-    await expect.poll(() => container.textContent).toContain("A[Start]");
-
-    // Nothing about this diagram changes in the meantime: no new tokens, no
-    // theme flip, no scrolling. Recovery has to come from the component.
+    // Nothing about this diagram changes after the first render: no new
+    // tokens, no theme flip, no scrolling. Recovery has to come from the
+    // component.
     await expect
       .poll(() => container.querySelector("svg[id^='mermaid-diagram-']"), {
         timeout: 5000,

@@ -49,7 +49,7 @@ node $DRIVE eval 'document.querySelectorAll("button[aria-haspopup=menu]")[3].set
 node $DRIVE click --selector '[data-probe=kebab]'
 ```
 
-`boot` requires `--purpose` with a terse description of what this instance is testing, such as `"hotkeys"` or `"document viewer"`. Keep it to one or two short words; the launcher rejects anything over 24 characters. The purpose labels the instance for its lifetime so a person can distinguish agent-driven windows at a glance. Reusing the instance with the same purpose works normally; asking to reuse it with a different purpose fails and tells you to stop it first so the window never carries a stale label.
+`boot` requires `--purpose` with a terse description of what this instance is testing, such as `"hotkeys"` or `"document viewer"`. Keep it to one or two short words; the launcher rejects anything over 24 characters. The purpose labels the instance for its lifetime so a person can distinguish agent-driven windows at a glance: on macOS the app is named `Instrument <purpose>` in Cmd-Tab, the Dock, and the menu bar, and `boot` hands it a `color` (in its output) worn as a dot on the Dock icon and the dev pill. A purpose keeps its color across boots unless another live instance already wears it, so tell the person which color to look for. Reusing the instance with the same purpose works normally; asking to reuse it with a different purpose fails and tells you to stop it first so the window never carries a stale label.
 
 The port is derived from the checkout you are standing in. `boot` will not fall back to 48160 because that is the conventional port and almost always a window a person is using, so driving it means their clicks fight yours and their quit ends your run. Pass `--port` to target one deliberately.
 
@@ -65,7 +65,7 @@ Route and modal commands go through `window.__studioDrive`, a handle the rendere
 node $DRIVE wait 'document.querySelectorAll("[data-slot]").length > 40'
 ```
 
-An instance this boots holds its main process and preload scripts at the bytes it started with, so another agent's edit under `electron-main/` or `packages/` no longer relaunches the app underneath a run. The cost is that a change you make there does not reach it: stop and boot again, or add `--hot` to the boot for a run that is iterating on main or testing reload behavior. A hand-started instance (`pnpm dev:studio`, the VS Code launch configs, port 48160) is unaffected and hot reloads everything.
+An instance this boots holds its main process and preload scripts at the bytes it started with, so another agent's edit under `electron-main/` or `packages/` no longer relaunches the app underneath a run. The cost is that a change you make there does not reach it: stop and boot again, or add `--hot` to the boot for a run that is iterating on main or testing reload behavior. A hand-started instance (`pnpm studio`, the VS Code launch configs, port 48160) is unaffected and hot reloads everything.
 
 Renderer HMR stays on, so any write under `src/client` — another agent's edit, a commit, a formatter — still rebuilds component state, and a change HMR cannot apply reloads the page and takes the state a run navigated to with it. When that has happened since the previous command, the next one says so on stderr:
 
@@ -233,8 +233,8 @@ To measure at a real workspace's scale, boot against a copy of it. `cp -cR` make
 
 Both have a dev panel entry under the `dev` badge:
 
-- **Updates > Simulate updated toast (reloads)** — the toast only fires when the app launches on a newer version than the last launch. The item queues the bump and reloads, the path a real update takes. It auto-dismisses in a few seconds, so capture promptly.
-- **Force quit guard** — dev builds skip the running-agent quit prompt so hot reload is never blocked on a dialog nobody sees. In memory only, so a relaunch clears it; while on, a main-process rebuild waits on the dialog.
+- **Simulate > Just updated** — the toast only fires when the app launches on a newer version than the last launch. The item queues the bump and reloads, the path a real update takes. It auto-dismisses in a few seconds, so capture promptly.
+- **Simulate > Quit prompt** — dev builds skip the running-agent quit prompt so hot reload is never blocked on a dialog nobody sees. In memory only, so a relaunch clears it; while on, a main-process rebuild waits on the dialog.
 
 The quit prompt is a native `showMessageBox`, outside the web contents. CDP cannot capture it.
 

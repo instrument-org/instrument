@@ -5,15 +5,13 @@ import {
   type GetProviderConfigs,
   type ModelCache,
 } from "@instrument-org/ai-gateway";
-import {
-  type CaptureEventFunction,
-  type CaptureExceptionFunction,
-} from "@instrument-org/shared";
+import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { z } from "zod";
 
 import { type AppConnectionStore } from "./lib/apps/connection";
 import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 import { type StoredAppCredential } from "./lib/apps/origin-bound";
+import { type FinderEntry } from "./lib/chat/finder-entries";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
 import { type ChatId, ChatIdSchema } from "./schemas/chat-id";
@@ -169,9 +167,12 @@ export interface WorkspaceAppsConfig {
    * Present in the desktop app: backs OAuth MCP apps with the app's encrypted
    * store. Optional so headless and test contexts run without sign-in. The
    * redirect URL is read per sign-in, from the port the callback server bound.
+   * The relay redirect is where a vendor sends back a sign-in made with
+   * Instrument's own client for `service`, on its way to that same port.
    */
   oauth?: {
     redirectUrl: () => string;
+    relayRedirectUrl: (service: string) => string;
     store: McpOAuthStore;
   };
 }
@@ -181,11 +182,22 @@ export interface WorkspaceConfig {
   appsDir: AbsolutePath;
   appVersion: string;
   browser: BrowserConfig;
-  captureEvent: CaptureEventFunction;
   captureException: CaptureExceptionFunction;
   chatTemplateDir: AbsolutePath;
   /** Desktop decoration after the default output folder exists. */
   ensureOutputFolderIcon?: (folderPath: string) => Promise<void>;
+  /**
+   * What the Finder knows about a folder's entries beyond what `stat` says
+   * (packages, hidden extensions, hidden entries), for the file browser's
+   * listing. Absent off macOS and in builds without the Mac module.
+   */
+  finderEntries?: (folder: string) => Promise<FinderEntry[]>;
+  /**
+   * Where a Finder alias leads, for the file browser to follow one as it
+   * follows a symbolic link; undefined for a path that is not an alias.
+   * Absent off macOS and in builds without the Mac module.
+   */
+  resolveAlias?: (path: string) => Promise<string | undefined>;
   getAIProviderConfigs: GetProviderConfigs;
   /**
    * Who is signed in, for the agents to know whose work it is: the account's

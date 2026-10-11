@@ -16,7 +16,7 @@ export const Route = createFileRoute("/debug/components/onboarding/complete")({
 function RouteComponent() {
   return (
     <OnboardingWindowFrame>
-      <OnboardingLayout>
+      <OnboardingLayout variant="brand">
         <OnboardingSuccessScreen onContinue={noop} />
       </OnboardingLayout>
     </OnboardingWindowFrame>

@@ -26,9 +26,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { ChevronRight } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { getTrashTerminology } from "@/client/lib/trash-terminology";
+import { getFileManagerName } from "@/client/lib/utils";
 
-import { FolderMenu, refusalLine } from "./computer-page";
+import { fileActionFailed, FolderMenu, refusalLine } from "./computer-page";
 import { useWindow } from "./context";
 import { isInside, segmentsOf } from "./host-path";
 
@@ -93,9 +94,9 @@ export function FileTree({
       queryKey: rpcClient.workspace.computer.list.key(),
     });
   };
-  const run = (action: () => Promise<unknown>) => {
+  const run = (title: string, action: () => Promise<unknown>) => {
     action().then(reread, (error: unknown) => {
-      toast(error instanceof Error ? error.message : "That did not work");
+      fileActionFailed(title, error);
     });
   };
   const menuHostPath =
@@ -149,7 +150,9 @@ export function FileTree({
           void navigator.clipboard.writeText(menuHostPath);
         }}
         onDuplicate={() => {
-          run(() => rpcClient.files.duplicate.call({ path: menuHostPath }));
+          run("Couldn't make a copy", () =>
+            rpcClient.files.duplicate.call({ path: menuHostPath }),
+          );
         }}
         onNewDraft={
           askAbout && menuItem
@@ -167,12 +170,14 @@ export function FileTree({
         }}
         onQuickLook={undefined}
         onReveal={() => {
-          run(() =>
+          run(`Couldn't show it in ${getFileManagerName()}`, () =>
             rpcClient.utils.showFileInFolder.call({ filepath: menuHostPath }),
           );
         }}
         onTrash={() => {
-          run(() => rpcClient.files.trash.call({ path: menuHostPath }));
+          run(`Couldn't move it to the ${getTrashTerminology()}`, () =>
+            rpcClient.files.trash.call({ path: menuHostPath }),
+          );
         }}
       />
     </ContextMenu>
@@ -190,6 +195,7 @@ function FileRow({
 }) {
   const { resolvedTheme } = useTheme();
   const isPicture = entry.mimeType?.startsWith("image/") === true;
+  const isPackage = entry.package === true;
   return (
     <Row
       depth={depth}
@@ -199,21 +205,23 @@ function FileRow({
             contentType: entry.mimeType,
             kind: "file",
             name: entry.name,
+            previewIsIcon: isPackage,
             // The same picture the Finder's rows draw, so it is read once.
-            previewImageUrl: isPicture
-              ? getComputerThumbnailUrl({
-                  hostPath: entry.path,
-                  size: 512,
-                  theme: resolvedTheme,
-                  version: entry.modifiedAt,
-                })
-              : undefined,
+            previewImageUrl:
+              isPicture || isPackage
+                ? getComputerThumbnailUrl({
+                    hostPath: entry.path,
+                    size: 512,
+                    theme: resolvedTheme,
+                    version: entry.modifiedAt,
+                  })
+                : undefined,
           }}
         />
       }
       isMenuTarget={rows.menuTarget === entry.path}
       isSelected={entry.path === rows.selected}
-      name={entry.name}
+      name={entry.displayName ?? entry.name}
       onMenu={() => {
         rows.onMenu({
           kind: "file",
@@ -252,8 +260,8 @@ function Folder({
   const open = rows.isOpen(path);
   // The Instrument folder wears its own glyph here as it does in the Finder.
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
-  const isOutputFolder = places.data?.favorites.some(
-    (place) => place.name === "Instrument" && place.path === path,
+  const isOutputFolder = places.data?.pinned.some(
+    (place) => place.kind === "output" && place.path === path,
   );
   const listing = useQuery(
     rpcClient.workspace.computer.list.queryOptions({

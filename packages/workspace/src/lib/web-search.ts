@@ -6,7 +6,11 @@ import {
   getWebSearchModel,
   namesSameModel,
 } from "@instrument-org/ai-gateway";
-import { OUR_MODELS, type WorkspaceServerURL } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  OUR_MODELS,
+  type WorkspaceServerURL,
+} from "@instrument-org/shared";
 import { APICallError, type LanguageModelUsage, streamText } from "ai";
 import { err, ok, type Result } from "neverthrow";
 import { dedent } from "radashi";
@@ -17,6 +21,7 @@ import { type WebSearchResult } from "../schemas/web-search";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
+import { searchKeyless } from "./keyless-web-search";
 
 export interface WebSearchFailure {
   errorMessage: string;
@@ -141,7 +146,17 @@ export async function* webSearch({
       result.error.errorType === "no-search-backend" &&
       callingModel.params.provider !== OUR_MODELS.providerType
     ) {
-      yield await searchWithPlatform({ prompt, signal, workspaceConfig });
+      const platformResult = await searchWithPlatform({
+        prompt,
+        signal,
+        workspaceConfig,
+      });
+      // A signed-out user cannot reach our endpoint, so a keyless search gives
+      // them a working lookup; signing in is what gets them ours.
+      yield platformResult.isErr() &&
+      platformResult.error.errorType === "not-authenticated"
+        ? await searchWithKeyless({ prompt, signal, workspaceConfig })
+        : platformResult;
       return;
     }
     yield result;
@@ -255,6 +270,33 @@ async function searchWithPlatform(args: {
 
   await delay(RETRY_DELAY_MS, args.signal);
   return args.signal.aborted ? first : requestPlatformSearch(args);
+}
+
+async function searchWithKeyless({
+  prompt,
+  signal,
+  workspaceConfig,
+}: {
+  prompt: string;
+  signal: AbortSignal;
+  workspaceConfig: WorkspaceConfig;
+}): Promise<Result<WebSearchResults, WebSearchFailure>> {
+  const result = await searchKeyless({
+    appVersion: workspaceConfig.appVersion,
+    query: prompt,
+    signal,
+  });
+  return result
+    .map((sources) => ({
+      costDollars: 0,
+      kind: "excerpts" as const,
+      sources,
+    }))
+    .mapErr((message) => ({
+      errorMessage: `${message} Try again in a moment, or sign in to ${APP_NAME} to search the web.`,
+      // Signing in is the lasting fix, so the failure offers it.
+      errorType: "not-authenticated" as const,
+    }));
 }
 
 async function* searchWithProviderModel({

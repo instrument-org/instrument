@@ -2,9 +2,18 @@ import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
 import { openSettings, type SettingsTab } from "@/client/atoms/settings-modal";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
-import { APPS_HREF, bookmarksAtom, CHATS_HREF } from "@/client/atoms/window";
+import {
+  type AppPlace,
+  APPS_HREF,
+  bookmarksAtom,
+  CHATS_HREF,
+} from "@/client/atoms/window";
 import { PageFavicon } from "@/client/components/favicon";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
+import { useRecentFiles } from "@/client/hooks/use-recent-files";
+import { FileTypeIcon } from "@/client/components/extend/file-system";
+import { folderOf, homeRelative } from "@/client/components/window/host-path";
+import { fileHref } from "@/shared/computer-href";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { useTheme } from "@/client/components/theme-provider";
 import {
@@ -16,15 +25,22 @@ import {
 } from "@/client/components/ui/command";
 import { Spinner } from "@/client/components/ui/spinner";
 import { AppIcon } from "@/client/components/window/app-icon";
+import { PLACES } from "@/client/components/window/app-rail";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { byActivity, type Chat } from "@/client/components/window/chats";
+import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { formatAccelerator } from "@/client/lib/format-accelerator";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
-import { bareAddress } from "@/client/components/window/omnibar-match";
+import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
+import { siteFromWords } from "@/client/lib/site-from-words";
+import {
+  bareAddress,
+  isSearchWords,
+} from "@/client/components/window/omnibar-match";
 import {
   componentPages,
   debugNavigationRoutes,
@@ -34,7 +50,10 @@ import { scenarios } from "@/client/routes/debug/-transcript/scenarios";
 import { rpcClient } from "@/client/rpc/client";
 import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { SHORTCUTS, type ShortcutAccelerator } from "@/shared/shortcuts";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
+import {
+  WINDOW_SHORTCUTS,
+  type WindowShortcutId,
+} from "@/shared/window-shortcuts";
 import uFuzzy from "@leeoniya/ufuzzy";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
@@ -43,6 +62,7 @@ import { CodeIcon } from "@phosphor-icons/react/Code";
 import { FlaskIcon } from "@phosphor-icons/react/Flask";
 import { GearIcon } from "@phosphor-icons/react/Gear";
 import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { MoonIcon } from "@phosphor-icons/react/Moon";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
@@ -54,56 +74,104 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
 import { unique } from "radashi";
-import { type ReactNode, useRef, useState } from "react";
-import { toast } from "sonner";
+import { type ReactNode, useDeferredValue, useRef, useState } from "react";
+import { toast } from "@/client/lib/toast";
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
 
 /** Rows per kind past which a search stops listing: enough to choose from, few enough to read. */
 const APPS_SHOWN = 6;
 const PAGES_SHOWN = 6;
+const FILES_SHOWN = 6;
 /** How long a search has to be before the decision model is asked what it means. */
 const MEANING_MIN_LENGTH = 3;
 /** Chats listed before anything is typed, newest first. */
-const RECENT_CHATS_SHOWN = 30;
+const RECENT_CHATS_SHOWN = 5;
+/**
+ * The commands listed before anything is typed: the ones worth reaching
+ * often, each with its chord. The rest (the theme, clearing browsing data,
+ * updates) are found by typing.
+ */
+const LISTED_COMMANDS = new Set([
+  "new-chat",
+  "new-tab",
+  "settings",
+  "shortcuts",
+]);
+
+/** Each place's chord, which its Go to row shows. */
+const PLACE_CHORDS = {
+  apps: "goToApps",
+  browser: "goToBrowser",
+  chat: "goToChat",
+  files: "goToFiles",
+} as const satisfies Record<AppPlace, WindowShortcutId>;
+
+export const COMMAND_MENU_PLACEHOLDER = "Search or type an address";
+
+type Item = {
+  chord?: ShortcutAccelerator;
+  detail?: string | undefined;
+  icon: ReactNode;
+  id: string;
+  label: string;
+  ranges: null | number[];
+  run: () => void;
+  type: "item";
+};
 
 type Row =
   | { label: string; type: "header" }
-  | {
-      chord?: ShortcutAccelerator;
-      detail?: string | undefined;
-      icon: ReactNode;
-      id: string;
-      label: string;
-      ranges: null | number[];
-      run: () => void;
-      type: "item";
-    };
+  /** The decision model still reading the chats, in the place its rows will take. */
+  | { type: "looking" }
+  | Item;
 
-type Item = Extract<Row, { type: "item" }>;
+/** Where the menu is drawn: over the window by Cmd+K, or as a new tab's page. */
+export type CommandMenuSurface = "dialog" | "page";
 
 /**
- * The window's command menu (Cmd+K): one place to run a command, change the
- * theme, or jump to a chat, an app, or a page the browser has been to. A
- * search that turns up nothing at all is handed to the decision model, which
- * looks through the chats for the one the words mean. Words starting `!`
- * reach the switches kept out of sight: `!dev` and `!beta`.
+ * The menu's rows for the words typed, the same wherever it is drawn: what
+ * the words name (an address to open, the places, commands, chats, the apps
+ * set up here, pages, files), then a web search for words that are a search, then, when
+ * nothing matched by name and the words are no address, the chats the
+ * decision model says they mean, below the search so Return never changes
+ * under the caret. Before anything is typed, the places, the commands worth
+ * reaching often, and the newest chats. Words
+ * starting `!` reach the switches kept out of sight: `!dev` and `!beta`.
+ *
+ * The rows follow the words a beat behind while typing, so the field keeps
+ * up with the keys; `words` in the result is what the rows are for.
  */
-export function CommandMenu({
+export function useCommandMenuRows({
+  active,
+  done,
   openPage,
   openScreen,
+  surface,
+  words: typed,
 }: {
+  /** Whether the menu is on screen, for what it reads off the disk or asks the model. */
+  active: boolean;
+  /** Wraps a row's action: the dialog gets out of the way first. */
+  done: (run: () => void) => () => void;
   openPage: (url: string) => void;
   openScreen: (href: string) => void;
-}) {
-  const [open, setOpen] = useAtom(commandMenuOpenAtom);
-  const [search, setSearch] = useState("");
-  useBlockTabNavigation(open);
+  surface: CommandMenuSurface;
+  words: string;
+}): { isBang: boolean; rows: Row[]; words: string } {
+  const words = useDeferredValue(typed);
   const shell = useShell();
   const { setTheme, theme } = useTheme();
   const developerMode = useDeveloperMode();
+  // The apps set up here, by the names the window has for them: one only in
+  // the directory is no place to go yet.
   const appsBySlug = useAppsBySlug();
+  const installed = useQuery(
+    rpcClient.apps.live.list.experimental_liveOptions(),
+  );
   const visited = useRecentPages();
+  // Described only while the menu is up: each file is looked at on the disk.
+  const recentFiles = useRecentFiles({ enabled: active }).files;
   const bookmarks = useAtomValue(bookmarksAtom);
 
   const preferences = useQuery(
@@ -122,21 +190,8 @@ export function CommandMenu({
     rpcClient.debug.trigger.testNoUpdateNotification.mutationOptions(),
   );
 
-  const close = () => {
-    setOpen(false);
-    // After the close animation, so the list does not visibly empty first.
-    setTimeout(() => {
-      setSearch("");
-    }, 200);
-  };
-  /** A row's action, run once the menu is out of the way. */
-  const andClose = (run: () => void) => () => {
-    close();
-    run();
-  };
-
-  const words = search.trim();
   const chats = shell.chats ?? [];
+  const isPage = surface === "page";
 
   const commands: Omit<Item, "ranges" | "type">[] = [
     {
@@ -148,13 +203,18 @@ export function CommandMenu({
         shell.newDraft();
       },
     },
-    {
-      chord: WINDOW_SHORTCUTS.newTab.accelerator,
-      icon: <PlusIcon />,
-      id: "new-tab",
-      label: "New tab",
-      run: shell.appTabs.openNewTab,
-    },
+    // A new tab opening another from its own menu would only stand beside it.
+    ...(isPage
+      ? []
+      : [
+          {
+            chord: WINDOW_SHORTCUTS.newTab.accelerator,
+            icon: <PlusIcon />,
+            id: "new-tab",
+            label: "New tab",
+            run: shell.appTabs.openNewTab,
+          },
+        ]),
     {
       chord: SHORTCUTS.settings.accelerator,
       icon: <GearIcon />,
@@ -309,26 +369,144 @@ export function CommandMenu({
   );
 
   const isSearch = words !== "" && !isBang;
+  const site = isSearch ? siteFromWords(words) : undefined;
   const chatMatches = isSearch
     ? nameMatch(byActivity(chats), (chat) => [chat.title], words)
     : [];
   const appMatches = isSearch
-    ? nameMatch([...appsBySlug], ([, app]) => [app.name], words).slice(
-        0,
-        APPS_SHOWN,
-      )
+    ? nameMatch(
+        [...appsBySlug].filter(([slug]) =>
+          installed.data?.apps.some((app) => app.slug === slug),
+        ),
+        ([, app]) => [app.name],
+        words,
+      ).slice(0, APPS_SHOWN)
     : [];
 
-  const sections: { items: Item[]; label: string }[] = isBang
+  const goTo: Item[] = PLACES.map(({ id, label }) => ({
+    chord: WINDOW_SHORTCUTS[PLACE_CHORDS[id]].accelerator,
+    icon: <PlaceIcon place={id} />,
+    id: `goto:${id}`,
+    label,
+    ranges: null,
+    run: () => {
+      shell.goToPlace(id);
+    },
+    type: "item",
+  }));
+
+  const named: { items: Item[]; label: string }[] = isSearch
+    ? [
+        {
+          items: fuzzyMatch(goTo, (item) => [item.label], words).map(
+            ({ item, ranges }) => ({ ...item, ranges }),
+          ),
+          label: "Go to",
+        },
+        {
+          items: fuzzyMatch(
+            [...commands, ...settingsRows],
+            (command) => [command.label],
+            words,
+          ).map(({ item, ranges }) => ({ ...item, ranges, type: "item" })),
+          label: "Commands",
+        },
+        {
+          items: chatMatches.map(({ item, ranges }) => chatItem(item, ranges)),
+          label: "Chats",
+        },
+        {
+          items: appMatches.map(({ item: [slug, app], ranges }) =>
+            appItem(slug, app, ranges),
+          ),
+          label: "Apps",
+        },
+        {
+          items: fuzzyMatch(
+            pages,
+            (page) => [page.title || bareAddress(page.url), page.url],
+            words,
+          )
+            .slice(0, PAGES_SHOWN)
+            .map(({ item: page, ranges }) => ({
+              detail: page.title ? bareAddress(page.url) : undefined,
+              icon: <PageFavicon favicon={page.favicon} url={page.url} />,
+              id: `page:${page.url}`,
+              label: page.title || bareAddress(page.url),
+              ranges,
+              run: () => {
+                openPage(page.url);
+              },
+              type: "item",
+            })),
+          label: "Recent pages",
+        },
+        {
+          items: fuzzyMatch(
+            recentFiles,
+            (file) => [file.name, homeRelative(file.path, window.api.homeDir)],
+            words,
+          )
+            .slice(0, FILES_SHOWN)
+            .map(({ item: file, ranges }) => ({
+              detail: homeRelative(folderOf(file.path), window.api.homeDir),
+              icon: <FileTypeIcon fileName={file.name} />,
+              id: `file:${file.path}`,
+              label: file.name,
+              ranges,
+              run: () => {
+                openScreen(fileHref(file.path));
+              },
+              type: "item",
+            })),
+          label: "Recent files",
+        },
+        {
+          items: fuzzyMatch(
+            debugItems,
+            (item) => [item.label, item.href],
+            words,
+          ).map(({ item, ranges }) => ({
+            icon: <CodeIcon />,
+            id: `debug:${item.href}`,
+            label: item.label,
+            ranges,
+            run: () => {
+              openScreen(item.href);
+            },
+            type: "item",
+          })),
+          label: "Debug pages",
+        },
+      ]
+    : [];
+
+  // Words that find nothing by name go to the decision model, so a search
+  // like "taxes" finds the chat about 1099 forms. Only then, and never for
+  // an address: the model is not asked about searches the names answer, or
+  // about a site the person is on their way to.
+  const hasNameMatches = named.some((section) => section.items.length > 0);
+  const asksMeaning =
+    active &&
+    isSearch &&
+    site === undefined &&
+    words.length >= MEANING_MIN_LENGTH &&
+    !hasNameMatches;
+  const chatsByMeaning = useChatSearchFallback({
+    active: asksMeaning,
+    candidates: chats,
+    search: words,
+  });
+
+  const sections: { items: Item[]; label: string; looking?: boolean }[] = isBang
     ? [{ items: bangRows, label: "Switches" }]
     : words === ""
       ? [
+          { items: goTo, label: "Go to" },
           {
-            items: commands.map((command) => ({
-              ...command,
-              ranges: null,
-              type: "item",
-            })),
+            items: commands
+              .filter((command) => LISTED_COMMANDS.has(command.id))
+              .map((command) => ({ ...command, ranges: null, type: "item" })),
             label: "Commands",
           },
           {
@@ -339,83 +517,52 @@ export function CommandMenu({
           },
         ]
       : [
-          {
-            items: fuzzyMatch(
-              [...commands, ...settingsRows],
-              (command) => [command.label],
-              words,
-            ).map(({ item, ranges }) => ({ ...item, ranges, type: "item" })),
-            label: "Commands",
-          },
-          {
-            items: chatMatches.map(({ item, ranges }) =>
-              chatItem(item, ranges),
-            ),
-            label: "Chats",
-          },
-          {
-            items: appMatches.map(({ item: [slug, app], ranges }) =>
-              appItem(slug, app, ranges),
-            ),
-            label: "Apps",
-          },
-          {
-            items: fuzzyMatch(
-              pages,
-              (page) => [page.title || bareAddress(page.url), page.url],
-              words,
-            )
-              .slice(0, PAGES_SHOWN)
-              .map(({ item: page, ranges }) => ({
-                detail: page.title ? bareAddress(page.url) : undefined,
-                icon: <PageFavicon favicon={page.favicon} url={page.url} />,
-                id: `page:${page.url}`,
-                label: page.title || bareAddress(page.url),
-                ranges,
-                run: () => {
-                  openPage(page.url);
+          ...(site
+            ? [
+                {
+                  items: [
+                    {
+                      detail: isPage ? "Open in this tab" : "Open in a new tab",
+                      icon: <PageFavicon url={site.url} />,
+                      id: `open:${site.url}`,
+                      label: words,
+                      ranges: null,
+                      run: () => {
+                        openPage(site.url);
+                      },
+                      type: "item" as const,
+                    },
+                  ],
+                  label: "Open",
                 },
-                type: "item",
-              })),
-            label: "Recent pages",
-          },
+              ]
+            : []),
+          ...named,
+          ...(site === undefined && isSearchWords(words)
+            ? [
+                {
+                  items: [
+                    {
+                      icon: <MagnifyingGlassIcon />,
+                      id: "web-search",
+                      label: `Search the web for “${words}”`,
+                      ranges: null,
+                      run: () => {
+                        openPage(webSearchUrl(words));
+                      },
+                      type: "item" as const,
+                    },
+                  ],
+                  label: "Web",
+                },
+              ]
+            : []),
           {
-            items: fuzzyMatch(
-              debugItems,
-              (item) => [item.label, item.href],
-              words,
-            ).map(({ item, ranges }) => ({
-              icon: <CodeIcon />,
-              id: `debug:${item.href}`,
-              label: item.label,
-              ranges,
-              run: () => {
-                openScreen(item.href);
-              },
-              type: "item",
-            })),
-            label: "Debug pages",
+            items: chatsByMeaning.chats.map((chat) => chatItem(chat, null)),
+            label: "Chats about this",
+            looking: asksMeaning && chatsByMeaning.isLooking,
           },
         ];
-
-  // Words that find nothing by name go to the decision model, so a search
-  // like "taxes" finds the chat about 1099 forms. Only then: a list that
-  // already shows something is never added to a beat later, and the model
-  // is not asked about searches the names answer.
-  const hasNameMatches = sections.some((section) => section.items.length > 0);
-  const asksMeaning =
-    open && isSearch && words.length >= MEANING_MIN_LENGTH && !hasNameMatches;
-  const chatsByMeaning = useChatSearchFallback({
-    active: asksMeaning,
-    candidates: chats,
-    search: words,
-  });
-  if (chatsByMeaning.chats.length > 0) {
-    sections.push({
-      items: chatsByMeaning.chats.map((chat) => chatItem(chat, null)),
-      label: "Chats about this",
-    });
-  }
 
   function appItem(
     slug: string,
@@ -450,21 +597,85 @@ export function CommandMenu({
     };
   }
 
-  const rows: Row[] = sections.flatMap((section) =>
-    section.items.length === 0
+  const rows: Row[] = sections.flatMap((section): Row[] =>
+    section.items.length === 0 && !section.looking
       ? []
       : [
-          { label: section.label, type: "header" } satisfies Row,
-          ...section.items.map((item) => ({
-            ...item,
-            run: andClose(item.run),
-          })),
+          { label: section.label, type: "header" },
+          ...section.items.map((item) => ({ ...item, run: done(item.run) })),
+          ...(section.looking ? [{ type: "looking" as const }] : []),
         ],
   );
+  return { isBang, rows, words };
+}
+
+/**
+ * The menu's list, one height whatever the search finds, so it does not
+ * grow and shrink under the caret as results come and go.
+ */
+export function CommandMenuList({
+  className,
+  isBang,
+  rows,
+  words,
+}: {
+  className: string;
+  isBang: boolean;
+  rows: Row[];
+  words: string;
+}) {
+  return (
+    <CommandList className={className}>
+      {rows.length > 0 ? (
+        // A list of its own per search: a fresh scroller starts at the top,
+        // where cmdk's pick of the first row then lands, rather than at
+        // wherever the last search's list was scrolled to.
+        <ResultRows key={words} rows={rows} />
+      ) : words !== "" && !(isBang && words.length < 3) ? (
+        <div className="flex h-full flex-col items-center justify-center gap-1 text-sm text-muted-foreground">
+          Nothing matches “{words}”
+        </div>
+      ) : null}
+    </CommandList>
+  );
+}
+
+/** The window's command menu (Cmd+K), over whatever is on screen. */
+export function CommandMenu({
+  openPage,
+  openScreen,
+}: {
+  openPage: (url: string) => void;
+  openScreen: (href: string) => void;
+}) {
+  const [open, setOpen] = useAtom(commandMenuOpenAtom);
+  const [search, setSearch] = useState("");
+
+  const close = () => {
+    setOpen(false);
+    // After the close animation, so the list does not visibly empty first.
+    setTimeout(() => {
+      setSearch("");
+    }, 200);
+  };
+  useHoldWindow(open, { onClose: close });
+
+  const { isBang, rows, words } = useCommandMenuRows({
+    active: open,
+    // A row's action, run once the menu is out of the way.
+    done: (run) => () => {
+      close();
+      run();
+    },
+    openPage,
+    openScreen,
+    surface: "dialog",
+    words: search.trim(),
+  });
 
   return (
     <CommandDialog
-      description="Run a command or go to a chat, an app, or a page"
+      description="Search for anything, or type an address."
       onOpenChange={(value) => {
         if (value) {
           setOpen(true);
@@ -479,35 +690,22 @@ export function CommandMenu({
     >
       <CommandInput
         onValueChange={setSearch}
-        placeholder="Search chats, apps, pages, and commands…"
+        placeholder={COMMAND_MENU_PLACEHOLDER}
         value={search}
       />
-      {/* One height whatever the search finds, so the dialog does not grow
-          and shrink under the caret as results come and go. */}
-      <CommandList className="h-96 max-h-none! overflow-hidden!">
-        {rows.length > 0 ? (
-          // A list of its own per search: a fresh scroller starts at the top,
-          // where cmdk's pick of the first row then lands, rather than at
-          // wherever the last search's list was scrolled to.
-          <ResultRows key={words} rows={rows} />
-        ) : chatsByMeaning.isLooking ? (
-          <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Spinner className="size-4" />
-            Looking through your chats…
-          </div>
-        ) : words !== "" && !(isBang && words.length < 3) ? (
-          <div className="flex h-full flex-col items-center justify-center gap-1 text-sm text-muted-foreground">
-            Nothing matches “{words}”
-          </div>
-        ) : null}
-      </CommandList>
+      <CommandMenuList
+        className="h-96 max-h-none! overflow-hidden!"
+        isBang={isBang}
+        rows={rows}
+        words={words}
+      />
     </CommandDialog>
   );
 }
 
 /**
  * Every section in one virtualized, single-scroll region, so a workspace with
- * thousands of chats keeps the dialog a normal height and a quick render.
+ * thousands of chats keeps the menu a normal height and a quick render.
  */
 function ResultRows({ rows }: { rows: Row[] }) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -518,7 +716,7 @@ function ResultRows({ rows }: { rows: Row[] }) {
     getScrollElement: () => parentRef.current,
     // Rows on the first render, before the scroller is measured, so cmdk
     // finds the top row there when it picks one for the new search.
-    initialRect: { height: 384, width: 0 },
+    initialRect: { height: 512, width: 0 },
     // Layout px, not the on-screen rect: the menu sits inside CSS `zoom`.
     measureElement: (el) => el.offsetHeight,
     overscan: 8,
@@ -547,6 +745,11 @@ function ResultRows({ rows }: { rows: Row[] }) {
                 <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
                   {row.label}
                 </div>
+              ) : row.type === "looking" ? (
+                <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+                  <Spinner className="size-4" />
+                  Looking through your chats…
+                </div>
               ) : (
                 <CommandItem onSelect={row.run} value={row.id}>
                   <span className="flex size-4 shrink-0 items-center justify-center opacity-60">
@@ -560,7 +763,12 @@ function ResultRows({ rows }: { rows: Row[] }) {
                       </span>
                     ) : null}
                   </span>
-                  {row.chord === undefined ? null : (
+                  {row.chord === undefined ? (
+                    // Return runs the row picked, so it says so.
+                    <CommandShortcut className="hidden in-data-[selected=true]:inline">
+                      ↩
+                    </CommandShortcut>
+                  ) : (
                     <CommandShortcut>
                       {formatAccelerator(row.chord).join("")}
                     </CommandShortcut>

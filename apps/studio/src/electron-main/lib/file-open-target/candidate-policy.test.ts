@@ -38,6 +38,15 @@ describe("curateCandidates", () => {
     expect(names(curateCandidates(apps, ".md"))).toEqual(["com.example.one"]);
   });
 
+  it("drops a system helper not worth naming, even as the default", () => {
+    const apps = [
+      app("com.apple.DiskImageMounter", { isDefault: true }),
+      app("com.example.one"),
+    ];
+
+    expect(names(curateCandidates(apps, ".dmg"))).toEqual(["com.example.one"]);
+  });
+
   it("promotes the first remaining app when Instrument is the default", () => {
     const apps = [
       app(APP_BUNDLE_ID, { isDefault: true }),

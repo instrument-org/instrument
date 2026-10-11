@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { createScopedLogger } from "./electron-logger";
+import { fileIcon } from "./mac-native";
 import { renderedKindOf } from "./rendered-kinds";
 import { renderPicture } from "./rendered-pictures";
 
@@ -29,6 +30,9 @@ const log = createScopedLogger("FileThumbnails");
  * Where the system draws nothing (Linux, or a picture it would not read), a
  * PNG or JPEG is scaled down here instead, which still spares the renderer
  * decoding a camera's full-size photo for a tile an inch across.
+ *
+ * A folder on a Mac is drawn as the Finder's icon for it, which is how an app
+ * or another package the browser lists as one item shows as itself.
  */
 
 /** The sizes asked for, in px along the longer side: a row's, a tile's and a preview pane's. */
@@ -86,10 +90,11 @@ export async function fileThumbnail(
   theme: ThumbnailTheme = "light",
 ): Promise<null | Thumbnail> {
   const stats = await fs.stat(hostPath);
-  if (!stats.isFile()) {
+  const isFolder = stats.isDirectory();
+  if (!stats.isFile() && !isFolder) {
     return null;
   }
-  const isRendered = renderedKindOf(hostPath) !== undefined;
+  const isRendered = !isFolder && renderedKindOf(hostPath) !== undefined;
   const key = createHash("sha256")
     .update(
       `${hostPath}\0${stats.mtimeMs}\0${size}\0${DRAWING}${isRendered ? `\0${theme}` : ""}`,
@@ -118,19 +123,20 @@ export async function fileThumbnail(
       ? await renderedAt(hostPath, stats.mtimeMs, size, theme, deps)
       : null;
     const complete = rendered?.complete ?? true;
-    const image =
-      rendered?.image ??
-      pageShaped(
-        hostPath,
-        await withTurn(() =>
-          draw(
-            hostPath,
-            PAGE_SHAPED.test(hostPath)
-              ? { height: size, width: Math.round(size * PAGE_ASPECT) }
-              : { height: size, width: size },
+    const image = isFolder
+      ? await withTurn(() => iconOf(hostPath, size))
+      : (rendered?.image ??
+        pageShaped(
+          hostPath,
+          await withTurn(() =>
+            draw(
+              hostPath,
+              PAGE_SHAPED.test(hostPath)
+                ? { height: size, width: Math.round(size * PAGE_ASPECT) }
+                : { height: size, width: size },
+            ),
           ),
-        ),
-      );
+        ));
     await fs.mkdir(deps.dir, { recursive: true });
     if (!image || image.isEmpty()) {
       await fs.writeFile(none, "");
@@ -184,6 +190,18 @@ async function draw(
     quality: "good",
     width: Math.max(1, Math.round(width * scale)),
   });
+}
+
+/** The Finder's icon for a folder, `size` px square; nothing off a Mac. */
+async function iconOf(
+  hostPath: string,
+  size: number,
+): Promise<NativeImage | null> {
+  if (process.platform !== "darwin") {
+    return null;
+  }
+  const png = await fileIcon(hostPath, size).catch(() => null);
+  return png ? nativeImage.createFromBuffer(png) : null;
 }
 
 /**

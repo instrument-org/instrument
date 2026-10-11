@@ -10,6 +10,9 @@ import { type ChatId } from "../../schemas/chat-id";
 import {
   type AppCatalogEntry,
   catalogEndpointNeedsClient,
+  catalogInterfaceLacksClient,
+  catalogEntryAt,
+  catalogEntryForApp,
   findCatalogEntry,
   getAppCatalog,
   searchAppCatalog,
@@ -259,12 +262,12 @@ function nativeCommandFor(bundleId: string): string | undefined {
 function describeCatalogEntry(entry: AppCatalogEntry): string {
   const surfaces = entry.interfaces.map((surface) => {
     // Said in words, so the endpoint is not mistaken for one to set up.
-    const auth =
-      surface.auth === "oauth-client"
-        ? ` (not usable: its sign-in takes only a client registered with ${entry.name}, which ${APP_NAME} does not have yet)`
-        : surface.auth
-          ? ` (${surface.auth})`
-          : "";
+    const auth = catalogInterfaceLacksClient(surface)
+      ? ` (not usable: its sign-in takes only a client registered with ${entry.name}, which ${APP_NAME} does not have yet)`
+      : surface.auth
+        ? // A sign-in with Instrument's own client is a sign-in like any other.
+          ` (${surface.auth === "oauth-client" ? "oauth" : surface.auth})`
+        : "";
     return `    ${surface.format.padEnd(9)} ${surface.endpoint ?? surface.package ?? surface.name}${auth}`;
   });
   const methods =
@@ -289,7 +292,7 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
           ? `${start} --api ${way.endpoint} --auth ${way.auth} --test ${way.test ?? "<a cheap GET, such as /me>"}`
           : way.kind === "mac-app"
             ? `nothing to connect, and no \`${APP_COMMAND.name} new\`: when the user asks for something in ${way.name}, do it ${native === undefined ? `with osascript on this Mac, and macOS asks the user once to let ${APP_NAME} control it` : `with the \`${native}\` command, ${APP_NAME}'s own way into ${way.name} (fast, and it reads every account added there; never osascript for it), and macOS asks the user once for access`}. ${entry.family === "apple" ? "" : `This reaches ${entry.name} only when its account is added to ${way.name}; otherwise set it up on the web with \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`}`.trimEnd()
-            : `${start} --web ${way.url}${way.signIn ? ` --sign-in '${way.signIn}'` : ""}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and it is worked in a tab)`;
+            : `${start} --web ${way.url}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and it is worked in a tab)`;
   const keySurface =
     way.kind === "mcp" || way.kind === "api"
       ? entry.interfaces.find((surface) => surface.endpoint === way.endpoint)
@@ -304,6 +307,11 @@ function describeCatalogEntry(entry: AppCatalogEntry): string {
     `  auth: ${methods}`,
     ...(entry.docsUrl ? [`  docs: ${entry.docsUrl}`] : []),
     `  set up: ${howTo}`,
+    ...(entry.addAccount
+      ? [
+          `  another account: on the web, \`${APP_COMMAND.name} new ${entry.slug}-2 --name '${entry.name}' --web ${entry.home ?? `https://${entry.domain}`}\` beside the one already here; its card opens ${entry.name}'s page for adding an account.`,
+        ]
+      : []),
     ...(keySurface?.keyPage
       ? [
           `  key: made at ${keySurface.keyPage}${keySurface.keySteps ? `: ${keySurface.keySteps}` : ""} The key card links there.`,
@@ -761,14 +769,30 @@ async function runNew(input: SubcommandInput) {
     );
   }
   const slug = slugResult.data;
-  const name = input.value("name")?.trim();
-  if (!name) {
+  const givenName = input.value("name")?.trim();
+  if (!givenName) {
     throw new Error("new needs --name '<Name>', the service's own name.");
   }
   const mcp = input.value("mcp");
   const api = input.value("api");
   const local = input.value("local");
   const web = input.value("web");
+  // The service it reaches, by slug, endpoint, or the site a web app is on,
+  // and the apps already here for it: a second account of a service is
+  // another app of that service, under the service's name.
+  const entry =
+    findCatalogEntry(slug, mcp ?? api) ??
+    (web === undefined ? undefined : catalogEntryAt(web));
+  const appsDir = getWorkspaceConfig().appsDir;
+  const siblings =
+    entry === undefined
+      ? []
+      : (await listApps(appsDir)).apps.filter(
+          (app) =>
+            app.slug !== slug &&
+            catalogEntryForApp(app.slug, app.manifest)?.slug === entry.slug,
+        );
+  const name = siblings.length > 0 && entry ? entry.name : givenName;
   if (
     [mcp, api, local, web].filter(Boolean).length === 0 &&
     input.value("mac-app") !== undefined
@@ -783,12 +807,16 @@ async function runNew(input: SubcommandInput) {
     );
   }
   // A web app the directory knows starts its sign-in where the directory
-  // says, so the card opens the sign-in and not a signed-out home page.
+  // says, so the card opens the sign-in and not a signed-out home page; a
+  // second account starts at the vendor's page for adding one, since its
+  // sign-in goes straight to the account already signed in.
   const signIn =
     input.value("sign-in")?.trim() ??
-    (input.value("web") === undefined
+    (web === undefined
       ? undefined
-      : findCatalogEntry(slug, undefined)?.signIn);
+      : siblings.length > 0
+        ? (entry?.addAccount ?? entry?.signIn)
+        : entry?.signIn);
   if (signIn && !web) {
     throw new Error(
       "--sign-in goes with --web: only a web app signs in on a page of its own.",
@@ -826,8 +854,9 @@ async function runNew(input: SubcommandInput) {
       "--mac-app goes with --local: only a server that runs on this machine drives a Mac app.",
     );
   }
+  const service = entry ? { service: entry.slug } : {};
   const candidate: unknown = web
-    ? { name, ...(signIn ? { signIn } : {}), type: "web", url: web }
+    ? { name, ...service, ...(signIn ? { signIn } : {}), type: "web", url: web }
     : local
       ? {
           ...(serverArgs.length > 0 ? { args: serverArgs } : {}),
@@ -836,15 +865,17 @@ async function runNew(input: SubcommandInput) {
           name,
           package: local,
           runtime,
+          ...service,
           type: "mcp-local",
         }
       : mcp
-        ? { auth, name, type: "mcp", url: mcp }
+        ? { auth, name, ...service, type: "mcp", url: mcp }
         : {
             auth,
             baseUrl: api,
             ...(Object.keys(headers).length > 0 ? { headers } : {}),
             name,
+            ...service,
             test: { path: test ?? "" },
             type: "api",
           };
@@ -860,7 +891,6 @@ async function runNew(input: SubcommandInput) {
     );
   }
   const manifest: AppManifest = parsed.data;
-  const appsDir = getWorkspaceConfig().appsDir;
   const existing = await loadApp(appsDir, slug);
   if (existing.isOk() && !force) {
     throw new Error(
@@ -868,17 +898,7 @@ async function runNew(input: SubcommandInput) {
     );
   }
   await refuseWhatCannotConnect(slug, name, manifest);
-  const guide = guideSkeleton(
-    manifest,
-    findCatalogEntry(
-      slug,
-      manifest.type === "mcp"
-        ? manifest.url
-        : manifest.type === "api"
-          ? manifest.baseUrl
-          : undefined,
-    ),
-  );
+  const guide = guideSkeleton(manifest, entry);
   // A guide written for another way in describes tools this one does not have.
   const reachChanged =
     existing.isOk() && existing.value.manifest.type !== manifest.type;
@@ -914,8 +934,12 @@ async function runNew(input: SubcommandInput) {
             : stored?.kind === "moved"
               ? credentialMovedMessage({ noun: "key", ...stored })
               : `Ask the user for the key with connect_app, then \`${APP_COMMAND.name} test ${slug}\` after the note.`;
+  const another =
+    siblings.length > 0
+      ? ` It is another ${name} account beside ${siblings.map((app) => (app.manifest.account ? `${app.slug} (${app.manifest.account})` : app.slug)).join(", ")}, so it keeps the name ${name}${givenName === name ? "" : ` rather than "${givenName}"`}: its account is what tells them apart, named when the user has signed in.`
+      : "";
   return ok(
-    `Wrote ${MOUNT.apps}/${slug}/${APP_MANIFEST_FILE_NAME}${existing.isOk() && !reachChanged ? "" : ` and its ${APP_GUIDE_FILE_NAME}`}.${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole file back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
+    `Wrote ${MOUNT.apps}/${slug}/${APP_MANIFEST_FILE_NAME}${existing.isOk() && !reachChanged ? "" : ` and its ${APP_GUIDE_FILE_NAME}`}.${another}${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole file back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
   );
 }
 

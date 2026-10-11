@@ -1,6 +1,6 @@
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { useTranscriptActions } from "@/client/components/task/transcript-actions";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { showInFolderLabel, showTaskFolder } from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
@@ -15,7 +15,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";
@@ -63,7 +63,7 @@ export function useChatActions(chat: Chat): RowAction[] {
  */
 export function useChatActionsFor(): (chat: Chat) => RowAction[] {
   const transcript = useTranscriptActions({ sessionId: undefined });
-  const isDeveloperMode = useDeveloperMode();
+  const isDeveloperMode = useTabDeveloperMode();
   const queryClient = useQueryClient();
   const paint = (id: ChatId, change: (chat: Chat) => Chat) => {
     paintChat(queryClient, { id }, change);
@@ -245,9 +245,9 @@ function setArchived(
       repaintChats(queryClient);
       toast.error(
         archived
-          ? "Failed to archive the chat"
-          : "Failed to move the chat to the inbox",
-        { description: error instanceof Error ? error.message : String(error) },
+          ? "Couldn't archive the chat"
+          : "Couldn't move the chat to the inbox",
+        { cause: error },
       );
     },
   );

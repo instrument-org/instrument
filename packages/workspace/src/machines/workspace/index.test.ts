@@ -38,7 +38,6 @@ function createWorkspaceActor(rootDir = "/tmp/workspace") {
       apps: createMemoryAppsConfig(),
       appVersion: "0.0.0-test",
       browser: createStubBrowserConfig(),
-      captureEvent: noop,
       captureException: noop,
       chatTemplateDir: MOCK_WORKSPACE_DIRS.chatTemplate,
       getAIProviderConfigs: () => [],

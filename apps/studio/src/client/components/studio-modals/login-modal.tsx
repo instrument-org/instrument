@@ -14,7 +14,7 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/client/components/ui/dialog";
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { SHARED } from "@/client/lib/styles";
@@ -40,7 +40,11 @@ export function LoginModal() {
   // the instant the dialog starts closing.
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
-  useBlockTabNavigation(isOpen);
+  useHoldWindow(isOpen, {
+    onClose: () => {
+      setState(null);
+    },
+  });
 
   const complete = () => {
     state?.onCompleted?.();
@@ -117,7 +121,7 @@ function LoginModalContent({
       ) : (
         <ProviderSetupScreen
           error={error}
-          hideManualProvider={props?.hideManualProvider}
+          instrumentOnly={props?.instrumentOnly}
           onBack={() => {
             setPage("welcome");
           }}

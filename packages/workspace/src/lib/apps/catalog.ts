@@ -4,6 +4,7 @@ import {
   APP_FAMILY_IDS,
   searchDirectory,
 } from "@instrument-org/shared/app-directory";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { askDecisionModel } from "../decision-model";
@@ -59,6 +60,19 @@ const AppCatalogEntrySchema = z.object({
    */
   signIn: z.string().optional(),
   /**
+   * Where signing in a second account on the web starts, for a vendor whose
+   * browser session holds several at once: the vendor's own "add another
+   * account" page, since its sign-in page goes straight to the account
+   * already signed in.
+   */
+  addAccount: z.string().optional(),
+  /**
+   * The web app as one signed-in account sees it, with `{account}` where the
+   * account goes, for a vendor whose session holds several: the address that
+   * keeps a second account's tasks in that account rather than the first.
+   */
+  accountHome: z.string().optional(),
+  /**
    * The ways in, tried in the order `app catalog` describes: a hosted MCP
    * server, one that runs here, an API a key opens, the Mac's own app, and
    * last the web app at `home`.
@@ -68,6 +82,13 @@ const AppCatalogEntrySchema = z.object({
       auth: z.string().optional(),
       /** For the Mac's own app (`format: "mac-app"`), which app. */
       bundleId: z.string().optional(),
+      /**
+       * For `auth: "oauth-client"`, the client Instrument registered with the
+       * vendor: a public PKCE client, so the id is no secret. Its sign-in
+       * comes back through our API's relay, the only https redirect the
+       * vendor accepts.
+       */
+      clientId: z.string().optional(),
       endpoint: z.string().optional(),
       format: z.string(),
       /**
@@ -107,11 +128,90 @@ const AppCatalogEntrySchema = z.object({
 
 export type AppCatalogEntry = z.output<typeof AppCatalogEntrySchema>;
 
-const CatalogSeedSchema = z.object({
-  entries: z.array(AppCatalogEntrySchema),
+/**
+ * The directory as the seed holds it and our API serves it. `revision` is
+ * when its entries last changed, as an ISO time, so a build can tell a served
+ * copy older than its own; `entriesHash` is what a test checks the entries
+ * against, so an edit that forgets to move the revision fails. Entries stay
+ * unknown here and are read one at a time, so one a build cannot read costs
+ * that entry rather than the directory.
+ */
+export const AppCatalogDocumentSchema = z.object({
+  entries: z.array(z.unknown()),
+  entriesHash: z.string(),
+  revision: z.iso.datetime(),
 });
 
-let cached: AppCatalogEntry[] | undefined;
+/** What `entriesHash` holds for a directory's entries. */
+export function appCatalogEntriesHash(entries: unknown[]): string {
+  return createHash("sha256")
+    .update(JSON.stringify(entries))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+type Catalog = { entries: AppCatalogEntry[]; revision: string };
+
+let builtIn: Catalog | undefined;
+let served: Catalog | undefined;
+
+/** The directory this build ships, parsed and validated once. */
+function builtInCatalog(): Catalog {
+  if (builtIn === undefined) {
+    const document = AppCatalogDocumentSchema.parse(catalogSeed);
+    builtIn = {
+      entries: z.array(AppCatalogEntrySchema).parse(document.entries),
+      revision: document.revision,
+    };
+  }
+  return builtIn;
+}
+
+/** The revision of the directory this build ships. */
+export function builtInAppCatalogRevision(): string {
+  return builtInCatalog().revision;
+}
+
+/**
+ * Use a directory our API served in place of the built-in one, so a fix to
+ * the directory reaches builds already installed. One older than the
+ * built-in is refused, since it would undo what this build shipped with. An
+ * entry this build cannot read keeps the built-in entry of the same slug,
+ * when there is one, rather than dropping the service.
+ */
+export function applyServedAppCatalog(
+  document: unknown,
+): "older" | "unreadable" | "used" {
+  const parsed = AppCatalogDocumentSchema.safeParse(document);
+  if (!parsed.success) {
+    return "unreadable";
+  }
+  const own = builtInCatalog();
+  if (Date.parse(parsed.data.revision) < Date.parse(own.revision)) {
+    return "older";
+  }
+  const entries = parsed.data.entries.flatMap((raw) => {
+    const entry = AppCatalogEntrySchema.safeParse(raw);
+    if (entry.success) {
+      return [entry.data];
+    }
+    const slug = z.object({ slug: z.string() }).safeParse(raw);
+    const fallback = slug.success
+      ? own.entries.find((candidate) => candidate.slug === slug.data.slug)
+      : undefined;
+    return fallback ? [fallback] : [];
+  });
+  if (entries.length === 0) {
+    return "unreadable";
+  }
+  served = { entries, revision: parsed.data.revision };
+  return "used";
+}
+
+/** Back to the built-in directory, for tests. */
+export function resetServedAppCatalog(): void {
+  served = undefined;
+}
 
 /**
  * The entry's own MCP server that runs on this machine, when it has one: for
@@ -128,13 +228,19 @@ export function catalogEntryLocalServer(
     : undefined;
 }
 
+type CatalogInterface = AppCatalogEntry["interfaces"][number];
+
 /**
- * An interface's `auth` when its sign-in needs an OAuth client registered
- * with the vendor ahead of time, which Instrument does not have yet: the
- * server registers no client on the spot, so the sign-in card cannot make
- * one. Such a server is skipped for the next way in.
+ * Whether an interface's sign-in needs an OAuth client registered with the
+ * vendor ahead of time (`auth: "oauth-client"`) and Instrument has none for
+ * it: the server registers no client on the spot, so the sign-in card cannot
+ * make one. Such a server is skipped for the next way in.
  */
-const NEEDS_REGISTERED_CLIENT = "oauth-client";
+export function catalogInterfaceLacksClient(
+  surface: CatalogInterface,
+): boolean {
+  return surface.auth === "oauth-client" && surface.clientId === undefined;
+}
 
 /**
  * The entry's hosted MCP server, when it has one the sign-in card or a key
@@ -148,20 +254,47 @@ export function catalogEntryMcpEndpoint(
     (surface) =>
       surface.format === "mcp" &&
       surface.endpoint &&
-      surface.auth !== NEEDS_REGISTERED_CLIENT,
+      !catalogInterfaceLacksClient(surface),
   )?.endpoint;
 }
 
-/** Whether an endpoint is one the directory knows needs a registered sign-in client. */
+function sameEndpoint(a: string, b: string | undefined): boolean {
+  return a.replace(/\/+$/, "") === b?.replace(/\/+$/, "");
+}
+
+/** Whether an endpoint is one the directory knows needs a registered sign-in client it does not have. */
 export function catalogEndpointNeedsClient(endpoint: string): boolean {
-  const bare = endpoint.replace(/\/+$/, "");
   return getAppCatalog().some((entry) =>
     entry.interfaces.some(
       (surface) =>
-        surface.auth === NEEDS_REGISTERED_CLIENT &&
-        surface.endpoint?.replace(/\/+$/, "") === bare,
+        catalogInterfaceLacksClient(surface) &&
+        sameEndpoint(endpoint, surface.endpoint),
     ),
   );
+}
+
+/**
+ * Instrument's own sign-in client for an MCP server, when the directory has
+ * one for exactly that endpoint, with the service whose relay route the
+ * sign-in comes back through. Matched on the endpoint rather than the app's
+ * slug, so the client is only ever offered to the server it was issued for.
+ */
+export function catalogRegisteredClient(
+  endpoint: string,
+): undefined | { clientId: string; service: string } {
+  for (const entry of getAppCatalog()) {
+    for (const surface of entry.interfaces) {
+      if (
+        surface.format === "mcp" &&
+        surface.auth === "oauth-client" &&
+        surface.clientId !== undefined &&
+        sameEndpoint(endpoint, surface.endpoint)
+      ) {
+        return { clientId: surface.clientId, service: entry.slug };
+      }
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -210,10 +343,72 @@ export function findCatalogEntry(
   );
 }
 
-/** The built-in directory, parsed and validated once. */
+/**
+ * The directory's entry for a web address: the one whose signed-in web app
+ * the address is in, the longest such app winning so a page of
+ * docs.google.com/spreadsheets is Sheets and not Docs; failing that, the one
+ * entry on the address's host. A second account of a service lives at its
+ * own address of the same site (mail.google.com/mail/u/1/), which is how it
+ * is still that service.
+ */
+export function catalogEntryAt(address: string): AppCatalogEntry | undefined {
+  const url = URL.parse(address);
+  if (url === null) {
+    return undefined;
+  }
+  const catalog = getAppCatalog();
+  const homeOf = (entry: AppCatalogEntry) =>
+    URL.parse(entry.home ?? `https://${entry.domain}`);
+  const within = catalog
+    .map((entry) => ({ entry, home: homeOf(entry) }))
+    .filter(
+      ({ home }) =>
+        home !== null &&
+        home.host === url.host &&
+        url.pathname.startsWith(home.pathname.replace(/\/+$/, "")),
+    )
+    .sort(
+      (a, b) => (b.home?.pathname.length ?? 0) - (a.home?.pathname.length ?? 0),
+    );
+  if (within[0]) {
+    return within[0].entry;
+  }
+  const onHost = catalog.filter(
+    (entry) => entry.domain === url.host || homeOf(entry)?.host === url.host,
+  );
+  return onHost.length === 1 ? onHost[0] : undefined;
+}
+
+/**
+ * The directory's entry for an app already set up: the service its manifest
+ * names, else the one its slug or address finds. Every app of one service
+ * answers the same entry whatever its slug, so two Gmail accounts are both
+ * Gmail.
+ */
+export function catalogEntryForApp(
+  slug: string,
+  manifest: { service?: string | undefined; type: string; url?: string },
+): AppCatalogEntry | undefined {
+  const catalog = getAppCatalog();
+  const named =
+    manifest.service === undefined
+      ? undefined
+      : catalog.find((entry) => entry.slug === manifest.service);
+  return (
+    named ??
+    findCatalogEntry(
+      slug,
+      manifest.type === "mcp" ? manifest.url : undefined,
+    ) ??
+    (manifest.type === "web" && manifest.url !== undefined
+      ? catalogEntryAt(manifest.url)
+      : undefined)
+  );
+}
+
+/** The directory: the one our API served when there is one, else the built-in. */
 export function getAppCatalog(): AppCatalogEntry[] {
-  cached ??= CatalogSeedSchema.parse(catalogSeed).entries;
-  return cached;
+  return served?.entries ?? builtInCatalog().entries;
 }
 
 /**

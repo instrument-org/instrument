@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getWorkspaceServerPort } from "../../logic/server/url";
 import { type ApiAppManifest, AppManifestSchema } from "./manifest";
 import { buildAppUrl, performAppRequest, redactCredential } from "./request";
 
@@ -265,59 +264,6 @@ describe("performAppRequest", () => {
     });
 
     expect(result.isOk()).toBe(true);
-    expect(fetchMock).toHaveBeenCalledOnce();
-  });
-
-  // The agent writes the manifest, so it picks the hostname: a name that
-  // resolves to loopback on the workspace server's port is that server.
-  it("refuses a hostname resolving to the workspace server", async () => {
-    resolvesTo("127.0.0.1");
-    const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await performAppRequest({
-      body: undefined,
-      credential: null,
-      manifest: {
-        ...publicManifest(),
-        baseUrl: `https://api.example.com:${getWorkspaceServerPort()}`,
-      },
-      method: "GET",
-      params: {},
-      path: "/items",
-      signal: AbortSignal.timeout(1000),
-    });
-
-    const error = result._unsafeUnwrapErr();
-    expect(error.reason).toBe("unsafe-url");
-    expect(error.message).toContain("workspace server");
-    // The point of resolving before connecting: nothing was sent.
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("refuses a redirect into the workspace server", async () => {
-    const fetchMock = vi.fn(
-      () =>
-        new Response(null, {
-          headers: {
-            Location: `http://127.0.0.1:${getWorkspaceServerPort()}/`,
-          },
-          status: 302,
-        }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await performAppRequest({
-      body: undefined,
-      credential: null,
-      manifest: publicManifest(),
-      method: "GET",
-      params: {},
-      path: "/items",
-      signal: AbortSignal.timeout(1000),
-    });
-
-    expect(result._unsafeUnwrapErr().reason).toBe("unsafe-url");
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 

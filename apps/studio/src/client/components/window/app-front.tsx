@@ -11,6 +11,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { Button } from "@/client/components/ui/button";
@@ -32,14 +33,22 @@ import { GlyphButton } from "@/client/components/window/glyph-button";
 import { useOnScreen } from "@/client/components/window/on-screen";
 import { PageSection } from "@/client/components/window/page-section";
 import { VisitedPageRows } from "@/client/components/window/visited-page-rows";
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
 import { appMentionToken } from "@/client/lib/app-mention";
-import { rpcClient } from "@/client/rpc/client";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import {
+  hasFilesView,
+  revealInFileManager,
+  showInFolder,
+  showInFolderLabel,
+} from "@/client/lib/show-in-files";
+import { getRevealInFolderLabel } from "@/client/lib/utils";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /** How many of the pages visited in the app its front lists. */
 const VISITS_SHOWN = 12;
@@ -65,7 +74,7 @@ export function AppFront({
   reportsScreen?: boolean;
   slug: string;
 }) {
-  const { ask, browser, openPage } = useWindow();
+  const { ask, browser, openPage, openScreen } = useWindow();
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(rpcClient.apps.catalog.queryOptions());
   // The default browser by name, as the sign-in button beside it says it.
@@ -79,14 +88,17 @@ export function AppFront({
   );
   const browserName = defaultBrowser.data?.appName ?? "your browser";
   const app = list.data?.apps.find((entry) => entry.slug === slug);
-  // The directory's entry for the service: by slug, or by site for a second
-  // account set up beside the first (notion-2 is Notion).
-  const entry =
-    catalog.data?.find((candidate) => candidate.slug === slug) ??
-    catalog.data?.find(
-      (candidate) =>
-        app?.site !== undefined && app.site === `https://${candidate.domain}`,
-    );
+  // The directory's entry for the service, which a second account set up
+  // beside the first (gmail-2) shares with it.
+  const service = app?.service ?? slug;
+  const entry = catalog.data?.find((candidate) => candidate.slug === service);
+  // The other accounts of the service here, which the account line lists.
+  const otherAccounts =
+    app?.service === undefined
+      ? []
+      : (list.data?.apps ?? []).filter(
+          (other) => other.service === app.service && other.slug !== slug,
+        );
   // Drawn as every other surface draws the app, the chip and the tab included.
   const drawn = useAppsBySlug().get(slug);
   const name = drawn?.name ?? slug;
@@ -102,7 +114,11 @@ export function AppFront({
   const [isInspecting, setIsInspecting] = useState(false);
   // The action the list opens on, when a card opened it.
   const [inspectingAction, setInspectingAction] = useState<string>();
-  useBlockTabNavigation(isInspecting);
+  useHoldWindow(isInspecting, {
+    onClose: () => {
+      setIsInspecting(false);
+    },
+  });
   const isBrowsable =
     isConnected && (app.type === "mcp" || app.type === "mcp-local");
   const runsHere =
@@ -115,9 +131,7 @@ export function AppFront({
   const setAccount = useMutation(
     rpcClient.apps.setAccount.mutationOptions({
       onError: (error) => {
-        toast.error("Could not name the account", {
-          description: error.message,
-        });
+        toast.error("Couldn't name the account", { cause: error });
       },
     }),
   );
@@ -147,16 +161,14 @@ export function AppFront({
   const disconnect = useMutation(
     rpcClient.apps.disconnect.mutationOptions({
       onError: (error) => {
-        toast.error("Could not disconnect", { description: error.message });
+        toast.error(`Couldn't disconnect ${name}`, { cause: error });
       },
     }),
   );
   const remove = useMutation(
     rpcClient.apps.remove.mutationOptions({
       onError: (error) => {
-        toast.error("Could not remove the app", {
-          description: error.message,
-        });
+        toast.error(`Couldn't remove ${name}`, { cause: error });
       },
       onSuccess: () => {
         onToApps();
@@ -166,16 +178,14 @@ export function AppFront({
   const test = useMutation(
     rpcClient.apps.test.mutationOptions({
       onError: (error) => {
-        toast.error("Could not test the app", { description: error.message });
+        toast.error(`Couldn't test ${name}`, { cause: error });
       },
       onSuccess: (report) => {
         if (!report.passed) {
           const failure = report.checks.find(
             (check) => check.status === "fail",
           );
-          toast.error(`${name} did not connect`, {
-            description: failure?.detail.split("\n")[0],
-          });
+          toast.error(`Couldn't connect ${name}`, { cause: failure?.detail });
         }
       },
     }),
@@ -300,7 +310,7 @@ export function AppFront({
                     >
                       Test connection
                     </DropdownMenuItem>
-                    {entry ? (
+                    {entry && !app.account && otherAccounts.length === 0 ? (
                       <DropdownMenuItem
                         disabled={isConnecting}
                         onSelect={() => {
@@ -308,6 +318,22 @@ export function AppFront({
                         }}
                       >
                         Connect another account
+                      </DropdownMenuItem>
+                    ) : null}
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        void showInFolder(app.dir, { kind: "folder" });
+                      }}
+                    >
+                      {showInFolderLabel("folder")}
+                    </DropdownMenuItem>
+                    {hasFilesView() ? (
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          void revealInFileManager(app.dir);
+                        }}
+                      >
+                        {getRevealInFolderLabel()}
                       </DropdownMenuItem>
                     ) : null}
                     {isConnected || app.hasCredential ? (
@@ -346,10 +372,18 @@ export function AppFront({
                   }
                 }}
               />
-            ) : app?.account ? (
-              <p className="truncate text-xs leading-5 text-muted-foreground">
-                {app.account}
-              </p>
+            ) : app && entry && (app.account || otherAccounts.length > 0) ? (
+              <AccountSwitcher
+                account={app.account}
+                connecting={isConnecting}
+                onConnectAnother={() => {
+                  connect(entry, { another: true });
+                }}
+                onOpen={(other) => {
+                  openScreen(`/apps/${other}`);
+                }}
+                others={otherAccounts}
+              />
             ) : entry?.tagline ? (
               <p className="truncate text-xs leading-5 text-muted-foreground">
                 {entry.tagline}
@@ -582,6 +616,57 @@ export function AppFront({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Which account the app is, as a menu of the service's other accounts here
+ * and the way to connect one more, so every account of a service is reached
+ * from any of them.
+ */
+function AccountSwitcher({
+  account,
+  connecting,
+  onConnectAnother,
+  onOpen,
+  others,
+}: {
+  account: string | undefined;
+  connecting: boolean;
+  onConnectAnother: () => void;
+  onOpen: (slug: string) => void;
+  others: RPCOutput["apps"]["list"]["apps"];
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="-mx-1 flex max-w-full items-center gap-0.5 rounded-sm px-1 text-xs leading-5 text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+          type="button"
+        >
+          <span className="truncate">{account ?? "Account not named yet"}</span>
+          <CaretDownIcon className="size-3 shrink-0" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {others.map((other) => (
+          <DropdownMenuItem
+            key={other.slug}
+            onSelect={() => {
+              onOpen(other.slug);
+            }}
+          >
+            <span className="truncate">
+              {other.account ?? `${other.name} (${other.slug})`}
+            </span>
+          </DropdownMenuItem>
+        ))}
+        {others.length > 0 ? <DropdownMenuSeparator /> : null}
+        <DropdownMenuItem disabled={connecting} onSelect={onConnectAnother}>
+          Connect another account
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

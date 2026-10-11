@@ -113,7 +113,7 @@ One thing the sweep did not have: the three repos have drifted apart on exactly 
 
 - **Base UI.** Scoped in [radix-upgrade-and-base-ui-migration.md](radix-upgrade-and-base-ui-migration.md). Nothing found in this sweep changes that plan's conclusion, including its note that upstream's own position is that switching component libraries is the worst thing to do to a working product. Decide it separately from Phase 0.
 - **AI SDK v7.** Done in `241d44b06`.
-- **`arctic` is deprecated at every published version**, 3.7.0 included, and it is the Google OAuth flow on the sign-in path. Wants a replacement decision, not a version bump.
+- **`arctic`** is gone: sign-in runs Google's flow on the API ([sign-in-through-the-api.md](sign-in-through-the-api.md)).
 - **`electron-store` 10 to 11** drags `conf` to 15, which still declares the loose `set(key: string, value: unknown)` overload our patch removes. The bump re-creates the patch rather than retiring it, so pair it with a decision about whether the patch still earns its keep.
 - **`tokenx` 1 to 2** recalibrates the estimator, which shifts every threshold tuned against the old one. Relevant to [context-compaction.md](context-compaction.md).
 

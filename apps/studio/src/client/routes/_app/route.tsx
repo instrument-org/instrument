@@ -7,9 +7,11 @@ import {
   CHATS_HREF,
   inboxOpenAtom,
   inboxWidthAtom,
+  NEW_TAB_HREF,
   paneOpenByGroupAtom,
   screenViewsAtom,
   walkedFoldersAtom,
+  chatsOutOf,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
 } from "@/client/atoms/window";
@@ -50,10 +52,10 @@ import { TabLocationRow } from "@/client/components/window/tab-location-row";
 import {
   chatOfHref,
   chatSessionOfHref,
+  parseHref,
 } from "@/client/components/window/window-href";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
-import { useTabSurface } from "@/client/hooks/use-tab-surface";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { outputFolderHref } from "@/shared/computer-href";
@@ -71,7 +73,7 @@ import {
 } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 /** Dragged narrower than this, the inbox column slides shut rather than stopping at its floor. */
 const INBOX_COLLAPSE_THRESHOLD = 240;
@@ -190,24 +192,6 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     });
     setPaneOpen(chat, true);
   };
-  // Cmd+T in the chat opens a browser beside it, and Cmd+W in the pane closes
-  // the tab up there.
-  const surfaceRef = useRef<HTMLElement>(null);
-  const paneRef = useRef<HTMLDivElement>(null);
-  useTabSurface({
-    anchor: surfaceRef,
-    closeTabUp: () => {
-      if (!showsPane) {
-        return false;
-      }
-      shell.requestClose(up.id);
-      return true;
-    },
-    enabled: isActive && chat !== undefined,
-    openTab: addWeb,
-    tabIds: tabs.map((tab) => tab.id),
-    tabsAnchor: paneRef,
-  });
 
   // Drawn only once there is something in it.
   const tiles = chat !== undefined && tabs.length > 0 && (
@@ -276,16 +260,22 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
               appWindow.openScreen(`${CHATS_HREF}/${entry.id}`);
             }}
             onOpenDraft={shell.showDraft}
+            // As from the chat's head: popped out, the chat open here is
+            // no longer the one this tab has open.
+            onPopOut={(entry) => {
+              shell.compose.float(entry.id);
+              if (entry.id === chat) {
+                leaveChat();
+              }
+            }}
             openChatId={chat}
+            outIds={chatsOutOf(shell.compose.entries)}
           />
         </div>
       </ChatColumn>
       {chat === undefined && <NoChatOpen onNew={shell.newDraft} />}
       {chat !== undefined && (
-        <main
-          className="relative flex min-w-0 flex-1 flex-col"
-          ref={surfaceRef}
-        >
+        <main className="relative flex min-w-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1">
             <div className="relative min-w-0 flex-1">
               <RightPane
@@ -375,7 +365,6 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                 paneKey={chat}
               >
                 <div
-                  ref={paneRef}
                   className={cn(
                     "flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-border",
                     // A page's bottom corners follow what they meet: square
@@ -465,8 +454,10 @@ function RouteScreen({ href }: { href: string }) {
       : fromHref;
   // The apps' catalog is a place you arrive at from the rail, with nothing
   // above it to walk back up to and nothing to type an address for: a row
-  // there would only offer to leave for the web.
-  const hasLocationRow = location.kind !== "apps";
+  // there would only offer to leave for the web. A new tab's own menu takes
+  // addresses, so a row over it would be a second field.
+  const hasLocationRow =
+    location.kind !== "apps" && parseHref(href).pathname !== NEW_TAB_HREF;
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {hasLocationRow && (

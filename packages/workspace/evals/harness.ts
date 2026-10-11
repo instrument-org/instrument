@@ -18,7 +18,11 @@ import { type z } from "zod";
 
 import type { Session } from "../src/schemas/session";
 
-import { attachChats, workspaceMachine } from "../src/electron";
+import {
+  attachChats,
+  prepareBundledSkills,
+  workspaceMachine,
+} from "../src/electron";
 import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
@@ -517,9 +521,6 @@ export async function runEvals(
         ...createStubBrowserConfig(),
         hasNoWindow: true,
       }),
-      captureEvent: () => {
-        return;
-      },
       captureException: (...args: unknown[]) => {
         console.error("captureException", ...args);
       },
@@ -556,6 +557,8 @@ export async function runEvals(
 
   attachChats(actor);
   actor.start();
+  // Awaited, unlike the app's: a case's first command may read them.
+  await prepareBundledSkills(actor.getSnapshot().context.config);
 
   const runs = models
     .flatMap((uri) => {

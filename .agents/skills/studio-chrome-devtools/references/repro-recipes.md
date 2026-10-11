@@ -4,12 +4,12 @@ Learnings from driving Studio live to reproduce and verify a browser-panel layou
 
 ## Check the debug pages before hand-inspecting the DOM
 
-The `/debug/*` routes (`node $DRIVE goto /debug/browser-views`, or the Debug links in the Developer Mode dev panel) are worth checking before reaching for `evaluate_script` archaeology:
+The `/debug/*` routes are worth checking before reaching for `evaluate_script` archaeology. In developer mode, Command K lists every one of them.
 
-- **`/debug/browser-views`** -- every live agent-controlled browser: URL, target id, profile dir, CDP-attached state, loading/crashed state, screencast state, webContents id, listener counts, downloads, plus each task's cleanup machine. Its RPCs are Developer-Mode-only. Each card's "View" button (`rpcClient.debug.browserViewManager.openAsTab`) opens the owning task's page, where its browser is.
-- **`/debug`** -- index of all debug tools (components, errors, notifications, browser views).
+- **`/debug/components/transcript?scenario=<id>`** -- a chat played through a scripted scenario (`routes/debug/-transcript/scenarios.ts`), so a transcript rendering bug can be reproduced without a model turn.
+- **`/debug/components/*`** -- the app's components in the states the product draws them in.
 
-If what you need isn't visible there, that's a signal the debug page could be extended (cheap, high-leverage) rather than a one-off script.
+If what you need isn't visible there, a new scenario is usually cheaper than a one-off script.
 
 ## Driving the chat input
 

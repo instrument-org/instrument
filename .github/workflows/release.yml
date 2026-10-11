@@ -70,19 +70,8 @@ jobs:
         name: Build Linux (vite)
         run: pnpm turbo run build:vite --filter=@instrument-org/studio
         env:
-          MAIN_VITE_GOOGLE_CLIENT_ID: ${{ vars.MAIN_VITE_GOOGLE_CLIENT_ID }}
-          MAIN_VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.MAIN_VITE_GOOGLE_CLIENT_SECRET }}
           MAIN_VITE_APP_API_BASE_URL: ${{ vars.MAIN_VITE_APP_API_BASE_URL }}
-          VITE_POSTHOG_API_HOST: ${{ vars.VITE_POSTHOG_API_HOST }}
-          VITE_POSTHOG_API_KEY: ${{ vars.VITE_POSTHOG_API_KEY }}
-
-      - if: matrix.os == 'ubuntu-latest'
-        name: Upload source maps to PostHog
-        uses: ./.github/actions/posthog-sourcemap-upload
-        with:
-          api-key: ${{ secrets.POSTHOG_CLI_API_KEY }}
-          project-id: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
-          version: ${{ github.ref_name }}
+          MAIN_VITE_REPORTS_BASE_URL: ${{ vars.MAIN_VITE_REPORTS_BASE_URL }}
 
       - if: matrix.os == 'ubuntu-latest'
         name: Package Linux
@@ -98,19 +87,8 @@ jobs:
         name: Build Mac (vite)
         run: pnpm turbo run build:vite --filter=@instrument-org/studio
         env:
-          MAIN_VITE_GOOGLE_CLIENT_ID: ${{ vars.MAIN_VITE_GOOGLE_CLIENT_ID }}
-          MAIN_VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.MAIN_VITE_GOOGLE_CLIENT_SECRET }}
           MAIN_VITE_APP_API_BASE_URL: ${{ vars.MAIN_VITE_APP_API_BASE_URL }}
-          VITE_POSTHOG_API_HOST: ${{ vars.VITE_POSTHOG_API_HOST }}
-          VITE_POSTHOG_API_KEY: ${{ vars.VITE_POSTHOG_API_KEY }}
-
-      - if: matrix.os == 'macos' && env.SKIP_INTEL_MACOS != 'true'
-        name: Upload source maps to PostHog
-        uses: ./.github/actions/posthog-sourcemap-upload
-        with:
-          api-key: ${{ secrets.POSTHOG_CLI_API_KEY }}
-          project-id: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
-          version: ${{ github.ref_name }}
+          MAIN_VITE_REPORTS_BASE_URL: ${{ vars.MAIN_VITE_REPORTS_BASE_URL }}
 
       # Apple's notary service intermittently drops the connection while the
       # signing step polls for submission status, which surfaces as an opaque
@@ -211,19 +189,8 @@ jobs:
         name: Build Windows (vite)
         run: pnpm turbo run build:vite --filter=@instrument-org/studio
         env:
-          MAIN_VITE_GOOGLE_CLIENT_ID: ${{ vars.MAIN_VITE_GOOGLE_CLIENT_ID }}
-          MAIN_VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.MAIN_VITE_GOOGLE_CLIENT_SECRET }}
           MAIN_VITE_APP_API_BASE_URL: ${{ vars.MAIN_VITE_APP_API_BASE_URL }}
-          VITE_POSTHOG_API_HOST: ${{ vars.VITE_POSTHOG_API_HOST }}
-          VITE_POSTHOG_API_KEY: ${{ vars.VITE_POSTHOG_API_KEY }}
-
-      - if: matrix.os == 'windows-latest'
-        name: Upload source maps to PostHog
-        uses: ./.github/actions/posthog-sourcemap-upload
-        with:
-          api-key: ${{ secrets.POSTHOG_CLI_API_KEY }}
-          project-id: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
-          version: ${{ github.ref_name }}
+          MAIN_VITE_REPORTS_BASE_URL: ${{ vars.MAIN_VITE_REPORTS_BASE_URL }}
 
       - if: matrix.os == 'windows-latest'
         name: Package Windows
@@ -263,6 +230,26 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
 
+      # The installers ship without source maps, so the ones this leg built are
+      # kept beside the release instead: a stack from a report names a bundle
+      # and a line, and only the matching map turns it back into source.
+      - name: Pack source maps
+        if: env.SKIP_INTEL_MACOS != 'true'
+        shell: bash
+        run: |
+          # Relative, since GNU tar on Windows reads a `D:` path as a remote host.
+          cd apps/studio/out
+          find . -name '*.map' -print0 | tar -czf "../../../sourcemaps-${{ github.ref_name }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" --null -T -
+
+      - name: Upload source maps
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: env.SKIP_INTEL_MACOS != 'true'
+        with:
+          name: sourcemaps-${{ matrix.os }}-${{ matrix.arch }}
+          path: sourcemaps-*.tar.gz
+          retention-days: 30
+          if-no-files-found: error
+
   publish:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
@@ -296,7 +283,8 @@ jobs:
           aws s3 sync artifacts/ s3://instrument-releases/ \
             --endpoint-url "${{ vars.BUILDER_PUBLISH_S3_ENDPOINT }}" \
             --no-progress \
-            --exclude "*.png"
+            --exclude "*.png" \
+            --exclude "sourcemaps-*"
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -446,10 +434,22 @@ jobs:
         env:
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
         with:
-          draft: false
+          # Releases here are immutable, so the source maps go up while it is a
+          # draft and the next step publishes it.
+          draft: true
           prerelease: true
           generate_release_notes: false
           body_path: /tmp/release-body.md
+          files: artifacts/sourcemaps-*.tar.gz
+
+      - name: Publish GitHub Prerelease
+        id: prerelease_published
+        if: steps.prerelease_release.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+          echo "url=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json url -q .url)" >> "$GITHUB_OUTPUT"
 
       - name: GitHub Stable Release
         id: stable_release
@@ -462,10 +462,11 @@ jobs:
           prerelease: false
           generate_release_notes: false
           body_path: /tmp/release-body.md
+          files: artifacts/sourcemaps-*.tar.gz
 
       - name: Capture release URL
         id: release
-        run: echo "url=${{ steps.prerelease_release.outputs.url || steps.stable_release.outputs.url }}" >> "$GITHUB_OUTPUT"
+        run: echo "url=${{ steps.prerelease_published.outputs.url || steps.stable_release.outputs.url }}" >> "$GITHUB_OUTPUT"
 
       - name: Delete workflow artifacts
         uses: geekyeggo/delete-artifact@176a747ab7e287e3ff4787bf8a148716375ca118 # v6.0.0

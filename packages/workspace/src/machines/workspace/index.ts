@@ -4,10 +4,7 @@ import {
   type GetProviderConfigs,
   type ModelCache,
 } from "@instrument-org/ai-gateway";
-import {
-  type CaptureEventFunction,
-  type CaptureExceptionFunction,
-} from "@instrument-org/shared";
+import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import ms from "ms";
 import {
   type ActorRefFrom,
@@ -363,10 +360,11 @@ export const workspaceMachine = setup({
       apps: WorkspaceAppsConfig;
       appVersion: string;
       browser: BrowserConfig;
-      captureEvent: CaptureEventFunction;
       captureException: CaptureExceptionFunction;
       chatTemplateDir: string;
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
+      finderEntries?: WorkspaceConfig["finderEntries"];
+      resolveAlias?: WorkspaceConfig["resolveAlias"];
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
       indexesDir?: string;
@@ -396,13 +394,14 @@ export const workspaceMachine = setup({
       appsDir: absolutePathJoin(rootDir, APPS_DIR_NAME),
       appVersion: input.appVersion,
       browser: input.browser,
-      captureEvent: input.captureEvent,
       captureException: input.captureException,
       chatTemplateDir: AbsolutePathSchema.parse(input.chatTemplateDir),
       getAIProviderConfigs: input.getAIProviderConfigs,
       ...(input.ensureOutputFolderIcon
         ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }
         : {}),
+      ...(input.finderEntries ? { finderEntries: input.finderEntries } : {}),
+      ...(input.resolveAlias ? { resolveAlias: input.resolveAlias } : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
       isExternalBrowserEnabled: input.isExternalBrowserEnabled,
       ...(input.knownFolders ? { knownFolders: input.knownFolders } : {}),

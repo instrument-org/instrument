@@ -3,6 +3,7 @@ import {
   chatDir,
   ChatIdSchema,
 } from "@instrument-org/workspace/electron";
+import { recordFileOpen } from "@/electron-main/browser-view/history-store";
 import { storeFileOpenNativeImage } from "@/electron-main/lib/app-protocol";
 import { computerFileBase as computerFileBaseUrl } from "@/electron-main/lib/computer-files";
 import { readLogTail, saveLogCopy } from "@/electron-main/lib/diagnostic-log";
@@ -230,6 +231,7 @@ const openFileWith = base
         message: error instanceof Error ? error.message : undefined,
       });
     }
+    recordFileOpen(input.filePath, "external");
   });
 
 // Default-app name and icon for "Open in {app}" affordances. Fields are null
@@ -240,6 +242,7 @@ const fileOpenTarget = base
     z.object({
       appName: z.string().nullable(),
       iconUrl: z.string().nullable(),
+      opensUnnamed: z.boolean(),
     }),
   )
   .handler(({ input }) => getFileOpenTarget(input.filePath));
@@ -319,11 +322,15 @@ const openPath = base
           message: error instanceof Error ? error.message : undefined,
         });
       }
-      return;
+    } else {
+      const errorMessage = await shell.openPath(input.filepath);
+      if (errorMessage) {
+        throw errors.ERROR_OPENING_FILE({ message: errorMessage });
+      }
     }
-    const errorMessage = await shell.openPath(input.filepath);
-    if (errorMessage) {
-      throw errors.ERROR_OPENING_FILE({ message: errorMessage });
+    // A folder opened in the file manager is browsing, not a recent file.
+    if (stats.isFile()) {
+      recordFileOpen(input.filepath, "external");
     }
   });
 

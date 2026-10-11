@@ -239,13 +239,10 @@ function createValidateProductionEnv(
 ): Plugin {
   // Map of required environment variables by context
   const requiredVarsByContext = {
-    main: ["MAIN_VITE_GOOGLE_CLIENT_ID", "MAIN_VITE_GOOGLE_CLIENT_SECRET"],
+    main: [] as string[],
     preload: [] as string[],
     renderer: [] as string[],
   };
-
-  // Variables available to all contexts
-  const sharedRequiredVars = ["VITE_POSTHOG_API_HOST", "VITE_POSTHOG_API_KEY"];
 
   return {
     configResolved(config) {
@@ -253,10 +250,7 @@ function createValidateProductionEnv(
         return;
       }
 
-      const contextVars = requiredVarsByContext[context];
-      const allRequiredVars = [...sharedRequiredVars, ...contextVars];
-
-      for (const key of allRequiredVars) {
+      for (const key of requiredVarsByContext[context]) {
         if (!config.env[key]) {
           throw new Error(
             `Missing environment variable for ${context}: ${key}`,

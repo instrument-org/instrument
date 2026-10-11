@@ -11,11 +11,12 @@ Newest first. A struck-through entry has been superseded.
 | Date | Decision |
 | --- | --- |
 | 2026-10-10 | [One chat, one database: a task is a child session, not a record](2026-10-10-one-chat-one-database.md) |
+| 2026-10-10 | [The workspace server guards itself, so the agent's HTTP tools refuse no address](2026-10-10-the-workspace-server-guards-itself.md) |
 | 2026-10-09 | [Outside content arrives last and unmarked](2026-10-09-outside-content-arrives-last-and-unmarked.md) |
 | 2026-10-07 | [The chat and its tasks are one agent that does quick work itself and forks the rest](2026-10-07-one-agent-that-forks.md) |
 | 2026-10-07 | [The CDP bridge refuses any `Target.*` command its table does not list](2026-10-07-cdp-bridge-refuses-unlisted-target-commands.md) |
 | 2026-10-06 | [The packaged log keeps cheap lines on by default and gates only what is expensive to gather](2026-10-06-logs-keep-cheap-lines-on-by-default.md) |
-| 2026-10-06 | [`curl` and `web_fetch` reach the local network, except Instrument's own workspace server](2026-10-06-curl-and-web-fetch-reach-the-local-network.md) |
+| 2026-10-06 | [`curl` and `web_fetch` reach the local network, except Instrument's own workspace server](2026-10-06-curl-and-web-fetch-reach-the-local-network.md), its exception superseded by 2026-10-10 |
 | 2026-10-06 | ~~[Carry a fix for dynamic `import()` in `js-exec` scripts as a local patch](2026-10-06-carry-the-script-dynamic-import-patch.md)~~ retired with just-bash 3.6.0 |
 | 2026-09-29 | [Tasks report to their chat, not to each other: typed signals up the tree, peer messaging deferred](2026-09-29-tasks-report-to-their-chat-not-to-each-other.md) partly overtaken by 2026-10-07 |
 | 2026-09-22 | [Carry just-bash's linear `ls` and awk `printf` output as a local patch rather than guard the commands ourselves](2026-09-22-carry-the-ls-and-awk-output-patch.md) |

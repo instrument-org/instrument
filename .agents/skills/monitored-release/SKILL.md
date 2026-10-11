@@ -22,13 +22,11 @@ Run from `apps/studio`:
 
 ## Before you tag
 
-Five checks. Skipping one is how a release ships another agent's work, or fails twelve minutes in.
+Four checks. Skipping one is how a release ships another agent's work, or fails twelve minutes in.
 
 **1. Other agents are working in this checkout.** `ListAgents`, then message whoever is busy: how long, and is their work shippable. Expect at least one to ask to be tagged around, and honor it. The tag takes HEAD's tree, so uncommitted work stays out on its own and you never touch their files. If an agent lands work in stages, ask it to tell you which commit is a shippable point; you cannot tell a coherent stage from a half-finished one by reading the log.
 
-**2. The index must be empty.** `git diff --cached --name-only`. `tag-release.ts` runs `git commit` with no pathspec, so anything another agent has staged rides into the `release:` commit.
-
-**3. Pin the registry.** The script refuses to tag unless `git log HEAD..origin/main` inside `registry/` is empty.
+**2. Pin the registry.** The script refuses to tag unless `git log HEAD..origin/main` inside `registry/` is empty.
 
 ```bash
 cd registry && git fetch origin && git checkout origin/main
@@ -36,7 +34,7 @@ cd registry && git fetch origin && git checkout origin/main
 
 Then commit the gitlink by path from the repo root. Ask whoever is working in the skills repo whether its main is where they want it, and check that it is green there: a red submodule pin is a red release.
 
-**4. Verify in a separate worktree, not this one.** A green run in the shared checkout tests other agents' uncommitted edits, not what you are about to tag.
+**3. Verify in a separate worktree, not this one.** A green run in the shared checkout tests other agents' uncommitted edits, not what you are about to tag.
 
 ```bash
 git worktree add --detach <scratch>/verify <sha>
@@ -44,7 +42,7 @@ git worktree add --detach <scratch>/verify <sha>
 cd <scratch>/verify && pnpm check-and-test:ci --force
 ```
 
-**5. Know the baseline before calling anything broken.** `check:unused` (knip) has failed across several releases in a row. Check the previous tag out in the same worktree and run `pnpm knip` there before reporting a regression. `--output-logs errors-only` prints nothing for a passing task, so read the final `Tasks: N successful, M total` line rather than reading a quiet log as a full run.
+**4. Know the baseline before calling anything broken.** `check:unused` (knip) has failed across several releases in a row. Check the previous tag out in the same worktree and run `pnpm knip` there before reporting a regression. `--output-logs errors-only` prints nothing for a passing task, so read the final `Tasks: N successful, M total` line rather than reading a quiet log as a full run.
 
 Booting the packaged app is CI's job, not yours. Boot locally only when the release turns on something a boot would expose, and then use `studio-drive.mjs boot --purpose <purpose> --workspace <fixture>` for a disposable instance. Never drive an instance you did not start; someone is using it.
 
@@ -65,10 +63,13 @@ The range runs from the last **published** release, not the last tag. A tag whos
 
 ```bash
 cd apps/studio && pnpm tag:release:patch:beta --notes <absolute path>
-cd ../.. && git push origin <branch> && git push origin v<version>
 ```
 
-The script bumps `apps/studio/package.json`, commits `release: vX.Y.Z`, and creates the tag with the notes as its message. Without `--notes` it still tags, and Slack and the release page fall back to the commits grouped by scope. Push the branch before the tag, or the branch ref is left behind the commit the tag names. The tag is what triggers the workflow.
+The script rebases the branch onto origin's, bumps `apps/studio/package.json`, commits that file alone as `release: vX.Y.Z` (anything another agent has staged stays out), creates the tag with the notes as its message, and pushes the branch and the tag together in one atomic push. Without `--notes` it still tags, and Slack and the release page fall back to the commits grouped by scope. The tag is what triggers the workflow.
+
+The rebase brings in whatever reached origin since you verified. The script prints those commits; name them in your report as unverified.
+
+If origin moves between the rebase and the push, the push is rejected, and the script deletes its unpushed tag, rebases the release commit, tags it again, and retries. Never fix a rejected release push with `git merge origin/main`: that leaves a merge commit on main. If the script gives up, HEAD is the untagged release commit and its error prints the tag-and-push command to run after you rebase by hand. Do not rerun the script, which would bump the version again.
 
 A pushed tag cannot be moved. A mistake costs the next version number.
 

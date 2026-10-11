@@ -10,6 +10,7 @@ import {
   keepClaudeCodeCurrent,
   refreshClaudeAccountStatus,
 } from "@/electron-main/lib/claude-account";
+import { drawCornerDot } from "@/electron-main/lib/dev-dock-icon";
 import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
 import { createStudioAppUpdater } from "@/electron-main/lib/update";
 import { createApplicationMenu } from "@/electron-main/menus";
@@ -31,6 +32,10 @@ import {
   updateOnboardingWindowBackgroundColor,
 } from "@/electron-main/windows/onboarding";
 import { revealChat } from "@/electron-main/windows/reveal-chat";
+import {
+  DEV_INSTANCE_COLORS,
+  isDevInstanceColor,
+} from "@/shared/dev-instance-colors";
 import { instrumentLinkOf } from "@/shared/instrument-link";
 import { is, optimizer } from "@electron-toolkit/utils";
 import { APP_NAME, APP_FLAVOR, APP_PROTOCOL } from "@instrument-org/shared";
@@ -38,6 +43,7 @@ import {
   app,
   BrowserWindow,
   dialog,
+  nativeImage,
   nativeTheme,
   powerMonitor,
   protocol,
@@ -58,9 +64,11 @@ import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { filesInArgv } from "./lib/files-in-argv";
 import { logGpuStatus } from "./lib/gpu-status";
 import { handleBootFailure } from "./lib/handle-boot-failure";
+import { startAppCatalog } from "./lib/app-catalog";
+import { startNotices } from "./lib/notices";
+import { sendPendingAutomatically } from "./lib/problem-reports";
 import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
 import { requestQuitApproval, withdrawQuitApproval } from "./lib/quit";
-import { registerTelemetry } from "./lib/register-telemetry";
 import { setupBinDirectory } from "./lib/setup-bin-directory";
 import {
   serveResolvedTheme,
@@ -96,7 +104,6 @@ if (gotTheLock) {
   app.setAsDefaultProtocolClient(APP_PROTOCOL);
 
   registerCrashDiagnostics(app);
-  registerTelemetry(app);
 
   app.on("second-instance", (_event, commandLine) => {
     focusForegroundWindow();
@@ -143,11 +150,23 @@ async function bootstrapPrimaryInstance() {
 
   // A development run is Electron's own binary, so the Dock would show
   // Electron's icon. It shows the app's in the development color instead, which
-  // keeps it apart from an installed Instrument running beside it.
+  // keeps it apart from an installed Instrument running beside it. An instance
+  // studio-drive booted adds the dot of the color it was handed.
   if (import.meta.env.DEV && process.platform === "darwin") {
     void import("../../build/flavors/development/icon.png?asset").then(
       ({ default: icon }) => {
-        app.dock?.setIcon(icon);
+        const color = process.env.STUDIO_DRIVE_COLOR;
+        if (!isDevInstanceColor(color)) {
+          app.dock?.setIcon(icon);
+          return;
+        }
+        const image = nativeImage.createFromPath(icon);
+        const { width, height } = image.getSize();
+        const bitmap = image.toBitmap();
+        drawCornerDot(bitmap, width, DEV_INSTANCE_COLORS[color]);
+        app.dock?.setIcon(
+          nativeImage.createFromBitmap(bitmap, { height, width }),
+        );
       },
     );
   }
@@ -223,15 +242,14 @@ async function bootstrapPrimaryInstance() {
 
   await timeBootStep("setupBinDirectory", setupBinDirectory);
 
-  // Detect whether the app was updated since the last launch so the renderer
-  // can surface a one-time "updated" notification.
+  // Detect whether the app was updated since the last launch so the bell can
+  // say so.
   await timeBootStep("checkRecentVersionBump", checkRecentVersionBump);
 
-  const {
-    actor: workspaceRef,
-    browserViewManager,
-    workspaceConfig,
-  } = await timeBootStep("createWorkspaceActor", createWorkspaceActor);
+  const { actor: workspaceRef, workspaceConfig } = await timeBootStep(
+    "createWorkspaceActor",
+    createWorkspaceActor,
+  );
 
   // A signed-in ChatGPT account's access token lasts an hour.
   scheduleChatGPTAccountRefresh();
@@ -273,7 +291,6 @@ async function bootstrapPrimaryInstance() {
   await timeBootStep("initializeRPC", () => {
     initializeRPC({
       appUpdater: updater,
-      browserViewManager,
       workspaceConfig,
       workspaceRef,
     });
@@ -296,6 +313,16 @@ async function bootstrapPrimaryInstance() {
   void logGpuStatus(app);
 
   void startAuthCallbackServer();
+
+  // A crash from the last session goes out now when the person chose to send
+  // error reports without asking; otherwise it waits in the bell.
+  void sendPendingAutomatically();
+
+  // Notices from us for this build and account, for the bell.
+  startNotices();
+
+  // The app directory as we serve it now, in place of the one built in.
+  startAppCatalog();
 
   app.on("activate", function () {
     // On macOS it's common to re-create a window in the app when the

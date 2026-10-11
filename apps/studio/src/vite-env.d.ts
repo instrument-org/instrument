@@ -72,6 +72,8 @@ declare namespace NodeJS {
       SIGNTOOL_PATH: string | undefined;
       SKIP_MOVE_TO_APPLICATIONS: string | undefined;
       SKIP_ONBOARDING: string | undefined;
+      /** Dev only: the DEV_INSTANCE_COLORS name studio-drive marked this instance with. */
+      STUDIO_DRIVE_COLOR: string | undefined;
       /** Dev only: why studio-drive launched this instance. */
       STUDIO_DRIVE_PURPOSE: string | undefined;
       /** Dev only: the lowest electron-log level the terminal shows; `warn` when unset. */

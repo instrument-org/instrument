@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { grantFolder } from "../../lib/chat/grants";
 import { setWorkspaceActorRef } from "../../lib/workspace-actor-ref";
 import {
   getWorkspaceConfig,
@@ -79,6 +80,31 @@ describe("chats.live.tasks", () => {
     expect(
       next.done ? [] : next.value.map((task) => [task.handle, task.title]),
     ).toEqual([["t1", "Child"]]);
+    controller.abort();
+    await live.return?.(undefined).catch(() => undefined);
+  });
+});
+
+describe("chats.live.folders", () => {
+  it("answers again when the chat is granted a folder", async () => {
+    const context: WorkspaceRPCContext = {
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef: undefined as never,
+    };
+    const granted = fs.mkdtempSync(path.join(os.tmpdir(), "granted-"));
+    const controller = new AbortController();
+    const live = await call(
+      chats.live.folders,
+      { id: chatId },
+      { context, signal: controller.signal },
+    );
+    const paths = (next: IteratorResult<Record<string, { path: string }>>) =>
+      next.done ? [] : Object.values(next.value).map((folder) => folder.path);
+    expect(paths(await live.next())).not.toContain(granted);
+
+    await grantFolder({ chatId, path: granted, source: "card" });
+
+    expect(paths(await live.next())).toContain(granted);
     controller.abort();
     await live.return?.(undefined).catch(() => undefined);
   });

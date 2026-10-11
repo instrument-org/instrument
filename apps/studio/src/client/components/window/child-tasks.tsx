@@ -248,7 +248,7 @@ function TaskBrief({
 }) {
   const chatId = chatInfo.id;
   const reach = useQuery(
-    rpcClient.workspace.chats.folders.get.queryOptions({
+    rpcClient.workspace.chats.live.folders.experimental_liveOptions({
       input: { id: chatId },
     }),
   );

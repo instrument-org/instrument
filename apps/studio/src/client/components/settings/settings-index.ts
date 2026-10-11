@@ -214,6 +214,9 @@ export const SETTINGS_PAGES: Record<
   Providers: {
     detail: `The AI models ${APP_NAME} can use: your ChatGPT or Claude plan, or a provider you add with your own key.`,
   },
+  "AI usage": {
+    detail: `Every request ${APP_NAME} made to an AI model, which you can filter, sort, and export.`,
+  },
   Skills: {
     detail: `The skills ${APP_NAME}'s tasks can use, and making a new one.`,
   },

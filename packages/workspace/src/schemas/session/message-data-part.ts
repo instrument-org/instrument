@@ -11,9 +11,8 @@ export namespace SessionMessageDataPart {
    *
    * - **Event**: something that happened on this turn -- `asks`,
    *   `attachments`, `contextRollover`, `fromChat`, `intent`, `maxSteps`, `reply`,
-   *   `skillChanges`, `skillMentions`, and `chatContext`, which is written
-   *   once at creation. A repeat is impossible by construction; nothing to
-   *   guard.
+   *   `skillChanges`, and `skillMentions`. A repeat is impossible by
+   *   construction; nothing to guard.
    * - **Diff**: what changed since last time -- `folderChanges`,
    *   `modelChange`. Self-limiting: no change, no part.
    * - **State**: the whole current picture -- `backgroundProcesses`,
@@ -27,8 +26,8 @@ export namespace SessionMessageDataPart {
    *
    * Adding a part? Decide which of the three it is first.
    *
-   * One member below is none of the three, because nothing writes it: see
-   * `fileChanges`.
+   * Two members below are none of the three, because nothing writes them:
+   * see `fileChanges` and `chatContext`.
    */
   export const NameSchema = z.enum([
     "appEvent",
@@ -726,12 +725,13 @@ export namespace SessionMessageDataPart {
   export type MessageGapDataPart = z.output<typeof MessageGapDataPartSchema>;
 
   /**
-   * The user's other chats at the moment a new chat opened,
-   * newest first: each one's title, topics, latest line, and when it last
-   * moved. Written once, onto the chat's root message, so a fresh three-word
-   * ask can find the chat it belongs to. Stored rather than read live, so
-   * the note reads the same every time the transcript is rebuilt; `sentAt`
-   * is what "when" is measured from.
+   * The user's other chats at the moment a new chat opened, newest first:
+   * each one's title, topics, latest line, and when it last moved, on the
+   * root message of a chat an earlier build opened. Nothing writes it and
+   * the model is not shown it; the agent searches and reads earlier chats
+   * with `chat search` and `chat read` when the user refers to earlier work.
+   * Kept so those stored messages still parse, and shown only on the
+   * developer view of the transcript.
    */
   const ChatContextDataPartSchema = z.object({
     chats: z.array(

@@ -32,7 +32,6 @@ import { workDir } from "./work-dir";
 
 export async function newMessage({
   asks,
-  chatContext,
   files,
   folders,
   fromChat,
@@ -46,8 +45,6 @@ export async function newMessage({
 }: {
   /** Places in files the user marked, with what to change at each; see the asks part. */
   asks?: SessionMessageDataPart.AsksDataPart;
-  /** The user's other chats, on the message that opens a new one; see the chat-context part. */
-  chatContext?: SessionMessageDataPart.ChatContextDataPart;
   files?: FileUpload.Type[];
   /** Folders the user sent with the message, each granted to the chat. */
   folders?: { path: string }[];
@@ -189,19 +186,6 @@ export async function newMessage({
           }
         : part,
     );
-  }
-
-  if (chatContext) {
-    parts.push({
-      data: chatContext,
-      metadata: {
-        createdAt,
-        id: StoreId.newPartId(),
-        messageId,
-        sessionId,
-      },
-      type: "data-chatContext",
-    });
   }
 
   const backgroundProcessesPart = await createBackgroundProcessesPart({

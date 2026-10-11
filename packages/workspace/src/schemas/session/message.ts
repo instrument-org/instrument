@@ -21,7 +21,6 @@ import { asksModelNote } from "../../lib/asks-model-text";
 import { folderChangesModelNote } from "../../lib/folder-changes-model-text";
 import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
-import { chatContextModelNote } from "../../lib/chat-context-model-text";
 import { chatTopicsModelNote } from "../../lib/chat-topics-model-text";
 import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { formatBytes } from "../../lib/format-bytes";
@@ -576,20 +575,6 @@ export namespace SessionMessage {
         if (replyPart) {
           injectedParts.push({
             text: replyModelNote(replyPart.data),
-            type: "text",
-          });
-        }
-
-        const chatContextPart = message.parts.find(
-          (
-            part,
-          ): part is SessionMessagePart.DataPart & {
-            type: "data-chatContext";
-          } => part.type === "data-chatContext",
-        );
-        if (chatContextPart) {
-          injectedParts.push({
-            text: chatContextModelNote(chatContextPart.data),
             type: "text",
           });
         }

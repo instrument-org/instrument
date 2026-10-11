@@ -9,7 +9,6 @@ import { createWriteQueue } from "../../lib/create-write-queue";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
-import { chatContextFor } from "../../lib/chat/chat-context";
 import { setChatTopics } from "../../lib/chat/chats";
 
 import { resolveChat, sessionOfChat } from "../../lib/record-folders";
@@ -121,15 +120,9 @@ const create = base
         const chatSession = isChat ? sessionOfChat(chatId) : undefined;
 
         let finalSessionId: StoreId.Session;
-        // The other chats as they stand when a new one opens, read before
-        // the new session exists so it is not among them.
-        let chatContext: SessionMessageDataPart.ChatContextDataPart | undefined;
         if (sessionId) {
           finalSessionId = sessionId;
         } else {
-          if (isChat) {
-            chatContext = await chatContextFor();
-          }
           const sessionResult = await createSession({
             sessionId: chatSession ?? newSessionId ?? StoreId.newSessionId(),
             chatId,
@@ -159,7 +152,6 @@ const create = base
 
         const messageResult = await newMessage({
           asks,
-          chatContext,
           files,
           folders,
           modelURI,

@@ -8,7 +8,6 @@ export {
 export { appEventModelNote } from "./lib/app-event-model-text";
 export { backgroundProcessesModelNote } from "./lib/background-processes-model-text";
 export { browserStatusModelNote } from "./lib/browser-status-model-text";
-export { chatContextModelNote } from "./lib/chat-context-model-text";
 export { chatTopicsModelNote } from "./lib/chat-topics-model-text";
 export { dateChangeModelNote } from "./lib/date-change-model-text";
 export { describeMessageError } from "./lib/describe-message-error";

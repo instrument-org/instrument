@@ -38,7 +38,7 @@ import { createBashEnv } from "../src/lib/create-bash-env";
 import { assignMountNames } from "../src/lib/assign-mount-names";
 import { placeChat, resolveChat } from "../src/lib/record-folders";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
-import { FolderAttachment } from "../src/schemas/folder-attachment";
+import { MountedFolder } from "../src/schemas/mounted-folder";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { StoreId } from "../src/schemas/store-id";
 import { ChatIdSchema } from "../src/schemas/chat-id";
@@ -48,7 +48,7 @@ import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 
 function parseArgs(argv: string[]) {
   const attach: {
-    access: FolderAttachment.Access;
+    access: MountedFolder.Access;
     mountName?: string;
     path: string;
   }[] = [];
@@ -166,7 +166,7 @@ setWorkspaceConfig({
     path.join(rootDir, "system-skills"),
   ),
   chatsDir: AbsolutePathSchema.parse(chatsDir),
-  tasksDir: AbsolutePathSchema.parse(path.join(rootDir, "tasks")),
+  legacyTasksDir: AbsolutePathSchema.parse(path.join(rootDir, "tasks")),
   trashItem: () => Promise.resolve(),
   uvBinPath,
   uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),
@@ -196,28 +196,26 @@ if (resolveChat(chatId) === undefined) {
 
 const attached = args.attach.map((folder, index) => ({
   ...folder,
-  id: FolderAttachment.IdSchema.parse(`attach-${index}`),
+  id: MountedFolder.IdSchema.parse(`attach-${index}`),
 }));
 const names = assignMountNames(attached);
-const attachedFolders = Object.fromEntries(
-  attached.map((folder): [string, FolderAttachment.Type] => {
+const folders = Object.fromEntries(
+  attached.map((folder): [string, MountedFolder.Type] => {
     const mountName = folder.mountName ?? names.get(folder.id) ?? folder.id;
     return [
       mountName,
       {
         access: folder.access,
-        createdAt: 0,
         id: folder.id,
         mountName,
         path: AbsolutePathSchema.parse(folder.path),
-        source: "user",
       },
     ];
   }),
 );
 
 const bash = await createBashEnv({
-  attachedFolders,
+  folders,
   sessionId,
   chatId,
 });

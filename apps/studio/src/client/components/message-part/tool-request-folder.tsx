@@ -80,7 +80,7 @@ export function ToolRequestFolder({
     const mountPoint =
       refused && refusedFolder && picked.path === refused
         ? refusedFolder
-        : `${MOUNT.attachedFolders}/${
+        : `${MOUNT.folders}/${
             (await grant.mutateAsync({ id: chatId, path: picked.path }))
               .mountName
           }`;
@@ -137,7 +137,7 @@ export function ToolRequestFolder({
         ) : part.state === "output-available" ? (
           <p className="mt-2 text-xs text-muted-foreground">
             {part.output.status === "granted"
-              ? `You attached "${part.output.mountPoint.slice(MOUNT.attachedFolders.length + 1)}".`
+              ? `You attached "${part.output.mountPoint.slice(MOUNT.folders.length + 1)}".`
               : "You declined."}
           </p>
         ) : null}
@@ -154,7 +154,7 @@ async function refusedHostPath(
   chatId: ChatId,
   mountPath: string,
 ): Promise<string | undefined> {
-  const prefix = `${MOUNT.attachedFolders}/`;
+  const prefix = `${MOUNT.folders}/`;
   if (!mountPath.startsWith(prefix)) {
     return undefined;
   }

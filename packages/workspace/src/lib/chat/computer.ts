@@ -5,7 +5,7 @@ import path from "node:path";
 import { unique } from "radashi";
 import { z } from "zod";
 
-import { type FolderAttachment } from "../../schemas/folder-attachment";
+import { type MountedFolder } from "../../schemas/mounted-folder";
 import { type ChatId } from "../../schemas/chat-id";
 import { getMimeType } from "../get-mime-type";
 import { pathIsWithin } from "../path-is-within";
@@ -125,14 +125,14 @@ export const ComputerFolderSchema = z.discriminatedUnion("kind", [
 ]);
 export type ComputerFolder = z.output<typeof ComputerFolderSchema>;
 
-/** A granted folder as a host root, with how the agent reaches what is under it. */
-export interface AttachedRoot {
+/** A folder the chat reaches as a host root, with how the agent reaches what is under it. */
+export interface FolderRoot {
   /**
    * The access the grant carries. What a folder under the root gets is judged
    * for that folder: the home folder is read-only as a whole, since the
    * workspace lives inside it, while its Desktop takes the grant in full.
    */
-  grant: FolderAttachment.Access;
+  grant: MountedFolder.Access;
   mountPoint: string;
   root: string;
 }
@@ -144,10 +144,10 @@ export interface AttachedRoot {
  * mount path it becomes is in the agent's.
  */
 export function accessIn(
-  roots: AttachedRoot[],
+  roots: FolderRoot[],
   hostPath: string,
 ): ComputerAccess | undefined {
-  let best: AttachedRoot | undefined;
+  let best: FolderRoot | undefined;
   for (const candidate of roots) {
     const { root } = candidate;
     if (
@@ -462,32 +462,32 @@ async function exists(hostPath: string) {
 }
 
 /**
- * The chat's own view of the filesystem: its folder and the folders the user
- * attached. Beside the layout, the same mounts as host roots with the grant
+ * The chat's own view of the filesystem: its folder and the folders it
+ * reaches. Beside the layout, the same mounts as host roots with the grant
  * each carries, which is what a folder's access is judged from.
  */
 async function chatView(chatId: ChatId) {
   const taskHostRoot = chatDir(chatId);
-  const attachedFolders = await folderReach(chatId);
-  const layout = buildWorkspaceFsLayout({ attachedFolders, taskHostRoot });
-  return { layout, roots: reachableRoots(layout, attachedFolders) };
+  const folders = await folderReach(chatId);
+  const layout = buildWorkspaceFsLayout({ folders, taskHostRoot });
+  return { layout, roots: reachableRoots(layout, folders) };
 }
 
 /**
  * What a chat can reach outside its own folder, each resolved to a host
- * root: the folders the user granted it.
+ * root: the folders `folderReach` answers.
  */
 function reachableRoots(
   layout: WorkspaceFsLayout,
-  attachedFolders: Record<string, FolderAttachment.Type>,
-): AttachedRoot[] {
+  folders: Record<string, MountedFolder.Type>,
+): FolderRoot[] {
   const grants = new Map(
-    Object.values(attachedFolders).map((folder) => [
+    Object.values(folders).map((folder) => [
       path.resolve(folder.path),
       folder.access,
     ]),
   );
-  return layout.attached.map((mount) => {
+  return layout.folders.map((mount) => {
     const root = path.resolve(mount.hostRoot);
     return {
       // A mount with no grant behind it is one the layout holds read-only.

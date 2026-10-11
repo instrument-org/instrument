@@ -248,8 +248,7 @@ const assertNoteEdited: Assertion = {
     // Read at the mount the conversation sees, whatever it said, so the edit
     // is scored apart from whether anyone handed it over.
     const resolved = await getCurrentFileInfo({
-      filePath:
-        `${MOUNT.attachedFolders}/Journal/${EDITED_NOTE}` as WorkspaceFilePath,
+      filePath: `${MOUNT.folders}/Journal/${EDITED_NOTE}` as WorkspaceFilePath,
       chatId,
     });
     if (resolved.isErr()) {
@@ -273,7 +272,7 @@ const assertNoteEdited: Assertion = {
 // A link whose target is the note, either as its path or as the app's own
 // address for a file; both draw the same chip the fence's card opens.
 const NOTE_LINK = new RegExp(
-  String.raw`\[[^\]]*\]\(\s*((?:${APP_NAME_SLUG}://file/)?/*${MOUNT.attachedFolders.slice(1)}/[^)\s]*${EDITED_NOTE.replaceAll(".", String.raw`\.`)})\s*\)`,
+  String.raw`\[[^\]]*\]\(\s*((?:${APP_NAME_SLUG}://file/)?/*${MOUNT.folders.slice(1)}/[^)\s]*${EDITED_NOTE.replaceAll(".", String.raw`\.`)})\s*\)`,
   "giu",
 );
 

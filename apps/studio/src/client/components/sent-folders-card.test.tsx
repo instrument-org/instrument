@@ -4,7 +4,7 @@ import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { FileOpenContext } from "./file-open-context";
-import { FolderAttachmentsCard } from "./folder-attachments-card";
+import { SentFoldersCard } from "./sent-folders-card";
 import { type OpenOptions } from "./window/context";
 
 // Paths shorten against the home directory the dom setup pins on the preload
@@ -14,10 +14,10 @@ function folder(path: string): SessionMessageDataPart.SentFolderDataPart {
   return { path };
 }
 
-describe("FolderAttachmentsCard", () => {
+describe("SentFoldersCard", () => {
   it("names a folder from its path", () => {
     renderWithProviders(
-      <FolderAttachmentsCard folders={[folder("/Users/sam/Downloads")]} />,
+      <SentFoldersCard folders={[folder("/Users/sam/Downloads")]} />,
     );
 
     expect(screen.getByText("Downloads")).toBeTruthy();
@@ -25,7 +25,7 @@ describe("FolderAttachmentsCard", () => {
 
   it("reads a path under the home directory from the home folder's name", () => {
     renderWithProviders(
-      <FolderAttachmentsCard folders={[folder("/Users/sam/Downloads")]} />,
+      <SentFoldersCard folders={[folder("/Users/sam/Downloads")]} />,
     );
 
     expect(screen.getByText("sam/Downloads")).toBeTruthy();
@@ -33,7 +33,7 @@ describe("FolderAttachmentsCard", () => {
 
   it("shows a path outside the home directory in full", () => {
     renderWithProviders(
-      <FolderAttachmentsCard folders={[folder("/Volumes/Archive/2026")]} />,
+      <SentFoldersCard folders={[folder("/Volumes/Archive/2026")]} />,
     );
 
     expect(screen.getByText("/Volumes/Archive/2026")).toBeTruthy();
@@ -43,7 +43,7 @@ describe("FolderAttachmentsCard", () => {
     const openFile = vi.fn<(path: string, options?: OpenOptions) => void>();
     renderWithProviders(
       <FileOpenContext value={openFile}>
-        <FolderAttachmentsCard folders={[folder("/Users/sam/Downloads")]} />
+        <SentFoldersCard folders={[folder("/Users/sam/Downloads")]} />
       </FileOpenContext>,
     );
 

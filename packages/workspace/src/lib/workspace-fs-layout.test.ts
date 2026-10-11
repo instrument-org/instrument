@@ -9,7 +9,7 @@ import { MOUNT } from "../mount-points";
 
 /** The workspace's own skills, now one source segment among several. */
 const WORKSPACE_SKILLS = `${MOUNT.skills}/workspace`;
-import { FolderAttachment } from "../schemas/folder-attachment";
+import { MountedFolder } from "../schemas/mounted-folder";
 import {
   AbsolutePathSchema,
   ChatDirSchema,
@@ -48,16 +48,14 @@ describe("buildBashFs", () => {
     await fs.rm(tmpDir, { force: true, recursive: true });
   });
 
-  async function makeBash(access: FolderAttachment.Access = "read-only") {
+  async function makeBash(access: MountedFolder.Access = "read-only") {
     const layout = buildWorkspaceFsLayout({
-      attachedFolders: {
+      folders: {
         docs: {
           access,
-          createdAt: 0,
-          id: FolderAttachment.IdSchema.parse("docs-id"),
+          id: MountedFolder.IdSchema.parse("docs-id"),
           mountName: "Docs",
           path: AbsolutePathSchema.parse(path.join(tmpDir, "Docs")),
-          source: "user",
         },
       },
       taskHostRoot: ChatDirSchema.parse(path.join(tmpDir, "task")),
@@ -89,7 +87,7 @@ describe("buildBashFs", () => {
     ).resolves.toBe("hi\n");
   });
 
-  it("reads attached folders at their /mnt path", async () => {
+  it("reads folder mounts at their /mnt path", async () => {
     const bash = await makeBash();
     const result = await bash.exec("cat '/mnt/Docs/readme.txt'");
     expect(result.stdout).toBe("hello docs");
@@ -265,7 +263,7 @@ describe("buildBashFs", () => {
     expect(result.stderr).toBe("");
   });
 
-  it("skips attached mounts whose folder is missing on disk", async () => {
+  it("skips folder mounts whose folder is missing on disk", async () => {
     await fs.rm(path.join(tmpDir, "Docs"), { force: true, recursive: true });
     const bash = await makeBash();
     const result = await bash.exec("ls '/mnt/Docs'");
@@ -464,14 +462,12 @@ describe("classifyHostPath", () => {
 
   function layout() {
     return buildWorkspaceFsLayout({
-      attachedFolders: {
+      folders: {
         Home: {
           access: "read-only",
-          createdAt: 0,
-          id: FolderAttachment.IdSchema.parse("home-id"),
+          id: MountedFolder.IdSchema.parse("home-id"),
           mountName: "Home",
           path: AbsolutePathSchema.parse(home),
-          source: "user",
         },
       },
       taskHostRoot: ChatDirSchema.parse(task),
@@ -487,7 +483,7 @@ describe("classifyHostPath", () => {
 
   it("masks the private dir through a mount that holds it whole", () => {
     const built = layout();
-    const homeMount = built.attached[0];
+    const homeMount = built.folders[0];
     const found = classifyHostPath(
       built,
       path.join(task, ".instrument", "state.json"),

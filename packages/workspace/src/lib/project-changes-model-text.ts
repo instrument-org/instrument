@@ -21,7 +21,7 @@ export function projectChangesModelNote(
 
   if (data.foldersAdded.length > 0) {
     // A folder new to this task is not in the attached-folders baseline, so
-    // detectAttachedFolderChanges cannot report its access. This is the only
+    // detectFolderChanges cannot report its access. This is the only
     // per-turn announcement it gets, and it has to carry what the mount allows.
     const added = data.foldersAdded
       .map(
@@ -30,7 +30,7 @@ export function projectChangesModelNote(
       )
       .join("\n");
     lines.push(
-      `These folders were added to the "${data.projectName}" project and are now mounted under ${MOUNT.attachedFolders}/ with the access shown (the attached-folders context lists the exact paths):\n${added}`,
+      `These folders were added to the "${data.projectName}" project and are now mounted under ${MOUNT.folders}/ with the access shown (the attached-folders context lists the exact paths):\n${added}`,
     );
   }
 

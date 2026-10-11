@@ -1,7 +1,7 @@
 import { APP_NAME } from "@instrument-org/shared";
 import path from "node:path";
 
-import { attachedFolderMountPoint } from "../../attached-folder-mounts";
+import { folderMountPoint } from "../../folder-mounts";
 import { folderReach } from "../../chat/folder-reach";
 import { grantFolder } from "../../chat/grants";
 import { folderLabel } from "../../folder-parent-label";
@@ -12,7 +12,7 @@ import {
   awaitAnswers,
   requireFoldersOnDisk,
   resolveFolders,
-} from "../task-args";
+} from "./folder-specs";
 import { TASK_COMMAND } from "../task-command";
 import { type TaskCommandContext } from "./context";
 
@@ -66,7 +66,7 @@ async function runFolder(input: SubcommandInput, context: TaskCommandContext) {
       (held) => path.resolve(held.path) === path.resolve(folder.path),
     );
     const mountPoint = mounted
-      ? attachedFolderMountPoint(mounted.mountName)
+      ? folderMountPoint(mounted.mountName)
       : folder.path;
     lines.push(
       `You now have ${folderLabel(folder.path)} at ${mountPoint} (${mounted ? effectiveFolderAccess(mounted) : "read-write"}). Work in it there.`,

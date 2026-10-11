@@ -8,41 +8,35 @@ import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { grantFolder, revokeGrant } from "./chat/grants";
-import { detectAttachedFolderChanges } from "./attached-folder-changes";
-import { setAttachedFoldersBaseline } from "./attached-folders-baseline";
+import { detectFolderChanges } from "./folder-changes";
+import { setFoldersBaseline } from "./folders-baseline";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { initializeTestChat } from "../test/helpers/initialize-test-chat";
 
-// A task of its own per test: the session store is cached by task id, so a
-// second task under one name in a fresh temp directory reuses the handle on the
+// A chat of its own per test: the session store is cached by chat id, so a
+// second chat under one name in a fresh temp directory reuses the handle on the
 // database the last one deleted, which answers every write as readonly.
-let taskCount = 0;
-let TASK_ID: ReturnType<typeof ChatIdSchema.parse>;
+let chatCount = 0;
+let CHAT_ID: ReturnType<typeof ChatIdSchema.parse>;
 
 let rootDir: string;
 let sessionId: StoreId.Session;
 let downloads: string;
 
-async function changesSince(
-  baseline: {
-    access: "read-only" | "read-write";
-    name: string;
-    path: string;
-  }[],
-) {
-  const set = await setAttachedFoldersBaseline(TASK_ID, sessionId, baseline);
+async function changesSince(baseline: { name: string; path: string }[]) {
+  const set = await setFoldersBaseline(CHAT_ID, sessionId, baseline);
   if (set.isErr()) {
     throw set.error;
   }
-  const result = await detectAttachedFolderChanges({
+  const result = await detectFolderChanges({
     messageId: StoreId.newMessageId(),
     sessionId,
-    chatId: TASK_ID,
+    chatId: CHAT_ID,
   });
   if (result.isErr()) {
     throw result.error;
   }
-  return result.value?.type === "data-attachedFolderChanges"
+  return result.value?.type === "data-folderChanges"
     ? result.value.data
     : undefined;
 }
@@ -51,8 +45,8 @@ beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "folder-changes-"));
   downloads = path.join(rootDir, "Downloads");
   await fs.mkdir(downloads, { recursive: true });
-  TASK_ID = ChatIdSchema.parse(`find-the-vault-${++taskCount}`);
-  createMockChatConfigForDir(path.join(rootDir, "tasks", TASK_ID), {
+  CHAT_ID = ChatIdSchema.parse(`find-the-vault-${++chatCount}`);
+  createMockChatConfigForDir(path.join(rootDir, "tasks", CHAT_ID), {
     unplaced: true,
   });
   setWorkspaceConfig({
@@ -68,7 +62,7 @@ beforeEach(async () => {
   });
   await initializeTestChat({
     initialSettings: { name: "Find the vault" },
-    chatId: TASK_ID,
+    chatId: CHAT_ID,
   });
   sessionId = StoreId.newSessionId();
 });
@@ -77,9 +71,9 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-describe("detectAttachedFolderChanges", () => {
+describe("detectFolderChanges", () => {
   it("reports a folder granted between turns", async () => {
-    await grantFolder({ chatId: TASK_ID, path: downloads, source: "card" });
+    await grantFolder({ chatId: CHAT_ID, path: downloads, source: "card" });
 
     const changes = await changesSince([]);
 
@@ -91,27 +85,23 @@ describe("detectAttachedFolderChanges", () => {
   it("reports a removal beside a folder granted since", async () => {
     const gone = path.join(rootDir, "Old");
     await fs.mkdir(gone);
-    await grantFolder({ chatId: TASK_ID, path: gone, source: "card" });
-    await grantFolder({ chatId: TASK_ID, path: downloads, source: "card" });
-    await revokeGrant({ chatId: TASK_ID, path: gone });
+    await grantFolder({ chatId: CHAT_ID, path: gone, source: "card" });
+    await grantFolder({ chatId: CHAT_ID, path: downloads, source: "card" });
+    await revokeGrant({ chatId: CHAT_ID, path: gone });
 
-    const changes = await changesSince([
-      { access: "read-write", name: "Old", path: gone },
-    ]);
+    const changes = await changesSince([{ name: "Old", path: gone }]);
 
     expect(changes?.added).toEqual([
       { access: "read-write", name: "Downloads", path: downloads },
     ]);
-    expect(changes?.removed).toEqual([
-      { access: "read-write", name: "Old", path: gone },
-    ]);
+    expect(changes?.removed).toEqual([{ name: "Old", path: gone }]);
   });
 
   it("reports nothing when the folders are as the model last saw them", async () => {
-    await grantFolder({ chatId: TASK_ID, path: downloads, source: "card" });
+    await grantFolder({ chatId: CHAT_ID, path: downloads, source: "card" });
 
     const changes = await changesSince([
-      { access: "read-write", name: "Downloads", path: downloads },
+      { name: "Downloads", path: downloads },
     ]);
 
     expect(changes).toBeUndefined();

@@ -54,7 +54,7 @@ const GeneratedImageFileSchema = z.object({
 const PARTIAL_THROTTLE_MS = 400;
 
 const SourceImageFileSchema = z.object({
-  // Task-relative, or an attached folder's mount path (/mnt/<name>/...); mount
+  // Task-relative, or a folder's mount path (/mnt/<name>/...); mount
   // paths cannot be served by the task asset server, so the UI falls back to a
   // name-only chip for them.
   filePath: z.string(),
@@ -86,7 +86,7 @@ export const GenerateImage = setupTool({
       .array(z.string())
       .optional()
       .meta({
-        description: `Paths to images used for image-to-image (img2img) conditioning: task-relative, or an attached folder's mount path (${MOUNT.attachedFolders}/<name>/...). Use when the user wants to edit, transform, or use an existing image as a visual reference or style source.`,
+        description: `Paths to images used for image-to-image (img2img) conditioning: task-relative, or a folder's mount path (${MOUNT.folders}/<name>/...). Use when the user wants to edit, transform, or use an existing image as a visual reference or style source.`,
       }),
   }),
   name: "generate_image",
@@ -147,7 +147,7 @@ export const GenerateImage = setupTool({
   `,
   async *execute({ input, model, sessionId, signal, chatId }) {
     const layout = buildWorkspaceFsLayout({
-      attachedFolders: await folderReach(chatId),
+      folders: await folderReach(chatId),
       taskHostRoot: workDir(chatId),
     });
     const filePathResult = resolveWritableToolPath({
@@ -200,7 +200,7 @@ export const GenerateImage = setupTool({
       const resolvedSources = [];
       for (const inputPath of input.sourceImages) {
         // Sources are reads in our own process (not a native subprocess), so
-        // they resolve like read_file: task paths or attached mounts, with
+        // they resolve like read_file: task paths or folder mounts, with
         // the same symlink containment.
         const pathResult = resolveExistingFilePath({ inputPath, layout });
         if (pathResult.isErr()) {

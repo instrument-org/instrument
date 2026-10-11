@@ -60,7 +60,7 @@ import {
   FOLLOW_UP_WAIT_ARGS,
 } from "./agent-browser-follow-up";
 import {
-  attachedMountLiteralError,
+  mountLiteralError,
   privateDirLiteralError,
   resolveCommandContext,
   resolvePathArgs,
@@ -269,7 +269,7 @@ const WORKSPACE_HELP_MANAGED = dedent`
 
   Inspecting a file you created:
     agent-browser open work/report.html     Task files load in the browser
-    agent-browser open ${MOUNT.task}/work/x.html  Task-relative, ${MOUNT.task}/..., ${MOUNT.attachedFolders}/...,
+    agent-browser open ${MOUNT.task}/work/x.html  Task-relative, ${MOUNT.task}/..., ${MOUNT.folders}/...,
                                             and file://${MOUNT.task}/... all work
   Use this to check an HTML deliverable end to end -- rendered layout, interactivity, and console errors -- not just its source.
 
@@ -479,8 +479,8 @@ export async function resolveAgentBrowserPathArgs(
   for (const { index, value } of subArgs.slice(2)) {
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, value);
 
-    if (isAtOrUnder(MOUNT.attachedFolders, virtualPath)) {
-      return { error: attachedMountLiteralError("Upload") };
+    if (isAtOrUnder(MOUNT.folders, virtualPath)) {
+      return { error: mountLiteralError("Upload") };
     }
 
     if (classifyVirtualPath(layout, virtualPath)?.masked !== undefined) {

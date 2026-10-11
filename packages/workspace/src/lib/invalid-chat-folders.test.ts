@@ -30,7 +30,7 @@ beforeEach(() => {
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
-    tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
+    legacyTasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
     trashItem: (target: AbsolutePath) => {
       trashed.push(target);
       fs.rmSync(target, { force: true, recursive: true });
@@ -57,8 +57,8 @@ async function chat() {
   return id;
 }
 
-/** A task folder inside a chat, with these settings when there are any. */
-function chatTask(
+/** A folder in a chat's leftover `tasks/`, with these settings when there are any. */
+function leftoverTask(
   chatId: ReturnType<typeof chatFor>,
   name: string,
   settings?: string,
@@ -72,51 +72,29 @@ function chatTask(
 }
 
 describe("listInvalidChatFolders", () => {
-  it("lists a chat's task whose settings are missing or unreadable, creating nothing in it", async () => {
+  // A chat's leftover `tasks/` is read by nothing, so nothing in it is a
+  // chat the list leaves out.
+  it("leaves a chat's leftover tasks/ folder alone", async () => {
     const id = await chat();
-    chatTask(id, "2026-09-30-fine", JSON.stringify({ name: "Fine" }));
-    const missing = chatTask(id, "2026-09-30-no-settings");
-    chatTask(id, "2026-09-30-truncated", '{"name": "Half');
+    leftoverTask(id, "2026-09-30-no-settings");
+    leftoverTask(id, "2026-09-30-truncated", '{"name": "Half');
 
-    const invalid = await listInvalidChatFolders();
-
-    expect(
-      invalid
-        .map((folder) => ({
-          ...folder,
-          name: path.relative(id, folder.name),
-        }))
-        .toSorted((a, b) => a.name.localeCompare(b.name)),
-    ).toMatchInlineSnapshot(`
-      [
-        {
-          "kind": "chat-task",
-          "name": "tasks/2026-09-30-no-settings",
-          "reason": "Missing or unreadable settings (.instrument/settings.json)",
-        },
-        {
-          "kind": "chat-task",
-          "name": "tasks/2026-09-30-truncated",
-          "reason": "Missing or unreadable settings (.instrument/settings.json)",
-        },
-      ]
-    `);
-    expect(fs.readdirSync(path.join(missing, ".instrument"))).toEqual([]);
+    expect(await listInvalidChatFolders()).toEqual([]);
   });
 });
 
 describe("trashInvalidChatFolder", () => {
-  it("trashes a chat's unreadable task and forgets it, leaving the chat", async () => {
+  it("refuses a folder the scan does not report", async () => {
     const id = await chat();
-    const dir = chatTask(id, "2026-09-30-truncated", '{"name": "Half');
+    const dir = leftoverTask(id, "2026-09-30-truncated", '{"name": "Half');
 
     const result = await trashInvalidChatFolder(
       path.join(id, "tasks", "2026-09-30-truncated"),
       getWorkspaceConfig(),
     );
 
-    expect(result.isOk()).toBe(true);
-    expect(trashed).toEqual([dir]);
-    expect(await listInvalidChatFolders()).toEqual([]);
+    expect(result.isErr()).toBe(true);
+    expect(trashed).toEqual([]);
+    expect(fs.existsSync(dir)).toBe(true);
   });
 });

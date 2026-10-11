@@ -7,14 +7,14 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { accessIn, type AttachedRoot, listComputerFolder } from "./computer";
+import { accessIn, type FolderRoot, listComputerFolder } from "./computer";
 
 // Host paths in the running platform's own separators, which is what the
 // listing and the grants both carry: a Windows grant is `C:\Users\casey\Documents`
 // and its children are spelled the same way.
 const home = path.resolve(path.sep, "Users", "casey");
 const documents = path.join(home, "Documents");
-const roots: AttachedRoot[] = [
+const roots: FolderRoot[] = [
   { grant: "read-only", mountPoint: "/mnt/Home", root: home },
   { grant: "read-only", mountPoint: "/mnt/Documents", root: documents },
 ];

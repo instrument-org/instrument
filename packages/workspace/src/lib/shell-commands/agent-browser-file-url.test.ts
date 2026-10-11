@@ -1,20 +1,18 @@
 import { InMemoryFs } from "just-bash";
 import { describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../../schemas/folder-attachment";
+import { MountedFolder } from "../../schemas/mounted-folder";
 import { AbsolutePathSchema, ChatDirSchema } from "../../schemas/paths";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
 
 const layout = buildWorkspaceFsLayout({
-  attachedFolders: {
+  folders: {
     docs: {
       access: "read-only",
-      createdAt: 0,
-      id: FolderAttachment.IdSchema.parse("docs"),
+      id: MountedFolder.IdSchema.parse("docs"),
       mountName: "Docs",
       path: AbsolutePathSchema.parse("/Users/me/My Docs"),
-      source: "user",
     },
   },
   taskHostRoot: ChatDirSchema.parse("/Users/me/Tasks/test-task"),
@@ -82,7 +80,7 @@ describe("rewriteNavigationArgToFileUrl", () => {
     );
   });
 
-  it("opens an attached folder's file where it lives", async () => {
+  it("opens a folder mount's file where it lives", async () => {
     const result = await rewritten(["open", "/mnt/Docs/notes.html"]);
 
     expect(result[1]).toMatchInlineSnapshot(

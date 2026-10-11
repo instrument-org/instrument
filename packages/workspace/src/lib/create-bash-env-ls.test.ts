@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
+import { MountedFolder } from "../schemas/mounted-folder";
 import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -40,14 +40,12 @@ const BUDGET = 20_000;
 
 async function run(command: string) {
   const bash = await createBashEnv({
-    attachedFolders: {
+    folders: {
       Home: {
         access: "read-only",
-        createdAt: Date.now(),
-        id: FolderAttachment.IdSchema.parse("home-id"),
+        id: MountedFolder.IdSchema.parse("home-id"),
         mountName: "Home",
         path: ChatDirSchema.parse(attachedDir),
-        source: "user",
       },
     },
     sessionId,
@@ -90,7 +88,7 @@ afterAll(async () => {
   await fs.rm(tmpDir, { force: true, recursive: true });
 });
 
-describe("ls over a large attached folder", () => {
+describe("ls over a large folder mount", () => {
   it("lists a large directory in long format in linear time", async () => {
     // Guarded by the test timeout.
     const result = await run("ls -l /mnt/Home/d00 | wc -l");

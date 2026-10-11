@@ -299,9 +299,8 @@ async function seedTask({
   const isChat = "tasks" in task;
   // The fixture's own key becomes the folder name, so a seeded task has an id
   // that is readable, stable across seeds, and findable in the fixture.
-  const id = await newChatId({
+  const id = newChatId({
     preferredFolderName: SubdomainPartSchema.parse(task.key),
-    workspaceConfig,
   });
 
   // `newChatId` falls back to a dated name when the folder is taken, which for

@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { attachedFolderChangesModelNote } from "./attached-folder-changes-model-text";
+import { folderChangesModelNote } from "./folder-changes-model-text";
 
-describe("attachedFolderChangesModelNote", () => {
+describe("folderChangesModelNote", () => {
   it("returns null when nothing changed", () => {
     expect(
-      attachedFolderChangesModelNote({
-        accessChanged: [],
+      folderChangesModelNote({
         added: [],
         removed: [],
         renamed: [],
@@ -16,8 +15,7 @@ describe("attachedFolderChangesModelNote", () => {
 
   it("describes folders handed over since the last turn", () => {
     expect(
-      attachedFolderChangesModelNote({
-        accessChanged: [],
+      folderChangesModelNote({
         added: [
           { access: "read-write", name: "Downloads", path: "/base/Downloads" },
           { access: "read-only", name: "Photos", path: "/base/Photos" },
@@ -28,7 +26,7 @@ describe("attachedFolderChangesModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      You have been given these folders since your last activity. They are mounted and ready to read now, alongside the ones your attached-folders context lists:
+      You have been given these folders since your last activity. They are mounted and ready to read now, alongside the ones your folders context lists:
       - "Downloads" -> \`/mnt/Downloads\` (read and write)
       - "Photos" -> \`/mnt/Photos\` (read-only)
       </instrument-system-note>"
@@ -37,8 +35,7 @@ describe("attachedFolderChangesModelNote", () => {
 
   it("describes removed folders", () => {
     expect(
-      attachedFolderChangesModelNote({
-        accessChanged: [],
+      folderChangesModelNote({
         added: [],
         removed: [{ name: "Downloads", path: "/base/Downloads" }],
         renamed: [],
@@ -46,7 +43,7 @@ describe("attachedFolderChangesModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      The user removed these attached folders from this task since your last activity. Their /mnt mounts are gone, so do not attempt to read or search them:
+      These folders were taken back from this chat since your last activity. Their /mnt mounts are gone, so do not attempt to read or search them:
       - "Downloads" (was mounted at \`/mnt/Downloads\`)
       </instrument-system-note>"
     `);
@@ -54,8 +51,7 @@ describe("attachedFolderChangesModelNote", () => {
 
   it("describes renamed folders", () => {
     expect(
-      attachedFolderChangesModelNote({
-        accessChanged: [],
+      folderChangesModelNote({
         added: [],
         removed: [],
         renamed: [
@@ -77,8 +73,7 @@ describe("attachedFolderChangesModelNote", () => {
 
   it("describes both in one note", () => {
     expect(
-      attachedFolderChangesModelNote({
-        accessChanged: [],
+      folderChangesModelNote({
         added: [],
         removed: [{ name: "Old", path: "/base/Old" }],
         renamed: [
@@ -92,32 +87,11 @@ describe("attachedFolderChangesModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      The user removed these attached folders from this task since your last activity. Their /mnt mounts are gone, so do not attempt to read or search them:
+      These folders were taken back from this chat since your last activity. Their /mnt mounts are gone, so do not attempt to read or search them:
       - "Old" (was mounted at \`/mnt/Old\`)
 
       These folders are mounted at a new path. Use the new path instead of any old one you referenced earlier. The user's folders were not renamed and are still called what they were called, so do not report a rename:
       - "Downloads": now \`/mnt/Local-Downloads\`, was \`/mnt/Downloads\`
-      </instrument-system-note>"
-    `);
-  });
-
-  it("describes an access change", () => {
-    expect(
-      attachedFolderChangesModelNote({
-        accessChanged: [
-          { access: "read-write", name: "Photos", path: "/base/Photos" },
-          { access: "read-only", name: "Docs", path: "/base/Docs" },
-        ],
-        added: [],
-        removed: [],
-        renamed: [],
-      }),
-    ).toMatchInlineSnapshot(`
-      "
-      <instrument-system-note>
-      The user changed what you may do with these attached folders. This supersedes the access level listed in your attached-folders context, which may be older than this message:
-      - "Photos" (\`/mnt/Photos\`): now read and write
-      - "Docs" (\`/mnt/Docs\`): now read-only
       </instrument-system-note>"
     `);
   });

@@ -73,13 +73,13 @@ const KNOWN_OPTIONS = {
 } as const;
 
 export const NODE_COMMAND = {
-  description: `Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd, quoted "${MOUNT.task}/..." strings are bridged; ${MOUNT.attachedFolders} paths are not available (\`js-exec\` reads them, without packages).`,
+  description: `Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd, quoted "${MOUNT.task}/..." strings are bridged; ${MOUNT.folders} paths are not available (\`js-exec\` reads them, without packages).`,
   name: "node",
 } as const;
 
 /** What the mount guard offers in place of copying, when no package is involved. */
 const SANDBOXED_ALTERNATIVE = {
-  alternative: `Run it with \`js-exec\` instead, which reads attached folders directly, if the code imports no package.`,
+  alternative: `Run it with \`js-exec\` instead, which reads folder mounts directly, if the code imports no package.`,
 };
 
 export function createNodeCommand(chatId: ChatId, layout: WorkspaceFsLayout) {

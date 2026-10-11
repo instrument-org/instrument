@@ -27,7 +27,7 @@ import { workDir } from "../work-dir";
  */
 export interface MountAlternative {
   /**
-   * One sentence naming the sandboxed command that reads attached folders in
+   * One sentence naming the sandboxed command that reads folder mounts in
    * place, when the invocation could have used it. Absent for a command with
    * no sandboxed twin (ffmpeg, pip) and for a skill script, which runs
    * natively on purpose.
@@ -40,7 +40,7 @@ export interface MountAlternative {
  * source's code, the copy command names the first file it quotes, so the fix
  * is one the agent can run as written rather than a template to fill in.
  */
-export function attachedMountLiteralError(
+export function mountLiteralError(
   subject: string,
   { alternative }: MountAlternative = {},
   source?: string,
@@ -48,11 +48,11 @@ export function attachedMountLiteralError(
   const file = source === undefined ? undefined : copyableMountFile(source);
   const copy = file
     ? `(cp '${file}' attachments/) and open the copy as attachments/${path.posix.basename(file)}.`
-    : `(cp '${MOUNT.attachedFolders}/<folder>/<file>' attachments/) and ` +
+    : `(cp '${MOUNT.folders}/<folder>/<file>' attachments/) and ` +
       `reference the copy with a task-relative path (attachments/<file>).`;
   return (
-    `${subject} references a ${MOUNT.attachedFolders}/... path. ` +
-    `Attached-folder mounts are visible to the sandbox shell, the file tools, ` +
+    `${subject} references a ${MOUNT.folders}/... path. ` +
+    `Folder mounts are visible to the sandbox shell, the file tools, ` +
     `and the sandboxed script runtimes, never to a real interpreter process. ` +
     (alternative ? `${alternative} Otherwise copy` : `Copy`) +
     ` the file into the task first ${copy}`
@@ -67,10 +67,7 @@ export function attachedMountLiteralError(
  * copy command built from it would be wrong.
  */
 function copyableMountFile(source: string): string | undefined {
-  const escaped = MOUNT.attachedFolders.replaceAll(
-    /[.*+?^${}()|[\]\\]/g,
-    "\\$&",
-  );
+  const escaped = MOUNT.folders.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const literal = new RegExp(`(['"\`])(${escaped}/[^'"\`\\n]+)\\1`).exec(
     source,
   )?.[2];
@@ -123,9 +120,9 @@ export function bridgeInlineCodePaths(
   taskCwd: string,
   alternative: MountAlternative = {},
 ): { code: string } | { error: string } {
-  if (quotedMountPattern(MOUNT.attachedFolders).test(code)) {
+  if (quotedMountPattern(MOUNT.folders).test(code)) {
     return {
-      error: attachedMountLiteralError("Inline script code", alternative, code),
+      error: mountLiteralError("Inline script code", alternative, code),
     };
   }
 
@@ -375,8 +372,8 @@ export function scriptFileVirtualPathError(
   source: string,
   alternative: MountAlternative = {},
 ): string | undefined {
-  if (quotedMountPattern(MOUNT.attachedFolders).test(source)) {
-    return attachedMountLiteralError("This script file", alternative, source);
+  if (quotedMountPattern(MOUNT.folders).test(source)) {
+    return mountLiteralError("This script file", alternative, source);
   }
   if (quotedMountPattern(privateMountPoint(MOUNT.task)).test(source)) {
     return privateDirLiteralError("This script file");
@@ -432,11 +429,11 @@ export function unreachablePathArgError(
   virtualCwd: string,
   { alternative }: MountAlternative = {},
 ): string | undefined {
-  const mount = attachedMountReference(args, virtualCwd);
+  const mount = folderMountReference(args, virtualCwd);
   if (mount !== undefined) {
     return (
-      `${commandName}: ${mount} is inside an attached folder, which ` +
-      `${commandName} cannot read. Attached-folder mounts are visible to the ` +
+      `${commandName}: ${mount} is inside a folder mount, which ` +
+      `${commandName} cannot read. Folder mounts are visible to the ` +
       `sandbox shell, the file tools, and the sandboxed script runtimes, never ` +
       `to a real subprocess. ` +
       (alternative ? `${alternative} Otherwise copy` : `Copy`) +
@@ -465,7 +462,7 @@ export function unreachablePathArgError(
 }
 
 /**
- * The first attached-folder path a shim was pointed at, whether through an
+ * The first folder-mount path a shim was pointed at, whether through an
  * argument or through the working directory it inherited, or undefined.
  *
  * `resolveNativeHostPath` quarantines a `/mnt/...` path to a non-existent
@@ -475,18 +472,18 @@ export function unreachablePathArgError(
  * rather than the boundary it is. Callers use this to answer with the mount
  * the agent asked for before spawning anything.
  */
-function attachedMountReference(
+function folderMountReference(
   args: string[],
   virtualCwd: string,
 ): string | undefined {
-  if (isUnderAttachedMount(normalizePath(virtualCwd))) {
+  if (isUnderFolderMount(normalizePath(virtualCwd))) {
     return normalizePath(virtualCwd);
   }
   // Slicing past an `=` covers `--git-dir=/mnt/x` and leaves a bare `/mnt/x`
   // whole, since indexOf returns -1 when there is no `=`.
   return args
     .map((arg) => normalizePath(arg.slice(arg.indexOf("=") + 1)))
-    .find((value) => isUnderAttachedMount(value));
+    .find((value) => isUnderFolderMount(value));
 }
 
 function isOptionToken(token: { kind: string }): token is {
@@ -498,11 +495,8 @@ function isOptionToken(token: { kind: string }): token is {
   return token.kind === "option";
 }
 
-function isUnderAttachedMount(value: string): boolean {
-  return (
-    value === MOUNT.attachedFolders ||
-    value.startsWith(`${MOUNT.attachedFolders}/`)
-  );
+function isUnderFolderMount(value: string): boolean {
+  return value === MOUNT.folders || value.startsWith(`${MOUNT.folders}/`);
 }
 
 /**

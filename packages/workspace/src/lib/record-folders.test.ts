@@ -7,7 +7,7 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { WINDOW_ID } from "../schemas/window-id";
-import { chatFolderName } from "./generate-task-folder-name";
+import { chatFolderName } from "./chat-folder-name";
 import { getChatInfos } from "./chat-info";
 import { initializeChat } from "./initialize-task";
 import { newChatId } from "./new-chat-id";
@@ -35,7 +35,7 @@ beforeEach(async () => {
     ),
     chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
     rootDir: WorkspaceDirSchema.parse(rootDir),
-    tasksDir: WorkspaceDirSchema.parse(path.join(rootDir, "tasks")),
+    legacyTasksDir: WorkspaceDirSchema.parse(path.join(rootDir, "tasks")),
   });
   await fs.mkdir(path.join(rootDir, "template"));
   forgetChatFolders();
@@ -129,10 +129,7 @@ describe("record folders", () => {
 
     expect(chatIdTaken(chat)).toBe(true);
     expect(
-      await newChatId({
-        preferredFolderName: ChatIdSchema.parse(chat),
-        workspaceConfig: getWorkspaceConfig(),
-      }),
+      newChatId({ preferredFolderName: ChatIdSchema.parse(chat) }),
     ).not.toBe(chat);
   });
 

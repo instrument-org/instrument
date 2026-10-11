@@ -57,7 +57,7 @@ export function createStubWorkspaceConfig({
       path.join(absoluteRootDir, "system-skills"),
     ),
     chatsDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "chats")),
-    tasksDir: WorkspaceDirSchema.parse(absoluteTasksDir),
+    legacyTasksDir: WorkspaceDirSchema.parse(absoluteTasksDir),
     trashItem: () => Promise.resolve(),
     uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
     uvDataDir: AbsolutePathSchema.parse(path.join(absoluteRootDir, "uv-data")),

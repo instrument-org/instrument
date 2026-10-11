@@ -32,7 +32,7 @@ beforeEach(async () => {
     ),
     chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
     rootDir: WorkspaceDirSchema.parse(rootDir),
-    tasksDir: WorkspaceDirSchema.parse(path.join(rootDir, "tasks")),
+    legacyTasksDir: WorkspaceDirSchema.parse(path.join(rootDir, "tasks")),
     trashItem: async (item: string) => {
       trashed.push(path.relative(rootDir, item));
       await fs.rm(item, { force: true, recursive: true });

@@ -50,7 +50,7 @@ beforeEach(() => {
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
-    tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
+    legacyTasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
     trashItem: (target) => {
       fs.rmSync(target, { force: true, recursive: true });
       return Promise.resolve();
@@ -168,12 +168,6 @@ describe("storage.invalidFolders", () => {
           "kind": "chat",
           "name": "2026-10-01-bad-settings",
           "reason": "Missing or unreadable settings (.instrument/settings.json)",
-        },
-        {
-          "at": "chats/2026-10-01-fine/tasks/Bad Task",
-          "kind": "chat-task",
-          "name": "2026-10-01-fine/tasks/Bad Task",
-          "reason": "Folder name can only contain lowercase letters, numbers, and hyphens",
         },
         {
           "at": "chats/Not A Chat",

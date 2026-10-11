@@ -228,7 +228,10 @@ export interface WorkspaceConfig {
   // Where every chat's folder is, `chats/` under the root.
   chatsDir: AbsolutePath;
   systemSkillsDir: AbsolutePath;
-  tasksDir: AbsolutePath;
+  // Where 1.x kept its tasks, `tasks/` under the root: what the 1.x
+  // migration reads, and names a new chat stays clear of while a folder
+  // there waits to move.
+  legacyTasksDir: AbsolutePath;
   trashItem: (path: AbsolutePath) => Promise<void>;
   // Path to the bundled `uv` binary (escape hatch for python/pip/uv commands).
   uvBinPath: AbsolutePath;

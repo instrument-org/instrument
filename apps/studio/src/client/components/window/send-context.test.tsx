@@ -9,7 +9,7 @@ import { fileUrlOf } from "@/client/lib/file-url";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { TabIdSchema } from "@/shared/tabs";
 import {
-  FolderAttachment,
+  MountedFolder,
   type SessionMessageDataPart,
   ChatIdSchema,
 } from "@instrument-org/workspace/client";
@@ -18,7 +18,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { contextReaders, type SendContextWindow } from "./send-context";
 
 const CHAT = ChatIdSchema.parse("2026-10-01-lisbon");
-const HOME = FolderAttachment.Schema.parse({
+const HOME = MountedFolder.Schema.parse({
   access: "read-write",
   createdAt: 0,
   id: "home",

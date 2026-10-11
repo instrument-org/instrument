@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
+import { MountedFolder } from "../schemas/mounted-folder";
 import { ChatDirSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -26,14 +26,12 @@ let chatId: ChatId;
 
 function shell() {
   return createBashEnv({
-    attachedFolders: {
+    folders: {
       Home: {
         access: "read-only",
-        createdAt: Date.now(),
-        id: FolderAttachment.IdSchema.parse("home-id"),
+        id: MountedFolder.IdSchema.parse("home-id"),
         mountName: "Home",
         path: ChatDirSchema.parse(path.join(tmpDir, "Home")),
-        source: "user",
       },
     },
     sessionId,

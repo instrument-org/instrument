@@ -24,7 +24,7 @@ export function isAddressableTaskFilePath(path: string): boolean {
 
   return (
     !path.startsWith("/") ||
-    path.startsWith(`${MOUNT.attachedFolders}/`) ||
+    path.startsWith(`${MOUNT.folders}/`) ||
     path.startsWith(`${MOUNT.skills}/`)
   );
 }

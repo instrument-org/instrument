@@ -15,26 +15,25 @@ import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
 
-interface InvalidTaskFolder {
+interface InvalidLegacyTaskFolder {
   name: string;
   reason: string;
 }
 
-/** Why a task folder is listed in Settings > Storage when its settings are the trouble. */
+/** Why a folder is listed in Settings > Storage when its settings are the trouble. */
 export const UNREADABLE_SETTINGS_REASON =
   "Missing or unreadable settings (.instrument/settings.json)";
 
 /**
- * Whether a task folder's settings are missing or cannot be read as a
- * task's: the same test the task record applies, made on the file alone so
- * nothing is opened or written inside the folder.
+ * Whether a 1.x task folder's settings can be read, made on the file alone
+ * so nothing is opened or written inside the folder.
  */
-export function hasReadableTaskSettings(chatDir: string): boolean {
+function hasReadableLegacyTaskSettings(taskDir: string): boolean {
   try {
     return ChatSettingsSchema.safeParse(
       JSON.parse(
         readFileSync(
-          path.join(chatDir, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
+          path.join(taskDir, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
           "utf8",
         ),
       ),
@@ -44,17 +43,14 @@ export function hasReadableTaskSettings(chatDir: string): boolean {
   }
 }
 
-// Directories under tasks/ that the task list cannot show: a name that is not a
-// valid task id, or settings that are missing or unreadable. These show up when
-// a user (or an external tool) manually creates, renames, or edits a folder
-// inside the workspace. They are a recoverable, user-visible data condition
-// rather than a bug, so the lists skip them silently -- instead of reporting
-// one telemetry exception per folder on every scan -- and we surface them here
-// for the UI.
-export async function listInvalidTaskFolders(
+// Folders an earlier version left under tasks/ that the 1.x migration could
+// not make into chats: a name that is not a record id, or settings that are
+// missing or unreadable. Nothing lists them, so they are surfaced here for
+// Settings > Storage, where the user can reveal or trash them.
+export async function listInvalidLegacyTaskFolders(
   workspaceConfig: WorkspaceConfig,
-): Promise<InvalidTaskFolder[]> {
-  const rootDir = workspaceConfig.tasksDir;
+): Promise<InvalidLegacyTaskFolder[]> {
+  const rootDir = workspaceConfig.legacyTasksDir;
   const rootExists = await fs
     .stat(rootDir)
     .then(() => true)
@@ -63,9 +59,9 @@ export async function listInvalidTaskFolders(
     return [];
   }
 
-  // Same glob as getTasks: only top-level directories, dotfiles excluded.
+  // Only top-level directories, dotfiles excluded.
   const entries = await glob("*/", { cwd: rootDir });
-  const invalid: InvalidTaskFolder[] = [];
+  const invalid: InvalidLegacyTaskFolder[] = [];
   for (const entry of entries) {
     const name = path.basename(entry);
     const parsed = ChatIdSchema.safeParse(name);
@@ -75,7 +71,7 @@ export async function listInvalidTaskFolders(
         reason:
           parsed.error.issues[0]?.message ?? "Not a recognized task folder",
       });
-    } else if (!hasReadableTaskSettings(path.join(rootDir, name))) {
+    } else if (!hasReadableLegacyTaskSettings(path.join(rootDir, name))) {
       invalid.push({ name, reason: UNREADABLE_SETTINGS_REASON });
     }
   }
@@ -83,16 +79,18 @@ export async function listInvalidTaskFolders(
 }
 
 // Sends a single folder the scan reports to the OS trash. Deliberately narrow:
-// it refuses a task the list can show (those go through trashTask) and any
-// name that isn't a direct child of tasks/, so it can't be used to traverse out
-// of the workspace.
-export async function trashInvalidTaskFolder(
+// it refuses a folder the scan does not report and any name that isn't a
+// direct child of tasks/, so it can't be used to traverse out of the
+// workspace.
+export async function trashInvalidLegacyTaskFolder(
   name: string,
   workspaceConfig: WorkspaceConfig,
 ): Promise<Result<void, TypedError.FileSystem | TypedError.Parse>> {
   if (
     ChatIdSchema.safeParse(name).success &&
-    hasReadableTaskSettings(path.join(workspaceConfig.tasksDir, name))
+    hasReadableLegacyTaskSettings(
+      path.join(workspaceConfig.legacyTasksDir, name),
+    )
   ) {
     return err(
       new TypedError.Parse("Refusing to trash a valid task folder this way"),
@@ -107,7 +105,7 @@ export async function trashInvalidTaskFolder(
     return err(new TypedError.Parse("Invalid folder name"));
   }
 
-  const tasksDir = path.resolve(workspaceConfig.tasksDir);
+  const tasksDir = path.resolve(workspaceConfig.legacyTasksDir);
   const target = path.resolve(tasksDir, name);
   if (path.dirname(target) !== tasksDir) {
     return err(new TypedError.Parse("Folder is outside the tasks directory"));

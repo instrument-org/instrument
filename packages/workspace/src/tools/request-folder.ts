@@ -29,7 +29,7 @@ export const RequestFolder = setupTool({
       .string()
       .optional()
       .meta({
-        description: `A folder under ${MOUNT.attachedFolders} that macOS has not let ${APP_NAME} into, as a command refusing it named it. The panel opens at that folder, so letting ${APP_NAME} in is one press.`,
+        description: `A folder under ${MOUNT.folders} that macOS has not let ${APP_NAME} into, as a command refusing it named it. The panel opens at that folder, so letting ${APP_NAME} in is one press.`,
       }),
   }),
   name: "request_folder",
@@ -41,7 +41,7 @@ export const RequestFolder = setupTool({
     z.object({ status: z.literal("declined") }),
   ]),
 }).create({
-  description: `Ask the user for a folder you do not reach: one outside their home folder (an external drive, another volume), or, given as \`folder\`, one of yours that macOS has not let ${APP_NAME} into. The conversation waits while they pick one; it then arrives mounted under ${MOUNT.attachedFolders}, and the answer names the mount. Ask for one folder at a time, and only when the work cannot proceed without it.`,
+  description: `Ask the user for a folder you do not reach: one outside their home folder (an external drive, another volume), or, given as \`folder\`, one of yours that macOS has not let ${APP_NAME} into. The conversation waits while they pick one; it then arrives mounted under ${MOUNT.folders}, and the answer names the mount. Ask for one folder at a time, and only when the work cannot proceed without it.`,
   // Reached only in a fork, where a question has nobody to park for.
   execute: () => {
     return Promise.resolve(

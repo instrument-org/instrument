@@ -29,7 +29,7 @@ beforeEach(async () => {
     ),
     chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
     rootDir: WorkspaceDirSchema.parse(rootDir),
-    tasksDir: WorkspaceDirSchema.parse(path.join(rootDir, "tasks")),
+    legacyTasksDir: WorkspaceDirSchema.parse(path.join(rootDir, "tasks")),
   });
   await fs.mkdir(path.join(rootDir, "template"));
   forgetChatFolders();

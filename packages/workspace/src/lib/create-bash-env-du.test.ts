@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { CHAT_FOLDER_NAMES } from "../constants";
-import { FolderAttachment } from "../schemas/folder-attachment";
+import { MountedFolder } from "../schemas/mounted-folder";
 import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
@@ -31,13 +31,13 @@ async function run(command: string, { chat = false } = {}) {
   const attach = (name: string, folder: string) => ({
     access: "read-only" as const,
     createdAt: Date.now(),
-    id: FolderAttachment.IdSchema.parse(`${name}-id`),
+    id: MountedFolder.IdSchema.parse(`${name}-id`),
     mountName: name,
     path: ChatDirSchema.parse(folder),
     source: "user" as const,
   });
   const bash = await createBashEnv({
-    attachedFolders: {
+    folders: {
       // Deleted on disk since it was attached, so the sandbox leaves it out.
       Gone: attach("Gone", path.join(tmpDir, "Gone")),
       Home: attach("Home", homeDir),

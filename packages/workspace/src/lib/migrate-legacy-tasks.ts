@@ -22,7 +22,7 @@ import { type SessionMessageDataPart } from "../schemas/session/message-data-par
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
-import { chatFolderName } from "./generate-task-folder-name";
+import { chatFolderName } from "./chat-folder-name";
 import {
   newTopicId,
   readTopicsSync,

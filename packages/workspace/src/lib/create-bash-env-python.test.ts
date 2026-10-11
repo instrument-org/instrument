@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
+import { MountedFolder } from "../schemas/mounted-folder";
 import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -12,7 +12,7 @@ import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 
 /**
- * The sandboxed `python` as the agent meets it: reading an attached folder in
+ * The sandboxed `python` as the agent meets it: reading a folder mount in
  * place, refusing to write a read-only one, and explaining the limits of a
  * WebAssembly interpreter in terms of the native one that has none of them.
  * `create-bash-env-js-exec.test.ts` is the same for `js-exec`.
@@ -33,17 +33,15 @@ let chatId: ChatId;
 
 async function run(
   command: string,
-  access: FolderAttachment.Access = "read-only",
+  access: MountedFolder.Access = "read-only",
 ) {
   const bash = await createBashEnv({
-    attachedFolders: {
+    folders: {
       Docs: {
         access,
-        createdAt: Date.now(),
-        id: FolderAttachment.IdSchema.parse("docs-id"),
+        id: MountedFolder.IdSchema.parse("docs-id"),
         mountName: "Docs",
         path: ChatDirSchema.parse(attachedDir),
-        source: "user",
       },
     },
     sessionId,
@@ -114,7 +112,7 @@ describe("python inside the sandbox", () => {
     expect(message).toMatchObject({ exitCode: 1, stderr: "bad news\n" });
   });
 
-  it("reads an attached folder in place and refuses to write a read-only one", async () => {
+  it("reads a folder mount in place and refuses to write a read-only one", async () => {
     const read = await run(
       `python -c "from pathlib import Path; print(Path('/mnt/Docs/readme.txt').read_text(), end='')"`,
     );
@@ -278,7 +276,7 @@ print(__main__ is sys.modules['__main__'], pickle.loads(pickle.dumps(Point(7))).
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
-      "python: /mnt/Docs/readme.txt is inside an attached folder, which python cannot read.",
+      "python: /mnt/Docs/readme.txt is inside a folder mount, which python cannot read.",
     );
     // A skill script has no sandboxed run to be redirected to.
     expect(result.stderr).not.toContain("Run it with `python` instead");
@@ -323,7 +321,7 @@ print(__main__ is sys.modules['__main__'], pickle.loads(pickle.dumps(Point(7))).
       shape: "a heredoc",
     },
   ])(
-    "refuses an attached-folder path in $shape it sends to the native interpreter",
+    "refuses an folder-mount path in $shape it sends to the native interpreter",
     async ({ command }) => {
       await fs.mkdir(
         path.join(
@@ -385,10 +383,10 @@ describe("python-native", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
-      "python-native: /mnt/Docs/readme.txt is inside an attached folder, which python-native cannot read.",
+      "python-native: /mnt/Docs/readme.txt is inside a folder mount, which python-native cannot read.",
     );
     expect(result.stderr).toContain(
-      "Run it with `python` instead, which reads attached folders directly, if the script needs no installed package. Otherwise copy the file into the task first (cp '/mnt/Docs/readme.txt' attachments/) and run python-native on the copy.",
+      "Run it with `python` instead, which reads folder mounts directly, if the script needs no installed package. Otherwise copy the file into the task first (cp '/mnt/Docs/readme.txt' attachments/) and run python-native on the copy.",
     );
   });
 });

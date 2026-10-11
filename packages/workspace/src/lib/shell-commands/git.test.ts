@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../../schemas/folder-attachment";
+import { MountedFolder } from "../../schemas/mounted-folder";
 import { ChatDirSchema } from "../../schemas/paths";
 import {
   createMockChatConfigForDir,
@@ -276,10 +276,10 @@ describe("createGitCommand", () => {
   });
 });
 
-// A repository in an attached folder is reached by its mount path, which git
+// A repository in a folder mount is reached by its mount path, which git
 // is handed as the folder's real location. What the folder's access level
 // decides is what git may do there, not whether it may look.
-describe("createGitCommand over attached folders", () => {
+describe("createGitCommand over folder mounts", () => {
   const root = mkdtempSync(path.join(tmpdir(), "instrument-git-mounts-"));
   const taskRoot = path.join(root, "task");
   const repoDir = path.join(root, "Repo");
@@ -305,19 +305,15 @@ describe("createGitCommand over attached folders", () => {
       layout: taskLayout(mountedChatId, {
         repo: {
           access: "read-only",
-          createdAt: Date.now(),
-          id: FolderAttachment.IdSchema.parse("repo-id"),
+          id: MountedFolder.IdSchema.parse("repo-id"),
           mountName: "Repo",
           path: ChatDirSchema.parse(repoDir),
-          source: "user",
         },
         work: {
           access: "read-write",
-          createdAt: Date.now(),
-          id: FolderAttachment.IdSchema.parse("work-id"),
+          id: MountedFolder.IdSchema.parse("work-id"),
           mountName: "Work",
           path: ChatDirSchema.parse(workDir),
-          source: "user",
         },
       }),
       chatId: mountedChatId,
@@ -380,7 +376,9 @@ describe("createGitCommand over attached folders", () => {
     const result = await command.execute(args, mockCtx);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("/mnt/Repo is attached read-only");
+    expect(result.stderr).toContain(
+      "/mnt/Repo is read-only, so git may only read",
+    );
   });
 
   it.each([
@@ -392,7 +390,7 @@ describe("createGitCommand over attached folders", () => {
   ])("allows the listing form $args in a read-only mount", async ({ args }) => {
     const result = await command.execute(args, mockCtx);
 
-    expect(result.stderr).not.toContain("attached read-only");
+    expect(result.stderr).not.toContain("is read-only");
     expect(result.exitCode).toBe(0);
   });
 

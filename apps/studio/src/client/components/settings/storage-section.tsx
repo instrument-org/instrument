@@ -142,8 +142,8 @@ function UnrecognizedFolders() {
   }
 
   const chats = folders.filter((folder) => folder.kind === "chat");
-  // A task inside a chat is a task to the person, wherever its folder is.
-  const tasks = folders.filter((folder) => folder.kind !== "chat");
+  // Tasks an earlier version kept, which the move into chats left behind.
+  const tasks = folders.filter((folder) => folder.kind === "legacy-task");
 
   return (
     <section className="space-y-4" {...settingAnchor("broken-folders")}>

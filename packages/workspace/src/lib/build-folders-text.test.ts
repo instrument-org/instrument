@@ -2,7 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { buildAttachedFoldersText } from "./build-attached-folders-text";
+import { buildFoldersText } from "./build-folders-text";
 
 const INTRO = "The user has attached these folders to this task:";
 
@@ -10,12 +10,12 @@ function listOf(text: string): string[] {
   return text.split("\n").filter((line) => line.startsWith("- "));
 }
 
-describe("buildAttachedFoldersText", () => {
+describe("buildFoldersText", () => {
   // The bug this exists to prevent: the model reads back the mount name as
   // though it were the folder's name, and the user is told about a
   // "documents-test" folder they never created.
   it("names a folder the way the user does, whatever its mount is called", () => {
-    const text = buildAttachedFoldersText({
+    const text = buildFoldersText({
       folders: [
         {
           access: "read-write",
@@ -34,7 +34,7 @@ describe("buildAttachedFoldersText", () => {
   });
 
   it("tells the model to speak the name and address the mount", () => {
-    const text = buildAttachedFoldersText({
+    const text = buildFoldersText({
       folders: [
         { access: "read-only", mountPoint: "/mnt/notes", path: "/tmp/notes" },
       ],
@@ -46,7 +46,7 @@ describe("buildAttachedFoldersText", () => {
   });
 
   it("leaves a name unqualified when nothing else shares it", () => {
-    const text = buildAttachedFoldersText({
+    const text = buildFoldersText({
       folders: [
         { access: "read-only", mountPoint: "/mnt/test", path: "/tmp/a/test" },
         { access: "read-only", mountPoint: "/mnt/notes", path: "/tmp/b/notes" },
@@ -65,7 +65,7 @@ describe("buildAttachedFoldersText", () => {
   // Both sides get the hint, not just the one whose mount name was qualified:
   // "test" alone is no more use to the user than "test" alone.
   it("points at the parent of each folder in a name collision", () => {
-    const text = buildAttachedFoldersText({
+    const text = buildFoldersText({
       folders: [
         {
           access: "read-write",
@@ -90,7 +90,7 @@ describe("buildAttachedFoldersText", () => {
   });
 
   it("keeps the user's account name out of a parent hint", () => {
-    const text = buildAttachedFoldersText({
+    const text = buildFoldersText({
       folders: [
         {
           access: "read-only",
@@ -118,7 +118,7 @@ describe("buildAttachedFoldersText", () => {
   // The chat has no file tools and a shell that refuses to write, so
   // its copy names the task as the writer rather than tools it has not got.
   it("labels the home folder as writable inside without calling it read-only", () => {
-    const text = buildAttachedFoldersText({
+    const text = buildFoldersText({
       folders: [
         {
           access: "read-only",
@@ -148,14 +148,14 @@ describe("buildAttachedFoldersText", () => {
           path: "/Users/sam/Desktop",
         },
       ];
-      expect(buildAttachedFoldersText({ folders, intro: INTRO })).toContain(
+      expect(buildFoldersText({ folders, intro: INTRO })).toContain(
         "Operation not permitted",
       );
     },
   );
 
   it("marks a folder that is no longer on disk", () => {
-    const text = buildAttachedFoldersText({
+    const text = buildFoldersText({
       folders: [
         {
           access: "read-write",

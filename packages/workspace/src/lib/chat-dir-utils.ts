@@ -43,7 +43,7 @@ export function getScreenshotsDir(dir: ChatDir): AbsolutePath {
   return absolutePathJoin(getChatWorkDir(dir), CHAT_FOLDER_NAMES.screenshots);
 }
 
-// The user's inputs (uploads + copies from attached folders). A user-visible top-level dir.
+// The user's inputs (uploads + copies from folder mounts). A user-visible top-level dir.
 export function getChatAttachmentsDir(dir: ChatDir): AbsolutePath {
   return absolutePathJoin(dir, CHAT_FOLDER_NAMES.attachments);
 }

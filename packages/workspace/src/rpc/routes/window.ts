@@ -8,7 +8,7 @@ import {
 } from "../../lib/chat/output-folder";
 import { resolveChat } from "../../lib/record-folders";
 import { ensureWindowDir } from "../../lib/window-paths";
-import { FolderAttachment } from "../../schemas/folder-attachment";
+import { MountedFolder } from "../../schemas/mounted-folder";
 import { WINDOW_ID } from "../../schemas/window-id";
 import {
   WindowTabAnswerSchema,
@@ -25,7 +25,7 @@ import { publisher } from "../publisher";
 const ensure = base
   .output(
     z.object({
-      folders: z.record(z.string(), FolderAttachment.Schema),
+      folders: z.record(z.string(), MountedFolder.Schema),
     }),
   )
   .handler(async ({ context }) => {

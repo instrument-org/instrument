@@ -7,9 +7,9 @@ import { type AbsolutePath, AbsolutePathSchema } from "../schemas/paths";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
-  listInvalidTaskFolders,
-  trashInvalidTaskFolder,
-} from "./invalid-task-folders";
+  listInvalidLegacyTaskFolders,
+  trashInvalidLegacyTaskFolder,
+} from "./invalid-legacy-task-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 let rootDir: string;
@@ -32,7 +32,7 @@ beforeEach(async () => {
   createMockChatConfigForDir(path.join(tasksDir, "valid-task"));
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    tasksDir: AbsolutePathSchema.parse(tasksDir),
+    legacyTasksDir: AbsolutePathSchema.parse(tasksDir),
     trashItem: (target: AbsolutePath) => {
       trashed.push(target);
       return Promise.resolve();
@@ -56,14 +56,14 @@ afterEach(async () => {
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-describe("listInvalidTaskFolders", () => {
+describe("listInvalidLegacyTaskFolders", () => {
   it("returns only folders whose name isn't a valid task id", async () => {
     await taskFolder("another-valid-task", JSON.stringify({ name: "Another" }));
     await fs.mkdir(path.join(tasksDir, "Has Spaces"));
     await fs.mkdir(path.join(tasksDir, "UPPERCASE"));
     await fs.mkdir(path.join(tasksDir, "has.dots"));
 
-    const invalid = await listInvalidTaskFolders(getWorkspaceConfig());
+    const invalid = await listInvalidLegacyTaskFolders(getWorkspaceConfig());
 
     expect(invalid.map((folder) => folder.name).sort()).toEqual([
       "Has Spaces",
@@ -78,7 +78,7 @@ describe("listInvalidTaskFolders", () => {
     await taskFolder("2026-09-30-truncated", '{"name": "Half');
     await taskFolder("2026-09-30-not-a-task", JSON.stringify({ name: 7 }));
 
-    const invalid = await listInvalidTaskFolders(getWorkspaceConfig());
+    const invalid = await listInvalidLegacyTaskFolders(getWorkspaceConfig());
 
     expect(invalid.toSorted((a, b) => a.name.localeCompare(b.name)))
       .toMatchInlineSnapshot(`
@@ -106,15 +106,17 @@ describe("listInvalidTaskFolders", () => {
 
   it("returns an empty list when the tasks dir is missing", async () => {
     await fs.rm(tasksDir, { force: true, recursive: true });
-    expect(await listInvalidTaskFolders(getWorkspaceConfig())).toEqual([]);
+    expect(await listInvalidLegacyTaskFolders(getWorkspaceConfig())).toEqual(
+      [],
+    );
   });
 });
 
-describe("trashInvalidTaskFolder", () => {
+describe("trashInvalidLegacyTaskFolder", () => {
   it("trashes an unrecognized folder", async () => {
     await fs.mkdir(path.join(tasksDir, "Has Spaces"));
 
-    const result = await trashInvalidTaskFolder(
+    const result = await trashInvalidLegacyTaskFolder(
       "Has Spaces",
       getWorkspaceConfig(),
     );
@@ -124,7 +126,7 @@ describe("trashInvalidTaskFolder", () => {
   });
 
   it("refuses to trash a valid task folder", async () => {
-    const result = await trashInvalidTaskFolder(
+    const result = await trashInvalidLegacyTaskFolder(
       ChatIdSchema.parse("valid-task"),
       getWorkspaceConfig(),
     );
@@ -136,7 +138,7 @@ describe("trashInvalidTaskFolder", () => {
   it("trashes a task whose settings cannot be read", async () => {
     await taskFolder("2026-09-30-truncated", '{"name": "Half');
 
-    const result = await trashInvalidTaskFolder(
+    const result = await trashInvalidLegacyTaskFolder(
       "2026-09-30-truncated",
       getWorkspaceConfig(),
     );
@@ -146,7 +148,7 @@ describe("trashInvalidTaskFolder", () => {
   });
 
   it("refuses path traversal outside the tasks dir", async () => {
-    const result = await trashInvalidTaskFolder(
+    const result = await trashInvalidLegacyTaskFolder(
       "../escape",
       getWorkspaceConfig(),
     );

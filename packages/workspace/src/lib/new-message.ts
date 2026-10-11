@@ -7,13 +7,13 @@ import { ok } from "neverthrow";
 
 import { MOUNT } from "../mount-points";
 import { type FileUpload } from "../schemas/file-upload";
-import { type FolderAttachment } from "../schemas/folder-attachment";
+import { type MountedFolder } from "../schemas/mounted-folder";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { detectAttachedFolderChanges } from "./attached-folder-changes";
+import { detectFolderChanges } from "./folder-changes";
 import { detectChatAppChanges } from "./chat-app-changes";
 import { createBackgroundProcessesPart } from "./create-background-processes-part";
 import { createBrowserStatusPart } from "./create-browser-status-part";
@@ -327,7 +327,7 @@ export async function newMessage({
   // Notify agent of folders added, removed, or renamed since last turn
   // (per-session baseline diff). Runs after the grants above, so a folder
   // sent with this message is told here, under the name it mounts at.
-  const folderChanges = await detectAttachedFolderChanges({
+  const folderChanges = await detectFolderChanges({
     messageId,
     sessionId,
     chatId,
@@ -426,14 +426,14 @@ async function createChatTopicsPart({
  * agent is not pointed at nothing.
  */
 function topicFolderMounts(
-  reach: Record<string, FolderAttachment.Type>,
+  reach: Record<string, MountedFolder.Type>,
   folders: TopicFolder[],
 ): string[] {
   return folders.flatMap((folder) => {
     const mounted = Object.values(reach).find(
       (entry) => entry.path === folder.path,
     );
-    return mounted ? [`${MOUNT.attachedFolders}/${mounted.mountName}`] : [];
+    return mounted ? [`${MOUNT.folders}/${mounted.mountName}`] : [];
   });
 }
 

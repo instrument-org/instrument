@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { taskFolderSlug } from "./task-folder-slug";
+import { folderSlug } from "./folder-slug";
 
-describe("taskFolderSlug", () => {
+describe("folderSlug", () => {
   it.each([
     ["Add a dark mode toggle", "add-a-dark-mode-toggle"],
     ["  Fix the login bug!!! ", "fix-the-login-bug"],
@@ -16,19 +16,19 @@ describe("taskFolderSlug", () => {
     ["", ""],
     ["   ", ""],
   ])("slugifies %j -> %j", (input, expected) => {
-    expect(taskFolderSlug(input)).toBe(expected);
+    expect(folderSlug(input)).toBe(expected);
   });
 
   it("counts a skill mention once, as the name the user typed", () => {
     expect(
-      taskFolderSlug(
+      folderSlug(
         "[$commit-message](skill:commit-message) for the staged changes",
       ),
     ).toMatchInlineSnapshot(`"commit-message-for-the-staged-changes"`);
   });
 
   it("truncates at a token boundary within the length cap", () => {
-    const slug = taskFolderSlug(
+    const slug = folderSlug(
       "one two three four five six seven eight nine ten eleven twelve",
     );
     expect(slug.length).toBeLessThanOrEqual(40);
@@ -39,7 +39,7 @@ describe("taskFolderSlug", () => {
   });
 
   it("hard-truncates a single oversized first token", () => {
-    const slug = taskFolderSlug("a".repeat(100));
+    const slug = folderSlug("a".repeat(100));
     expect(slug).toBe("a".repeat(40));
   });
 });

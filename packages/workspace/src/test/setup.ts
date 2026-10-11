@@ -72,7 +72,7 @@ setWorkspaceConfig({
     path.join(rootDir, "system-skills"),
   ),
   chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
-  tasksDir: WorkspaceDirSchema.parse(tasksDir),
+  legacyTasksDir: WorkspaceDirSchema.parse(tasksDir),
   trashItem: () => Promise.resolve(),
   uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
   uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),

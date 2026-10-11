@@ -83,7 +83,7 @@ export function buildReportWorkspaceConfig(
     chatsDir: AbsolutePathSchema.parse(
       path.join(absoluteWorkspaceDir, CHATS_DIR_NAME),
     ),
-    tasksDir: WorkspaceDirSchema.parse(
+    legacyTasksDir: WorkspaceDirSchema.parse(
       path.join(absoluteWorkspaceDir, TASKS_DIR_NAME),
     ),
     trashItem: () => Promise.resolve(),

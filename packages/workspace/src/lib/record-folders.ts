@@ -82,7 +82,7 @@ export function chatIdTaken(id: string): boolean {
     parsed.data === WINDOW_ID ||
     known.chats.has(parsed.data) ||
     fs.existsSync(folderOf(parsed.data)) ||
-    fs.existsSync(path.join(getWorkspaceConfig().tasksDir, parsed.data))
+    fs.existsSync(path.join(getWorkspaceConfig().legacyTasksDir, parsed.data))
   );
 }
 

@@ -157,7 +157,7 @@ describe("osascriptCommand", () => {
     );
   });
 
-  it("refuses a quoted attached-folder path in the script", async () => {
+  it("refuses a quoted folder-mount path in the script", async () => {
     const result = await command.execute(
       ["-e", 'read POSIX file "/mnt/Home/invite.ics"'],
       mockCtx,

@@ -20,7 +20,7 @@ function layoutOf(
   mounts: Record<string, string> = {},
 ): WorkspaceFsLayout {
   return {
-    attached: Object.entries(mounts).map(([mountPoint, hostRoot]) => ({
+    folders: Object.entries(mounts).map(([mountPoint, hostRoot]) => ({
       hostRoot: AbsolutePathSchema.parse(hostRoot),
       maskedEntries: [],
       mountPoint,

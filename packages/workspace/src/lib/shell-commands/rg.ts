@@ -251,10 +251,10 @@ function bridgePathArgs(
  * holds some: `/mnt`, or `/mnt/Home` in a task handed `/mnt/Home/Downloads`
  * and `/mnt/Home/Desktop` alone. The sandbox shows such a directory as the
  * mounts under it, so a search of it is a search of them. Only under the
- * attached-folder root, so neither `/` nor a pattern elsewhere is read as one.
+ * folder mount's root, so neither `/` nor a pattern elsewhere is read as one.
  */
 function mountsBelow(layout: WorkspaceFsLayout, arg: string): string[] {
-  if (!isAtOrUnder(MOUNT.attachedFolders, arg)) {
+  if (!isAtOrUnder(MOUNT.folders, arg)) {
     return [];
   }
   return nonTaskMounts(layout).flatMap((mount) => {

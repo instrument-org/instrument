@@ -56,7 +56,7 @@ export { viewContextModelNote } from "./lib/view-context-model-text";
 export { readWebSearchResults } from "./lib/web-search-results";
 export { MOUNT } from "./mount-points";
 export { FileUpload } from "./schemas/file-upload";
-export { FolderAttachment } from "./schemas/folder-attachment";
+export { MountedFolder } from "./schemas/mounted-folder";
 export { AbsolutePathSchema, RelativePathSchema } from "./schemas/paths";
 export { ProjectIdSchema } from "./schemas/project-id";
 export { type SessionMessage } from "./schemas/session/message";

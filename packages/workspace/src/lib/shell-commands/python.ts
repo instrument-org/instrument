@@ -24,7 +24,7 @@ import { ensureTaskVenv } from "./uv";
  *
  * `python` (and `python3`) is CPython compiled to WebAssembly, run by just-bash
  * inside the sandbox: every file call goes through the same virtual filesystem
- * the shell uses, so it reads an attached folder in place and cannot write to
+ * the shell uses, so it reads a folder mount in place and cannot write to
  * a read-only one. It has the standard library and nothing else.
  *
  * `python-native` is the interpreter in the task's virtualenv, a real process
@@ -37,7 +37,7 @@ import { ensureTaskVenv } from "./uv";
  * and a program that imports a package already installed there.
  */
 export const PYTHON_COMMAND = {
-  description: `Run Python (CPython 3.13, standard library only) inside the sandbox: it reads ${MOUNT.attachedFolders} and ${MOUNT.task} paths directly and honors read-only mounts. It cannot start a process, open https (no ssl; \`import jb_http\` fetches), or open a file over 8 MB; for those, run the script with \`python-native\`. A program that imports a package \`pip\` installed, or a loaded skill's script under work/skills/, runs natively on its own, as \`python-native\` would.`,
+  description: `Run Python (CPython 3.13, standard library only) inside the sandbox: it reads ${MOUNT.folders} and ${MOUNT.task} paths directly and honors read-only mounts. It cannot start a process, open https (no ssl; \`import jb_http\` fetches), or open a file over 8 MB; for those, run the script with \`python-native\`. A program that imports a package \`pip\` installed, or a loaded skill's script under work/skills/, runs natively on its own, as \`python-native\` would.`,
   name: "python",
 } as const;
 
@@ -47,7 +47,7 @@ export const PYTHON3_COMMAND = {
 } as const;
 
 export const PYTHON_NATIVE_COMMAND = {
-  description: `Run Python as a real process in the per-task virtualenv (.venv), which is where \`pip install\` puts packages. Sees only the task folder: copy an attached file into the task first. Use it when a script needs an installed package, a native binary, or a file over 8 MB; otherwise \`python\` is the one that reads attached folders.`,
+  description: `Run Python as a real process in the per-task virtualenv (.venv), which is where \`pip install\` puts packages. Sees only the task folder: copy a file from a folder mount into the task first. Use it when a script needs an installed package, a native binary, or a file over 8 MB; otherwise \`python\` is the one that reads folder mounts.`,
   name: "python-native",
 } as const;
 
@@ -170,7 +170,7 @@ function explainSandboxedPythonFailure(stderr: string): string {
     notes.push(
       STDLIB_MODULE_NAMES.has(topLevel)
         ? `'${topLevel}' is part of the standard library but this WebAssembly build of CPython does not include it. Run the script with \`${PYTHON_NATIVE_COMMAND.name}\` instead${topLevel === "sqlite3" ? `, or query the database with the \`sqlite3\` command` : ""}.`
-        : `'${topLevel}' is not in the standard library, which is all this sandboxed python has. Install it with \`pip install ${topLevel}\` and run the script again: a program that imports an installed package runs in the task's virtualenv, as \`${PYTHON_NATIVE_COMMAND.name}\` does, which sees only the task folder (copy an attached file into the task first).`,
+        : `'${topLevel}' is not in the standard library, which is all this sandboxed python has. Install it with \`pip install ${topLevel}\` and run the script again: a program that imports an installed package runs in the task's virtualenv, as \`${PYTHON_NATIVE_COMMAND.name}\` does, which sees only the task folder (copy a file from a folder mount into the task first).`,
     );
   }
 
@@ -388,7 +388,7 @@ async function runNativePython(
   const sandboxedAlternative =
     skillScript || importsInstalled
       ? undefined
-      : `Run it with \`${PYTHON_COMMAND.name}\` instead, which reads attached folders directly, if the script needs no installed package.`;
+      : `Run it with \`${PYTHON_COMMAND.name}\` instead, which reads folder mounts directly, if the script needs no installed package.`;
   const fail = (stderr: string) => ({
     exitCode: 1,
     stderr: importsInstalled

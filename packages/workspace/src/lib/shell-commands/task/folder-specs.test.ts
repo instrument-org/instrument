@@ -5,38 +5,28 @@ import path from "node:path";
 import { noop } from "radashi";
 import { describe, expect, it, vi } from "vitest";
 
-import { FolderAttachment } from "../../schemas/folder-attachment";
-import { ChatIdSchema } from "../../schemas/chat-id";
-import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { getWorkspaceConfig } from "../workspace-config";
+import { MountedFolder } from "../../../schemas/mounted-folder";
+import { ChatIdSchema } from "../../../schemas/chat-id";
+import { createMockChatConfig } from "../../../test/helpers/mock-chat-config";
+import { getWorkspaceConfig } from "../../workspace-config";
 import {
   awaitAnswers,
   parseFolderSpec,
   requireFoldersOnDisk,
   resolveFolders,
-} from "./task-args";
+} from "./folder-specs";
 
 describe("parseFolderSpec", () => {
   it.each([
+    { expected: { name: "Home", subpath: "" }, spec: "Home" },
+    { expected: { name: "Home", subpath: "" }, spec: "/mnt/Home/" },
     {
-      expected: { access: undefined, name: "Home", subpath: "" },
-      spec: "Home",
+      expected: { name: "Home", subpath: "Downloads" },
+      spec: "Home/Downloads",
     },
     {
-      expected: { access: undefined, name: "Home", subpath: "" },
-      spec: "/mnt/Home/",
-    },
-    {
-      expected: { access: "read-write", name: "Home", subpath: "Downloads" },
-      spec: "Home/Downloads:rw",
-    },
-    {
-      expected: { access: "read-only", name: "Instrument", subpath: "a/b" },
-      spec: "/mnt/Instrument/a/b/:ro",
-    },
-    {
-      expected: { access: "read-write", name: "Home", subpath: "" },
-      spec: "Home:read-write",
+      expected: { name: "Instrument", subpath: "a/b" },
+      spec: "/mnt/Instrument/a/b/",
     },
   ])("reads $spec", ({ expected, spec }) => {
     expect(parseFolderSpec(spec)).toEqual(expected);
@@ -46,140 +36,91 @@ describe("parseFolderSpec", () => {
 describe("resolveFolders", () => {
   createMockChatConfig(ChatIdSchema.parse("chat"));
 
-  const attached = {
-    Home: FolderAttachment.Schema.parse({
+  const reached = {
+    Home: MountedFolder.Schema.parse({
       access: "read-write",
-      createdAt: 1,
       id: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
       mountName: "Home",
       path: "/Users/someone",
-      source: "user",
     }),
-    Notes: FolderAttachment.Schema.parse({
-      access: "read-only",
-      createdAt: 2,
+    Notes: MountedFolder.Schema.parse({
+      access: "read-write",
       id: "01ARZ3NDEKTSV4RRFFQ69G5FAW",
       mountName: "Notes",
       path: "/Volumes/Notes",
-      source: "user",
     }),
   };
 
-  it("hands a task the conversation's access unless the spec narrows it", () => {
-    expect(resolveFolders(["Home", "Home/Downloads:ro"], attached)).toEqual([
-      {
-        access: "read-write",
-        mountName: "Home",
-        path: "/Users/someone",
-        source: "user",
-      },
-      {
-        access: "read-only",
-        mountName: "Home/Downloads",
-        path: "/Users/someone/Downloads",
-        source: "user",
-      },
+  it("names each folder's host path, a whole mount or a folder inside one", () => {
+    expect(resolveFolders(["Home", "/mnt/Notes/2026"], reached)).toEqual([
+      { path: "/Users/someone" },
+      { path: "/Volumes/Notes/2026" },
     ]);
   });
 
-  it("refuses write access to a folder the conversation only reads", () => {
-    expect(() => resolveFolders(["Notes:rw"], attached)).toThrow(
-      "/mnt/Notes is read-only in this conversation",
-    );
-  });
-
   // The home folder on a real machine: the workspace lives inside it, so the
-  // whole is read-only, while a folder inside it takes the grant in full.
-  describe("a grant that holds the workspace", () => {
+  // whole is read-only, while a folder inside it is written in full.
+  describe("a folder that holds the workspace", () => {
     const home = {
-      Root: FolderAttachment.Schema.parse({
+      Root: MountedFolder.Schema.parse({
         access: "read-write",
-        createdAt: 1,
         id: "01ARZ3NDEKTSV4RRFFQ69G5FAX",
         mountName: "Root",
         path: path.dirname(getWorkspaceConfig().rootDir),
-        source: "user",
       }),
     };
 
-    it("reads the whole and refuses to write it, naming the folder inside to add instead", () => {
-      expect(resolveFolders(["Root"], home)).toEqual([
-        {
-          access: "read-only",
-          mountName: "Root",
-          path: home.Root.path,
-          source: "user",
-        },
-      ]);
-      expect(() => resolveFolders(["Root:rw"], home)).toThrow(
+    it("refuses the whole, naming the folder inside to add instead", () => {
+      expect(() => resolveFolders(["Root"], home)).toThrow(
         "/mnt/Root holds Instrument's own data, so it is read whole and never written whole. Add the folder inside that the work needs: /mnt/Root/<folder>.",
       );
     });
 
-    it("hands a folder inside it read and write, asked for or not", () => {
-      const desktop = path.join(home.Root.path, "Desktop");
-      expect(resolveFolders(["Root/Desktop:rw", "Root/Desktop"], home)).toEqual(
-        [
-          {
-            access: "read-write",
-            mountName: "Root/Desktop",
-            path: desktop,
-            source: "user",
-          },
-          {
-            access: "read-write",
-            mountName: "Root/Desktop",
-            path: desktop,
-            source: "user",
-          },
-        ],
-      );
+    it("adds a folder inside it", () => {
+      expect(resolveFolders(["Root/Desktop"], home)).toEqual([
+        { path: path.join(home.Root.path, "Desktop") },
+      ]);
     });
 
-    it("keeps the workspace itself read-only under that grant", () => {
+    it("refuses the workspace itself", () => {
       const workspace = `Root/${path.basename(getWorkspaceConfig().rootDir)}`;
-      expect(() => resolveFolders([`${workspace}:rw`], home)).toThrow(
-        "/mnt/Root is read-only in this conversation",
+      expect(() => resolveFolders([workspace], home)).toThrow(
+        `"${workspace}" is inside Instrument's own data`,
       );
     });
   });
 
   it("refuses a subpath that leaves the mount", () => {
-    expect(() => resolveFolders(["Home/../../etc"], attached)).toThrow(
+    expect(() => resolveFolders(["Home/../../etc"], reached)).toThrow(
       '"Home/../../etc" leaves /mnt/Home',
     );
-    expect(() => resolveFolders(["Home/Downloads/../.."], attached)).toThrow(
+    expect(() => resolveFolders(["Home/Downloads/../.."], reached)).toThrow(
       "leaves /mnt/Home",
     );
   });
 
-  // The name is where the folder is, not how the spec spelled the way there.
+  // The folder is where the path leads, not how the spec spelled the way there.
   it("keeps a subpath that only wanders inside the mount", () => {
-    expect(resolveFolders(["Home/Downloads/../Desktop"], attached)).toEqual([
-      {
-        access: "read-write",
-        mountName: "Home/Desktop",
-        path: "/Users/someone/Desktop",
-        source: "user",
-      },
+    expect(resolveFolders(["Home/Downloads/../Desktop"], reached)).toEqual([
+      { path: "/Users/someone/Desktop" },
     ]);
   });
 
   it("names the mounts it has when asked for one it does not", () => {
-    expect(() => resolveFolders(["Desktop"], attached)).toThrow(
+    expect(() => resolveFolders(["Desktop"], reached)).toThrow(
       'no folder "Desktop" in this conversation. Yours: /mnt/Home, /mnt/Notes',
     );
   });
 });
 
 describe("requireFoldersOnDisk", () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "task-folders-"));
+  const root = mkdtempSync(path.join(os.tmpdir(), "folder-specs-"));
 
   it("lets a folder that is there through", async () => {
     const dir = path.join(root, "new folder");
     await fs.mkdir(dir);
     await expect(
-      requireFoldersOnDisk([{ path: dir }], ["Home/new folder:rw"]),
+      requireFoldersOnDisk([{ path: dir }], ["Home/new folder"]),
     ).resolves.toEqual([]);
   });
 
@@ -189,7 +130,7 @@ describe("requireFoldersOnDisk", () => {
     { expected: undefined, refusal: undefined, said: "allows" },
     {
       expected:
-        /^macOS has not let Instrument into "Home\/Desktop:rw"\. Call request_folder with folder "\/mnt\/Home\/Desktop"|^"Home\/Desktop:rw" cannot be read/,
+        /^macOS has not let Instrument into "Home\/Desktop"\. Call request_folder with folder "\/mnt\/Home\/Desktop"|^"Home\/Desktop" cannot be read/,
       refusal: Object.assign(new Error("not permitted"), { code: "EPERM" }),
       said: "declines",
     },
@@ -215,9 +156,9 @@ describe("requireFoldersOnDisk", () => {
       try {
         const pending = await requireFoldersOnDisk(
           [{ path: dir }],
-          ["Home/Desktop:rw"],
+          ["Home/Desktop"],
         );
-        expect(pending.map((look) => look.spec)).toEqual(["Home/Desktop:rw"]);
+        expect(pending.map((look) => look.spec)).toEqual(["Home/Desktop"]);
         answer();
         const reason = await pending[0]?.answer;
         if (expected) {
@@ -237,9 +178,9 @@ describe("requireFoldersOnDisk", () => {
   it("refuses a folder that is not there, by the spec that named it", async () => {
     const gone = path.join(root, "untitled folder");
     await expect(
-      requireFoldersOnDisk([{ path: gone }], ["Home/untitled folder:rw"]),
+      requireFoldersOnDisk([{ path: gone }], ["Home/untitled folder"]),
     ).rejects.toThrow(
-      `no folder at "Home/untitled folder:rw": nothing is on disk at ${gone}`,
+      `no folder at "Home/untitled folder": nothing is on disk at ${gone}`,
     );
   });
 
@@ -260,9 +201,9 @@ describe("requireFoldersOnDisk", () => {
       await fs.mkdir(shut, { mode: 0o000 });
       try {
         await expect(
-          requireFoldersOnDisk([{ path: shut }], ["Home/shut:rw"]),
+          requireFoldersOnDisk([{ path: shut }], ["Home/shut"]),
         ).rejects.toThrow(
-          '"Home/shut:rw" cannot be read by the account Instrument runs as (EACCES)',
+          '"Home/shut" cannot be read by the account Instrument runs as (EACCES)',
         );
       } finally {
         await fs.chmod(shut, 0o700);
@@ -295,10 +236,7 @@ describe("awaitAnswers", () => {
           };
         }),
     );
-    const looks = await requireFoldersOnDisk(
-      [{ path: dir }],
-      ["Home/Desktop:rw"],
-    );
+    const looks = await requireFoldersOnDisk([{ path: dir }], ["Home/Desktop"]);
     opendir.mockRestore();
     return {
       answer: () => {
@@ -322,7 +260,7 @@ describe("awaitAnswers", () => {
     );
     setTimeout(answer, 50);
     await expect(awaitAnswers(looks, 5000)).rejects.toThrow(
-      /^macOS has not let Instrument into "Home\/Desktop:rw"\. Call request_folder with folder "\/mnt\/Home\/Desktop"|^"Home\/Desktop:rw" cannot be read/,
+      /^macOS has not let Instrument into "Home\/Desktop"\. Call request_folder with folder "\/mnt\/Home\/Desktop"|^"Home\/Desktop" cannot be read/,
     );
   });
 
@@ -337,11 +275,11 @@ describe("awaitAnswers", () => {
     expect(Date.now() - startedAt).toBeGreaterThanOrEqual(190);
     expect(pending.map((look) => look.spec)).toMatchInlineSnapshot(`
       [
-        "Home/Desktop:rw",
+        "Home/Desktop",
       ]
     `);
     answer();
-    await expect(pending[0]?.answer).resolves.toMatch(/Home\/Desktop:rw/);
+    await expect(pending[0]?.answer).resolves.toMatch(/Home\/Desktop/);
   });
 
   it("does not wait at all with no yield left", async () => {

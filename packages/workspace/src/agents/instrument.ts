@@ -10,9 +10,9 @@ import {
   TOOL_EXPLANATION_PARAM_NAME,
 } from "../constants";
 import { buildAppsContextText } from "../lib/apps/context";
-import { assignAttachedMounts } from "../lib/attached-folder-mounts";
+import { assignMountPoints } from "../lib/folder-mounts";
 import { buildAvailableSkillsContext } from "../lib/available-skills-context";
-import { buildAttachedFoldersText } from "../lib/build-attached-folders-text";
+import { buildFoldersText } from "../lib/build-folders-text";
 import { folderReach } from "../lib/chat/folder-reach";
 import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
@@ -90,11 +90,11 @@ export const instrumentAgent = setupAgent({
       text: systemPrompt(),
     });
 
-    const attached = assignAttachedMounts(await folderReach(chatId));
+    const mounted = assignMountPoints(await folderReach(chatId));
     const foldersText =
-      attached.length > 0
-        ? buildAttachedFoldersText({
-            folders: attached.map(({ folder, mountPoint }) => {
+      mounted.length > 0
+        ? buildFoldersText({
+            folders: mounted.map(({ folder, mountPoint }) => {
               const access = effectiveFolderAccess(folder);
               return {
                 access,
@@ -109,7 +109,7 @@ export const instrumentAgent = setupAgent({
             intro:
               "These are the user's folders this conversation reaches: their home folder, the workspace folder where results go when nobody said where, and any folder they sent or filed the conversation's topic with. Each is mounted for you at the path shown:",
           })
-        : `No folder is mounted for you yet. Work that needs the user's files needs one first; ask for it with ${agentTools.RequestFolder.name}. Folders attached later are announced on the message they arrive with.`;
+        : `No folder is mounted for you yet. Work that needs the user's files needs one first; ask for it with ${agentTools.RequestFolder.name}. Folders granted later are announced on the message they arrive with.`;
 
     const userMessage = createContextMessage({
       agentName: name,
@@ -213,8 +213,8 @@ export const instrumentAgent = setupAgent({
  */
 function systemPrompt(): string {
   const task = TASK_COMMAND.name;
-  const home = `${MOUNT.attachedFolders}/<home>`;
-  const workspaceFolder = `${MOUNT.attachedFolders}/Instrument`;
+  const home = `${MOUNT.folders}/<home>`;
+  const workspaceFolder = `${MOUNT.folders}/Instrument`;
   const mac = process.platform === "darwin";
 
   return dedent`
@@ -322,7 +322,7 @@ function systemPrompt(): string {
 
       \`\`\`${AGENT_FILES_LANGUAGE}
       ${F.work}/report.pdf
-      ${MOUNT.attachedFolders}/Desktop/test.txt
+      ${MOUNT.folders}/Desktop/test.txt
       \`\`\`
 
       Any path you can read goes in it, once it exists; never one about to be made. A folder takes a trailing slash and opens as that folder, for when the folder is what you hand over. One fence per reply, listing every file that reply names; never a path pasted in prose, and never a copy made to show a file.

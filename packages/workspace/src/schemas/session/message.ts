@@ -18,7 +18,7 @@ import { z } from "zod";
 
 import { appEventModelNote } from "../../lib/app-event-model-text";
 import { asksModelNote } from "../../lib/asks-model-text";
-import { attachedFolderChangesModelNote } from "../../lib/attached-folder-changes-model-text";
+import { folderChangesModelNote } from "../../lib/folder-changes-model-text";
 import { backgroundProcessesModelNote } from "../../lib/background-processes-model-text";
 import { browserStatusModelNote } from "../../lib/browser-status-model-text";
 import { chatContextModelNote } from "../../lib/chat-context-model-text";
@@ -465,11 +465,11 @@ export namespace SessionMessage {
           (
             part,
           ): part is SessionMessagePart.DataPart & {
-            type: "data-attachedFolderChanges";
-          } => part.type === "data-attachedFolderChanges",
+            type: "data-folderChanges";
+          } => part.type === "data-folderChanges",
         );
         if (folderChangesPart) {
-          const note = attachedFolderChangesModelNote(folderChangesPart.data);
+          const note = folderChangesModelNote(folderChangesPart.data);
           if (note) {
             injectedParts.push({ text: note, type: "text" });
           }

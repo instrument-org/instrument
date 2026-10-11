@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
+import { MountedFolder } from "../schemas/mounted-folder";
 import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -28,17 +28,15 @@ let chatId: ChatId;
 
 async function run(
   command: string,
-  access: FolderAttachment.Access = "read-only",
+  access: MountedFolder.Access = "read-only",
 ) {
   const bash = await createBashEnv({
-    attachedFolders: {
+    folders: {
       Docs: {
         access,
-        createdAt: Date.now(),
-        id: FolderAttachment.IdSchema.parse("docs-id"),
+        id: MountedFolder.IdSchema.parse("docs-id"),
         mountName: "Docs",
         path: ChatDirSchema.parse(attachedDir),
-        source: "user",
       },
     },
     sessionId,
@@ -68,7 +66,7 @@ afterEach(async () => {
 });
 
 describe("js-exec inside the sandbox", () => {
-  it("reads an attached folder in place and refuses to write a read-only one", async () => {
+  it("reads a folder mount in place and refuses to write a read-only one", async () => {
     const read = await run(
       `js-exec -c "const fs = require('fs'); console.log(fs.readFileSync('/mnt/Docs/readme.txt', 'utf8').trim())"`,
     );

@@ -9,7 +9,7 @@ const MAX_SLUG_LENGTH = 40;
 // mention counts as the `/name` it reads as, since slugging its wire form would
 // spend the budget on markup and on the name twice over. Returns an empty string
 // when the prompt has no usable characters (e.g. emoji/CJK only).
-export function taskFolderSlug(
+export function folderSlug(
   prompt: string,
   maxLength = MAX_SLUG_LENGTH,
 ): string {

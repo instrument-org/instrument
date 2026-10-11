@@ -8,7 +8,7 @@ import {
 } from "@instrument-org/shared";
 import {
   AbsolutePathSchema,
-  FolderAttachment,
+  MountedFolder,
   ProjectIdSchema,
   RelativePathSchema,
   type SessionMessageDataPart,
@@ -99,11 +99,11 @@ export function folder({
   access,
   path,
 }: {
-  access: FolderAttachment.Access;
+  access: MountedFolder.Access;
   path: string;
-}): FolderAttachment.Type {
+}): MountedFolder.Type {
   const name = path.split("/").at(-1) ?? path;
-  return FolderAttachment.Schema.parse({
+  return MountedFolder.Schema.parse({
     access,
     createdAt: AT,
     id: name,

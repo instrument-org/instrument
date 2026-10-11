@@ -1,31 +1,31 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { dedent } from "radashi";
 
-import { type FolderAttachment } from "../schemas/folder-attachment";
+import { type MountedFolder } from "../schemas/mounted-folder";
 import { TOOL_NAMES } from "../tools/name";
 import { TASK_COMMAND } from "./shell-commands/task-command";
 import { folderLabel, folderParentLabel } from "./folder-parent-label";
 
 /**
- * The attached-folder list the model reads.
+ * The list of folders the model reads: every folder the chat reaches.
  *
  * A folder is introduced by the name the user knows it by, taken from its path,
  * with its mount path beside it as an address rather than a label. The two come
- * apart because the mount name has to be unique per task and the user's name for
+ * apart because the mount name has to be unique per chat and the user's name for
  * a folder does not: told only "Documents-test", a model reports back that it
  * wrote to "the documents-test folder", naming something the user never created.
  *
- * The parent appears only where two attachments share a name, which is the only
+ * The parent appears only where two folders share a name, which is the only
  * case where the user needs it to tell them apart.
  */
-export function buildAttachedFoldersText({
+export function buildFoldersText({
   folders,
   guidance = true,
   intro,
 }: {
   folders: {
-    access: FolderAttachment.Access;
-    /** Attached, but no longer on disk when the list was built. */
+    access: MountedFolder.Access;
+    /** Reached, but no longer on disk when the list was built. */
     missing?: boolean;
     mountPoint: string;
     path: string;
@@ -71,10 +71,10 @@ export function buildAttachedFoldersText({
 
   if (!guidance) {
     return dedent`
-      <attached_folders>
+      <folders>
       ${intro}
       ${folderList}
-      </attached_folders>
+      </folders>
     `;
   }
 
@@ -98,17 +98,17 @@ export function buildAttachedFoldersText({
       ? `\`EPERM\` or "Operation not permitted" on reading or listing one of these means macOS has not let ${APP_NAME} into that folder. Call \`${TOOL_NAMES.requestFolder}\` with \`folder\` set to its mount path rather than trying again: it opens the system's own panel at that folder, and a pick there lets ${APP_NAME} in for good.`
       : null,
     `\`cp\`, \`mv\`, the file tools, the sandboxed script runtimes (\`python\`, \`js-exec\`), and \`git\` reach a mount directly, one mount to another included, so reading a file, parsing it in a script, or putting one where it belongs takes no copy through the task. A real subprocess (python-native, node, ffmpeg, pnpm) is the exception: it cannot see a mount at all, so copy in first and run it on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
-    `A repository in a folder is read in place: \`git -C '<mount path>' log\`, or \`cd\` there first. In a read-only folder git may only read (log, show, diff, blame, status); committing or changing files there needs the folder attached read and write.`,
+    `A repository in a folder is read in place: \`git -C '<mount path>' log\`, or \`cd\` there first. In a read-only folder git may only read (log, show, diff, blame, status); committing or changing files there needs write on the repository's own folder, which \`${TASK_COMMAND.name} folder --add\` gives.`,
   ]
     .filter((line) => line !== null)
     .join("\n");
 
   return dedent`
-    <attached_folders>
+    <folders>
     ${intro}
     ${folderList}
 
     ${rules}
-    </attached_folders>
+    </folders>
   `;
 }

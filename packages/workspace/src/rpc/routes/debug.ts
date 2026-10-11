@@ -72,7 +72,7 @@ const runBash = base
     // agent; a task's otherwise, the way the bash tool builds it.
     const chatId = resolveChat(input.chatId);
     const bash = await createBashEnv({
-      attachedFolders: await folderReach(input.chatId),
+      folders: await folderReach(input.chatId),
       ...(chatId ? { chat: { id: chatId } } : {}),
       sessionId: input.sessionId,
       chatId: input.chatId,

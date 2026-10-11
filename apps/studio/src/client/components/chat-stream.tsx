@@ -28,7 +28,7 @@ import {
   renderChatPart,
   type RenderPartContext,
 } from "./chat-stream-render-part";
-import { FolderAttachmentsCard } from "./folder-attachments-card";
+import { SentFoldersCard } from "./sent-folders-card";
 import { PlanningDotIcon } from "./icons/planning-dot";
 import { MessageError } from "./message-error";
 import {
@@ -739,7 +739,7 @@ export function ChatStream({
         // over the prompt and its attachments.
         if (userFolders.length > 0) {
           messageElements.unshift(
-            <FolderAttachmentsCard
+            <SentFoldersCard
               folders={userFolders}
               key={`folders-${message.id}`}
             />,

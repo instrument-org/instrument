@@ -3,14 +3,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { noop } from "radashi";
 
-import { MOUNT, WORKSPACE_SKILLS_MOUNT } from "../../mount-points";
-import { type FolderAttachment } from "../../schemas/folder-attachment";
-import { TOOL_NAMES } from "../../tools/name";
-import { readRefusalOf } from "../read-refusal";
+import { MOUNT, WORKSPACE_SKILLS_MOUNT } from "../../../mount-points";
+import { type MountedFolder } from "../../../schemas/mounted-folder";
+import { TOOL_NAMES } from "../../../tools/name";
+import { readRefusalOf } from "../../read-refusal";
 import {
   effectiveFolderAccess,
   folderHoldsWorkspace,
-} from "../workspace-fs-layout";
+} from "../../workspace-fs-layout";
 
 /**
  * A look inside a folder still waiting on the user's answer to the system's
@@ -25,39 +25,28 @@ export interface PendingLook {
 }
 
 /**
- * `--folder Home/Downloads:rw`: the mount, the folder inside it when the task
- * gets less than the whole mount, and the access asked for.
+ * `/mnt/Home/Downloads`: the mount, and the folder inside it when the spec
+ * names less than the whole mount. The `/mnt/` prefix is optional.
  */
 export function parseFolderSpec(spec: string): {
-  access?: FolderAttachment.Access;
   name: string;
   subpath: string;
 } {
-  const match = /^(.*?)(?::(rw|ro|read-write|read-only))?$/.exec(spec);
-  const raw = match?.[1] ?? spec;
-  const suffix = match?.[2];
-  const prefix = `${MOUNT.attachedFolders}/`;
-  const inside = (raw.startsWith(prefix) ? raw.slice(prefix.length) : raw)
+  const prefix = `${MOUNT.folders}/`;
+  const inside = (spec.startsWith(prefix) ? spec.slice(prefix.length) : spec)
     .replace(/\/+$/, "")
     .trim();
   const [name = "", ...rest] = inside.split("/");
-  const access =
-    suffix === "rw" || suffix === "read-write"
-      ? ("read-write" as const)
-      : suffix === undefined
-        ? undefined
-        : ("read-only" as const);
-  return { access, name, subpath: rest.filter(Boolean).join("/") };
+  return { name, subpath: rest.filter(Boolean).join("/") };
 }
 
 /**
- * Every folder a task is handed has to be on disk. The path the note named a
- * moment ago can be gone by the time the command runs (a folder renamed in
- * the Finder, a path with a space in it that lost its tail to the shell), and
- * a task started on it fails at its first `ls` and wakes the conversation
- * about it; refusing here hands the conversation the fix instead. The specs
- * are the folders' own, in the same order, so the refusal names what was
- * typed.
+ * Every folder granted has to be on disk. The path the note named a moment
+ * ago can be gone by the time the command runs (a folder renamed in the
+ * Finder, a path with a space in it that lost its tail to the shell), and a
+ * grant of it would leave a mount that fails at its first `ls`; refusing here
+ * hands the conversation the fix instead. The specs are the folders' own, in
+ * the same order, so the refusal names what was typed.
  */
 export async function requireFoldersOnDisk(
   folders: { path: string }[],
@@ -71,12 +60,12 @@ export async function requireFoldersOnDisk(
       stat = await fs.stat(folder.path);
     } catch {
       throw new Error(
-        `no folder at "${spec}": nothing is on disk at ${folder.path}. A folder renamed or moved since it was named is under its new name; \`ls\` its parent to see what is there. A path with a space in it needs quotes: '${MOUNT.attachedFolders}/<mount>/a folder'.`,
+        `no folder at "${spec}": nothing is on disk at ${folder.path}. A folder renamed or moved since it was named is under its new name; \`ls\` its parent to see what is there. A path with a space in it needs quotes: '${MOUNT.folders}/<mount>/a folder'.`,
       );
     }
     if (!stat.isDirectory()) {
       throw new Error(
-        `"${spec}" is a file, not a folder. A task is handed the folder, and finds the file inside it.`,
+        `"${spec}" is a file, not a folder. Add the folder, and find the file inside it.`,
       );
     }
     const look = await requireReadable(folder.path, spec);
@@ -88,10 +77,10 @@ export async function requireFoldersOnDisk(
 }
 
 /**
- * How long `task new` waits on the user's answer to the system's ask before
- * making the task and holding it. Most people answer a dialog they were just
- * told about within this, and an answer inside it is reported as what it is: a
- * task started, or a refusal with nothing created.
+ * How long `task folder --add` waits on the user's answer to the system's ask
+ * before giving up on it. Most people answer a dialog they were just told
+ * about within this, and an answer inside it is reported as what it is: a
+ * folder granted, or a refusal with nothing granted.
  */
 export const ANSWER_WAIT_MS = 20_000;
 
@@ -117,8 +106,8 @@ export async function awaitAnswers(
       answered.add(look);
     }),
   );
-  // A refusal that comes after the wait is the held task's to report, not
-  // this command's.
+  // A refusal that comes after the wait is the next run's to report, not
+  // this one's.
   void all.catch(noop);
   let timer: NodeJS.Timeout | undefined;
   const deadline = new Promise<void>((resolve) => {
@@ -134,24 +123,23 @@ export async function awaitAnswers(
 
 /**
  * The folders `task folder --add` names, against the folders the
- * conversation has: each a host path inside a mount, with the conversation's
- * access unless the spec narrows it, and the name it mounts under, which is
- * the conversation's own path for it (`Home/Downloads` for
- * `/mnt/Home/Downloads`).
+ * conversation reaches: each a host path inside a mount. A folder is added
+ * to be written in, so one that would mount read-only (the home folder
+ * whole, which holds the workspace) is refused with the folder to add
+ * instead.
  */
 export function resolveFolders(
   specs: string[],
-  attached: Record<string, FolderAttachment.Type>,
-) {
+  reached: Record<string, MountedFolder.Type>,
+): { path: string }[] {
   const byMount = new Map(
-    Object.values(attached).map((folder) => [folder.mountName, folder]),
+    Object.values(reached).map((folder) => [folder.mountName, folder]),
   );
   const available =
-    [...byMount.keys()]
-      .map((name) => `${MOUNT.attachedFolders}/${name}`)
-      .join(", ") || "none";
+    [...byMount.keys()].map((name) => `${MOUNT.folders}/${name}`).join(", ") ||
+    "none";
   return specs.map((spec) => {
-    const { access, name, subpath } = parseFolderSpec(spec);
+    const { name, subpath } = parseFolderSpec(spec);
     const folder = byMount.get(name);
     if (!folder && spec.startsWith(`${MOUNT.skills}/`)) {
       throw new Error(
@@ -160,45 +148,37 @@ export function resolveFolders(
     }
     if (!folder && name === "") {
       throw new Error(
-        `"${spec}" is not one of this conversation's folders: a folder is ${MOUNT.attachedFolders}/<mount>[/<folder>]. Yours: ${available}.`,
+        `"${spec}" is not one of this conversation's folders: a folder is ${MOUNT.folders}/<mount>[/<folder>]. Yours: ${available}.`,
       );
     }
     if (!folder) {
       throw new Error(
-        `no folder "${name}" in this conversation. Yours: ${available}; a folder inside one is written ${MOUNT.attachedFolders}/<mount>/<folder>. Ask for one outside them with request_folder.`,
+        `no folder "${name}" in this conversation. Yours: ${available}; a folder inside one is written ${MOUNT.folders}/<mount>/<folder>. Ask for one outside them with request_folder.`,
       );
     }
     // A folder inside the mount and never one outside it: `..` in the
-    // subpath would hand a task a folder the user never granted.
+    // subpath would grant a folder the user never pointed at.
     const root = path.resolve(folder.path);
     const folderPath = subpath ? path.resolve(root, subpath) : root;
     if (folderPath !== root && !folderPath.startsWith(`${root}${path.sep}`)) {
       throw new Error(
-        `"${spec}" leaves ${MOUNT.attachedFolders}/${name}. A folder inside a mount can be granted, not one outside it.`,
+        `"${spec}" leaves ${MOUNT.folders}/${name}. A folder inside a mount can be granted, not one outside it.`,
       );
     }
-    // The grant is judged for the folder handed, not for the mount: the home
-    // folder is read-only as a whole because the workspace lives inside it,
-    // while its Desktop, clear of the workspace, carries the grant in full.
-    const granted = effectiveFolderAccess({
-      access: folder.access,
-      path: folderPath,
-    });
-    if (access === "read-write" && granted !== "read-write") {
+    // Judged for the folder named, not for the mount: the home folder is
+    // read-only as a whole because the workspace lives inside it, while its
+    // Desktop, clear of the workspace, is written in full.
+    if (
+      effectiveFolderAccess({ access: "read-write", path: folderPath }) !==
+      "read-write"
+    ) {
       throw new Error(
-        folder.access === "read-write" && folderHoldsWorkspace(folderPath)
-          ? `${MOUNT.attachedFolders}/${name} holds ${APP_NAME}'s own data, so it is read whole and never written whole. Add the folder inside that the work needs: ${MOUNT.attachedFolders}/${name}/<folder>.`
-          : `${MOUNT.attachedFolders}/${name} is read-only in this conversation, so nothing writes to it. Ask the user to attach it with write access.`,
+        folderHoldsWorkspace(folderPath)
+          ? `${MOUNT.folders}/${name} holds ${APP_NAME}'s own data, so it is read whole and never written whole. Add the folder inside that the work needs: ${MOUNT.folders}/${name}/<folder>.`
+          : `"${spec}" is inside ${APP_NAME}'s own data, so nothing writes to it.`,
       );
     }
-    const inside = path.relative(root, folderPath).split(path.sep);
-    // What the conversation has, unless the spec narrows it.
-    return {
-      access: access ?? granted,
-      mountName: [name, ...inside.filter(Boolean)].join("/"),
-      path: folderPath,
-      source: "user" as const,
-    };
+    return { path: folderPath };
   });
 }
 
@@ -211,12 +191,10 @@ export function resolveFolders(
  */
 const LOOK_INSIDE_MS = 750;
 
-/** The folder a spec names, without the access it asks for. */
+/** The folder a spec names, as its mount path. */
 function folderOfSpec(spec: string): string {
   const { name, subpath } = parseFolderSpec(spec);
-  return [`${MOUNT.attachedFolders}/${name}`, subpath]
-    .filter(Boolean)
-    .join("/");
+  return [`${MOUNT.folders}/${name}`, subpath].filter(Boolean).join("/");
 }
 
 function refusal(error: unknown, spec: string) {
@@ -231,16 +209,13 @@ function refusal(error: unknown, spec: string) {
  * A look inside the folder, which is what the operating system gates. On a Mac
  * the first look into Desktop, Documents, Downloads or a removable volume
  * raises the system's own ask, and taking it here puts that ask at the moment
- * the user pointed at the folder rather than at the task's first `ls`; a
- * refusal already given becomes a reason the conversation can pass on instead
- * of an `EPERM` a task has to make sense of.
+ * the folder is added rather than at the first `ls` in it; a refusal already
+ * given becomes a reason the conversation can pass on instead of an `EPERM`
+ * to make sense of later.
  *
  * The ask blocks the look until the user answers, which can be never, so a
  * look that has not answered in time comes back as the answer still to come:
- * the caller waits on it a while (`awaitAnswers`) and holds the task on it
- * past that. Only a listing waits on the ask: a file written or read by its
- * path goes through while it is up, so a task started before the answer
- * writes into the folder whatever the user then says.
+ * the caller waits on it a while (`awaitAnswers`) and refuses past that.
  */
 async function requireReadable(
   folderPath: string,

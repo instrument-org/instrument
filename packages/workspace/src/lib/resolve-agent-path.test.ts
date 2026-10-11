@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MOUNT } from "../mount-points";
-import { FolderAttachment } from "../schemas/folder-attachment";
+import { MountedFolder } from "../schemas/mounted-folder";
 import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
 import { chatsDir } from "./record-folders";
 import {
@@ -28,12 +28,12 @@ function attachment(
   id: string,
   mountName: string,
   folderPath: string,
-  access: FolderAttachment.Access = "read-only",
+  access: MountedFolder.Access = "read-only",
 ) {
   return {
     access,
     createdAt: 0,
-    id: FolderAttachment.IdSchema.parse(id),
+    id: MountedFolder.IdSchema.parse(id),
     mountName,
     path: abs(folderPath),
     source: "user" as const,
@@ -218,15 +218,15 @@ describe("private-dir (.instrument) restriction", () => {
   describe("a mount's private dir", () => {
     // A folder the user attached is theirs, and a directory of that name in it
     // is an ordinary one rather than ours to hide.
-    it("leaves an attached folder's own .instrument dir alone", () => {
+    it("leaves a folder mount's own .instrument dir alone", () => {
       const attachedLayout = buildWorkspaceFsLayout({
-        attachedFolders: { a: attachment("id-a", "Docs", "/ext/one/Docs") },
+        folders: { a: attachment("id-a", "Docs", "/ext/one/Docs") },
         taskHostRoot: dir,
       });
 
       expect(
         resolveAgentPath({
-          inputPath: `${MOUNT.attachedFolders}/Docs/.instrument/notes.md`,
+          inputPath: `${MOUNT.folders}/Docs/.instrument/notes.md`,
           layout: attachedLayout,
         }).isOk(),
       ).toBe(true);
@@ -308,7 +308,7 @@ describe("a chat's tasks dir", () => {
 describe("resolveAgentPath (virtual layout paths)", () => {
   const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
   const layout = buildWorkspaceFsLayout({
-    attachedFolders: {
+    folders: {
       a: attachment("id-a", "Docs", "/ext/one/Docs"),
       b: attachment("id-b", "Docs", "/ext/two/Docs"),
     },
@@ -336,7 +336,7 @@ describe("resolveAgentPath (virtual layout paths)", () => {
     });
   });
 
-  it("resolves a mount path to the attached folder's host path", () => {
+  it("resolves a mount path to the folder mount's host path", () => {
     const result = resolveAgentPath({
       inputPath: "/mnt/Docs/report.pdf",
       layout,
@@ -384,7 +384,7 @@ describe("resolveAgentPath (virtual layout paths)", () => {
 describe("resolveWritableToolPath", () => {
   const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
   const layout = buildWorkspaceFsLayout({
-    attachedFolders: { a: attachment("id-a", "Docs", "/ext/one/Docs") },
+    folders: { a: attachment("id-a", "Docs", "/ext/one/Docs") },
     taskHostRoot: dir,
   });
 
@@ -437,7 +437,7 @@ describe("symlink containment on a read-write mount", () => {
       path.join(tmpDir, "Docs", "escape"),
     );
     layout = buildWorkspaceFsLayout({
-      attachedFolders: {
+      folders: {
         Docs: attachment(
           "docs",
           "Docs",

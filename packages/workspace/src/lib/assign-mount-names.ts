@@ -8,42 +8,38 @@ const MAX_PARENT_SEGMENTS = 3;
 
 // The generic label the home directory takes rather than the account name (see
 // folder-paths.ts in the shared package) reaches a mount name two ways: as the
-// mount's own name where the home directory is the folder attached, which
+// mount's own name where the folder is the home directory, which
 // folderLabelFromPath gives it, and as a segment where an ancestor qualifies
 // another folder's name, which is this.
 const HOME_DIR_BASENAME = path.basename(os.homedir());
 
 /**
  * Assigns every folder in `folders` the name it is mounted under, unique within
- * the task and apart from every name in `taken`.
+ * the chat.
  *
  * This is the agent's handle for a folder, not the user's word for it: it ends
  * up as the `/mnt/<name>` path the model reads and writes through. A folder
  * mounts under its own name where it can, and takes an ancestor only when
- * another folder in the same task already holds that name ("Documents-test"
+ * another folder in the same chat already holds that name ("Documents-test"
  * beside "test"). A candidate that still collides walks up further ancestors,
  * up to {@link MAX_PARENT_SEGMENTS} levels, then falls back to a numeric suffix.
  *
- * Qualifying unconditionally reads as a rename to the person who attached the
+ * Qualifying unconditionally reads as a rename to the person who granted the
  * folder, because the model quotes this name back to them: `~/Documents/test`
  * reached the user as "the documents-test folder". The disambiguation is worth
  * that cost only where two folders genuinely cannot be told apart, and even
  * there the model is given a name and a parent to say instead (see
- * build-attached-folders-text.ts).
+ * build-folders-text.ts).
  *
- * Pass `folders` sorted by attach order (`createdAt`): order is the stable
- * tie-breaker, so the earliest attachment keeps the bare name and later
- * namesakes take the qualified ones.
- *
- * A folder already mounted keeps its name: the agent reads and writes through
- * it, and its transcript names it. So a caller passes the names already held
- * as `taken` and only the new folders here (see grant-folders.ts).
+ * Pass `folders` in the order they were granted: order is the stable
+ * tie-breaker, so the earliest grant keeps the bare name and later namesakes
+ * take the qualified ones, and a folder already mounted keeps its name when
+ * one is granted after it (see folder-reach.ts).
  */
 export function assignMountNames(
   folders: { id: string; path: string }[],
-  taken: Iterable<string> = [],
 ): Map<string, string> {
-  const used = new Set<string>(taken);
+  const used = new Set<string>();
   const names = new Map<string, string>();
   for (const folder of folders) {
     const name = uniqueName(folder.path, used);

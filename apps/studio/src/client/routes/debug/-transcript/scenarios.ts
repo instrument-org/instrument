@@ -1368,9 +1368,6 @@ done`,
         },
         {
           data: {
-            accessChanged: [
-              { access: "read-only", name: "Photos", path: "/tmp/Photos" },
-            ],
             added: [
               { access: "read-write", name: "Exports", path: "/tmp/Exports" },
             ],
@@ -1383,7 +1380,7 @@ done`,
               },
             ],
           },
-          type: "data-attachedFolderChanges",
+          type: "data-folderChanges",
         },
       ),
       prose(

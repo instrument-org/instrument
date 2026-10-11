@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CHAT_FOLDER_NAMES } from "../constants";
-import { FolderAttachment } from "../schemas/folder-attachment";
+import { MountedFolder } from "../schemas/mounted-folder";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
@@ -648,11 +648,11 @@ describe("background processes", () => {
   it("names a mount by its mount point in the live copy, never by its host root", async () => {
     const owner = makeOwner("mounted");
     const home = os.homedir();
-    const attachedFolders = {
+    const folders = {
       Notes: {
         access: "read-only" as const,
         createdAt: 0,
-        id: FolderAttachment.IdSchema.parse("notes-id"),
+        id: MountedFolder.IdSchema.parse("notes-id"),
         mountName: "Notes",
         path: AbsolutePathSchema.parse(path.join(home, "notes")),
         source: "user" as const,
@@ -660,14 +660,14 @@ describe("background processes", () => {
       Vault: {
         access: "read-only" as const,
         createdAt: 0,
-        id: FolderAttachment.IdSchema.parse("vault-id"),
+        id: MountedFolder.IdSchema.parse("vault-id"),
         mountName: "Vault",
         path: AbsolutePathSchema.parse("/Volumes/External/Vault"),
         source: "user" as const,
       },
     };
     const layout = buildWorkspaceFsLayout({
-      attachedFolders,
+      folders,
       taskHostRoot: chatDir(owner.chatId),
     });
     const { controllable, info } = promote(

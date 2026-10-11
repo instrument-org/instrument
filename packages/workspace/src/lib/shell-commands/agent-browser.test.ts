@@ -327,7 +327,7 @@ describe("resolveAgentBrowserPathArgs", () => {
     {
       cwd: "/task",
       error: "Copy the file into the task first",
-      name: "attached-folder path",
+      name: "folder-mount path",
       path: "/mnt/Photos/image.png",
     },
     {

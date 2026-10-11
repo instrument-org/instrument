@@ -32,10 +32,10 @@ export function computerTabOf(href: string) {
  */
 export function mountOfHostPath(
   hostPath: string,
-  attachedFolders: Record<string, { mountName: string; path: string }>,
+  folders: Record<string, { mountName: string; path: string }>,
 ): string | undefined {
   let best: undefined | { mountName: string; path: string };
-  for (const folder of Object.values(attachedFolders)) {
+  for (const folder of Object.values(folders)) {
     if (
       isInside(hostPath, folder.path) &&
       (best === undefined || folder.path.length > best.path.length)
@@ -50,7 +50,7 @@ export function mountOfHostPath(
   // computer's own are not: the names below the grant are what carries over,
   // never the separator they were written with.
   const below = segmentsOf(hostPath.slice(best.path.length));
-  return [`${MOUNT.attachedFolders}/${best.mountName}`, ...below].join("/");
+  return [`${MOUNT.folders}/${best.mountName}`, ...below].join("/");
 }
 
 /**

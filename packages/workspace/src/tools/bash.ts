@@ -165,7 +165,7 @@ export const BashTool = setupTool({
   // feature flag can turn on and off while the app is running.
   description: () => createBashDescription(),
   async execute({ input, partId, sessionId, signal, chatId }) {
-    const attachedFolders = await folderReach(chatId);
+    const folders = await folderReach(chatId);
     const yieldMs = clampYieldMs(input.yieldMs);
     const startedAt = performance.now();
     // The chat's own commands are its conversation's: a task of the chat's
@@ -173,7 +173,7 @@ export const BashTool = setupTool({
     const conversation = chatConversation(chatId, sessionId);
     const chat = conversation ? { id: conversation } : undefined;
     const bash = await createBashEnv({
-      attachedFolders,
+      folders,
       callPartId: partId,
       chat,
       // `fg` waits inside this call, so what is left of the window is its
@@ -186,7 +186,7 @@ export const BashTool = setupTool({
     // The layout the native shims write their own output's host paths back
     // against, so the live copy a promoted command streams names them the way
     // the foreground copy does.
-    const layout = shellLayout({ attachedFolders, chat, chatId });
+    const layout = shellLayout({ folders, chat, chatId });
     // Interpreter metadata, only available once the run finishes. A promoted
     // command reports none, which is what the empty default stands for.
     let commands: string[] = [];

@@ -3,26 +3,22 @@ import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 
 /**
- * What changed about this task's folders, above the message it took effect on.
+ * What changed about the folders granted in this chat, above the message it
+ * took effect on.
  *
- * The same shape as the project's note beside it, for the same reason: a change
- * made in the panel is silent until a turn carries it, and this is where the
- * user finds out that the one they made is the one the agent has.
- *
- * Two of the four changes are ours rather than theirs, and neither is shown
- * outside developer mode. A rename here is of the mount we assign, not of the
- * user's folder, so reporting one describes something they never did. And a
- * folder arriving is most often the conversation handing one to a task it is
- * running: real, but nothing the person reading this chat did or has to act
- * on. In developer mode it says which, since there it is being
- * read to find out what the agent was told. A change of access is never
- * shown: what a task may do in a folder is the conversation's to decide.
+ * A folder taken back is shown, since it is gone for the agent from this
+ * message on. The other two changes are not, outside developer mode. A
+ * folder granted already shows where it was granted: on the message that
+ * sent it, or on the card that asked for it. A rename here is of the mount
+ * we assign, not of the user's folder, so reporting one describes something
+ * they never did. In developer mode the grants are listed too, since there
+ * the note is read to find out what the agent was told.
  */
-export function AttachedFolderChangesNote({
+export function FolderChangesNote({
   data,
   isDeveloperMode = false,
 }: {
-  data: SessionMessageDataPart.AttachedFolderChangesDataPart;
+  data: SessionMessageDataPart.FolderChangesDataPart;
   isDeveloperMode?: boolean;
 }) {
   const changes: string[] = [];

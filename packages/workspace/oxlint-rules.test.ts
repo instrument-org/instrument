@@ -41,7 +41,7 @@ ruleTester.run("no-bare-mount-path", noBareMountPath, {
         {
           data: {
             paths: "`/mnt`, `/task`",
-            replacements: "MOUNT.attachedFolders, MOUNT.task",
+            replacements: "MOUNT.folders, MOUNT.task",
           },
           messageId: "bareMountPath",
         },
@@ -66,7 +66,7 @@ ruleTester.run("no-bare-mount-path", noBareMountPath, {
     { code: `const a = "https://skills.sh";` },
     { code: `const a = "https://example.com/project/123";` },
     // What the rule is asking for.
-    { code: "const a = `${MOUNT.attachedFolders}/Photos/cat.png`;" },
+    { code: "const a = `${MOUNT.folders}/Photos/cat.png`;" },
     // Nothing to find.
     { code: `const a = "no paths here";` },
     { code: `const a = 42;` },

@@ -96,7 +96,7 @@ const freshChat = async () => {
     ...getWorkspaceConfig(),
     chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
-    tasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
+    legacyTasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
   });
   return chatId;
 };

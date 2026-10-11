@@ -22,13 +22,13 @@ export const MOUNT = {
   apps: "/apps",
 
   /**
-   * Root of the attached-folder mounts (e.g. `/mnt/Photos`). Attached folders
-   * live on the user's real disk and are surfaced under this prefix, read-only
-   * or read-write according to the access the user granted each one. The path
-   * schemas, the attached-folder mount points, and the asset server all derive
-   * from it.
+   * Root of the folder mounts (e.g. `/mnt/Photos`): every folder the chat
+   * reaches on the user's real disk (the home folder, the workspace folder,
+   * the folders granted in the chat and those of its topics), each read and
+   * write unless it holds the workspace. The path schemas, the mount points,
+   * and the asset server all derive from it.
    */
-  attachedFolders: "/mnt",
+  folders: "/mnt",
 
   /**
    * The skills the agent can see, one mount per skill source at

@@ -59,7 +59,7 @@ export async function resolveWorkspaceFilePaths({
  */
 export async function taskFsLayout(chatId: ChatId): Promise<WorkspaceFsLayout> {
   return buildWorkspaceFsLayout({
-    attachedFolders: await folderReach(chatId),
+    folders: await folderReach(chatId),
     taskHostRoot: workDir(chatId),
   });
 }

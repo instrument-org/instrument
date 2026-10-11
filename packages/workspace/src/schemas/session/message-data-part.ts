@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { FolderAttachment } from "../folder-attachment";
+import { MountedFolder } from "../mounted-folder";
 import { RelativePathSchema } from "../paths";
 import { ProjectIdSchema } from "../project-id";
 import { StoreId } from "../store-id";
@@ -16,7 +16,7 @@ export namespace SessionMessageDataPart {
    *   `chatContext`, which is written once at creation. A repeat is
    *   impossible by construction; nothing to guard.
    * - **Diff**: what changed since last time -- `projectChanges`,
-   *   `attachedFolderChanges`, `modelChange`. Self-limiting: no change, no
+   *   `folderChanges`, `modelChange`. Self-limiting: no change, no
    *   part.
    * - **State**: the whole current picture -- `backgroundProcesses`,
    *   `browserStatus`, `memory`, `chatTopics`, `viewContext`.
@@ -35,7 +35,7 @@ export namespace SessionMessageDataPart {
   export const NameSchema = z.enum([
     "appEvent",
     "asks",
-    "attachedFolderChanges",
+    "folderChanges",
     "attachments",
     "backgroundProcesses",
     "browserStatus",
@@ -63,40 +63,28 @@ export namespace SessionMessageDataPart {
 
   export type Name = z.output<typeof NameSchema>;
 
-  // Attached folders added, removed, renamed, or re-permissioned since the
-  // model last saw them -- attached to the user message that triggers the next
-  // turn so the model stops relying on stale names, removed folders, or an
-  // access level that has since changed, and knows about a folder handed to it
-  // mid-flight. The standing folder list lives in the session context, which is
-  // written once and never rewritten, so this is the only thing that gets a
-  // change to the model at all.
-  const AttachedFolderChangesDataPartSchema = z.object({
-    accessChanged: z
-      .array(
-        z.object({
-          access: FolderAttachment.AccessSchema,
-          name: z.string(),
-          path: z.string(),
-        }),
-      )
-      .default([]),
-    added: z
-      .array(
-        z.object({
-          access: FolderAttachment.AccessSchema,
-          name: z.string(),
-          path: z.string(),
-        }),
-      )
-      .default([]),
+  // Folders granted in the chat, taken back, or moved to a new mount since
+  // the session last heard -- attached to the user message that starts the
+  // next turn so the model knows of a folder granted mid-conversation and
+  // stops relying on a mount that has gone or moved. The standing folder
+  // list lives in the session context, which is written once and rebuilt at
+  // most hourly, so this is what gets a change to the model the same turn.
+  const FolderChangesDataPartSchema = z.object({
+    added: z.array(
+      z.object({
+        access: MountedFolder.AccessSchema,
+        name: z.string(),
+        path: z.string(),
+      }),
+    ),
     removed: z.array(z.object({ name: z.string(), path: z.string() })),
     renamed: z.array(
       z.object({ newName: z.string(), oldName: z.string(), path: z.string() }),
     ),
   });
 
-  export type AttachedFolderChangesDataPart = z.output<
-    typeof AttachedFolderChangesDataPartSchema
+  export type FolderChangesDataPart = z.output<
+    typeof FolderChangesDataPartSchema
   >;
 
   const FileAttachmentDataPartSchema = z.object({
@@ -154,7 +142,7 @@ export namespace SessionMessageDataPart {
   const ProjectChangesDataPartSchema = z.object({
     foldersAdded: z.array(
       z.object({
-        access: FolderAttachment.AccessSchema,
+        access: MountedFolder.AccessSchema,
         name: z.string(),
         path: z.string(),
       }),
@@ -953,8 +941,7 @@ export namespace SessionMessageDataPart {
   const DataPartsSchema = z.object({
     [NameSchema.enum.appEvent]: AppEventDataPartSchema,
     [NameSchema.enum.asks]: AsksDataPartSchema,
-    [NameSchema.enum.attachedFolderChanges]:
-      AttachedFolderChangesDataPartSchema,
+    [NameSchema.enum.folderChanges]: FolderChangesDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,

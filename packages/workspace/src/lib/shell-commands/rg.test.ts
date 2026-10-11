@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { AbsolutePath } from "../../schemas/paths";
 
-import { FolderAttachment } from "../../schemas/folder-attachment";
+import { MountedFolder } from "../../schemas/mounted-folder";
 import { ChatDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
@@ -29,15 +29,13 @@ let chatId: ReturnType<typeof ChatIdSchema.parse>;
 async function run(command: string, attach: boolean | string = false) {
   const mountName = typeof attach === "string" ? attach : "Docs";
   const bash = await createBashEnv({
-    attachedFolders: attach
+    folders: attach
       ? {
           [mountName]: {
             access: "read-only",
-            createdAt: Date.now(),
-            id: FolderAttachment.IdSchema.parse("docs-id"),
+            id: MountedFolder.IdSchema.parse("docs-id"),
             mountName,
             path: ChatDirSchema.parse(attachedDir),
-            source: "user",
           },
         }
       : undefined,
@@ -319,7 +317,7 @@ describe("rg command", () => {
     expect(result.stdout).toContain("work/a.ts");
   });
 
-  it("searches an attached folder and reports its mount path, not the host path", async () => {
+  it("searches a folder mount and reports its mount path, not the host path", async () => {
     const result = await run("rg NEEDLE /mnt/Docs", true);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("/mnt/Docs/note.md");
@@ -409,16 +407,14 @@ describe("virtualizeHostPaths on what rg prints", () => {
   // POSIX spelling whatever the layout stores.
   function layoutFor(hostRoot: string) {
     return buildWorkspaceFsLayout({
-      attachedFolders: {
+      folders: {
         docs: {
           access: "read-only",
-          createdAt: 0,
-          id: FolderAttachment.IdSchema.parse("docs-id"),
+          id: MountedFolder.IdSchema.parse("docs-id"),
           mountName: "Docs",
           // Cast: AbsolutePathSchema rejects win32 absolute paths when the test
           // runs on a posix host, but a Windows build stores exactly this shape.
           path: hostRoot as AbsolutePath,
-          source: "user",
         },
       },
       taskHostRoot: ChatDirSchema.parse("/workspace/tasks/test"),

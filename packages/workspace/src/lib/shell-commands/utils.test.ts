@@ -115,10 +115,10 @@ describe("resolvePathArgs native-binary bridge", () => {
 });
 
 describe("unreachablePathArgError", () => {
-  it("names the attached folder the agent asked for, not the quarantined path", () => {
+  it("names the folder mount the agent asked for, not the quarantined path", () => {
     expect(
       unreachablePathArgError("ffprobe", ["/mnt/Photos/clip.mov"], "/task"),
-    ).toContain("/mnt/Photos/clip.mov is inside an attached folder");
+    ).toContain("/mnt/Photos/clip.mov is inside a folder mount");
   });
 
   it("points a path outside every mount at the task, and at mktemp", () => {
@@ -236,7 +236,7 @@ describe("bridgeInlineCodePaths", () => {
     );
     expect(result).toMatchInlineSnapshot(`
       {
-        "error": "Inline script code references a /mnt/... path. Attached-folder mounts are visible to the sandbox shell, the file tools, and the sandboxed script runtimes, never to a real interpreter process. Copy the file into the task first (cp '/mnt/Q3 Reports/sales.csv' attachments/) and open the copy as attachments/sales.csv.",
+        "error": "Inline script code references a /mnt/... path. Folder mounts are visible to the sandbox shell, the file tools, and the sandboxed script runtimes, never to a real interpreter process. Copy the file into the task first (cp '/mnt/Q3 Reports/sales.csv' attachments/) and open the copy as attachments/sales.csv.",
       }
     `);
   });

@@ -10,7 +10,7 @@ import nodePath from "node:path";
 
 import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import { MOUNT } from "../mount-points";
-import { type FolderAttachment } from "../schemas/folder-attachment";
+import { type MountedFolder } from "../schemas/mounted-folder";
 import { type AbsolutePath, type ChatDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import {
@@ -18,7 +18,7 @@ import {
   hostPathWithin,
   realRoot,
 } from "./host-path";
-import { assignAttachedMounts } from "./attached-folder-mounts";
+import { assignMountPoints } from "./folder-mounts";
 import {
   type MaskedEntry,
   maskedEntryOf,
@@ -84,9 +84,9 @@ const HOST_DEVICE_NAMES = new Set([
 ]);
 
 /**
- * The complete virtual filesystem layout for a task: the writable task mount,
- * one mount per skill source, and any user-attached folders, each read-only or
- * writable according to the access the user granted it. This is the single
+ * The complete virtual filesystem layout for a chat: the writable task mount
+ * (the chat's folder), one mount per skill source, and the folders the chat
+ * reaches, each writable unless it holds the workspace. This is the single
  * source of truth shared by the bash sandbox (just-bash filesystem), the
  * native-binary path bridge, and the dedicated file tools, so all three agree
  * on what the agent can see and where.
@@ -97,7 +97,8 @@ export interface WorkspaceFsLayout {
    * apps. Absent for a task, which reaches its apps through the `app` command.
    */
   apps?: WorkspaceFsMount & { readOnly: false };
-  attached: WorkspaceFsMount[];
+  /** The folders the chat reaches, under `/mnt`. */
+  folders: WorkspaceFsMount[];
   /**
    * One per skill source, at `/skills/<source>/`. The source segment is what
    * carries provenance and writability, so the agent reads both off the path
@@ -125,18 +126,18 @@ export interface WorkspaceFsMount {
    *
    * A property of the mount rather than a case each consumer writes against the
    * task mount, because each mount that masks anything holds settings that
-   * decide what the agent can reach, such as the task's attached folders. A
-   * guard spelled per consumer is one the next mount does not inherit.
+   * decide what the agent can reach, such as the chat's grants. A guard
+   * spelled per consumer is one the next mount does not inherit.
    */
   maskedEntries: readonly MaskedEntry[];
   /** Absolute, normalized virtual path where the directory appears. */
   mountPoint: string;
   /**
    * When true the mount is read-only: writes throw EROFS in the virtual FS.
-   * Attached folders are read-only unless the user granted the task read-write
-   * access to them.
+   * A folder is read-only when it holds the workspace
+   * ({@link effectiveFolderAccess}).
    *
-   * Independently of this flag, no attached folder's host path is handed to a
+   * Independently of this flag, no folder mount's host path is handed to a
    * real native binary; see {@link resolveNativeHostPath}.
    */
   readOnly: boolean;
@@ -146,8 +147,8 @@ export interface WorkspaceFsMount {
  * Build the just-bash filesystem the bash interpreter runs against, from the
  * layout: an empty read-only base holds the virtual root (so stray writes like
  * /tmp/x fail loudly instead of evaporating with the per-call filesystem), the
- * task mounts writable at its mount point, and attached folders mount with the
- * access the user granted them.
+ * task mounts writable at its mount point, and the chat's folders mount with
+ * the access each gets.
  */
 export async function buildBashFs(
   layout: WorkspaceFsLayout,
@@ -183,8 +184,8 @@ export async function buildBashFs(
   );
 
   // The task mount is wrapped so the private dir is masked from the agent's
-  // shell. It holds task internals the agent must never read: the task db,
-  // state.json (attached-folder host paths), and settings. The app reads these
+  // shell. It holds chat internals the agent must never read: the chat's
+  // database and its settings, grants included. The app reads these
   // through real fs, not this virtual FS, so the mask is agent-only. Agent-
   // facing byproducts (screenshots, tool-output) deliberately live under work/,
   // never here.
@@ -196,8 +197,8 @@ export async function buildBashFs(
     ),
   );
 
-  for (const mount of layout.attached) {
-    // Folders can be detached or deleted on disk between turns; both filesystems
+  for (const mount of layout.folders) {
+    // Folders can be deleted on disk between turns; both filesystems
     // throw if their root is missing, so skip any that no longer exist.
     if (!(await pathExists(mount.hostRoot))) {
       continue;
@@ -270,9 +271,9 @@ export async function buildBashFs(
 }
 
 /**
- * Build the layout for a task. Synchronous so the dedicated file tools can
- * resolve a path inline; bash's buildBashFs skips any attached folder that is
- * missing on disk at mount time.
+ * Build the layout for a chat. Synchronous so the dedicated file tools can
+ * resolve a path inline; bash's buildBashFs skips any folder that is missing
+ * on disk at mount time.
  *
  * Not pure: a read-write folder is checked against the workspace root, which
  * reads the workspace config and canonicalizes both paths. A caller with no
@@ -280,35 +281,24 @@ export async function buildBashFs(
  */
 export function buildWorkspaceFsLayout({
   apps = false,
-  attachedFolders,
-  extraMounts = [],
+  folders,
   taskHostRoot,
 }: {
   /** Whether the workspace's apps directory is mounted, writable, at `/apps`. */
   apps?: boolean;
-  attachedFolders?: Record<string, FolderAttachment.Type>;
-  /**
-   * Mounts the caller adds beside the attached folders, already resolved: an
-   * chat's read-only view of the tasks it created. They are attached
-   * mounts in every way that matters to the filesystem, so they take the same
-   * masking and containment.
-   */
-  extraMounts?: WorkspaceFsMount[];
+  folders?: Record<string, MountedFolder.Type>;
   taskHostRoot: ChatDir;
 }): WorkspaceFsLayout {
-  const attached: WorkspaceFsMount[] = [
-    ...assignAttachedMounts(attachedFolders ?? {}).map(
-      ({ folder, mountPoint }) => ({
-        hostRoot: folder.path,
-        // A folder the user attached is theirs, and an `.instrument` dir in it
-        // is an ordinary directory of theirs rather than one of ours.
-        maskedEntries: [],
-        mountPoint,
-        readOnly: effectiveFolderAccess(folder) !== "read-write",
-      }),
-    ),
-    ...extraMounts,
-  ];
+  const mounts: WorkspaceFsMount[] = assignMountPoints(folders ?? {}).map(
+    ({ folder, mountPoint }) => ({
+      hostRoot: folder.path,
+      // A folder on the user's disk is theirs, and an `.instrument` dir in it
+      // is an ordinary directory of theirs rather than one of ours.
+      maskedEntries: [],
+      mountPoint,
+      readOnly: effectiveFolderAccess(folder) !== "read-write",
+    }),
+  );
 
   return {
     ...(apps
@@ -323,7 +313,7 @@ export function buildWorkspaceFsLayout({
           },
         }
       : {}),
-    attached,
+    folders: mounts,
     skills: buildSkillMounts(),
     task: {
       hostRoot: taskHostRoot,
@@ -335,24 +325,24 @@ export function buildWorkspaceFsLayout({
 }
 
 /**
- * The access a folder actually gets: what the user granted, unless the folder
+ * The access a folder actually gets: read and write, unless the folder
  * overlaps the workspace's own directory in either direction.
  *
- * Every task's database and state, and the skills
- * the agent loads as instructions live under the workspace root. A folder that
- * contains it, or sits inside it, would turn one task's write grant into write
- * access to every other task and a way to persist instructions across all of
- * them. Reading those files was already possible for anyone who attached such
- * a folder; writing them is refused.
+ * Every chat's database and settings, and the skills the agent loads as
+ * instructions, live under the workspace root. A folder that contains it, or
+ * sits inside it, would turn one chat's write grant into write access to
+ * every other chat and a way to persist instructions across all of them.
+ * Reading those files is possible through any such folder; writing them is
+ * refused.
  *
- * The judgment is about the folder given, not about the attachment it came
- * from: the home folder attached whole is read-only, since the workspace is
- * somewhere inside it, while its Desktop handed on its own is clear of the
- * workspace and carries the same grant in full.
+ * The judgment is about the folder given, not about the mount it sits in: the
+ * home folder whole is read-only, since the workspace is somewhere inside it,
+ * while its Desktop granted on its own is clear of the workspace and carries
+ * the grant in full.
  *
- * Applied here rather than at the UI so it holds for a hand-edited state.json,
- * and shared with the agent's folder list so what the model is told matches
- * what the filesystem enforces.
+ * Applied here rather than at the UI so it holds for a hand-edited
+ * settings.json, and shared with the agent's folder list so what the model is
+ * told matches what the filesystem enforces.
  *
  * Both paths are canonicalized before they are compared, because the overlap
  * is a fact about the directory rather than about how it was spelled: `..`
@@ -361,9 +351,9 @@ export function buildWorkspaceFsLayout({
  * read-only folder costs nothing.
  */
 export function effectiveFolderAccess(folder: {
-  access: FolderAttachment.Access;
+  access: MountedFolder.Access;
   path: string;
-}): FolderAttachment.Access {
+}): MountedFolder.Access {
   if (folder.access !== "read-write") {
     return "read-only";
   }
@@ -383,7 +373,7 @@ export function effectiveFolderAccess(folder: {
 }
 
 /**
- * True when a folder contains the workspace root: the home folder attached
+ * True when a folder contains the workspace root: the home folder, reached
  * whole. Such a folder is read-only as a whole (effectiveFolderAccess) while a
  * folder inside it takes a write grant, which is what a refusal to write it
  * whole should say to do instead.
@@ -404,7 +394,7 @@ export function folderHoldsWorkspace(folderPath: string): boolean {
 /** Every mount other than the task, in the order they are advertised. */
 export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [
-    ...layout.attached,
+    ...layout.folders,
     ...layout.skills,
     ...(layout.apps ? [layout.apps] : []),
   ];
@@ -442,7 +432,7 @@ export function resolveHostDevicePath(
 /**
  * Resolve a virtual absolute path to the real on-disk path that backs it, plus
  * the mount that owns it. Returns null if no mount owns the path. The longest
- * matching mount point wins, so an attached folder under /mnt takes precedence
+ * matching mount point wins, so a folder mount under /mnt takes precedence
  * over the task mount.
  */
 export function resolveHostPath(
@@ -523,7 +513,7 @@ export function resolveNativeHostPath(
  *
  * Unlike `resolveNativeHostPath` this resolves the whole layout, including the
  * `/mnt` mounts and `/skills`. That is the point: a search command
- * the user cannot point at their attached folders is not worth having, and the
+ * the user cannot point at their folder mounts is not worth having, and the
  * dedicated grep tool already hands real ripgrep those same host paths.
  *
  * The safety of the wider reach rests entirely on the caller, which MUST:

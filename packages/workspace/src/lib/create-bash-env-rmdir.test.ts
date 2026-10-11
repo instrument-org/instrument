@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
+import { MountedFolder } from "../schemas/mounted-folder";
 import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -27,14 +27,12 @@ let chatId: ChatId;
 
 async function run(command: string) {
   const bash = await createBashEnv({
-    attachedFolders: {
+    folders: {
       Docs: {
         access: "read-write",
-        createdAt: Date.now(),
-        id: FolderAttachment.IdSchema.parse("docs-id"),
+        id: MountedFolder.IdSchema.parse("docs-id"),
         mountName: "Docs",
         path: ChatDirSchema.parse(attachedDir),
-        source: "user",
       },
     },
     sessionId,
@@ -92,7 +90,7 @@ describe("rmdir on a writable mount", () => {
     ]);
   });
 
-  it("leaves an empty attached folder's own directory in place", async () => {
+  it("leaves an empty folder mount's own directory in place", async () => {
     await fs.rm(path.join(attachedDir, "empty"), { recursive: true });
 
     expect((await run("rmdir /mnt/Docs")).exitCode).toBe(1);

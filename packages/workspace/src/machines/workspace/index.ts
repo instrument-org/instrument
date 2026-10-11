@@ -422,7 +422,7 @@ export const workspaceMachine = setup({
       rootDir,
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
       chatsDir: absolutePathJoin(rootDir, CHATS_DIR_NAME),
-      tasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
+      legacyTasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
       trashItem: input.trashItem,
       uvBinPath: AbsolutePathSchema.parse(input.uvBinPath),
       ...(input.macHelperBinPath === undefined

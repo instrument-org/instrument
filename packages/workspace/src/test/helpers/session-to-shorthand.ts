@@ -88,13 +88,13 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-asks": {
       return `<data-asks count="${part.data.asks.length}" />`;
     }
-    case "data-attachedFolderChanges": {
+    case "data-folderChanges": {
       const foldersList = part.data.removed
         .map(
           (folder) => `<folder name="${folder.name}" path="${folder.path}" />`,
         )
         .join("\n");
-      return `<data-attachedFolderChanges>\n${indent(foldersList)}\n</data-attachedFolderChanges>`;
+      return `<data-folderChanges>\n${indent(foldersList)}\n</data-folderChanges>`;
     }
     case "data-attachments": {
       const filesList = part.data.files

@@ -12,7 +12,7 @@ import { type ReactNode } from "react";
 
 import { FilePathsGrid } from "./agent-files-block";
 import { AppEventNote } from "./app-event-note";
-import { AttachedFolderChangesNote } from "./attached-folder-changes-note";
+import { FolderChangesNote } from "./folder-changes-note";
 import { ChatDevOnly } from "./dev-mode-card";
 import { type RenderPartContext } from "./chat-stream-render-part";
 import { ModelChangeNote } from "./model-change-note";
@@ -37,7 +37,7 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-appEvent": "always",
   // The places the user marked in their files, as the pills they sent.
   "data-asks": "always",
-  "data-attachedFolderChanges": "always",
+  "data-folderChanges": "always",
   "data-attachments": "hidden",
   // Deliberately not "always". This part is a persisted record of what was
   // running when the turn began, and a card in the transcript saying "2 still
@@ -155,9 +155,9 @@ export function renderDataPart({
     case "data-asks": {
       return <SentAsksNote data={part.data} key={part.metadata.id} />;
     }
-    case "data-attachedFolderChanges": {
+    case "data-folderChanges": {
       return (
-        <AttachedFolderChangesNote
+        <FolderChangesNote
           data={part.data}
           isDeveloperMode={ctx.isDeveloperMode}
           key={part.metadata.id}

@@ -15,11 +15,10 @@ import { Button } from "./ui/button";
  * The folders a sent message carried: the same anatomy the composer and the
  * project modal give a folder, without the controls.
  *
- * Access is deliberately absent. It is a property of the attachment as it
- * stands, not of the message, so a folder reattached at another level would
- * leave a label here describing a grant that no longer holds.
+ * Access is absent: what the agent may do in a folder belongs to the chat's
+ * mount of it, not to the message that sent it.
  */
-export function FolderAttachmentsCard({
+export function SentFoldersCard({
   folders,
 }: {
   folders: SessionMessageDataPart.SentFolderDataPart[];
@@ -31,14 +30,14 @@ export function FolderAttachmentsCard({
           is one list, not a card each. */}
       <div className="flex w-fit max-w-[80%] min-w-64 flex-col divide-y divide-black/5 overflow-hidden rounded-lg bg-background shadow-xs dark:divide-white/6">
         {folders.map((folder) => (
-          <FolderAttachmentPreview folder={folder} key={folder.path} />
+          <SentFolderPreview folder={folder} key={folder.path} />
         ))}
       </div>
     </div>
   );
 }
 
-function FolderAttachmentPreview({
+function SentFolderPreview({
   folder,
 }: {
   folder: SessionMessageDataPart.SentFolderDataPart;

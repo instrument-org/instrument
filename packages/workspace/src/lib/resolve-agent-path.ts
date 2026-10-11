@@ -114,7 +114,7 @@ export async function getSimilarPathSuggestions({
 
 /**
  * Resolve a read-path input against the workspace layout. Accepts task-relative
- * paths, the task's own virtual paths (/task/...), attached-folder mount paths
+ * paths, the task's own virtual paths (/task/...), folder mount paths
  * (/mnt/<name>/...), and the workspace skills mount (/skills/...). Any other
  * absolute path is an error that steers the agent back into the layout.
  *
@@ -240,7 +240,7 @@ export function resolveWritableToolPath(options: {
   const { absolutePath, displayPath, mount } = result.value;
   if (mount?.readOnly) {
     return executeError(
-      `"${displayPath}" is in a read-only attached folder and cannot be written. ` +
+      `"${displayPath}" is in a read-only folder and cannot be written. ` +
         `Copy the file into the task first (e.g. cp '${displayPath}' attachments/) and work on the copy.`,
     );
   }

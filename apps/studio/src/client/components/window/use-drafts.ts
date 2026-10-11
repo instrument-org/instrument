@@ -45,7 +45,7 @@ const CHAT_ARRIVAL_MS = ms("3 seconds");
  */
 export function useDrafts({
   activeHref,
-  attachedFolders,
+  folders,
   compose,
   draftContext,
   isChat,
@@ -59,7 +59,7 @@ export function useDrafts({
   /** Where the window's tab up stands, which a draft opened over a screen of its own is opened on. */
   activeHref: string;
   /** The folders the window reaches, for how the agent reaches a file an ask is on. */
-  attachedFolders: Record<string, { mountName: string; path: string }>;
+  folders: Record<string, { mountName: string; path: string }>;
   /** The windows along the row's foot, which a draft is written in. */
   compose: ReturnType<typeof useCompose>;
   /** What a draft's window has up, read as its chat starts. */
@@ -341,7 +341,7 @@ export function useDrafts({
       (ask) =>
         ask.destination?.kind === "draft" && ask.destination.draftId === id,
     );
-    const asks = asksPart(marked, attachedFolders);
+    const asks = asksPart(marked, folders);
     void (async () => {
       // The chat's record is made first, so the window never shows a chat
       // whose record is not there yet; it is a folder and a settings file,

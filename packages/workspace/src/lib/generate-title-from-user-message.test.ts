@@ -280,7 +280,7 @@ describe("generateTitleFromUserMessage", () => {
 
     // Where a folder lives is what tells two folders of the same name apart, so
     // the path is the useful signal here.
-    it("locates an attached folder under a bare home directory", async () => {
+    it("locates a folder mount under a bare home directory", async () => {
       const prompt = await promptFor(messageWithFolders());
 
       expect(prompt).toContain(

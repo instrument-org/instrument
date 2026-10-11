@@ -1,34 +1,28 @@
 import { type SubdomainPart } from "../schemas/subdomain-part";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
-import { type WorkspaceConfig } from "../types";
-import { absolutePathJoin } from "./absolute-path-join";
-import { generateTaskFolderName } from "./generate-task-folder-name";
-import { pathExists } from "./path-exists";
+import { chatFolderName } from "./chat-folder-name";
+import { getCurrentDate } from "./get-current-date";
 import { chatIdTaken } from "./record-folders";
 
-export async function newChatId({
+/**
+ * A free id for a new chat: `preferredFolderName` where no chat holds it,
+ * otherwise one named for the day and the words of `prompt`.
+ */
+export function newChatId({
   preferredFolderName,
   prompt,
-  workspaceConfig,
 }: {
   preferredFolderName?: SubdomainPart;
   prompt?: string;
-  workspaceConfig: WorkspaceConfig;
-}): Promise<ChatId> {
-  if (
-    preferredFolderName &&
-    !chatIdTaken(preferredFolderName) &&
-    !(await pathExists(
-      absolutePathJoin(workspaceConfig.tasksDir, preferredFolderName),
-    ))
-  ) {
+}): ChatId {
+  if (preferredFolderName && !chatIdTaken(preferredFolderName)) {
     return ChatIdSchema.parse(preferredFolderName);
   }
-
-  const rawId = await generateTaskFolderName({
-    prompt,
-    tasksDir: workspaceConfig.tasksDir,
-  });
-
-  return ChatIdSchema.parse(rawId);
+  return ChatIdSchema.parse(
+    chatFolderName({
+      date: getCurrentDate(),
+      isTaken: chatIdTaken,
+      title: prompt,
+    }),
+  );
 }

@@ -73,7 +73,7 @@ export const JS_EXEC_BOOTSTRAP = `(function () {
   // --- fs errors ---
   // The runtime throws a plain Error whose message is libuv-shaped but whose
   // path is relative to the mount it landed on ("open '/x'" for a file at
-  // the top of an attached folder), with no code, errno, syscall, or path on
+  // the top of a folder mount), with no code, errno, syscall, or path on
   // the object. Rewrite the same Error in place so its stack still points at
   // the agent's line.
   var ERRNO = {

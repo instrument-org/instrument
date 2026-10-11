@@ -9,12 +9,12 @@ import { PNPM_COMMAND } from "./pnpm";
 /**
  * just-bash's QuickJS runtime, offered beside `node` rather than in place of
  * it. It reads the virtual filesystem directly, so it is the JavaScript that
- * can open an attached folder, and it resolves no `node_modules` at all, which
+ * can open a folder mount, and it resolves no `node_modules` at all, which
  * is why `node` keeps the default: the JavaScript an agent writes leans on
  * packages far more often than the Python does.
  */
 export const JS_EXEC_COMMAND = {
-  description: `Run JavaScript or TypeScript (QuickJS, Node-compatible built-ins: fs, path, child_process, fetch) inside the sandbox: it reads ${MOUNT.attachedFolders} and ${MOUNT.task} paths directly and honors read-only mounts, but resolves NO packages, not even installed ones, and cannot open a file over 6 MB. Code that imports a package runs with \`${NODE_COMMAND.name}\`. TypeScript types are stripped wherever they appear. \`await tools.<slug>.<tool>({...})\` calls a connected app's tool as \`${APP_COMMAND.name} call\` does and returns the result as a value.`,
+  description: `Run JavaScript or TypeScript (QuickJS, Node-compatible built-ins: fs, path, child_process, fetch) inside the sandbox: it reads ${MOUNT.folders} and ${MOUNT.task} paths directly and honors read-only mounts, but resolves NO packages, not even installed ones, and cannot open a file over 6 MB. Code that imports a package runs with \`${NODE_COMMAND.name}\`. TypeScript types are stripped wherever they appear. \`await tools.<slug>.<tool>({...})\` calls a connected app's tool as \`${APP_COMMAND.name} call\` does and returns the result as a value.`,
   name: "js-exec",
 } as const;
 
@@ -277,7 +277,7 @@ function explainJsExecFailure(stderr: string): string {
       );
     } else {
       notes.push(
-        `${JS_EXEC_COMMAND.name} has Node's built-in modules (see \`${JS_EXEC_COMMAND.name} --help\`) and relative files only, never a package, installed or not. Code that needs '${missing}' runs with \`${NODE_COMMAND.name}\` after \`${PNPM_COMMAND.name} add ${missing}\`; ${NODE_COMMAND.name} sees only the task folder, so copy an attached file into the task first.`,
+        `${JS_EXEC_COMMAND.name} has Node's built-in modules (see \`${JS_EXEC_COMMAND.name} --help\`) and relative files only, never a package, installed or not. Code that needs '${missing}' runs with \`${NODE_COMMAND.name}\` after \`${PNPM_COMMAND.name} add ${missing}\`; ${NODE_COMMAND.name} sees only the task folder, so copy a file from a folder mount into the task first.`,
       );
     }
   }
@@ -288,7 +288,7 @@ function explainJsExecFailure(stderr: string): string {
     )?.[1];
   if (unavailable !== undefined) {
     notes.push(
-      `\`${NODE_COMMAND.name}\` has '${unavailable}'; it sees only the task folder, so copy an attached file into the task first.`,
+      `\`${NODE_COMMAND.name}\` has '${unavailable}'; it sees only the task folder, so copy a file from a folder mount into the task first.`,
     );
   }
 
@@ -308,7 +308,7 @@ function explainJsExecFailure(stderr: string): string {
     )?.[1];
   if (limit !== undefined) {
     notes.push(
-      `${JS_EXEC_COMMAND.name} reads a file whole through a bridge that carries at most ${limit} bytes, and this one is larger. Copy it into the task (cp '${MOUNT.attachedFolders}/<folder>/<file>' ${CHAT_FOLDER_NAMES.attachments}/) and read it with \`${NODE_COMMAND.name}\`, or read only part of it with a shell command (head, tail, rg, xan).`,
+      `${JS_EXEC_COMMAND.name} reads a file whole through a bridge that carries at most ${limit} bytes, and this one is larger. Copy it into the task (cp '${MOUNT.folders}/<folder>/<file>' ${CHAT_FOLDER_NAMES.attachments}/) and read it with \`${NODE_COMMAND.name}\`, or read only part of it with a shell command (head, tail, rg, xan).`,
     );
   }
 

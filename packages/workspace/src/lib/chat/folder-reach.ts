@@ -1,7 +1,7 @@
 import os from "node:os";
 
 import { type ChatGrant } from "../../schemas/chat-settings";
-import { FolderAttachment } from "../../schemas/folder-attachment";
+import { MountedFolder } from "../../schemas/mounted-folder";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { assignMountNames } from "../assign-mount-names";
 import { pathExists } from "../path-exists";
@@ -33,10 +33,10 @@ import { type ChatId } from "../../schemas/chat-id";
 export async function folderReach(
   chatId: ChatId,
   grants?: ChatGrant[],
-): Promise<Record<string, FolderAttachment.Type>> {
+): Promise<Record<string, MountedFolder.Type>> {
   const isWindow = chatId === WINDOW_ID;
-  const folders: FolderAttachment.Type[] = [];
-  const add = (folder: FolderAttachment.Type) => {
+  const folders: MountedFolder.Type[] = [];
+  const add = (folder: MountedFolder.Type) => {
     if (!folders.some((known) => known.path === folder.path)) {
       folders.push(folder);
     }
@@ -50,11 +50,9 @@ export async function folderReach(
     for (const grant of granted) {
       add({
         access: "read-write",
-        createdAt: grant.grantedAt.getTime(),
-        id: FolderAttachment.IdSchema.parse(`grant:${grant.path}`),
+        id: MountedFolder.IdSchema.parse(`grant:${grant.path}`),
         mountName: "",
         path: grant.path,
-        source: "user",
       });
     }
     for (const folderPath of await topicFolderPaths(chatId)) {
@@ -77,14 +75,12 @@ export async function folderReach(
  * A folder a chat reaches without holding it, named by its path so the same
  * folder has the same id on every read.
  */
-function standingFolder(folderPath: string): FolderAttachment.Type {
+function standingFolder(folderPath: string): MountedFolder.Type {
   return {
     access: "read-write",
-    createdAt: 0,
-    id: FolderAttachment.IdSchema.parse(`reach:${folderPath}`),
+    id: MountedFolder.IdSchema.parse(`reach:${folderPath}`),
     mountName: "",
     path: AbsolutePathSchema.parse(folderPath),
-    source: "user",
   };
 }
 

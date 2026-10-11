@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { attachedFolderMountPoint } from "./attached-folder-mounts";
+import { folderMountPoint } from "./folder-mounts";
 
-describe("attachedFolderMountPoint", () => {
+describe("folderMountPoint", () => {
   it.each([
     ["Family Photos", "/mnt/Family Photos"],
     // A chat's task holds a folder at the chat's own path for it.
@@ -11,6 +11,6 @@ describe("attachedFolderMountPoint", () => {
     ["../etc", "/mnt/folder/etc"],
     ["Home//x", "/mnt/Home/folder/x"],
   ])("mounts %s at %s", (name, mountPoint) => {
-    expect(attachedFolderMountPoint(name)).toBe(mountPoint);
+    expect(folderMountPoint(name)).toBe(mountPoint);
   });
 });

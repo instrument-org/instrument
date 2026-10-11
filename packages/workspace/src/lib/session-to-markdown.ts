@@ -9,15 +9,15 @@ import {
 } from "ai";
 import { alphabetical } from "radashi";
 
-import { type FolderAttachment } from "../schemas/folder-attachment";
+import { type MountedFolder } from "../schemas/mounted-folder";
 import { type Session } from "../schemas/session";
 import { SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
-import { attachedFolderMountPoint } from "./attached-folder-mounts";
-import { buildAttachedFoldersText } from "./build-attached-folders-text";
+import { folderMountPoint } from "./folder-mounts";
+import { buildFoldersText } from "./build-folders-text";
 import {
   buildProjectContextText,
   projectFoldersIntro,
@@ -1004,16 +1004,16 @@ function renderProjectContext(
   }
 
   // Fold project-folder names from the creation snapshot with later
-  // `data-projectChanges` additions/removals and `data-attachedFolderChanges`
+  // `data-projectChanges` additions/removals and `data-folderChanges`
   // renames so the list matches what the agent currently sees, keyed by path
   // so removals/renames touch the right entry.
   const projectFoldersByPath = new Map<
     string,
-    { access: FolderAttachment.Access; name: string }
+    { access: MountedFolder.Access; name: string }
   >();
   for (const part of allParts) {
     switch (part.type) {
-      case "data-attachedFolderChanges": {
+      case "data-folderChanges": {
         for (const folder of part.data.renamed) {
           const current = projectFoldersByPath.get(folder.path);
           if (current) {
@@ -1063,10 +1063,10 @@ function renderProjectContext(
 
   if (projectFolders.length > 0) {
     blocks.push(
-      buildAttachedFoldersText({
+      buildFoldersText({
         folders: projectFolders.map(({ access, name, path }) => ({
           access,
-          mountPoint: attachedFolderMountPoint(name),
+          mountPoint: folderMountPoint(name),
           path,
         })),
         intro: projectFoldersIntro(projectPart.data.projectName),

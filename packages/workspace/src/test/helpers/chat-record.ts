@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { chatFolderName } from "../../lib/generate-task-folder-name";
+import { chatFolderName } from "../../lib/chat-folder-name";
 import {
   chatOfSession,
   forgetChatFolders,

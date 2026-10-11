@@ -23,7 +23,7 @@ export const PIP_COMMAND = {
  * downstream: `pip install requests && python -c "import requests"` fails,
  * and the failure names the import rather than the interpreter.
  */
-const INSTALLED_NOTE = `pip: installed into the task's virtualenv. A program that imports it runs there, under \`${PYTHON_COMMAND.name}\` or \`${PYTHON_NATIVE_COMMAND.name}\` alike, and sees only the task folder (copy an attached file into the task first).\n`;
+const INSTALLED_NOTE = `pip: installed into the task's virtualenv. A program that imports it runs there, under \`${PYTHON_COMMAND.name}\` or \`${PYTHON_NATIVE_COMMAND.name}\` alike, and sees only the task folder (copy a file from a folder mount into the task first).\n`;
 
 export const PIP3_COMMAND = {
   description: "Alias for pip.",

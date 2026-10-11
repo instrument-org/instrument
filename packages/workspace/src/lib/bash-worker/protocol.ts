@@ -25,7 +25,7 @@ export const WORKER_CONFIG_KEYS = [
   "registryDir",
   "rootDir",
   "systemSkillsDir",
-  "tasksDir",
+  "legacyTasksDir",
   "uvBinPath",
   "uvDataDir",
 ] as const satisfies readonly (keyof WorkspaceConfig)[];

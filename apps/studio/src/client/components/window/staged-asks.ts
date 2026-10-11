@@ -57,14 +57,14 @@ export const askTrayAtom = atom<null | string>(null);
 /** Staged asks as the message carries them, each file with the virtual path the agent reaches it by. */
 export function asksPart(
   asks: readonly StagedAsk[],
-  attachedFolders: Record<string, { mountName: string; path: string }>,
+  folders: Record<string, { mountName: string; path: string }>,
 ): SessionMessageDataPart.AsksDataPart | undefined {
   if (asks.length === 0) {
     return;
   }
   return {
     asks: asks.map((ask) => {
-      const mount = mountOfHostPath(ask.path, attachedFolders);
+      const mount = mountOfHostPath(ask.path, folders);
       return {
         ...(ask.context ? { context: ask.context } : {}),
         ...(ask.excerpt ? { excerpt: ask.excerpt } : {}),

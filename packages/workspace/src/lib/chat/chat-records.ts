@@ -1,6 +1,6 @@
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
-import { chatFolderName } from "../generate-task-folder-name";
+import { chatFolderName } from "../chat-folder-name";
 import { getCurrentDate } from "../get-current-date";
 import { initializeChat } from "../initialize-task";
 import {

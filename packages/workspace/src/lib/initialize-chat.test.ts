@@ -47,7 +47,7 @@ describe("initializeChat", () => {
 
     const result = await initializeChat({
       chatId,
-      initialSettings: { name: "Test task" },
+      initialSettings: {},
       sessionId: StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B"),
       workspaceConfig: getWorkspaceConfig(),
     });
@@ -77,7 +77,6 @@ describe("initializeChat", () => {
     );
     expect(settings.replaceAll(ISO_TIMESTAMP, "<when>")).toMatchInlineSnapshot(`
       "{
-        "name": "Test task",
         "chatSessionId": "ses_01M3AX9RF3C2E9RTATMB602W0B",
         "createdAt": "<when>",
         "createdWithAppVersion": "0.0.0-test",

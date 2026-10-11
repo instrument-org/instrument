@@ -118,7 +118,7 @@ export async function updateChatState(
  * The callback receives what is currently on disk and returns the fields to
  * write over it (`undefined` drops one; one left out is kept), so a
  * read-modify-write cannot interleave with another: two tab opens, or a
- * generated title landing on a message send, would otherwise each build on
+ * model pick landing with a message's activity stamp, would otherwise each build on
  * the record the other had not written yet.
  */
 export async function updateChatRecord(

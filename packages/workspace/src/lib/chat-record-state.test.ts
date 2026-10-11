@@ -36,7 +36,7 @@ async function writeStateFile(state: unknown): Promise<void> {
   await fs.mkdir(privateDir, { recursive: true });
   await fs.writeFile(
     recordFilePath(),
-    JSON.stringify({ name: "Test task", state }, null, 2),
+    JSON.stringify({ createdWithAppVersion: "2.0.0", state }, null, 2),
     "utf8",
   );
 }
@@ -68,18 +68,18 @@ describe("the state beside the settings", () => {
    * paths have to share one queue. Without it each merges onto the record the
    * other has not written, and whichever lands second erases the other's half.
    */
-  it("does not lose a generated title to a state write at the same time", async () => {
-    await updateChatSettings(chatId, { name: "Untitled chat" });
+  it("does not lose a settings write to a state write at the same time", async () => {
+    await updateChatSettings(chatId, { createdWithAppVersion: "2.0.0" });
 
     await Promise.all([
-      updateChatSettings(chatId, { name: "Generated title" }),
+      updateChatSettings(chatId, { createdWithAppVersion: "2.0.1" }),
       setChatState(chatDir(chatId), { appGuidesRead: ["half a thought"] }),
     ]);
 
     const settings = await getChatSettings(chatDir(chatId));
     const state = await getChatState(chatDir(chatId));
 
-    expect(settings?.name).toBe("Generated title");
+    expect(settings?.createdWithAppVersion).toBe("2.0.1");
     expect(state.appGuidesRead).toEqual(["half a thought"]);
   });
 });

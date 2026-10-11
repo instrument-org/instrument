@@ -96,6 +96,7 @@ export { FILES_FENCE } from "./lib/parse-files-block";
 
 export { getBrowserSessionDir } from "./lib/chat-dir-utils";
 export { chatDir } from "./lib/record-folders";
+export { chatTitle } from "./lib/chat-info";
 export { getChatSettings } from "./lib/chat-settings";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";
 export { serveStaticFile } from "./logic/server/serve-static";

@@ -61,7 +61,7 @@ beforeEach(async () => {
     ),
   });
   await initializeTestChat({
-    initialSettings: { name: "Find the vault" },
+    initialSettings: {},
     chatId: CHAT_ID,
   });
   sessionId = StoreId.newSessionId();

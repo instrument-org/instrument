@@ -29,53 +29,52 @@ afterEach(async () => {
 
 describe("updateChatSettings", () => {
   it("keeps both fields when two updates overlap", async () => {
-    await updateChatSettings(chatId, { name: "Untitled chat" });
+    await updateChatSettings(chatId, { createdWithAppVersion: "2.0.0" });
 
-    // The real pair: a generated title landing while a sent message records
-    // activity. Read-modify-write without a queue loses whichever wrote first.
+    // Read-modify-write without a queue loses whichever wrote first.
     const activityAt = new Date("2026-02-03T04:05:06.000Z");
     await Promise.all([
-      updateChatSettings(chatId, { name: "Generated title" }),
+      updateChatSettings(chatId, { createdWithAppVersion: "2.0.1" }),
       updateChatSettings(chatId, { lastActivityAt: activityAt }),
     ]);
 
     const settings = await getChatSettings(chatDir(chatId));
 
-    expect(settings?.name).toBe("Generated title");
+    expect(settings?.createdWithAppVersion).toBe("2.0.1");
     expect(settings?.lastActivityAt).toEqual(activityAt);
   });
 
   it("applies overlapping updates to the same field in call order", async () => {
     const [first, second] = await Promise.all([
-      updateChatSettings(chatId, { name: "First" }),
-      updateChatSettings(chatId, { name: "Second" }),
+      updateChatSettings(chatId, { createdWithAppVersion: "2.0.1" }),
+      updateChatSettings(chatId, { createdWithAppVersion: "2.0.2" }),
     ]);
 
     const settings = await getChatSettings(chatDir(chatId));
 
     expect(first.isOk()).toBe(true);
     expect(second.isOk()).toBe(true);
-    expect(settings?.name).toBe("Second");
+    expect(settings?.createdWithAppVersion).toBe("2.0.2");
   });
 
   // The two views share one file, so each has to leave the other's half alone.
   it("leaves the state alone", async () => {
     await setChatState(chatDir(chatId), { appGuidesRead: ["half typed"] });
 
-    await updateChatSettings(chatId, { name: "Renamed" });
+    await updateChatSettings(chatId, { createdWithAppVersion: "2.0.1" });
 
     const state = await getChatState(chatDir(chatId));
     const settings = await getChatSettings(chatDir(chatId));
 
     expect(state.appGuidesRead).toEqual(["half typed"]);
-    expect(settings?.name).toBe("Renamed");
+    expect(settings?.createdWithAppVersion).toBe("2.0.1");
   });
 
   it("survives a state half the schema cannot read", async () => {
-    await updateChatSettings(chatId, { name: "Named" });
+    await updateChatSettings(chatId, { createdWithAppVersion: "2.0.0" });
     await fs.writeFile(
       path.join(getChatPrivateDir(chatDir(chatId)), "settings.json"),
-      JSON.stringify({ name: "Named", state: { browserTabs: "broken" } }),
+      JSON.stringify({ createdWithAppVersion: "2.0.0", state: { browserTabs: "broken" } }),
       "utf8",
     );
 
@@ -85,7 +84,7 @@ describe("updateChatSettings", () => {
     const settings = await getChatSettings(chatDir(chatId));
 
     expect(stamped.isOk()).toBe(true);
-    expect(settings?.name).toBe("Named");
+    expect(settings?.createdWithAppVersion).toBe("2.0.0");
     expect(settings?.lastActivityAt).toEqual(
       new Date("2026-02-03T04:05:06.000Z"),
     );
@@ -93,8 +92,8 @@ describe("updateChatSettings", () => {
 
   // The settings view is parsed as one object, so a single unreadable field
   // takes the whole view with it. Every activity stamp writes through this, so
-  // a write that fills the gap with defaults erases the title of any task a
-  // newer build -- or a hand edit -- left one bad field in.
+  // a write that fills the gap with what it parsed erases the settings of any
+  // chat a newer build -- or a hand edit -- left one bad field in.
   it("keeps the fields a malformed sibling makes unreadable", async () => {
     const recordPath = path.join(
       getChatPrivateDir(chatDir(chatId)),
@@ -103,7 +102,7 @@ describe("updateChatSettings", () => {
     await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
     await fs.writeFile(
       recordPath,
-      JSON.stringify({ name: "Keep this name", reasoningEffort: "loud" }),
+      JSON.stringify({ createdWithAppVersion: "2.0.0", reasoningEffort: "loud" }),
       "utf8",
     );
 
@@ -114,7 +113,7 @@ describe("updateChatSettings", () => {
     expect(stamped.isOk()).toBe(true);
     expect(JSON.parse(await fs.readFile(recordPath, "utf8"))).toEqual({
       lastActivityAt: "2026-02-03T04:05:06.000Z",
-      name: "Keep this name",
+      createdWithAppVersion: "2.0.0",
       reasoningEffort: "loud",
     });
   });

@@ -5,7 +5,6 @@ import { type Session } from "../schemas/session";
 import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { TypedError } from "./errors";
-import { isSessionTitleAutoReplaceable } from "./generate-session-title";
 import { Store } from "./store";
 import { updateSessionTitle } from "./update-session-title";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -13,13 +12,9 @@ import { getWorkspaceConfig } from "./workspace-config";
 vi.mock("./store", () => ({
   Store: { getSession: vi.fn(), saveSession: vi.fn() },
 }));
-vi.mock("./generate-session-title", () => ({
-  isSessionTitleAutoReplaceable: vi.fn(),
-}));
 
 const mockGetSession = vi.mocked(Store.getSession);
 const mockSaveSession = vi.mocked(Store.saveSession);
-const mockIsAutoReplaceable = vi.mocked(isSessionTitleAutoReplaceable);
 
 const chatId = createMockChatConfigForDir("/tmp/instrument-test-task");
 const sessionId = StoreId.newSessionId();
@@ -50,8 +45,6 @@ describe("updateSessionTitle", () => {
       expect.objectContaining({ title: "Login bug fix" }),
       chatId,
     );
-    // Snapshot check short-circuits the settings-name heuristic entirely.
-    expect(mockIsAutoReplaceable).not.toHaveBeenCalled();
   });
 
   it("skips when the user renamed while generation was in flight", async () => {
@@ -69,24 +62,18 @@ describe("updateSessionTitle", () => {
     expect(mockSaveSession).not.toHaveBeenCalled();
   });
 
-  it("falls back to isSessionTitleAutoReplaceable when no expected title is given", async () => {
+  it("replaces an untitled session's title when no expected title is given", async () => {
     mockGetSession.mockReturnValue(okAsync(storedSession("Untitled chat")));
-    mockIsAutoReplaceable.mockResolvedValue(true);
 
     await expect(
       updateSessionTitle({ sessionId, chatId, title: "Weather inquiry" }),
     ).resolves.toBe(true);
 
-    expect(mockIsAutoReplaceable).toHaveBeenCalledWith({
-      chatId,
-      title: "Untitled chat",
-    });
     expect(mockSaveSession).toHaveBeenCalled();
   });
 
-  it("returns false without saving when the fallback guard rejects", async () => {
+  it("keeps a titled session's title when no expected title is given", async () => {
     mockGetSession.mockReturnValue(okAsync(storedSession("User title")));
-    mockIsAutoReplaceable.mockResolvedValue(false);
 
     await expect(
       updateSessionTitle({ sessionId, chatId, title: "Weather inquiry" }),

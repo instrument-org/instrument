@@ -144,10 +144,8 @@ describe("seedWorkspace", () => {
     const chatId = ChatIdSchema.parse(at(seeded, 0).id);
     const chatSettings = await getChatSettings(chatDir(chatId));
     const { session } = await readSeededSession(at(seeded, 0));
-    expect(chatSettings).toMatchObject({
-      chatSessionId: session.id,
-      name: chat.chat.name,
-    });
+    expect(chatSettings).toMatchObject({ chatSessionId: session.id });
+    expect(session.title).toBe(chat.chat.name);
     // Named by the manifest, so the app never renames it.
     expect(session.titleSettledAt).toBeDefined();
 

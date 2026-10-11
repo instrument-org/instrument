@@ -7,7 +7,7 @@ import { z } from "zod";
 import { ChatIdSchema } from "./chat-id";
 
 /**
- * What a chat's settings say about it, read from its folder: its title,
+ * What a chat's record says about it: its title (from its session's row),
  * when it was made and last worked in, and the model and reasoning effort
  * its sessions run with.
  */

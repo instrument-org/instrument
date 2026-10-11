@@ -30,7 +30,7 @@ import { resolvePathWithinTaskDir } from "../../src/lib/resolve-path-within-task
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
 import { Store } from "../../src/lib/store";
 import { chatDir, placeChat } from "../../src/lib/record-folders";
-import { updateChatSettings } from "../../src/lib/chat-settings";
+import { updateChatRecord } from "../../src/lib/chat-record";
 import { addChildTask } from "../../src/lib/chat/children";
 import { grantFolder } from "../../src/lib/chat/grants";
 import { setWorkspaceConfig } from "../../src/lib/workspace-config";
@@ -340,7 +340,7 @@ async function seedTask({
     if (isChat) {
       yield* await initializeChat({
         chatId: ChatIdSchema.parse(id),
-        initialSettings: { name: task.name },
+        initialSettings: {},
         sessionId: chatSession.id,
         workspaceConfig,
       });
@@ -435,12 +435,14 @@ function seedLegacyTaskFolder({
     includePrivateFolder: false,
     sourceDir: workspaceConfig.chatTemplateDir,
     targetDir: dir,
-  }).andThen(() =>
-    updateChatSettings(id, {
-      createdAt: new Date(),
+  }).map(() =>
+    // 1.x kept a task's name in its settings; written raw because a chat's
+    // settings have no such field.
+    updateChatRecord(dir, "settings", () => ({
+      createdAt: new Date().toISOString(),
       createdWithAppVersion: workspaceConfig.appVersion,
       name,
-    }),
+    })),
   );
 }
 

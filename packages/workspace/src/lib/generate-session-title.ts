@@ -1,8 +1,6 @@
 import { UNTITLED_CHAT_TITLE } from "../constants";
 import { type ChatId } from "../schemas/chat-id";
 import { Store } from "./store";
-import { chatDir } from "./record-folders";
-import { getChatSettings } from "./chat-settings";
 
 const defaultUntitledChatPattern = new RegExp(
   `^${UNTITLED_CHAT_TITLE}(?: \\d+)?$`,
@@ -44,20 +42,6 @@ export async function generateSessionTitle({
   }
 
   return candidateTitle;
-}
-
-export async function isSessionTitleAutoReplaceable({
-  chatId,
-  title,
-}: {
-  chatId: ChatId;
-  title: string;
-}) {
-  if (isUntitledChatSessionTitle(title)) {
-    return true;
-  }
-  const settings = await getChatSettings(chatDir(chatId));
-  return settings?.name === title;
 }
 
 export function isUntitledChatSessionTitle(title: string) {

@@ -346,7 +346,6 @@ function adoptTask({
         typeof settings.state.selectedModelURI === "string"
           ? { modelURI: settings.state.selectedModelURI }
           : {}),
-        name: title,
         state: {},
       }),
     );

@@ -92,7 +92,7 @@ const markdown = await getSessionMarkdown({
     source: dir,
     sourceType: "task-directory",
     taskCreatedWithAppVersion: settings?.createdWithAppVersion ?? "unknown",
-    taskName: settings?.name ?? folderName,
+    taskName: rootSessions[0]?.title ?? folderName,
     transcriptGeneratedAt: new Date().toISOString(),
   },
   sessionId: rootSession.id,

@@ -288,7 +288,6 @@ describe("migrateLegacyTasks", () => {
       createdAt: "2026-06-23T21:47:33.119Z",
       createdWithAppVersion: "1.2.0",
       lastActivityAt: "2026-06-23T21:48:33.119Z",
-      name: "Rotating red square video",
     });
     // The task held no folders, so the chat holds no grants.
     expect(settings.grants).toEqual([]);

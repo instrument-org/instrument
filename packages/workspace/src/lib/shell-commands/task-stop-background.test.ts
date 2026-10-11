@@ -83,7 +83,7 @@ beforeEach(async () => {
   });
   const chat = await initializeChat({
     chatId: CHAT_ID,
-    initialSettings: { name: "Instrument" },
+    initialSettings: {},
     sessionId: CHAT_SESSION,
     workspaceConfig: getWorkspaceConfig(),
   });

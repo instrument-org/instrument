@@ -1,6 +1,7 @@
 import { devOnly } from "@/electron-main/rpc/base";
 import { APP_NAME } from "@instrument-org/shared";
 import {
+  chatTitle,
   findAvailableName,
   getChatSettings,
   StoreId,
@@ -51,7 +52,7 @@ async function buildSystemFrontMatter(chatId: ChatId) {
     runtimeNodeVersion: process.version,
     runtimeOs: `${osName} ${os.release()} / ${os.arch()}`,
     taskCreatedWithAppVersion: settings?.createdWithAppVersion ?? "unknown",
-    taskName: settings?.name ?? "unknown",
+    taskName: (await chatTitle(chatId)) ?? "unknown",
     // Absolute path to the task's on-disk folder so an agent reading this
     // transcript can inspect its artifacts (screenshots, output, chat.db),
     // which is most of why a transcript gets handed to one. It names the
@@ -128,12 +129,12 @@ const save = devOnly
   .handler(async ({ context, input, signal }) => {
     const markdown = await renderTranscript({ context, input, signal });
 
-    const settings = await getChatSettings(chatDir(input.id));
+    const title = await chatTitle(input.id);
     const outputPath = app.getPath("downloads");
     const { name: filename } = await findAvailableName({
       isTaken: (candidate) =>
         fsSync.existsSync(path.join(outputPath, candidate)),
-      name: `${transcriptFilenameStem(input.label ?? settings?.name ?? input.id)}.${TRANSCRIPT_EXTENSION[input.format]}`,
+      name: `${transcriptFilenameStem(input.label ?? title ?? input.id)}.${TRANSCRIPT_EXTENSION[input.format]}`,
       splitExtension: true,
     });
 

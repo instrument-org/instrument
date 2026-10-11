@@ -10,8 +10,14 @@ import { type ChatSettings } from "../schemas/chat-settings";
 import { TypedError } from "./errors";
 import { getChatDirTimestamps } from "./chat-dir-timestamps";
 import { isChatId } from "./is-chat-id";
-import { chatDir, chatIds, resolveChat } from "./record-folders";
+import {
+  chatDir,
+  chatIds,
+  resolveChat,
+  sessionOfChat,
+} from "./record-folders";
 import { getChatSettings } from "./chat-settings";
+import { Store } from "./store";
 
 export interface ChatInfoListOptions {
   direction?: "asc" | "desc";
@@ -68,14 +74,25 @@ async function readChatInfo({ dir }: { dir: ChatDir }) {
   }
 
   const settings = await getChatSettings(dir);
+  const title = await chatTitle(parsed.data);
   const info: ChatInfo = {
     ...(await chatTimestamps(dir, settings)),
     id: parsed.data,
     ...(settings?.modelURI ? { modelURI: settings.modelURI } : {}),
     reasoningEffort: settings?.reasoningEffort,
-    title: settings?.name ?? rawFolderName,
+    title: title ?? rawFolderName,
   };
   return ok(info);
+}
+
+/** A chat's title, from its own session's row, which is where a rename writes it. */
+export async function chatTitle(chatId: ChatId): Promise<string | undefined> {
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
+    return undefined;
+  }
+  const session = await Store.getSession(sessionId, chatId);
+  return session.isOk() ? session.value.title : undefined;
 }
 
 /** The order and window the list asks for, over a set already read. */

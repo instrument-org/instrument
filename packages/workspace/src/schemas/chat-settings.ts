@@ -4,7 +4,6 @@ import {
 } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
-import { UNTITLED_CHAT_TITLE } from "../constants";
 import { AbsolutePathSchema } from "./paths";
 import { StoreId } from "./store-id";
 
@@ -25,8 +24,8 @@ export type ChatGrant = z.output<typeof ChatGrantSchema>;
 
 // Load-bearing that this stays a plain object schema: it is parsed against the
 // whole settings file, whose `state` key it is meant to ignore rather than
-// reject. Making it strict would fail every chat's settings at once and take
-// every title in the workspace with them.
+// reject. Making it strict would fail every chat's settings at once, and with
+// them the session each chat names.
 export const ChatSettingsSchema = z.object({
   // The chat's own conversation: the session in its `chat.db` with no parent.
   // A chat's folder is named for what it is about, so this is how a session
@@ -40,7 +39,7 @@ export const ChatSettingsSchema = z.object({
   createdAt: z.coerce.date().optional(),
   createdWithAppVersion: z.string().optional(),
   // The folders granted in this chat, oldest first. One that will not parse
-  // costs the chat its grants rather than its title.
+  // costs the chat its grants rather than the rest of its settings.
   grants: z.array(ChatGrantSchema).optional().catch(undefined),
   // When something happened in this chat, as opposed to when a file under it
   // was last written. It orders the chat list, and it is recorded rather than
@@ -53,7 +52,6 @@ export const ChatSettingsSchema = z.object({
   // provider since renamed or removed) reads as none, so the chat opens on
   // the default model rather than failing to open.
   modelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
-  name: z.string().default(UNTITLED_CHAT_TITLE),
   // How hard the chat's model is asked to think, on every turn any of its
   // sessions takes. Absent leaves the model's own default. Nothing picks it
   // yet; a picker would write it here.
@@ -62,7 +60,6 @@ export const ChatSettingsSchema = z.object({
 
 export const ChatSettingsUpdateSchema = ChatSettingsSchema.partial().extend({
   lastActivityAt: z.coerce.date().optional(),
-  name: z.string().trim().min(1).optional(),
 });
 
 export type ChatSettings = z.output<typeof ChatSettingsSchema>;

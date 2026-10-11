@@ -64,7 +64,7 @@ async function makeChat(name: string, sessionId = SESSION) {
   const chatId = ChatIdSchema.parse(name);
   const made = await initializeChat({
     chatId,
-    initialSettings: { name: "Instrument" },
+    initialSettings: {},
     sessionId,
     workspaceConfig: getWorkspaceConfig(),
   });

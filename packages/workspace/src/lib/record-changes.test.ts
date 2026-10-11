@@ -69,7 +69,7 @@ describe("the record writer on the feed", () => {
     await fs.mkdir(chatDir(chatId), { recursive: true });
     const changes = recordChanges(undefined, (change) => change.id === chatId);
 
-    expect((await updateChatSettings(chatId, { name: "Named" })).isOk()).toBe(
+    expect((await updateChatSettings(chatId, { createdWithAppVersion: "2.0.0" })).isOk()).toBe(
       true,
     );
     expect((await changes.next()).value).toEqual([

@@ -15,11 +15,8 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
-import { isUntitledChatSessionTitle } from "./generate-session-title";
 import { isToolPart } from "./is-tool-part";
 import { Store } from "./store";
-import { chatDir } from "./record-folders";
-import { getChatSettings } from "./chat-settings";
 import { getUsageSummaryFromMessages } from "./usage-summary-compute";
 
 interface MessageRenderInfo {
@@ -129,12 +126,9 @@ export async function getSessionMarkdown({
   if (result.isErr()) {
     throw new Error(`Session ${sessionId} not found`);
   }
-  const settings = await getChatSettings(chatDir(chatId));
-
   return sessionToMarkdown(result.value, {
     frontMatter,
     includeContextMessages,
-    taskName: settings?.name,
   });
 }
 
@@ -273,18 +267,9 @@ export async function sessionToMarkdown(
   {
     frontMatter,
     includeContextMessages = true,
-    taskName,
   }: {
     frontMatter?: Record<string, unknown>;
     includeContextMessages?: boolean;
-    /**
-     * What the transcript is headed with when the session has no name of its
-     * own. A session's title names it among the task's other sessions (a
-     * chat's title, a later chat's), and a session that is the task's only
-     * one keeps the placeholder it was created with, so the task's name is
-     * the one a reader knows it by.
-     */
-    taskName?: string;
   } = {},
 ): Promise<string> {
   const contextMessages = rootSession.messages.filter(
@@ -307,11 +292,7 @@ export async function sessionToMarkdown(
 
   const toolTimestamps = buildToolCallTimestampMap(rootSession);
 
-  const heading =
-    isUntitledChatSessionTitle(rootSession.title) && taskName
-      ? taskName
-      : rootSession.title;
-  const parts: string[] = [`# ${heading}`, ""];
+  const parts: string[] = [`# ${rootSession.title}`, ""];
 
   if (includeContextMessages && contextMessages.length > 0) {
     parts.push(

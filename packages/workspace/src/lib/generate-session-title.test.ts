@@ -1,17 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import {
-  isSessionTitleAutoReplaceable,
-  isUntitledChatSessionTitle,
-} from "./generate-session-title";
-import { getChatSettings } from "./chat-settings";
-
-vi.mock("./chat-settings", () => ({
-  getChatSettings: vi.fn(),
-}));
-
-const mockGetTaskSettings = vi.mocked(getChatSettings);
+import { isUntitledChatSessionTitle } from "./generate-session-title";
 
 describe("isUntitledChatSessionTitle", () => {
   it.each([
@@ -30,43 +19,5 @@ describe("isUntitledChatSessionTitle", () => {
     ["2026-04-29 Research", false],
   ])("(%s) -> %s", (title, expected) => {
     expect(isUntitledChatSessionTitle(title)).toBe(expected);
-  });
-});
-
-describe("isSessionTitleAutoReplaceable", () => {
-  const chatId = createMockChatConfigForDir("/tmp/instrument-test-task");
-
-  beforeEach(() => {
-    mockGetTaskSettings.mockReset();
-  });
-
-  it("is true for Untitled chat without reading settings", async () => {
-    await expect(
-      isSessionTitleAutoReplaceable({
-        chatId,
-        title: "Untitled chat",
-      }),
-    ).resolves.toBe(true);
-    expect(mockGetTaskSettings).not.toHaveBeenCalled();
-  });
-
-  it("is true when title equals settings name", async () => {
-    mockGetTaskSettings.mockResolvedValue({ name: "Fix login bug" });
-    await expect(
-      isSessionTitleAutoReplaceable({
-        chatId,
-        title: "Fix login bug",
-      }),
-    ).resolves.toBe(true);
-  });
-
-  it("is false when title differs from settings name", async () => {
-    mockGetTaskSettings.mockResolvedValue({ name: "Other" });
-    await expect(
-      isSessionTitleAutoReplaceable({
-        chatId,
-        title: "Fix login bug",
-      }),
-    ).resolves.toBe(false);
   });
 });

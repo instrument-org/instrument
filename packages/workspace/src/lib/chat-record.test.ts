@@ -53,14 +53,14 @@ describe("readChatRecord", () => {
   // schema rejects must not cost the chat its settings and its place in the list.
   it("keeps the settings when the state cannot be read", async () => {
     await writeRecordFile({
-      name: "Still named",
+      createdWithAppVersion: "2.0.0",
       pinnedAt: "2026-01-01T00:00:00.000Z",
       state: { browserTabs: "not a list at all" },
     });
 
     const record = await readChatRecord(chatDir(chatId));
 
-    expect(record.settings?.name).toBe("Still named");
+    expect(record.settings?.createdWithAppVersion).toBe("2.0.0");
     expect(record.state).toEqual({ browserTabs: [] });
   });
 
@@ -68,7 +68,7 @@ describe("readChatRecord", () => {
   // silently cost the chat what its state holds.
   it("keeps the state when the settings cannot be read", async () => {
     await writeRecordFile({
-      name: { not: "a string" },
+      createdWithAppVersion: { not: "a string" },
       state: { appGuidesRead: ["half a sentence"] },
     });
 
@@ -110,12 +110,12 @@ describe("updateChatRecord", () => {
   it("carries forward a field it cannot read rather than dropping it", async () => {
     await writeRecordFile({
       futureField: { written: "by a newer build" },
-      name: "Test task",
+      createdWithAppVersion: "2.0.0",
     });
 
     await updateChatRecord(chatDir(chatId), "settings", (record) => ({
       ...record.raw,
-      name: "Renamed",
+      createdWithAppVersion: "2.0.1",
     }));
 
     const written: unknown = JSON.parse(
@@ -124,7 +124,7 @@ describe("updateChatRecord", () => {
 
     expect(written).toEqual({
       futureField: { written: "by a newer build" },
-      name: "Renamed",
+      createdWithAppVersion: "2.0.1",
     });
   });
 
@@ -132,7 +132,7 @@ describe("updateChatRecord", () => {
   // the one that keeps growing, so it is the one a build rollback meets.
   it("carries forward an unreadable field inside the state too", async () => {
     await writeRecordFile({
-      name: "Test task",
+      createdWithAppVersion: "2.0.0",
       state: { futureNested: "keep me", appGuidesRead: ["before"] },
     });
 
@@ -143,7 +143,7 @@ describe("updateChatRecord", () => {
     );
 
     expect(written).toEqual({
-      name: "Test task",
+      createdWithAppVersion: "2.0.0",
       state: {
         browserTabs: [],
         futureNested: "keep me",
@@ -154,17 +154,17 @@ describe("updateChatRecord", () => {
 
   // What the empty answer to a failed read costs if a write is allowed to build
   // on it: the record read as though the task had nothing, so the write would
-  // have been the title, the pin and the tabs replaced by one model choice.
+  // have been the settings and the tabs replaced by one model choice.
   it("refuses to replace a record it could not read", async () => {
     await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
-    await fs.writeFile(recordPath(), '{ "name": "Test task", "state', "utf8");
+    await fs.writeFile(recordPath(), '{ "createdWithAppVersion": "2.0.0", "state', "utf8");
 
     await expect(
       setChatState(chatDir(chatId), { appGuidesRead: ["new draft"] }),
     ).rejects.toThrow(/unreadable/);
 
     expect(await fs.readFile(recordPath(), "utf8")).toBe(
-      '{ "name": "Test task", "state',
+      '{ "createdWithAppVersion": "2.0.0", "state',
     );
   });
 
@@ -185,18 +185,18 @@ describe("updateChatRecord", () => {
       setChatState(chatDir(chatId), { appGuidesRead: ["refused"] }),
     ).rejects.toThrow();
 
-    await writeRecordFile({ name: "Repaired" });
+    await writeRecordFile({ createdWithAppVersion: "2.0.1" });
     await setChatState(chatDir(chatId), { appGuidesRead: ["accepted"] });
 
     const record = await readChatRecord(chatDir(chatId));
 
-    expect(record.settings?.name).toBe("Repaired");
+    expect(record.settings?.createdWithAppVersion).toBe("2.0.1");
     expect(record.state.appGuidesRead).toEqual(["accepted"]);
   });
 
   it("leaves no temporary file behind", async () => {
     await updateChatRecord(chatDir(chatId), "settings", () => ({
-      name: "Test task",
+      createdWithAppVersion: "2.0.0",
     }));
 
     const entries = await fs.readdir(getChatPrivateDir(chatDir(chatId)));
@@ -207,7 +207,7 @@ describe("updateChatRecord", () => {
   // The file is replaced by a rename, so a reader either sees the whole old one
   // or the whole new one. Nothing observes a half-written record.
   it("never leaves the file partially written", async () => {
-    await writeRecordFile({ name: "Test task" });
+    await writeRecordFile({ createdWithAppVersion: "2.0.0" });
 
     const long = "x".repeat(200_000);
     const reads: Promise<string>[] = [];
@@ -266,7 +266,7 @@ describe("updateChatRecord", () => {
     await Promise.all([
       updateChatRecord(chatDir(chatId), "settings", (record) => ({
         ...record.raw,
-        name: "Named",
+        createdWithAppVersion: "2.0.0",
       })),
       updateChatRecord(chatDir(chatId), "settings", (record) => ({
         ...record.raw,
@@ -276,7 +276,7 @@ describe("updateChatRecord", () => {
 
     const record = await readChatRecord(chatDir(chatId));
 
-    expect(record.settings?.name).toBe("Named");
+    expect(record.settings?.createdWithAppVersion).toBe("2.0.0");
     expect(record.state.appGuidesRead).toEqual(["drafted"]);
   });
 });

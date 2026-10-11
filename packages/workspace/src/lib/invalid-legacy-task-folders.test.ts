@@ -76,7 +76,7 @@ describe("listInvalidLegacyTaskFolders", () => {
   it("returns a task whose settings are missing or unreadable, creating nothing in it", async () => {
     await taskFolder("2026-09-30-no-settings");
     await taskFolder("2026-09-30-truncated", '{"name": "Half');
-    await taskFolder("2026-09-30-not-a-task", JSON.stringify({ name: 7 }));
+    await taskFolder("2026-09-30-not-a-task", JSON.stringify({ createdWithAppVersion: 7 }));
 
     const invalid = await listInvalidLegacyTaskFolders(getWorkspaceConfig());
 

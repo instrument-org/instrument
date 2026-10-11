@@ -74,11 +74,12 @@ export function rulesFs({
    * Hears each refusal, since a shell builtin reports any failed read as a
    * missing file and the agent would never learn why.
    */
-  onRefusal?: (refusal: string) => void;
+  onRefusal?: (refusal: string, refusedPath: string) => void;
   rules: Rules;
   spell: (hostPath: string) => string;
 }): IFileSystem {
   const hostOf = (mountPath: string) => nodePath.join(hostRoot, mountPath);
+  let listings = 0;
   const isHidden = (mountPath: string) =>
     reachOf(rules, hostOf(mountPath), "read").level === "hidden";
   const check = (
@@ -103,7 +104,7 @@ export function rulesFs({
       spell,
     });
     if (refusal) {
-      onRefusal?.(refusal);
+      onRefusal?.(refusal, spell(hostOf(mountPath)));
       throw Object.assign(
         new Error(
           `EACCES: permission denied, ${syscall} '${spell(hostOf(mountPath))}' -- ${refusal}`,
@@ -149,9 +150,12 @@ export function rulesFs({
       if (key === "readdir" || key === "readdirWithFileTypes") {
         return async (...args: unknown[]) => {
           const dir = String(args[0]);
-          // A listing is how a walk passes through; the folders it names
-          // up front were asked for before the command ran.
-          check("read", key, dir, false);
+          // The first listing a shell makes is the folder it was asked to
+          // list; a later one is a walk passing through, which raises no
+          // card for every closed folder it meets.
+          const named = listings === 0;
+          listings++;
+          check("read", key, dir, named);
           const listed = await call(...args);
           // The app's internals are left out of a listing, the way a missing
           // folder would be.

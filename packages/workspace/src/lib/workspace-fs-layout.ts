@@ -125,7 +125,7 @@ export async function buildBashFs(
     homeWalkBudget?: WalkBudget;
     maxFileReadSize: number;
     /** Hears each time the rules refuse the agent a path. */
-    onRefusal?: (refusal: string) => void;
+    onRefusal?: (refusal: string, refusedPath: string) => void;
   },
 ): Promise<IFileSystem> {
   const { rules } = layout;
@@ -160,9 +160,9 @@ export async function buildBashFs(
           folder !== nodePath.parse(folder).root
         ) {
           raiseAsk(rules.asker, "folder", folder);
-          onRefusal(waitingNote(shellPath(folder)));
+          onRefusal(waitingNote(shellPath(folder)), path);
         } else {
-          onRefusal(`${path} is outside the folders you reach.`);
+          onRefusal(`${path} is outside the folders you reach.`, path);
         }
       }
     }),

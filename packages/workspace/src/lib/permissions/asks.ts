@@ -1,3 +1,4 @@
+import { AsyncResource } from "node:async_hooks";
 import { ulid } from "ulid";
 
 import { type ChatId } from "../../schemas/chat-id";
@@ -45,7 +46,12 @@ export function raiseAsk(
     forwardAsk({ asker, kind, target });
     return;
   }
-  const written = recordAsk(asker, kind, target).finally(() => {
+  // Written from the async context this module loaded in rather than the
+  // caller's: a shell builtin runs under just-bash's guard, which holds the
+  // host's own file writes from inside a command.
+  const written = outside
+    .runInAsyncScope(() => recordAsk(asker, kind, target))
+    .finally(() => {
     pending.delete(written);
   });
   pending.add(written);
@@ -53,6 +59,8 @@ export function raiseAsk(
 
 /** Asks raised on this thread and not yet written. */
 const pending = new Set<Promise<void>>();
+
+const outside = new AsyncResource("PermissionAsk");
 
 /**
  * Waits for every ask raised on this thread to be written, so a command

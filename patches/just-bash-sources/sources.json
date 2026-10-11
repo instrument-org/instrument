@@ -76,6 +76,11 @@
       "pulls": [
         { "number": 555, "commit": "500413a98d771fbea4592c4dbb5ae2505f6ed0b3" }
       ]
+    },
+    {
+      "name": "error codes",
+      "diff": "error-codes-3.6.0.diff",
+      "ports": [570]
     }
   ]
 }

@@ -10,6 +10,7 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-11 | [Carry just-bash's error-code fix as a local patch rather than rewrite the builtins' output](2026-10-11-carry-the-error-code-patch.md) |
 | 2026-10-11 | [The agent works at real paths, held to the Permissions rules](2026-10-11-the-agent-works-at-real-paths.md) |
 | 2026-10-10 | [One chat, one database: a task is a child session, not a record](2026-10-10-one-chat-one-database.md) |
 | 2026-10-10 | [The workspace server guards itself, so the agent's HTTP tools refuse no address](2026-10-10-the-workspace-server-guards-itself.md) |

@@ -125,13 +125,13 @@ export async function buildBashFs(
     homeWalkBudget?: WalkBudget;
     maxFileReadSize: number;
     /** Hears each time the rules refuse the agent a path. */
-    onRefusal?: (refusal: string, refusedPath: string) => void;
+    onRefusal?: (refusal: string) => void;
   },
 ): Promise<IFileSystem> {
   const { rules } = layout;
   // The rest of the disk is not mounted: the shell's own commands would find
   // host binaries on its PATH there. A read of a folder that exists outside
-  // every mount says how to reach it, since builtins report it as missing.
+  // every mount is refused rather than missing, and says how to reach it.
   const fs = new MountableFs({
     base: new ReadOnlyBaseFs((path) => {
       // The shell looking a command up on its PATH is not the agent asking,
@@ -143,12 +143,12 @@ export async function buildBashFs(
           mount.mountPoint.startsWith(`${path === "/" ? "" : path}/`),
         )
       ) {
-        return;
+        return undefined;
       }
       const hostPath = hostPathOf(path);
       // The system's own folders are nothing to ask the person for.
       if (SYSTEM_FOLDERS.some((system) => pathIsWithin(hostPath, system))) {
-        return;
+        return undefined;
       }
       if (onRefusal && existsSync(hostPath)) {
         const folder = statSync(hostPath).isDirectory()
@@ -160,11 +160,13 @@ export async function buildBashFs(
           folder !== nodePath.parse(folder).root
         ) {
           raiseAsk(rules.asker, "folder", folder);
-          onRefusal(waitingNote(shellPath(folder)), path);
+          onRefusal(waitingNote(shellPath(folder)));
         } else {
-          onRefusal(`${path} is outside the folders you reach.`, path);
+          onRefusal(`${path} is outside the folders you reach.`);
         }
+        return "refused";
       }
+      return undefined;
     }),
   });
 

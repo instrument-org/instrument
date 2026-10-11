@@ -2,7 +2,8 @@ import { type IFileSystem, InMemoryFs } from "just-bash";
 
 /**
  * The empty, read-only base filesystem underneath the workspace mounts, which
- * tells `onMissing` of each path it was asked to read.
+ * tells `onMissing` of each path it was asked to read. A read `onMissing`
+ * answers as refused fails with EACCES instead of ENOENT.
  *
  * Everything the agent may change lives on a mount (the chat's folder and
  * each folder it reaches). Writes here fail with EROFS instead of landing in a
@@ -13,11 +14,19 @@ import { type IFileSystem, InMemoryFs } from "just-bash";
 export class ReadOnlyBaseFs implements IFileSystem {
   private readonly empty = new InMemoryFs();
 
-  constructor(private readonly onMissing: (path: string) => void = () => {}) {}
+  constructor(
+    private readonly onMissing: (path: string) => "refused" | undefined = () =>
+      undefined,
+  ) {}
 
   private missing<T>(path: string, read: () => Promise<T>): Promise<T> {
     return read().catch((error: unknown) => {
-      this.onMissing(path);
+      if (this.onMissing(path) === "refused") {
+        throw Object.assign(
+          new Error(`EACCES: permission denied, open '${path}'`),
+          { code: "EACCES" },
+        );
+      }
       throw error;
     });
   }

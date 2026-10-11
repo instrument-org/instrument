@@ -1,0 +1,354 @@
+diff --git a/packages/just-bash/src/commands/cat/cat.ts b/packages/just-bash/src/commands/cat/cat.ts
+index 5c62410c..bbe3561e 100644
+--- a/packages/just-bash/src/commands/cat/cat.ts
++++ b/packages/just-bash/src/commands/cat/cat.ts
+@@ -1,6 +1,7 @@
+ import { latin1FromBytes, readBytesFrom } from "../../encoding.js";
+ import { rethrowFatalExecutionError } from "../../fatal-execution-error.js";
+ import { ExecutionLimitError } from "../../interpreter/errors.js";
++import { describeFsError } from "../../interpreter/helpers/errors.js";
+ import type {
+   ExecResult,
+   RuntimeCommand,
+@@ -134,7 +135,7 @@ export const catCommand: RuntimeCommand = {
+         stream += rawContent;
+       } catch (error) {
+         rethrowFatalExecutionError(error);
+-        stderr += `cat: ${file}: No such file or directory\n`;
++        stderr += `cat: ${file}: ${describeFsError(error)}\n`;
+         exitCode = 1;
+       }
+     }
+diff --git a/packages/just-bash/src/commands/fs-error-messages.test.ts b/packages/just-bash/src/commands/fs-error-messages.test.ts
+new file mode 100644
+index 00000000..d6068461
+--- /dev/null
++++ b/packages/just-bash/src/commands/fs-error-messages.test.ts
+@@ -0,0 +1,108 @@
++import { describe, expect, it } from "vitest";
++import { Bash } from "../Bash.js";
++import { InMemoryFs } from "../fs/in-memory-fs/in-memory-fs.js";
++import type { IFileSystem } from "../fs/interface.js";
++
++/**
++ * A filesystem that refuses every operation on one path with the given error,
++ * the way a host filesystem refuses a file its permissions keep closed.
++ */
++function refusing(fs: IFileSystem, path: string, error: Error): IFileSystem {
++  return new Proxy(fs, {
++    get(target, prop, receiver) {
++      const value = Reflect.get(target, prop, receiver);
++      if (typeof value !== "function") {
++        return value;
++      }
++      return (...args: unknown[]) => {
++        if (args[0] === path) {
++          return Promise.reject(error);
++        }
++        return value.apply(target, args);
++      };
++    },
++  }) as IFileSystem;
++}
++
++function withCode(message: string, code: string): Error {
++  return Object.assign(new Error(message), { code });
++}
++
++function shell(error: Error): Bash {
++  const fs = refusing(
++    new InMemoryFs({
++      "/home/user/private/notes.txt": "secret\n",
++      "/home/user/open.txt": "hello\n",
++    }),
++    "/home/user/private/notes.txt",
++    error,
++  );
++  return new Bash({ fs, cwd: "/home/user" });
++}
++
++describe("a failed file operation is reported by its errno", () => {
++  const denied = withCode("refused", "EACCES");
++
++  it.each([
++    ["cat private/notes.txt", "cat: private/notes.txt: Permission denied\n"],
++    ["head private/notes.txt", "head: private/notes.txt: Permission denied\n"],
++    ["tail private/notes.txt", "tail: private/notes.txt: Permission denied\n"],
++    ["wc private/notes.txt", "wc: private/notes.txt: Permission denied\n"],
++    ["sort private/notes.txt", "sort: private/notes.txt: Permission denied\n"],
++    [
++      "grep secret private/notes.txt",
++      "grep: private/notes.txt: Permission denied\n",
++    ],
++    [
++      "stat private/notes.txt",
++      "stat: cannot stat 'private/notes.txt': Permission denied\n",
++    ],
++    ["ls private/notes.txt", "ls: private/notes.txt: Permission denied\n"],
++    [
++      "ls -d private/notes.txt",
++      "ls: cannot access 'private/notes.txt': Permission denied\n",
++    ],
++    ["tree private/notes.txt", "tree: private/notes.txt: Permission denied\n"],
++  ])("%s", async (command, stderr) => {
++    const result = await shell(denied).exec(command);
++    expect(result.stderr).toBe(stderr);
++    expect(result.exitCode).not.toBe(0);
++  });
++
++  it("reads the errno off the message when the error has no code", async () => {
++    const result = await shell(
++      new Error(
++        "EACCES: permission denied, open '/home/user/private/notes.txt'",
++      ),
++    ).exec("cat private/notes.txt open.txt");
++    expect(result.stdout).toBe("hello\n");
++    expect(result.stderr).toBe("cat: private/notes.txt: Permission denied\n");
++  });
++
++  it.each([
++    ["ENOTDIR", "Not a directory"],
++    ["EIO", "Input/output error"],
++    ["EPERM", "Operation not permitted"],
++  ])("prints %s as %s", async (code, message) => {
++    const result = await shell(withCode("failed", code)).exec(
++      "cat private/notes.txt",
++    );
++    expect(result.stderr).toBe(`cat: private/notes.txt: ${message}\n`);
++  });
++
++  it("still calls an error with no errno a missing file", async () => {
++    const result = await shell(new Error("something else")).exec(
++      "cat private/notes.txt",
++    );
++    expect(result.stderr).toBe(
++      "cat: private/notes.txt: No such file or directory\n",
++    );
++  });
++
++  it("keeps the message for a file that is not there", async () => {
++    const result = await shell(denied).exec("cat missing.txt; ls missing.txt");
++    expect(result.stderr).toBe(
++      "cat: missing.txt: No such file or directory\nls: missing.txt: No such file or directory\n",
++    );
++  });
++});
+diff --git a/packages/just-bash/src/commands/grep/grep.ts b/packages/just-bash/src/commands/grep/grep.ts
+index 6df5bea8..a35ff07b 100644
+--- a/packages/just-bash/src/commands/grep/grep.ts
++++ b/packages/just-bash/src/commands/grep/grep.ts
+@@ -1,6 +1,7 @@
+ import { decodeBytesToUtf8 } from "../../encoding.js";
+ import { rethrowFatalExecutionError } from "../../fatal-execution-error.js";
+ import { ExecutionLimitError } from "../../interpreter/errors.js";
++import { describeFsError } from "../../interpreter/helpers/errors.js";
+ import type { UserRegex } from "../../regex/index.js";
+ import type {
+   ExecResult,
+@@ -403,7 +404,7 @@ export const grepCommand: RuntimeCommand = {
+           rethrowFatalExecutionError(error);
+           return {
+             stdout: "",
+-            stderr: `grep: ${patternFile}: No such file or directory\n`,
++            stderr: `grep: ${patternFile}: ${describeFsError(error)}\n`,
+             exitCode: 2,
+           };
+         }
+@@ -744,7 +745,7 @@ export const grepCommand: RuntimeCommand = {
+             return { file, result };
+           } catch (error) {
+             rethrowFatalExecutionError(error);
+-            return { error: `grep: ${file}: No such file or directory\n` };
++            return { error: `grep: ${file}: ${describeFsError(error)}\n` };
+           }
+         }),
+       );
+diff --git a/packages/just-bash/src/commands/head/head-tail-shared.ts b/packages/just-bash/src/commands/head/head-tail-shared.ts
+index 0292a3ec..c3a4fc31 100644
+--- a/packages/just-bash/src/commands/head/head-tail-shared.ts
++++ b/packages/just-bash/src/commands/head/head-tail-shared.ts
+@@ -10,6 +10,7 @@ import {
+ } from "../../encoding.js";
+ import { rethrowFatalExecutionError } from "../../fatal-execution-error.js";
+ import { ExecutionLimitError } from "../../interpreter/errors.js";
++import { describeFsError } from "../../interpreter/helpers/errors.js";
+ import type { ExecResult, RuntimeCommandContext } from "../../types.js";
+ import { unknownOption } from "../help.js";
+ 
+@@ -196,7 +197,7 @@ export async function processHeadTailFiles(
+       filesProcessed++;
+     } catch (error) {
+       rethrowFatalExecutionError(error);
+-      stderr.append(`${cmdName}: ${file}: No such file or directory\n`);
++      stderr.append(`${cmdName}: ${file}: ${describeFsError(error)}\n`);
+       exitCode = 1;
+     }
+   }
+diff --git a/packages/just-bash/src/commands/ls/ls.output.test.ts b/packages/just-bash/src/commands/ls/ls.output.test.ts
+index ccf2ce5c..e0bb46d4 100644
+--- a/packages/just-bash/src/commands/ls/ls.output.test.ts
++++ b/packages/just-bash/src/commands/ls/ls.output.test.ts
+@@ -67,7 +67,7 @@ describe("ls output", () => {
+     expect(result.stdout).toBe(
+       "/t:\na\nb\nc\n\n/t/a:\none.txt\n\n\n/t/c:\nfour.txt\n",
+     );
+-    expect(result.stderr).toBe("ls: /t/b: No such file or directory\n");
++    expect(result.stderr).toBe("ls: /t/b: Permission denied\n");
+     expect(result.exitCode).toBe(2);
+   });
+ 
+diff --git a/packages/just-bash/src/commands/ls/ls.ts b/packages/just-bash/src/commands/ls/ls.ts
+index df8532a9..e289fce1 100644
+--- a/packages/just-bash/src/commands/ls/ls.ts
++++ b/packages/just-bash/src/commands/ls/ls.ts
+@@ -5,6 +5,7 @@ import {
+   ExecutionAbortedError,
+   ExecutionLimitError,
+ } from "../../interpreter/errors.js";
++import { describeFsError } from "../../interpreter/helpers/errors.js";
+ import type {
+   ExecResult,
+   RuntimeCommand,
+@@ -254,9 +255,9 @@ export const lsCommand: RuntimeCommand = {
+               : "";
+             output.stdout.append(`${path}${suffix}\n`);
+           }
+-        } catch {
++        } catch (error) {
+           output.stderr.append(
+-            `ls: cannot access '${path}': No such file or directory\n`,
++            `ls: cannot access '${path}': ${describeFsError(error)}\n`,
+           );
+           exitCode = 2;
+         }
+@@ -293,8 +294,8 @@ export const lsCommand: RuntimeCommand = {
+         } else {
+           fileOperands.push(path);
+         }
+-      } catch {
+-        output.stderr.append(`ls: ${path}: No such file or directory\n`);
++      } catch (error) {
++        output.stderr.append(`ls: ${path}: ${describeFsError(error)}\n`);
+         exitCode = 2;
+       }
+     }
+@@ -719,7 +720,7 @@ async function listPath(
+     ) {
+       throw error;
+     }
+-    output.stderr.append(`ls: ${path}: No such file or directory\n`);
++    output.stderr.append(`ls: ${path}: ${describeFsError(error)}\n`);
+     return 2;
+   }
+ 
+diff --git a/packages/just-bash/src/commands/stat/stat.ts b/packages/just-bash/src/commands/stat/stat.ts
+index 1585ebce..0f61b6a4 100644
+--- a/packages/just-bash/src/commands/stat/stat.ts
++++ b/packages/just-bash/src/commands/stat/stat.ts
+@@ -1,6 +1,7 @@
+ import { utf8ByteLength } from "../../encoding.js";
+ import { rethrowFatalExecutionError } from "../../fatal-execution-error.js";
+ import { ExecutionLimitError } from "../../interpreter/errors.js";
++import { describeFsError } from "../../interpreter/helpers/errors.js";
+ import type {
+   ExecResult,
+   RuntimeCommand,
+@@ -563,7 +564,7 @@ export const statCommand: RuntimeCommand = {
+         }
+       } catch (error) {
+         rethrowFatalExecutionError(error);
+-        stderr += `stat: cannot stat '${file}': No such file or directory\n`;
++        stderr += `stat: cannot stat '${file}': ${describeFsError(error)}\n`;
+         hasError = true;
+       }
+     }
+diff --git a/packages/just-bash/src/commands/tree/tree.ts b/packages/just-bash/src/commands/tree/tree.ts
+index be393b94..0fe7300f 100644
+--- a/packages/just-bash/src/commands/tree/tree.ts
++++ b/packages/just-bash/src/commands/tree/tree.ts
+@@ -1,3 +1,4 @@
++import { describeFsError } from "../../interpreter/helpers/errors.js";
+ import type {
+   ExecResult,
+   RuntimeCommand,
+@@ -117,8 +118,8 @@ async function buildTree(
+       result.fileCount = 1;
+       return result;
+     }
+-  } catch {
+-    result.stderr = `tree: ${path}: No such file or directory\n`;
++  } catch (error) {
++    result.stderr = `tree: ${path}: ${describeFsError(error)}\n`;
+     return result;
+   }
+ 
+diff --git a/packages/just-bash/src/interpreter/helpers/errors.ts b/packages/just-bash/src/interpreter/helpers/errors.ts
+index 45d910e7..942e30da 100644
+--- a/packages/just-bash/src/interpreter/helpers/errors.ts
++++ b/packages/just-bash/src/interpreter/helpers/errors.ts
+@@ -9,3 +9,39 @@
+ export function getErrorMessage(error: unknown): string {
+   return error instanceof Error ? error.message : String(error);
+ }
++
++/**
++ * What coreutils print for each errno a file operation commonly fails with.
++ */
++const FS_ERROR_MESSAGES = new Map<string, string>([
++  ["EACCES", "Permission denied"],
++  ["EIO", "Input/output error"],
++  ["EISDIR", "Is a directory"],
++  ["ELOOP", "Too many levels of symbolic links"],
++  ["ENAMETOOLONG", "File name too long"],
++  ["ENOENT", "No such file or directory"],
++  ["ENOTDIR", "Not a directory"],
++  ["EPERM", "Operation not permitted"],
++]);
++
++/**
++ * The message a command prints for a failed file operation, from the error's
++ * errno: read off `code` when the error carries one, and off the
++ * `ECODE: ...` message prefix the virtual filesystems use otherwise. An error
++ * with no errno this table knows reads as a missing file.
++ */
++export function describeFsError(error: unknown): string {
++  const code =
++    typeof error === "object" &&
++    error !== null &&
++    "code" in error &&
++    typeof error.code === "string"
++      ? error.code
++      : error instanceof Error
++        ? /^(E[A-Z]+)\b/.exec(error.message)?.[1]
++        : undefined;
++  return (
++    (code !== undefined && FS_ERROR_MESSAGES.get(code)) ||
++    "No such file or directory"
++  );
++}
+diff --git a/packages/just-bash/src/utils/file-reader.ts b/packages/just-bash/src/utils/file-reader.ts
+index 851ad6c0..e4860503 100644
+--- a/packages/just-bash/src/utils/file-reader.ts
++++ b/packages/just-bash/src/utils/file-reader.ts
+@@ -7,6 +7,7 @@
+ 
+ import { type ByteString, EMPTY_BYTES, readBytesFrom } from "../encoding.js";
+ import { ExecutionLimitError } from "../interpreter/errors.js";
++import { describeFsError } from "../interpreter/helpers/errors.js";
+ import type { ExecResult, RuntimeCommandContext } from "../types.js";
+ import { DEFAULT_BATCH_SIZE } from "./constants.js";
+ 
+@@ -120,11 +121,11 @@ export async function readFiles(
+           // on the content before regex / parsing.
+           const content = await readBytesFrom(ctx.fs, filePath);
+           return { filename: file, content, error: null as string | null };
+-        } catch {
++        } catch (error) {
+           return {
+             filename: file,
+             content: EMPTY_BYTES,
+-            error: `${cmdName}: ${file}: No such file or directory\n`,
++            error: `${cmdName}: ${file}: ${describeFsError(error)}\n`,
+           };
+         }
+       }),

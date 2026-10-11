@@ -71,10 +71,10 @@ export function rulesFs({
   delegate: IFileSystem;
   hostRoot: string;
   /**
-   * Hears each refusal, since a shell builtin reports any failed read as a
-   * missing file and the agent would never learn why.
+   * Hears each refusal, since an error that crosses just-bash's sanitizer
+   * loses its path and the agent would never learn which one was refused.
    */
-  onRefusal?: (refusal: string, refusedPath: string) => void;
+  onRefusal?: (refusal: string) => void;
   rules: Rules;
   spell: (hostPath: string) => string;
 }): IFileSystem {
@@ -104,7 +104,7 @@ export function rulesFs({
       spell,
     });
     if (refusal) {
-      onRefusal?.(refusal, spell(hostOf(mountPath)));
+      onRefusal?.(refusal);
       throw Object.assign(
         new Error(
           `EACCES: permission denied, ${syscall} '${spell(hostOf(mountPath))}' -- ${refusal}`,

@@ -715,17 +715,13 @@ export async function createLocalBashEnv({
   // The working folder walks at the sandbox's budget, and the home folder at
   // its own, smaller one.
   const homeWalkBudget = createWalkBudget(HOME_MAX_TRAVERSAL);
-  // Refusals heard during one exec, told to the agent after its output: a
-  // builtin reports a refused read as a missing file.
+  // Refusals heard during one exec, told to the agent after its output with
+  // the host path spelled out, which an error from a script worker loses.
   const refusals = new Set<string>();
-  const refusedPaths = new Set<string>();
   const fs = await buildBashFs(layout, {
     homeWalkBudget,
     maxFileReadSize: SANDBOX_MAX_BYTES,
-    onRefusal: (refusal, refusedPath) => {
-      refusals.add(refusal);
-      refusedPaths.add(refusedPath);
-    },
+    onRefusal: (refusal) => refusals.add(refusal),
   });
 
   const allowedCommands = [
@@ -857,28 +853,16 @@ export async function createLocalBashEnv({
   const exec = bash.exec.bind(bash);
   bash.exec = async (...execArgs) => {
     refusals.clear();
-    refusedPaths.clear();
     const result = await withNativeReach(reach, () => exec(...execArgs));
     await asksWritten();
     if (refusals.size === 0) {
       return result;
     }
     const notes = [...refusals].join("\n");
-    // A builtin names any failed read a missing file; the rules refused it,
-    // so the line says so, and agrees with the note under it.
-    let said = result.stderr;
-    for (const refused of refusedPaths) {
-      said = said
-        .replaceAll(
-          `${refused}: No such file or directory`,
-          `${refused}: Permission denied`,
-        )
-        .replaceAll(
-          `'${refused}': No such file or directory`,
-          `'${refused}': Permission denied`,
-        );
-    }
-    const stderr = said === "" || said.endsWith("\n") ? said : `${said}\n`;
+    const stderr =
+      result.stderr === "" || result.stderr.endsWith("\n")
+        ? result.stderr
+        : `${result.stderr}\n`;
     return { ...result, stderr: `${stderr}${notes}\n` };
   };
 

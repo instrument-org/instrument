@@ -1,0 +1,51 @@
+import os from "node:os";
+import path from "node:path";
+
+import { type ChatId } from "../../schemas/chat-id";
+import { type MountedFolder } from "../../schemas/mounted-folder";
+import { WINDOW_ID } from "../../schemas/window-id";
+import { chatGrants } from "../chat/grants";
+import { type NativeReach } from "../native-sandbox";
+import { getWorkspaceConfig } from "../workspace-config";
+import { type WorkspaceFsLayout } from "../workspace-fs-layout";
+import { readPermissionSettings, type Rules, rulesFor } from "./rules";
+
+/**
+ * The rules one chat's shell is held to: Settings › Permissions, the chat's
+ * grants, and the folders it holds without one (its topics' folders). The
+ * home folder is not one of those: it is reached so the agent can look, and
+ * the rules decide what in it may change.
+ */
+export async function chatRules({
+  chatId,
+  folders = {},
+}: {
+  chatId: ChatId;
+  folders?: Record<string, MountedFolder.Type>;
+}): Promise<Rules> {
+  const home = os.homedir();
+  return rulesFor({
+    extraAllows: Object.values(folders)
+      .map((folder) => folder.path)
+      .filter((folderPath) => path.resolve(folderPath) !== path.resolve(home)),
+    grants: chatId === WINDOW_ID ? [] : await chatGrants(chatId),
+    home,
+    settings: await readPermissionSettings(),
+  });
+}
+
+/** What a native command the chat's shell spawns is held to. */
+export function nativeReachFor(
+  rules: Rules,
+  layout: WorkspaceFsLayout,
+): NativeReach {
+  return {
+    readOnly: layout.skills.map((mount) => mount.hostRoot),
+    readWrite: [
+      layout.task.hostRoot,
+      getWorkspaceConfig().uvDataDir,
+      ...(layout.apps ? [layout.apps.hostRoot] : []),
+    ],
+    rules,
+  };
+}

@@ -87,8 +87,6 @@ export function uvSubprocessEnv({
     PATH: pathDirs.join(path.delimiter),
     TERM: "dumb",
     U2NET_HOME: path.join(uvDataDir, "u2net"),
-    UV_PYTHON_DOWNLOADS: "automatic",
-    UV_PYTHON_PREFERENCE: "only-managed",
     VIRTUAL_ENV: venvDir,
     ...uvToolsEnvFor(uvDataDir),
   };

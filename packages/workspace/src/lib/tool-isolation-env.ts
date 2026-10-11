@@ -56,7 +56,8 @@ const RELEASE_AGE_DAYS = 7;
  * The environment that pins uv (and anything that runs the real pip) to
  * `uvDataDir`: its cache, the Pythons it installs and the tools it puts on a
  * PATH, with no config of the person's read (`uv.toml` in their home or a
- * parent folder, `pip.conf`). A release younger than a week is not
+ * parent folder, `pip.conf`), and none of their Pythons used. A release
+ * younger than a week is not
  * installed, the gate a chat's `pnpm-workspace.yaml` holds npm packages to.
  */
 export function uvToolsEnvFor(
@@ -70,7 +71,11 @@ export function uvToolsEnvFor(
       now.getTime() - RELEASE_AGE_DAYS * 24 * 60 * 60 * 1000,
     ).toISOString(),
     UV_NO_CONFIG: "1",
+    // uv's own Pythons alone, so neither `uv venv` nor anything it runs
+    // picks up a python3 the person has earlier on their PATH.
+    UV_PYTHON_DOWNLOADS: "automatic",
     UV_PYTHON_INSTALL_DIR: path.join(uvDataDir, "python"),
+    UV_PYTHON_PREFERENCE: "only-managed",
     UV_TOOL_BIN_DIR: path.join(uvDataDir, "tools", "bin"),
     UV_TOOL_DIR: path.join(uvDataDir, "tools"),
     XDG_CACHE_HOME: path.join(uvDataDir, "cache-home"),

@@ -81,6 +81,8 @@ export const ChatSchema = z.object({
   lastAsk: z.string().optional(),
   /** When the last reply with words finished, in ms; absent until there is one. */
   lastReplyAt: z.number().optional(),
+  /** When the user last sent a message, in ms, wake notes aside; the chat's creation before one is saved. */
+  lastUserMessageAt: z.number(),
   /** The user's first message, whatever it carried; absent only before one is saved. */
   root: SessionMessage.UserSchemaWithParts.optional(),
   /** The tasks filed from this chat that are at work right now. */
@@ -349,6 +351,7 @@ interface ChatDigest {
   lastAssistantAt?: number;
   lastMessageAt?: number;
   lastReplyAt?: number;
+  lastUserMessageAt?: number;
   madeFiles: string[];
   /** Whether the chat's last turn ended in an error with nothing said after it. */
   failed: boolean;
@@ -486,9 +489,10 @@ async function chatFor(
     sites: await sitesHeld(chatId, digest.openedHosts, filedTasks),
   };
 
+  const createdAt = (root?.metadata.createdAt ?? session.createdAt).getTime();
   return {
     archived: session.archivedAt !== undefined,
-    createdAt: (root?.metadata.createdAt ?? session.createdAt).getTime(),
+    createdAt,
     holds: {
       apps: [
         ...made.apps,
@@ -506,6 +510,7 @@ async function chatFor(
     ...(digest.lastReplyAt === undefined
       ? {}
       : { lastReplyAt: digest.lastReplyAt }),
+    lastUserMessageAt: digest.lastUserMessageAt ?? createdAt,
     ...(root ? { root } : {}),
     runningTasks,
     sessionId: session.id,
@@ -571,6 +576,16 @@ function digestOf(
       message.role === "user" || message.role === "assistant",
   );
   const lastUser = messages.findLast((message) => message.role === "user");
+  // A wake note is written as a user message but carries only task or app
+  // news; everything else the user sent, asks on a file alone included.
+  const lastUserMessage = messages.findLast(
+    (message) =>
+      message.role === "user" &&
+      !message.parts.every(
+        (part) =>
+          part.type === "data-taskEvent" || part.type === "data-appEvent",
+      ),
+  );
   const spoken = messages.findLast(
     (message) => message.role === "assistant" && hasWords(message),
   );
@@ -608,6 +623,9 @@ function digestOf(
     lastAsk: lastUser ? firstLine(textOf(lastUser)) : "",
     ...(lastMessageAt !== undefined && { lastMessageAt }),
     ...(lastReplyAt !== undefined && { lastReplyAt }),
+    ...(lastUserMessage && {
+      lastUserMessageAt: lastUserMessage.metadata.createdAt.getTime(),
+    }),
     madeFiles: filesHeld(messages),
     ...(newestTurn && {
       newestTurn: {

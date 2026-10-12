@@ -5,6 +5,7 @@ import {
   askOf,
   basename,
   byActivity,
+  byLastUserMessage,
   type ChatFilters,
   choose,
   draftTitle,
@@ -379,8 +380,8 @@ describe("the inbox", () => {
   });
 });
 
-describe("the inbox's order", () => {
-  it("puts the chat something last happened in at the top", () => {
+describe("activity order", () => {
+  it("puts the item something last happened in at the top", () => {
     const chats = [
       { id: "b", updatedAt: new Date(2026, 8, 15, 8).getTime() },
       { id: "d", updatedAt: new Date(2026, 8, 16, 11).getTime() },
@@ -403,6 +404,31 @@ describe("the inbox's order", () => {
     const sorted = byActivity(chats);
     expect(sorted).not.toBe(chats);
     expect(chats.map((row) => row.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("chat order by the user's messages", () => {
+  it("ignores agent activity and moves a chat when the user messages it", () => {
+    const chats = [
+      { id: "a", createdAt: 1, lastUserMessageAt: 3, updatedAt: 10 },
+      { id: "b", createdAt: 2, lastUserMessageAt: 4, updatedAt: 5 },
+    ];
+    expect(byLastUserMessage(chats).map((chat) => chat.id)).toEqual(["b", "a"]);
+    chats[0]!.updatedAt = 20;
+    expect(byLastUserMessage(chats).map((chat) => chat.id)).toEqual(["b", "a"]);
+    chats[0]!.lastUserMessageAt = 6;
+    expect(byLastUserMessage(chats).map((chat) => chat.id)).toEqual(["a", "b"]);
+    expect(chats.map((chat) => chat.id)).toEqual(["a", "b"]);
+  });
+
+  it("keeps the given order for chats messaged at the same moment", () => {
+    expect(
+      byLastUserMessage([
+        { id: "a", lastUserMessageAt: 1 },
+        { id: "b", lastUserMessageAt: 3 },
+        { id: "c", lastUserMessageAt: 3 },
+      ]).map((chat) => chat.id),
+    ).toEqual(["b", "c", "a"]);
   });
 });
 

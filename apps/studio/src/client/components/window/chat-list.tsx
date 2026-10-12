@@ -16,7 +16,7 @@ import {
 import { type AppsBySlug } from "./apps-by-slug";
 import { useChatActionsFor } from "./chat-actions";
 import { ChatRow } from "./chat-row";
-import { byActivity, type Chat, type Topic } from "./chats";
+import { byLastUserMessage, byActivity, type Chat, type Topic } from "./chats";
 import { DraftRow } from "./draft-row";
 import { type RowAction } from "./row-shell";
 import { useNow } from "./use-now";
@@ -124,8 +124,8 @@ const SKELETON_WIDTHS = [
 const SKELETON_ROWS = 16;
 
 /**
- * The inbox: every chat by when something last happened in it, newest at
- * the top, so a reply landing lifts its chat to the head of the list, or,
+ * The inbox: every chat by when the user last messaged it, newest at
+ * the top, with live activity updating each row in place, or,
  * given drafts instead, every draft by when it was last touched. It opens at
  * the top and stays where the reader scrolled to.
  */
@@ -238,7 +238,7 @@ export function ChatList({
           />
         ),
       }))
-    : byActivity(chats).map((chat) => ({
+    : byLastUserMessage(chats).map((chat) => ({
         key: chat.id,
         node: () => (
           <ListedChat

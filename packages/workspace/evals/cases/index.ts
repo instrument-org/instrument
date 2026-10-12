@@ -16,6 +16,7 @@ import { LARGE_FOLDER_SEARCH_EVALS } from "./large-folder-search";
 import { MEMORY_EVALS } from "./memory";
 import { MESSAGE_BLOCK_EVALS } from "./message-blocks";
 import { CHAT_EVALS } from "./chat";
+import { OUTBOUND_EVALS } from "./outbound";
 import { PDF_SKILL_EVALS } from "./pdf-skill";
 import { PERMISSIONS_EVALS } from "./permissions";
 import { QUESTIONS_EVALS } from "./questions";
@@ -50,6 +51,7 @@ export const EVALS = [
   ...MEMORY_EVALS,
   ...MESSAGE_BLOCK_EVALS,
   ...CHAT_EVALS,
+  ...OUTBOUND_EVALS,
   ...PDF_SKILL_EVALS,
   ...PERMISSIONS_EVALS,
   ...QUESTIONS_EVALS,

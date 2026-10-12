@@ -19,9 +19,24 @@ export interface AppFixture {
   kind?: "api" | "mcp" | "web";
   /** What the user calls it, as the manifest carries it. */
   name: string;
+  /**
+   * For an `api` app, what it serves in place of the issue tracker: a stand-in
+   * for a service a case needs, such as a mailbox or a store.
+   */
+  service?: StandInService;
   slug: string;
   /** For a web app, where it is worked. */
   url?: string;
+}
+
+/** A service an `api` app serves on loopback, described by its guide. */
+export interface StandInService {
+  /** The guide's opening line, saying what the service is. */
+  about: string;
+  /** The guide's endpoint list, a line each. */
+  endpoints: string[];
+  /** The JSON body for a request, or `undefined` for a 404. */
+  respond: (method: string, pathname: string) => unknown;
 }
 
 /**
@@ -90,8 +105,15 @@ export async function seedConnectedApps(
       await recordConnected(fixture.slug, { apps, appsDir });
       continue;
     }
+    const { service } = fixture;
     const server = http.createServer((request, response) => {
-      const body = respondTo(request.method ?? "GET", request.url ?? "/");
+      const url = request.url ?? "/";
+      const method = request.method ?? "GET";
+      const body = service
+        ? url === "/health"
+          ? { ok: true }
+          : service.respond(method, url.split("?")[0] ?? "/")
+        : respondTo(method, url);
       response.writeHead(body === undefined ? 404 : 200, {
         "content-type": "application/json",
       });
@@ -125,13 +147,15 @@ export async function seedConnectedApps(
       [
         `# ${fixture.name}`,
         "",
-        `${fixture.name} tracks the team's issues.`,
+        service?.about ?? `${fixture.name} tracks the team's issues.`,
         "",
         "## Endpoints",
         "",
-        "- `GET /issues` -- every issue, as `{ issues: [{ id, title, state }] }`.",
-        "- `GET /issues/<id>` -- one issue.",
-        '- `POST /issues` -- file one, as `{ "title": "...", "body": "..." }`.',
+        ...(service?.endpoints ?? [
+          "- `GET /issues` -- every issue, as `{ issues: [{ id, title, state }] }`.",
+          "- `GET /issues/<id>` -- one issue.",
+          '- `POST /issues` -- file one, as `{ "title": "...", "body": "..." }`.',
+        ]),
         "",
       ].join("\n"),
     );

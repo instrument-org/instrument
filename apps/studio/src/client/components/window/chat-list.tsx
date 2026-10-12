@@ -182,8 +182,8 @@ export function ChatList({
   outIds?: ReadonlySet<string>;
   /** How many chats the search finds that the filters keep out of the list. */
   outside?: number;
-  /** Counts up whenever the list should be taken back to its top, whatever the reader was doing. */
-  scrollSignal: number;
+  /** Changes whenever the list should be taken back to its top, whatever the reader was doing. */
+  scrollSignal: number | string;
   /** The words a row marks where they turn up: the search the chats were found by, when they were found by their words. */
   search?: string;
   topics: Topic[];

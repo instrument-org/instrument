@@ -27,9 +27,15 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { PLACES } from "@/client/components/window/app-rail";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
-import { byActivity, type Chat } from "@/client/components/window/chats";
+import {
+  byActivity,
+  type Chat,
+  type Topic,
+  topicSearch,
+} from "@/client/components/window/chats";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useShell } from "@/client/components/window/shell-context";
+import { TopicMark } from "@/client/components/window/topic-mark";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -382,6 +388,18 @@ export function useCommandMenuRows({
         words,
       ).slice(0, APPS_SHOWN)
     : [];
+  // A topic is found by its name, and by the word for one: "topic" alone
+  // lists them all, and beside a name it is left out of what the name is
+  // matched by, so "topic reading" and "reading topic" both find Reading.
+  // Every word left has to be in the name, since a topic that shared one
+  // word with a chat's title would otherwise sit over that chat.
+  const topicAsk = topicSearch(words);
+  const liveTopics = shell.topics.filter((topic) => !topic.retired);
+  const topicMatches = !isSearch
+    ? []
+    : topicAsk.name === ""
+      ? liveTopics.map((item) => ({ item, ranges: null }))
+      : fuzzyMatch(liveTopics, (topic) => [topic.name], topicAsk.name);
 
   const goTo: Item[] = PLACES.map(({ id, label }) => ({
     chord: WINDOW_SHORTCUTS[PLACE_CHORDS[id]].accelerator,
@@ -410,6 +428,17 @@ export function useCommandMenuRows({
             words,
           ).map(({ item, ranges }) => ({ ...item, ranges, type: "item" })),
           label: "Commands",
+        },
+        // Over the chats rather than under them: there are only ever a few
+        // topics, and the chats are the one list here with no end, so under
+        // them a topic would be out of sight exactly when its name is in
+        // many titles. Asked for by the word, they lead outright, since no
+        // place or command answers to it.
+        {
+          items: topicMatches.map(({ item, ranges }) =>
+            topicItem(item, ranges),
+          ),
+          label: "Topics",
         },
         {
           items: chatMatches.map(({ item, ranges }) => chatItem(item, ranges)),
@@ -592,6 +621,19 @@ export function useCommandMenuRows({
       ranges,
       run: () => {
         openScreen(`${CHATS_HREF}/${chat.id}`);
+      },
+      type: "item",
+    };
+  }
+
+  function topicItem(topic: Topic, ranges: null | number[]): Item {
+    return {
+      icon: <TopicMark topic={topic} />,
+      id: `topic:${topic.id}`,
+      label: topic.name,
+      ranges,
+      run: () => {
+        shell.openTopic(topic.id);
       },
       type: "item",
     };

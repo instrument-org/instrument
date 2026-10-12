@@ -14,6 +14,7 @@ import {
   matchesFilters,
   NO_FILTERS,
   outsideFilters,
+  topicSearch,
   widenToSearch,
   wordRanges,
 } from "./chats";
@@ -478,5 +479,26 @@ describe("wordRanges", () => {
     ["banana", "ana nan", [1, 5]],
   ])("finds %j searched for %j", (text, search, ranges) => {
     expect(wordRanges(text, search)).toEqual(ranges);
+  });
+});
+
+describe("a command menu search's ask of the topics", () => {
+  it.each<[string, boolean, string]>([
+    ["reading", false, "reading"],
+    ["reading list", false, "reading list"],
+    ["topic", true, ""],
+    ["Topics", true, ""],
+    ["topic reading", true, "reading"],
+    ["reading topic", true, "reading"],
+    ["  reading   list topics ", true, "reading list"],
+    ["topic: reading", true, "reading"],
+    // The word inside another is that other word.
+    ["topical", false, "topical"],
+    // A topic with the word in its name is found by the rest of it.
+    ["hot topics", true, "hot"],
+    // Said twice, the second is part of the name.
+    ["topic topic", true, "topic"],
+  ])("%j asks: %j, by the name %j", (words, isAsked, name) => {
+    expect(topicSearch(words)).toEqual({ isAsked, name });
   });
 });

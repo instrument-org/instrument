@@ -121,6 +121,22 @@ export function wordRanges(text: string, search: string): null | number[] {
   return joined.flat();
 }
 
+/**
+ * What a search of the command menu asks of the topics: whether it names
+ * them outright, with "topic" or "topics" as a word of its own anywhere in
+ * it, and the words left to find one by its name. So "topic reading" and
+ * "reading topic" both look for Reading, and the word alone, which leaves no
+ * name, asks for every topic. A search that never says the word is all name.
+ */
+export function topicSearch(words: string): { isAsked: boolean; name: string } {
+  const terms = words.trim().split(/\s+/).filter(Boolean);
+  const at = terms.findIndex((term) => /^topics?:?$/i.test(term));
+  return {
+    isAsked: at !== -1,
+    name: terms.filter((_, index) => index !== at).join(" "),
+  };
+}
+
 /** Whether the column stands in the inbox: no place chosen, whatever topic or app narrows it. */
 export function isInbox(filters: ChatFilters) {
   return filters.place === undefined;

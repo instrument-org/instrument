@@ -29,11 +29,7 @@ export function appFlavorOf({
   nodeEnv: string | undefined;
   previewName: string | undefined;
 }): AppFlavor {
-  const name = previewName
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, "-")
-    .replaceAll(/^-+|-+$/g, "")
-    .slice(0, 40);
+  const name = previewSlugOf(previewName);
   if (name) {
     return { kind: "preview", name };
   }
@@ -41,6 +37,35 @@ export function appFlavorOf({
     ? { kind: "development" }
     : { kind: "release" };
 }
+const PREVIEW_SLUG_LENGTH = 40;
+
+/** A preview name as a flavor carries it: lowercase letters, digits, and dashes. */
+function previewSlugOf(name: string): string {
+  return name
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "")
+    .slice(0, PREVIEW_SLUG_LENGTH);
+}
+
+/**
+ * The name a preview build is made under (`preview.yml`): the requested name
+ * as a slug, cut so the run number still fits after it, so each rebuild of a
+ * branch is a first launch of its own. Empty when the name has no letters or
+ * digits in it.
+ */
+export function previewBuildNameOf(name: string, runNumber: number): string {
+  const slug = previewSlugOf(name);
+  if (!slug) {
+    return "";
+  }
+  const suffix = `-${runNumber}`;
+  const head = slug
+    .slice(0, PREVIEW_SLUG_LENGTH - suffix.length)
+    .replace(/-+$/, "");
+  return `${head}${suffix}`;
+}
+
 // Read as written, not through a helper taking `process.env`: the bundlers
 // replace these two expressions with literals, and the renderer has no
 // `process` to read anything else from.

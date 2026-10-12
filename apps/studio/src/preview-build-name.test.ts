@@ -1,0 +1,30 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  appFlavorOf,
+  previewBuildNameOf,
+} from "@instrument-org/shared/constants";
+
+describe("previewBuildNameOf", () => {
+  it.each([
+    ["claude-resume-2", "claude-resume-2-21"],
+    ["Claude/Resume 2.21", "claude-resume-2-21-21"],
+    [
+      "a-very-long-branch-name-that-goes-well-past-forty-characters",
+      "a-very-long-branch-name-that-goes-wel-21",
+    ],
+    ["---", ""],
+  ])("names %j's run 21 %j", (name, built) => {
+    expect(previewBuildNameOf(name, 21)).toBe(built);
+  });
+
+  // The workflow builds under this name, and the build turns it back into
+  // its flavor; the two must agree.
+  it("is a name the flavor keeps as it is", () => {
+    const built = previewBuildNameOf("Claude/Resume 2.21", 21);
+    expect(appFlavorOf({ nodeEnv: "production", previewName: built })).toEqual({
+      kind: "preview",
+      name: built,
+    });
+  });
+});

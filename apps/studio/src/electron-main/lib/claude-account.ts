@@ -159,6 +159,15 @@ export function refreshClaudeAccountStatus({
   return refreshing;
 }
 
+/**
+ * Settles once the first status read has, whatever it found. Until then the
+ * Claude account has no provider config, which a model list would read as
+ * signed out; after it, the status kept is current enough to list from.
+ */
+export function claudeAccountStatusKnown(): Promise<unknown> {
+  return lastRefresh > 0 ? Promise.resolve() : refreshClaudeAccountStatus();
+}
+
 function setStatus(next: ClaudeAccountStatus) {
   const changed = JSON.stringify(next) !== JSON.stringify(status);
   status = next;

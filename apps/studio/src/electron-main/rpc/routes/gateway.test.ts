@@ -7,14 +7,14 @@ import { type InitialRPCContext } from "../context";
 import { gateway } from "./gateway";
 
 const mocks = vi.hoisted(() => ({
-  refreshClaude: vi.fn(),
+  claudeStatusKnown: vi.fn(),
   refreshChatGPT: vi.fn(),
   fetchModels: vi.fn(),
 }));
 
 vi.mock("@/electron-main/rpc/base", () => ({ base: os }));
 vi.mock("@/electron-main/lib/claude-account", () => ({
-  refreshClaudeAccountStatus: mocks.refreshClaude,
+  claudeAccountStatusKnown: mocks.claudeStatusKnown,
 }));
 vi.mock("@/electron-main/lib/chatgpt-account", () => ({
   refreshExpiredTokens: mocks.refreshChatGPT,
@@ -49,7 +49,7 @@ it.each(["cached", "fresh"])(
     const discovery = new Promise<void>((resolve) => {
       finishDiscovery = resolve;
     });
-    mocks.refreshClaude.mockReturnValue(discovery);
+    mocks.claudeStatusKnown.mockReturnValue(discovery);
     const getAIProviderConfigs = vi.fn(() => [CLAUDE_ACCOUNT_PROVIDER_CONFIG]);
     const readCache = vi.fn(() => [cachedModel]);
     // The route only reads these context fields; the other app services are unused.
@@ -69,7 +69,7 @@ it.each(["cached", "fresh"])(
       ? stream.next()
       : call(gateway.models.list, {}, { context, signal });
 
-    await vi.waitFor(() => expect(mocks.refreshClaude).toHaveBeenCalled());
+    await vi.waitFor(() => expect(mocks.claudeStatusKnown).toHaveBeenCalled());
     expect(getAIProviderConfigs).not.toHaveBeenCalled();
     expect(readCache).not.toHaveBeenCalled();
     expect(mocks.fetchModels).not.toHaveBeenCalled();

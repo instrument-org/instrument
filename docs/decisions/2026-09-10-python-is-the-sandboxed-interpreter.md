@@ -1,5 +1,7 @@
 # `python` is the sandboxed interpreter, `node` stays native, and each names the other
 
+Superseded by [2026-10-12-python-and-node-run-native.md](2026-10-12-python-and-node-run-native.md).
+
 Date: 2026-09-10
 
 Carries out [plans/completed/sandboxed-script-runtimes.md](../plans/completed/sandboxed-script-runtimes.md).

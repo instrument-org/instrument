@@ -294,6 +294,10 @@ export function contextReaders({
         continue;
       }
       if (item.kind === "chat") {
+        // A chat trashed since the draft was opened over it names nothing.
+        if (chatTitles.size > 0 && !chatTitles.has(item.chat)) {
+          continue;
+        }
         chat ??= {
           id: item.chat,
           title: chatTitles.get(item.chat) ?? "a chat",
@@ -334,7 +338,18 @@ export function contextReaders({
     if (!shown && !chat && chosen.length === 0 && own.length === 0) {
       return;
     }
-    const attached = items.map(sentChipOf);
+    // The chips the composer drew: a chat's own tab goes without one.
+    const attached = items
+      .filter(
+        (item) =>
+          !(isReply && item.kind === "tab" && item.owned) &&
+          !(
+            item.kind === "chat" &&
+            chatTitles.size > 0 &&
+            !chatTitles.has(item.chat)
+          ),
+      )
+      .map(sentChipOf);
     return {
       ...(shown ??
         (chat

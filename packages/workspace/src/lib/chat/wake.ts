@@ -244,8 +244,10 @@ async function onSessionDone(
 ) {
   // Only a chat is woken, by a task of its own.
   const chatId = resolveChat(id);
-  // Any session's pages that never went anywhere go with its turn.
-  if (chatId) {
+  // Any session's pages that never went anywhere go with its turn, unless
+  // its next turn has started, whose pages these may be by now: they go
+  // when that one ends.
+  if (chatId && !isWorkingAgain(chatId, sessionId)) {
     await closePagesWithNoTab(chatId, sessionId);
   }
   const task = chatId ? await childTask(chatId, sessionId) : undefined;
@@ -519,4 +521,13 @@ async function wakeModel(modelURI: AIGatewayModelURI.Type) {
     throw result.error;
   }
   return result.value;
+}
+
+/** Whether a session that just ended has a turn running again, or false where no workspace is running to ask. */
+function isWorkingAgain(chatId: ChatId, sessionId: StoreId.Session): boolean {
+  try {
+    return isWorking(chatId, sessionId);
+  } catch {
+    return false;
+  }
 }

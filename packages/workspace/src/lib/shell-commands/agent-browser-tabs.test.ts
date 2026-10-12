@@ -44,6 +44,19 @@ const ctx = createCommandContext({
 /** A window: answers each page it is asked for with a tab of its own. */
 function answeringWindow() {
   return publisher.subscribe("window.tab", (ask) => {
+    // The chat's tabs are the pages with a guest up.
+    if (ask.action.kind === "list") {
+      publisher.publish("window.tabDone", {
+        id: ask.id,
+        requestId: ask.requestId,
+        tabs: [...live].map((id) => ({
+          id,
+          kind: "page" as const,
+          url: "https://example.com/",
+        })),
+      });
+      return;
+    }
     if (ask.action.kind !== "open" || ask.action.target.kind !== "page") {
       return;
     }
@@ -208,12 +221,27 @@ describe("a task's tab", () => {
     const next = await run(["open", "https://example.com"]);
 
     expect(told.exitCode).toBe(1);
-    expect(told.stderr).toContain("the tab this task opened was closed");
+    expect(told.stderr).toContain("the tabs you opened were closed");
     expect(next.exitCode).toBe(0);
     const state = await getChatState(chatDir(CHAT_ID));
     expect(state.browserTabs).toEqual([
       { id: chats, inWindow: true, openedBy: "task" },
     ]);
+  });
+
+  it("drops a page with no tab whose guest went, saying nothing of it", async () => {
+    await holdTabs([
+      {
+        id: browserTargetOf(StoreId.newSessionId()),
+        inWindow: false,
+        openedBy: "task",
+      },
+    ]);
+
+    const result = await run(["snapshot", "-i"]);
+
+    expect(result.exitCode).toBe(0);
+    expect((await getChatState(chatDir(CHAT_ID))).browserTabs).toEqual([]);
   });
 
   it("is never replaced when it was handed over and the user closed it", async () => {

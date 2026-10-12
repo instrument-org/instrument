@@ -59,12 +59,17 @@ vi.mock("../../../lib/resolve-workspace-file-path", async () => {
 });
 // The window: what the task asked of it, answered with a tab of its own.
 const asked: WindowTabAction[] = [];
+/** The chat's tabs as the window lists them, a page's guest up or not. */
+let windowList: { id: string; kind: "page"; url: string }[] = [];
 vi.mock("../../../lib/chat/window-tab", () => ({
   askWindow: ({ action }: { action: WindowTabAction }) => {
     asked.push(action);
     return Promise.resolve({
       requestId: "r",
-      ...(action.kind === "adopt" ? { tabId: action.tabId } : {}),
+      ...(action.kind === "adopt" || action.kind === "restore"
+        ? { tabId: action.tabId }
+        : {}),
+      ...(action.kind === "list" ? { tabs: windowList } : {}),
     });
   },
   chatSessionOfTask: () =>
@@ -112,7 +117,9 @@ function connect() {
       getTargetMeta: (targetId: BrowserTargetId) =>
         live.has(targetId) ? { partitionDir: "/tmp/profile" } : null,
       getTargetUrl: (targetId: BrowserTargetId) =>
-        pages.get(targetId)?.url ?? "https://example.com/",
+        live.has(targetId)
+          ? (pages.get(targetId)?.url ?? "https://example.com/")
+          : undefined,
       listTargets: () =>
         Promise.resolve(
           [...live].map((id) => ({
@@ -367,6 +374,31 @@ describe("a task's browser", () => {
     expect(record.browserTabs).toEqual([
       { id: targetId, inWindow: true, openedBy: "task" },
     ]);
+  });
+
+  it("lists a tab whose page was discarded at the window's address, and brings it back as it is attached to", async () => {
+    const resting = tab();
+    record.browserTabs = [resting.held];
+    windowList = [
+      { id: resting.tabId, kind: "page", url: "https://example.org/kept" },
+    ];
+    const { command, closeByUser } = connect();
+    // Its guest went, and the tab stayed: discarded.
+    closeByUser(resting.held.id);
+    asked.length = 0;
+
+    const targets = await command("Target.getTargets");
+    expect(targets.result?.targetInfos).toMatchObject([
+      { targetId: resting.tabId, url: "https://example.org/kept" },
+    ]);
+    expect(asked.map((action) => action.kind)).toEqual(["list"]);
+
+    const attached = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: resting.tabId,
+    });
+    expect(attached.result?.sessionId).toBeDefined();
+    expect(asked.map((action) => action.kind)).toContain("restore");
   });
 
   it("stops opening tabs at the cap", async () => {

@@ -180,6 +180,10 @@ function ChatChip({
       input: { id: chatId },
     }),
   );
+  // A chat trashed since is not there to name, and goes with nothing.
+  if (info.isError) {
+    return null;
+  }
   return (
     <ContextChip
       label={<ChipLabel paths={[]} said={SENT_WITH_MESSAGE} />}

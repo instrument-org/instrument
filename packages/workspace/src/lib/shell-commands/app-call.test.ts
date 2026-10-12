@@ -189,14 +189,14 @@ describe("app call in a pipeline", () => {
   });
 });
 
-describe("js-exec tools.*", () => {
+describe("node tools.*", () => {
   async function script(code: string, id = chatId) {
     await mkdir(chatDir(id), { recursive: true });
     const bash = await createLocalBashEnv({
       sessionId: StoreId.newSessionId(),
       chatId: id,
     });
-    return bash.exec(`js-exec <<'EOF'
+    return bash.exec(`node --input-type=module <<'EOF'
 ${code}
 EOF`);
   }

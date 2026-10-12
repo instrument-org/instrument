@@ -68,7 +68,7 @@ import {
   type SubcommandShell,
   subcommand,
 } from "./subcommands";
-import { JS_EXEC_COMMAND } from "./js-exec";
+import { NODE_COMMAND } from "./node";
 import { subprocessStdin } from "./utils";
 
 export { APP_COMMAND } from "./app-command";
@@ -138,9 +138,9 @@ const USAGE = `Usage: ${APP_COMMAND.name} <subcommand> ...
       Run one tool. Arguments as a JSON object, inline or on stdin through a
       quoted heredoc. --out writes the result to that file instead, as JSON
       where the service answered with data, and prints only a line saying
-      what landed: for a result to work through with jq, js-exec, node, or
-      python rather than read whole.
-      In js-exec code (\`js-exec -c '<code>'\` or a script file),
+      what landed: for a result to work through with jq, node, or python
+      rather than read whole.
+      In ${NODE_COMMAND.name} code (\`${NODE_COMMAND.name} -e '<code>'\` or a script file),
       \`await tools.<slug>.<tool>({...})\` makes the same call and returns the
       result as a value (\`tools["<slug>"]\` for a slug with a hyphen),
       throwing a refusal: for many calls, or calls that feed each other, in
@@ -514,12 +514,12 @@ async function runCall(input: SubcommandInput, shell: SubcommandShell) {
 }
 
 /**
- * The `tools` global a `js-exec` script gets: `tools.<slug>.<tool>(args)`
+ * The `tools` global a `node` script gets: `tools.<slug>.<tool>(args)`
  * makes the call `call` would, through the same checks, and hands the script
  * a value rather than text to read: the structured result where the service
  * sent one, else its text parsed as JSON, else the text itself. A refusal or
  * a failed connection throws inside the script with the words `call` prints.
- * The string returned is that value as JSON, which is what just-bash parses.
+ * The string returned is that value as JSON, which the script's preload parses.
  */
 export async function invokeAppTool(
   path: string,
@@ -1152,11 +1152,11 @@ async function runTools(
     (tool) => `- ${tool.name}: ${firstSentence(redact(tool.description))}`,
   );
   return ok(
-    `${result.value.length} tools on ${app.slug}. \`${APP_COMMAND.name} tool ${app.slug} <name>\` shows one with the JSON it takes; \`${APP_COMMAND.name} call ${app.slug} <name> '<json>'\` runs it, and in ${JS_EXEC_COMMAND.name} code (\`${JS_EXEC_COMMAND.name} -c '<code>'\`) \`await ${toolsAccessor(app.slug)}.<name>({...})\` returns it as a value.\n${lines.join("\n")}\n`,
+    `${result.value.length} tools on ${app.slug}. \`${APP_COMMAND.name} tool ${app.slug} <name>\` shows one with the JSON it takes; \`${APP_COMMAND.name} call ${app.slug} <name> '<json>'\` runs it, and in ${NODE_COMMAND.name} code (\`${NODE_COMMAND.name} -e '<code>'\`) \`await ${toolsAccessor(app.slug)}.<name>({...})\` returns it as a value.\n${lines.join("\n")}\n`,
   );
 }
 
-/** How a `js-exec` script names an app on its `tools` global. */
+/** How a `node` script names an app on its `tools` global. */
 function toolsAccessor(slug: string): string {
   return slug.includes("-") ? `tools["${slug}"]` : `tools.${slug}`;
 }

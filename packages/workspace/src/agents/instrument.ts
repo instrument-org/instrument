@@ -26,10 +26,7 @@ import { CHAT_COMMAND } from "../lib/shell-commands/chat-command";
 import { MEMORY_COMMAND } from "../lib/shell-commands/memory-command";
 import { NODE_COMMAND } from "../lib/shell-commands/node";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
-import {
-  PYTHON_COMMAND,
-  PYTHON_NATIVE_COMMAND,
-} from "../lib/shell-commands/python";
+import { PYTHON_COMMAND } from "../lib/shell-commands/python";
 import { TAB_COMMAND } from "../lib/shell-commands/tab-command";
 import { TASK_COMMAND } from "../lib/shell-commands/task-command";
 import { SKILL_NAMES } from "../lib/skill-names";
@@ -119,7 +116,7 @@ export const instrumentAgent = setupAgent({
       sessionId,
       textParts: [
         getSystemInfoText({
-          network: `\`curl\` and \`${TOOL_NAMES.webFetch}\` reach the internet and the local network. \`${NODE_COMMAND.name}\` and \`${PYTHON_NATIVE_COMMAND.name}\` are real programs on this computer, with its network.`,
+          network: `\`curl\` and \`${TOOL_NAMES.webFetch}\` reach the internet and the local network. \`${NODE_COMMAND.name}\` and \`${PYTHON_COMMAND.name}\` are real programs on this computer, with its network.`,
         }),
         await getUserText(),
         foldersText,
@@ -317,7 +314,7 @@ function systemPrompt(): string {
     Long answers are files; short ones are not. A report pasted into this narrow chat is unreadable there, and a fact put in a file is a file nobody opens. Anything longer than a short paragraph (a report, a comparison, research, a list of deals) is a file in the form the user asked for or the work plainly wants, and the reply gives the verdict in a sentence or two and names the file; a page is one of those forms, never the default. A change to a file of theirs is a result too: name it in the files fence where it sits. When revising a finished file they might still want, write a new, clearly named one unless they asked to replace it; nothing here keeps old versions.
 
     # Scripts
-    A script is a working file: save it in \`${F.work}/\` (named for the job), read inputs from \`${F.attachments}/\` or the user's folders where they sit, and write what it makes under \`${F.work}/\` until it is checked and placed. Run it by its path from your folder (\`${NODE_COMMAND.name} ${F.work}/convert.ts ${F.attachments}/in.csv\`), never by \`cd\`ing into its folder, which breaks the relative paths. Install with \`${PNPM_COMMAND.name} add <pkg>\` where you are. A loaded skill is its own package: run its scripts where they sit, or install at the root and write your own. Write TypeScript, Python, or bash. \`${PYTHON_COMMAND.name}\` is the sandboxed standard library; \`${PYTHON_NATIVE_COMMAND.name}\` is the virtualenv, which runs what \`pip\` installed. Both read the user's folders where they sit.
+    A script is a working file: save it in \`${F.work}/\` (named for the job), read inputs from \`${F.attachments}/\` or the user's folders where they sit, and write what it makes under \`${F.work}/\` until it is checked and placed. Run it by its path from your folder (\`${NODE_COMMAND.name} ${F.work}/convert.ts ${F.attachments}/in.csv\`), never by \`cd\`ing into its folder, which breaks the relative paths. Install with \`${PNPM_COMMAND.name} add <pkg>\` where you are. A loaded skill is its own package: run its scripts where they sit, or install at the root and write your own. Write TypeScript, Python, or bash. \`${PYTHON_COMMAND.name}\` runs in this conversation's virtualenv, with what \`pip\` installed.
 
     # How you speak
     - Everything you write outside a tool call is shown to the user as Markdown. Default to a sentence or two in plain words. Use Markdown when it earns its place: a short list, a table for a comparison, a code block for a command. Never a wall of text, never a heading over a two-line answer, no emoji.

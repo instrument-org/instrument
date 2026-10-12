@@ -1,4 +1,5 @@
 import { execa, type Options } from "execa";
+import { type Serializable } from "node:child_process";
 
 import { inheritedEnv } from "../native-env";
 
@@ -82,6 +83,14 @@ export async function execShim(
   args: string[],
   options: ShimOptions & {
     /**
+     * Opens an IPC channel to a Node subprocess and hears each message it
+     * sends; `reply` sends one back while the channel is open.
+     */
+    onMessage?: (
+      message: unknown,
+      reply: (message: Serializable) => void,
+    ) => void;
+    /**
      * Run outside the native sandbox: only for a command the person allowed
      * to act on its own, such as a script to an app they allowed.
      */
@@ -94,10 +103,12 @@ export async function execShim(
   },
 ) {
   const sink = currentShellOutputSink();
-  const { cancelSignal, unsandboxed, walks, ...subprocessOptions } = options;
+  const { cancelSignal, onMessage, unsandboxed, walks, ...subprocessOptions } =
+    options;
   const spawned = wrapNativeCommand(file, args, unsandboxed ? null : undefined);
   const subprocess = execa(spawned.file, spawned.args, {
     ...subprocessOptions,
+    ...(onMessage ? { ipc: true } : {}),
     // Only what a program needs of the app's own environment, so a key or
     // token set for the app never reaches a script the agent runs.
     env: { ...inheritedEnv(), ...subprocessOptions.env },
@@ -108,6 +119,17 @@ export async function execShim(
     reject: false,
     stripFinalNewline: false,
   });
+  if (onMessage) {
+    subprocess.on("message", (message) =>
+      onMessage(message, (reply) => {
+        if (subprocess.connected) {
+          // A subprocess that exits while the reply is on its way has
+          // nothing left to hear it.
+          subprocess.send(reply, () => {});
+        }
+      }),
+    );
+  }
   const finishTreeTermination = sink
     ? watchSubprocessTree({ pid: subprocess.pid, signal: cancelSignal })
     : undefined;

@@ -148,7 +148,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
 
   it("makes a script's tool calls on the main thread", async () => {
     const result = await remoteBash().exec(
-      `js-exec -c 'console.log(JSON.stringify(await tools["my-app"].list({ page: 2 }))); try { await tools.no.way(); } catch (error) { console.log(error.message); }'`,
+      `node --input-type=module -e 'console.log(JSON.stringify(await tools["my-app"].list({ page: 2 }))); try { await tools.no.way(); } catch (error) { console.log(error.message); }'`,
     );
     expect(result.stderr).toBe("");
     expect(result.stdout).toMatchInlineSnapshot(`

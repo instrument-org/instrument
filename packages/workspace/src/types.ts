@@ -235,7 +235,7 @@ export interface WorkspaceConfig {
   modelCache: ModelCache;
   nodeExecEnv: Record<string, string>;
   /**
-   * Whether native commands (node, python-native, uv, pnpm, ffmpeg, git,
+   * Whether native commands (node, python, uv, pnpm, ffmpeg, git,
    * osascript) are held to Settings › Permissions with Seatbelt on macOS. A
    * plain flag, because native commands run in the bash worker, which is sent
    * a snapshot of the config with each command. Off, native commands run

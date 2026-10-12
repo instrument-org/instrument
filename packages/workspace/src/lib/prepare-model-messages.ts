@@ -52,7 +52,7 @@ export const TRANSIENT = { instrument: { transient: true } };
  * message it was opened with for the rest of its life.
  */
 
-export const SESSION_CONTEXT_VERSION = 40;
+export const SESSION_CONTEXT_VERSION = 41;
 
 export async function prepareModelMessages({
   agent,

@@ -4,9 +4,15 @@ import { type AbsolutePath } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
-import { type WorkspaceFsLayout } from "../workspace-fs-layout";
+import { type AppToolInvoker } from "../app-tool-hook";
+import {
+  answerToolCall,
+  isToolCallMessage,
+  nodeToolsPreloadUrl,
+} from "../node-tools-preload";
 import { nodeToolsEnv } from "../tool-isolation";
 import { getWorkspaceConfig } from "../workspace-config";
+import { APP_COMMAND } from "./app-command";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
   firstString,
@@ -25,16 +31,28 @@ import { workDir } from "../work-dir";
 const BLOCKED_FLAGS = new Set(["--interactive", "-i"]);
 const BLOCKED_FLAG_PREFIXES = ["--inspect", "--debug", "--watch"];
 
-function execNode(
+async function execNode(
   chatId: ChatId,
   args: string[],
   signal?: AbortSignal,
   cwd?: AbsolutePath,
   env?: Record<string, string>,
   stdin?: Buffer,
+  invokeTool?: AppToolInvoker,
 ) {
-  return execShim(process.execPath, args, {
+  const preload = invokeTool ? ["--import", await nodeToolsPreloadUrl()] : [];
+  return execShim(process.execPath, [...preload, ...args], {
     cancelSignal: signal,
+    ...(invokeTool && {
+      onMessage: (message, reply) => {
+        if (!isToolCallMessage(message)) {
+          return;
+        }
+        void answerToolCall(message, () =>
+          invokeTool(message.path, message.argsJson, signal),
+        ).then(reply);
+      },
+    }),
     cwd: cwd ?? workDir(chatId),
     env: {
       ...getWorkspaceConfig().nodeExecEnv,
@@ -73,11 +91,16 @@ const KNOWN_OPTIONS = {
 } as const;
 
 export const NODE_COMMAND = {
-  description: `Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd.`,
+  description: `Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd. \`await tools.<slug>.<tool>({...})\` calls a connected app's tool as \`${APP_COMMAND.name} call\` does and returns the result as a value (\`tools["<slug>"]\` for a slug with a hyphen); only the script \`node\` runs has \`tools\`, not a process that script starts.`,
   name: "node",
 } as const;
 
-export function createNodeCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
+/**
+ * `node` as a real process. With `invokeTool`, the script gets the `tools`
+ * global (`node-tools-preload.ts`), and this command answers each call it
+ * makes over the subprocess's IPC channel.
+ */
+export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
   return defineCommand(NODE_COMMAND.name, async (args, ctx) => {
     const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const stdinProgram = latin1FromBytes(ctx.stdin);
@@ -165,6 +188,7 @@ export function createNodeCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
         taskCwd,
         env,
         subprocessStdin(ctx.stdin),
+        invokeTool,
       );
       const streams = mapStreams(
         shimOutput(execResult, NODE_COMMAND.name),
@@ -187,6 +211,7 @@ export function createNodeCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
           taskCwd,
           env,
           Buffer.from(stdinProgram, "latin1"),
+          invokeTool,
         );
         return {
           exitCode: execResult.exitCode ?? 1,
@@ -221,6 +246,7 @@ export function createNodeCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
       taskCwd,
       env,
       subprocessStdin(ctx.stdin),
+      invokeTool,
     );
     const streams = mapStreams(
       shimOutput(execResult, NODE_COMMAND.name),

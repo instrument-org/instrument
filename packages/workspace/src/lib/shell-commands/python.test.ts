@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { createPythonNativeCommand, importedModules } from "./python";
+import { createPythonCommand } from "./python";
 import { taskLayout } from "../../test/helpers/task-layout";
 
 vi.mock("execa");
@@ -18,10 +18,10 @@ vi.mock("./uv", () => ({
 
 const realFs = new InMemoryFs();
 
-describe("python-native", () => {
+describe("python", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
   const layout = taskLayout(chatId);
-  const command = createPythonNativeCommand(chatId, layout);
+  const command = createPythonCommand(chatId, layout);
   const taskPath = layout.task.mountPoint;
   const mockCtx = createCommandContext({
     cwd: taskPath,
@@ -107,23 +107,5 @@ describe("python-native", () => {
         input: Buffer.from("print('café → déjà')", "utf8"),
       }),
     );
-  });
-});
-
-describe("importedModules", () => {
-  it("reads the top-level module of each import, and none from a relative one", () => {
-    expect(
-      importedModules(
-        [
-          "import numpy as np, os",
-          "from PIL import Image",
-          "  from faster_whisper.transcribe import WhisperModel",
-          "from . import helper",
-          "from .local import thing",
-          "# import commented",
-          "x = 1; import json",
-        ].join("\n"),
-      ),
-    ).toEqual(["numpy", "os", "PIL", "faster_whisper"]);
   });
 });

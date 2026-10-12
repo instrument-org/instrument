@@ -193,8 +193,8 @@ function sendChunk(id: number, text: string) {
 }
 
 /**
- * A `js-exec` script's app tool call, made on the main thread. An abort of the
- * script's signal stops it there, as it does a proxied command.
+ * A `node` script's app tool call, made on the main thread. An abort of the
+ * command's signal stops it there, as it does a proxied command.
  */
 function invokeTool({
   argsJson,

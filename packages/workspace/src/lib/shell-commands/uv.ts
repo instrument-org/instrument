@@ -11,7 +11,7 @@ import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 export const UV_COMMAND = {
   description:
-    "Python package and environment manager, backing `python-native` and `pip` with a per-task virtualenv in .venv. The very first native Python use fetches a managed interpreter (one-time); later uses are fast.",
+    "Python package and environment manager, backing `python` and `pip` with a per-task virtualenv in .venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.",
   name: "uv",
 } as const;
 

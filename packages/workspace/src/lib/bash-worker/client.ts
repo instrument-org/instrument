@@ -42,7 +42,7 @@ interface PendingExec {
    * command sees the turn and output sink it would have seen on this thread.
    */
   inContext: <R>(callback: () => R) => R;
-  /** Makes a `js-exec` script's app tool calls for the task the shell belongs to. */
+  /** Makes a `node` script's app tool calls for the task the shell belongs to. */
   invokeTool: AppToolInvoker;
   /** The main-thread shell proxied commands run in, built on first use. */
   mainBash?: Promise<BashRunner>;
@@ -392,7 +392,7 @@ async function runProxiedCall(
   }
 }
 
-/** Makes one `js-exec` app tool call for the worker, in the exec's async context. */
+/** Makes one `node` script's app tool call for the worker, in the exec's async context. */
 async function runProxiedTool(
   instance: WorkerInstance,
   message: Extract<FromWorker, { type: "tool" }>,

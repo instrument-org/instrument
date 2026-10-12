@@ -63,7 +63,7 @@ export type FromWorker =
   | { id: number; result: WireResult; type: "result" }
   | { id: number; seq: number; text: string; type: "chunk" }
   | { pid: number; state: "settled" | "started"; type: "tree" }
-  /** A `js-exec` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
+  /** A `node` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
   | { argsJson: string; callId: number; id: number; path: string; type: "tool" }
   | { requestId: number; chatId: ChatId; type: "venv" };
 

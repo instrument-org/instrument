@@ -76,7 +76,9 @@ async function runFork(
   }
   const jobs = handedJobs(input.all("job"), chatSessionId);
   const { model, modelURI } = await chatModel("new", context);
-  const handedTabs = await resolveTabs(input.all("tab"));
+  const handedTabs = await resolveTabs(input.all("tab"), {
+    chatId: context.chatId,
+  });
   await refuseTabsDrivenElsewhere(handedTabs, context.chatId);
   const name = input.value("name")?.trim() || defaultTaskName(directive);
 

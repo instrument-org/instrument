@@ -49,14 +49,16 @@ function answeringWindow() {
     const answer =
       action.kind === "open"
         ? { tabId: `made-${asked.length}` }
-        : known.has(action.tabId)
-          ? {
-              tabId: action.tabId,
-              ...(action.kind === "read"
-                ? { text: "Jar\nA rigid container." }
-                : {}),
-            }
-          : { error: `no tab ${action.tabId} is open in this chat.` };
+        : action.kind === "list"
+          ? { tabIds: [...known] }
+          : known.has(action.tabId)
+            ? {
+                tabId: action.tabId,
+                ...(action.kind === "read"
+                  ? { text: "Jar\nA rigid container." }
+                  : {}),
+              }
+            : { error: `no tab ${action.tabId} is open in this chat.` };
     publisher.publish("window.tabDone", {
       id: ask.id,
       requestId: ask.requestId,

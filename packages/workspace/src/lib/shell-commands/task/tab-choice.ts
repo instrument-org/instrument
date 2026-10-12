@@ -1,20 +1,30 @@
 import { type ChatId } from "../../../schemas/chat-id";
 import { type BrowserTargetId, parseBrowserTargetId } from "../../../types";
-import { tabHolders } from "../../chat/window-tab";
+import { askWindow, tabHolders } from "../../chat/window-tab";
+import { resolveChat } from "../../record-folders";
 import { TASK_COMMAND } from "../task-command";
 import { isLocalAddress } from "../../local-page-address";
 import { getWorkspaceConfig } from "../../workspace-config";
 
 /**
- * A tab id from the note on the user's message names one of the window's
- * browser targets; the target has to exist, since the
- * task connects to it rather than creating anything. A tab showing a file on
- * the computer is not handed over: its address is a path only the window
- * opens, and a task reaches a file through its folders, never through a
- * browser standing on one.
+ * A tab id from the note on the user's message names one of the chat's own
+ * tabs, as the window holds them at this moment: a tab in no chat or in
+ * another is never the chat's to hand over, whatever id it was given. The
+ * target has to exist, since the task connects to it rather than creating
+ * anything. A tab showing a file on the computer is not handed over: its
+ * address is a path only the window opens, and a task reaches a file
+ * through its folders, never through a browser standing on one.
  */
-async function resolveTab(tab: string): Promise<BrowserTargetId> {
+async function resolveTab(
+  tab: string,
+  chatTabs: readonly string[],
+): Promise<BrowserTargetId> {
   const targetId = await tabTargetOf(tab);
+  if (!chatTabs.includes(targetId)) {
+    throw new Error(
+      `Tab ${tab} is not one of this chat's tabs; the note on the user's message lists the ones it has.`,
+    );
+  }
   const { browser } = getWorkspaceConfig();
   if (!browser.getTargetMeta(targetId)) {
     throw new Error(`Tab ${tab} is not open any more.`);
@@ -32,16 +42,30 @@ async function resolveTab(tab: string): Promise<BrowserTargetId> {
 /** Several tab ids, each resolved, without repeats; `closedIsFine` for ids only being let go of. */
 export async function resolveTabs(
   tabs: string[],
-  { closedIsFine = false }: { closedIsFine?: boolean } = {},
+  { chatId, closedIsFine = false }: { chatId: ChatId; closedIsFine?: boolean },
 ): Promise<BrowserTargetId[]> {
+  const chatTabs =
+    closedIsFine || tabs.length === 0 ? [] : await tabsOfChat(chatId);
   const resolved: BrowserTargetId[] = [];
   for (const tab of tabs) {
-    const id = closedIsFine ? await tabTargetOf(tab) : await resolveTab(tab);
+    const id = closedIsFine
+      ? await tabTargetOf(tab)
+      : await resolveTab(tab, chatTabs);
     if (!resolved.includes(id)) {
       resolved.push(id);
     }
   }
   return resolved;
+}
+
+/** The ids of the chat's tabs, as the window holds them now; none when no window answers. */
+async function tabsOfChat(chatId: ChatId): Promise<string[]> {
+  const answer = await askWindow({
+    action: { kind: "list" },
+    askedBy: chatId,
+    group: resolveChat(chatId),
+  });
+  return answer?.tabIds ?? [];
 }
 
 /** A tab id in the window's terms, open or not. */

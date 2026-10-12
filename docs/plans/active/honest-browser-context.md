@@ -1,6 +1,6 @@
 # Plan: honest browser context and an honest agent-browser proxy
 
-Status: approved, not started. Three steps, each landing on its own.
+Status: steps 1 and 2 landed; step 3 not started.
 
 ## Why
 
@@ -20,12 +20,12 @@ Everything a message carries about what the user was looking at is a chip in the
 - The chat composer gets the same chips, so a reply says what goes with it.
 - The chat's own tab list (the ids `tab` and `--tab` take) is not a chip: it is the chat's, not something the user was looking at.
 
-## Step 2: the workspace knows each chat's tabs
+## Step 2: the window answers which tabs are a chat's
 
-The window reports each chat's tabs (id, address, title) as they join, change and leave its group, and the workspace keeps them per chat. That list is the only source of tab ids an agent is told and the only tabs it can reach:
+The window holds every tab and the group it is in, so the workspace asks it (`list`, an ask of the window like `open` and `read`) at the moment a tab is named, rather than keeping a copy that could drift:
 
-- The note's tab list comes from it.
-- `task new --tab`, `tab`, and the CDP endpoint check against it, so a tab outside the chat cannot be named, handed, or driven, whatever id a model copies.
+- The note's tab ids are only the sending chat's own (step 1).
+- `task new --tab` refuses an id the window does not list for the chat, so a tab outside it cannot be handed over whatever id a model copies. `tab` already looks ids up among the chat's tabs, and the CDP endpoint drives only the tabs a session holds, which come from those two.
 - The window's own tabs are in no chat's list, so they stay the user's. Handing one to an agent later is a change to this list, not a second path.
 
 ## Step 3: an honest agent-browser proxy

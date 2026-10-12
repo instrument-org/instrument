@@ -39,6 +39,12 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
    * next shown after a launch, and a task working in the tab needs it before.
    */
   z.object({ kind: z.literal("restore"), tabId: z.string() }),
+  /**
+   * The ids of the chat's tabs, which are the only tabs it may name, hand
+   * to a task, or have an agent drive. Asked at the moment a tab is named,
+   * so it is never a copy that could be out of date.
+   */
+  z.object({ kind: z.literal("list") }),
 ]);
 
 export type WindowTabAction = z.output<typeof WindowTabActionSchema>;
@@ -58,6 +64,8 @@ export const WindowTabAnswerSchema = z.object({
   error: z.string().optional(),
   requestId: z.string(),
   tabId: z.string().optional(),
+  /** The ids of the chat's tabs, for a list. */
+  tabIds: z.array(z.string()).optional(),
   /** The page's text, for a read. */
   text: z.string().optional(),
 });

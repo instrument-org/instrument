@@ -54,6 +54,9 @@ export function createStandInWindow() {
     if (action.kind === "open") {
       return { tabId: add(action.target).id };
     }
+    if (action.kind === "list") {
+      return { tabIds: [...tabs.keys()] };
+    }
     const tab = tabs.get(action.tabId);
     if (!tab) {
       return { error: `no tab ${action.tabId} is open in this chat.` };

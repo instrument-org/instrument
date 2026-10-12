@@ -424,6 +424,15 @@ export function useOpeners({
       }
       return { tabId };
     }
+    if (action.kind === "list") {
+      return group === undefined
+        ? { error: "only a chat has tabs to list." }
+        : {
+            tabIds: windowTabs.allTabs
+              .filter((entry) => entry.group === group)
+              .map((entry) => entry.id),
+          };
+    }
     const tab = windowTabs.allTabs.find(
       (entry) =>
         entry.id === action.tabId &&

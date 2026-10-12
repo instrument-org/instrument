@@ -138,6 +138,7 @@
     "studio/no-raw-anchor": "error",
     "studio/no-raw-webview": "error",
     "studio/no-router-link": "error",
+    "studio/no-shell-open-path": "error",
     "studio/no-transition-colors": "error",
     "studio/one-tooltip-provider": "error",
     "react/error-boundaries": "warn",

@@ -2,8 +2,6 @@ import {
   type FileTab,
   fileTreeOpenAtom,
   fileTreeWidthAtom,
-  findersByTabAtom,
-  pageSlotsAtom,
 } from "@/client/atoms/window";
 import type { FileSystemView } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -23,15 +21,11 @@ import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import {
-  encodeBrowserTargetId,
-  StoreId,
-  WINDOW_ID,
-} from "@instrument-org/workspace/client";
+import { browserTargetOf, StoreId } from "@instrument-org/workspace/client";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "@/client/lib/toast";
@@ -47,10 +41,11 @@ import { useGroupTab } from "./group-tab";
 import { folderOf, segmentsOf } from "./host-path";
 import { hostGroupOf, useHostedPageNavigation } from "./hosted-page";
 import { LinkSurface } from "./link-surface";
-import { useOnScreen, useWalkedFolder } from "./on-screen";
 import { PageEditToggle } from "./page-edit";
+import { usePageHost } from "./page-hosts";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { useQuickLook } from "./quick-look";
+import { useTabSurface } from "./tab-surface";
 import { useWindowTabs } from "./window-tabs";
 
 /** A viewer that is the whole of its tab: no card of its own inside the pane's. */
@@ -114,7 +109,6 @@ export function FilesScreen({
   const appTabId = useTabId();
   const isActiveTab = useIsActiveTab();
   const [isTreeOpen, setTreeOpen] = useAtom(fileTreeOpenAtom);
-  const setPageSlots = useSetAtom(pageSlotsAtom);
   const router = useRouter();
   const navigate = useNavigate();
   // The tab of a chat's or a draft's group this screen is in, when it is
@@ -250,10 +244,7 @@ export function FilesScreen({
   useHostedPageNavigation(
     hostedTabId === undefined
       ? undefined
-      : encodeBrowserTargetId(
-          WINDOW_ID,
-          StoreId.SessionSchema.parse(hostedTabId),
-        ),
+      : browserTargetOf(StoreId.SessionSchema.parse(hostedTabId)),
     hostedFile === undefined ? undefined : fileUrlOf(hostedFile),
     (step) => {
       if (step.kind === "back") {
@@ -337,34 +328,23 @@ export function FilesScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  useEffect(() => {
-    // Shown only while this screen's tab is the one up: a tab behind keeps
-    // its page parked rather than over the tab in front.
-    setPageSlots((current) =>
-      current[hostGroup]?.into === slot &&
-      current[hostGroup].isShown === isActiveTab
-        ? current
-        : { ...current, [hostGroup]: { into: slot, isShown: isActiveTab } },
-    );
-    return () => {
-      setPageSlots((current) => {
-        const { [hostGroup]: _gone, ...rest } = current;
-        return rest;
-      });
-    };
-  }, [hostGroup, isActiveTab, slot, setPageSlots]);
+  // Shown only while this screen's tab is the one up: a tab behind keeps
+  // its page parked rather than over the tab in front.
+  usePageHost(hostGroup, { chrome: false, into: slot, isActive: isActiveTab });
   // How the agent reaches the file, when a granted folder covers it: the one
   // thing the conversation is told about the file that the person is not.
   const activeMount = activeFile
     ? reachablePath(activeFile.hostPath, reach.data?.folders ?? {})
     : undefined;
 
-  useWalkedFolder(
+  useTabSurface(
+    "walked",
     activeFile || !folder
       ? null
       : { hostPath: folder.hostPath, walked: folder.walked },
   );
-  useOnScreen(
+  useTabSurface(
+    "view",
     activeFile
       ? {
           file: {
@@ -389,31 +369,16 @@ export function FilesScreen({
           // is never a screen or a folder the user has left.
           { screen: "computer" },
   );
-  // The same folder and selection by host path, for a draft's chip, under
-  // this tab's id. The folder is only replaced when it changes, so it
-  // stands for its own value.
-  const setFinders = useSetAtom(findersByTabAtom);
-  // Only for the window's own tabs: a draft's band has a Finder of its own.
+  // The same folder and selection by host path, for a draft's chip. Only
+  // for the window's own tabs: a draft's band has a Finder of its own.
   const finderFolder = activeFile || groupTab ? null : folder;
-  useEffect(() => {
-    if (finderFolder === null) {
-      return;
-    }
-    const shown = {
+  useTabSurface(
+    "finder",
+    finderFolder && {
       folder: finderFolder.hostPath,
       selected: finderFolder.selectedItems,
-    };
-    setFinders((current) => ({ ...current, [appTabId]: shown }));
-    return () => {
-      setFinders((current) => {
-        if (current[appTabId] !== shown) {
-          return current;
-        }
-        const { [appTabId]: _gone, ...rest } = current;
-        return rest;
-      });
-    };
-  }, [appTabId, finderFolder, setFinders]);
+    },
+  );
 
   // A missing file returns to the preceding visit, or closes its dedicated tab.
   useEffect(() => {

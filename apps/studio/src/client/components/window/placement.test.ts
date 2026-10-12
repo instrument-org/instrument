@@ -1,8 +1,7 @@
 import {
   ChatIdSchema,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
@@ -215,22 +214,10 @@ describe("chatOfAskingPage", () => {
   ];
 
   it.each([
-    ["a chat's own page", encodeBrowserTargetId(WINDOW_ID, chatPage), CHAT],
-    [
-      "a task's page in a chat",
-      encodeBrowserTargetId(ChatIdSchema.parse("roofer-quote"), taskPage),
-      CHAT,
-    ],
-    [
-      "a page of the window's own",
-      encodeBrowserTargetId(WINDOW_ID, sitePage),
-      undefined,
-    ],
-    [
-      "a page no tab holds",
-      encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId()),
-      undefined,
-    ],
+    ["a chat's own page", browserTargetOf(chatPage), CHAT],
+    ["a task's page in a chat", browserTargetOf(taskPage), CHAT],
+    ["a page of the window's own", browserTargetOf(sitePage), undefined],
+    ["a page no tab holds", browserTargetOf(StoreId.newSessionId()), undefined],
     ["an unreadable target", "nonsense", undefined],
   ])("names the chat for %s", (_case, targetId, expected) => {
     expect(chatOfAskingPage(targetId, tabs)).toBe(expected);

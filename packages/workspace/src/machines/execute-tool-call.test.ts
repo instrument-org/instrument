@@ -20,8 +20,8 @@ import {
 vi.mock(import("ulid"));
 vi.mock(import("../lib/session-store-storage"));
 vi.mock(import("../lib/get-current-date"));
-vi.mock(import("../lib/execa-node-for-task"), () => ({
-  execaNodeForTask: vi.fn(),
+vi.mock(import("../lib/execa-node-for-chat"), () => ({
+  execaNodeForChat: vi.fn(),
 }));
 
 interface MockExecResult {
@@ -56,8 +56,8 @@ describe("executeToolCallMachine", () => {
     // snapshots. Returning a constant means `end - start === 0`.
     vi.spyOn(performance, "now").mockReturnValue(0);
 
-    const { execaNodeForTask: execaElectronNode } =
-      await import("../lib/execa-node-for-task");
+    const { execaNodeForChat: execaElectronNode } =
+      await import("../lib/execa-node-for-chat");
     const mockResult: MockExecResult = {
       all: "mocked all",
       exitCode: 0,

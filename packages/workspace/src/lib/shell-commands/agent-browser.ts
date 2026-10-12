@@ -20,6 +20,7 @@ import {
   AGENT_BROWSER_PATH,
   AGENT_BROWSER_SOCKET_DIR,
   externalBrowserSessionName,
+  readSessionName,
 } from "../agent-browser";
 import {
   INSTRUMENT_PROVIDER_NAME,
@@ -39,7 +40,7 @@ import {
   getScreenshotsDir,
 } from "../chat-dir-utils";
 import { chatDir } from "../record-folders";
-import { isTaskSession } from "../chat/children";
+import { sessionRole } from "../chat/children";
 import { heldTabs, updateHeldTabs } from "../held-tabs";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
@@ -210,14 +211,15 @@ function skills(
 
 /**
  * `agent-browser adblock [on|off]`: the task's own say over the ad and tracker
- * blocking in its tabs, for a page the block lists broke. Answered here rather
- * than by the CLI, since the blocking lives in the app, not in the browser.
+ * blocking in the tabs it drives, for a page the block lists broke. Answered
+ * here rather than by the CLI, since the blocking lives in the app, not in
+ * the browser.
  */
-function adblock(
+async function adblock(
   browser: BrowserConfig,
-  id: ChatId,
+  { chatId, sessionId }: { chatId: ChatId; sessionId: StoreId.Session },
   mode: string | undefined,
-): { exitCode: number; stderr: string; stdout: string } {
+): Promise<{ exitCode: number; stderr: string; stdout: string }> {
   if (mode !== undefined && mode !== "on" && mode !== "off") {
     return {
       exitCode: 1,
@@ -225,8 +227,17 @@ function adblock(
       stdout: "",
     };
   }
+  const targets = (await heldTabs(chatId, sessionId)).map((tab) => tab.id);
+  if (targets.length === 0) {
+    return {
+      exitCode: 1,
+      stderr:
+        "agent-browser: adblock applies to the tabs you have open, and you have none yet. Open the page first.\n",
+      stdout: "",
+    };
+  }
   const { task, workspace } = browser.contentBlocking(
-    id,
+    targets,
     mode === undefined ? undefined : mode === "on",
   );
   const state = !workspace
@@ -662,7 +673,11 @@ export function createAgentBrowserCommand({
 
     const { subArgs, subcommand } = parseAgentBrowserArgs(args);
     if (subcommand === ADBLOCK_SUBCOMMAND) {
-      return adblock(workspaceConfig.browser, id, subArgs[1]?.value);
+      return adblock(
+        workspaceConfig.browser,
+        { chatId: id, sessionId },
+        subArgs[1]?.value,
+      );
     }
     if (subcommand === SKILLS_SUBCOMMAND) {
       return skills(
@@ -797,7 +812,11 @@ export function createAgentBrowserCommand({
       // still only ever started by an invocation that resolves the provider:
       // one started without it holds no CDP endpoint and would launch its own
       // browser the next time a command needed a page.
-      commandArgs.push("--session", `${sessionId}-read`, ...resolvedArgs);
+      commandArgs.push(
+        "--session",
+        readSessionName(sessionId),
+        ...resolvedArgs,
+      );
     } else if (workspaceConfig.browser.hasNoWindow) {
       // No window to drive, so leave the provider unregistered and let the CLI
       // start a browser of its own. It does that correctly, and it is the
@@ -1096,7 +1115,7 @@ async function refuseBrowserFor(
   // A task handed tabs works in those alone; the chat, which gets them back
   // when the task finishes, goes on with a new one.
   if (
-    isTaskSession(id, sessionId) &&
+    sessionRole(id, sessionId) === "task" &&
     held.some((tab) => tab.openedBy === "handed")
   ) {
     // The user closed the tabs, or the window they were in, since the task

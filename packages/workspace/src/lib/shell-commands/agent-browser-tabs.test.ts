@@ -8,11 +8,10 @@ import { publisher } from "../../rpc/publisher";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
-import { WINDOW_ID } from "../../schemas/window-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
-import { type BrowserTargetId, encodeBrowserTargetId } from "../../types";
+import { type BrowserTargetId, browserTargetOf } from "../../types";
 import { chatDir } from "../record-folders";
 import { getChatState, setChatState } from "../chat-record";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -67,18 +66,13 @@ function browserOfLiveTargets() {
     ...config,
     browser: {
       ...config.browser,
-      createTarget: (id, sessionId) => {
-        const targetId = encodeBrowserTargetId(id, sessionId);
+      createTarget: (targetId) => {
         live.add(targetId);
-        return Promise.resolve({ targetId });
+        return Promise.resolve();
       },
       getTargetMeta: (targetId) =>
         live.has(targetId)
-          ? {
-              id: WINDOW_ID,
-              partitionDir: AbsolutePathSchema.parse(rootDir),
-              sessionId: CHAT_SESSION,
-            }
+          ? { partitionDir: AbsolutePathSchema.parse(rootDir) }
           : null,
     },
   });
@@ -176,7 +170,7 @@ describe("a task's tab", () => {
   });
 
   it("connects a task to the tabs it holds", async () => {
-    const own = encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId());
+    const own = browserTargetOf(StoreId.newSessionId());
     live.add(own);
     await holdTabs([{ id: own, openedBy: "task" }]);
 
@@ -189,10 +183,10 @@ describe("a task's tab", () => {
   });
 
   it("says so once when its own tabs were closed, then goes on", async () => {
-    const chats = encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId());
+    const chats = browserTargetOf(StoreId.newSessionId());
     await holdTabs([
       {
-        id: encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId()),
+        id: browserTargetOf(StoreId.newSessionId()),
         openedBy: "task",
       },
     ]);
@@ -215,7 +209,7 @@ describe("a task's tab", () => {
   it("is never replaced when it was handed over and the user closed it", async () => {
     await holdTabs([
       {
-        id: encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId()),
+        id: browserTargetOf(StoreId.newSessionId()),
         openedBy: "handed",
       },
     ]);

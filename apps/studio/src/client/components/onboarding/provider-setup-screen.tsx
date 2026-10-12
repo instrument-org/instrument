@@ -12,6 +12,7 @@ import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { Button } from "../ui/button";
 
@@ -47,6 +48,18 @@ export function ProviderSetupScreen({
   const { data: claudeStatus } = useQuery(
     rpcClient.claudeAccount.live.status.experimental_liveOptions(),
   );
+
+  // The sign-in holding for the browser, which alone stays on the page until
+  // it finishes or is canceled.
+  const [holding, setHolding] = useState<"chatgpt" | "claude" | "google">();
+  const holdingChange =
+    (provider: "chatgpt" | "claude" | "google") => (waiting: boolean) => {
+      setHolding((current) =>
+        waiting ? provider : current === provider ? undefined : current,
+      );
+    };
+  const shows = (provider: "chatgpt" | "claude" | "google") =>
+    !holding || holding === provider;
 
   // Signed in to Claude already, there is no Claude plan left to add.
   const offersClaude = !signedIn || claudeStatus?.kind !== "signed-in";
@@ -128,7 +141,7 @@ export function ProviderSetupScreen({
             </div>
           )}
 
-          {!signedIn && (
+          {!signedIn && shows("google") && (
             <GoogleLoginButton
               caption={
                 <div className="flex items-center justify-center gap-x-2">
@@ -141,22 +154,27 @@ export function ProviderSetupScreen({
               className="w-full justify-center"
               onLogin={onLogin}
               onSuccess={onLoginSuccess}
+              onWaitingChange={holdingChange("google")}
             />
           )}
 
           {!instrumentOnly && (
             <>
-              <ChatGPTLoginButton
-                caption="Pay for ChatGPT Plus or Pro? Use it here."
-                className="w-full justify-center"
-                onSuccess={onLoginSuccess}
-              />
+              {shows("chatgpt") && (
+                <ChatGPTLoginButton
+                  caption="Pay for ChatGPT Plus or Pro? Use it here."
+                  className="w-full justify-center"
+                  onSuccess={onLoginSuccess}
+                  onWaitingChange={holdingChange("chatgpt")}
+                />
+              )}
 
-              {offersClaude && (
+              {offersClaude && shows("claude") && (
                 <ClaudeLoginButton
                   caption="Pay for Claude Pro or Max? Use it here."
                   className="w-full justify-center"
                   onSuccess={onLoginSuccess}
+                  onWaitingChange={holdingChange("claude")}
                 />
               )}
             </>

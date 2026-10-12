@@ -4,11 +4,7 @@ import type {
 } from "@instrument-org/workspace/electron";
 import type { Session, WebContents } from "electron";
 
-import {
-  encodeBrowserTargetId,
-  StoreId,
-  ChatIdSchema,
-} from "@instrument-org/workspace/electron";
+import { browserTargetOf, StoreId } from "@instrument-org/workspace/electron";
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import os from "node:os";
@@ -59,9 +55,8 @@ vi.mock("@/electron-main/stores/workspace/downloads", () => ({
   }),
 }));
 
-const SUBDOMAIN = ChatIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
-const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
+const TARGET_ID = browserTargetOf(SESSION_ID);
 
 beforeEach(() => {
   home.dir = fs.mkdtempSync(path.join(os.tmpdir(), "downloads-test-"));
@@ -98,9 +93,7 @@ let webContentsCounter = 0;
 // guest by it.
 function makeEntry(targetId: BrowserTargetId = TARGET_ID): BrowserEntry {
   const entry = createEntry({
-    id: SUBDOMAIN,
     partitionDir: "/tmp/partition" as AbsolutePath,
-    sessionId: SESSION_ID,
     targetId,
   });
   entry.webContents = { id: ++webContentsCounter } as WebContents;
@@ -342,10 +335,7 @@ describe("routeGuestDownloads", () => {
     authorized.eventListeners.add(authorizedEvents);
     entries.set(TARGET_ID, authorized);
 
-    const otherTargetId = encodeBrowserTargetId(
-      SUBDOMAIN,
-      StoreId.newSessionId(),
-    );
+    const otherTargetId = browserTargetOf(StoreId.newSessionId());
     const other = makeEntry(otherTargetId);
     const otherEvents = vi.fn();
     other.eventListeners.add(otherEvents);
@@ -382,9 +372,7 @@ describe("routeGuestDownloads", () => {
     const live = makeEntry();
     live.authorizedDownloadPath = "/tmp/dl";
     entries.set(TARGET_ID, live);
-    const gone = makeEntry(
-      encodeBrowserTargetId(SUBDOMAIN, StoreId.newSessionId()),
-    );
+    const gone = makeEntry(browserTargetOf(StoreId.newSessionId()));
 
     const { session, trigger } = makeSession();
     routeGuestDownloads(session, lookupIn(entries));

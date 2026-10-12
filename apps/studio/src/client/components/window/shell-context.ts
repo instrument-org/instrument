@@ -4,27 +4,11 @@ import {
   type SessionMessageDataPart,
   type StoreId,
 } from "@instrument-org/workspace/client";
-import { atom } from "jotai";
 import { createContext, useContext } from "react";
 
 import { type useAppTabs } from "./app-tabs";
-import { type PageChromeSlots } from "./browser-tabs";
 import { type Chat, type Topic } from "./chats";
 import { type useCompose } from "./use-compose";
-
-/**
- * Where a tab wants the window's page drawn: the element the page lies
- * over, the row its reload and controls go into, and whether the page is
- * what the tab shows right now. A tab with no page to show reports nothing.
- */
-export interface PageSlot {
-  chrome: PageChromeSlots | undefined;
-  host: HTMLElement | null;
-  isShown: boolean;
-}
-
-/** Where each of the window's tabs wants the page drawn, by the tab's id; a tab with none is not named. In memory only, with the elements. */
-export const pageSlotByTabAtom = atom<Readonly<Record<string, PageSlot>>>({});
 
 /**
  * What the window keeps once and every app tab reads: its lists, the drafts

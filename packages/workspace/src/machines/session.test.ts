@@ -95,8 +95,8 @@ describe("sessionMachine", () => {
     vi.spyOn(recordFolders, "resolveChat").mockImplementation((id) =>
       id === taskFolder ? ChatIdSchema.parse(taskFolder) : undefined,
     );
-    vi.spyOn(children, "chatConversation").mockImplementation((id) =>
-      id === taskFolder ? ChatIdSchema.parse(taskFolder) : undefined,
+    vi.spyOn(children, "sessionRole").mockImplementation((id) =>
+      id === taskFolder ? "chat" : undefined,
     );
   }
   const defaultSessionId = StoreId.newSessionId();
@@ -1081,9 +1081,7 @@ describe("sessionMachine", () => {
       chunkSets: [finishChunks],
     });
     result.actor.start();
-    await waitFor(result.actor, (state) =>
-      state.matches({ Agent: "UsingReadOnlyTools" }),
-    );
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Running" }));
     result.actor.send({ type: "stop" });
     await waitFor(result.actor, (state) => state.status === "done");
 
@@ -1095,6 +1093,39 @@ describe("sessionMachine", () => {
           </user>
         </session>"
       `);
+  });
+
+  it("keeps a message stopped before its turn starts unanswered, and says whose stop it was", async () => {
+    const result = await createActorAndTask({
+      chunkSets: [finishChunks],
+    });
+    const done: unknown[] = [];
+    const unsubscribe = publisher.subscribe("session.done", (payload) => {
+      done.push(payload);
+    });
+    result.actor.start();
+    expect(result.actor.getSnapshot().matches("UpdatingSession")).toBe(true);
+    result.actor.send({
+      notice: { by: "user", wakesChat: false },
+      type: "stop",
+    });
+
+    const session = await runTestMachine(result);
+    unsubscribe();
+    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
+      "<session title="Test session" count="1">
+        <user>
+          <text>Hello, I need help with something.</text>
+        </user>
+      </session>"
+    `);
+    expect(done).toEqual([
+      {
+        id: result.chatId,
+        notice: { by: "user", wakesChat: false },
+        sessionId: result.sessionId,
+      },
+    ]);
   });
 
   it("should force stop agents before the stopping failsafe completes", async () => {
@@ -1119,9 +1150,7 @@ describe("sessionMachine", () => {
     });
     result.actor.start();
 
-    await waitFor(result.actor, (state) =>
-      state.matches({ Agent: "UsingReadOnlyTools" }),
-    );
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Running" }));
     const agentRef = result.actor.getSnapshot().context.agentRef;
     if (!agentRef) {
       throw new Error("Expected agent ref");
@@ -1157,9 +1186,7 @@ describe("sessionMachine", () => {
     result.actor.start();
 
     // Wait for the agent to reach the WaitingForPendingToolCalls state
-    await waitFor(result.actor, (state) =>
-      state.matches({ Agent: { UsingReadOnlyTools: "Paused" } }),
-    );
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Paused" }));
 
     // Send the tool call update to simulate user selection
     result.actor.send({
@@ -1239,11 +1266,9 @@ describe("sessionMachine", () => {
         signal: abort.signal,
       })) {
         if (part.type === "tool-choose" && part.state === "input-available") {
-          expect(
-            result.actor
-              .getSnapshot()
-              .matches({ Agent: { UsingReadOnlyTools: "Paused" } }),
-          ).toBe(false);
+          expect(result.actor.getSnapshot().matches({ Agent: "Paused" })).toBe(
+            false,
+          );
           result.actor.send({
             type: "updateInteractiveToolCall",
             value: {
@@ -1291,9 +1316,7 @@ describe("sessionMachine", () => {
     const captureException = vi.spyOn(getWorkspaceConfig(), "captureException");
 
     result.actor.start();
-    await waitFor(result.actor, (state) =>
-      state.matches({ Agent: { UsingReadOnlyTools: "Paused" } }),
-    );
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Paused" }));
     result.actor.send({ type: "stop" });
     await waitFor(result.actor, (state) => state.status === "done");
 
@@ -1545,7 +1568,7 @@ describe("sessionMachine", () => {
       await waitFor(
         result.actor,
         (state) =>
-          state.matches({ Agent: "UsingReadOnlyTools" }) &&
+          state.matches({ Agent: "Running" }) &&
           state.context.agentRef?.getSnapshot().context.agent.name ===
             "instrument",
       ).then(async () => {
@@ -1593,7 +1616,7 @@ describe("sessionMachine", () => {
       await waitFor(
         result.actor,
         (state) =>
-          state.matches({ Agent: "UsingReadOnlyTools" }) &&
+          state.matches({ Agent: "Running" }) &&
           state.context.agentRef?.getSnapshot().context.agent.name ===
             "instrument",
       ).then(async () => {

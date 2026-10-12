@@ -28,30 +28,13 @@ import { DRAFTS_KEY } from "@/shared/kept-state";
 export const chatFiltersAtom = atom<ChatFilters>(NO_FILTERS);
 
 /**
- * What each screen shows, by the tab it is drawn in (one of the window's own
- * tabs, or a group's tab beside a chat or in a draft's band), written by the
- * screen and cleared when it leaves. What goes with a message is read from
- * the tab in view at the moment of sending, so it is what the user was
- * looking at and never a screen they left. The page's words and the
- * screen's address are added at send time by the layout, which holds both.
+ * What a screen shows, in the terms the conversation is told it; see
+ * `TabSurface.view`.
  */
 export type ScreenView = Omit<
   SessionMessageDataPart.ViewContextDataPart,
   "page" | "url"
 >;
-
-export const screenViewsAtom = atom<Readonly<Record<string, ScreenView>>>({});
-
-/**
- * Where the folder each Files screen shows was walked to, by the same tab as
- * `screenViewsAtom`, which is how the location bar names it. Apart from the
- * view because it is for the person alone: an iCloud Drive app folder is
- * walked to under iCloud Drive, while the conversation is told where it
- * really is.
- */
-export const walkedFoldersAtom = atom<
-  Readonly<Record<string, { hostPath: string; walked: string }>>
->({});
 
 /** A file or folder on this computer picked to go with a draft, by its path. */
 export interface ChosenItem {
@@ -64,13 +47,6 @@ export interface FinderShown {
   folder: string;
   selected: ChosenItem[];
 }
-
-/**
- * What each of the window's own Files tabs has in its Finder, by the tab's
- * id, so a draft opened over one, or with one up behind it, names them as
- * the chat will be told them, whichever tab is up by the time it is sent.
- */
-export const findersByTabAtom = atom<Readonly<Record<string, FinderShown>>>({});
 
 /**
  * A file or folder given to a draft's composer, by its path on disk: what of
@@ -461,27 +437,6 @@ export const fileTreeWidthAtom = keptAtom<number>(
   "file-tree-width.v1",
   240,
 );
-
-/**
- * The elements screens draw a page's guest into, by the group the page's
- * tab is kept under: a file tab drawing a page's file beside its tree keeps
- * that page as a tab in a group of its own, off every strip, and says here
- * where the browser is to draw it. A slot inside a surface floating over the
- * window (Quick Look) names the layer its page stands on, and is shown for as
- * long as it is there; a slot in one of the window's tabs is shown while
- * that tab is up. In memory only, with the elements.
- */
-export const pageSlotsAtom = atom<
-  Record<
-    string,
-    {
-      insideOverlay?: boolean;
-      into: HTMLElement | null;
-      isShown?: boolean;
-      layer?: number;
-    }
-  >
->({});
 
 /**
  * The list view's columns beside Name, picked from its header's menu. One set

@@ -1,7 +1,7 @@
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { type HeldTab } from "../schemas/chat-state";
-import { isTaskSession } from "./chat/children";
+import { sessionRole } from "./chat/children";
 import { chatDir } from "./record-folders";
 import { getChatState, updateChatState } from "./chat-record";
 
@@ -68,5 +68,5 @@ function driverOf(
   chatId: ChatId,
   sessionId: StoreId.Session,
 ): StoreId.Session | undefined {
-  return isTaskSession(chatId, sessionId) ? sessionId : undefined;
+  return sessionRole(chatId, sessionId) === "task" ? sessionId : undefined;
 }

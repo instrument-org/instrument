@@ -69,7 +69,7 @@ export type { ToolName } from "./tools/types";
 export {
   type BrowserTargetId,
   BrowserTargetIdSchema,
-  decodeBrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
+  parseBrowserTargetId,
 } from "./types";
 export type { ChildTask } from "./rpc/routes/chats";

@@ -13,7 +13,7 @@ import { chatTaskFor } from "../../test/helpers/chat-task";
 import { updateChatSettings } from "../chat-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { childTask } from "./children";
-import { expectStop, startChatWake } from "./wake";
+import { startChatWake } from "./wake";
 
 vi.mock(import("../session-store-storage"));
 
@@ -76,8 +76,11 @@ describe("a stopped task", () => {
   it("wakes the chat saying the user stopped it, and keeps who did on its row", async () => {
     const { chatId, taskSession } = await chatWithTask();
 
-    expectStop(taskSession, { by: "user", wakesChat: true });
-    publisher.publish("session.done", { id: chatId, sessionId: taskSession });
+    publisher.publish("session.done", {
+      id: chatId,
+      notice: { by: "user", wakesChat: true },
+      sessionId: taskSession,
+    });
 
     await vi.waitFor(() => {
       expect(wakesOf(chatId)).toHaveLength(1);
@@ -90,11 +93,14 @@ describe("a stopped task", () => {
     expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("user");
   });
 
-  it("wakes nothing when the chat stopped it, and forgets the stop once its next turn ends", async () => {
+  it("wakes nothing when the chat stopped it, and hears its next turn's end as news", async () => {
     const { chatId, taskSession } = await chatWithTask();
 
-    expectStop(taskSession, { by: "chat", wakesChat: false });
-    publisher.publish("session.done", { id: chatId, sessionId: taskSession });
+    publisher.publish("session.done", {
+      id: chatId,
+      notice: { by: "chat", wakesChat: false },
+      sessionId: taskSession,
+    });
     await vi.waitFor(async () => {
       expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("chat");
     });

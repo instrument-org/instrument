@@ -52,7 +52,7 @@ import { installPythonSkill } from "../src/lib/install-python-skill";
 import { runPnpmCommand } from "../src/lib/run-pnpm";
 import { getSkillRuntime } from "../src/lib/skill-runtime";
 import { placeChat } from "../src/lib/record-folders";
-import { taskVenvPython } from "../src/lib/uv";
+import { chatVenvPython } from "../src/lib/uv";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -180,7 +180,7 @@ async function installSkill({
       // install_name_tool, which is one of the stubs. Running the interpreter is
       // what proves the install survives that step being unavailable.
       const probe = await execa(
-        taskVenvPython(chatId),
+        chatVenvPython(chatId),
         ["-c", "import sys; print(sys.version.split()[0])"],
         { all: true, reject: false },
       );

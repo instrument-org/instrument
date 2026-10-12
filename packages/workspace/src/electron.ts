@@ -140,8 +140,8 @@ export {
   type BrowserTarget,
   type BrowserTargetId,
   BrowserTargetIdSchema,
-  decodeBrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
+  parseBrowserTargetId,
   type WorkspaceConfig,
 } from "./types";
 export {

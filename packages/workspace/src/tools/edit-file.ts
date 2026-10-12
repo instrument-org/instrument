@@ -16,7 +16,7 @@ import {
 import { executeError } from "../lib/execute-error";
 import { chatReach } from "../lib/permissions/chat-rules";
 import { pathExists } from "../lib/path-exists";
-import { chatConversation } from "../lib/chat/children";
+import { sessionRole } from "../lib/chat/children";
 import {
   applyUnicodeFallbacks,
   resolveWritableToolPath,
@@ -776,7 +776,7 @@ export const EditFile = setupTool({
     }
 
     const layout = buildWorkspaceFsLayout({
-      apps: chatConversation(chatId, sessionId) !== undefined,
+      apps: sessionRole(chatId, sessionId) === "chat",
       ...(await chatReach(chatId, sessionId, partId)),
       taskHostRoot: workDir(chatId),
     });

@@ -50,6 +50,7 @@ function chat(): Chat {
     createdAt: at.getTime(),
     holds: { apps: [], files: [], sites: [] },
     id: CHAT_ID,
+    lastUserMessageAt: at.getTime(),
     root: {
       id: messageId,
       metadata: { createdAt: at, sessionId },

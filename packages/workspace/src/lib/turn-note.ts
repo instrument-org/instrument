@@ -3,7 +3,7 @@ import { isToolPart } from "./is-tool-part";
 import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { chatConversation } from "./chat/children";
+import { sessionRole } from "./chat/children";
 import { Store } from "./store";
 import { systemNote } from "./system-note";
 import { isTypedByUser } from "./typed-by-user";
@@ -94,7 +94,7 @@ export async function turnNoteFor({
   if (continuesOwnReply(messages.value)) {
     return PROMISED_NOTE;
   }
-  return chatConversation(chatId, sessionId) !== undefined &&
+  return sessionRole(chatId, sessionId) === "chat" &&
     opensTypedTurn(messages.value)
     ? TURN_NOTE
     : undefined;

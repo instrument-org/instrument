@@ -22,7 +22,7 @@ import { getErrorAction } from "../lib/get-error-action";
 import { isInteractiveTool } from "../lib/is-interactive-tool";
 import { isToolPart } from "../lib/is-tool-part";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
-import { chatConversation } from "../lib/chat/children";
+import { sessionRole } from "../lib/chat/children";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { llmRequestLogic } from "../logic/llm-request";
@@ -31,7 +31,6 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { getToolByType, type ToolOutputByName } from "../tools/all";
-import { type AnyAgentTool } from "../tools/types";
 import {
   executeToolCallMachine,
   saveStoppedToolCallPart,
@@ -53,19 +52,13 @@ export type AgentParentEvent =
       value: { error?: unknown };
     }
   | { type: "agent.paused" }
-  | { type: "agent.resumed" }
-  | {
-      type: "agent.usingTool";
-      value: AnyAgentTool;
-    };
+  | { type: "agent.resumed" };
 
-export type ToolCallUpdate =
-  | { errorText: string; toolCallId: string; type: "error" }
-  | {
-      toolCallId: string;
-      type: "success";
-      value: ToolOutputByName;
-    };
+export type ToolCallUpdate = {
+  toolCallId: string;
+  type: "success";
+  value: ToolOutputByName;
+};
 
 /** A running tool call's child id, one per call so a batch can run at once. */
 type ToolCallActorId = `toolCall:${string}`;
@@ -510,10 +503,6 @@ export const agentMachine = setup({
       entry: enqueueActions(({ context, enqueue }) => {
         const batch = nextToolCallBatch(context.toolCallQueue);
         for (const part of batch) {
-          const tool = getToolByType(part.type);
-          enqueue(() => {
-            context.parentRef.send({ type: "agent.usingTool", value: tool });
-          });
           enqueue.spawnChild("executeToolCallMachine", {
             id: toolCallActorId(part),
             input: {
@@ -675,8 +664,7 @@ export const agentMachine = setup({
                 // nobody answers: its question runs, and says so.
                 if (
                   isInteractiveTool(tool.name) &&
-                  chatConversation(context.chatId, context.sessionId) !==
-                    undefined
+                  sessionRole(context.chatId, context.sessionId) === "chat"
                 ) {
                   pendingToolCalls.push(part);
                   continue;
@@ -1001,25 +989,15 @@ function saveToolCallUpdate(
       sessionId: pendingToolCall.metadata.sessionId,
     },
     (current) =>
-      (value.type === "success"
-        ? {
-            ...current,
-            metadata: {
-              ...current.metadata,
-              endedAt: new Date(),
-            },
-            output: value.value.output as never,
-            state: "output-available",
-          }
-        : {
-            ...current,
-            errorText: value.errorText,
-            metadata: {
-              ...current.metadata,
-              endedAt: new Date(),
-            },
-            state: "output-error",
-          }) as SessionMessagePart.Type,
+      ({
+        ...current,
+        metadata: {
+          ...current.metadata,
+          endedAt: new Date(),
+        },
+        output: value.value.output as never,
+        state: "output-available",
+      }) as SessionMessagePart.Type,
     chatId,
   );
 }

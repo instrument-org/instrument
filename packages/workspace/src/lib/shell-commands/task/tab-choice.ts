@@ -1,39 +1,25 @@
 import { type ChatId } from "../../../schemas/chat-id";
-import { StoreId } from "../../../schemas/store-id";
-import { WINDOW_ID } from "../../../schemas/window-id";
-import {
-  type BrowserTargetId,
-  decodeBrowserTargetId,
-  encodeBrowserTargetId,
-} from "../../../types";
+import { type BrowserTargetId, parseBrowserTargetId } from "../../../types";
 import { tabHolders } from "../../chat/window-tab";
 import { TASK_COMMAND } from "../task-command";
 import { isLocalAddress } from "../../local-page-address";
 import { getWorkspaceConfig } from "../../workspace-config";
 
 /**
- * A tab id from the note on the user's message is the session half of one of
- * the chat's own browser targets; the target has to exist, since the
+ * A tab id from the note on the user's message names one of the window's
+ * browser targets; the target has to exist, since the
  * task connects to it rather than creating anything. A tab showing a file on
  * the computer is not handed over: its address is a path only the window
  * opens, and a task reaches a file through its folders, never through a
  * browser standing on one.
  */
 async function resolveTab(tab: string): Promise<BrowserTargetId> {
-  // The window's tabs are the window's, whichever chat names one.
-  const windowId = WINDOW_ID;
-  const sessionId = StoreId.SessionSchema.safeParse(tab);
-  if (!sessionId.success) {
-    throw new Error(
-      `"${tab}" is not a tab id; the note on the user's message lists them.`,
-    );
-  }
-  const targetId = encodeBrowserTargetId(windowId, sessionId.data);
+  const targetId = await tabTargetOf(tab);
   const { browser } = getWorkspaceConfig();
   if (!browser.getTargetMeta(targetId)) {
     throw new Error(`Tab ${tab} is not open any more.`);
   }
-  const targets = await browser.listTargets(windowId);
+  const targets = await browser.listTargets();
   const target = targets.find((candidate) => candidate.id === targetId);
   if (target && isLocalAddress(target.url)) {
     throw new Error(
@@ -60,18 +46,13 @@ export async function resolveTabs(
 
 /** A tab id in the window's terms, open or not. */
 async function tabTargetOf(tab: string): Promise<BrowserTargetId> {
-  const sessionId = StoreId.SessionSchema.safeParse(tab);
-  if (!sessionId.success) {
+  const targetId = parseBrowserTargetId(tab);
+  if (targetId === null) {
     throw new Error(
       `"${tab}" is not a tab id; the note on the user's message lists them.`,
     );
   }
-  return encodeBrowserTargetId(WINDOW_ID, sessionId.data);
-}
-
-/** The id a tab goes by in the note and on `--tab`. */
-function tabIdOf(targetId: BrowserTargetId): string {
-  return decodeBrowserTargetId(targetId)?.sessionId ?? targetId;
+  return targetId;
 }
 
 /**
@@ -88,8 +69,8 @@ export async function refuseTabsDrivenElsewhere(
   }
   const holders = await tabHolders(chatId);
   const driven = tabs.flatMap((id) => {
-    const holder = holders.get(tabIdOf(id));
-    return holder ? [`${tabIdOf(id)} (${holder.id}, "${holder.title}")`] : [];
+    const holder = holders.get(id);
+    return holder ? [`${id} (${holder.id}, "${holder.title}")`] : [];
   });
   if (driven.length > 0) {
     throw new Error(
@@ -100,7 +81,5 @@ export async function refuseTabsDrivenElsewhere(
 
 /** What a hand-over prints about the tabs it made, or nothing. */
 export function handedTabsLine(tabs: BrowserTargetId[]): string {
-  return tabs.length > 0
-    ? `Its tabs: ${tabs.map((id) => tabIdOf(id)).join(", ")}.\n`
-    : "";
+  return tabs.length > 0 ? `Its tabs: ${tabs.join(", ")}.\n` : "";
 }

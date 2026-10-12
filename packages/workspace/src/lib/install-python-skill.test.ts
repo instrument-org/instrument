@@ -4,7 +4,7 @@ import { AbsolutePathSchema } from "../schemas/paths";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { installPythonSkill } from "./install-python-skill";
-import { taskVenvDir, taskVenvPython } from "./uv";
+import { chatVenvDir, chatVenvPython } from "./uv";
 
 vi.mock(import("./run-uv"));
 
@@ -29,7 +29,7 @@ describe("installPythonSkill", () => {
     ).resolves.toEqual({ state: "success" });
 
     expect(runUvCommand).toHaveBeenNthCalledWith(1, {
-      args: ["venv", "--clear", "--python", "3.12", taskVenvDir(chatId)],
+      args: ["venv", "--clear", "--python", "3.12", chatVenvDir(chatId)],
       cwd: "/tmp/workspace/chats/python-skill",
       signal: undefined,
       chatId,
@@ -53,7 +53,7 @@ describe("installPythonSkill", () => {
         "pip",
         "install",
         "--python",
-        taskVenvPython(chatId),
+        chatVenvPython(chatId),
         "--requirement",
         "-",
       ],

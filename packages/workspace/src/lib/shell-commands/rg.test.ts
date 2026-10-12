@@ -72,7 +72,7 @@ describe("rg command", () => {
     await fs.writeFile(path.join(appDir, "app.ts"), "const NEEDLE = 2;\n");
     try {
       const bash = await createBashEnv({
-        chat: { id: ChatIdSchema.parse(chatId) },
+        role: "chat",
         sessionId,
         chatId,
       });
@@ -356,9 +356,7 @@ describe("rg command in a chat", () => {
       "NEEDLE report\n",
     );
     const bash = await createBashEnv({
-      chat: {
-        id: made,
-      },
+      role: "chat",
       sessionId: StoreId.newSessionId(),
       chatId: made,
     });

@@ -1,17 +1,15 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { eventIterator, type } from "@orpc/server";
-import { sleep } from "radashi";
 import { z } from "zod";
 
 import { changedMessageBatches } from "../../lib/changed-message-batches";
-import { createSession } from "../../lib/create-session";
+import { ensureChatSession } from "../../lib/create-session";
 import { createWriteQueue } from "../../lib/create-write-queue";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
 import { setChatTopics } from "../../lib/chat/chats";
 
-import { resolveChat, sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
 import { recordChatActivity } from "../../lib/chat-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
@@ -62,13 +60,6 @@ const create = base
       folders: z.array(z.object({ path: z.string() })).optional(),
       id: ChatIdSchema,
       modelURI: AIGatewayModelURI.Schema,
-      /**
-       * The id for the session this message opens, when the caller chose
-       * it: a window that shows the new chat from the press, before this
-       * call has answered, has to know which chat it is showing. Ignored
-       * alongside `sessionId`, which names a session that already exists.
-       */
-      newSessionId: StoreId.SessionSchema.optional(),
       prompt: z.string(),
       /** The earlier message this one answers. */
       replyTo: SessionMessageDataPart.ReplyDataPartSchema.optional(),
@@ -89,7 +80,6 @@ const create = base
         folders,
         id,
         modelURI,
-        newSessionId,
         prompt,
         replyTo,
         sessionId,
@@ -115,26 +105,17 @@ const create = base
 
         const model = modelResult.value;
 
-        // A chat's record holds one session, the one its settings name.
-        const isChat = resolveChat(chatId) !== undefined;
-        const chatSession = isChat ? sessionOfChat(chatId) : undefined;
-
-        let finalSessionId: StoreId.Session;
-        if (sessionId) {
-          finalSessionId = sessionId;
-        } else {
-          const sessionResult = await createSession({
-            sessionId: chatSession ?? newSessionId ?? StoreId.newSessionId(),
-            chatId,
-          });
-          if (sessionResult.isErr()) {
-            context.workspaceConfig.captureException(sessionResult.error);
-            throw toORPCError(sessionResult.error, errors);
-          }
-          finalSessionId = sessionResult.value.id;
-          if (chatId && topics && topics.length > 0) {
-            await setChatTopics(chatId, topics);
-          }
+        // The chat's own session is written with the chat; a chat from
+        // before that gets it here, whichever of its sessions is named.
+        const chatSession = await ensureChatSession(chatId);
+        if (chatSession.isErr()) {
+          context.workspaceConfig.captureException(chatSession.error);
+          throw toORPCError(chatSession.error, errors);
+        }
+        // Without a session named, the message goes to the chat's own.
+        const finalSessionId = sessionId ?? chatSession.value.id;
+        if (!sessionId && topics && topics.length > 0) {
+          await setChatTopics(chatId, topics);
         }
 
         const messageIdsBeforeResult = await Store.getMessageIds(
@@ -262,27 +243,18 @@ const live = {
                 { signal },
               );
 
-            // A message can be unreadable mid-write (writes aren't atomic),
-            // so give the write a moment to settle before falling back to a
-            // full reload, which surfaces a persistent error the same way
-            // the initial read does.
-            let messages = await readUpdated();
-            for (
-              let retry = 0;
-              messages.isErr() && retry < 2 && !signal?.aborted;
-              retry++
-            ) {
-              await sleep(50);
-              messages = await readUpdated();
-            }
+            // A message and its parts are written and removed together, so
+            // a read that fails falls back to a full reload, which surfaces a
+            // persistent error the same way the initial read does.
+            const messages = await readUpdated();
 
             if (messages.isOk()) {
               for (const message of messages.value) {
                 snapshot.upsert(message);
               }
               // The read omits ids the index named but the fetch couldn't
-              // find (mid-write or just removed). Drop them; a later event
-              // re-adds a message that reappears.
+              // find, just removed. Drop them; a later event re-adds a
+              // message that reappears.
               const found = new Set(messages.value.map(({ id }) => id));
               for (const messageId of messageIds) {
                 if (!found.has(messageId)) {

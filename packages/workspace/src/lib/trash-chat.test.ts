@@ -68,4 +68,30 @@ describe("trashChat", () => {
     await expect(fs.access(chatDir(otherChat))).resolves.toBeUndefined();
     expect((await Store.getSession(other, otherChat)).isOk()).toBe(true);
   });
+
+  it("lets the chat start sessions again when trashing it fails", async () => {
+    const chat = chatFor();
+    const sent: string[] = [];
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      trashItem: () => Promise.reject(new Error("The Trash is full")),
+    });
+
+    const result = await trashChat({
+      id: chat,
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef: {
+        send: (event: {
+          type: string;
+          value?: { onBrowserReaped?: () => void };
+        }) => {
+          sent.push(event.type);
+          event.value?.onBrowserReaped?.();
+        },
+      } as never,
+    });
+
+    expect(result.isErr()).toBe(true);
+    expect(sent).toEqual(["prepareToTrashChat", "removeChatBeingTrashed"]);
+  });
 });

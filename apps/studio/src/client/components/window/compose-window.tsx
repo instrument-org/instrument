@@ -7,10 +7,7 @@ import {
   type DraftAttachment,
   draftGroupOf,
   draftSnapshotsAtom,
-  findersByTabAtom,
   NEW_TAB_HREF,
-  type ScreenView,
-  screenViewsAtom,
 } from "@/client/atoms/window";
 import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -47,14 +44,7 @@ import { useRouterState } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
 import { motion } from "motion/react";
 import { isEqual } from "radashi";
-import {
-  type ReactNode,
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { ulid } from "ulid";
 
 import { appTabsAtom, hrefOfAppTab } from "./app-tabs";
@@ -64,6 +54,7 @@ import { type BrowserTabsHandle, type PageChromeSlots } from "./browser-tabs";
 import { draftTitle, type Topic } from "./chats";
 import {
   COMPOSE_BAR_WIDTH,
+  COMPOSE_GUEST_LAYER,
   COMPOSE_MOTION,
   COMPOSE_WIDTH,
   GROWN,
@@ -73,8 +64,9 @@ import { useComputerVolumes } from "./computer-volumes";
 import { useWindow, WindowContext } from "./context";
 import { ChosenChip, heldChipOf, HeldMark, IncludedChip } from "./context-chip";
 import { behindTabOf, includedItemsOf, includedTabOf } from "./draft-context";
-import { computerTabOf } from "./file-tabs";
 import { GroupItem } from "./group-item";
+import { usePageHost } from "./page-hosts";
+import { tabSurfaceAtom } from "./tab-surface";
 import { segmentsOf } from "./host-path";
 import { LinkSurface } from "./link-surface";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
@@ -243,11 +235,8 @@ export function ComposeWindow({
   onDiscard,
   onModelChange,
   onNewTopic,
-  onPageChrome,
-  onPageHost,
   onPlacementChange,
   onStart,
-  onViewChange,
   openOutside,
   placement,
   right,
@@ -265,14 +254,8 @@ export function ComposeWindow({
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** Makes a topic named for what was typed in the head's topic picker, and files the draft under it. */
   onNewTopic: (name: string) => void;
-  /** The element the draft's page is drawn into while a page is up, null while none is. */
-  /** Where the address row takes the page's reload and controls, while a page is up. */
-  onPageChrome: (slots: PageChromeSlots | undefined) => void;
-  onPageHost: (element: HTMLElement | null) => void;
   onPlacementChange: (placement: ComposePlacement) => void;
   onStart: (send: DraftSend) => void;
-  /** What the band has up, in the terms the conversation is told it, or null for nothing it can say. */
-  onViewChange: (view: null | ScreenView) => void;
   /** A screen the band cannot draw, handed to the window to open beside the chat. */
   openOutside: (href: string) => void;
   placement: Exclude<ComposePlacement, "bar">;
@@ -306,10 +289,11 @@ export function ComposeWindow({
   // What the thing the draft was opened over points at on this computer,
   // with what the draft already holds by name left out, so each is said
   // once, with what each of the window's own Files tabs has in its Finder.
-  const finders = useAtomValue(findersByTabAtom);
+  const surfaces = useAtomValue(tabSurfaceAtom);
+  const finderOf = (id: string) => surfaces[id]?.finder ?? null;
   const chosen = draft.chosen ?? [];
   const includedItems = included
-    ? includedItemsOf(included, finders[included.id] ?? null, chosen)
+    ? includedItemsOf(included, finderOf(included.id), chosen)
     : undefined;
   const showsIncluded =
     included !== undefined &&
@@ -320,7 +304,7 @@ export function ComposeWindow({
   // leave out, so the draft says everything the chat will be told.
   const behind = behindTabOf(draft, inView);
   const behindItems = behind
-    ? includedItemsOf(behind, finders[behind.id] ?? null, [
+    ? includedItemsOf(behind, finderOf(behind.id), [
         ...chosen,
         ...(includedItems ?? []),
       ])
@@ -502,57 +486,26 @@ export function ComposeWindow({
     windowTabs.close(id);
   };
 
-  // What the band has up, for the chat the draft starts: a folder or file
-  // is said by the screen drawing it, since only that screen knows where the
-  // browser has walked to.
-  const filesView = useAtomValue(screenViewsAtom)[up?.id ?? ""] ?? null;
-  const onViewChangeEvent = useEffectEvent(onViewChange);
-  const upKind =
-    up === undefined || (up.kind === "screen" && isHomeTab(up))
-      ? "home"
-      : up.kind === "page"
-        ? "page"
-        : computerTabOf(up.href)
-          ? "computer"
-          : "other";
-  useEffect(() => {
-    onViewChangeEvent(
-      upKind === "home"
-        ? { screen: "home" }
-        : upKind === "page"
-          ? { screen: "browser" }
-          : upKind === "computer"
-            ? filesView
-            : null,
-    );
-  }, [upKind, filesView]);
-  useEffect(
-    () => () => {
-      onViewChangeEvent(null);
-    },
-    [],
-  );
   // The element the page is drawn into, held as state so the ref React
   // calls is one stable setter: a callback made afresh each render is
-  // called with null and then the element on every render, and reporting
-  // each of those up re-renders the layout, which renders this again.
+  // called with null and then the element on every render, and each of
+  // those would be said to the browser again. The address row takes the
+  // page's reload and controls, or else the page draws its own bar.
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
-  const onPageHostEvent = useEffectEvent(onPageHost);
-  useEffect(() => {
-    onPageHostEvent(pageHost);
-  }, [pageHost]);
-  useEffect(
-    () => () => {
-      onPageHostEvent(null);
-    },
-    [],
-  );
+  const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
+  usePageHost(group, {
+    chrome: pageChrome ?? true,
+    into: pageHost,
+    isActive: true,
+    layer: COMPOSE_GUEST_LAYER,
+    place: `${placement}:${right}:${width}`,
+  });
 
   // The strip is drawn once there is anything to switch between: a lone
   // new tab is the band's own face rather than a tab.
   // Nothing open yet: the band is only its tiles and the strip under them,
   // so it takes what those need and the words take the rest.
-  const isEmpty = up === undefined || upKind === "home";
+  const isEmpty = up === undefined || (up.kind === "screen" && isHomeTab(up));
   const showsStrip =
     tabs.length > 1 || (tabs[0] !== undefined && !isHomeTab(tabs[0]));
   const wordsFill = isEmpty && !showsStrip;
@@ -595,7 +548,7 @@ export function ComposeWindow({
       <GroupItem
         closeTab={closeTab}
         group={group}
-        onPageChrome={onPageChrome}
+        onPageChrome={setPageChrome}
         onPageHost={setPageHost}
         up={up}
       />

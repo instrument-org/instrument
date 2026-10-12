@@ -27,6 +27,7 @@ import { InstrumentGlyph } from "@/client/components/wordmark";
 import { OUTPUT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { IconWithFallback } from "@/client/components/icon-with-fallback";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { OpenInMenu } from "@/client/components/open-with-menu";
 import {
@@ -86,6 +87,7 @@ import {
   type ComputerRefusal,
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
@@ -997,9 +999,10 @@ export function ComputerPage({
   // Finder lists as one is drawn with its own icon and called an Application,
   // so opening it is asking to run it.
   const handOff = useMutation(rpcClient.utils.openPath.mutationOptions());
+  const isApp = (tab: { hostPath: string; name: string }) =>
+    /\.app$/i.test(tab.name) && packagePaths.has(tab.hostPath);
   const opensOutside = (tab: { hostPath: string; name: string }) =>
-    opensInSystemApp(tab.name) ||
-    (/\.app$/i.test(tab.name) && packagePaths.has(tab.hostPath));
+    opensInSystemApp(tab.name) || isApp(tab);
   const openFile = (file: FileSystemFileItem) => {
     const tab = fileTabOf(file);
     if (!tab) {
@@ -1249,6 +1252,7 @@ export function ComputerPage({
             },
             onQuickLook: undefined,
             onRename: undefined,
+            opensOutside: undefined,
             pin: undefined,
             group,
           }
@@ -1294,6 +1298,13 @@ export function ComputerPage({
     openInTabs(inTabs, { behind: false });
   };
   const menuActionsForOne = (item: FileSystemItem | undefined) => ({
+    opensOutside: ((): FolderMenuActions["opensOutside"] => {
+      const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
+      if (!tab || !opensOutside(tab)) {
+        return undefined;
+      }
+      return isApp(tab) ? "app" : "file";
+    })(),
     onCopyPath: () => void copyPath(item),
     onNewFolder:
       folderOnScreenPath === undefined
@@ -1859,6 +1870,11 @@ type FolderMenuActions = {
   /** A package (an app) gone into as the folder it is; left out for anything else. */
   onShowPackageContents?: (() => void) | undefined;
   onTrash: () => void;
+  /**
+   * Where opening leaves this window: an app that runs, or a file the
+   * computer's own app for it opens. Left out for what opens here.
+   */
+  opensOutside?: "app" | "file" | undefined;
   /** Pinning a folder to the sidebar, or unpinning it; left out for anything but one folder. */
   pin?: { isPinned: boolean; onToggle: () => void } | undefined;
   /**
@@ -2003,6 +2019,7 @@ function FolderMenuItems({
   onReveal,
   onShowPackageContents,
   onTrash,
+  opensOutside,
   pin,
   group,
 }: FolderMenuActions & {
@@ -2054,10 +2071,27 @@ function FolderMenuItems({
       ) : null}
       {item ? (
         <>
+          {/* Open is drawn as where the file goes: an app runs, and a file
+              with no viewer here comes up in the app the computer picks for
+              it, so neither looks like it opens in this window. */}
           {(item.kind === "file" || several) && (
             <Item onClick={onOpen}>
-              <FolderOpenIcon className="size-4" />
-              <span>Open</span>
+              {!opensOutside ? (
+                <FolderOpenIcon className="size-4" />
+              ) : opensOutside === "app" && item.kind === "file" ? (
+                <IconWithFallback
+                  className="size-4"
+                  fallback={<AppWindowIcon className="size-4" />}
+                  src={item.previewImageUrl ?? null}
+                />
+              ) : file ? (
+                <OpenTargetIcon className="size-4" file={file} />
+              ) : (
+                <AppWindowIcon className="size-4" />
+              )}
+              <span>
+                {opensOutside === "file" ? openLabel : "Open"}
+              </span>
             </Item>
           )}
           <Item onClick={onOpenInNewTab}>
@@ -2079,9 +2113,10 @@ function FolderMenuItems({
             <OpenInMenu
               file={openIn}
               menuComponents={menuComponents}
+              onlyAlternatives={opensOutside === "file"}
               others={openInOthers}
             />
-          ) : file && showOpen && !opensUnnamed ? (
+          ) : file && showOpen && !opensUnnamed && !opensOutside ? (
             <Item
               onClick={() => {
                 openFile(file);

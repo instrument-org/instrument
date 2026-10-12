@@ -4,9 +4,8 @@ import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { goGuest } from "@/client/lib/browser-pool";
 import {
   type BrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import {
   useCanGoBack,
@@ -169,7 +168,7 @@ function usePageGuest(page: undefined | WindowTab): {
   const attached = useBrowserTargets();
   const target =
     page?.kind === "page"
-      ? encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(page.id))
+      ? browserTargetOf(StoreId.SessionSchema.parse(page.id))
       : undefined;
   const isAttached = target !== undefined && attached.has(target);
   const guest = useGuestNavigation(isAttached ? target : null);

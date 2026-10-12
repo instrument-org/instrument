@@ -1,6 +1,7 @@
 import {
   type ChosenItem,
   type Draft,
+  type ScreenView,
   type WindowTab,
 } from "@/client/atoms/window";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
@@ -9,7 +10,7 @@ import { type TabId } from "@/shared/tabs";
 import { groupOfHref } from "./app-tabs";
 import { computerTabOf } from "./file-tabs";
 import { joinHostPath } from "./host-path";
-import { isFreshTab } from "./tab-model";
+import { isFreshTab, isHomeTab } from "./tab-model";
 import { chatOfGroup, matchScreen } from "./window-href";
 
 /**
@@ -103,6 +104,17 @@ export function includedTabOf(
 }
 
 /**
+ * Whether a group's pane is open, read from `paneOpenByGroupAtom`: a group
+ * the toggle never touched has its pane open.
+ */
+export function isPaneOpen(
+  group: string,
+  paneOpenByGroup: Record<string, boolean>,
+): boolean {
+  return paneOpenByGroup[group] ?? true;
+}
+
+/**
  * Whether a group's tab is in view in the window: a site opened at the
  * window's level always shows its page, and a chat shows its tab up only
  * while its pane is open beside it.
@@ -114,7 +126,7 @@ export function isGroupShown(
   if (group === undefined) {
     return false;
   }
-  return chatOfGroup(group) === undefined || paneOpenByGroup[group] === true;
+  return chatOfGroup(group) === undefined || isPaneOpen(group, paneOpenByGroup);
 }
 
 /**
@@ -181,4 +193,24 @@ function screenTabAt(
 
 function withoutSlash(path: string) {
   return path.length > 1 ? path.replace(/[/\\]+$/, "") : path;
+}
+
+/**
+ * What a draft window's band has up, in the terms the chat it starts is
+ * told it: the band's own face as home, a page as the browser, and a folder
+ * or file as the screen drawing it said, since only that screen knows where
+ * the browser walked to. Null for anything else, which the band's tabs
+ * name instead.
+ */
+export function bandViewOf(
+  up: undefined | WindowTab,
+  upView: ScreenView | undefined,
+): null | ScreenView {
+  if (up === undefined || (up.kind === "screen" && isHomeTab(up))) {
+    return { screen: "home" };
+  }
+  if (up.kind === "page") {
+    return { screen: "browser" };
+  }
+  return computerTabOf(up.href) ? (upView ?? null) : null;
 }

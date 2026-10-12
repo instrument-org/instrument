@@ -3,10 +3,10 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
-import { taskVenvPython } from "../uv";
+import { chatVenvPython } from "../uv";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import { hostPathArgs, resolveCommandContext } from "./utils";
-import { ensureTaskVenv } from "./uv";
+import { ensureVenvForCommand } from "./uv";
 
 /**
  * `python` (and `python3`) is the interpreter in the chat's virtualenv, a real
@@ -66,12 +66,12 @@ async function runNativePython(
   const finalArgs = hostPathArgs(args);
   const stdin = latin1FromBytes(ctx.stdin);
 
-  const venvError = await ensureTaskVenv({ ctx, chatId });
+  const venvError = await ensureVenvForCommand({ ctx, chatId });
   if (venvError !== undefined) {
     return { exitCode: 1, stderr: venvError, stdout: "" };
   }
 
-  const result = await execShim(taskVenvPython(chatId), finalArgs, {
+  const result = await execShim(chatVenvPython(chatId), finalArgs, {
     cancelSignal: ctx.signal,
     cwd: taskCwd,
     env,

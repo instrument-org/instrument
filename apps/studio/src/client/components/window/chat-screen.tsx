@@ -1,12 +1,12 @@
 import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
-import { TaskChat } from "@/client/components/task/chat";
+import { ChatConversation } from "@/client/components/task/chat";
 import { Alert, AlertDescription } from "@/client/components/ui/alert";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
-import { TaskSessionProvider } from "@/client/hooks/use-task-session";
+import { ChatSessionProvider } from "@/client/hooks/use-chat-session";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -205,8 +205,8 @@ function ChatScreenOfRecord({
                 appWindow.openPage(url, intoOr(options));
               }}
             >
-              <TaskSessionProvider sessionId={sessionId} chatId={chatId}>
-                <TaskChat
+              <ChatSessionProvider sessionId={sessionId} chatId={chatId}>
+                <ChatConversation
                   asks={
                     groupAsks.length === 0
                       ? undefined
@@ -239,7 +239,7 @@ function ChatScreenOfRecord({
                   sentPrompt={sentPrompt}
                   chatInfo={info.data}
                 />
-              </TaskSessionProvider>
+              </ChatSessionProvider>
             </PageOpenContext>
           </FileOpenContext>
         </WindowContext>

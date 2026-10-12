@@ -1,7 +1,6 @@
 import {
   type Draft,
   draftGroupOf,
-  type FinderShown,
   type ScreenView,
   type WindowTab,
 } from "@/client/atoms/window";
@@ -18,6 +17,7 @@ import ms from "ms";
 import { type AppsBySlug } from "./apps-by-slug";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import {
+  bandViewOf,
   behindTabOf,
   includedItemsOf,
   includedTabOf,
@@ -27,7 +27,7 @@ import {
 import { computerTabOf, reachablePath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenLocation, screenPresentation } from "./screen-presentation";
-import { type useCompose } from "./use-compose";
+import { type TabSurface } from "./tab-surface";
 import { matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
 
@@ -48,8 +48,6 @@ export interface SendContextWindow {
   browser: null | Pick<BrowserTabsHandle, "readPage">;
   chatTitles: Map<ChatId, string>;
   drafts: Draft[];
-  /** What each of the window's own Files tabs has in its Finder, by the tab's id. */
-  finders: Readonly<Record<string, FinderShown>>;
   /** The router's address, which is the screen's own. */
   href: string;
   /** Where one of the window's own tabs stands now. */
@@ -60,8 +58,8 @@ export interface SendContextWindow {
   screenView: null | ScreenView;
   /** The folders the window reaches, which say how the conversation reaches a file; undefined until the window is open. */
   state: RPCOutput["workspace"]["window"]["ensure"] | undefined;
-  /** What each draft window's band has up, by the draft's group. */
-  viewsById: ReturnType<typeof useCompose>["viewsById"];
+  /** What each tab's screen says about itself, by the tab's id: what a draft's band shows, and each Files tab's Finder. */
+  surfaces: Readonly<Record<string, TabSurface>>;
   windowTabs: Pick<
     ReturnType<typeof useWindowTabs>,
     "active" | "allTabs" | "groupOnScreen" | "selectedTabIn"
@@ -80,13 +78,12 @@ export function contextReaders({
   browser,
   chatTitles,
   drafts,
-  finders,
   href,
   hrefOfAppTab,
   paneOpenByGroup,
   screenView,
   state,
-  viewsById,
+  surfaces,
   windowTabs,
 }: SendContextWindow) {
   const { active } = windowTabs;
@@ -103,7 +100,7 @@ export function contextReaders({
           groupTab: active,
           isGroupTabShown: isActiveShown,
         });
-  const finderFor = (tab: WindowTab) => finders[tab.id] ?? null;
+  const finderFor = (tab: WindowTab) => surfaces[tab.id]?.finder ?? null;
   const includedOf = (draft: Draft) =>
     includedTabOf(draft, windowTabs.allTabs, hrefOfAppTab);
   /** A group's tabs as the conversation is told them, in the strip's order, each by the id `tab` and "--tab" name it by. */
@@ -243,7 +240,7 @@ export function contextReaders({
     const draft = drafts.find((entry) => entry.id === draftId);
     const group = draftGroupOf(draftId);
     const up = windowTabs.selectedTabIn(group);
-    const view = viewsById[group];
+    const view = bandViewOf(up, up && surfaces[up.id]?.view);
     if (!state) {
       return;
     }

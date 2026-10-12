@@ -15,7 +15,12 @@ const HeldTabSchema = z.object({
    * chat when it finishes.
    */
   driver: StoreId.SessionSchema.optional(),
-  id: BrowserTargetIdSchema,
+  // Held tabs saved before a target id was the tab's id alone name it
+  // `window/<tab>`.
+  id: z
+    .string()
+    .transform((id) => id.replace(/^window\//, ""))
+    .pipe(BrowserTargetIdSchema),
   openedBy: z.enum(["handed", "task"]),
 });
 

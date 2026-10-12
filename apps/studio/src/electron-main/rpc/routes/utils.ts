@@ -16,6 +16,7 @@ import {
 } from "@/electron-main/lib/file-open-target";
 import { resolveDarwinTarget } from "@/electron-main/lib/file-open-target/resolve-darwin";
 import { openExternal } from "@/electron-main/lib/open-external";
+import { openPathOnComputer } from "@/electron-main/lib/open-path";
 import {
   effectiveDisplayProtocol,
   resolveOzonePlatform,
@@ -314,19 +315,11 @@ const openPath = base
       stats.isFile() && os.platform() === "darwin"
         ? await getFileOpenTarget(input.filepath)
         : { launchAppPath: null };
-    if (launchAppPath) {
-      try {
-        await execFileAsync("open", ["-a", launchAppPath, input.filepath]);
-      } catch (error) {
-        throw errors.ERROR_OPENING_FILE({
-          message: error instanceof Error ? error.message : undefined,
-        });
-      }
-    } else {
-      const errorMessage = await shell.openPath(input.filepath);
-      if (errorMessage) {
-        throw errors.ERROR_OPENING_FILE({ message: errorMessage });
-      }
+    const errorMessage = await openPathOnComputer(input.filepath, {
+      appPath: launchAppPath,
+    });
+    if (errorMessage) {
+      throw errors.ERROR_OPENING_FILE({ message: errorMessage });
     }
     // A folder opened in the file manager is browsing, not a recent file.
     if (stats.isFile()) {
@@ -363,7 +356,7 @@ const openFolder = base
     }),
   )
   .handler(async ({ input }) => {
-    const errorMessage = await shell.openPath(input.folderPath);
+    const errorMessage = await openPathOnComputer(input.folderPath);
     if (errorMessage) {
       shell.showItemInFolder(input.folderPath);
     }

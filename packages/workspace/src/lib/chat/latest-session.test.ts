@@ -1,49 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { StoreId } from "../../schemas/store-id";
-import { ChatIdSchema } from "../../schemas/chat-id";
-import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { Store } from "../store";
-import {
-  cutForNote,
-  lastAssistantTextIn,
-  latestOrNewSessionId,
-  latestSessionId,
-} from "./latest-session";
-
-vi.mock(import("../session-store-storage"));
-
-describe("latestOrNewSessionId", () => {
-  it("creates a session for a task that has none, and answers with it after", async () => {
-    const chatId = createMockChatConfig(ChatIdSchema.parse("fresh"));
-    const before = await latestSessionId(chatId);
-    expect(before._unsafeUnwrap()).toBeUndefined();
-
-    const first = await latestOrNewSessionId(chatId);
-    const again = await latestOrNewSessionId(chatId);
-
-    expect(again._unsafeUnwrap()).toBe(first._unsafeUnwrap());
-    const sessions = await Store.getSessions(chatId);
-    expect(sessions._unsafeUnwrap().map((session) => session.id)).toEqual([
-      first._unsafeUnwrap(),
-    ]);
-  });
-
-  it("answers with the newest of several", async () => {
-    const chatId = createMockChatConfig(ChatIdSchema.parse("several"));
-    const older = StoreId.newSessionId();
-    const newer = StoreId.newSessionId();
-    for (const id of [newer, older]) {
-      await Store.saveSession(
-        { createdAt: new Date(), id, title: `Session ${id}` },
-        chatId,
-      );
-    }
-
-    const latest = await latestOrNewSessionId(chatId);
-    expect(latest._unsafeUnwrap()).toBe(newer);
-  });
-});
+import { cutForNote, lastAssistantTextIn } from "./latest-session";
 
 describe("lastAssistantTextIn", () => {
   const message = (text: string) =>

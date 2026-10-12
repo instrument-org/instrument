@@ -1,7 +1,6 @@
 import ms from "ms";
 import { err, ok, ResultAsync } from "neverthrow";
 import fs from "node:fs/promises";
-import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 
 import { type WorkspaceActorRef } from "../machines/workspace";
 import { type ChatId } from "../schemas/chat-id";
@@ -11,7 +10,14 @@ import { killChatBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
 import { recordRemoved } from "./record-changes";
-import { forgetChat, resolveChat, chatDir } from "./record-folders";
+import {
+  forgetChat,
+  resolveChat,
+  chatDir,
+  sessionOfChat,
+} from "./record-folders";
+import { closeAgentBrowserSessionsForSessions } from "./agent-browser-cleanup";
+import { listChildTasks } from "./chat/children";
 import {
   disposeSessionsStoreStorage,
   markStorageAsDisposing,
@@ -22,8 +28,7 @@ import {
  * Puts a chat in the trash with every task it started, which are sessions in
  * its store. Every agent of the chat's, its tasks' included, is stopped and
  * refused new messages, so nothing it does meanwhile starts a task that would
- * be missed; its browser is reaped, what any of them left running is killed,
- * its store let go; then its folder goes to the trash in one piece. The index
+ * be missed; what any of them left running is killed, its store let go; then its folder goes to the trash in one piece. The index
  * forgets it only once the folder is gone.
  */
 export async function trashChat({
@@ -37,15 +42,7 @@ export async function trashChat({
 }) {
   return ResultAsync.fromPromise(
     (async () => {
-      // Block until the chat's browser has fully reaped
-      // its WebContentsView and agent-browser daemon sessions, so the
-      // Chromium profile is no longer locked when we delete the app dir.
-      const browserReaped = new Promise<void>((resolve) => {
-        workspaceRef.send({
-          type: "prepareToTrashChat",
-          value: { id, onBrowserReaped: resolve },
-        });
-      });
+      workspaceRef.send({ type: "prepareToTrashChat", value: { id } });
 
       // Background processes outlive the turn that started them, so the chat
       // going away is what ends them. Wait for that here: their logs live inside
@@ -56,12 +53,19 @@ export async function trashChat({
       // Awaited rather than raced, because it is already bounded and its logs are
       // about to be deleted. A process that will not confirm it stopped is still
       // recorded rather than thrown, so it cannot make the chat undeletable.
-      // Browser teardown remains best-effort for the same reason: a stuck
-      // WebContents must not wedge chat deletion forever.
       await backgroundCleanedUp.catch((error: unknown) => {
         workspaceConfig.captureException(error);
       });
-      await Promise.race([browserReaped, setTimeoutPromise(2000)]);
+      // Every session's agent-browser daemons, read before the store goes.
+      const sessions = [
+        sessionOfChat(id),
+        ...(await listChildTasks(id)).map((task) => task.id),
+      ].filter((session) => session !== undefined);
+      await closeAgentBrowserSessionsForSessions(sessions).catch(
+        (error: unknown) => {
+          workspaceConfig.captureException(error);
+        },
+      );
 
       // Mark storage as disposing to prevent recreation during deletion
       markStorageAsDisposing(id);
@@ -95,17 +99,16 @@ export async function trashChat({
           recordRemoved(chatId);
         }
 
-        // In the off chance that a future chat with the same id is
-        // created, it is no longer marked as being trashed.
+        return ok({ id });
+      } finally {
+        // Always unmark the chat, even if deletion fails: a chat still
+        // marked refuses new sessions, and a chat later made with the same
+        // id must not inherit the mark.
+        unmarkStorageAsDisposing(id);
         workspaceRef.send({
           type: "removeChatBeingTrashed",
           value: { id },
         });
-
-        return ok({ id });
-      } finally {
-        // Always unmark storage as disposing, even if deletion fails
-        unmarkStorageAsDisposing(id);
       }
     })(),
     (error: unknown) =>

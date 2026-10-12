@@ -3,7 +3,7 @@ import {
   ChatTaskList,
   type TaskListItem,
 } from "@/client/components/window/chat-task-list";
-import { useOnScreen } from "@/client/components/window/on-screen";
+import { useTabSurface } from "@/client/components/window/tab-surface";
 import { taskHref } from "@/client/components/window/tab-location";
 import { useWindow } from "@/client/components/window/context";
 import { TaskPage } from "@/client/components/window/task-page";
@@ -30,7 +30,8 @@ export function ChatTasksScreen({ chat }: { chat: ChatId }) {
   const router = useRouter();
   const { openScreen } = useWindow();
   const own = children.data ?? [];
-  useOnScreen(
+  useTabSurface(
+    "view",
     children.data ? { screen: "tasks", tasks: own.map(describe) } : null,
   );
   const open = (id: StoreId.Session) => {
@@ -72,7 +73,10 @@ export function TaskScreen({
   sessionId: StoreId.Session;
 }) {
   const child = useChildTask(chat, sessionId);
-  useOnScreen(child ? { screen: "task", task: describe(child) } : null);
+  useTabSurface(
+    "view",
+    child ? { screen: "task", task: describe(child) } : null,
+  );
   return <TaskPage chat={chat} sessionId={sessionId} />;
 }
 

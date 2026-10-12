@@ -3,7 +3,7 @@ import { BrowserHandoffButton } from "@/client/components/browser-handoff-button
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 /**
@@ -16,11 +16,14 @@ export function ChatGPTLoginButton({
   caption,
   className,
   onSuccess,
+  onWaitingChange,
 }: {
   /** Under the button; replaced by where to finish while the browser has it. */
   caption: string;
   className?: string;
   onSuccess: () => void;
+  /** Told when the button starts and stops holding. */
+  onWaitingChange?: (waiting: boolean) => void;
 }) {
   const [waiting, setWaiting] = useState(false);
   // Counts presses, so a sign-in that settles after a newer one started
@@ -28,6 +31,10 @@ export function ChatGPTLoginButton({
   const attempts = useRef(0);
   const [declinedAccountId, setDeclinedAccountId] = useState<string>();
   const signIn = useMutation(rpcClient.chatgptAccount.signIn.mutationOptions());
+
+  useEffect(() => {
+    onWaitingChange?.(waiting);
+  }, [onWaitingChange, waiting]);
 
   const continueWithChatGPT = async () => {
     const attempt = ++attempts.current;

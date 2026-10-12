@@ -1,4 +1,5 @@
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
+import { z } from "zod";
 
 import { AGENT_FILES_LANGUAGE } from "../../constants";
 import { type SessionMessage } from "../../schemas/session/message";
@@ -46,7 +47,14 @@ export interface TaskStanding {
 }
 
 /** Where a task stands, in the four words the list can say it in. */
-type TaskStandingKind = "done" | "failed" | "running" | "waiting";
+export const TaskStandingKindSchema = z.enum([
+  "done",
+  "failed",
+  "running",
+  "waiting",
+]);
+
+type TaskStandingKind = z.output<typeof TaskStandingKindSchema>;
 
 /**
  * How a turn that ended before the agent wrote any words ended. That happens
@@ -126,7 +134,7 @@ export async function taskStanding({
       ? { kind: "waiting", line: waiting }
       : { kind: "running", line: step ?? "Working" };
   }
-  return settledStanding(chatId, () => standingAtRest(ref), sessionId);
+  return settledStanding(chatId, sessionId, () => standingAtRest(ref));
 }
 
 /** The last segment of a path, which is how a file is named in a line. */

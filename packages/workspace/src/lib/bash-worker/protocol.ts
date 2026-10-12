@@ -5,7 +5,7 @@ import { type ChatDir } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { type BashEnvOptions } from "../create-bash-env";
-import { type TaskVenvError } from "../ensure-task-venv";
+import { type ChatVenvError } from "../ensure-chat-venv";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 
 /**
@@ -93,7 +93,7 @@ export type ToWorker =
   | { callId: number; type: "tool-result"; value: string }
   | {
       requestId: number;
-      result: TaskVenvError | undefined;
+      result: ChatVenvError | undefined;
       type: "venv-result";
     }
   | { seq: number; type: "chunk-ack" };

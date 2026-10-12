@@ -207,7 +207,7 @@ export function ConnectControls({
   // nothing here can see the session, so once the site is open the user says
   // when they are done there.
   if (kind === "web") {
-    const signInPage = listed?.signIn;
+    const signInPage = listed?.type === "web" ? listed.signIn : undefined;
     const openSite = () => {
       if (signInPage !== undefined) {
         appWindow?.openPage(signInPage);
@@ -347,7 +347,7 @@ export function ConnectControls({
   };
   // Where the directory says the key is made, so the card says where to go
   // rather than asking for something the user has never seen.
-  const keyHelp = listed?.keyHelp;
+  const keyHelp = listed?.type === "web" ? undefined : listed?.keyHelp;
   return (
     <div className="flex flex-col gap-2">
       {keyHelp ? (

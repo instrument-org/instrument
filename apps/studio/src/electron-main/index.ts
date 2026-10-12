@@ -78,6 +78,7 @@ import { servePageEditorBoot } from "./page-editor/sessions";
 import { platformApiQueryClient } from "./platform-api/client";
 import { startPlatformApiReachability } from "./platform-api/reachability";
 import { initializeRPC } from "./rpc/initialize";
+import { watchMainThreadStalls } from "./lib/main-thread-stalls";
 
 // Dev skips the single-instance lock so multiple worktrees can boot side by
 // side. Packaged builds keep it so second launches (deep links) forward to
@@ -287,6 +288,8 @@ async function bootstrapPrimaryInstance() {
   }
 
   registerFileDragHandler();
+
+  watchMainThreadStalls();
 
   await timeBootStep("initializeRPC", () => {
     initializeRPC({

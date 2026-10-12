@@ -9,10 +9,10 @@
  * by accident, which is what three separate allow-lists were doing. Each one
  * names the kinds it takes; the reading of a source belongs here.
  *
- * The renderer's own `img-src` in `index.html` is the outer bound on all of
- * this. It is deliberately wider, because it also covers chrome this app drew
- * itself, so it can only ever be a backstop. Nothing here may be relaxed on the
- * grounds that the CSP would still catch it.
+ * The renderer's own `img-src` (`content-security-policy.ts`) is the outer
+ * bound on all of this. It is deliberately wider, because it also covers
+ * chrome this app drew itself, so it can only ever be a backstop. Nothing here
+ * may be relaxed on the grounds that the CSP would still catch it.
  */
 
 /** What a source turns out to be, which is what a caller decides against. */

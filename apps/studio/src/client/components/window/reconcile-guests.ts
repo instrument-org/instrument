@@ -1,8 +1,4 @@
-import {
-  type BrowserTargetId,
-  decodeBrowserTargetId,
-  WINDOW_ID,
-} from "@instrument-org/workspace/client";
+import { type BrowserTargetId } from "@instrument-org/workspace/client";
 
 /** What reconciling remembers between runs. */
 export interface GuestMemo {
@@ -17,12 +13,10 @@ export const EMPTY_GUEST_MEMO: GuestMemo = {
 /**
  * The attached guests set against the tabs the window holds.
  *
- * A window guest is one of the window's own page tabs, keyed by the tab's id,
- * and closing the tab only takes it off the list. The window holds its
- * browser on screen for as long as it is open, so the lease clock that reaps a
- * browser never runs for these: one that no tab or visit in a tab's history
- * holds any more is the window's to close. A guest under any other id is not
- * the window's, and is left alone.
+ * A guest is one of the window's page tabs, keyed by the tab's id, and
+ * closing the tab only takes it off the list. The browser's clocks discard a
+ * guest whose tab stays; one that no tab or visit in a tab's history holds
+ * any more is the window's to close.
  */
 export function reconcileGuests({
   attached,
@@ -39,12 +33,7 @@ export function reconcileGuests({
   );
   const close: BrowserTargetId[] = [];
   for (const target of attached) {
-    const decoded = decodeBrowserTargetId(target);
-    if (
-      decoded?.id === WINDOW_ID &&
-      !heldIds.has(decoded.sessionId) &&
-      !closing.has(target)
-    ) {
+    if (!heldIds.has(target) && !closing.has(target)) {
       closing.add(target);
       close.push(target);
     }

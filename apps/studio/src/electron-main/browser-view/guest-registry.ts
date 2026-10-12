@@ -1,4 +1,4 @@
-import type { ChatId } from "@instrument-org/workspace/electron";
+import type { BrowserTargetId } from "@instrument-org/workspace/electron";
 
 import { app, type Session, type WebContents, webFrameMain } from "electron";
 
@@ -91,7 +91,7 @@ export function createGuestRegistry() {
       roleOf: (contents: WebContents) => GuestRole;
     }
   >();
-  const unblockedTasks = new Set<ChatId>();
+  const unblockedTargets = new Set<BrowserTargetId>();
   let listening = false;
 
   function track(contents: WebContents, role: GuestRole): GuestRecord {
@@ -150,25 +150,31 @@ export function createGuestRegistry() {
     get(id: number): GuestRecord | undefined {
       return records.get(id);
     },
-    /** Whether the contents' task turned ad blocking off for its own tabs. */
+    /** Whether an agent driving the contents' tab turned ad blocking off for it. */
     isAdBlockExempt(id: number): boolean {
-      const task = records.get(id)?.entry?.id;
-      return task !== undefined && unblockedTasks.has(task);
+      const targetId = records.get(id)?.entry?.targetId;
+      return targetId !== undefined && unblockedTargets.has(targetId);
     },
     records(): IterableIterator<GuestRecord> {
       return records.values();
     },
     /**
-     * Turns ad blocking off (`false`) or on (`true`) for a task's own tabs,
-     * or with `undefined` only asks; answers whether it blocks for them.
+     * Turns ad blocking off (`false`) or on (`true`) for the tabs an agent
+     * drives, or with `undefined` only asks; answers whether it blocks in
+     * every one of them.
      */
-    setAdBlocking(task: ChatId, blocking: boolean | undefined): boolean {
-      if (blocking === false) {
-        unblockedTasks.add(task);
-      } else if (blocking === true) {
-        unblockedTasks.delete(task);
+    setAdBlocking(
+      targets: readonly BrowserTargetId[],
+      blocking: boolean | undefined,
+    ): boolean {
+      for (const targetId of targets) {
+        if (blocking === false) {
+          unblockedTargets.add(targetId);
+        } else if (blocking === true) {
+          unblockedTargets.delete(targetId);
+        }
       }
-      return !unblockedTasks.has(task);
+      return targets.every((targetId) => !unblockedTargets.has(targetId));
     },
     /** Records one contents directly; the app's sessions go through {@link watchSession}. */
     track,

@@ -121,3 +121,8 @@ export const AGENT_BROWSER_SOCKET_DIR =
 export function externalBrowserSessionName(sessionId: string) {
   return `${sessionId}-ext`;
 }
+
+/** The daemon session a session's browser-free `read` runs under. */
+export function readSessionName(sessionId: string) {
+  return `${sessionId}-read`;
+}

@@ -271,7 +271,7 @@ export function basename(path: string): string {
   return path.replace(/\/+$/, "").split("/").at(-1) || path;
 }
 
-/** The chats by when something last happened in each, newest first, which is the order the inbox keeps. */
+/** Items by when something last happened in each, newest first. */
 export function byActivity<T extends { updatedAt: number }>(chats: T[]): T[] {
   return [...chats].sort((a, b) => b.updatedAt - a.updatedAt);
 }
@@ -289,4 +289,11 @@ export function draftTitle(words: string): string {
       .map((line) => line.trim())
       .find(Boolean) ?? "New chat",
   );
+}
+
+/** Chats by when the user last messaged them, newest first. */
+export function byLastUserMessage<T extends { lastUserMessageAt: number }>(
+  chats: T[],
+): T[] {
+  return [...chats].sort((a, b) => b.lastUserMessageAt - a.lastUserMessageAt);
 }

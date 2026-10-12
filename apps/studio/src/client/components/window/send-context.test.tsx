@@ -77,13 +77,12 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
     },
     chatTitles: new Map([[CHAT, "Lisbon"]]),
     drafts: [],
-    finders: {},
     href: "/browser",
     hrefOfAppTab: vi.fn(),
     paneOpenByGroup: {},
     screenView: null,
     state: { folders: { home: HOME } },
-    viewsById: {},
+    surfaces: {},
     windowTabs: tabsOf([]),
     ...over,
   };
@@ -365,7 +364,6 @@ describe("draftContext", () => {
     const { draftContext } = contextReaders(
       windowOf({
         drafts: [DRAFT],
-        viewsById: { [GROUP]: { screen: "browser" } },
         windowTabs: tabsOf([band, chat]),
       }),
     );
@@ -483,7 +481,6 @@ describe("draftContext", () => {
       const { draftContext } = contextReaders(
         windowOf({
           drafts: [draft],
-          viewsById: { [GROUP]: { screen: "home" } },
           windowTabs: tabsOf([HOME_TAB, over]),
         }),
       );
@@ -500,7 +497,6 @@ describe("draftContext", () => {
         windowOf({
           drafts: [{ ...DRAFT, ...draft }],
           hrefOfAppTab: (id) => ({ [APPS_TAB]: APP, [FILES_TAB]: FOLDER })[id],
-          viewsById: { [GROUP]: { screen: "home" } },
           windowTabs: tabsOf([HOME_TAB]),
           ...over,
         }),
@@ -525,10 +521,12 @@ describe("draftContext", () => {
           { included: { appTabId: FILES_TAB } },
           {
             appTabId: FILES_TAB,
-            finders: {
+            surfaces: {
               [FILES_TAB]: {
-                folder: "/Users/casey/Documents",
-                selected: [{ kind: "file", path: NOTES }],
+                finder: {
+                  folder: "/Users/casey/Documents",
+                  selected: [{ kind: "file", path: NOTES }],
+                },
               },
             },
             href: FOLDER,
@@ -552,10 +550,12 @@ describe("draftContext", () => {
         { included: { appTabId: APPS_TAB } },
         {
           appTabId: FILES_TAB,
-          finders: {
+          surfaces: {
             [FILES_TAB]: {
-              folder: "/Users/casey/Documents",
-              selected: [{ kind: "file", path: NOTES }],
+              finder: {
+                folder: "/Users/casey/Documents",
+                selected: [{ kind: "file", path: NOTES }],
+              },
             },
           },
           href: FOLDER,
@@ -584,7 +584,6 @@ describe("draftContext", () => {
     const { draftContext } = contextReaders(
       windowOf({
         drafts: [DRAFT],
-        viewsById: { [GROUP]: { screen: "home" } },
         windowTabs: tabsOf([HOME_TAB]),
       }),
     );
@@ -714,8 +713,29 @@ describe("draftContext", () => {
     await expect(leftOut.draftContext(DRAFT.id)).resolves.toBeUndefined();
 
     const paneShut = contextReaders(
-      windowOf({ drafts: [DRAFT], windowTabs: tabsOf([page], CHAT) }),
+      windowOf({
+        drafts: [DRAFT],
+        paneOpenByGroup: { [CHAT]: false },
+        windowTabs: tabsOf([page], CHAT),
+      }),
     );
     await expect(paneShut.draftContext(DRAFT.id)).resolves.toBeUndefined();
+  });
+
+  it("counts a chat's pane the toggle never touched as open", async () => {
+    const page: WindowTab = {
+      group: CHAT,
+      id: "page",
+      kind: "page",
+      openedAt: 1,
+      title: "Hotels",
+      url: "https://hotels.example/",
+    };
+    const { draftContext } = contextReaders(
+      windowOf({ drafts: [DRAFT], windowTabs: tabsOf([page], CHAT) }),
+    );
+    await expect(draftContext(DRAFT.id)).resolves.toMatchObject({
+      url: "https://hotels.example/",
+    });
   });
 });

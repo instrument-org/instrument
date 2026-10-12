@@ -10,14 +10,13 @@ import {
   MessageScrollerViewport,
 } from "@/client/components/ui/message-scroller";
 import { Spinner } from "@/client/components/ui/spinner";
-import { TaskSessionProvider } from "@/client/hooks/use-task-session";
+import { ChatSessionProvider } from "@/client/hooks/use-chat-session";
 import { folderLabel, isOutputFolder } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { catalogEffort } from "@instrument-org/ai-gateway/client";
 import {
   type ChatId,
-  decodeBrowserTargetId,
   isFolderPath,
   type StoreId,
   type ChatInfo,
@@ -97,7 +96,7 @@ export function ChildTranscript({
             <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
               {/* Names the task and session for the links inside, so a page
                   the task names offers its browser as well as the user's. */}
-              <TaskSessionProvider sessionId={sessionId} chatId={chatInfo.id}>
+              <ChatSessionProvider sessionId={sessionId} chatId={chatInfo.id}>
                 {/* Task paths are placed on the computer through the task's own layout before navigation. */}
                 <FileOpenContext value={openFile}>
                   <ChatStream
@@ -110,7 +109,7 @@ export function ChildTranscript({
                     chatInfo={chatInfo}
                   />
                 </FileOpenContext>
-              </TaskSessionProvider>
+              </ChatSessionProvider>
               {stoppedBy && (
                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <StopCircleIcon className="size-3.5 shrink-0" />
@@ -245,10 +244,9 @@ function TaskBrief({
     (folder) => !isOutputFolder(folder.path),
   );
   // The chat's tabs this task drives.
-  const heldTabs = (state.data?.browserTabs ?? []).flatMap((held) => {
-    const decoded = decodeBrowserTargetId(held.id);
-    return decoded && held.driver === taskSession ? [decoded.sessionId] : [];
-  });
+  const heldTabs = (state.data?.browserTabs ?? []).flatMap((held) =>
+    held.driver === taskSession ? [held.id] : [],
+  );
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-4 py-2 text-xs">
       <span

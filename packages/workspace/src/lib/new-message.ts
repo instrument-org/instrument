@@ -24,7 +24,7 @@ import { Store } from "./store";
 import { resolveChat } from "./record-folders";
 import { updateChatSettings } from "./chat-settings";
 import { grantFolder } from "./chat/grants";
-import { chatConversation } from "./chat/children";
+import { sessionRole } from "./chat/children";
 import { getWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
 import { writeUploadedAttachments } from "./write-uploaded-attachments";
@@ -203,7 +203,7 @@ export async function newMessage({
   // so the open-and-closed bookkeeping of a task's browser would only tell
   // it tales about tabs it never owned. A task of the chat's, in the same
   // store, is told as a task.
-  const isChat = chatConversation(chatId, sessionId) !== undefined;
+  const isChat = sessionRole(chatId, sessionId) === "chat";
   const browserStatusPart = isChat
     ? undefined
     : await createBrowserStatusPart({

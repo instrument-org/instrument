@@ -13,7 +13,7 @@ import { taskLayout } from "../../test/helpers/task-layout";
 
 vi.mock("execa");
 vi.mock("./uv", () => ({
-  ensureTaskVenv: vi.fn(),
+  ensureVenvForCommand: vi.fn(),
 }));
 
 const realFs = new InMemoryFs();

@@ -213,7 +213,6 @@ async function startFork({
             chatSession.value.rolledOverUnderUsableTokens,
         }
       : {}),
-    status: "running",
     title: name,
     updatedAt: now,
   });

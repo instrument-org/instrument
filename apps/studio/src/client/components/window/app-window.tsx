@@ -5,11 +5,8 @@ import {
   type Draft,
   draftGroupOf,
   draftsAtom,
-  findersByTabAtom,
   inboxOpenAtom,
-  pageSlotsAtom,
   paneOpenByGroupAtom,
-  screenViewsAtom,
   chatsOutOf,
 } from "@/client/atoms/window";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
@@ -44,9 +41,8 @@ import { fileHref } from "@/shared/computer-href";
 import { type Tab, type TabId } from "@/shared/tabs";
 import {
   type ChatId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
@@ -81,28 +77,22 @@ import {
   useAppTabs,
 } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
-import {
-  BrowserTabs,
-  type BrowserTabsHandle,
-  type ComposeHost,
-} from "./browser-tabs";
+import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
 import { NO_FILTERS } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
+import { isPaneOpen } from "./draft-context";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { InboxPeek } from "./inbox-peek";
 import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
 import { NewTopicDialog } from "./new-topic-dialog";
 import { contextReaders } from "./send-context";
-import {
-  pageSlotByTabAtom,
-  type WindowShell as Shell,
-  ShellContext,
-} from "./shell-context";
+import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
+import { tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { useCompose } from "./use-compose";
 import { useDrafts } from "./use-drafts";
@@ -414,31 +404,11 @@ function WindowShell({
       setPaneOpen(windowTabs.groupOnScreen, true);
     }
   };
-  // The pages screens draw into slots of their own (a page's file beside a
-  // file tab's tree), shown while the screen that made the slot is up.
-  const pageSlots = useAtomValue(pageSlotsAtom);
-  const slotHosts: ComposeHost[] = Object.entries(pageSlots).flatMap(
-    ([group, { insideOverlay, into, isShown = true, layer }]) =>
-      into
-        ? [
-            {
-              chrome: false,
-              group,
-              into,
-              isActive: isShown,
-              ...(layer === undefined ? {} : { layer }),
-              ...(insideOverlay ? { insideOverlay } : {}),
-              place: `${group}:${rowWidth}`,
-            },
-          ]
-        : [],
-  );
-
   // Where the tab up wants the window's page drawn. The browser's own face
   // lives in one element for the window's whole life, handed from tab to tab,
   // so a page and its edit session never remount as tabs are switched.
-  const pageSlot =
-    useAtomValue(pageSlotByTabAtom)[appTabs.model.selectedId ?? ""] ?? null;
+  const surfaces = useAtomValue(tabSurfaceAtom);
+  const pageSlot = surfaces[appTabs.model.selectedId ?? ""]?.slot ?? null;
   const [stage] = useState(() => {
     const element = document.createElement("div");
     element.className = "relative h-full min-h-0";
@@ -525,26 +495,23 @@ function WindowShell({
 
   // What the tab in view says it shows: a chat's or a site's tab up while
   // its pane is open, or the screen the window's tab is at.
-  const screenViews = useAtomValue(screenViewsAtom);
   const groupUp = windowTabs.active;
   const groupInView = windowTabs.groupOnScreen;
   const screenView =
     groupInView === undefined
-      ? (screenViews[appTabs.model.selectedId ?? ""] ?? null)
+      ? (surfaces[appTabs.model.selectedId ?? ""]?.view ?? null)
       : groupUp?.kind === "screen" &&
           (chatOfGroup(groupInView) === undefined ||
-            (paneOpenByGroup[groupInView] ?? true))
-        ? (screenViews[groupUp.id] ?? null)
+            isPaneOpen(groupInView, paneOpenByGroup))
+        ? (surfaces[groupUp.id]?.view ?? null)
         : null;
   // What goes with a message, read at the moment of sending.
-  const finders = useAtomValue(findersByTabAtom);
   const { draftContext, sendContext } = contextReaders({
     appsBySlug,
     appTabId: appTabs.model.selectedId,
     browser,
     chatTitles,
     drafts,
-    finders,
     href: activeHref,
     hrefOfAppTab: (id) =>
       id === appTabs.model.selectedId
@@ -553,7 +520,7 @@ function WindowShell({
     paneOpenByGroup,
     screenView,
     state: opened,
-    viewsById: compose.viewsById,
+    surfaces,
     windowTabs,
   });
   sendContextRef.current = sendContext;
@@ -721,9 +688,7 @@ function WindowShell({
       return;
     }
     return () => {
-      getGuest(
-        encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(page.id)),
-      )?.reload();
+      getGuest(browserTargetOf(StoreId.SessionSchema.parse(page.id)))?.reload();
     };
   };
 
@@ -962,10 +927,10 @@ function WindowShell({
               <ActiveTabProvider isActive={pageSlot?.isShown ?? false}>
                 <BrowserTabs
                   chromeInto={pageSlot?.chrome?.into ?? null}
-                  compose={[...compose.hosts, ...slotHosts]}
                   fieldInto={pageSlot?.chrome?.fieldInto ?? null}
                   ref={setBrowser}
                   reloadInto={pageSlot?.chrome?.reloadInto ?? null}
+                  rowWidth={rowWidth}
                 />
               </ActiveTabProvider>,
               stage,

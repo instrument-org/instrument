@@ -57,6 +57,7 @@ describe("initializeChat", () => {
       [
         ".gitignore",
         ".instrument/",
+        ".instrument/chat.db",
         ".instrument/settings.json",
         "attachments/",
         "package.json",

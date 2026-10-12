@@ -18,7 +18,7 @@ import {
 } from "../lib/browser-skill-delivery";
 import { executeError } from "../lib/execute-error";
 import { ignoredBuildsNote } from "../lib/ignored-builds-note";
-import { chatConversation } from "../lib/chat/children";
+import { sessionRole } from "../lib/chat/children";
 import { folderReach } from "../lib/chat/folder-reach";
 import {
   FG_COMMAND,
@@ -166,12 +166,11 @@ export const BashTool = setupTool({
     const startedAt = performance.now();
     // The chat's own commands are its conversation's: a task of the chat's
     // runs in the same folder with a task's shell.
-    const conversation = chatConversation(chatId, sessionId);
-    const chat = conversation ? { id: conversation } : undefined;
+    const role = sessionRole(chatId, sessionId) ?? "task";
     const bash = await createBashEnv({
       folders,
       callPartId: partId,
-      chat,
+      role,
       // `fg` waits inside this call, so what is left of the window is its
       // ceiling. Measured from here rather than from the race below, which only
       // makes it return sooner than it strictly has to.

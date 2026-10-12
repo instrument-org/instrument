@@ -1,13 +1,11 @@
 import { defineCommand } from "just-bash";
 
-import { StoreId } from "../../schemas/store-id";
 import {
   type WindowTabAction,
   type WindowTabTarget,
 } from "../../schemas/window-tab";
-import { encodeBrowserTargetId } from "../../types";
+import { parseBrowserTargetId } from "../../types";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
-import { WINDOW_ID } from "../../schemas/window-id";
 import {
   askWindow,
   tabHolders,
@@ -203,13 +201,11 @@ export function createTabCommand({
    * could not read, which the window would otherwise read for it.
    */
   function showsFileOutside(tabId: string): boolean {
-    const session = StoreId.SessionSchema.safeParse(tabId);
-    if (!session.success) {
+    const targetId = parseBrowserTargetId(tabId);
+    if (targetId === null) {
       return false;
     }
-    const url = getWorkspaceConfig().browser.getTargetUrl(
-      encodeBrowserTargetId(WINDOW_ID, session.data),
-    );
+    const url = getWorkspaceConfig().browser.getTargetUrl(targetId);
     return (
       url !== undefined &&
       isLocalAddress(url) &&
@@ -240,14 +236,10 @@ function isUrl(arg: string): boolean {
 
 /** The agent opening a page is its first work in it, which the tab's working mark shows from the start. */
 function noteOpenedPage(tabId: string | undefined) {
-  const session = StoreId.SessionSchema.safeParse(tabId);
-  if (!session.success) {
-    return;
+  const targetId = parseBrowserTargetId(tabId ?? "");
+  if (targetId !== null) {
+    noteBrowserAgentActivity(targetId);
   }
-  noteBrowserAgentActivity(
-    WINDOW_ID,
-    encodeBrowserTargetId(WINDOW_ID, session.data),
-  );
 }
 
 function report(lines: string[], failures: string[]) {

@@ -76,6 +76,36 @@ export namespace StorageKey {
     return ["parts", sessionId, messageId].join(SEPARATOR);
   }
 
+  /**
+   * The message a transcript key is about: its own row, or one of its
+   * parts. None for any other key.
+   */
+  export function messageOf(
+    key: string,
+  ):
+    | { id: StoreId.Message; ownRow: boolean; sessionId: StoreId.Session }
+    | undefined {
+    const [kind, session, message] = key.split(SEPARATOR);
+    if (kind !== MESSAGES_KEY && kind !== "parts") {
+      return undefined;
+    }
+    const sessionId = StoreId.SessionSchema.safeParse(session);
+    const id = StoreId.MessageSchema.safeParse(message);
+    return sessionId.success && id.success
+      ? {
+          id: id.data,
+          ownRow: kind === MESSAGES_KEY,
+          sessionId: sessionId.data,
+        }
+      : undefined;
+  }
+
+  /** The session a key is about, or none for a key that names none. */
+  export function sessionOf(key: string): StoreId.Session | undefined {
+    const parsed = StoreId.SessionSchema.safeParse(key.split(SEPARATOR).at(1));
+    return parsed.success ? parsed.data : undefined;
+  }
+
   export function session(sessionId: StoreId.Session) {
     return [StorageKey.sessions(), sessionId].join(SEPARATOR);
   }

@@ -4,7 +4,7 @@ import memoryDriver from "unstorage/drivers/memory";
 import { beforeEach } from "vitest";
 
 import { type ChatId } from "../../schemas/chat-id";
-import { recordChanged, storeKeyChange } from "../record-changes";
+import { recordStoreWrite } from "../record-changes";
 import {
   bumpEveryStoreGeneration,
   bumpStoreGeneration,
@@ -24,18 +24,29 @@ const wrappedMockStorage = wrapStorage(mockStorage);
 export function getSessionsStoreStorage(chatId: ChatId) {
   const counted: WrappedStorage = {
     ...wrappedMockStorage,
+    batch: (writes, options) => {
+      for (const write of writes) {
+        bumpStoreGeneration(chatId, write.key);
+      }
+      return wrappedMockStorage.batch(writes, options).andTee(() => {
+        for (const write of writes) {
+          bumpStoreGeneration(chatId, write.key);
+          recordStoreWrite(chatId, write.key, { removed: "remove" in write });
+        }
+      });
+    },
     removeItem: (key, options) => {
-      bumpStoreGeneration(chatId);
+      bumpStoreGeneration(chatId, key);
       return wrappedMockStorage.removeItem(key, options).andTee(() => {
-        bumpStoreGeneration(chatId);
-        recordChanged(chatId, storeKeyChange(key));
+        bumpStoreGeneration(chatId, key);
+        recordStoreWrite(chatId, key, { removed: true });
       });
     },
     setItemRaw: (key, value, options) => {
-      bumpStoreGeneration(chatId);
+      bumpStoreGeneration(chatId, key);
       return wrappedMockStorage.setItemRaw(key, value, options).andTee(() => {
-        bumpStoreGeneration(chatId);
-        recordChanged(chatId, storeKeyChange(key));
+        bumpStoreGeneration(chatId, key);
+        recordStoreWrite(chatId, key, { removed: false });
       });
     },
   };

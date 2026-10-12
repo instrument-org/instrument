@@ -11,7 +11,7 @@ import { wrapNativeCommand } from "./native-sandbox";
 import { getWorkspaceConfig } from "./workspace-config";
 import { workDir } from "./work-dir";
 
-export function execaNodeForTask<
+export function execaNodeForChat<
   OptionsType extends Omit<Options, "cwd"> = Omit<Options, "cwd">,
 >(
   chatId: ChatId,

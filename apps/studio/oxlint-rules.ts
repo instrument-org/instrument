@@ -142,12 +142,38 @@ const noTransitionColors = defineRule({
   },
 });
 
+const noShellOpenPath = defineRule({
+  create(context) {
+    return {
+      MemberExpression(node) {
+        if (
+          node.object.type === "Identifier" &&
+          node.object.name === "shell" &&
+          node.property.type === "Identifier" &&
+          node.property.name === "openPath"
+        ) {
+          context.report({ messageId: "shellOpenPath", node });
+        }
+      },
+    };
+  },
+  meta: {
+    messages: {
+      shellOpenPath:
+        "shell.openPath blocks the main thread on macOS for as long as a Gatekeeper prompt is up, which hangs every window. Use openPathOnComputer from electron-main/lib/open-path.ts.",
+    },
+    schema: [],
+    type: "problem",
+  },
+});
+
 export default definePlugin({
   meta: { name: "studio" },
   rules: {
     "no-raw-anchor": noRawAnchor,
     "no-raw-webview": noRawWebview,
     "no-router-link": noRouterLink,
+    "no-shell-open-path": noShellOpenPath,
     "no-transition-colors": noTransitionColors,
     "one-tooltip-provider": oneTooltipProvider,
   },

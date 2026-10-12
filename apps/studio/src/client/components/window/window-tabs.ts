@@ -142,6 +142,16 @@ export function useWindowTabs() {
     return value;
   };
 
+  /** Sends a screen tab to another address, a step on in its history: its router walks, and the tab follows it as it lands. */
+  const visitHref = (id: string, href: string) => {
+    const router = getGroupTabRouter(id);
+    if (!router) {
+      apply((current) => visitScreen(current, id, href));
+    } else if (!sameHref(router.history.location.href, href)) {
+      router.history.push(href);
+    }
+  };
+
   return {
     /** The tab the group on screen has up. */
     active: selectedTabIn(state, groupOnScreen),
@@ -169,6 +179,12 @@ export function useWindowTabs() {
     },
     /** The tab the group on screen has up goes to a screen, in place. */
     navigateScreen: (href: string) => {
+      // A screen tab walks there by its router, as `visitHref` sends it.
+      const up = selectedTabIn(state, groupOnScreen);
+      if (up?.kind === "screen" && getGroupTabRouter(up.id)) {
+        visitHref(up.id, href);
+        return;
+      }
       apply((current, onScreen) =>
         onScreen === undefined
           ? current
@@ -322,14 +338,7 @@ export function useWindowTabs() {
     /** The tabs of the group on screen, in strip order. */
     tabs: tabsIn(state, groupOnScreen),
     /** Sends a screen tab to another address, a step on in its history. */
-    visitHref: (id: string, href: string) => {
-      const router = getGroupTabRouter(id);
-      if (!router) {
-        apply((current) => visitScreen(current, id, href));
-      } else if (!sameHref(router.history.location.href, href)) {
-        router.history.push(href);
-      }
-    },
+    visitHref,
     /** A screen tab's router moved; the tab follows it. */
     screenMoved: (id: string, moved: Parameters<typeof screenMoved>[2]) => {
       apply((current) => screenMoved(current, id, moved));

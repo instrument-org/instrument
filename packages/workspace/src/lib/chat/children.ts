@@ -17,7 +17,6 @@ export const ChatTaskSchema = z.object({
   /** Its short name in the chat, `t1`, `t2`, …, which the `task` command takes. */
   handle: z.string(),
   id: StoreId.SessionSchema,
-  status: z.enum(["done", "failed", "running", "waiting"]).optional(),
   /** Who stopped its last turn, when a stop ended it. */
   stoppedBy: z.enum(["chat", "user"]).optional(),
   title: z.string(),
@@ -100,42 +99,30 @@ export async function childTask(
 }
 
 /**
- * The chat a session is the conversation of, or none for a task's session
- * and for a record that is no chat. What sets the conversation the user
- * talks in apart from the tasks it started in the same store: only it asks
- * the user anything, starts tasks, or hears the turn note.
+ * What a session is in its chat: the chat's own conversation, the session
+ * its settings name, or one of the tasks it started in the same store.
+ * Only the chat's own asks the user anything, starts tasks, or hears the
+ * turn note. None for a record that is no chat.
  */
-export function chatConversation(
+export function sessionRole(
   chatId: ChatId,
   sessionId: StoreId.Session,
-): ChatId | undefined {
-  return resolveChat(chatId) && sessionOfChat(chatId) === sessionId
-    ? chatId
-    : undefined;
+): "chat" | "task" | undefined {
+  if (!resolveChat(chatId)) {
+    return undefined;
+  }
+  return sessionOfChat(chatId) === sessionId ? "chat" : "task";
 }
 
 /**
- * Whether a session is one of a chat's tasks: a session in a chat's store
- * that is not the chat's own conversation.
- */
-export function isTaskSession(
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-): boolean {
-  return (
-    resolveChat(chatId) !== undefined && sessionOfChat(chatId) !== sessionId
-  );
-}
-
-/**
- * Writes what the task list reads onto a task's session: where it stands,
- * and that something happened in it now. Queued per task, so two landing
- * together each build on the other.
+ * Writes what the task list reads onto a task's session: who stopped its
+ * last turn, and that something happened in it now. Queued per task, so two
+ * landing together each build on the other.
  */
 export function touchTask(
   chatId: ChatId,
   sessionId: StoreId.Session,
-  changes: Pick<Session.Type, "status" | "stoppedBy"> = {},
+  changes: Pick<Session.Type, "stoppedBy"> = {},
 ): Promise<void> {
   return taskWrites(sessionId, async () => {
     const session = await Store.getSession(sessionId, chatId);
@@ -158,7 +145,6 @@ function taskOf(chatId: ChatId, session: Session.Type): ChatTask {
     createdAt: session.createdAt,
     handle: session.handle ?? session.id,
     id: session.id,
-    ...(session.status ? { status: session.status } : {}),
     ...(session.stoppedBy ? { stoppedBy: session.stoppedBy } : {}),
     title: session.title,
     updatedAt: session.updatedAt ?? session.createdAt,

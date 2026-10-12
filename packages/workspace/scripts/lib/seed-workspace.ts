@@ -396,7 +396,7 @@ async function seedChatTask({
     deltaMs: now.getTime() - task.agedMinutes * 60_000 - latest,
     title: task.name,
   });
-  await addChildTask(chatId, { ...rebased.session, status: "done" });
+  await addChildTask(chatId, rebased.session);
   const result = await safeTry(async function* () {
     for (const message of rebased.messages) {
       yield* Store.saveMessageWithParts(message, chatId);

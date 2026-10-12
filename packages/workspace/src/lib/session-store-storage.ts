@@ -9,14 +9,14 @@ import dbDriver from "unstorage/drivers/db0";
 import { type ChatId } from "../schemas/chat-id";
 import { TypedError } from "./errors";
 import { sweepInterruptedToolCalls } from "./interrupted-tool-calls";
-import { recordChanged, storeKeyChange } from "./record-changes";
+import { recordStoreWrite } from "./record-changes";
 import { bumpStoreGeneration } from "./store-generation";
 import { runStoreMigrations } from "./store-migrations";
 import { sessionStorePath } from "./chat-dir-utils";
 import { chatDir } from "./record-folders";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
 import { type WrappedStorage, wrapStorage } from "./wrap-storage";
-import { STORE_TABLE } from "./store-table";
+import { STORE_TABLE, writeStoreRows } from "./store-table";
 
 /**
  * How many chat databases stay open once they have gone idle. Building the
@@ -212,32 +212,33 @@ function handleFor(chatId: ChatId): WrappedStorage {
     return known;
   }
   const use = <T>(
-    /** The key a write is to, or none for a read. */
-    written: string | undefined,
-    operation: (storage: WrappedStorage) => ResultAsync<T, TypedError.Storage>,
+    /** The keys a write is to, each with whether it removes it; none for a read. */
+    written: readonly { key: string; removed: boolean }[],
+    operation: (open: OpenStore) => ResultAsync<T, TypedError.Storage>,
   ): ResultAsync<T, TypedError.Storage> => {
+    const bump = () => {
+      for (const { key } of written) {
+        bumpStoreGeneration(chatId, key);
+      }
+    };
     const run = (open: OpenStore) => {
       // Counted before the write lands as well as after, so a reader that
       // overlaps the write sees a change either way.
-      if (written !== undefined) {
-        bumpStoreGeneration(chatId);
-      }
+      bump();
       const settle = () => {
         open.inFlight -= 1;
         open.lastUsed = Date.now();
-        if (written !== undefined) {
-          bumpStoreGeneration(chatId);
-        }
+        bump();
         if (open.inFlight === 0) {
           open.onIdle?.();
         }
       };
-      return operation(open.storage)
+      return operation(open)
         .andTee(() => {
           settle();
           // Once the write has landed, so whoever re-reads on it reads it.
-          if (written !== undefined) {
-            recordChanged(chatId, storeKeyChange(written));
+          for (const { key, removed } of written) {
+            recordStoreWrite(chatId, key, { removed });
           }
         })
         .orTee(settle);
@@ -257,17 +258,38 @@ function handleFor(chatId: ChatId): WrappedStorage {
     });
   };
   const handle: WrappedStorage = {
+    batch: (writes) =>
+      use(
+        writes.map((write) => ({ key: write.key, removed: "remove" in write })),
+        (open) =>
+          ResultAsync.fromPromise(
+            (async () => {
+              writeStoreRows(await open.database.getInstance(), writes);
+            })(),
+            (error) =>
+              new TypedError.Storage(
+                error instanceof Error
+                  ? error.message
+                  : "Failed to write storage items",
+                { cause: error },
+              ),
+          ),
+      ),
     dispose: async () => {
       await disposeSessionsStoreStorage(chatId);
     },
     getItemRaw: (key, options) =>
-      use(undefined, (storage) => storage.getItemRaw(key, options)),
+      use([], (open) => open.storage.getItemRaw(key, options)),
     getKeys: (base, options) =>
-      use(undefined, (storage) => storage.getKeys(base, options)),
+      use([], (open) => open.storage.getKeys(base, options)),
     removeItem: (key, options) =>
-      use(key, (storage) => storage.removeItem(key, options)),
+      use([{ key, removed: true }], (open) =>
+        open.storage.removeItem(key, options),
+      ),
     setItemRaw: (key, value, options) =>
-      use(key, (storage) => storage.setItemRaw(key, value, options)),
+      use([{ key, removed: false }], (open) =>
+        open.storage.setItemRaw(key, value, options),
+      ),
   };
   HANDLES.set(chatId, handle);
   return handle;

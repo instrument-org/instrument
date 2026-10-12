@@ -8,6 +8,8 @@ import {
   createMockChatConfig,
   MOCK_WORKSPACE_DIRS,
 } from "../../test/helpers/mock-chat-config";
+import { browserTargetOf } from "../../types";
+import { updateHeldTabs } from "../held-tabs";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
   agentBrowserCommandDescription,
@@ -35,10 +37,8 @@ const mockCtx = createCommandContext({
 
 describe("createAgentBrowserCommand", () => {
   const chatId = ChatIdSchema.parse("test");
-  const command = createAgentBrowserCommand({
-    sessionId: StoreId.newSessionId(),
-    chatId,
-  });
+  const sessionId = StoreId.newSessionId();
+  const command = createAgentBrowserCommand({ sessionId, chatId });
 
   beforeEach(() => {
     createMockChatConfig(chatId, { externalBrowser: true });
@@ -132,8 +132,9 @@ describe("createAgentBrowserCommand", () => {
   describe("adblock", () => {
     const unblocked = new Set<string>();
     let workspaceBlocking = true;
+    const driven = browserTargetOf(StoreId.newSessionId());
 
-    beforeEach(() => {
+    beforeEach(async () => {
       unblocked.clear();
       workspaceBlocking = true;
       const config = getWorkspaceConfig();
@@ -141,16 +142,24 @@ describe("createAgentBrowserCommand", () => {
         ...config,
         browser: {
           ...config.browser,
-          contentBlocking: (id, blocking) => {
-            if (blocking === false) {
-              unblocked.add(id);
-            } else if (blocking === true) {
-              unblocked.delete(id);
+          contentBlocking: (targets, blocking) => {
+            for (const target of targets) {
+              if (blocking === false) {
+                unblocked.add(target);
+              } else if (blocking === true) {
+                unblocked.delete(target);
+              }
             }
-            return { task: !unblocked.has(id), workspace: workspaceBlocking };
+            return {
+              task: targets.every((target) => !unblocked.has(target)),
+              workspace: workspaceBlocking,
+            };
           },
         },
       });
+      await updateHeldTabs(chatId, sessionId, () => [
+        { id: driven, openedBy: "task" },
+      ]);
     });
 
     it("turns blocking off and on for the task without spawning the CLI", async () => {
@@ -160,7 +169,7 @@ describe("createAgentBrowserCommand", () => {
         Reload the page (\`agent-browser reload\`) for the change to apply.
         "
       `);
-      expect(unblocked.has(chatId)).toBe(true);
+      expect(unblocked.has(driven)).toBe(true);
 
       const status = await command.execute(["adblock"], mockCtx);
       expect(status.stdout).toContain("off in this task's tabs");
@@ -171,7 +180,7 @@ describe("createAgentBrowserCommand", () => {
         Reload the page (\`agent-browser reload\`) for the change to apply.
         "
       `);
-      expect(unblocked.has(chatId)).toBe(false);
+      expect(unblocked.has(driven)).toBe(false);
     });
 
     it("says the user's own setting wins when they turned blocking off", async () => {
@@ -181,6 +190,13 @@ describe("createAgentBrowserCommand", () => {
         "Ad blocking is off: the user turned it off for every page.
         "
       `);
+    });
+
+    it("asks for a page first when the task has no tabs", async () => {
+      await updateHeldTabs(chatId, sessionId, () => []);
+      const result = await command.execute(["adblock", "off"], mockCtx);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("Open the page first");
     });
 
     it("refuses a mode it does not know", async () => {

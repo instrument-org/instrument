@@ -1,6 +1,8 @@
 import { DatabaseSync } from "node:sqlite";
 import superjson from "superjson";
 
+import { type StoreWrite } from "./wrap-storage";
+
 /**
  * The table a chat's `chat.db` keeps every row in, keyed by `StorageKey`.
  * The store reaches it through unstorage's db0 driver, which makes it on
@@ -51,5 +53,37 @@ export function writeStoreRowsSync(
     }
   } finally {
     db.close();
+  }
+}
+
+/**
+ * Writes a batch of rows into an open chat database in one transaction, the
+ * way unstorage's db0 driver writes one: a value goes in the `blob` column,
+ * with the row's `updated_at` moved. Synchronous, so no other statement on
+ * the connection runs inside the transaction.
+ */
+export function writeStoreRows(
+  db: DatabaseSync,
+  writes: readonly StoreWrite[],
+): void {
+  const upsert = db.prepare(
+    `INSERT INTO ${STORE_TABLE} (key, blob, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET blob = excluded.blob, updated_at = CURRENT_TIMESTAMP`,
+  );
+  const remove = db.prepare(`DELETE FROM ${STORE_TABLE} WHERE key = ?`);
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    for (const write of writes) {
+      if ("remove" in write) {
+        remove.run(write.key);
+      } else {
+        upsert.run(write.key, write.value);
+      }
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    if (db.isTransaction) {
+      db.exec("ROLLBACK");
+    }
+    throw error;
   }
 }

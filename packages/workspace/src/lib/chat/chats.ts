@@ -18,12 +18,13 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { indexedByStore, kept, unkept } from "../workspace-index";
 import { askIn, type ChatActivity, chatActivity, isWorking } from "./activity";
 import { listChatIds } from "./chat-records";
-import { chatConversation, listChildTasks } from "./children";
+import { listChildTasks, sessionRole } from "./children";
 import { joinedMidTurn } from "./mid-turn";
 import { latestStepIn } from "./step-label";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
 import { hasPendingWake } from "./wake";
+import { chatStateOf } from "./chat-state";
 import { createWriteQueue } from "../create-write-queue";
 
 /** How much of the agent's last reply a chat's row shows. */
@@ -80,6 +81,13 @@ export const ChatSchema = z.object({
   lastAsk: z.string().optional(),
   /** When the last reply with words finished, in ms; absent until there is one. */
   lastReplyAt: z.number().optional(),
+  /**
+   * The chat's own newest labeled step, and when the message holding it was
+   * sent: what its line says it last did once it is at rest.
+   */
+  lastStep: z.object({ at: z.number(), text: z.string() }).optional(),
+  /** When the user last sent a message, in ms, wake notes aside; the chat's creation before one is saved. */
+  lastUserMessageAt: z.number(),
   /** The user's first message, whatever it carried; absent only before one is saved. */
   root: SessionMessage.UserSchemaWithParts.optional(),
   /** The tasks filed from this chat that are at work right now. */
@@ -151,16 +159,20 @@ export async function chatById(chatId: ChatId): Promise<Chat | undefined> {
 }
 
 /**
- * Whether anything of the chat's is still moving: its own agent, or a task
- * filed from it that is not stopped on an ask. A chat that is not has
- * settled, and the next move is the user's.
+ * Whether anything of the chat's is still moving, by the rule its row
+ * follows. A chat that is not has settled, and the next move is the user's.
  */
 export async function chatIsWorking(chatId: ChatId): Promise<boolean> {
-  if (chatIsAlive(chatId)) {
-    return true;
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
+    return false;
+  }
+  const digest = await chatDigest(chatId, sessionId);
+  if (!digest) {
+    return false;
   }
   const { running } = await chatActivity(chatId);
-  return running.some((task) => !task.waiting);
+  return stateOf(chatId, digest, running).state === "working";
 }
 
 /**
@@ -256,9 +268,11 @@ export function startChatUnreadOnSettle(): void {
     for await (const { id, sessionId } of publisher.subscribe("session.done")) {
       try {
         // A task's turn ending is news the chat's own next reply carries.
-        const chatId = chatConversation(id, sessionId);
-        if (chatId && !(await chatIsWorking(chatId))) {
-          await markChatUnread(chatId, { byUser: false });
+        if (
+          sessionRole(id, sessionId) === "chat" &&
+          !(await chatIsWorking(id))
+        ) {
+          await markChatUnread(id, { byUser: false });
         }
       } catch (error) {
         getWorkspaceConfig().captureException(error);
@@ -323,7 +337,7 @@ export async function unarchiveChat(chatId: ChatId): Promise<boolean> {
 }
 
 /**
- * The hosts a task's session has visited, held until its chat's store is
+ * The hosts a task's session has visited, held until its session is
  * written: the browser records a visit there and announces nothing.
  */
 const filedHosts = indexedByStore<string[]>("task_hosts");
@@ -342,6 +356,7 @@ interface ChatDigest {
   lastAssistantAt?: number;
   lastMessageAt?: number;
   lastReplyAt?: number;
+  lastUserMessageAt?: number;
   madeFiles: string[];
   /** Whether the chat's last turn ended in an error with nothing said after it. */
   failed: boolean;
@@ -355,6 +370,8 @@ interface ChatDigest {
   session: Session.Type;
   /** The last reply with words: when it finished and its first line. */
   spoken?: { at: number; text: string };
+  /** The chat's own newest labeled step, in any turn, and when its message was sent. */
+  lastStep?: { at: number; text: string };
   /** The step the chat's current turn is on, from its own calls since the user's newest message. */
   stepInTurn?: string;
 }
@@ -458,24 +475,8 @@ async function chatFor(
     ...(task.waiting ? { waiting: task.waiting } : {}),
   }));
 
-  // A task stopped on an ask is running to the machine and stalled to the
-  // user, so it does not make the chat work; it makes it wait, unless
-  // something else in the chat is moving. The chat's own agent stopped
-  // on an ask of its own is the same: alive to the machine, waiting to the
-  // user.
-  const ownWorking =
-    (chatIsAlive(chatId) && digest.ownAsk === undefined) ||
-    turnIsStarting(digest);
-  const working =
-    ownWorking || filed.some((task) => !task.waiting) || hasPendingWake(chatId);
-  const ask = working ? undefined : askOf(digest, filed);
-  const state = working
-    ? "working"
-    : ask
-      ? "waiting"
-      : digest.failed
-        ? "failed"
-        : "idle";
+  const { ask: anyAsk, ownWorking, state } = stateOf(chatId, digest, filed);
+  const ask = state === "working" ? undefined : anyAsk;
 
   const lead = runningTasks.find((task) => !task.waiting);
   const latest = latestFor({
@@ -495,9 +496,10 @@ async function chatFor(
     sites: await sitesHeld(chatId, digest.openedHosts, filedTasks),
   };
 
+  const createdAt = (root?.metadata.createdAt ?? session.createdAt).getTime();
   return {
     archived: session.archivedAt !== undefined,
-    createdAt: (root?.metadata.createdAt ?? session.createdAt).getTime(),
+    createdAt,
     holds: {
       apps: [
         ...made.apps,
@@ -515,6 +517,8 @@ async function chatFor(
     ...(digest.lastReplyAt === undefined
       ? {}
       : { lastReplyAt: digest.lastReplyAt }),
+    ...(digest.lastStep ? { lastStep: digest.lastStep } : {}),
+    lastUserMessageAt: digest.lastUserMessageAt ?? createdAt,
     ...(root ? { root } : {}),
     runningTasks,
     sessionId: session.id,
@@ -538,7 +542,7 @@ async function chatFor(
   };
 }
 
-/** Each chat's digest, kept until its store changes. */
+/** Each chat's digest, kept until its own session changes. */
 const chatDigests = indexedByStore<ChatDigest | undefined>("chat_digests");
 
 /** A chat's digest, or none when its record or its messages cannot be read. */
@@ -546,7 +550,7 @@ function chatDigest(
   chatId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<ChatDigest | undefined> {
-  return chatDigests(chatId, async () => {
+  return chatDigests(chatId, sessionId, async () => {
     const session = await Store.getSession(sessionId, chatId);
     if (session.isErr()) {
       return unkept(undefined);
@@ -580,6 +584,16 @@ function digestOf(
       message.role === "user" || message.role === "assistant",
   );
   const lastUser = messages.findLast((message) => message.role === "user");
+  // A wake note is written as a user message but carries only task or app
+  // news; everything else the user sent, asks on a file alone included.
+  const lastUserMessage = messages.findLast(
+    (message) =>
+      message.role === "user" &&
+      !message.parts.every(
+        (part) =>
+          part.type === "data-taskEvent" || part.type === "data-appEvent",
+      ),
+  );
   const spoken = messages.findLast(
     (message) => message.role === "assistant" && hasWords(message),
   );
@@ -597,6 +611,7 @@ function digestOf(
     (message) => message.role === "user" && !joinedMidTurn(message),
   );
   const stepInTurn = latestStepIn(messages.slice(turnStart + 1));
+  const lastStep = lastStepIn(messages);
   const lastMessageAt = messages.at(-1)?.metadata.createdAt.getTime();
   const lastReplyAt = replies.at(-1)?.metadata.finishedAt?.getTime();
   // The last thing the agent did ended in an error, after the user's
@@ -617,6 +632,9 @@ function digestOf(
     lastAsk: lastUser ? firstLine(textOf(lastUser)) : "",
     ...(lastMessageAt !== undefined && { lastMessageAt }),
     ...(lastReplyAt !== undefined && { lastReplyAt }),
+    ...(lastUserMessage && {
+      lastUserMessageAt: lastUserMessage.metadata.createdAt.getTime(),
+    }),
     madeFiles: filesHeld(messages),
     ...(newestTurn && {
       newestTurn: {
@@ -635,6 +653,7 @@ function digestOf(
         text: firstLine(textOf(spoken)),
       },
     }),
+    ...(lastStep && { lastStep }),
     ...(stepInTurn !== undefined && { stepInTurn }),
   };
 }
@@ -643,16 +662,12 @@ function filedHostsOf(
   chatId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<string[]> {
-  return filedHosts(
-    chatId,
-    async () => {
-      const browser = await getBrowserState(chatId, sessionId);
-      return browser.isOk()
-        ? kept(browser.value?.visitedHosts ?? [])
-        : unkept([]);
-    },
-    sessionId,
-  );
+  return filedHosts(chatId, sessionId, async () => {
+    const browser = await getBrowserState(chatId, sessionId);
+    return browser.isOk()
+      ? kept(browser.value?.visitedHosts ?? [])
+      : unkept([]);
+  });
 }
 
 /** The paths the replies handed over, deduped, the newest mention last. */
@@ -730,6 +745,19 @@ function latestFor({
 
 async function loadShared(): Promise<Shared> {
   return { knownApps: await knownAppSlugs() };
+}
+
+/** The newest labeled step in a transcript, and when the message holding it was sent. */
+function lastStepIn(
+  messages: SessionMessage.WithParts[],
+): { at: number; text: string } | undefined {
+  for (const message of messages.toReversed()) {
+    const text = latestStepIn([message]);
+    if (text !== undefined) {
+      return { at: message.metadata.createdAt.getTime(), text };
+    }
+  }
+  return undefined;
 }
 
 /** Each item once, where it last appeared. */
@@ -904,7 +932,30 @@ function webHostOf(url: string): string {
   }
 }
 
-/** Whether the chat's own agent is at work this moment. */
+/**
+ * Where a chat stands by `chatStateOf`, read from its digest and the tasks
+ * running in it, with what it waits on the user for.
+ */
+function stateOf(
+  chatId: ChatId,
+  digest: ChatDigest,
+  running: ChatActivity["running"],
+) {
+  const ask = askOf(digest, running);
+  return {
+    ask,
+    ...chatStateOf({
+      failed: digest.failed,
+      hasAsk: ask !== undefined,
+      ownAlive: chatIsAlive(chatId),
+      ownAsking: digest.ownAsk !== undefined,
+      pendingWake: hasPendingWake(chatId),
+      tasks: running,
+      turnStarting: turnIsStarting(digest),
+    }),
+  };
+}
+
 /**
  * How long a message with no reply yet counts as its turn starting. A message
  * is written before the agent it starts is running, so a list read between the
@@ -913,6 +964,7 @@ function webHostOf(url: string): string {
  */
 const TURN_START_GRACE_MS = 30_000;
 
+/** Whether the chat's own agent is at work this moment. */
 function chatIsAlive(chatId: ChatId): boolean {
   const sessionId = sessionOfChat(chatId);
   return sessionId !== undefined && isWorking(chatId, sessionId);

@@ -7,7 +7,7 @@ import { TASKS_DIR_NAME } from "../constants";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { type BrowserTarget, encodeBrowserTargetId } from "../types";
+import { type BrowserTarget, browserTargetOf } from "../types";
 import {
   BLANK_PAGE_URL,
   getBrowserState,
@@ -68,10 +68,7 @@ describe("browser state", () => {
 });
 
 describe("restoring a reopened tab", () => {
-  const targetId = encodeBrowserTargetId(
-    ChatIdSchema.parse("browser-state-test"),
-    sessionId,
-  );
+  const targetId = browserTargetOf(sessionId);
 
   function withTargets(targets: BrowserTarget[]) {
     const sendCommand = vi.fn(() => Promise.resolve({}));
@@ -96,7 +93,6 @@ describe("restoring a reopened tab", () => {
     const result = await restoreLastPage({
       fallbackUrl: "https://example.org/remembered",
       targetId,
-      chatId,
     });
 
     expect(result.isOk()).toBe(true);
@@ -113,7 +109,6 @@ describe("restoring a reopened tab", () => {
     await restoreLastPage({
       fallbackUrl: "https://example.com",
       targetId,
-      chatId,
     });
 
     expect(sendCommand).not.toHaveBeenCalled();
@@ -131,7 +126,6 @@ describe("restoring a reopened tab", () => {
     const result = await restoreLastPage({
       fallbackUrl: "https://example.com",
       targetId,
-      chatId,
     });
 
     expect(result._unsafeUnwrapErr().message).toBe("guest is gone");

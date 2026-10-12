@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { ChatIdSchema, type ChatId } from "../schemas/chat-id";
+import { type ChatId } from "../schemas/chat-id";
 import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
@@ -21,7 +21,7 @@ let chatId: ChatId;
 
 async function run(command: string, { chat = false } = {}) {
   const bash = await createBashEnv({
-    chat: chat ? { id: ChatIdSchema.parse(chatId) } : undefined,
+    role: chat ? "chat" : "task",
     sessionId,
     chatId,
   });

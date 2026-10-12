@@ -3,10 +3,9 @@ import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { useTargetAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import {
   type BrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   type ChatId,
   StoreId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { useEffect, useState } from "react";
 
@@ -96,10 +95,7 @@ export function WindowTabStrip({
           key={id}
           onChange={reportDriven}
           tabId={id}
-          targetId={encodeBrowserTargetId(
-            WINDOW_ID,
-            StoreId.SessionSchema.parse(id),
-          )}
+          targetId={browserTargetOf(StoreId.SessionSchema.parse(id))}
         />
       ))}
       <TabStrip

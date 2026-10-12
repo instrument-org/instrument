@@ -1,9 +1,10 @@
 import { aiGatewayApp, noopModelCache } from "@instrument-org/ai-gateway";
 import { noop } from "radashi";
-import { describe, expect, it } from "vitest";
-import { type AnyActorLogic, createActor, fromCallback } from "xstate";
+import { describe, expect, it, vi } from "vitest";
+import { type AnyActorLogic, createActor, fromCallback, setup } from "xstate";
 
 import { createMemoryAppsConfig } from "../../lib/apps/memory-config";
+import * as recordFolders from "../../lib/record-folders";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
@@ -25,7 +26,7 @@ const stubActor: AnyActorLogic = fromCallback(noop);
 // stand in for every child; the test only needs spawnable, stoppable children.
 const stubActors = {
   sessionMachine: stubActor,
-  chatBrowserMachine: stubActor,
+  windowBrowserLogic: stubActor,
   workspaceServerLogic: stubActor,
 } as Parameters<typeof workspaceMachine.provide>[0]["actors"];
 
@@ -161,7 +162,6 @@ describe("workspaceMachine session ref lifecycle", () => {
       value: {
         actorId: sessionRef?.id ?? "",
         chatId,
-        usedNonReadOnlyTools: false,
       },
     });
 
@@ -192,7 +192,6 @@ describe("workspaceMachine session ref lifecycle", () => {
       value: {
         actorId: first?.id ?? "",
         chatId,
-        usedNonReadOnlyTools: false,
       },
     });
 
@@ -202,6 +201,68 @@ describe("workspaceMachine session ref lifecycle", () => {
     expect(remaining).toHaveLength(1);
     expect(remaining?.[0]?.id).toBe(second?.id);
 
+    actor.stop();
+  });
+});
+
+describe("workspaceMachine answers", () => {
+  it("gives an answer to the chat's own session and to none of its tasks", () => {
+    const chatId = ChatIdSchema.parse("answer-routing");
+    const chatSession = StoreId.newSessionId();
+    const taskSession = StoreId.newSessionId();
+    vi.spyOn(recordFolders, "sessionOfChat").mockReturnValue(chatSession);
+    const answered: StoreId.Session[] = [];
+    // A session that only knows its id and notes the answers it hears.
+    const listeningSession: AnyActorLogic = setup({
+      types: {
+        context: {} as { sessionId: StoreId.Session },
+        input: {} as { sessionId: StoreId.Session },
+      },
+    }).createMachine({
+      context: ({ input }) => ({ sessionId: input.sessionId }),
+      on: {
+        updateInteractiveToolCall: {
+          actions: ({ context }) => {
+            answered.push(context.sessionId);
+          },
+        },
+      },
+    });
+    const actor = createActor(
+      workspaceMachine.provide({
+        actors: {
+          ...stubActors,
+          sessionMachine: listeningSession,
+        } as Parameters<typeof workspaceMachine.provide>[0]["actors"],
+      }),
+      { input: createWorkspaceActor().options.input },
+    );
+    actor.start();
+    for (const sessionId of [taskSession, chatSession]) {
+      actor.send({
+        type: "internal.spawnSession",
+        value: {
+          chatId,
+          message: buildUserMessage(),
+          model: createMockAIGatewayModel(),
+          sessionId,
+        },
+      });
+    }
+
+    actor.send({
+      type: "updateInteractiveToolCall",
+      value: {
+        id: chatId,
+        update: {
+          toolCallId: "call",
+          type: "success",
+          value: { output: { selectedChoice: "Yes" }, toolName: "choose" },
+        },
+      },
+    });
+
+    expect(answered).toEqual([chatSession]);
     actor.stop();
   });
 });

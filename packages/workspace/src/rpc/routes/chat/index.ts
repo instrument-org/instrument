@@ -54,7 +54,10 @@ const live = {
             signal,
             (change) =>
               change.id === input.id &&
-              (change.kind === "settings" || change.kind === "removed"),
+              // The title is on the chat's session row, where a rename writes it.
+              (change.kind === "settings" ||
+                change.kind === "session" ||
+                change.kind === "removed"),
           ),
         ],
         read: () => call(info, input, { context, signal }),

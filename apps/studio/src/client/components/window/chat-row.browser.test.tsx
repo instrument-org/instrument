@@ -154,6 +154,7 @@ function chat(overrides: Partial<Chat> = {}): Chat {
     holds: { apps: [], files: [], sites: [] },
     id: CHAT_ID,
     lastReplyAt: MOVED_AT.getTime(),
+    lastUserMessageAt: STARTED_AT.getTime(),
     latest: { at: MOVED_AT.getTime(), kind: "reply", text: REPLY },
     root: {
       id: messageId,
@@ -418,7 +419,7 @@ describe("ChatRow", () => {
     // The time in the bottom corner. The innermost span with its words,
     // since the corner around it has them too.
     const time = [...row.querySelectorAll("span")]
-      .findLast((span) => span.textContent === "9:11 AM")
+      .findLast((span) => span.textContent === "8:46 AM")
       ?.getBoundingClientRect();
     expect(time?.top).toBeGreaterThanOrEqual(
       peek?.getBoundingClientRect().bottom ?? 0,
@@ -460,7 +461,7 @@ describe("ChatRow", () => {
     const { row } = await renderRow(chat());
     expect(row.querySelector('[aria-label="3 replies"]')).toBeNull();
     expect(firstLineOf(row).textContent).toBe(TITLE);
-    expect(row.textContent).toContain("9:11 AM");
+    expect(row.textContent).toContain("8:46 AM");
   });
 
   it.each<[string, Partial<Chat>]>([
@@ -598,7 +599,7 @@ describe("ChatRow", () => {
       chat({ lastReplyAt: undefined, latest: undefined }),
     );
     expect(peekOf(row)).toBeNull();
-    expect(row.textContent).toBe(`${TITLE}9:11 AM`);
+    expect(row.textContent).toBe(`${TITLE}8:46 AM`);
   });
 
   it("opens the chat from a click anywhere on it, and from Enter", async () => {

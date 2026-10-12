@@ -1,6 +1,6 @@
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
-import { useTaskSession } from "@/client/hooks/use-task-session";
+import { useChatSession } from "@/client/hooks/use-chat-session";
 import { rpcClient } from "@/client/rpc/client";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
@@ -32,7 +32,7 @@ export function CreatedTaskCard({ chatId }: { chatId: string }) {
   const id = StoreId.SessionSchema.parse(chatId);
   // The chat whose transcript this card is in, which started the task and
   // holds it.
-  const chat = ChatIdSchema.parse(useTaskSession().chatId);
+  const chat = ChatIdSchema.parse(useChatSession().chatId);
   // Where it stands, from the list of the chat it was started in: the step
   // while it works, and once it is done the line it ended on: what it made,
   // what it asks for, or how it stopped.

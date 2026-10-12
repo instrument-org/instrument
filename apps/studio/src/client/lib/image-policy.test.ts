@@ -1,7 +1,6 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import { rendererContentSecurityPolicy } from "../../content-security-policy";
 import {
   classifyImageSource,
   isImageSourceAllowed,
@@ -130,12 +129,7 @@ describe("isImageSourceAllowed", () => {
 // list is fine and deliberate; this only fails when the policy names a host
 // the CSP refuses.
 describe("the remote allowlist inside the CSP", () => {
-  const html = readFileSync(
-    fileURLToPath(new URL("../../index.html", import.meta.url)),
-    "utf8",
-  );
-  const imgSrc = /img-src ([^;]+);/.exec(html)?.[1];
-  const sources = imgSrc?.split(/\s+/).filter(Boolean) ?? [];
+  const sources = rendererContentSecurityPolicy({ kind: "release" })["img-src"];
 
   // CSP host-source matching, for the shapes this file uses: an exact
   // `https://host` and a wildcard `https://*.suffix`.

@@ -1,8 +1,7 @@
 import {
   type BrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  ChatIdSchema,
 } from "@instrument-org/workspace/client";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,9 +12,8 @@ const { useGuest } = vi.hoisted(() => ({ useGuest: vi.fn() }));
 
 vi.mock("@/client/hooks/use-browser-targets", () => ({ useGuest }));
 
-const TASK_ID = ChatIdSchema.parse("guest-navigation-test");
-const FIRST = encodeBrowserTargetId(TASK_ID, StoreId.newSessionId());
-const SECOND = encodeBrowserTargetId(TASK_ID, StoreId.newSessionId());
+const FIRST = browserTargetOf(StoreId.newSessionId());
+const SECOND = browserTargetOf(StoreId.newSessionId());
 
 /** A stand-in guest handle whose history the test moves by hand. */
 function fakeGuest(url: string, targetId: BrowserTargetId = FIRST) {

@@ -10,7 +10,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { ChatList } from "./chat-list";
 import { chatListOptions } from "./chat-list-query";
 import {
-  byActivity,
+  byLastUserMessage,
   type Chat,
   type ChatFilters,
   draftTitle,
@@ -126,7 +126,7 @@ export function ChatPane({
   });
   const isAISearch = aiSearch.isLooking || aiSearch.chats.length > 0;
   const shown = matched.length > 0 ? matched : aiSearch.chats;
-  const listed = byActivity(shown).map((chat) => chat.id);
+  const listed = byLastUserMessage(shown).map((chat) => chat.id);
   // Keyed by value: the list is rebuilt on every read of the chats, and
   // the callback is written fresh each render; the ids are what matter.
   const listedKey = listed.join("\n");

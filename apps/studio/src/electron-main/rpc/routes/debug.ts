@@ -7,6 +7,7 @@ import {
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { noteUpdate } from "@/electron-main/lib/notices";
+import { openPathOnComputer } from "@/electron-main/lib/open-path";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { openAppWindow } from "@/electron-main/windows/app-window";
 import {
@@ -215,7 +216,7 @@ const getAppEnvironment = devOnly
   }));
 
 async function openFolder(folderPath: string) {
-  const errorMessage = await shell.openPath(folderPath);
+  const errorMessage = await openPathOnComputer(folderPath);
   if (errorMessage) {
     shell.showItemInFolder(folderPath);
   }

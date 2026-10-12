@@ -7,8 +7,6 @@ import {
   inboxOpenAtom,
   inboxWidthAtom,
   paneOpenByGroupAtom,
-  screenViewsAtom,
-  walkedFoldersAtom,
   chatsOutOf,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
@@ -32,6 +30,7 @@ import { ChatScreen } from "@/client/components/window/chat-screen";
 import { ChatTiles } from "@/client/components/window/chat-tiles";
 import { GroupItem } from "@/client/components/window/group-item";
 import { useWindow, WindowContext } from "@/client/components/window/context";
+import { isPaneOpen } from "@/client/components/window/draft-context";
 import { computerTabOf } from "@/client/components/window/file-tabs";
 import { useGroupTab } from "@/client/components/window/group-tab";
 import { useInboxRoom } from "@/client/components/window/inbox-room";
@@ -39,11 +38,12 @@ import { InboxToggle } from "@/client/components/window/inbox-toggle";
 import { NoChatOpen } from "@/client/components/window/no-chat-open";
 import { RightPane } from "@/client/components/window/right-pane";
 import { screenLocation } from "@/client/components/window/screen-presentation";
-import {
-  pageSlotByTabAtom,
-  useShell,
-} from "@/client/components/window/shell-context";
+import { useShell } from "@/client/components/window/shell-context";
 import { taskHref, tasksHref } from "@/client/components/window/tab-location";
+import {
+  tabSurfaceAtom,
+  useTabSurface,
+} from "@/client/components/window/tab-surface";
 import { TabLocationRow } from "@/client/components/window/tab-location-row";
 import { chatHref, matchScreen } from "@/client/components/window/window-href";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
@@ -53,9 +53,8 @@ import { rpcClient } from "@/client/rpc/client";
 import { outputFolderHref } from "@/shared/computer-href";
 import {
   type ChatId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import {
   createFileRoute,
@@ -141,7 +140,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       ? []
       : windowTabs.allTabs.filter((tab) => tab.group === chat);
   const up = windowTabs.selectedTabIn(chat);
-  const isPaneWanted = chat === undefined || (paneOpenByGroup[chat] ?? true);
+  const isPaneWanted = chat === undefined || isPaneOpen(chat, paneOpenByGroup);
   const showsPane = up !== undefined && isPaneWanted;
 
   // What gives way as the window narrows, one thing at a time and in one
@@ -209,9 +208,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
         setPaneOpen(chat, true);
       }}
       tabs={tabs}
-      targetOf={(tab) =>
-        encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(tab.id))
-      }
+      targetOf={(tab) => browserTargetOf(StoreId.SessionSchema.parse(tab.id))}
       taskTitles={shell.childTitles}
     />
   );
@@ -421,8 +418,8 @@ function RouteScreen({ href }: { href: string }) {
   const shell = useShell();
   const appsBySlug = useAppsBySlug();
   const tabId = useTabId();
-  const screenView = useAtomValue(screenViewsAtom)[tabId];
-  const walkedFolder = useAtomValue(walkedFoldersAtom)[tabId];
+  const { view: screenView, walked: walkedFolder } =
+    useAtomValue(tabSurfaceAtom)[tabId] ?? {};
   usePageSlot(null, undefined, false);
   // The row's head and tail, where a file's viewer puts a toggle for its
   // panel and its actions.
@@ -630,22 +627,5 @@ function usePageSlot(
   chrome: PageChromeSlots | undefined,
   isShown: boolean,
 ) {
-  const setSlots = useSetAtom(pageSlotByTabAtom);
-  const tabId = useTabId();
-  useEffect(() => {
-    if (!host) {
-      return;
-    }
-    const slot = { chrome, host, isShown };
-    setSlots((current) => ({ ...current, [tabId]: slot }));
-    return () => {
-      setSlots((current) => {
-        if (current[tabId] !== slot) {
-          return current;
-        }
-        const { [tabId]: _gone, ...rest } = current;
-        return rest;
-      });
-    };
-  }, [chrome, host, isShown, setSlots, tabId]);
+  useTabSurface("slot", host ? { chrome, host, isShown } : null);
 }

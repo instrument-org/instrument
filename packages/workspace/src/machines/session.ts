@@ -16,9 +16,8 @@ import {
 import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
 import { callsItOff, MID_TURN_NOTE } from "../lib/chat/mid-turn";
-import { createSession } from "../lib/create-session";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
-import { chatConversation } from "../lib/chat/children";
+import { sessionRole } from "../lib/chat/children";
 import { recordChanged } from "../lib/record-changes";
 import { Store } from "../lib/store";
 import { isTypedByUser } from "../lib/typed-by-user";
@@ -35,6 +34,7 @@ import {
   type AgentParentEvent,
   type ToolCallUpdate,
 } from "./agent";
+import { type StopNotice } from "../schemas/stop-notice";
 import { type StopReason } from "./execute-tool-call";
 
 export type SessionMachineParentEvent = {
@@ -43,7 +43,6 @@ export type SessionMachineParentEvent = {
     actorId: string;
     error?: unknown;
     chatId: ChatId;
-    usedNonReadOnlyTools: boolean;
   };
 };
 
@@ -63,7 +62,7 @@ type SessionMachineEvent =
       type: "addMessage";
       value: SessionMessage.UserWithParts;
     }
-  | { reason?: StopReason; type: "stop" }
+  | { notice?: StopNotice; reason?: StopReason; type: "stop" }
   | { type: "done" }
   | { type: "error"; value: { message: string } }
   | { type: "runTurn" }
@@ -78,9 +77,17 @@ export const sessionMachine = setup({
 
     clearAgentRef: assign({ agentRef: undefined }),
 
-    forceStopAgent: stopChild(({ context }) => context.agentRef ?? "agent"),
+    rememberStopNotice: assign({
+      stopNotice: ({ context, event }) =>
+        (event.type === "stop" ? event.notice : undefined) ??
+        context.stopNotice,
+    }),
 
-    markUsedNonReadOnlyTools: assign({ usedNonReadOnlyTools: true }),
+    dropFirstQueued: assign({
+      queuedMessages: ({ context }) => context.queuedMessages.slice(1),
+    }),
+
+    forceStopAgent: stopChild(({ context }) => context.agentRef ?? "agent"),
 
     spawnAgentMachine: assign({
       agentRef: (
@@ -175,24 +182,12 @@ export const sessionMachine = setup({
       const existingSession = await Store.getSession(sessionId, chatId, {
         signal,
       });
+      // Every session is written before its first message: a chat's with
+      // the chat, a task's when the chat starts it.
       if (existingSession.isErr()) {
-        if (existingSession.error.type === "workspace-not-found-error") {
-          const result = await createSession({
-            sessionId,
-            signal,
-            chatId,
-          });
-          if (result.isErr()) {
-            throw new Error(
-              `Failed to create session: ${result.error.message}`,
-            );
-          }
-          return;
-        } else {
-          throw new Error(
-            `Failed to get session: ${existingSession.error.message}`,
-          );
-        }
+        throw new Error(
+          `Failed to get session: ${existingSession.error.message}`,
+        );
       } else {
         const result = await Store.saveSession(
           {
@@ -227,9 +222,12 @@ export const sessionMachine = setup({
       /** Queued messages the sender wrote to the store on arrival; see `addMessage`. */
       savedMessageIds: StoreId.Message[];
       sessionId: StoreId.Session;
+      /** Whose stop ended a turn of this session; goes out with `session.done`. */
+      stopNotice?: StopNotice;
+      /** A stop arrived before a turn began: what is queued is saved, and no turn starts. */
+      stoppedBeforeStart: boolean;
       subscription?: { unsubscribe: () => void };
       chatId: ChatId;
-      usedNonReadOnlyTools: boolean;
     },
     events: {} as SessionMachineEvent,
     input: {} as {
@@ -274,9 +272,9 @@ export const sessionMachine = setup({
       runRequested: input.runRequested ?? false,
       savedMessageIds: input.savedMessageIds ?? [],
       sessionId: input.sessionId,
+      stoppedBeforeStart: false,
       subscription,
       chatId: input.chatId,
-      usedNonReadOnlyTools: false,
     };
   },
   id: "session",
@@ -322,7 +320,7 @@ export const sessionMachine = setup({
             return;
           }
           const typedIntoChat =
-            chatConversation(context.chatId, context.sessionId) !== undefined &&
+            sessionRole(context.chatId, context.sessionId) === "chat" &&
             isTypedByUser(event.value);
           if (
             event.interrupt ||
@@ -365,8 +363,10 @@ export const sessionMachine = setup({
     runTurn: {
       actions: assign({ runRequested: true }),
     },
+    // Before the agent runs, a stop is held: what is queued is saved, and
+    // no turn starts.
     stop: {
-      actions: log("Agent not running"),
+      actions: ["rememberStopNotice", assign({ stoppedBeforeStart: true })],
     },
     updateInteractiveToolCall: [
       {
@@ -389,7 +389,7 @@ export const sessionMachine = setup({
   },
   states: {
     Agent: {
-      initial: "UsingReadOnlyTools",
+      initial: "Running",
 
       on: {
         "agent.done": {
@@ -404,11 +404,11 @@ export const sessionMachine = setup({
         },
         stop: [
           {
-            actions: "stopAgent",
+            actions: ["rememberStopNotice", "stopAgent"],
             guard: "isAgentRefActive",
             target: ".Stopping",
           },
-          { target: ".AgentDone" },
+          { actions: "rememberStopNotice", target: ".AgentDone" },
         ],
       },
 
@@ -442,56 +442,12 @@ export const sessionMachine = setup({
           },
         },
 
-        UsingNonReadOnlyTools: {
-          initial: "Running",
-          on: {
-            "agent.paused": ".Paused",
-            "agent.resumed": ".Running",
-            "agent.usingTool": {
-              // No-op because we've already moved to this state
-            },
-          },
-          states: {
-            Paused: {
-              tags: ["agent.paused"],
-            },
-            Running: {
-              tags: ["agent.running"],
-            },
-          },
-          tags: ["agent.using-non-read-only-tools"],
+        Paused: {
+          on: { "agent.resumed": "Running" },
         },
-        UsingReadOnlyTools: {
-          initial: "Running",
-          on: {
-            "agent.paused": ".Paused",
-            "agent.resumed": ".Running",
-            "agent.usingTool": {
-              // No-op because we've already moved to this state
-            },
-          },
-          states: {
-            Paused: {
-              on: {
-                "agent.usingTool": {
-                  actions: "markUsedNonReadOnlyTools",
-                  guard: ({ event }) => !event.value.readOnly,
-                  target: "#session.Agent.UsingNonReadOnlyTools.Paused",
-                },
-              },
-              tags: ["agent.paused"],
-            },
-            Running: {
-              on: {
-                "agent.usingTool": {
-                  actions: "markUsedNonReadOnlyTools",
-                  guard: ({ event }) => !event.value.readOnly,
-                  target: "#session.Agent.UsingNonReadOnlyTools.Running",
-                },
-              },
-              tags: ["agent.running"],
-            },
-          },
+        Running: {
+          on: { "agent.paused": "Paused" },
+          tags: ["agent.running"],
         },
       },
       tags: ["agent.alive"],
@@ -505,6 +461,7 @@ export const sessionMachine = setup({
 
         publisher.publish("session.done", {
           id: context.chatId,
+          ...(context.stopNotice ? { notice: context.stopNotice } : {}),
           sessionId: context.sessionId,
         });
         recordChanged(context.chatId, "agent");
@@ -515,7 +472,6 @@ export const sessionMachine = setup({
             actorId: self.id,
             error: context.error,
             chatId: context.chatId,
-            usedNonReadOnlyTools: context.usedNonReadOnlyTools,
           },
         });
       },
@@ -532,7 +488,8 @@ export const sessionMachine = setup({
           target: "SavingMessageAndSpawningAgent",
         },
         {
-          guard: ({ context }) => context.runRequested,
+          guard: ({ context }) =>
+            context.runRequested && !context.stoppedBeforeStart,
           target: "SpawningAgentOverStoredMessages",
         },
         { target: "Done" },
@@ -552,21 +509,24 @@ export const sessionMachine = setup({
             chatId: context.chatId,
           };
         },
-        onDone: {
-          actions: [
-            {
-              params: ({ event }) => ({ parentMessageId: event.output.id }),
-              type: "spawnAgentMachine",
-            },
-            assign({
-              queuedMessages: ({ context }) => {
-                const [_, ...rest] = context.queuedMessages;
-                return rest;
+        onDone: [
+          {
+            // Stopped before its turn began: the message stays, unanswered.
+            actions: "dropFirstQueued",
+            guard: ({ context }) => context.stoppedBeforeStart,
+            target: "ProcessingQueuedMessages",
+          },
+          {
+            actions: [
+              {
+                params: ({ event }) => ({ parentMessageId: event.output.id }),
+                type: "spawnAgentMachine",
               },
-            }),
-          ],
-          target: "Agent",
-        },
+              "dropFirstQueued",
+            ],
+            target: "Agent",
+          },
+        ],
         onError: {
           actions: "assignEventError",
           target: "Done",
@@ -597,7 +557,8 @@ export const sessionMachine = setup({
               },
               assign({ runRequested: false }),
             ],
-            guard: ({ event }) => event.output !== undefined,
+            guard: ({ context, event }) =>
+              event.output !== undefined && !context.stoppedBeforeStart,
             target: "Agent",
           },
           { target: "Done" },

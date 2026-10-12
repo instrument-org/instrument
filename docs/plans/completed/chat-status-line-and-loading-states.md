@@ -1,6 +1,6 @@
 # Plan: the chat's status line and loading states
 
-Status: proposed, not started.
+Status: done. The own-work field landed as `lastStep` on the chat's record beside `latest`, which already names the step a working chat is on; the header reads both rather than the transcript.
 
 The chat does quick work itself and forks slow work into tasks, and every tool call carries an `activity` heading. The window still draws the chat as if it only talked and delegated: typing dots stand at the transcript's tail for the whole turn, tool work included, and a second "Instrument is working" row appears at the tail while a task filed from the chat runs. The chat shows none of its own tool calls outside developer mode, so for a turn that spends a minute in tools the user sees dots and nothing else, and the header's step line only ever names a filed task's step. This plan makes the dots mean one thing (a reply is being written) and moves everything else to one line under the chat's title.
 

@@ -212,9 +212,6 @@ describe("task send", () => {
       })
     )._unsafeUnwrap();
     expect(own).toHaveLength(1);
-    expect(
-      (await Store.getSession(CHILD_ID, CHAT_ID))._unsafeUnwrap().status,
-    ).toBe("running");
   });
 
   it("starts an idle task either way", async () => {
@@ -241,7 +238,14 @@ describe("task stop", () => {
       "
     `);
     expect(sent.events).toEqual([
-      { type: "stopSessions", value: { id: CHAT_ID, sessionId: CHILD_ID } },
+      {
+        type: "stopSessions",
+        value: {
+          id: CHAT_ID,
+          notice: { by: "chat", wakesChat: false },
+          sessionId: CHILD_ID,
+        },
+      },
     ]);
   });
 
@@ -270,8 +274,22 @@ describe("task stop", () => {
     expect(result.stdout).toContain("Stopped t1.");
     expect(result.stdout).toContain("Stopped t2.");
     expect(sent.events).toEqual([
-      { type: "stopSessions", value: { id: CHAT_ID, sessionId: CHILD_ID } },
-      { type: "stopSessions", value: { id: CHAT_ID, sessionId: second } },
+      {
+        type: "stopSessions",
+        value: {
+          id: CHAT_ID,
+          notice: { by: "chat", wakesChat: false },
+          sessionId: CHILD_ID,
+        },
+      },
+      {
+        type: "stopSessions",
+        value: {
+          id: CHAT_ID,
+          notice: { by: "chat", wakesChat: false },
+          sessionId: second,
+        },
+      },
     ]);
   });
 

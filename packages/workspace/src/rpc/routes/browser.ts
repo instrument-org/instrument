@@ -6,21 +6,18 @@ import { lastBrowserAgentActivity } from "../../lib/browser-agent-activity";
 import { navigateTarget, restoreLastPage } from "../../lib/browser-state";
 import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
 import { getBrowserSessionDir } from "../../lib/chat-dir-utils";
-import { BrowserPresenceLevelSchema } from "../../machines/chat-browser";
-import { StoreId } from "../../schemas/store-id";
-import { ChatIdSchema } from "../../schemas/chat-id";
-import { BrowserTargetIdSchema, encodeBrowserTargetId } from "../../types";
+import { BrowserTargetIdSchema } from "../../types";
 import { base } from "../base";
 import { publisher } from "../publisher";
 
 const PresenceSchema = z.object({ active: z.literal(true) });
 
-// Create (or reuse) the browser guest for this chat/session so the user can open
-// it from the UI without waiting for the agent to run `agent-browser` first.
-// createTarget is idempotent per (chatId, sessionId): the agent's later commands
-// reuse the same guest (page, cookies, debugger). We register the target with the
-// chatBrowser lifecycle machine so a user-only browser (no agent CDP traffic) is
-// still tracked and reaped rather than leaking until app quit.
+// Create (or reuse) the browser guest for a window tab so the user can open it
+// from the UI without waiting for an agent to run `agent-browser` first.
+// createTarget is idempotent per tab: an agent's later commands reuse the same
+// guest (page, cookies, debugger). We register the target with the browser
+// lifecycle machine so a user-only page (no agent CDP traffic) is still
+// tracked and reaped rather than leaking until app quit.
 //
 // `url` is what a caller opening the browser *at* something passes, and it is
 // navigated here rather than by the caller because the guest does not exist yet
@@ -35,19 +32,17 @@ const open = base
   })
   .input(
     z.object({
-      id: ChatIdSchema,
       /** Where a tab that comes up blank goes: the address the window remembers it at. */
       restoreUrl: z.string().min(1).optional(),
-      sessionId: StoreId.SessionSchema,
+      targetId: BrowserTargetIdSchema,
       url: z.string().min(1).optional(),
     }),
   )
-  .output(z.object({ targetId: BrowserTargetIdSchema }))
   .handler(async ({ context, errors, input }) => {
-    const { id, restoreUrl, sessionId, url } = input;
+    const { restoreUrl, targetId, url } = input;
     const partitionDir = getBrowserSessionDir();
-    const target = await context.workspaceConfig.browser
-      .createTarget(id, sessionId, partitionDir)
+    await context.workspaceConfig.browser
+      .createTarget(targetId, partitionDir)
       .catch((error: unknown) => {
         throw errors.BROWSER_OPEN_FAILED({
           message: error instanceof Error ? error.message : "Unknown error",
@@ -58,18 +53,17 @@ const open = base
     // records a phantom target the reaper would try to close.
     context.workspaceRef.send({
       type: "registerBrowserTarget",
-      value: { id, partitionDir, sessionId, targetId: target.targetId },
+      value: { targetId },
     });
 
     // An explicit page replaces the restore rather than racing it: both would
     // navigate the same guest, and the one the user just clicked is the one
     // they meant.
     const navigated = url
-      ? await navigateTarget({ targetId: target.targetId, url })
+      ? await navigateTarget({ targetId, url })
       : await restoreLastPage({
           ...(restoreUrl === undefined ? {} : { fallbackUrl: restoreUrl }),
-          targetId: target.targetId,
-          chatId: id,
+          targetId,
         });
     // The tab is open, which is what was asked for; it just came up blank. A
     // navigate that timed out is a slow server rather than a bug, and the load
@@ -80,32 +74,26 @@ const open = base
     ) {
       context.workspaceConfig.captureException(navigated.error);
     }
-
-    return { targetId: target.targetId };
   });
 
 /**
- * A hold, not a query: subscribing acquires presence and aborting releases it,
- * so the subscription's lifetime is the whole payload. A viewer keeps the chat's
- * browser alive; drop the subscription and the chatBrowser machine starts the
- * clock that matches the lease that was dropped.
- *
- * `retained` is held for as long as the client keeps the chat page alive and
- * `visible` only while it is on screen, so a client that shows one page at a
- * time holds both for that page and `retained` alone for the rest. What decides
- * either is entirely the client's business.
+ * A hold, not a query: subscribing says the tab's page is drawn and aborting
+ * says it left the screen, so the subscription's lifetime is the whole
+ * payload. A tab with no hold starts its clock, and its guest is discarded
+ * when the clock runs out (see `windowBrowserLogic`). The client holds one
+ * for each page it draws and only while it draws it.
  *
  * The yielded value carries nothing, so the caller subscribes and ignores the
  * result. That is correct here and would be a bug on anything else under `live`.
  */
 const presence = base
-  .input(z.object({ id: ChatIdSchema, level: BrowserPresenceLevelSchema }))
+  .input(z.object({ targetId: BrowserTargetIdSchema }))
   .output(eventIterator(PresenceSchema))
   .handler(async function* ({ context, input, signal }) {
     invariant(signal, "presence subscription requires an AbortSignal");
     context.workspaceRef.send({
       type: "acquireBrowserPresence",
-      value: { id: input.id, level: input.level },
+      value: { targetId: input.targetId },
     });
 
     try {
@@ -126,7 +114,7 @@ const presence = base
     } finally {
       context.workspaceRef.send({
         type: "releaseBrowserPresence",
-        value: { id: input.id, level: input.level },
+        value: { targetId: input.targetId },
       });
     }
   });
@@ -147,15 +135,14 @@ const presence = base
 const agentActivity = base
   .input(
     z.object({
-      id: ChatIdSchema,
-      /** One guest of the chat's rather than all of them: a tab of the window's, driven by whichever task was handed it. */
-      targetId: BrowserTargetIdSchema.optional(),
+      /** The guest asked about: a window tab, driven by the chat or whichever task was handed it. */
+      targetId: BrowserTargetIdSchema,
     }),
   )
   .output(
     eventIterator(
       z.object({
-        /** When an agent last worked in the one guest asked about, in ms; absent when none has, or when the whole chat is asked about. */
+        /** When an agent last worked in the guest, in ms; absent when none has. */
         lastAt: z.number().optional(),
         revision: z.number(),
       }),
@@ -163,38 +150,27 @@ const agentActivity = base
   )
   .handler(async function* ({ input, signal }) {
     let revision = 0;
-    const lastAt =
-      input.targetId === undefined
-        ? undefined
-        : lastBrowserAgentActivity(input.targetId);
+    const lastAt = lastBrowserAgentActivity(input.targetId);
     yield { revision, ...(lastAt === undefined ? {} : { lastAt }) };
     for await (const event of publisher.subscribe("browser.agentActivity", {
       signal,
     })) {
-      if (
-        event.id === input.id &&
-        (input.targetId === undefined || event.targetId === input.targetId)
-      ) {
+      if (event.targetId === input.targetId) {
         revision += 1;
-        yield {
-          revision,
-          ...(input.targetId === undefined ? {} : { lastAt: Date.now() }),
-        };
+        yield { lastAt: Date.now(), revision };
       }
     }
   });
 
 /**
- * Closes a chat's browser for good: the guest goes, and the chat is told on
- * its next turn that its page is gone. What closing one of the window's tabs
- * means, as against hiding the panel it is drawn in.
+ * Closes a window tab's guest for good: the guest goes, and a chat holding
+ * the tab is told on its next turn that its page is gone. What closing one of
+ * the window's tabs means, as against hiding the panel it is drawn in.
  */
 const close = base
-  .input(z.object({ id: ChatIdSchema, sessionId: StoreId.SessionSchema }))
+  .input(z.object({ targetId: BrowserTargetIdSchema }))
   .handler(async ({ context, input }) => {
-    await context.workspaceConfig.browser.closeTarget(
-      encodeBrowserTargetId(input.id, input.sessionId),
-    );
+    await context.workspaceConfig.browser.closeTarget(input.targetId);
   });
 
 export const browser = {

@@ -264,6 +264,74 @@ async function userSays(
 }
 
 describe("listChats", () => {
+  it("keeps the user's timestamp through replies and harness notifications", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    expect((await listChats())[0]?.lastUserMessageAt).toBe(at(0).getTime());
+    await userSays(chatId, sessionId, "make a list", 1);
+    await agentSays(chatId, sessionId, "Checking the pantry", { minute: 2 });
+    expect((await listChats())[0]?.lastUserMessageAt).toBe(at(1).getTime());
+
+    const messageId = StoreId.newMessageId();
+    const saved = await Store.saveMessageWithParts(
+      {
+        id: messageId,
+        role: "user",
+        metadata: { createdAt: at(3), sessionId },
+        parts: [
+          {
+            type: "data-taskEvent",
+            data: {
+              events: [
+                {
+                  sessionId: StoreId.newSessionId(),
+                  status: "done",
+                  title: "Check the pantry",
+                },
+              ],
+            },
+            metadata: partMetadata({ messageId, sessionId }),
+          },
+        ],
+      },
+      chatFor(sessionId),
+    );
+    expect(saved.isOk()).toBe(true);
+    expect((await listChats())[0]?.lastUserMessageAt).toBe(at(1).getTime());
+
+    await userSays(chatId, sessionId, "", 4, { attachments: ["pantry.txt"] });
+    expect((await listChats())[0]?.lastUserMessageAt).toBe(at(4).getTime());
+    await userSays(chatId, sessionId, "include milk", 5);
+    expect((await listChats())[0]?.lastUserMessageAt).toBe(at(5).getTime());
+
+    const asksId = StoreId.newMessageId();
+    const asked = await Store.saveMessageWithParts(
+      {
+        id: asksId,
+        role: "user",
+        metadata: { createdAt: at(6), sessionId },
+        parts: [
+          {
+            type: "data-asks",
+            data: {
+              asks: [
+                {
+                  file: { name: "list.md", path: "list.md" },
+                  instruction: "add eggs",
+                  target: "line 3",
+                },
+              ],
+            },
+            metadata: partMetadata({ messageId: asksId, sessionId }),
+          },
+        ],
+      },
+      chatFor(sessionId),
+    );
+    expect(asked.isOk()).toBe(true);
+    expect((await listChats())[0]?.lastUserMessageAt).toBe(at(6).getTime());
+  });
+
   it("lists the chats oldest first, with their roots, counts and latest lines", async () => {
     const chatId = await freshChat();
     const groceries = await session(chatId, "Groceries for the week", 1);
@@ -446,6 +514,20 @@ describe("listChats", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     const [settled] = await listChats();
     expect(settled).toMatchObject({ unread: true, unreadByUser: false });
+  });
+
+  it("leaves a chat read when its turn ends with a task's wake on its way", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    pendingWakes.value.add(chatFor(sessionId));
+    startChatUnreadOnSettle();
+
+    publisher.publish("session.done", { id: chatFor(sessionId), sessionId });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    pendingWakes.value.clear();
+    const [waking] = await listChats();
+    expect(waking?.unread).toBe(false);
   });
 
   it("keeps a mark the user set theirs when the chat settles under it", async () => {

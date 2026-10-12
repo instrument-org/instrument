@@ -5,9 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import { StoreId } from "../schemas/store-id";
-import { WINDOW_ID } from "../schemas/window-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { encodeBrowserTargetId } from "../types";
+import { browserTargetOf } from "../types";
 import { getChatState } from "./chat-record";
 import { heldTabs, returnTabsToChat, updateHeldTabs } from "./held-tabs";
 import { chatDir } from "./record-folders";
@@ -18,11 +17,11 @@ const T2 = StoreId.newSessionId();
 
 vi.mock(import("./chat/children"), async (importOriginal) => ({
   ...(await importOriginal()),
-  isTaskSession: (_chatId: ChatId, sessionId: StoreId.Session) =>
-    sessionId !== CHAT_SESSION,
+  sessionRole: (_chatId: ChatId, sessionId: StoreId.Session) =>
+    sessionId === CHAT_SESSION ? "chat" : "task",
 }));
 
-const tab = () => encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId());
+const tab = () => browserTargetOf(StoreId.newSessionId());
 
 let chatId: ChatId;
 let root: string;

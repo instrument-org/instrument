@@ -176,7 +176,14 @@ describe("task stop, for what a task left running", () => {
       "
     `);
     expect(sent.events).toEqual([
-      { type: "stopSessions", value: { id: CHAT_ID, sessionId: CHILD_ID } },
+      {
+        type: "stopSessions",
+        value: {
+          id: CHAT_ID,
+          notice: { by: "chat", wakesChat: false },
+          sessionId: CHILD_ID,
+        },
+      },
     ]);
     expect(stillRunning()).toEqual([]);
   });

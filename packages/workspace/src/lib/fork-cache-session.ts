@@ -1,6 +1,6 @@
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { isTaskSession } from "./chat/children";
+import { sessionRole } from "./chat/children";
 import { sessionOfChat } from "./record-folders";
 
 /**
@@ -17,7 +17,7 @@ export function cacheSessionFor({
   sessionId: StoreId.Session;
   chatId: ChatId;
 }): StoreId.Session {
-  if (!isTaskSession(chatId, sessionId)) {
+  if (sessionRole(chatId, sessionId) !== "task") {
     return sessionId;
   }
   return sessionOfChat(chatId) ?? sessionId;

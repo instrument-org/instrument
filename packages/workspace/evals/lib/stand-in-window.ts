@@ -20,8 +20,8 @@ import {
 } from "../../src/schemas/window-tab";
 import {
   type BrowserConfig,
-  decodeBrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
+  parseBrowserTargetId,
 } from "../../src/types";
 
 export interface StandInTab {
@@ -82,11 +82,11 @@ export function createStandInWindow() {
     }
   };
 
-  /** A page tab of the window, by its target id in the window's terms. */
+  /** A page tab of the window, by its target id. */
   const pageOf = (targetId: string) => {
-    const decoded = decodeBrowserTargetId(targetId);
-    const tab = decoded ? tabs.get(decoded.sessionId) : undefined;
-    return decoded && tab?.kind === "page" ? { decoded, tab } : undefined;
+    const tab =
+      parseBrowserTargetId(targetId) === null ? undefined : tabs.get(targetId);
+    return tab?.kind === "page" ? tab : undefined;
   };
 
   return {
@@ -98,22 +98,18 @@ export function createStandInWindow() {
           const page = pageOf(targetId);
           const meta = base.getTargetMeta(targetId);
           return page && !meta
-            ? {
-                id: page.decoded.id,
-                // Nothing reads a stand-in tab's storage.
-                partitionDir: AbsolutePathSchema.parse("/"),
-                sessionId: page.decoded.sessionId,
-              }
+            ? // Nothing reads a stand-in tab's storage.
+              { partitionDir: AbsolutePathSchema.parse("/") }
             : meta;
         },
-        listTargets: async (id) => [
-          ...(await base.listTargets(id)),
+        listTargets: async () => [
+          ...(await base.listTargets()),
           ...[...tabs.values()].flatMap((tab) => {
             const sessionId = StoreId.SessionSchema.safeParse(tab.id);
             return tab.kind === "page" && sessionId.success
               ? [
                   {
-                    id: encodeBrowserTargetId(id, sessionId.data),
+                    id: browserTargetOf(sessionId.data),
                     title: "",
                     type: "page" as const,
                     url: tab.at,

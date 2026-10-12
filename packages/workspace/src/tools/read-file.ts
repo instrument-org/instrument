@@ -25,7 +25,7 @@ import {
 } from "../lib/image-preview";
 import { imageViewSize, PREVIEW_LIMITS } from "../lib/image-view-size";
 import { listFiles } from "../lib/list-files";
-import { chatConversation } from "../lib/chat/children";
+import { sessionRole } from "../lib/chat/children";
 import { pathExists } from "../lib/path-exists";
 import {
   canDecodeMedia,
@@ -499,7 +499,7 @@ export const ReadFile = setupTool({
   execute: async ({ input, partId, model, sessionId, signal, chatId }) => {
     const region = input.region;
     const layout = buildWorkspaceFsLayout({
-      apps: chatConversation(chatId, sessionId) !== undefined,
+      apps: sessionRole(chatId, sessionId) === "chat",
       ...(await chatReach(chatId, sessionId, partId)),
       taskHostRoot: workDir(chatId),
     });

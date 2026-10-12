@@ -6,6 +6,7 @@ import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { type StopNotice } from "../../schemas/stop-notice";
 import { StoreId } from "../../schemas/store-id";
 import { heldTabs, returnTabsToChat } from "../held-tabs";
 import {
@@ -20,18 +21,14 @@ import { taskFsLayout } from "../resolve-workspace-file-path";
 import { Store } from "../store";
 import { chatModelURI, recordChatActivity } from "../chat-settings";
 import { getUsageSummary } from "../usage-summary";
+import { closeAgentBrowserSessionsForSessions } from "../agent-browser-cleanup";
 import { getWorkspaceConfig } from "../workspace-config";
-import { decodeBrowserTargetId } from "../../types";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
 import { currentChatApps, setChatAppsBaseline } from "../chat-app-changes";
 import { listChatIds } from "./chat-records";
 import { childTask, listChildTasks, touchTask } from "./children";
 import { stepInFlight } from "./in-flight";
-import {
-  cutForNote,
-  lastAssistantText,
-  latestOrNewSessionId,
-} from "./latest-session";
+import { cutForNote, lastAssistantText } from "./latest-session";
 import { endedWithoutWords } from "./standing";
 import { trajectorySince } from "./steps";
 import { replacesPendingEvent } from "./wake-event";
@@ -90,17 +87,6 @@ const overdueReportedAt = new Map<StoreId.Session, number>();
  * task while the chat carries on does, so the chat knows the task did not
  * finish and leaves it stopped.
  */
-interface ExpectedStop {
-  by: "chat" | "user";
-  wakesChat: boolean;
-}
-
-/**
- * Stops on their way, by the task's session. Held until the turn they end
- * is done; the next finish after that is news again.
- */
-const expectedStops = new Map<StoreId.Session, ExpectedStop>();
-
 /**
  * Wakes a chat about one of its tasks with an event composed elsewhere,
  * through the same debounce and delivery a finish takes. What the eval
@@ -112,11 +98,6 @@ export function wakeChatWithTaskEvent(
   workspaceRef: WorkspaceActorRef,
 ) {
   schedule(chatId, event, workspaceRef);
-}
-
-/** Says a task's working turn is ending on a stop, and whose. */
-export function expectStop(sessionId: StoreId.Session, stop: ExpectedStop) {
-  expectedStops.set(sessionId, stop);
 }
 
 const pending = new Map<
@@ -184,7 +165,7 @@ export async function wakeChatForApp(
     return;
   }
   const sessionId = sessionOfChat(asked);
-  await wakeWith(asked, part, workspaceRef, sessionId);
+  await wakeWith(asked, part, workspaceRef);
   if (sessionId !== undefined) {
     const baseline = await setChatAppsBaseline(
       asked,
@@ -268,16 +249,17 @@ async function deliver(
     chatId,
     { data: { events }, type: "data-taskEvent" },
     workspaceRef,
-    sessionOfChat(chatId),
   );
 }
 
 async function onSessionDone(
   {
     id,
+    notice: stop,
     sessionId,
   }: {
     id: ChatId;
+    notice?: StopNotice;
     sessionId: StoreId.Session;
   },
   workspaceRef: WorkspaceActorRef,
@@ -302,16 +284,16 @@ async function onSessionDone(
   // from its words, so a turn that ended blocked reads as waiting rather than
   // finished and the fence is not said twice.
   const needs = said === undefined ? [] : needsNamedIn(said);
-  const stop = expectedStops.get(sessionId);
-  expectedStops.delete(sessionId);
-  await touchTask(chatId, sessionId, {
-    status: ending?.failed ? "failed" : needs.length > 0 ? "waiting" : "done",
-    stoppedBy: stop?.by,
-  });
+  await touchTask(chatId, sessionId, { stoppedBy: stop?.by });
   // The pages it leaves open, read while it still drives them, then given
   // back: a tab has one driver, and a finished task drives nothing.
   const tabs = await openTabsOf(ref);
   await returnTabsToChat(chatId, sessionId);
+  // Its agent-browser daemons, which would otherwise idle out on their own
+  // clock; a later `task send` starts them again.
+  void closeAgentBrowserSessionsForSessions([sessionId]).catch(
+    getWorkspaceConfig().captureException,
+  );
   if (stop && !stop.wakesChat) {
     return;
   }
@@ -398,13 +380,12 @@ async function openTabsOf({
   const { browser } = getWorkspaceConfig();
   const tabs: NonNullable<TaskEvent["tabs"]> = [];
   for (const tab of await heldTabs(chatId, sessionId)) {
-    const decoded = decodeBrowserTargetId(tab.id);
-    if (!decoded || !browser.getTargetMeta(tab.id)) {
+    if (!browser.getTargetMeta(tab.id)) {
       continue;
     }
     const url = browser.getTargetUrl(tab.id);
     tabs.push({
-      id: decoded.sessionId,
+      id: tab.id,
       openedBy: tab.openedBy,
       ...(url === undefined
         ? {}
@@ -475,8 +456,8 @@ async function wakeWith(
   chatId: ChatId,
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
-  /** The chat to wake in; the newest one when a caller has no chat. */
-  chatSessionId?: StoreId.Session,
+  /** The session to wake: a task that asked, else the chat's own. */
+  askingSessionId?: StoreId.Session,
 ) {
   const modelURI = await chatModelURI(chatId);
   if (!modelURI) {
@@ -484,11 +465,10 @@ async function wakeWith(
       `Chat ${chatId} has no model to wake with; it has never been messaged.`,
     );
   }
-  const session = await latestOrNewSessionId(chatId);
-  if (session.isErr()) {
-    throw session.error;
+  const sessionId = askingSessionId ?? sessionOfChat(chatId);
+  if (!sessionId) {
+    throw new Error(`${chatId} is not a chat.`);
   }
-  const sessionId = chatSessionId ?? session.value;
 
   const createdAt = new Date();
   const messageId = StoreId.newMessageId();

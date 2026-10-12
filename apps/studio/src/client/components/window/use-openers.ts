@@ -6,7 +6,7 @@ import { fileHref, folderHref } from "@/shared/computer-href";
 import { isScreenName, SCREENS } from "@/shared/instrument-screens";
 import {
   type ChatId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   isFolderPath,
   StoreId,
   WINDOW_ID,
@@ -141,7 +141,7 @@ export function useOpeners({
         // keyboard with it; one an agent asked for a tab of its own does not.
         if (replacing && !options.ownTab && id !== undefined) {
           takeKeyboardOnArrival(
-            encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(id)),
+            browserTargetOf(StoreId.SessionSchema.parse(id)),
           );
         }
         return id;
@@ -159,7 +159,7 @@ export function useOpeners({
         appTabs.navigate(pageHrefOf(group), { replace: placement.replace });
         if (!options.ownTab && id !== undefined) {
           takeKeyboardOnArrival(
-            encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(id)),
+            browserTargetOf(StoreId.SessionSchema.parse(id)),
           );
         }
         return id;

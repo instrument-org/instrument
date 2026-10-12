@@ -14,7 +14,6 @@ import path from "node:path";
 
 import { listMemories, memoryDir } from "../../src/lib/memory/store";
 import { ensureChat } from "../../src/lib/chat/chat-records";
-import { createSession } from "../../src/lib/create-session";
 import { Store } from "../../src/lib/store";
 import { type Session } from "../../src/schemas/session";
 import { type SessionMessage } from "../../src/schemas/session/message";
@@ -632,7 +631,6 @@ async function seedOtherChat() {
   const sessionId = StoreId.newSessionId();
   const ask = `Keep this safe for me: my bank PIN is ${SECRET}`;
   const chatId = await ensureChat(sessionId, "Bank PIN");
-  (await createSession({ sessionId, chatId }))._unsafeUnwrap();
   const now = new Date(Date.now() - 86_400_000);
   const userId = StoreId.newMessageId();
   (

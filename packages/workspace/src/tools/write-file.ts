@@ -10,7 +10,7 @@ import { CHAT_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { executeError } from "../lib/execute-error";
 import { chatReach } from "../lib/permissions/chat-rules";
 import { pathExists } from "../lib/path-exists";
-import { chatConversation } from "../lib/chat/children";
+import { sessionRole } from "../lib/chat/children";
 import { resolveWritableToolPath } from "../lib/resolve-agent-path";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
@@ -52,7 +52,7 @@ export const WriteFile = setupTool({
     - Never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp work/foo.html <folder>/foo.html\`.  `,
   execute: async ({ input, partId, sessionId, signal, chatId }) => {
     const layout = buildWorkspaceFsLayout({
-      apps: chatConversation(chatId, sessionId) !== undefined,
+      apps: sessionRole(chatId, sessionId) === "chat",
       ...(await chatReach(chatId, sessionId, partId)),
       taskHostRoot: workDir(chatId),
     });

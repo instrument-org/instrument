@@ -1,8 +1,4 @@
-import {
-  encodeBrowserTargetId,
-  StoreId,
-  ChatIdSchema,
-} from "@instrument-org/workspace/client";
+import { browserTargetOf, StoreId } from "@instrument-org/workspace/client";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
 import {
@@ -13,10 +9,7 @@ import {
   showOverSlot,
 } from "./browser-pool";
 
-const target = encodeBrowserTargetId(
-  ChatIdSchema.parse("instrument"),
-  StoreId.newSessionId(),
-);
+const target = browserTargetOf(StoreId.newSessionId());
 
 // A stream that stays open without ever yielding, as the pool's event
 // subscriptions are while nothing happens.

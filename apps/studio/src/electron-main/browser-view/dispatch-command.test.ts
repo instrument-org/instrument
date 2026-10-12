@@ -7,9 +7,8 @@ import type { WebContents } from "electron";
 import {
   CdpCommandTimeoutError,
   cdpMethodsHandled,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  ChatIdSchema,
 } from "@instrument-org/workspace/electron";
 import { noop } from "radashi";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -24,9 +23,8 @@ import {
 } from "./guest-surface";
 import { log } from "./log";
 
-const SUBDOMAIN = ChatIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
-const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
+const TARGET_ID = browserTargetOf(SESSION_ID);
 
 interface FakeDebugger {
   isAttached: () => boolean;
@@ -95,9 +93,7 @@ function makeEntry({
       }
     : null;
   const entry = createEntry({
-    id: SUBDOMAIN,
     partitionDir: "/tmp/partition" as AbsolutePath,
-    sessionId: SESSION_ID,
     targetId,
   });
   // Cast to the WebContents type while exposing only the surface sendCommand

@@ -2,7 +2,7 @@ import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
 import { useNow } from "../../hooks/use-now";
 import { useStopBackgroundProcess } from "../../hooks/use-stop-background-process";
-import { useTaskSession } from "../../hooks/use-task-session";
+import { useChatSession } from "../../hooks/use-chat-session";
 import { formatElapsed } from "../../lib/format-elapsed";
 import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
@@ -53,7 +53,7 @@ export function BrowserChip({ info }: { info: BrowserInfo }) {
 export function ToolBash({ part }: { part: BashPart }) {
   const { backgroundProcess, isStreaming } = useToolCallSession();
   const now = useNow(ELAPSED_TICK_MS);
-  const { chatId } = useTaskSession();
+  const { chatId } = useChatSession();
   const { busy, stop } = useStopBackgroundProcess(
     chatId,
     part.metadata.sessionId,

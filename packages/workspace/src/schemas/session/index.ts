@@ -68,13 +68,6 @@ export namespace Session {
      */
     rolledOverUnderUsableTokens: z.number().int().positive().optional(),
     /**
-     * Where a task stood when its last turn ended, or `running` while one is
-     * under way. Whether one is under way this moment is the session's
-     * agent's to say: a `running` with no agent alive is a turn the app quit
-     * in. Absent on the chat's own session.
-     */
-    status: z.enum(["done", "failed", "running", "waiting"]).optional(),
-    /**
      * Who ended a task's last turn with a stop: the user, from the task or
      * the chat's Stop, or the chat's agent with `task stop`. Absent when
      * the turn ended on its own, and on the chat's own session.

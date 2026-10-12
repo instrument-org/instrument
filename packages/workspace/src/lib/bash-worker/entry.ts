@@ -10,7 +10,7 @@ import { parentPort } from "node:worker_threads";
 import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { createLocalBashEnv } from "../create-bash-env";
-import { setTaskVenvCreator, type TaskVenvError } from "../ensure-task-venv";
+import { setChatVenvCreator, type ChatVenvError } from "../ensure-chat-venv";
 import { handChat } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
@@ -46,7 +46,7 @@ const toolCalls = new Map<
 const chunkAcks = new Map<number, () => void>();
 const venvRequests = new Map<
   number,
-  (result: TaskVenvError | undefined) => void
+  (result: ChatVenvError | undefined) => void
 >();
 let nextCallId = 0;
 let nextChunkSeq = 0;
@@ -84,7 +84,7 @@ setSubprocessTreeObserver({
     post({ pid, state: "started", type: "tree" });
   },
 });
-setTaskVenvCreator(
+setChatVenvCreator(
   (chatId: ChatId) =>
     new Promise((resolve) => {
       const requestId = nextVenvRequestId++;

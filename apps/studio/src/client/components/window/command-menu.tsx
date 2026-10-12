@@ -28,7 +28,7 @@ import { AppIcon } from "@/client/components/window/app-icon";
 import { PLACES } from "@/client/components/window/app-rail";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import {
-  byActivity,
+  byLastUserMessage,
   type Chat,
   type Topic,
   topicSearch,
@@ -377,7 +377,7 @@ export function useCommandMenuRows({
   const isSearch = words !== "" && !isBang;
   const site = isSearch ? siteFromWords(words) : undefined;
   const chatMatches = isSearch
-    ? nameMatch(byActivity(chats), (chat) => [chat.title], words)
+    ? nameMatch(byLastUserMessage(chats), (chat) => [chat.title], words)
     : [];
   const appMatches = isSearch
     ? nameMatch(
@@ -539,7 +539,7 @@ export function useCommandMenuRows({
             label: "Commands",
           },
           {
-            items: byActivity(chats.filter((chat) => !chat.archived))
+            items: byLastUserMessage(chats.filter((chat) => !chat.archived))
               .slice(0, RECENT_CHATS_SHOWN)
               .map((chat) => chatItem(chat, null)),
             label: "Recent chats",

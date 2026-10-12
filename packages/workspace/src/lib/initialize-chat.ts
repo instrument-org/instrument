@@ -10,6 +10,7 @@ import { type ChatSettingsUpdate } from "../schemas/chat-settings";
 import { type WorkspaceConfig } from "../types";
 import { absolutePathJoin } from "./absolute-path-join";
 import { copyChatFolder } from "./copy-chat-folder";
+import { createSession } from "./create-session";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
 import { pathExists } from "./path-exists";
@@ -38,6 +39,7 @@ export function initializeChat({
     initialSettings: { ...initialSettings, chatSessionId: sessionId },
     place: () => placeChat(chatId, sessionId),
     chatId,
+    sessionId,
     workspaceConfig,
   });
 }
@@ -46,11 +48,13 @@ async function initializeRecord({
   initialSettings,
   place,
   chatId,
+  sessionId,
   workspaceConfig,
 }: {
   initialSettings: Omit<ChatSettingsUpdate, "createdWithAppVersion">;
   place: () => ChatDir;
   chatId: ChatId;
+  sessionId: StoreId.Session;
   workspaceConfig: WorkspaceConfig;
 }) {
   // Lets go of the id reserved below when any later step fails, so a chat
@@ -107,6 +111,10 @@ async function initializeRecord({
     });
 
     yield* scaffoldWorkFolder(dir, workspaceConfig);
+
+    // The chat's own session is made with it, so every send, wake and task
+    // finds the session its settings name already there.
+    yield* await createSession({ chatId, sessionId });
 
     return ok({ chatId });
   }).mapErr((error) => {

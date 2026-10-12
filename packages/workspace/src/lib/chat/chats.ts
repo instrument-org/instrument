@@ -332,7 +332,7 @@ export async function unarchiveChat(chatId: ChatId): Promise<boolean> {
 }
 
 /**
- * The hosts a task's session has visited, held until its chat's store is
+ * The hosts a task's session has visited, held until its session is
  * written: the browser records a visit there and announces nothing.
  */
 const filedHosts = indexedByStore<string[]>("task_hosts");
@@ -534,7 +534,7 @@ async function chatFor(
   };
 }
 
-/** Each chat's digest, kept until its store changes. */
+/** Each chat's digest, kept until its own session changes. */
 const chatDigests = indexedByStore<ChatDigest | undefined>("chat_digests");
 
 /** A chat's digest, or none when its record or its messages cannot be read. */
@@ -542,7 +542,7 @@ function chatDigest(
   chatId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<ChatDigest | undefined> {
-  return chatDigests(chatId, async () => {
+  return chatDigests(chatId, sessionId, async () => {
     const session = await Store.getSession(sessionId, chatId);
     if (session.isErr()) {
       return unkept(undefined);
@@ -652,16 +652,12 @@ function filedHostsOf(
   chatId: ChatId,
   sessionId: StoreId.Session,
 ): Promise<string[]> {
-  return filedHosts(
-    chatId,
-    async () => {
-      const browser = await getBrowserState(chatId, sessionId);
-      return browser.isOk()
-        ? kept(browser.value?.visitedHosts ?? [])
-        : unkept([]);
-    },
-    sessionId,
-  );
+  return filedHosts(chatId, sessionId, async () => {
+    const browser = await getBrowserState(chatId, sessionId);
+    return browser.isOk()
+      ? kept(browser.value?.visitedHosts ?? [])
+      : unkept([]);
+  });
 }
 
 /** The paths the replies handed over, deduped, the newest mention last. */

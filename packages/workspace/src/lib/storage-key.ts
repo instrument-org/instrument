@@ -76,6 +76,12 @@ export namespace StorageKey {
     return ["parts", sessionId, messageId].join(SEPARATOR);
   }
 
+  /** The session a key is about, or none for a key that names none. */
+  export function sessionOf(key: string): StoreId.Session | undefined {
+    const parsed = StoreId.SessionSchema.safeParse(key.split(SEPARATOR).at(1));
+    return parsed.success ? parsed.data : undefined;
+  }
+
   export function session(sessionId: StoreId.Session) {
     return [StorageKey.sessions(), sessionId].join(SEPARATOR);
   }

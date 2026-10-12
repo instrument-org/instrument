@@ -25,16 +25,16 @@ export function getSessionsStoreStorage(chatId: ChatId) {
   const counted: WrappedStorage = {
     ...wrappedMockStorage,
     removeItem: (key, options) => {
-      bumpStoreGeneration(chatId);
+      bumpStoreGeneration(chatId, key);
       return wrappedMockStorage.removeItem(key, options).andTee(() => {
-        bumpStoreGeneration(chatId);
+        bumpStoreGeneration(chatId, key);
         recordChanged(chatId, storeKeyChange(key));
       });
     },
     setItemRaw: (key, value, options) => {
-      bumpStoreGeneration(chatId);
+      bumpStoreGeneration(chatId, key);
       return wrappedMockStorage.setItemRaw(key, value, options).andTee(() => {
-        bumpStoreGeneration(chatId);
+        bumpStoreGeneration(chatId, key);
         recordChanged(chatId, storeKeyChange(key));
       });
     },

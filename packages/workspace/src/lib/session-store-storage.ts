@@ -220,13 +220,13 @@ function handleFor(chatId: ChatId): WrappedStorage {
       // Counted before the write lands as well as after, so a reader that
       // overlaps the write sees a change either way.
       if (written !== undefined) {
-        bumpStoreGeneration(chatId);
+        bumpStoreGeneration(chatId, written);
       }
       const settle = () => {
         open.inFlight -= 1;
         open.lastUsed = Date.now();
         if (written !== undefined) {
-          bumpStoreGeneration(chatId);
+          bumpStoreGeneration(chatId, written);
         }
         if (open.inFlight === 0) {
           open.onIdle?.();

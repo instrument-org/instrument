@@ -134,7 +134,7 @@ export async function taskStanding({
       ? { kind: "waiting", line: waiting }
       : { kind: "running", line: step ?? "Working" };
   }
-  return settledStanding(chatId, () => standingAtRest(ref), sessionId);
+  return settledStanding(chatId, sessionId, () => standingAtRest(ref));
 }
 
 /** The last segment of a path, which is how a file is named in a line. */

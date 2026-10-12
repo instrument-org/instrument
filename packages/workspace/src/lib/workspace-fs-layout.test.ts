@@ -25,6 +25,8 @@ import {
   classifyHostPath,
   effectiveFolderAccess,
   folderHoldsWorkspace,
+  hostPathOf,
+  shellPath,
 } from "./workspace-fs-layout";
 import {
   beginSkillChangeTracking,
@@ -544,5 +546,29 @@ describe("classifyHostPath", () => {
 
   it("knows nothing of a path outside every mount", () => {
     expect(classifyHostPath(layout(), tmpDir)).toBeNull();
+  });
+});
+
+describe("shellPath on Windows", () => {
+  const platform = process.platform;
+  beforeEach(() => {
+    Object.defineProperty(process, "platform", { value: "win32" });
+  });
+  afterEach(() => {
+    Object.defineProperty(process, "platform", { value: platform });
+  });
+
+  it.each([
+    ["C:\\Users\\sam\\notes.md", "/c/Users/sam/notes.md"],
+    ["D:\\Photos\\2026", "/d/Photos/2026"],
+    ["E:\\", "/e"],
+  ])("spells %s as %s and back", (host, shell) => {
+    expect(shellPath(host)).toBe(shell);
+    expect(hostPathOf(shell)).toBe(host);
+  });
+
+  it("keeps a network share's server and share", () => {
+    expect(shellPath("\\\\nas\\media\\a.mp4")).toBe("//nas/media/a.mp4");
+    expect(hostPathOf("//nas/media/a.mp4")).toBe("\\\\nas\\media\\a.mp4");
   });
 });

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
@@ -163,10 +164,27 @@ export function placePaths(home = os.homedir()): PlacePaths[] {
       { homeDotEntries: true, id: "appFiles", paths: [] },
     );
   } else {
-    places.push({
-      id: "appFiles",
-      paths: inHome("AppData"),
-    });
+    places.push(
+      { id: "drives", paths: windowsDrives() },
+      { id: "appFiles", paths: inHome("AppData") },
+    );
   }
   return places;
+}
+
+/**
+ * Every drive letter on this computer but the one Windows runs from, the
+ * way `/Volumes` holds every disk but the startup one on a Mac. Read each
+ * time the rules are built, so a drive plugged in later is covered from the
+ * next command.
+ */
+export function windowsDrives(
+  exists: (root: string) => boolean = existsSync,
+  systemDrive = process.env.SystemDrive ?? "C:",
+): string[] {
+  const system = systemDrive.slice(0, 1).toUpperCase();
+  return [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"]
+    .filter((letter) => letter !== system)
+    .map((letter) => `${letter}:\\`)
+    .filter((root) => exists(root));
 }

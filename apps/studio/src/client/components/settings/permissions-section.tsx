@@ -1,3 +1,4 @@
+import { WINDOWS_SANDBOX_URL } from "@instrument-org/shared";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
@@ -17,6 +18,7 @@ import {
 import { Switch } from "@/client/components/ui/switch";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { FolderMark } from "@/client/components/window/folder-mark";
+import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { isLinux, isWindows } from "@/client/lib/utils";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
@@ -72,6 +74,7 @@ function computerKind() {
 
 export function PermissionsSection() {
   const queryClient = useQueryClient();
+  const openLink = useOpenExternalLink();
   const { data: view } = useQuery(
     rpcClient.workspace.permissions.get.queryOptions(),
   );
@@ -159,9 +162,29 @@ export function PermissionsSection() {
       {view.enforced ? null : (
         <div className="flex items-start gap-2 rounded-lg bg-muted p-3 text-sm text-muted-foreground">
           <InfoIcon className="mt-0.5 size-4 shrink-0" />
-          <p>
-            {`On ${isWindows() ? "Windows" : "Linux"}, Instrument follows this list as closely as it can. Its own tools stay inside it and the agent is told to, but a program the agent runs, like Python, could still reach other folders.`}
-          </p>
+          {isWindows() ? (
+            <p>
+              On Windows, Instrument's own tools follow this list, but programs
+              the agent runs, including its Python and Node scripts, can reach
+              any file you can. That changes once Instrument can use Windows'
+              own sandbox.{" "}
+              <button
+                className="underline underline-offset-2 hover:text-foreground"
+                onClick={() => {
+                  openLink(WINDOWS_SANDBOX_URL, { addReferral: false });
+                }}
+                type="button"
+              >
+                Learn more
+              </button>
+            </p>
+          ) : (
+            <p>
+              On Linux, Instrument follows this list as closely as it can. Its
+              own tools stay inside it and the agent is told to, but a program
+              the agent runs, like Python, could still reach other folders.
+            </p>
+          )}
         </div>
       )}
       <Card className="p-0" {...settingAnchor("use-folders-without-asking")}>
@@ -364,11 +387,20 @@ function PlaceRow({
         };
       }
       case "drives": {
-        return {
-          line: undefined,
-          mark: <HardDriveIcon className={className} />,
-          name: "Drives you plug in",
-        };
+        // Windows names every drive but the system one, inside or plugged in.
+        return isWindows()
+          ? {
+              line:
+                place.paths.map((root) => root.replace(/\\$/, "")).join(", ") ||
+                undefined,
+              mark: <HardDriveIcon className={className} />,
+              name: "Other drives",
+            }
+          : {
+              line: undefined,
+              mark: <HardDriveIcon className={className} />,
+              name: "Drives you plug in",
+            };
       }
       case "appFiles": {
         return {

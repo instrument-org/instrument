@@ -64,6 +64,10 @@ export const BUG_REPORT_URL = `${APP_REPO_URL}/discussions/new?category=issue-tr
 export const REGISTRY_REPO_NAME = "registry";
 export const REGISTRY_REPO_URL = `https://github.com/${GITHUB_ORG}/${REGISTRY_REPO_NAME}`;
 export const RELEASE_NOTES_URL = `${APP_REPO_URL}/releases`;
+// What Settings › Permissions links to on Windows, where programs the agent
+// runs are not yet held to the list. Kept to this one constant so the link
+// can move behind a redirect on the website.
+export const WINDOWS_SANDBOX_URL = `${APP_REPO_URL}/blob/main/docs/architecture/windows-sandbox.md`;
 export const SKILLS_MARKETPLACE_URL = "https://skills.sh";
 export const X_HANDLE = "@tryinstrument";
 export const X_URL = `https://x.com/${X_HANDLE}`;

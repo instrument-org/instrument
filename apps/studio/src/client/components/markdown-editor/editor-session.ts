@@ -36,6 +36,7 @@ import {
 } from "@milkdown/kit/prose/view";
 import { $prose, $remark, $view } from "@milkdown/kit/utils";
 
+import { installBlockHandle } from "./block-handle";
 import { installBlockMenu } from "./block-menu";
 import {
   codeBlockInfo,
@@ -743,6 +744,9 @@ export async function createEditorSession(options: EditorSessionOptions) {
       top: pmView.coordsAtPos(from).top,
     };
   });
+  const removeBlockHandle = editor.editor.action((ctx) =>
+    installBlockHandle(ctx, root),
+  );
 
   const handle = {
     /**
@@ -786,6 +790,7 @@ export async function createEditorSession(options: EditorSessionOptions) {
       code.destroy();
       removeBlockMenu();
       stopFittingToolbar();
+      removeBlockHandle();
       await crepe?.destroy();
       crepe = null;
     },

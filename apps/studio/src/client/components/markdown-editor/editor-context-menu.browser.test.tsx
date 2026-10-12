@@ -1,15 +1,12 @@
-import "@milkdown/crepe/theme/common/style.css";
-
-import "./markdown-editor.css";
-
+import {
+  closeMarkdownEditors,
+  openMarkdownEditor,
+} from "@/tests/markdown-editor";
 import { NodeSelection, TextSelection } from "@milkdown/kit/prose/state";
 import { afterEach, expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { createEditorSession, type EditorSession } from "./editor-session";
-
-// The session reads and writes its file through the main process; nothing
-// here saves, so neither is reached.
+// See openMarkdownEditor: the session's file goes through the main process.
 vi.mock("@/client/rpc/client", () => ({ rpcClient: {} }));
 
 const MARKDOWN = `# Notes
@@ -20,34 +17,7 @@ The quick brown fox jumps over the lazy dog.
 - second item
 `;
 
-let session: EditorSession | null = null;
-
-afterEach(async () => {
-  await session?.destroy();
-  session = null;
-  document.body.replaceChildren();
-});
-
-async function openEditor() {
-  const frame = document.createElement("div");
-  frame.className = "md-editor";
-  frame.style.width = "640px";
-  const root = document.createElement("div");
-  frame.append(root);
-  document.body.append(frame);
-  session = await createEditorSession({
-    hostPath: "/notes.md",
-    initial: { content: MARKDOWN, version: "1" },
-    onAsk: vi.fn(),
-    onExternalChange: vi.fn(),
-    onFrontMatter: vi.fn(),
-    onStatus: vi.fn(),
-    renderFence: () => null,
-    resolveSrc: (src) => src,
-    root,
-  });
-  return session.view();
-}
+afterEach(closeMarkdownEditors);
 
 /** Right-clicks a word and reports whether anything in the page claimed the event. */
 async function rightClick(dom: HTMLElement, word: string) {
@@ -85,7 +55,7 @@ function wordBox(dom: HTMLElement, word: string) {
 }
 
 test("right-clicking text leaves the event to the native menu and the selection a text selection", async () => {
-  const view = await openEditor();
+  const view = await openMarkdownEditor(MARKDOWN);
   await userEvent.click(view.dom, { position: wordBox(view.dom, "lazy") });
 
   expect(await rightClick(view.dom, "first")).toBe(false);
@@ -95,7 +65,7 @@ test("right-clicking text leaves the event to the native menu and the selection 
 });
 
 test("right-clicking inside a selected range keeps the range", async () => {
-  const view = await openEditor();
+  const view = await openMarkdownEditor(MARKDOWN);
   await userEvent.click(view.dom, { position: wordBox(view.dom, "lazy") });
   const heading = view.dom.querySelector("h1");
   const headingTop = heading?.getBoundingClientRect().top;

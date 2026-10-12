@@ -74,6 +74,7 @@ overrides:
   defu: ^6.1.7
 
 patchedDependencies:
+  '@milkdown/plugin-block@7.22.2': b9318632951eb16125b92ecbd278cb0ec78cb55b6d3470261e4d68edb9b61a4c
   '@parcel/watcher@2.6.0': 70710158e60b08547967e90663191ecfdf5f5e02082b07253a8bdff11303ce2b
   conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
   just-bash@3.6.0: f1bd45dbbce69ce18d345eac0cc4878a4ccae8c00ca9a5b047d227a30c1f44d7
@@ -11040,7 +11041,7 @@ snapshots:
       '@milkdown/core': 7.22.2(supports-color@10.1.0)
       '@milkdown/ctx': 7.22.2
       '@milkdown/exception': 7.22.2
-      '@milkdown/plugin-block': 7.22.2(supports-color@10.1.0)
+      '@milkdown/plugin-block': 7.22.2(patch_hash=b9318632951eb16125b92ecbd278cb0ec78cb55b6d3470261e4d68edb9b61a4c)(supports-color@10.1.0)
       '@milkdown/plugin-clipboard': 7.22.2(supports-color@10.1.0)
       '@milkdown/plugin-cursor': 7.22.2(supports-color@10.1.0)
       '@milkdown/plugin-diff': 7.22.2(supports-color@10.1.0)
@@ -11064,7 +11065,7 @@ snapshots:
       - supports-color
       - typescript
 
-  '@milkdown/plugin-block@7.22.2(supports-color@10.1.0)':
+  '@milkdown/plugin-block@7.22.2(patch_hash=b9318632951eb16125b92ecbd278cb0ec78cb55b6d3470261e4d68edb9b61a4c)(supports-color@10.1.0)':
     dependencies:
       '@floating-ui/dom': 1.8.0
       '@milkdown/core': 7.22.2(supports-color@10.1.0)

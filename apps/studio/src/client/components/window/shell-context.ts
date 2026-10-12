@@ -48,6 +48,7 @@ export interface WindowShell {
   sendContext: (options: {
     chatId: ChatId;
     isViewOpen: boolean;
+    leftOut: readonly string[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   setChatTopics: (id: ChatId, topics: string[]) => void;
   setPaneOpen: (group: string, isOpen: boolean) => void;

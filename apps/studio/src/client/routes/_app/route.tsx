@@ -27,6 +27,7 @@ import { type PageChromeSlots } from "@/client/components/window/browser-tabs";
 import { ChatHeader } from "@/client/components/window/chat-header";
 import { ChatPane } from "@/client/components/window/chat-pane";
 import { ChatScreen } from "@/client/components/window/chat-screen";
+import { ContextChips } from "@/client/components/window/context-chip";
 import { ChatTiles } from "@/client/components/window/chat-tiles";
 import { GroupItem } from "@/client/components/window/group-item";
 import { useWindow, WindowContext } from "@/client/components/window/context";
@@ -39,6 +40,7 @@ import { NoChatOpen } from "@/client/components/window/no-chat-open";
 import { RightPane } from "@/client/components/window/right-pane";
 import { screenLocation } from "@/client/components/window/screen-presentation";
 import { useShell } from "@/client/components/window/shell-context";
+import { useChatContext } from "@/client/components/window/use-chat-context";
 import { taskHref, tasksHref } from "@/client/components/window/tab-location";
 import {
   tabSurfaceAtom,
@@ -321,8 +323,10 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                       />
                       <div className="relative min-h-0 flex-1">
                         <div className="absolute inset-0">
-                          <ChatScreen
+                          <ChatScreenInPlace
+                            chatId={chat}
                             isUp={isActive}
+                            isViewOpen={showsPane}
                             key={chat}
                             onGone={() => {
                               // As for a deleted chat: its tabs go, and the
@@ -331,15 +335,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                               appTabs.navigate(INBOX_HREF, { replace: true });
                               setInboxOpen(true);
                             }}
-                            sendContext={() =>
-                              shell.sendContext({
-                                chatId: chat,
-                                isViewOpen: showsPane,
-                              })
-                            }
-                            sentPrompt={shell.sentWords.get(chat)}
                             tiles={tiles}
-                            chatId={chat}
                           />
                         </div>
                       </div>
@@ -393,6 +389,45 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
  * floor only while a chat is open, since that chat's head holds the toggle
  * that brings it back.
  */
+/**
+ * A chat's screen in the window's place, with the chips over its composer
+ * for what goes with a reply: the chat's own tab while its pane is open,
+ * and otherwise what the window has in view, each until left out.
+ */
+function ChatScreenInPlace({
+  chatId,
+  isUp,
+  isViewOpen,
+  onGone,
+  tiles,
+}: {
+  chatId: ChatId;
+  isUp: boolean;
+  isViewOpen: boolean;
+  onGone: () => void;
+  tiles: ReactNode;
+}) {
+  const shell = useShell();
+  const context = useChatContext({ chatId, isViewOpen });
+  return (
+    <ChatScreen
+      chatId={chatId}
+      composerLead={
+        context.items.length > 0 ? (
+          <ContextChips items={context.items} onLeaveOut={context.leaveOut} />
+        ) : undefined
+      }
+      isUp={isUp}
+      onGone={onGone}
+      sendContext={() =>
+        shell.sendContext({ chatId, isViewOpen, leftOut: context.leftOut })
+      }
+      sentPrompt={shell.sentWords.get(chatId)}
+      tiles={tiles}
+    />
+  );
+}
+
 function inboxBounds(
   rowWidth: number,
   { canCollapse }: { canCollapse: boolean },

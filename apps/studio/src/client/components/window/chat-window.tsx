@@ -32,15 +32,14 @@ import {
 } from "./compose-layout";
 import { BarMarks, WindowButton } from "./compose-window";
 import { useWindow, WindowContext } from "./context";
-import { heldChipOf, IncludedChip } from "./context-chip";
+import { ContextChips } from "./context-chip";
 import { GroupItem } from "./group-item";
-import { isIncludable } from "./draft-context";
 import { computerTabOf } from "./file-tabs";
 import { LinkSurface } from "./link-surface";
 import { usePageHost } from "./page-hosts";
 import { taskHref, tasksHref, tasksOfHref } from "./tab-location";
 import { useTaskTitles } from "./task-titles";
-import { useTabInView } from "./use-tab-in-view";
+import { useChatContext } from "./use-chat-context";
 import { useWindowTabs } from "./window-tabs";
 
 /** A chat's small view's height, in layout px: enough of the conversation to follow a reply arriving. */
@@ -159,6 +158,7 @@ export function ChatWindow({
   /** What goes with a reply: the chat's own tab up while the window shows it, what is behind the window otherwise. */
   sendContext: (options: {
     isViewOpen: boolean;
+    leftOut: readonly string[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** The words the draft this window was sent, while the chat they start is on its way. */
   sentWords?: string;
@@ -257,52 +257,19 @@ export function ChatWindow({
           },
   );
 
-  // What the window has up behind the chat, which goes with each message:
-  // shown as a pill while the composer has the caret, so the person sees it
-  // before sending, and left out of every message after its × is pressed,
-  // until something else comes up behind.
-  // What is in view is read the way a draft reads it, so a screen of the
-  // window's own (a folder, an app) is behind the chat as a site or another
-  // chat's tab is.
-  const [leftOutId, setLeftOutId] = useState<string>();
-  const [isComposing, setComposing] = useState(false);
-  const inView = useTabInView();
-  const behind =
-    inView !== undefined &&
-    windowTabs.groupOnScreen !== chatId &&
-    isIncludable(inView)
-      ? inView
-      : undefined;
-  // A screen of the window's own keeps its tab's id wherever it walks, so
-  // it is left out where it stood, and comes back once it is somewhere else.
-  const behindKey =
-    behind?.kind === "screen" ? `${behind.id} ${behind.href}` : behind?.id;
-  const isBehindLeftOut = behindKey !== undefined && behindKey === leftOutId;
-  const behindChip =
-    behind && !isBehindLeftOut
-      ? heldChipOf({ items: undefined, tab: behind }, { appsBySlug })
-      : undefined;
-  const behindChipRef = useRef(behindChip);
-  const isBehindLeftOutRef = useRef(isBehindLeftOut);
-  const showsItemRef = useRef(false);
-  useEffect(() => {
-    behindChipRef.current = behindChip;
-    isBehindLeftOutRef.current = isBehindLeftOut;
-    showsItemRef.current = showsItem;
+  // What goes with each message besides its words, as the chips over the
+  // composer: the chat's own tab while the window shows it, and otherwise
+  // what is in view behind the chat, each until its x is pressed. The send
+  // reads the same list at the press.
+  const context = useChatContext({ chatId, isViewOpen: showsItem });
+  const contextRef = useRef({
+    isViewOpen: showsItem,
+    leftOut: context.leftOut,
   });
-  // The chat's own tab while the window shows it; what is behind the window
-  // otherwise, unless that was left out, with its chip for the transcript.
-  const contextToSend = async () => {
-    if (showsItemRef.current) {
-      return sendContext({ isViewOpen: true });
-    }
-    if (isBehindLeftOutRef.current) {
-      return;
-    }
-    const chip = behindChipRef.current;
-    const viewing = await sendContext({ isViewOpen: false });
-    return viewing && chip ? { ...viewing, attached: [chip] } : viewing;
-  };
+  useEffect(() => {
+    contextRef.current = { isViewOpen: showsItem, leftOut: context.leftOut };
+  });
+  const contextToSend = () => sendContext(contextRef.current);
 
   /** Grows the window with what is up in the chat drawn large. */
   const showUp = () => {
@@ -465,19 +432,6 @@ export function ChatWindow({
             "relative min-h-0 min-w-0 [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]",
             showsItem ? "w-105 shrink-0 border-r border-border" : "flex-1",
           )}
-          // The caret anywhere in the conversation column, the pill's own ×
-          // included, keeps the pill up.
-          onBlur={(event) => {
-            if (
-              !(event.relatedTarget instanceof Node) ||
-              !event.currentTarget.contains(event.relatedTarget)
-            ) {
-              setComposing(false);
-            }
-          }}
-          onFocus={() => {
-            setComposing(true);
-          }}
         >
           {/* What the conversation asks to have shown comes up large in
               this window; what it opens behind (an agent's page arriving)
@@ -547,15 +501,10 @@ export function ChatWindow({
                 <ActiveTabProvider isActive>
                   <ChatScreen
                     composerLead={
-                      isComposing && behind && !isBehindLeftOut ? (
-                        <IncludedChip
-                          appsBySlug={appsBySlug}
-                          items={undefined}
-                          onLeaveOut={() => {
-                            setLeftOutId(behindKey);
-                          }}
-                          said="In view behind the chat, so it goes to Instrument with your message."
-                          tab={behind}
+                      context.items.length > 0 ? (
+                        <ContextChips
+                          items={context.items}
+                          onLeaveOut={context.leaveOut}
                         />
                       ) : undefined
                     }

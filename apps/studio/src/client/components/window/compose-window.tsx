@@ -30,10 +30,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import {
-  type FileUpload,
-  type SessionMessageDataPart,
-} from "@instrument-org/workspace/client";
+import { type FileUpload } from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
@@ -60,10 +57,9 @@ import {
   GROWN,
 } from "./compose-layout";
 import { ComposeZeroState } from "./compose-zero-state";
-import { useComputerVolumes } from "./computer-volumes";
 import { useWindow, WindowContext } from "./context";
-import { ChosenChip, heldChipOf, HeldMark, IncludedChip } from "./context-chip";
-import { behindTabOf, includedItemsOf, includedTabOf } from "./draft-context";
+import { ContextChips, HeldMark } from "./context-chip";
+import { type ContextItem, draftContextItems } from "./context-items";
 import { GroupItem } from "./group-item";
 import { usePageHost } from "./page-hosts";
 import { tabSurfaceAtom } from "./tab-surface";
@@ -83,8 +79,6 @@ import { useWindowTabs } from "./window-tabs";
 
 /** What the composer hands over to start the chat. */
 export interface DraftSend {
-  /** The chips over the words at the press, which the chat's first message is drawn with. */
-  attached: SessionMessageDataPart.SentChip[];
   files?: FileUpload.Input[];
   folders?: { path: string }[];
   modelURI: AIGatewayModelURI.Type;
@@ -267,7 +261,6 @@ export function ComposeWindow({
 }) {
   const appWindow = useWindow();
   const windowTabs = useWindowTabs();
-  const appsBySlug = useAppsBySlug();
   const group = draftGroupOf(draft.id);
   const tabs = windowTabs.allTabs.filter((tab) => tab.group === group);
   // What was marked in files and moved here, as pills that go with the words.
@@ -282,53 +275,31 @@ export function ComposeWindow({
     select: (routerState) => routerState.location.href,
   });
   const inView = useTabInView();
-  const included = includedTabOf(draft, windowTabs.allTabs, (id) =>
-    id === appTabs.selectedId ? activeHref : hrefOfAppTab(appTabs, id),
-  );
-
-  // What the thing the draft was opened over points at on this computer,
-  // with what the draft already holds by name left out, so each is said
-  // once, with what each of the window's own Files tabs has in its Finder.
+  // What the draft carries besides its words, as its chips: the same list
+  // its chat is told at the press (see draftContextItems).
   const surfaces = useAtomValue(tabSurfaceAtom);
-  const finderOf = (id: string) => surfaces[id]?.finder ?? null;
-  const chosen = draft.chosen ?? [];
-  const includedItems = included
-    ? includedItemsOf(included, finderOf(included.id), chosen)
-    : undefined;
-  const showsIncluded =
-    included !== undefined &&
-    (includedItems === undefined || includedItems.length > 0);
-
-  // What the window has up behind the draft now, when that is something
-  // else: it goes with the message too, in a pill of its own the person can
-  // leave out, so the draft says everything the chat will be told.
-  const behind = behindTabOf(draft, inView);
-  const behindItems = behind
-    ? includedItemsOf(behind, finderOf(behind.id), [
-        ...chosen,
-        ...(includedItems ?? []),
-      ])
-    : undefined;
-  const showsBehind =
-    behind !== undefined &&
-    (behindItems === undefined || behindItems.length > 0);
-
-  // The chips as the press finds them, which the chat's first message is
-  // drawn with, so the transcript shows what went the way the draft did.
-  const volumes = useComputerVolumes();
-  const names = { appsBySlug, ...(volumes ? { volumes } : {}) };
-  const attached = [
-    ...chosen.map(({ kind, path }) => ({
-      items: [{ kind, path }],
-      kind: "paths" as const,
-    })),
-    ...(showsIncluded
-      ? [heldChipOf({ items: includedItems, tab: included }, names)]
-      : []),
-    ...(showsBehind
-      ? [heldChipOf({ items: behindItems, tab: behind }, names)]
-      : []),
-  ];
+  const contextItems = draftContextItems({
+    allTabs: windowTabs.allTabs,
+    bandUp: up,
+    draft,
+    finderOf: (id) => surfaces[id]?.finder ?? null,
+    group,
+    hrefOfAppTab: (id) =>
+      id === appTabs.selectedId ? activeHref : hrefOfAppTab(appTabs, id),
+    inView,
+  });
+  const leaveOut = (item: ContextItem) => {
+    onChange((current) => {
+      if (item.kind === "chosen") {
+        const left = (current.chosen ?? []).filter(
+          (entry) => entry.path !== item.item.path,
+        );
+        const { chosen: _was, ...rest } = current;
+        return left.length > 0 ? { ...rest, chosen: left } : rest;
+      }
+      return { ...current, leftOut: [...(current.leftOut ?? []), item.key] };
+    });
+  };
 
   // The words are the draft's own, wherever they are read; what else the
   // box held when it was put away is put back as it comes up.
@@ -749,61 +720,17 @@ export function ComposeWindow({
                   // box is never left waiting on a send.
                   isLoading={false}
                   lead={
-                    chosen.length > 0 || showsIncluded || showsBehind ? (
-                      <>
-                        {chosen.map((item) => (
-                          <ChosenChip
-                            item={item}
-                            key={item.path}
-                            onLeaveOut={() => {
-                              onChange((current) => {
-                                const { chosen: kept = [], ...rest } = current;
-                                const left = kept.filter(
-                                  (entry) => entry.path !== item.path,
-                                );
-                                return left.length > 0
-                                  ? { ...rest, chosen: left }
-                                  : rest;
-                              });
-                            }}
-                          />
-                        ))}
-                        {showsIncluded && (
-                          <IncludedChip
-                            appsBySlug={appsBySlug}
-                            items={includedItems}
-                            onLeaveOut={() => {
-                              onChange((current) => {
-                                const { included: _left, ...rest } = current;
-                                return rest;
-                              });
-                            }}
-                            tab={included}
-                          />
-                        )}
-                        {showsBehind && (
-                          <IncludedChip
-                            appsBySlug={appsBySlug}
-                            items={behindItems}
-                            onLeaveOut={() => {
-                              onChange((current) => ({
-                                ...current,
-                                leftBehind: [
-                                  ...(current.leftBehind ?? []),
-                                  behind.id,
-                                ],
-                              }));
-                            }}
-                            tab={behind}
-                          />
-                        )}
-                      </>
+                    contextItems.length > 0 ? (
+                      <ContextChips
+                        items={contextItems}
+                        onLeaveOut={leaveOut}
+                      />
                     ) : undefined
                   }
                   modelURI={modelURI}
                   onModelChange={onModelChange}
                   onSubmit={(send) => {
-                    onStart({ ...send, attached });
+                    onStart(send);
                   }}
                   placeholder="What do you need?"
                   ref={inputRef}

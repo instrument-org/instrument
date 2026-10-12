@@ -82,6 +82,7 @@ import { chatListOptions } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
 import { NO_FILTERS } from "./chats";
 import { ComposeLayer } from "./compose-layer";
+import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
 import { isPaneOpen } from "./draft-context";
 import { useSignInLanding } from "./use-sign-in-landing";
@@ -506,6 +507,7 @@ function WindowShell({
         ? (surfaces[groupUp.id]?.view ?? null)
         : null;
   // What goes with a message, read at the moment of sending.
+  const volumes = useComputerVolumes();
   const { draftContext, sendContext } = contextReaders({
     appsBySlug,
     appTabId: appTabs.model.selectedId,
@@ -521,6 +523,7 @@ function WindowShell({
     screenView,
     state: opened,
     surfaces,
+    ...(volumes ? { volumes } : {}),
     windowTabs,
   });
   sendContextRef.current = sendContext;

@@ -120,7 +120,6 @@ const actor = createActor(workspaceMachine, {
     },
     chatTemplateDir: path.resolve(import.meta.dirname, "../templates/default"),
     getAIProviderConfigs: () => PROVIDER_CONFIGS,
-    isExternalBrowserEnabled: () => true,
     modelCache: noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: await execa({ reject: false })`which pnpm`.then(

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const FeatureNameSchema = z.enum(["context_ring", "external_browser"]);
+export const FeatureNameSchema = z.enum(["context_ring"]);
 export type FeatureName = z.output<typeof FeatureNameSchema>;
 
 export const FeaturesSchema = z.record(FeatureNameSchema, z.boolean());
@@ -21,11 +21,5 @@ export const FEATURE_METADATA: Record<
     description:
       "Show a context window usage ring in the prompt input for the active session.",
     title: "Context Ring",
-  },
-  external_browser: {
-    code: "x",
-    description:
-      "Let the agent drive a browser outside the app: the user's own Chrome profile and its logins, a Chromium already running with remote debugging, or a cloud browser. macOS asks for a system permission the first time.",
-    title: "External Browser",
   },
 };

@@ -114,14 +114,6 @@ export const AGENT_BROWSER_SOCKET_DIR =
     ? undefined
     : path.join("/tmp", `.${APP_NAME_SLUG}-browser`);
 
-// External-browser invocations run under a sibling daemon session so the task
-// browser connection isn't torn down each time the agent switches between the
-// Instrument provider and an external target (connection-identity changes
-// within one agent-browser session force a relaunch).
-export function externalBrowserSessionName(sessionId: string) {
-  return `${sessionId}-ext`;
-}
-
 /** The daemon session a session's browser-free `read` runs under. */
 export function readSessionName(sessionId: string) {
   return `${sessionId}-read`;

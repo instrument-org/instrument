@@ -355,30 +355,11 @@ function systemPrompt(): string {
 
 const AD_BLOCKING_GUIDANCE = `- The in-app browser blocks ads and trackers. When a page looks broken (a missing button, an empty embed, a checkout or sign-in that never loads), run \`${AGENT_BROWSER_COMMAND.name} adblock off\`, reload, and retry before calling the site broken; it applies to your tabs only, and \`adblock on\` restores it.`;
 
-/**
- * How to choose between browsers, for the builds that have a choice.
- *
- * This text is written into the session context, which is built once and never
- * rewritten, so it outlives a change to the feature flag for the rest of the
- * session. That rules out stating here which browsers exist: the flag can be
- * turned on mid-session, and a stale "there is no other browser" would stop the
- * model from trying something the build now allows, with no failed command to
- * correct it. Availability is claimed only where it is recomputed every request
- * -- the bash tool description -- and enforced by the wrapper, which explains
- * itself when it refuses. What is left here is policy, which is durable.
- */
+/** How the agent goes about a page that needs an account, and one ad blocking broke. */
 function browserGuidance(): string {
-  if (!getWorkspaceConfig().isExternalBrowserEnabled()) {
-    return [
-      `- When a page needs an account, open it in the in-app browser and ask the user to sign in there rather than looking for credentials; the session persists for the rest of the work.`,
-      AD_BLOCKING_GUIDANCE,
-    ].join("\n");
-  }
   return [
+    `- When a page needs an account, open it in the in-app browser and ask the user to sign in there rather than looking for credentials; the session persists for the rest of the work.`,
     AD_BLOCKING_GUIDANCE,
-    `- Bare commands drive the in-app browser the user watches, and that is where research, local app testing, docs lookup, and any file you produced belong. Targeting flags drive a browser outside the app instead: \`--profile\` for the user's existing Chrome logins, \`--cdp\` or \`--auto-connect\` for a Chromium already running with remote debugging, \`--provider\` and \`--device\` for a cloud or iOS browser. Reach for one when the work needs the user's logins, when a site blocks the in-app browser (bot detection, CAPTCHA, login friction), or when the user names a specific browser, profile, device, or provider.`,
-    `- Targeting applies to a single invocation, so repeat the flag on every command of an external flow; a bare follow-up silently lands back on the in-app browser. Switching browsers changes which signed-in identity you act as, so say you are switching rather than doing it silently, ask before working inside the user's own logged-in browser, and re-verify signed-in state afterward instead of assuming the previous session carried over.`,
-    `- Treat a refusal as a fork rather than an ending. When the in-app browser is blocked, challenged, or cannot finish a sign-in, name what refused you and offer to retry the same step in the user's own browser with \`--profile\`, in the same reply and without waiting to be asked. Asking them to clear the block themselves is one option, not the whole answer, and ending on it while a browser that could have worked went unmentioned is the failure to avoid.`,
   ].join("\n");
 }
 

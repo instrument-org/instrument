@@ -66,7 +66,6 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 
 | Plan | Status |
 | --- | --- |
-| [External browsers behind a flag](active/external-browser-behind-a-flag.md) — built; the checklist for turning it on | landed, flag off |
 | [Chrome extensions, starting with 1Password](active/browser-extensions-and-1password.md) | on hold, spike done |
 
 ### Platform and product
@@ -99,6 +98,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | Plan | Outcome |
 | --- | --- |
 | [Agent browser ad blocking](completed/agent-browser-ad-blocking.md) | landed |
+| [External browsers behind a flag](completed/external-browser-behind-a-flag.md) | abandoned, removed |
 | [Honest browser context](completed/honest-browser-context.md): chips are the whole context, a chat names only its own tabs, and an agent-browser proxy that opens tabs only for pages | landed |
 | [One window browser](completed/single-window-browser.md): one browser, a guest named by its tab, and a lifetime per tab on Chromium's discard rules | landed |
 | [Chat status line and loading states](completed/chat-status-line-and-loading-states.md): dots only while a reply is written, one activity line under the title | landed |

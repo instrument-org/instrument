@@ -19,7 +19,6 @@ import {
   isBrowserFreeRead,
   isDaemonConfigRace,
   isExternalBrowserInvocation,
-  isExternalLocalLaunch,
   resolveAgentBrowserPathArgs,
 } from "./agent-browser";
 import {
@@ -42,7 +41,7 @@ describe("createAgentBrowserCommand", () => {
   const command = createAgentBrowserCommand({ sessionId, chatId });
 
   beforeEach(() => {
-    createMockChatConfig(chatId, { externalBrowser: true });
+    createMockChatConfig(chatId);
   });
 
   it("returns managed help with read guidance", async () => {
@@ -52,21 +51,6 @@ describe("createAgentBrowserCommand", () => {
     expect(result.stdout).toContain("agent-browser read");
     expect(result.stdout).toContain(
       "Read the active page as agent-friendly text",
-    );
-    expect(result.stdout).toContain("--auto-connect");
-  });
-
-  it("keeps the targeting facts that are only stated here", async () => {
-    const result = await command.execute(["--help"], mockCtx);
-
-    // The skill no longer describes external browsers, so help is the only
-    // place an agent learns why --auto-connect misses a running Chrome, or
-    // that a download here outlives the task.
-    expect(result.stdout).toContain("Chrome 136+");
-    expect(result.stdout).toContain("--provider ios");
-    expect(result.stdout).toContain("never resets it");
-    expect(result.stdout).toContain(
-      "no way to see what the user currently has open",
     );
   });
 
@@ -209,7 +193,7 @@ describe("createAgentBrowserCommand", () => {
 });
 
 describe("classifyInvocation", () => {
-  const managed = { externalEnabled: false, hasNoWindow: false };
+  const managed = { hasNoWindow: false };
   it.each([
     [["--help"], managed, "help"],
     [["--session", "x", "open", "a.com"], managed, "refuse"],
@@ -218,11 +202,7 @@ describe("classifyInvocation", () => {
     [["dashboard"], managed, "refuse"],
     [["--version"], managed, "info"],
     [["--profile", "Default", "open", "a.com"], managed, "refuse"],
-    [
-      ["--profile", "Default", "open", "a.com"],
-      { ...managed, externalEnabled: true },
-      "external",
-    ],
+    [["--cdp", "9222", "snapshot"], managed, "refuse"],
     [["--executable-path", "/x", "open", "a.com"], managed, "refuse"],
     [["read", "https://example.com"], managed, "read"],
     [["open", "a.com"], { ...managed, hasNoWindow: true }, "headless"],
@@ -473,7 +453,7 @@ describe("agent-browser routing", () => {
   // Per test, not once at collection: the config is a process singleton, so a
   // describe that sets it in its body loses to whichever describe runs last.
   beforeEach(async () => {
-    createMockChatConfig(chatId, { externalBrowser: true });
+    createMockChatConfig(chatId);
     const fs = new InMemoryFs();
     await fs.mkdir("/task/attachments", { recursive: true });
     await fs.writeFile("/task/attachments/image.png", "image");
@@ -574,11 +554,6 @@ describe("agent-browser routing", () => {
       snapshotArgs: ["--session", sessionId, "snapshot", "-i", "--delta"],
     },
     {
-      args: ["--cdp", "9222", "click", "@e1"],
-      name: "a click on an external browser",
-      snapshotArgs: undefined,
-    },
-    {
       args: ["read", "https://example.com"],
       name: "a browser-free read",
       snapshotArgs: undefined,
@@ -620,75 +595,6 @@ describe("agent-browser routing", () => {
     },
   );
 
-  it("routes an external targeting flag to the sibling session with no provider", async () => {
-    const { args, env } = await spawnedWith([
-      "--profile",
-      "Default",
-      "open",
-      "https://example.com",
-    ]);
-
-    expect(args[args.indexOf("--session") + 1]).toBe(`${sessionId}-ext`);
-    expect(env.AGENT_BROWSER_PROVIDER).toBeUndefined();
-    expect(env.AGENT_BROWSER_PLUGINS).toBeUndefined();
-    expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
-    // --profile and --auto-connect resolve against the real user-data dirs.
-    expect(env.HOME).toBe(os.homedir());
-  });
-
-  it("launches an external browser with a window the user can see", async () => {
-    const { args } = await spawnedWith([
-      "--profile",
-      "Default",
-      "open",
-      "https://example.com",
-    ]);
-
-    expect(args).toContain("--headed");
-  });
-
-  it.each([
-    { args: ["--cdp", "9222", "snapshot"], name: "--cdp" },
-    { args: ["--auto-connect", "snapshot"], name: "--auto-connect" },
-    { args: ["--provider", "browserbase", "open", "x"], name: "--provider" },
-    { args: ["profiles"], name: "profiles" },
-    { args: ["open", "https://example.com"], name: "the in-app browser" },
-  ])("does not ask $name for a window it cannot open", async ({ args }) => {
-    const { args: spawned } = await spawnedWith(args);
-
-    expect(spawned).not.toContain("--headed");
-  });
-
-  it("keeps a cloned Chrome profile out of the task tree", async () => {
-    const { env } = await spawnedWith([
-      "--profile",
-      "Default",
-      "open",
-      "https://example.com",
-    ]);
-
-    // The CLI clones the user's real profile into TMPDIR. Inside the task that
-    // clone is indexed, reported back to the model as changed files, and
-    // readable by the agent.
-    for (const key of ["TEMP", "TMP", "TMPDIR"]) {
-      expect(env[key]).toBeTruthy();
-      expect(env[key]).not.toContain(taskDirPath);
-    }
-  });
-
-  it("leaves an external browser's downloads where that browser puts them", async () => {
-    const { env } = await spawnedWith([
-      "--profile",
-      "Default",
-      "open",
-      "https://example.com",
-    ]);
-
-    // The CLI applies this browser-wide at launch, so a task path here would
-    // capture every download that browser makes, the user's own included.
-    expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBeUndefined();
-  });
-
   it("keeps the in-app browser's downloads inside the task", async () => {
     const { env } = await spawnedWith(["open", "https://example.com"]);
 
@@ -703,97 +609,12 @@ describe("agent-browser routing", () => {
     }
   });
 
-  it("hands an external browser the host environment", async () => {
-    // The variable the CLI reads to find Chrome and the user's profiles on
-    // Windows. The sandbox env carries no such thing, so an external
-    // invocation that inherits it cannot resolve --profile or `profiles`.
-    vi.stubEnv("LOCALAPPDATA", String.raw`C:\Users\person\AppData\Local`);
-
-    const { env } = await spawnedWith([
-      "--profile",
-      "Default",
-      "open",
-      "https://example.com",
-    ]);
-
-    expect(env.LOCALAPPDATA).toBe(String.raw`C:\Users\person\AppData\Local`);
-    // Inheriting the host env must not hand back the color the sandbox env
-    // was suppressing; the CLI's output is read by the model.
-    expect(env.NO_COLOR).toBe("1");
-  });
-
   it("keeps the host environment away from the in-app browser", async () => {
     vi.stubEnv("LOCALAPPDATA", String.raw`C:\Users\person\AppData\Local`);
 
     const { env } = await spawnedWith(["open", "https://example.com"]);
 
     expect(env.LOCALAPPDATA).toBeUndefined();
-  });
-
-  it.each([
-    { name: "a relative directory", value: "work/browser-profile" },
-    { name: "a task-absolute directory", value: "/task/work/profile" },
-    { name: "a home-relative directory", value: "~/chrome-profile" },
-  ])("refuses a --profile naming $name", async ({ value }) => {
-    // Chrome takes the value as its data directory verbatim: relative, it
-    // resolves against Chrome's working directory rather than the task;
-    // absolute, it plants a Chrome profile inside the task tree.
-    const result = await command.execute(
-      ["--profile", value, "open", "https://example.com"],
-      commandCtx,
-    );
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(`"${value}" is a directory`);
-    expect(result.stderr).toContain("agent-browser profiles");
-    const { execa } = await import("execa");
-    expect(execa).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    { name: "a task-relative program", value: "work/chrome.sh" },
-    { name: "a task-absolute program", value: "/task/work/chrome.sh" },
-    { name: "a host browser build", value: "/Applications/Chromium.app" },
-  ])("refuses an --executable-path naming $name", async ({ value }) => {
-    // An external invocation runs with the host environment, so honoring this
-    // would execute an agent-authored file outside the sandbox with the user's
-    // own credentials in its env.
-    const result = await command.execute(
-      ["--executable-path", value, "open", "https://example.com"],
-      commandCtx,
-    );
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("--executable-path is not available");
-    const { execa } = await import("execa");
-    expect(execa).not.toHaveBeenCalled();
-  });
-
-  it("keeps the host environment out of reach of an agent-named program", async () => {
-    // The pairing that matters: the host env is inherited (so Chrome can be
-    // found) only on invocations where nothing the agent supplied decides which
-    // program runs.
-    const refused = await command.execute(
-      ["--executable-path", "work/chrome.sh", "open", "https://example.com"],
-      commandCtx,
-    );
-    expect(refused.exitCode).toBe(1);
-
-    const { env } = await spawnedWith([
-      "--profile",
-      "Default",
-      "open",
-      "x.com",
-    ]);
-    expect(env.HOME).toBe(os.homedir());
-  });
-
-  it("routes profiles to the host even without a targeting flag", async () => {
-    const { args, env } = await spawnedWith(["profiles"]);
-
-    expect(args[args.indexOf("--session") + 1]).toBe(`${sessionId}-ext`);
-    expect(env.HOME).toBe(os.homedir());
-    expect(env.AGENT_BROWSER_PROVIDER).toBeUndefined();
   });
 
   it("ignores connection env the agent exported into its shell", async () => {
@@ -823,13 +644,13 @@ describe("agent-browser routing", () => {
   });
 });
 
-describe("agent-browser with external browsers disabled", () => {
+describe("agent-browser and browsers outside the app", () => {
   const chatId = ChatIdSchema.parse("gated");
   const sessionId = StoreId.newSessionId();
   const command = createAgentBrowserCommand({ sessionId, chatId });
 
   beforeEach(() => {
-    createMockChatConfig(chatId, { externalBrowser: false });
+    createMockChatConfig(chatId);
   });
 
   afterEach(() => {
@@ -959,32 +780,5 @@ describe("isExternalBrowserInvocation", () => {
     },
   ])("$args -> external: $external", ({ args, external }) => {
     expect(isExternalBrowserInvocation(args)).toBe(external);
-  });
-});
-
-describe("isExternalLocalLaunch", () => {
-  it.each([
-    { args: ["--profile", "Default", "open", "x"], launch: true },
-    { args: ["--executable-path", "/opt/chrome", "open", "x"], launch: true },
-    { args: ["--state", "state.json", "open", "x"], launch: true },
-    { args: ["--restore", "shop", "open", "x"], launch: true },
-    // Attached targets: the browser exists already and launch options are moot.
-    { args: ["--cdp", "9222", "snapshot"], launch: false },
-    { args: ["--auto-connect", "snapshot"], launch: false },
-    { args: ["--provider", "browserbase", "open", "x"], launch: false },
-    {
-      args: ["--profile", "Default", "--cdp", "9222", "snapshot"],
-      launch: false,
-    },
-    // Opting out of auto-connect leaves a launch behind, not an attach.
-    {
-      args: ["--auto-connect", "false", "--profile", "Default", "open", "x"],
-      launch: true,
-    },
-    // Not external at all.
-    { args: ["open", "https://example.com"], launch: false },
-    { args: ["--provider", "instrument", "open", "x"], launch: false },
-  ])("$args -> local launch: $launch", ({ args, launch }) => {
-    expect(isExternalLocalLaunch(args)).toBe(launch);
   });
 });

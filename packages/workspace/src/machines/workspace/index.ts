@@ -269,7 +269,6 @@ export const workspaceMachine = setup({
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
       indexesDir?: string;
-      isExternalBrowserEnabled: () => boolean;
       modelCache: ModelCache;
       nodeExecEnv: Record<string, string>;
       pnpmBinPath: string;
@@ -307,7 +306,6 @@ export const workspaceMachine = setup({
       ...(input.finderEntries ? { finderEntries: input.finderEntries } : {}),
       ...(input.resolveAlias ? { resolveAlias: input.resolveAlias } : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),
-      isExternalBrowserEnabled: input.isExternalBrowserEnabled,
       ...(input.knownFolders ? { knownFolders: input.knownFolders } : {}),
       ...(input.indexesDir && {
         indexesDir: AbsolutePathSchema.parse(input.indexesDir),

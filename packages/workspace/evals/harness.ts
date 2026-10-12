@@ -568,7 +568,6 @@ export async function runEvals(
         "../templates/default",
       ),
       getAIProviderConfigs: () => providerConfigs,
-      isExternalBrowserEnabled: () => true,
       // The Mac helper as a checkout builds it (`pnpm --filter
       // @instrument-org/studio build:mac-helper`), so a run reaches
       // Calendar, Reminders, and Contacts the way the app does; without

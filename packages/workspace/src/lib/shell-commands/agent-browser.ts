@@ -19,7 +19,6 @@ import {
   AGENT_BROWSER_IDLE_TIMEOUT_MS,
   AGENT_BROWSER_PATH,
   AGENT_BROWSER_SOCKET_DIR,
-  externalBrowserSessionName,
   readSessionName,
 } from "../agent-browser";
 import {
@@ -35,11 +34,7 @@ import { agentSpellingOfFileUrls } from "../local-page-address";
 import { liveHeldTabs } from "../chat/window-tab";
 import { isAtOrUnder } from "../path-containment";
 import { taskFsLayout } from "../resolve-workspace-file-path";
-import {
-  getDownloadsDir,
-  getExternalBrowserTmpDir,
-  getScreenshotsDir,
-} from "../chat-dir-utils";
+import { getDownloadsDir, getScreenshotsDir } from "../chat-dir-utils";
 import { chatDir } from "../record-folders";
 import { sessionRole } from "../chat/children";
 import { heldTabs, updateHeldTabs } from "../held-tabs";
@@ -74,35 +69,21 @@ export const AGENT_BROWSER_COMMAND = {
   name: AGENT_BROWSER_SKILL_NAME,
 } as const;
 
-/**
- * Built per call rather than held as a constant because the external-browser
- * lines describe a capability behind a feature flag, and a description baked in
- * at module load would advertise it to every build.
- */
 export function agentBrowserCommandDescription() {
-  const external = getWorkspaceConfig().isExternalBrowserEnabled()
-    ? [
-        `Defaults to the in-app browser. External browsers are selected per invocation: --profile (a local Chrome profile, including the user's logins; list with \`profiles\`), --auto-connect (a Chromium already running with remote debugging), --cdp (an explicit CDP endpoint), --provider (cloud/iOS). Run \`agent-browser --help\` for each flag's value rules and caveats; the skill does not cover them.`,
-        `The host's browser installs and Chrome profiles are NOT visible in the filesystem; inspect them only via \`agent-browser profiles\`.`,
-      ]
-    : [
-        `Drives the in-app browser, which is the only browser available: this build cannot reach the user's own Chrome, their profiles or logins, or any browser running outside the app.`,
-      ];
-
   return [
     `Control a browser to navigate the web, interact with pages, and extract content.`,
     `The first agent-browser command in a session returns agent-browser's guide with its output, led by what differs in this app; read it before the next command. \`agent-browser skills get core\` prints it again.`,
     `A bash call whose last page-changing command (open, click, press, select, check, back, ...) is not followed by a read of the page ends with the page's interactive snapshot, or only what changed in it, so act on those refs instead of running \`snapshot -i\` after it.`,
     `IMPORTANT: Never fabricate specific or deep URLs from memory -- they change and training data is stale. Well-known root domains are fine; for anything more specific, use \`${WebSearch.name}\` first to discover the correct URL before opening the browser.`,
-    ...external,
+    `Drives the in-app browser, which is the only browser available: this build cannot reach the user's own Chrome, their profiles or logins, or any browser running outside the app.`,
     `Do NOT pass session, config, namespace, or plugin flags; those are managed automatically.`,
   ].join("\n");
 }
 
 // Flags rejected because the harness owns them: daemon session identity and
 // config/plugin-registry discovery. Connection targeting (--cdp,
-// --auto-connect, --provider, --profile, --state, --restore*) passes through
-// and routes the invocation to an external browser session instead.
+// --auto-connect, --provider, --profile, --state, --restore*) is refused as a
+// reach for a browser outside the app (see isExternalBrowserInvocation).
 export const BLOCKED_FLAGS = new Set([
   "--config", // A managed empty config is injected so task-local agent-browser.json (agent-writable, can register plugins) is never discovered.
   "--namespace", // Would move daemon/restore state outside the workspace-owned namespace.
@@ -320,31 +301,6 @@ const WORKSPACE_HELP_MANAGED = dedent`
   manages daemon sessions and the plugin registry.
 `.trim();
 
-const WORKSPACE_HELP_EXTERNAL = dedent`
-  External browsers (flags apply per invocation; a bare command targets the
-  in-app browser again):
-    profiles                    List the user's Chrome profiles
-    --profile <name>            Launch Chrome with an existing profile (logins)
-    --auto-connect              Connect to a Chromium already running with
-                                remote debugging enabled
-    --cdp <port|http://host:port>
-                                Connect to an explicit CDP endpoint. A bare
-                                port or an http origin; a ws:// value must be
-                                a complete devtools URL, not just an origin
-    --provider <name>           Cloud or iOS browser provider
-    --device <name>             Names an iOS device; only applies alongside
-                                --provider ios, and is ignored on its own
-    --state | --restore <key>   Load or persist storage state
-
-  A normally running Chrome is NOT connectable: Chrome 136+ disables remote debugging on the default profile, so --auto-connect only reaches an instance someone launched with it enabled. To act as the user in their own logged-in Chrome, use --profile, which launches a debuggable copy of that profile with its logins.
-
-  There is no way to see what the user currently has open in their own browser. --profile launches a separate copy of the profile, so no flag reaches the live windows or tabs of the Chrome they are looking at, and nothing here reports them. Asked what they have open, say that plainly instead of working through the targeting flags.
-
-  An external browser launched locally (--profile) opens a window the user can see and use; ask them to complete any sign-in or approval there rather than reporting that you are blocked. A browser reached with --cdp, --auto-connect, or --provider was launched elsewhere and is visible only if it already was.
-
-  Screenshots land in the same task location as managed-browser output, and \`screenshot --full\` works here (it is unavailable in the managed browser). Downloads do not: an external browser saves to its own download folder, which for a \`--profile\` launch is the user's normal one. Avoid \`download\` too -- it redirects that browser's download destination and never resets it, which outlives the task. To get a file into the task, fetch its URL at page level and write it yourself.
-`.trim();
-
 /**
  * The env a browser-free read runs with: launch configuration removed, and only
  * what the fetch itself needs put back.
@@ -515,50 +471,6 @@ export async function resolveAgentBrowserPathArgs(
 }
 
 /**
- * Refuse `--executable-path`. It is the one flag whose value the CLI runs as a
- * program, and an external invocation runs on the host with the user's own
- * environment rather than the sandbox's, so honoring it would let a file the
- * agent wrote in the task execute outside every boundary the rest of this
- * environment keeps -- with the user's credentials in its env. Nothing legitimate
- * needs it: the app ships the browser it drives, and `--profile` covers acting
- * as the user in their own Chrome.
- */
-function executablePathMessage() {
-  return [
-    "agent-browser: --executable-path is not available.",
-    "It names a program for the workspace to launch on the host rather than a browser to target, so the binary that runs is not the agent's to choose.",
-    "To act as the user in their own Chrome, use --profile (`agent-browser profiles` lists the names). Otherwise drop the flag: the in-app browser is the default target, and the app ships the browser it drives.",
-    "",
-  ].join("\n");
-}
-
-/**
- * The base environment for an invocation that drives a browser outside the app.
- *
- * The sandbox env is shaped for the task: a bare PATH, a per-task virtualenv,
- * task-local temp. Driving the host's own browser stack needs the host's
- * environment instead. The CLI finds the user's Chrome install, their profiles,
- * and any already-running Chrome through platform variables it never otherwise
- * sees -- LOCALAPPDATA on Windows, HOME elsewhere. Inheriting covers those by
- * construction; naming them one platform at a time covers only the ones we
- * thought of.
- *
- * This is the only path on which a subprocess sees the host environment rather
- * than the sandbox's, so what it may launch has to stay outside the agent's
- * control: the browser is resolved from the host's own installs, the sandbox
- * PATH is replaced rather than merged so a task-local binary cannot shadow one,
- * and `--executable-path` is refused (see executablePathMessage).
- */
-function externalBrowserBaseEnv(): Record<string, string | undefined> {
-  return {
-    ...process.env,
-    // Carried by the sandbox env on every other invocation, and not something a
-    // host sets, so without it here the CLI colors output the model has to read.
-    NO_COLOR: "1",
-  };
-}
-
-/**
  * Written to contradict a model that believes otherwise: training data, a
  * stale skill copy on the user's machine, or its own earlier turn in this
  * session. It states the absence, then names the route that does work, so the
@@ -573,50 +485,6 @@ function externalBrowserUnavailableMessage() {
   ].join("\n");
 }
 
-/** Whether the invocation carries `--executable-path` in any accepted form. */
-function hasExecutablePathFlag(args: string[]): boolean {
-  const { globalFlags } = parseAgentBrowserArgs(args);
-  return globalFlags.some(({ name }) => name === "--executable-path");
-}
-
-/**
- * Refuse a `--profile` that names a directory instead of one of the user's
- * Chrome profiles. Written as a redirect rather than a wall: the flag exists to
- * reuse the user's logins, and a directory cannot carry any, so the answer is
- * always another route rather than a corrected path.
- */
-function profileDirMessage(value: string) {
-  return [
-    `agent-browser: --profile takes the name of one of the user's Chrome profiles, and "${value}" is a directory.`,
-    "The value is handed to Chrome as its data directory unchanged, so a relative one resolves against Chrome's own working directory rather than the task, and either way the profile it opens holds none of the logins --profile exists to reuse.",
-    "Run `agent-browser profiles` for the names available. For a browser with no logins, drop the flag: the in-app browser is the default target, and it keeps cookies and signed-in sessions for the whole task.",
-    "",
-  ].join("\n");
-}
-
-/**
- * The `--profile` value when it names a directory, mirroring the CLI's own
- * predicate: a profile name carries no `/`, `\`, or `~`, and anything else is
- * passed through to Chrome as a path after tilde expansion only.
- */
-function profileDirValue(args: string[]): string | undefined {
-  const { globalFlags } = parseAgentBrowserArgs(args);
-  const value = globalFlags.find(({ name }) => name === "--profile")?.value;
-  if (
-    value === undefined ||
-    !(value.includes("/") || value.includes("\\") || value.includes("~"))
-  ) {
-    return undefined;
-  }
-  return value;
-}
-
-function workspaceHelp() {
-  return getWorkspaceConfig().isExternalBrowserEnabled()
-    ? `${WORKSPACE_HELP_MANAGED}\n\n${WORKSPACE_HELP_EXTERNAL}`
-    : WORKSPACE_HELP_MANAGED;
-}
-
 /**
  * What one `agent-browser` invocation is, decided from its arguments alone,
  * before anything runs:
@@ -624,7 +492,6 @@ function workspaceHelp() {
  * - `refuse`: a flag, subcommand or target the app does not allow, with why.
  * - `help`, `adblock`, `skills`: answered here, with no CLI at all.
  * - `info`: `--version` and the like, which print and touch no browser.
- * - `external`: the user's own browser, behind the flag that allows it.
  * - `read`: a fetch with no page, on a daemon session of its own.
  * - `headless`: no window to drive (the eval harness), so the CLI starts a
  *   browser of its own.
@@ -632,7 +499,6 @@ function workspaceHelp() {
  */
 export type Invocation =
   | { kind: "adblock"; mode: string | undefined }
-  | { kind: "external" }
   | { kind: "headless" }
   | { kind: "help" }
   | { kind: "info" }
@@ -643,10 +509,7 @@ export type Invocation =
 
 export function classifyInvocation(
   args: string[],
-  {
-    externalEnabled,
-    hasNoWindow,
-  }: { externalEnabled: boolean; hasNoWindow: boolean },
+  { hasNoWindow }: { hasNoWindow: boolean },
 ): Invocation {
   if (args.some((a) => a === "--help" || a === "-h")) {
     return { kind: "help" };
@@ -685,26 +548,13 @@ export function classifyInvocation(
   if (isInfoOnly) {
     return { kind: "info" };
   }
-  // `profiles` inspects the host's Chrome install, so it is external even
-  // without a targeting flag.
-  const wantsExternal =
-    isExternalBrowserInvocation(args) || subcommand === "profiles";
-  // Refused rather than ignored. Dropping the targeting flag and running the
-  // command anyway would answer it on the managed browser, and the agent
-  // would report acting as the user's signed-in identity while holding a
-  // session that was never theirs.
-  if (wantsExternal && !externalEnabled) {
+  // A reach for a browser outside the app, which there is none of. Refused
+  // rather than ignored: dropping the targeting flag and running the command
+  // anyway would answer it on the app's browser, and the agent would report
+  // acting as the user's signed-in identity while holding a session that was
+  // never theirs.
+  if (isExternalBrowserInvocation(args) || subcommand === "profiles") {
     return { kind: "refuse", stderr: externalBrowserUnavailableMessage() };
-  }
-  const profileDir = profileDirValue(args);
-  if (profileDir !== undefined) {
-    return { kind: "refuse", stderr: profileDirMessage(profileDir) };
-  }
-  if (hasExecutablePathFlag(args)) {
-    return { kind: "refuse", stderr: executablePathMessage() };
-  }
-  if (wantsExternal) {
-    return { kind: "external" };
   }
   if (isBrowserFreeRead(args)) {
     return { kind: "read" };
@@ -737,7 +587,6 @@ export function createAgentBrowserCommand({
 
     const id = chatId;
     const invocation = classifyInvocation(args, {
-      externalEnabled: workspaceConfig.isExternalBrowserEnabled(),
       hasNoWindow: workspaceConfig.browser.hasNoWindow,
     });
     switch (invocation.kind) {
@@ -749,7 +598,7 @@ export function createAgentBrowserCommand({
         );
       }
       case "help": {
-        return { exitCode: 0, stderr: "", stdout: workspaceHelp() };
+        return { exitCode: 0, stderr: "", stdout: WORKSPACE_HELP_MANAGED };
       }
       case "refuse": {
         return { exitCode: 1, stderr: invocation.stderr, stdout: "" };
@@ -762,7 +611,6 @@ export function createAgentBrowserCommand({
       }
     }
     const isInfoOnly = invocation.kind === "info";
-    const isExternal = invocation.kind === "external";
     const browserFreeRead = invocation.kind === "read";
 
     const { env, taskCwd } = resolveCommandContext(chatId, ctx);
@@ -815,21 +663,6 @@ export function createAgentBrowserCommand({
       // touching a browser target, so don't spin up a WebContentsView or attach
       // to the CDP bridge.
       commandArgs.push(...resolvedArgs);
-    } else if (isExternal) {
-      // External targets run under a sibling daemon session so switching
-      // between the in-app browser and an external browser never tears down the
-      // other's connection. External intent is per-invocation: a bare
-      // follow-up command routes back to the in-app browser.
-      commandArgs.push(
-        "--session",
-        externalBrowserSessionName(sessionId),
-        // The CLI launches headless by default, which would leave the user
-        // unable to see or touch a browser opened with their own profile --
-        // the case that exists so they can complete a sign-in. Placed ahead of
-        // the agent's own args so an explicit `--headed false` still wins.
-        ...(isExternalLocalLaunch(resolvedArgs) ? ["--headed"] : []),
-        ...resolvedArgs,
-      );
     } else if (browserFreeRead) {
       // A fetch needs no view either; creating one would leave the user staring
       // at an empty browser panel the agent never navigates. It still needs a
@@ -871,53 +704,24 @@ export function createAgentBrowserCommand({
       commandArgs.push("--session", sessionId, ...resolvedArgs);
     }
 
-    // Resolving `--profile` clones the user's real Chrome profile into TMPDIR,
-    // and driving the host's browser stack spills other host state there too.
-    // Task-local temp (resolveCommandContext) is the wrong sink for that: it is
-    // inside the task tree, so the clone's cookies, login data, and browsing
-    // history would be indexed, listed back to the model as changed files,
-    // written into the next system prompt's task layout, and readable by the
-    // agent. Redirect it out of the task.
-    const externalTmpDir = isExternal ? getExternalBrowserTmpDir() : undefined;
-    if (externalTmpDir) {
-      await fs.mkdir(externalTmpDir, { recursive: true });
-    }
-
     const screenshotDir = getScreenshotsDir(workDir(chatId));
-    // Managed browser only. The CLI applies this at launch as a browser-wide
-    // `Browser.setDownloadBehavior`, so on an external browser it would capture
-    // every download that browser makes for the rest of its life: ones the user
-    // starts in the window themselves, and ones Chrome resumes from the profile
-    // it was launched with. Those land in the task folder instead of where the
-    // user expects them, and get reported as the agent's own file changes.
-    const downloadPath = isExternal
-      ? undefined
-      : getDownloadsDir(workDir(chatId));
+    const downloadPath = getDownloadsDir(workDir(chatId));
     const agentBrowserStateDir = screenshotDir;
     // Relative so agent-browser outputs screenshot paths the agent sees as
     // relative to its cwd (e.g. "work/screenshots/shot.png"), not host
     // absolute.
     const screenshotDirRelative = path.relative(taskCwd, screenshotDir);
 
-    // An external invocation drives the host's browser stack, so it runs with
-    // the host's environment; only the in-app browser gets the sandbox's.
-    const baseEnv = isExternal ? externalBrowserBaseEnv() : env;
-
     const spawnEnv = {
-      ...baseEnv,
+      ...env,
       // `agent-browser record` spawns a real `ffmpeg` process by bare name,
       // resolved against PATH. The bundled ffmpeg binary isn't on the sandbox
       // PATH, so prepend its dir (the in-bash `ffmpeg` command is a just-bash
       // intercept that a separate subprocess can't see).
-      ...ffmpegSubprocessEnv(baseEnv.PATH),
-      // Wins over whichever temp dir the base env carries.
-      ...(externalTmpDir
-        ? { TEMP: externalTmpDir, TMP: externalTmpDir, TMPDIR: externalTmpDir }
-        : {}),
+      ...ffmpegSubprocessEnv(env.PATH),
       // Null out env-var equivalents of harness-owned and connection flags so
       // the user shell can't bypass flag policy. Connection targeting must
-      // arrive as CLI flags: session routing (task vs external daemon session)
-      // is derived from argv.
+      // arrive as CLI flags, where they are refused.
       AGENT_BROWSER_AUTO_CONNECT: undefined,
       AGENT_BROWSER_CDP: undefined,
       AGENT_BROWSER_CONFIG: undefined,
@@ -944,15 +748,10 @@ export function createAgentBrowserCommand({
       AGENT_BROWSER_STATE: undefined,
       // The daemon spawns the provider plugin via process.execPath. In
       // packaged builds that is the Electron binary, which this var makes
-      // behave as plain node. Inert for the Rust CLI and for Chrome; set
-      // only for in-app browser invocations so an external --executable-path
-      // launch of an Electron-based app is unaffected.
+      // behave as plain node. Inert for the Rust CLI and for Chrome.
       ELECTRON_RUN_AS_NODE: pluginRegistry ? "1" : undefined,
-      // In-app browser invocations write to a per-task sink instead of the host
-      // home. External ones keep whatever the host uses to locate the user's
-      // browser data, which is the base env's HOME on macOS and Linux and is
-      // not HOME at all on Windows.
-      ...(isExternal ? {} : { HOME: homeDir }),
+      // A per-task sink instead of the host home.
+      HOME: homeDir,
     };
 
     const spawnOptions = {
@@ -980,9 +779,8 @@ export function createAgentBrowserCommand({
 
     const exitCode = result.exitCode ?? 1;
 
-    // The task's own browser only: an external one is reached through flags
-    // the follow-up would have to repeat, and a fetch or --help has no page.
-    if (!isInfoOnly && !isExternal && !browserFreeRead) {
+    // A fetch or --help has no page.
+    if (!isInfoOnly && !browserFreeRead) {
       // The session and connection flags this invocation was given, ahead of
       // the agent's own arguments, so the snapshot reaches the same page.
       const connectionArgs = commandArgs.slice(
@@ -1068,25 +866,6 @@ export function isExternalBrowserInvocation(args: string[]): boolean {
     return providerName.toLowerCase() !== INSTRUMENT_PROVIDER_NAME;
   }
   return hasStateFlag;
-}
-
-/**
- * True when an external invocation launches a browser of its own rather than
- * attaching to one that already exists. Only a launch reads launch options, so
- * only a launch can be asked for a visible window: --cdp, --auto-connect, and
- * --provider connect to a browser somebody else started and ignore them.
- */
-export function isExternalLocalLaunch(args: string[]): boolean {
-  if (!isExternalBrowserInvocation(args)) {
-    return false;
-  }
-  const { globalFlags } = parseAgentBrowserArgs(args);
-  return !globalFlags.some(
-    ({ name, value }) =>
-      name === "--cdp" ||
-      name === "--provider" ||
-      (name === "--auto-connect" && value !== "false"),
-  );
 }
 
 /**

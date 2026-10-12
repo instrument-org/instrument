@@ -12,7 +12,6 @@ import {
   startQuit,
 } from "@/electron-main/lib/quit";
 import { diskModelCache } from "@/electron-main/stores/machine/model-cache";
-import { isFeatureEnabled } from "@/electron-main/stores/workspace/features";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";
@@ -155,7 +154,6 @@ export function createWorkspaceActor() {
       // Beside the other per-machine state rather than in the workspace: the
       // index is derived, and a workspace may sit in a synced folder.
       indexesDir: path.join(app.getPath("userData"), "indexes"),
-      isExternalBrowserEnabled: () => isFeatureEnabled("external_browser"),
       knownFolders: {
         desktop: app.getPath("desktop"),
         documents: app.getPath("documents"),

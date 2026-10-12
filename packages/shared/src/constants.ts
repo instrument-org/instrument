@@ -8,12 +8,6 @@ export const APP_UPDATER_CACHE_DIR_NAME = `${APP_NAME_SLUG}-desktop-updater`;
 // item, and macOS privacy grants. Its first launch is a real first launch, on a
 // machine that already runs Instrument. Copy keeps saying APP_NAME, so what the
 // user reads matches what ships.
-const previewName =
-  (process.env.INSTRUMENT_PREVIEW_NAME ?? "")
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, "-")
-    .replaceAll(/^-+|-+$/g, "")
-    .slice(0, 40) || undefined;
 /**
  * Which kind of build this is, settled when it is built. Everything that tells
  * a preview or a development run apart from the app people install (its name,
@@ -23,24 +17,58 @@ export type AppFlavor =
   | { kind: "development" }
   | { kind: "preview"; name: string }
   | { kind: "release" };
-export const APP_FLAVOR: AppFlavor =
-  previewName !== undefined
-    ? { kind: "preview", name: previewName }
-    : process.env.NODE_ENV === "development"
-      ? { kind: "development" }
-      : { kind: "release" };
+/**
+ * The flavor a build environment makes. The bundles call it once with their
+ * inlined values (`APP_FLAVOR`); build tooling that writes something the
+ * bundles must agree with calls it with the same values it gives them.
+ */
+export function appFlavorOf({
+  nodeEnv,
+  previewName = "",
+}: {
+  nodeEnv: string | undefined;
+  previewName: string | undefined;
+}): AppFlavor {
+  const name = previewName
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "")
+    .slice(0, 40);
+  if (name) {
+    return { kind: "preview", name };
+  }
+  return nodeEnv === "development"
+    ? { kind: "development" }
+    : { kind: "release" };
+}
+// Read as written, not through a helper taking `process.env`: the bundlers
+// replace these two expressions with literals, and the renderer has no
+// `process` to read anything else from.
+export const APP_FLAVOR: AppFlavor = appFlavorOf({
+  nodeEnv: process.env.NODE_ENV,
+  previewName: process.env.INSTRUMENT_PREVIEW_NAME,
+});
 // What the OS calls the app: the bundle on disk, the userData folder, the
 // keychain's Safe Storage item, and the name on its privacy prompts.
 export const APP_PRODUCT_NAME =
   APP_FLAVOR.kind === "preview"
     ? `${APP_NAME} Preview (${APP_FLAVOR.name})`
     : APP_NAME;
-export const APP_PROTOCOL =
-  APP_FLAVOR.kind === "preview"
-    ? `${APP_NAME_SLUG}-preview-${APP_FLAVOR.name}`
-    : APP_FLAVOR.kind === "development"
-      ? `${APP_NAME_SLUG}-local`
-      : APP_NAME_SLUG;
+/**
+ * The one URL scheme a flavor registers: what the OS hands deep links to, and
+ * what the app serves its own files, icons, and vendored assets from.
+ */
+export function appProtocolOf(flavor: AppFlavor): string {
+  switch (flavor.kind) {
+    case "development":
+      return `${APP_NAME_SLUG}-local`;
+    case "preview":
+      return `${APP_NAME_SLUG}-preview-${flavor.name}`;
+    case "release":
+      return APP_NAME_SLUG;
+  }
+}
+export const APP_PROTOCOL = appProtocolOf(APP_FLAVOR);
 export const APP_EXECUTABLE = "instrument";
 export const APP_CLIENT_NAME_STUDIO = `${APP_NAME_SLUG}-studio`;
 // macOS/Windows application bundle identifier; the source of truth for

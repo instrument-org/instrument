@@ -14,6 +14,8 @@ import { readPackage } from "read-pkg";
 import { build as viteBuild } from "vite";
 import { analyzer } from "vite-bundle-analyzer";
 
+import { contentSecurityPolicyMeta } from "./src/content-security-policy";
+
 const isAnalyzing = process.env.ANALYZE_BUILD === "true";
 
 // electron-vite's dev watcher does two destructive things on a rebuild: a main
@@ -453,6 +455,9 @@ const require = __cjs_mod__.createRequire(import.meta.url);
       plugins: [
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("renderer"),
+        contentSecurityPolicyMeta({
+          previewName: process.env.INSTRUMENT_PREVIEW_NAME,
+        }),
         tanstackRouter({
           autoCodeSplitting: true,
           // Paths are relative to the renderer `root` (`src`) below, not cwd:

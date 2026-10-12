@@ -12,6 +12,8 @@ export type SettingsTab =
   | "Storage";
 
 interface SettingsModalState {
+  /** Expand the account's usage panel on the Providers tab. */
+  providerUsage?: "claude-account";
   /** Open the General tab's diagnostic log viewer over Settings. */
   diagnosticLog?: boolean;
   /** The memory to bring into view on the Memory tab, by its name, for a link to one. */

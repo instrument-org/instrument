@@ -297,12 +297,12 @@ export function TaskChat({
 
   // The failed turn again, with nothing said on the user's behalf: the agent
   // runs over the session as it stands and answers the request already in it.
-  const handleRunAgain = () => {
+  const handleRunAgain = (modelURI = selectedModelURI) => {
     if (!selectedSessionId) {
       // No retry UI is shown when no session is selected
       return;
     }
-    if (!selectedModelURI) {
+    if (!modelURI) {
       toast.error("Couldn't try again", {
         description: "Choose a model first.",
       });
@@ -310,7 +310,7 @@ export function TaskChat({
     }
     runTurn.mutate({
       id,
-      modelURI: selectedModelURI,
+      modelURI,
       sessionId: selectedSessionId,
     });
   };
@@ -498,13 +498,16 @@ export function TaskChat({
                       <NoMessages />
                     ) : (
                       <TranscriptStream
-                        isAgentRunning={isAgentRunning}
+                        isAgentRunning={isAgentRunning || runTurn.isPending}
                         isDeveloperMode={isDeveloperMode}
                         messages={shownMessages}
                         onContinue={handleContinue}
-                        onModelChange={setSelectedModelURI}
+                        onModelChange={(modelURI) => {
+                          setSelectedModelURI(modelURI);
+                          handleRunAgain(modelURI);
+                        }}
                         onRetry={handleRetry}
-                        onRunAgain={handleRunAgain}
+                        onRunAgain={() => handleRunAgain()}
                         presentation="chat"
                         chatInfo={chatInfo}
                       />

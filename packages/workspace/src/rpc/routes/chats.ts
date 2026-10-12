@@ -18,7 +18,7 @@ import {
 import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { liveChatList } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
-import { taskStanding } from "../../lib/chat/standing";
+import { TaskStandingKindSchema, taskStanding } from "../../lib/chat/standing";
 import { type RecordChanged, recordChanges } from "../../lib/record-changes";
 import {
   chatOfSession,
@@ -36,7 +36,7 @@ import { distinct, liveRead } from "../live-read";
 const ChildTaskSchema = ChatTaskSchema.extend({
   /** Where it stands and the line the list says about it. */
   standing: z.object({
-    kind: z.enum(["done", "failed", "running", "waiting"]),
+    kind: TaskStandingKindSchema,
     line: z.string(),
   }),
   /** The label of its newest step of its own, when it gave one. */

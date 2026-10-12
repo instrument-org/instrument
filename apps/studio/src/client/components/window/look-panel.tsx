@@ -1,4 +1,4 @@
-import { type FileTab, pageSlotsAtom } from "@/client/atoms/window";
+import { type FileTab } from "@/client/atoms/window";
 import { FileViewer } from "@/client/components/file-viewer";
 import {
   Dialog,
@@ -9,11 +9,12 @@ import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { useWindow } from "./context";
 import { lookAtAtom, type LookTarget } from "./look-at";
+import { usePageHost } from "./page-hosts";
 import { useWindowTabs } from "./window-tabs";
 
 /** The group a page looked at is kept under while the panel is up, off every strip. */
@@ -149,7 +150,6 @@ export function WindowLook() {
 function useLookedAtPage(url: string | undefined): ReactNode {
   const { browser } = useWindow();
   const { allTabs, close } = useWindowTabs();
-  const setPageSlots = useSetAtom(pageSlotsAtom);
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const hasBrowser = browser !== null;
   const tabIds = allTabs
@@ -180,22 +180,13 @@ function useLookedAtPage(url: string | undefined): ReactNode {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  useEffect(() => {
-    setPageSlots((current) => ({
-      ...current,
-      [QUICK_LOOK_GROUP]: {
-        insideOverlay: true,
-        into: slot,
-        layer: LOOK_GUEST_LAYER,
-      },
-    }));
-    return () => {
-      setPageSlots((current) => {
-        const { [QUICK_LOOK_GROUP]: _gone, ...rest } = current;
-        return rest;
-      });
-    };
-  }, [slot, setPageSlots]);
+  usePageHost(QUICK_LOOK_GROUP, {
+    chrome: false,
+    insideOverlay: true,
+    into: slot,
+    isActive: true,
+    layer: LOOK_GUEST_LAYER,
+  });
   return url === undefined ? undefined : (
     <div className="h-full" ref={setSlot} />
   );

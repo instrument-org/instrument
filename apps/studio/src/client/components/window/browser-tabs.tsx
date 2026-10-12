@@ -34,6 +34,7 @@ import { AskTray } from "./ask-tray";
 import { FileAskButton } from "./file-ask-button";
 import { segmentsOf } from "./host-path";
 import { PageEditSession, PageEditToggle } from "./page-edit";
+import { pageHostsAtom, type PageHost } from "./page-hosts";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { EMPTY_GUEST_MEMO, reconcileGuests } from "./reconcile-guests";
 import { visitInTab } from "./tab-history";
@@ -116,33 +117,6 @@ export interface BrowserTabsHandle {
    * shown, and a task working in the tab needs it before then.
    */
   restore: (tabId: string) => boolean;
-}
-
-/**
- * A second place a page is drawn: a draft window's band, which shows the
- * draft's group's tabs itself, or a file tab drawing a page's file beside
- * its tree. The panel for that group's page is portaled into `into`, and
- * shown while `isActive`.
- */
-export interface ComposeHost {
-  /**
-   * Whether the page's own bar is drawn over it, or, for a surface that draws
-   * the window's address row over the page, the elements in that row the
-   * page's reload and controls go into; a surface with a head of its own and
-   * no row says no.
-   */
-  chrome?: boolean | PageChromeSlots;
-  group: string;
-  /** Drawn inside an overlay, whose own cover does not park the page; see BrowserPanel. */
-  insideOverlay?: boolean;
-  into: HTMLElement | null;
-  isActive: boolean;
-  /** The window layer the guest is shown on, for a host inside a floating surface; the panel's own otherwise. */
-  layer?: number;
-  /** Where the host stands, so a page is placed again when the host moves without resizing. */
-  place: string;
-  /** The tab drawn, for a host showing one of its group's tabs that is not the one the group has up: a floating chat's peek. */
-  tabId?: string;
 }
 
 /** Where a page's reload and its controls go in an address row drawn over it. */
@@ -242,16 +216,14 @@ interface OpenOptions {
  */
 export function BrowserTabs({
   chromeInto,
-  compose,
   fieldInto,
   onPageChange,
   ref,
   reloadInto,
+  rowWidth,
 }: {
   /** The element in the row above that the page's own bar is drawn into. */
   chromeInto?: HTMLElement | null;
-  /** The draft windows' bands, one per draft up: each group's page is drawn in its own. */
-  compose?: ComposeHost[];
   /** The element inside the row's address field that the page's state is drawn into. */
   fieldInto?: HTMLElement | null;
   /** Told the page on screen whenever it changes, and undefined when none is. */
@@ -259,8 +231,12 @@ export function BrowserTabs({
   ref: Ref<BrowserTabsHandle>;
   /** The element beside the row's arrows that the page's reload is drawn into. */
   reloadInto?: HTMLElement | null;
+  /** The width of the window's row, which a page drawn somewhere inside it is placed again by. */
+  rowWidth: number;
 }) {
   const windowTabs = useWindowTabs();
+  // Every other place a group's page is drawn: each group's page in its own.
+  const hosts = useAtomValue(pageHostsAtom);
   const { activeByGroup, allTabs, groupOnScreen, navigateScreen } = windowTabs;
   const change = useWindowTabsChange();
   const everyTabId = useAtomValue(everyTabIdAtom);
@@ -806,19 +782,20 @@ export function BrowserTabs({
       {activeFilePath !== undefined && !(active && editTabs[active.id]) && (
         <AskTray path={activeFilePath} />
       )}
-      {compose?.map((host) => {
+      {Object.entries(hosts).map(([group, host]) => {
         // The page the window has up, when what it has up is a page: the
         // tab the host names, or else the one its group remembers, or its
         // first.
         const hostUp =
           host.tabId === undefined
-            ? windowTabs.selectedTabIn(host.group)
+            ? windowTabs.selectedTabIn(group)
             : allTabs.find((tab) => tab.id === host.tabId);
         return hostUp?.kind === "page" ? (
           <ComposePagePanel
             attached={attached.has(targetOf(hostUp))}
             host={host}
-            key={host.group}
+            key={group}
+            place={host.place ?? `${group}:${rowWidth}`}
             tab={hostUp}
             chatId={WINDOW_ID}
           />
@@ -860,22 +837,21 @@ export function TabIcon({
 function ComposePagePanel({
   attached,
   host,
+  place,
   tab,
   chatId,
 }: {
   attached: boolean;
-  host: ComposeHost;
+  host: PageHost;
+  place: string;
   tab: BrowserTab;
   chatId: ChatId;
 }) {
-  if (!host.into) {
-    return null;
-  }
   return createPortal(
     <ActiveTabProvider isActive={host.isActive}>
       <BrowserPanel
         active={attached}
-        chrome={host.chrome ?? true}
+        chrome={host.chrome}
         className="h-full rounded-none shadow-none"
         // The draft's words keep the caret; the bar is read, not typed into,
         // when a site arrives from the band.
@@ -883,7 +859,7 @@ function ComposePagePanel({
         insideOverlay={host.insideOverlay ?? false}
         key={tab.id}
         {...(host.layer === undefined ? {} : { layer: host.layer })}
-        relayoutKey={host.place}
+        relayoutKey={place}
         restoreUrl={tab.url}
         sessionId={StoreId.SessionSchema.parse(tab.id)}
         chatId={chatId}

@@ -3,7 +3,6 @@ import {
   fileTreeOpenAtom,
   fileTreeWidthAtom,
   findersByTabAtom,
-  pageSlotsAtom,
 } from "@/client/atoms/window";
 import type { FileSystemView } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -49,6 +48,7 @@ import { hostGroupOf, useHostedPageNavigation } from "./hosted-page";
 import { LinkSurface } from "./link-surface";
 import { useOnScreen, useWalkedFolder } from "./on-screen";
 import { PageEditToggle } from "./page-edit";
+import { usePageHost } from "./page-hosts";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { useQuickLook } from "./quick-look";
 import { useWindowTabs } from "./window-tabs";
@@ -114,7 +114,6 @@ export function FilesScreen({
   const appTabId = useTabId();
   const isActiveTab = useIsActiveTab();
   const [isTreeOpen, setTreeOpen] = useAtom(fileTreeOpenAtom);
-  const setPageSlots = useSetAtom(pageSlotsAtom);
   const router = useRouter();
   const navigate = useNavigate();
   // The tab of a chat's or a draft's group this screen is in, when it is
@@ -337,22 +336,9 @@ export function FilesScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  useEffect(() => {
-    // Shown only while this screen's tab is the one up: a tab behind keeps
-    // its page parked rather than over the tab in front.
-    setPageSlots((current) =>
-      current[hostGroup]?.into === slot &&
-      current[hostGroup].isShown === isActiveTab
-        ? current
-        : { ...current, [hostGroup]: { into: slot, isShown: isActiveTab } },
-    );
-    return () => {
-      setPageSlots((current) => {
-        const { [hostGroup]: _gone, ...rest } = current;
-        return rest;
-      });
-    };
-  }, [hostGroup, isActiveTab, slot, setPageSlots]);
+  // Shown only while this screen's tab is the one up: a tab behind keeps
+  // its page parked rather than over the tab in front.
+  usePageHost(hostGroup, { chrome: false, into: slot, isActive: isActiveTab });
   // How the agent reaches the file, when a granted folder covers it: the one
   // thing the conversation is told about the file that the person is not.
   const activeMount = activeFile

@@ -16,13 +16,7 @@ import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { motion } from "motion/react";
-import {
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
@@ -33,6 +27,7 @@ import { type Chat, draftTitle, type Topic } from "./chats";
 import {
   CHAT_WINDOW_WIDTH,
   COMPOSE_BAR_WIDTH,
+  COMPOSE_GUEST_LAYER,
   COMPOSE_MOTION,
   GROWN,
 } from "./compose-layout";
@@ -43,9 +38,9 @@ import { GroupItem } from "./group-item";
 import { isIncludable } from "./draft-context";
 import { computerTabOf } from "./file-tabs";
 import { LinkSurface } from "./link-surface";
+import { usePageHost } from "./page-hosts";
 import { taskHref, tasksHref, tasksOfHref } from "./tab-location";
 import { useTaskTitles } from "./task-titles";
-import { type ComposePeek } from "./use-compose";
 import { useTabInView } from "./use-tab-in-view";
 import { useWindowTabs } from "./window-tabs";
 
@@ -136,9 +131,6 @@ export function ChatWindow({
   onMinimize,
   onNewTopic,
   onOpenInChats,
-  onPageChrome,
-  onPageHost,
-  onPeek,
   onPlacementChange,
   onSetTopics,
   placement,
@@ -160,12 +152,6 @@ export function ChatWindow({
   onNewTopic: (name?: string) => void;
   /** Takes the window to its chat in Chats: the window goes and the chat is selected. */
   onOpenInChats: () => void;
-  /** The element the chat's page is drawn into while the window is grown with a page up, null while none is. */
-  /** Where the address row takes the page's reload and controls, while a page is up. */
-  onPageChrome: (slots: PageChromeSlots | undefined) => void;
-  onPageHost: (element: HTMLElement | null) => void;
-  /** What the small window peeks at, for the layer that draws a page into the card; undefined while it peeks at nothing, or at something that is not a page. */
-  onPeek: (peek: ComposePeek | undefined) => void;
   onPlacementChange: (placement: "docked" | "expanded") => void;
   onSetTopics: (topics: string[]) => void;
   placement: "docked" | "expanded";
@@ -206,20 +192,6 @@ export function ChatWindow({
   const [peekHost, setPeekHost] = useState<HTMLDivElement | null>(null);
   const [peekChrome, setPeekChrome] = useState<PageChromeSlots>();
   const peekPageId = peekTab?.kind === "page" ? peekTab.id : undefined;
-  const reportPeek = useEffectEvent(onPeek);
-  useEffect(() => {
-    reportPeek(
-      peekPageId === undefined
-        ? undefined
-        : { chrome: peekChrome, into: peekHost, tabId: peekPageId },
-    );
-  }, [peekChrome, peekHost, peekPageId]);
-  useEffect(
-    () => () => {
-      reportPeek(undefined);
-    },
-    [],
-  );
   // The card stands over the conversation from near the window's head down
   // to just over the tiles, however tall the composer under them grows.
   // Measured in layout px, which the card's height is set in under the
@@ -259,20 +231,31 @@ export function ChatWindow({
   );
 
   // The page's host, held as state so the ref React calls is one stable
-  // setter (see the draft window's).
+  // setter (see the draft window's), and where the address row takes the
+  // page's reload and controls. Grown, the window draws the page it has up;
+  // small, only the page it peeks at.
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
-  const onPageHostRef = useRef(onPageHost);
-  useEffect(() => {
-    onPageHostRef.current = onPageHost;
-  });
-  useEffect(() => {
-    onPageHostRef.current(pageHost);
-  }, [pageHost]);
-  useEffect(
-    () => () => {
-      onPageHostRef.current(null);
-    },
-    [],
+  const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
+  usePageHost(
+    chatId,
+    isExpanded
+      ? {
+          chrome: pageChrome ?? true,
+          into: pageHost,
+          isActive: true,
+          layer: COMPOSE_GUEST_LAYER,
+          place: `expanded:${right}:${width ?? ""}`,
+        }
+      : peekPageId === undefined
+        ? undefined
+        : {
+            chrome: peekChrome ?? false,
+            into: peekHost,
+            isActive: true,
+            layer: COMPOSE_GUEST_LAYER,
+            place: `peek:${right}:${width ?? ""}`,
+            tabId: peekPageId,
+          },
   );
 
   // What the window has up behind the chat, which goes with each message:
@@ -628,7 +611,7 @@ export function ChatWindow({
                 onClose={() => {
                   setViewOpen(false);
                 }}
-                onPageChrome={onPageChrome}
+                onPageChrome={setPageChrome}
                 onPageHost={setPageHost}
                 up={up}
               />

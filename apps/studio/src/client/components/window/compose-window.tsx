@@ -64,6 +64,7 @@ import { type BrowserTabsHandle, type PageChromeSlots } from "./browser-tabs";
 import { draftTitle, type Topic } from "./chats";
 import {
   COMPOSE_BAR_WIDTH,
+  COMPOSE_GUEST_LAYER,
   COMPOSE_MOTION,
   COMPOSE_WIDTH,
   GROWN,
@@ -75,6 +76,7 @@ import { ChosenChip, heldChipOf, HeldMark, IncludedChip } from "./context-chip";
 import { behindTabOf, includedItemsOf, includedTabOf } from "./draft-context";
 import { computerTabOf } from "./file-tabs";
 import { GroupItem } from "./group-item";
+import { usePageHost } from "./page-hosts";
 import { segmentsOf } from "./host-path";
 import { LinkSurface } from "./link-surface";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
@@ -243,8 +245,6 @@ export function ComposeWindow({
   onDiscard,
   onModelChange,
   onNewTopic,
-  onPageChrome,
-  onPageHost,
   onPlacementChange,
   onStart,
   onViewChange,
@@ -265,10 +265,6 @@ export function ComposeWindow({
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** Makes a topic named for what was typed in the head's topic picker, and files the draft under it. */
   onNewTopic: (name: string) => void;
-  /** The element the draft's page is drawn into while a page is up, null while none is. */
-  /** Where the address row takes the page's reload and controls, while a page is up. */
-  onPageChrome: (slots: PageChromeSlots | undefined) => void;
-  onPageHost: (element: HTMLElement | null) => void;
   onPlacementChange: (placement: ComposePlacement) => void;
   onStart: (send: DraftSend) => void;
   /** What the band has up, in the terms the conversation is told it, or null for nothing it can say. */
@@ -534,19 +530,18 @@ export function ComposeWindow({
   );
   // The element the page is drawn into, held as state so the ref React
   // calls is one stable setter: a callback made afresh each render is
-  // called with null and then the element on every render, and reporting
-  // each of those up re-renders the layout, which renders this again.
+  // called with null and then the element on every render, and each of
+  // those would be said to the browser again. The address row takes the
+  // page's reload and controls, or else the page draws its own bar.
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
-  const onPageHostEvent = useEffectEvent(onPageHost);
-  useEffect(() => {
-    onPageHostEvent(pageHost);
-  }, [pageHost]);
-  useEffect(
-    () => () => {
-      onPageHostEvent(null);
-    },
-    [],
-  );
+  const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
+  usePageHost(group, {
+    chrome: pageChrome ?? true,
+    into: pageHost,
+    isActive: true,
+    layer: COMPOSE_GUEST_LAYER,
+    place: `${placement}:${right}:${width}`,
+  });
 
   // The strip is drawn once there is anything to switch between: a lone
   // new tab is the band's own face rather than a tab.
@@ -595,7 +590,7 @@ export function ComposeWindow({
       <GroupItem
         closeTab={closeTab}
         group={group}
-        onPageChrome={onPageChrome}
+        onPageChrome={setPageChrome}
         onPageHost={setPageHost}
         up={up}
       />

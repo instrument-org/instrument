@@ -463,27 +463,6 @@ export const fileTreeWidthAtom = keptAtom<number>(
 );
 
 /**
- * The elements screens draw a page's guest into, by the group the page's
- * tab is kept under: a file tab drawing a page's file beside its tree keeps
- * that page as a tab in a group of its own, off every strip, and says here
- * where the browser is to draw it. A slot inside a surface floating over the
- * window (Quick Look) names the layer its page stands on, and is shown for as
- * long as it is there; a slot in one of the window's tabs is shown while
- * that tab is up. In memory only, with the elements.
- */
-export const pageSlotsAtom = atom<
-  Record<
-    string,
-    {
-      insideOverlay?: boolean;
-      into: HTMLElement | null;
-      isShown?: boolean;
-      layer?: number;
-    }
-  >
->({});
-
-/**
  * The list view's columns beside Name, picked from its header's menu. One set
  * for every folder, the way the Finder's own defaults are one set.
  */

@@ -7,7 +7,6 @@ import {
   draftsAtom,
   findersByTabAtom,
   inboxOpenAtom,
-  pageSlotsAtom,
   paneOpenByGroupAtom,
   screenViewsAtom,
   chatsOutOf,
@@ -81,11 +80,7 @@ import {
   useAppTabs,
 } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
-import {
-  BrowserTabs,
-  type BrowserTabsHandle,
-  type ComposeHost,
-} from "./browser-tabs";
+import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
 import { NO_FILTERS } from "./chats";
@@ -415,26 +410,6 @@ function WindowShell({
       setPaneOpen(windowTabs.groupOnScreen, true);
     }
   };
-  // The pages screens draw into slots of their own (a page's file beside a
-  // file tab's tree), shown while the screen that made the slot is up.
-  const pageSlots = useAtomValue(pageSlotsAtom);
-  const slotHosts: ComposeHost[] = Object.entries(pageSlots).flatMap(
-    ([group, { insideOverlay, into, isShown = true, layer }]) =>
-      into
-        ? [
-            {
-              chrome: false,
-              group,
-              into,
-              isActive: isShown,
-              ...(layer === undefined ? {} : { layer }),
-              ...(insideOverlay ? { insideOverlay } : {}),
-              place: `${group}:${rowWidth}`,
-            },
-          ]
-        : [],
-  );
-
   // Where the tab up wants the window's page drawn. The browser's own face
   // lives in one element for the window's whole life, handed from tab to tab,
   // so a page and its edit session never remount as tabs are switched.
@@ -963,10 +938,10 @@ function WindowShell({
               <ActiveTabProvider isActive={pageSlot?.isShown ?? false}>
                 <BrowserTabs
                   chromeInto={pageSlot?.chrome?.into ?? null}
-                  compose={[...compose.hosts, ...slotHosts]}
                   fieldInto={pageSlot?.chrome?.fieldInto ?? null}
                   ref={setBrowser}
                   reloadInto={pageSlot?.chrome?.reloadInto ?? null}
+                  rowWidth={rowWidth}
                 />
               </ActiveTabProvider>,
               stage,

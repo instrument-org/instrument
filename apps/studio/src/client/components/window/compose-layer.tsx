@@ -211,15 +211,6 @@ export function ComposeLayer({
                 onOpenInChats={() => {
                   onOpenChat(chatId);
                 }}
-                onPageChrome={(slots) => {
-                  compose.setChrome(chatId, slots);
-                }}
-                onPageHost={(element) => {
-                  compose.setHost(chatId, element);
-                }}
-                onPeek={(peek) => {
-                  compose.setPeek(chatId, peek);
-                }}
                 onPlacementChange={(placement) => {
                   compose.setPlacement(chatId, placement);
                 }}
@@ -276,12 +267,6 @@ export function ComposeLayer({
               onModelChange={onModelChange}
               onNewTopic={(name) => {
                 onNewTopic(draft.id, name);
-              }}
-              onPageChrome={(slots) => {
-                compose.setChrome(key, slots);
-              }}
-              onPageHost={(element) => {
-                compose.setHost(key, element);
               }}
               onPlacementChange={(placement) => {
                 compose.setPlacement(key, placement);

@@ -5,10 +5,10 @@
 #
 #   scripts/land.sh [--keep]    run from inside a linked worktree
 #
-# The checks are the ones CI would fail on for the packages the branch touched:
-# types and lint (turbo, affected only), unused code (knip), and the tests that
-# import a changed file (vitest related). --keep leaves the worktree and branch
-# in place after landing. Nothing is pushed.
+# The checks are the ones CI would fail on for what the branch changed:
+# types in the packages it touched, lint and unused code (knip) in the files it
+# changed, and the tests that import them (vitest related). --keep leaves the
+# worktree and branch in place after landing. Nothing is pushed.
 set -euo pipefail
 
 keep=false
@@ -40,7 +40,18 @@ changed=$(git diff --name-only main...HEAD)
 [[ -n "$changed" ]] || fail "nothing on $branch that main does not already have"
 echo "land: $(git rev-list --count main..HEAD) commit(s) on $branch"
 
-pnpm exec turbo run check:types check:lint --filter='[main]' --output-logs errors-only
+# Types across every package the branch touched, since a changed signature
+# breaks callers in files it never opened; lint over the changed files alone,
+# from the root so each resolves its own package config, since what other work
+# left on main is not this branch's to fix.
+pnpm exec turbo run check:types --filter='[main]' --output-logs errors-only
+lintable=$(grep -E '\.(ts|tsx|mjs|cjs|js|jsx)$' <<< "$changed" | while read -r file; do
+  [[ -f "$file" ]] && echo "$file"
+done || true)
+if [[ -n "$lintable" ]]; then
+  # shellcheck disable=SC2086
+  pnpm exec oxlint --type-aware --quiet --no-error-on-unmatched-pattern $lintable
+fi
 # Unused code in what the branch changed, and dependency findings in the
 # manifests of the packages it touched; what other work left unused elsewhere
 # on main is not this branch's to fix.

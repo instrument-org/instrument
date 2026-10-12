@@ -1,10 +1,9 @@
-import { Kbd, KbdGroup } from "@/client/components/ui/kbd";
+import { ShortcutKeys } from "@/client/components/shortcut-keys";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { formatAccelerator } from "@/client/lib/format-accelerator";
 import {
   WINDOW_SHORTCUTS,
   type WindowShortcutId,
@@ -46,11 +45,7 @@ export function ToolbarTooltip({
       <TooltipContent className="flex items-center gap-2" side="bottom">
         {text}
         {entry ? (
-          <KbdGroup>
-            {formatAccelerator(entry.accelerator).map((key) => (
-              <Kbd key={key}>{key}</Kbd>
-            ))}
-          </KbdGroup>
+          <ShortcutKeys accelerator={entry.accelerator} />
         ) : null}
       </TooltipContent>
     </Tooltip>

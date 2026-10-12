@@ -91,6 +91,7 @@ import { ChatPane } from "./chat-pane";
 import { NO_FILTERS } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
+import { isPaneOpen } from "./draft-context";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { InboxPeek } from "./inbox-peek";
 import { inboxLandsAtOnceAtom } from "./inbox-room";
@@ -533,7 +534,7 @@ function WindowShell({
       ? (screenViews[appTabs.model.selectedId ?? ""] ?? null)
       : groupUp?.kind === "screen" &&
           (chatOfGroup(groupInView) === undefined ||
-            (paneOpenByGroup[groupInView] ?? true))
+            isPaneOpen(groupInView, paneOpenByGroup))
         ? (screenViews[groupUp.id] ?? null)
         : null;
   // What goes with a message, read at the moment of sending.

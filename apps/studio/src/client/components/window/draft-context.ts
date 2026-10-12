@@ -103,6 +103,17 @@ export function includedTabOf(
 }
 
 /**
+ * Whether a group's pane is open, read from `paneOpenByGroupAtom`: a group
+ * the toggle never touched has its pane open.
+ */
+export function isPaneOpen(
+  group: string,
+  paneOpenByGroup: Record<string, boolean>,
+): boolean {
+  return paneOpenByGroup[group] ?? true;
+}
+
+/**
  * Whether a group's tab is in view in the window: a site opened at the
  * window's level always shows its page, and a chat shows its tab up only
  * while its pane is open beside it.
@@ -114,7 +125,7 @@ export function isGroupShown(
   if (group === undefined) {
     return false;
   }
-  return chatOfGroup(group) === undefined || paneOpenByGroup[group] === true;
+  return chatOfGroup(group) === undefined || isPaneOpen(group, paneOpenByGroup);
 }
 
 /**

@@ -32,6 +32,7 @@ import { ChatScreen } from "@/client/components/window/chat-screen";
 import { ChatTiles } from "@/client/components/window/chat-tiles";
 import { GroupItem } from "@/client/components/window/group-item";
 import { useWindow, WindowContext } from "@/client/components/window/context";
+import { isPaneOpen } from "@/client/components/window/draft-context";
 import { computerTabOf } from "@/client/components/window/file-tabs";
 import { useGroupTab } from "@/client/components/window/group-tab";
 import { useInboxRoom } from "@/client/components/window/inbox-room";
@@ -141,7 +142,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       ? []
       : windowTabs.allTabs.filter((tab) => tab.group === chat);
   const up = windowTabs.selectedTabIn(chat);
-  const isPaneWanted = chat === undefined || (paneOpenByGroup[chat] ?? true);
+  const isPaneWanted = chat === undefined || isPaneOpen(chat, paneOpenByGroup);
   const showsPane = up !== undefined && isPaneWanted;
 
   // What gives way as the window narrows, one thing at a time and in one

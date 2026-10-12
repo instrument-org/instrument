@@ -715,8 +715,29 @@ describe("draftContext", () => {
     await expect(leftOut.draftContext(DRAFT.id)).resolves.toBeUndefined();
 
     const paneShut = contextReaders(
-      windowOf({ drafts: [DRAFT], windowTabs: tabsOf([page], CHAT) }),
+      windowOf({
+        drafts: [DRAFT],
+        paneOpenByGroup: { [CHAT]: false },
+        windowTabs: tabsOf([page], CHAT),
+      }),
     );
     await expect(paneShut.draftContext(DRAFT.id)).resolves.toBeUndefined();
+  });
+
+  it("counts a chat's pane the toggle never touched as open", async () => {
+    const page: WindowTab = {
+      group: CHAT,
+      id: "page",
+      kind: "page",
+      openedAt: 1,
+      title: "Hotels",
+      url: "https://hotels.example/",
+    };
+    const { draftContext } = contextReaders(
+      windowOf({ drafts: [DRAFT], windowTabs: tabsOf([page], CHAT) }),
+    );
+    await expect(draftContext(DRAFT.id)).resolves.toMatchObject({
+      url: "https://hotels.example/",
+    });
   });
 });

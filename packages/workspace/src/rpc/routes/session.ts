@@ -12,6 +12,7 @@ import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { type ToolOutputByName, TOOLS_BY_NAME } from "../../tools/all";
 import { ToolNameSchema } from "../../tools/name";
+import { chatSessionRef } from "../../machines/workspace";
 import { base, toORPCError } from "../base";
 
 const byIdWithMessagesAndParts = base
@@ -237,11 +238,7 @@ const answerToolCall = base
     // unanswered on disk and the card that draws it still has its buttons. The
     // machine drops such an answer with a line in the log, so say it here
     // instead, where the click can be told it went nowhere.
-    const sessions =
-      context.workspaceRef
-        .getSnapshot()
-        .context.sessionRefsByChatId.get(input.id) ?? [];
-    if (sessions.length === 0) {
+    if (!chatSessionRef(context.workspaceRef.getSnapshot().context, input.id)) {
       throw new ORPCError("CONFLICT", {
         message: "That request ended before the answer reached it.",
       });

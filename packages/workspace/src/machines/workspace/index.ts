@@ -22,6 +22,7 @@ import { absolutePathJoin } from "../../lib/absolute-path-join";
 import { createAssignEventError } from "../../lib/assign-event-error";
 import { logUnhandledEvent } from "../../lib/log-unhandled-event";
 import { registerAIUsageTelemetry } from "../../lib/ai-usage/record";
+import { sessionOfChat } from "../../lib/record-folders";
 import { setWorkspaceConfig } from "../../lib/workspace-config";
 import { workspaceServerLogic } from "../../logic/server";
 import { type WorkspaceServerParentEvent } from "../../logic/server/types";
@@ -150,6 +151,17 @@ function findLiveSessionRef(
         ref.getSnapshot().context.sessionId === sessionId &&
         ref.getSnapshot().status === "active",
     );
+}
+
+/**
+ * The running session of a chat's own conversation, the one its settings
+ * name, or none while it has no turn to run.
+ */
+export function chatSessionRef(context: WorkspaceContext, id: ChatId) {
+  const sessionId = sessionOfChat(id);
+  return sessionId === undefined
+    ? undefined
+    : findLiveSessionRef(context, { id, sessionId });
 }
 
 export const workspaceMachine = setup({
@@ -562,40 +574,21 @@ export const workspaceMachine = setup({
           chatsBeingTrashed: [...context.chatsBeingTrashed, event.value.id],
         });
 
-        // Reap the trashed chat's chatBrowser, if one exists.
-        const matchingChatIds: ChatId[] = [];
-        const browserRef = context.chatBrowserRefs.get(event.value.id);
-        if (browserRef) {
-          matchingChatIds.push(event.value.id);
-          browserRef.send({ type: "forceReap" });
-        }
-
-        if (event.value.onBrowserReaped) {
-          const resolver = event.value.onBrowserReaped;
-          if (matchingChatIds.length === 0) {
-            // Nothing to wait for: resolve immediately so trashChat can
-            // proceed without blocking.
-            resolver();
-          } else {
-            // Wait for every matching chatBrowser.stopped before resolving.
-            enqueue.assign({
-              pendingBrowserReapResolvers: () => {
-                const next = new Map(context.pendingBrowserReapResolvers);
-                let remaining = matchingChatIds.length;
-                const onceAll = () => {
-                  remaining -= 1;
-                  if (remaining === 0) {
-                    resolver();
-                  }
-                };
-                for (const sd of matchingChatIds) {
-                  const existing = next.get(sd) ?? [];
-                  next.set(sd, [...existing, onceAll]);
-                }
-                return next;
-              },
-            });
-          }
+        // Reap the trashed chat's chatBrowser, if one exists, and let
+        // trashChat go on once it has stopped, or at once with none.
+        const { id, onBrowserReaped } = event.value;
+        const browserRef = context.chatBrowserRefs.get(id);
+        browserRef?.send({ type: "forceReap" });
+        if (onBrowserReaped && !browserRef) {
+          onBrowserReaped();
+        } else if (onBrowserReaped) {
+          enqueue.assign({
+            pendingBrowserReapResolvers: () =>
+              new Map(context.pendingBrowserReapResolvers).set(id, [
+                ...(context.pendingBrowserReapResolvers.get(id) ?? []),
+                onBrowserReaped,
+              ]),
+          });
         }
 
         enqueue.raise({
@@ -686,31 +679,22 @@ export const workspaceMachine = setup({
       },
     },
 
+    // Only the chat's own conversation asks the user anything, so the
+    // answer goes to its session and no task's.
     updateInteractiveToolCall: [
       {
         actions: ({ context, event }) => {
-          const id = event.value.id;
-          const sessionRefs = context.sessionRefsByChatId.get(id);
-          if (!sessionRefs) {
-            return;
-          }
-          for (const sessionRef of sessionRefs) {
-            // TODO: Don't send to all sessions, just the one that has the tool call
-            sessionRef.send({
-              type: "updateInteractiveToolCall",
-              value: event.value.update,
-            });
-          }
+          chatSessionRef(context, event.value.id)?.send({
+            type: "updateInteractiveToolCall",
+            value: event.value.update,
+          });
         },
-        guard: ({ context, event }) => {
-          const id = event.value.id;
-          const sessionRefs = context.sessionRefsByChatId.get(id);
-          return !!sessionRefs && sessionRefs.length > 0;
-        },
+        guard: ({ context, event }) =>
+          chatSessionRef(context, event.value.id) !== undefined,
       },
       {
         actions: log(({ event }) => {
-          return `No session refs found for id: ${event.value.id}`;
+          return `No running session of ${event.value.id} to answer`;
         }),
       },
     ],

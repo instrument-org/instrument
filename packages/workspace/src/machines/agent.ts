@@ -54,13 +54,11 @@ export type AgentParentEvent =
   | { type: "agent.paused" }
   | { type: "agent.resumed" };
 
-export type ToolCallUpdate =
-  | { errorText: string; toolCallId: string; type: "error" }
-  | {
-      toolCallId: string;
-      type: "success";
-      value: ToolOutputByName;
-    };
+export type ToolCallUpdate = {
+  toolCallId: string;
+  type: "success";
+  value: ToolOutputByName;
+};
 
 /** A running tool call's child id, one per call so a batch can run at once. */
 type ToolCallActorId = `toolCall:${string}`;
@@ -991,25 +989,15 @@ function saveToolCallUpdate(
       sessionId: pendingToolCall.metadata.sessionId,
     },
     (current) =>
-      (value.type === "success"
-        ? {
-            ...current,
-            metadata: {
-              ...current.metadata,
-              endedAt: new Date(),
-            },
-            output: value.value.output as never,
-            state: "output-available",
-          }
-        : {
-            ...current,
-            errorText: value.errorText,
-            metadata: {
-              ...current.metadata,
-              endedAt: new Date(),
-            },
-            state: "output-error",
-          }) as SessionMessagePart.Type,
+      ({
+        ...current,
+        metadata: {
+          ...current.metadata,
+          endedAt: new Date(),
+        },
+        output: value.value.output as never,
+        state: "output-available",
+      }) as SessionMessagePart.Type,
     chatId,
   );
 }

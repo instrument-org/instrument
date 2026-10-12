@@ -1,7 +1,6 @@
 import {
   type AppPlace,
   chatGroupAtom,
-  CHATS_HREF,
   type Draft,
   draftGroupOf,
   draftsAtom,
@@ -115,7 +114,7 @@ import { backfillCandidates } from "./use-topic-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { WindowFrame } from "./window-frame";
-import { chatOfGroup, chatOfHref } from "./window-href";
+import { chatHref, chatOfGroup, chatOfHref } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
@@ -457,7 +456,7 @@ function WindowShell({
    */
   const landChat = (chatId: ChatId) => {
     compose.remove(chatId);
-    appTabs.navigate(`${CHATS_HREF}/${chatId}`);
+    appTabs.navigate(chatHref(chatId));
   };
 
   const { openNamedPath, openPage, openScreen } = useOpeners({
@@ -573,7 +572,7 @@ function WindowShell({
     isOpen: opened !== undefined,
     isChat,
     openChat: (chatId) => {
-      appTabs.navigate(`${CHATS_HREF}/${chatId}`);
+      appTabs.navigate(chatHref(chatId));
     },
     openDrafts: () => {
       setInboxOpen(true);
@@ -653,7 +652,7 @@ function WindowShell({
               : listed.at(-1)
             : listed[at + direction];
         if (next !== undefined) {
-          openScreen(`${CHATS_HREF}/${next}`);
+          openScreen(chatHref(next));
         }
       },
     },
@@ -916,7 +915,7 @@ function WindowShell({
                     // it, so the place stays where it was; in Chat, with the
                     // inbox put away, it opens beside where the inbox was.
                     if (isChat) {
-                      openScreen(`${CHATS_HREF}/${entry.id}`);
+                      openScreen(chatHref(entry.id));
                     } else {
                       compose.float(entry.id);
                     }

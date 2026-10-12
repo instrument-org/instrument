@@ -10,7 +10,7 @@ import { groupOfHref } from "./app-tabs";
 import { computerTabOf } from "./file-tabs";
 import { joinHostPath } from "./host-path";
 import { isFreshTab } from "./tab-model";
-import { chatOfGroup, parseHref } from "./window-href";
+import { chatOfGroup, matchScreen } from "./window-href";
 
 /**
  * What stands behind a draft now, when it is something other than what the
@@ -132,7 +132,7 @@ export function isIncludable(tab: WindowTab): boolean {
   }
   return (
     computerTabOf(tab.href) !== undefined ||
-    parseHref(tab.href).pathname.startsWith("/apps/")
+    matchScreen(tab.href).kind === "app"
   );
 }
 

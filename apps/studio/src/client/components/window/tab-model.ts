@@ -1,15 +1,15 @@
 import {
   type BrowserTab,
   draftOfGroup,
-  NEW_TAB_HREF,
   newTabHrefOf,
   type WindowTab,
 } from "@/client/atoms/window";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 
+import { computerTabOf } from "./file-tabs";
 import { groupScreenTabsOnly } from "./group-screen";
 import { historyOf, stepTabVisit, visitInTab } from "./tab-history";
-import { chatOfGroup, parseHref, sameHref } from "./window-href";
+import { chatOfGroup, matchScreen, sameHref } from "./window-href";
 
 /**
  * What the window has open: every group's tabs in strip order, and the tab
@@ -116,10 +116,7 @@ export function isFreshTab(tab: WindowTab): boolean {
 
 /** Whether a tab is the new-tab page: what a draft gathers from, and nothing gathered itself. */
 export function isHomeTab(tab: WindowTab): boolean {
-  return (
-    tab.kind === "screen" &&
-    parseHref(tab.href).pathname === parseHref(NEW_TAB_HREF).pathname
-  );
+  return tab.kind === "screen" && matchScreen(tab.href).kind === "newTab";
 }
 
 /** One tab of its group up; a tab in no group has nothing to be up in. */
@@ -181,7 +178,7 @@ export function openOrFocusScreen(
     select: boolean;
   },
 ): { id: string; state: WindowTabs } {
-  const filePath = parseHref(href).search.get("file") ?? undefined;
+  const filePath = computerTabOf(href)?.file;
   const existing = state.tabs.find(
     (tab) =>
       tab.group === group &&

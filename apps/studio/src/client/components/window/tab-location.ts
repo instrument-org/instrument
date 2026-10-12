@@ -4,10 +4,16 @@ import { expandHomePath, namesFromHome } from "@instrument-org/shared";
 import {
   type ChatId,
   ChatIdSchema,
-  StoreId,
+  type StoreId,
 } from "@instrument-org/workspace/client";
 
 import { isInside, segmentsOf, separatorOf } from "./host-path";
+import {
+  LINK_ADDRESSES,
+  matchScreen,
+  pathOf,
+  SCREEN_ROUTES,
+} from "./window-href";
 
 /** One part of the place the field shows. */
 export interface LocationCrumb {
@@ -23,20 +29,17 @@ export interface Volume {
   path: string;
 }
 
-/** The route a chat's tasks are at: the list, and each task's page under it. */
-const TASKS_HREF = "/tasks";
-
 /**
  * The address of one task's page: its session, and the chat whose store
  * holds it and whose list it was opened from.
  */
 export function taskHref(id: StoreId.Session, chat: ChatId): string {
-  return `${TASKS_HREF}/${id}?chat=${chat}`;
+  return `${pathOf(SCREEN_ROUTES.task, { sessionId: id })}?chat=${chat}`;
 }
 
 /** The address of a chat's task list; there is no list of every chat's tasks. */
 export function tasksHref(chat: ChatId): string {
-  return `${TASKS_HREF}?chat=${chat}`;
+  return `${pathOf(SCREEN_ROUTES.tasks, {})}?chat=${chat}`;
 }
 
 /**
@@ -48,12 +51,9 @@ export function chatOfTasksList(chat: unknown): ChatId | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
-/** The address of the skills, which the window shows in Settings rather than as a screen. */
-const SKILLS_HREF = "/skills";
-
 /** The address of one skill, by the name a task loads it by. */
 export function skillHref(name: string): string {
-  return `${SKILLS_HREF}/${name}`;
+  return pathOf(LINK_ADDRESSES.skill, { name });
 }
 
 /** What the tab on screen is showing, in the terms that page has for itself. */
@@ -154,24 +154,13 @@ export function locationCrumbs(
 export function tasksOfHref(
   href: string,
 ): undefined | { chat?: ChatId; task?: StoreId.Session } {
-  const url = new URL(href, "http://tabs");
-  const { pathname } = url;
-  const chat = ChatIdSchema.safeParse(url.searchParams.get("chat"));
-  const forChat = chat.success ? { chat: chat.data } : {};
-  if (pathname === TASKS_HREF || pathname === `${TASKS_HREF}/`) {
-    return forChat;
-  }
-  if (!pathname.startsWith(`${TASKS_HREF}/`)) {
+  const screen = matchScreen(href);
+  if (screen.kind !== "tasks" && screen.kind !== "task") {
     return undefined;
   }
-  const parsed = StoreId.SessionSchema.safeParse(
-    pathname.slice(TASKS_HREF.length + 1),
-  );
-  return parsed.success ? { task: parsed.data, ...forChat } : undefined;
+  const { kind: _tasks, ...tasks } = screen;
+  return tasks;
 }
-
-/** The address of the memories, which the window shows in Settings rather than as a screen. */
-const MEMORY_HREF = "/memory";
 
 /**
  * The memory an address names, by its name. Nothing for any other address,
@@ -179,12 +168,8 @@ const MEMORY_HREF = "/memory";
  * Settings tab is where they are, and a tab is not a place a link goes.
  */
 export function memoryOfHref(href: string): string | undefined {
-  const pathname = new URL(href, "http://tabs").pathname;
-  if (!pathname.startsWith(`${MEMORY_HREF}/`)) {
-    return undefined;
-  }
-  const name = pathname.slice(MEMORY_HREF.length + 1);
-  return name && !name.includes("/") ? name : undefined;
+  const screen = matchScreen(href);
+  return screen.kind === "memory" ? screen.name : undefined;
 }
 
 /**
@@ -193,24 +178,9 @@ export function memoryOfHref(href: string): string | undefined {
  * is where they are, the way it is for the memories.
  */
 export function skillOfHref(href: string): string | undefined {
-  const pathname = new URL(href, "http://tabs").pathname;
-  if (!pathname.startsWith(`${SKILLS_HREF}/`)) {
-    return undefined;
-  }
-  const segment = pathname.slice(SKILLS_HREF.length + 1);
-  if (!segment || segment.includes("/")) {
-    return undefined;
-  }
-  // The router writes a qualified name's colon as `%3A`.
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return segment;
-  }
+  const screen = matchScreen(href);
+  return screen.kind === "skill" ? screen.name : undefined;
 }
-
-/** The address of a setting, which the window shows in Settings rather than as a screen. */
-const SETTINGS_HREF = "/settings";
 
 /**
  * The setting an address names: a row's id, a page's name, or what an older
@@ -218,33 +188,14 @@ const SETTINGS_HREF = "/settings";
  * Nothing for any other address.
  */
 export function settingOfHref(href: string): string | undefined {
-  return segmentUnder(SETTINGS_HREF, href);
+  const screen = matchScreen(href);
+  return screen.kind === "setting" ? screen.name : undefined;
 }
-
-/** The address of a screen named by a link, which the window opens where that screen lives. */
-const SCREEN_HREF = "/screen";
 
 /** The screen an address names, by its name, known or not. Nothing for any other address. */
 export function screenOfHref(href: string): string | undefined {
-  return segmentUnder(SCREEN_HREF, href);
-}
-
-/** The one path segment under `prefix` in `href`, as written. */
-function segmentUnder(prefix: string, href: string): string | undefined {
-  const pathname = new URL(href, "http://tabs").pathname;
-  if (!pathname.startsWith(`${prefix}/`)) {
-    return undefined;
-  }
-  const segment = pathname.slice(prefix.length + 1);
-  if (!segment || segment.includes("/")) {
-    return undefined;
-  }
-  // The router writes a colon (`provider:<id>`) as `%3A`.
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return segment;
-  }
+  const screen = matchScreen(href);
+  return screen.kind === "namedScreen" ? screen.name : undefined;
 }
 
 /** A name that is a whole volume on Windows, which is where a path there starts. */

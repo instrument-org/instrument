@@ -28,7 +28,7 @@ import { computerTabOf, mountOfHostPath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { type useCompose } from "./use-compose";
-import { parseHref } from "./window-href";
+import { matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
 
 /** The longest a send waits on a page's words: a guest that never answers (mid-navigation, parked, hung) costs the conversation the page's text, not the send. */
@@ -207,9 +207,10 @@ export function contextReaders({
         url: tab.href,
       };
     }
+    const screen = matchScreen(tab.href);
     const where = screenLocation(tab.href, { appsBySlug, chatTitles });
-    if (where.kind === "app") {
-      const slug = parseHref(tab.href).pathname.slice("/apps/".length);
+    if (screen.kind === "app" && where.kind === "app") {
+      const { slug } = screen;
       return {
         app: {
           name: where.name,

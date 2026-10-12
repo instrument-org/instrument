@@ -1,4 +1,3 @@
-import { APPS_HREF } from "@/client/atoms/window";
 import {
   type ChatId,
   decodeBrowserTargetId,
@@ -7,7 +6,7 @@ import {
 import { type OpenOptions } from "./context";
 import { isGroupScreenHref } from "./group-screen";
 import { tasksOfHref } from "./tab-location";
-import { chatOfGroup, parseHref } from "./window-href";
+import { chatOfGroup, matchScreen } from "./window-href";
 
 /**
  * Where an open lands, decided from the ask and the window as it stands,
@@ -122,10 +121,7 @@ export function screenPlacementOf(
   if (newTab) {
     return { behind, kind: "window-tab" };
   }
-  if (
-    parseHref(href).pathname.startsWith(`${APPS_HREF}/`) ||
-    !isGroupScreenHref(href)
-  ) {
+  if (matchScreen(href).kind === "app" || !isGroupScreenHref(href)) {
     return { kind: "window-navigate" };
   }
   if (into !== undefined && into !== groupOnScreen) {

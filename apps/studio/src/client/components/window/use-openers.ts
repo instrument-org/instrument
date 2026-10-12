@@ -1,6 +1,5 @@
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
-import { CHATS_HREF } from "@/client/atoms/window";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -44,12 +43,13 @@ import {
 } from "./tab-location";
 import { isFreshTab } from "./tab-model";
 import {
+  chatHref,
   chatOfGroup,
   chatOfHref,
   chatOfHrefPrefix,
   chatOfSessionPrefix,
   chatSessionOfHref,
-  parseHref,
+  matchScreen,
 } from "./window-href";
 import { newScreenId, type useWindowTabs } from "./window-tabs";
 
@@ -102,7 +102,7 @@ export function useOpeners({
   const goToChatOf = (into: string) => {
     const chat = chatOfGroup(into);
     if (chat) {
-      appTabs.go(`${CHATS_HREF}/${chat}`);
+      appTabs.go(chatHref(chat));
     }
   };
   /**
@@ -191,7 +191,7 @@ export function useOpeners({
         )
         .then((chat) => {
           if (chat) {
-            openScreen(`${CHATS_HREF}/${chat}`, options);
+            openScreen(chatHref(chat), options);
           } else {
             sayNoChat();
           }
@@ -209,10 +209,11 @@ export function useOpeners({
     if (chat) {
       // A chat is a place a tab stands: the tab up goes there, a step on in
       // its history, and the chat comes up at the tab it last had up.
-      appTabs.go(`${CHATS_HREF}/${chat}`, { behind, newTab });
+      appTabs.go(chatHref(chat), { behind, newTab });
       return;
     }
-    if (parseHref(href).pathname.startsWith(`${CHATS_HREF}/`)) {
+    const { kind } = matchScreen(href);
+    if (kind === "chat" || kind === "chatLink" || kind === "chatOfSession") {
       // A chat's address that names none of the chats here: a screen
       // at it would be a chat with nothing in it.
       sayNoChat();
@@ -279,7 +280,7 @@ export function useOpeners({
       }
       // In a tab of the window's own, the chat comes up there at its tasks.
       if (placement.navigatesWindow) {
-        appTabs.go(`${CHATS_HREF}/${owner}`, { behind, newTab });
+        appTabs.go(chatHref(owner), { behind, newTab });
       }
       windowTabs.openOrFocusScreen(at, {
         group: owner,

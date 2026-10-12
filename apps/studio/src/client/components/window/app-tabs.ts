@@ -4,7 +4,6 @@ import {
   APPS_HREF,
   BROWSER_HREF,
   chatGroupAtom,
-  CHATS_HREF,
   NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
@@ -28,13 +27,16 @@ import { outputFolderHref } from "@/shared/computer-href";
 import { type TabId } from "@/shared/tabs";
 import { atom, useAtom, useAtomValue } from "jotai";
 
-import { chatOfGroup, chatOfHref, parseHref } from "./window-href";
+import {
+  chatHref,
+  chatOfGroup,
+  matchScreen,
+  pathOf,
+  SCREEN_ROUTES,
+} from "./window-href";
 
 /** The chat with no chat open: the inbox, and where a tab opens when the last one closes. */
 export const INBOX_HREF = "/chats";
-
-/** The route of the sites opened at the window's own level, each followed by the id its page group is kept under. */
-const SITES_HREF = "/sites";
 
 /** What a site's group key starts with, before the id its route carries. */
 const SITE_PREFIX = "site:";
@@ -46,7 +48,7 @@ export function isSiteGroup(group: string | undefined): boolean {
 
 /** Whether an address is a site opened at the window's own level. */
 export function isSiteHref(href: string): boolean {
-  return parseHref(href).pathname.startsWith(`${SITES_HREF}/`);
+  return matchScreen(href).kind === "site";
 }
 
 /**
@@ -63,11 +65,11 @@ export function newSiteGroup(): string {
 
 /** The address of the tab that shows a site's group. */
 export function pageHrefOf(group: string): string {
-  return `${SITES_HREF}/${encodeURIComponent(group.slice(SITE_PREFIX.length))}`;
+  return pathOf(SCREEN_ROUTES.site, { id: group.slice(SITE_PREFIX.length) });
 }
 
 /** The group key a site opened at the window's own level is kept under, one per site opened. */
-function siteGroupOf(id: string): string {
+export function siteGroupOf(id: string): string {
   return `${SITE_PREFIX}${id}`;
 }
 
@@ -84,14 +86,18 @@ export const appTabsAtom = tabsAtomOf("app-tabs.v2", INBOX_HREF);
  * for everything else, whose screen is the route itself.
  */
 export function groupOfHref(href: string): string | undefined {
-  const chat = chatOfHref(href);
-  if (chat) {
-    return chat;
+  const screen = matchScreen(href);
+  switch (screen.kind) {
+    case "chat": {
+      return screen.chat;
+    }
+    case "site": {
+      return siteGroupOf(screen.id);
+    }
+    default: {
+      return undefined;
+    }
   }
-  const { pathname } = parseHref(href);
-  return isSiteHref(href)
-    ? siteGroupOf(decodeURIComponent(pathname.slice(SITES_HREF.length + 1)))
-    : undefined;
 }
 
 /** Where one of the window's tabs stands: its router's address once it has one, the address it opened at until then. */
@@ -104,11 +110,17 @@ export function hrefOfAppTab(model: TabsModel, id: TabId): string | undefined {
 
 /** Whether an address is the chat: the inbox alone, or beside a chat. */
 export function isChatHref(href: string): boolean {
-  const { pathname } = parseHref(href);
-  return (
-    pathname.replace(/\/$/, "") === INBOX_HREF ||
-    pathname.startsWith(`${CHATS_HREF}/`)
-  );
+  switch (matchScreen(href).kind) {
+    case "chat":
+    case "chatLink":
+    case "chatOfSession":
+    case "inbox": {
+      return true;
+    }
+    default: {
+      return false;
+    }
+  }
 }
 
 /** The place of the rail an address is in, for lighting it; none for a screen outside them. */
@@ -116,17 +128,22 @@ export function placeOfHref(href: string): AppPlace | undefined {
   if (isChatHref(href)) {
     return "chat";
   }
-  const { pathname } = parseHref(href);
-  if (pathname === "/files") {
-    return "files";
+  switch (matchScreen(href).kind) {
+    case "computer": {
+      return "files";
+    }
+    case "browser":
+    case "site": {
+      return "browser";
+    }
+    case "app":
+    case "apps": {
+      return "apps";
+    }
+    default: {
+      return undefined;
+    }
   }
-  if (pathname === BROWSER_HREF || isSiteHref(href)) {
-    return "browser";
-  }
-  if (pathname === APPS_HREF || pathname.startsWith(`${APPS_HREF}/`)) {
-    return "apps";
-  }
-  return undefined;
 }
 
 /**
@@ -259,7 +276,7 @@ function placeHrefOf(place: AppPlace, lastChat: null | string): string {
     }
     case "chat": {
       const chat = chatOfGroup(lastChat ?? undefined);
-      return chat ? `${CHATS_HREF}/${chat}` : INBOX_HREF;
+      return chat ? chatHref(chat) : INBOX_HREF;
     }
     case "files": {
       return outputFolderHref();

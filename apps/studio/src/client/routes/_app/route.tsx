@@ -4,10 +4,8 @@ import {
 } from "@/client/atoms/right-pane";
 import {
   BROWSER_HREF,
-  CHATS_HREF,
   inboxOpenAtom,
   inboxWidthAtom,
-  NEW_TAB_HREF,
   paneOpenByGroupAtom,
   screenViewsAtom,
   walkedFoldersAtom,
@@ -22,11 +20,9 @@ import {
   StudioSidebarRail,
 } from "@/client/components/studio-sidebar-rail";
 import {
-  groupOfHref,
   INBOX_HREF,
-  isChatHref,
-  isSiteHref,
   putAwaySitesAtom,
+  siteGroupOf,
 } from "@/client/components/window/app-tabs";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { type PageChromeSlots } from "@/client/components/window/browser-tabs";
@@ -49,11 +45,7 @@ import {
 } from "@/client/components/window/shell-context";
 import { taskHref, tasksHref } from "@/client/components/window/tab-location";
 import { TabLocationRow } from "@/client/components/window/tab-location-row";
-import {
-  chatOfHref,
-  chatSessionOfHref,
-  parseHref,
-} from "@/client/components/window/window-href";
+import { chatHref, matchScreen } from "@/client/components/window/window-href";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
@@ -257,7 +249,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
             onDeleteDraft={shell.discardDraft}
             onListed={isActive ? shell.onListed : undefined}
             onOpenChat={(entry) => {
-              appWindow.openScreen(`${CHATS_HREF}/${entry.id}`);
+              appWindow.openScreen(chatHref(entry.id));
             }}
             onOpenDraft={shell.showDraft}
             // As from the chat's head: popped out, the chat open here is
@@ -457,7 +449,7 @@ function RouteScreen({ href }: { href: string }) {
   // there would only offer to leave for the web. A new tab's own menu takes
   // addresses, so a row over it would be a second field.
   const hasLocationRow =
-    location.kind !== "apps" && parseHref(href).pathname !== NEW_TAB_HREF;
+    location.kind !== "apps" && matchScreen(href).kind !== "newTab";
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {hasLocationRow && (
@@ -585,18 +577,25 @@ function TabContent() {
   if (groupTab) {
     return <Outlet />;
   }
-  const session = chatSessionOfHref(href);
-  if (session) {
-    return <ChatOfSession sessionId={session} />;
+  const screen = matchScreen(href);
+  switch (screen.kind) {
+    case "chat": {
+      return <ChatView chat={screen.chat} />;
+    }
+    case "chatLink":
+    case "inbox": {
+      return <ChatView chat={undefined} />;
+    }
+    case "chatOfSession": {
+      return <ChatOfSession sessionId={screen.session} />;
+    }
+    case "site": {
+      return <SiteView group={siteGroupOf(screen.id)} />;
+    }
+    default: {
+      return <RouteScreen href={href} />;
+    }
   }
-  if (isChatHref(href)) {
-    return <ChatView chat={chatOfHref(href)} />;
-  }
-  const group = groupOfHref(href);
-  if (isSiteHref(href) && group !== undefined) {
-    return <SiteView group={group} />;
-  }
-  return <RouteScreen href={href} />;
 }
 
 /**
@@ -616,9 +615,7 @@ function ChatOfSession({ sessionId }: { sessionId: StoreId.Session }) {
   const answer = chat.data;
   useEffect(() => {
     if (answer) {
-      router.history.replace(
-        answer.id ? `${CHATS_HREF}/${answer.id}` : INBOX_HREF,
-      );
+      router.history.replace(answer.id ? chatHref(answer.id) : INBOX_HREF);
     }
   }, [answer, router]);
   return <ChatView chat={undefined} />;

@@ -1,13 +1,6 @@
-import {
-  APPS_HREF,
-  BROWSER_HREF,
-  NEW_TAB_HREF,
-  type WindowTab,
-} from "@/client/atoms/window";
+import { type WindowTab } from "@/client/atoms/window";
 
-import { computerTabOf } from "./file-tabs";
-import { tasksOfHref } from "./tab-location";
-import { parseHref } from "./window-href";
+import { matchScreen } from "./window-href";
 
 /**
  * Whether a tab in a chat's or a draft's group can stand at an address: the
@@ -18,22 +11,20 @@ import { parseHref } from "./window-href";
  * level and a stored tab at one is dropped.
  */
 export function isGroupScreenHref(href: string): boolean {
-  if (computerTabOf(href) || tasksOfHref(href)) {
-    return true;
+  switch (matchScreen(href).kind) {
+    case "app":
+    case "apps":
+    case "browser":
+    case "computer":
+    case "newTab":
+    case "task":
+    case "tasks": {
+      return true;
+    }
+    default: {
+      return false;
+    }
   }
-  const { pathname } = parseHref(href);
-  if (
-    pathname === BROWSER_HREF ||
-    pathname === NEW_TAB_HREF ||
-    pathname === APPS_HREF
-  ) {
-    return true;
-  }
-  if (pathname.startsWith(`${APPS_HREF}/`)) {
-    const slug = pathname.slice(APPS_HREF.length + 1);
-    return slug !== "" && !slug.includes("/");
-  }
-  return false;
 }
 
 /**

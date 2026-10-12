@@ -3,7 +3,7 @@ import {
   noteTypedPage,
   useCompletionPages,
 } from "@/client/hooks/use-browser-history";
-import { bookmarksAtom, CHATS_HREF } from "@/client/atoms/window";
+import { bookmarksAtom } from "@/client/atoms/window";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
@@ -29,6 +29,7 @@ import {
   omnibarField,
 } from "@/client/components/window/omnibar-field";
 import { ShellContext } from "@/client/components/window/shell-context";
+import { chatHref, matchScreen } from "@/client/components/window/window-href";
 import {
   type TabLocation,
   taskHref,
@@ -248,12 +249,10 @@ export function Omnibar({
    */
   const openFolder = (host: string) => {
     const home = window.api.homeDir;
-    const search = routerLocation.search as Record<string, unknown>;
+    const here = matchScreen(routerLocation.href);
     const currentRoot =
-      routerLocation.pathname === "/files" &&
-      typeof search.root === "string" &&
-      search.root !== RECENTS_ROOT
-        ? search.root
+      here.kind === "computer" && here.root !== RECENTS_ROOT
+        ? here.root
         : undefined;
     const currentRootHost =
       currentRoot === undefined ? undefined : expandHomePath(currentRoot, home);
@@ -822,7 +821,7 @@ function useRows({
           id: `chat:${id}`,
           name: title,
           run: () => {
-            open.visit(`${CHATS_HREF}/${id}`);
+            open.visit(chatHref(id));
           },
         }));
       }

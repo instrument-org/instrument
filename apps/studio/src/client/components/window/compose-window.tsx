@@ -86,7 +86,7 @@ import { useDraftTopicSuggestion } from "./use-draft-topic-suggestion";
 import { useTabInView } from "./use-tab-in-view";
 import { WindowTabStrip } from "./window-tab-strip";
 import { isHomeTab } from "./tab-model";
-import { parseHref } from "./window-href";
+import { matchScreen } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /** What the composer hands over to start the chat. */
@@ -97,11 +97,6 @@ export interface DraftSend {
   folders?: { path: string }[];
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
-}
-
-/** Whether an address is Apps or one app's front, which a draft's band shows itself. */
-function isAppsHref(pathname: string) {
-  return pathname === APPS_HREF || pathname.startsWith(`${APPS_HREF}/`);
 }
 
 /** How many marks the minimized bar shows of what the draft holds. */
@@ -491,11 +486,12 @@ export function ComposeWindow({
   // a draft and opens beside the chat instead. An app is named in the words
   // by mentioning it.
   const openScreen = (href: string) => {
-    const { pathname } = parseHref(href);
+    const { kind } = matchScreen(href);
     if (
-      computerTabOf(href) ||
-      isAppsHref(pathname) ||
-      pathname === parseHref(NEW_TAB_HREF).pathname
+      kind === "computer" ||
+      kind === "apps" ||
+      kind === "app" ||
+      kind === "newTab"
     ) {
       openScreenIn(href);
       return;

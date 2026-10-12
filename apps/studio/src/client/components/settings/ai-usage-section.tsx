@@ -3,6 +3,7 @@ import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { settingAnchor } from "@/client/components/settings/settings-index";
+import { pathOf, SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { CopyButton } from "@/client/components/copy-button";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -299,7 +300,9 @@ function useModelName() {
 /** The screen a row's origin opens, when it is somewhere that still exists. */
 function originHref(row: Row) {
   if (row.chatId) {
-    return row.chatTitle ? `${CHATS_HREF}/${row.chatId}` : undefined;
+    return row.chatTitle
+      ? pathOf(SCREEN_ROUTES.chat, { id: row.chatId })
+      : undefined;
   }
   switch (row.surface) {
     case "apps": {

@@ -1,5 +1,5 @@
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
-import { CHATS_HREF } from "@/client/atoms/window";
+import { chatHref } from "@/client/components/window/window-href";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
@@ -118,7 +118,7 @@ export function ChatRow({
   // tab of the window's own behind the one up, where a plain click opens
   // it beside the list.
   const openInNewTab = () => {
-    appWindow.openScreen(`${CHATS_HREF}/${chat.id}`, {
+    appWindow.openScreen(chatHref(chat.id), {
       behind: true,
       newTab: true,
     });
@@ -214,8 +214,9 @@ export function ChatRow({
       )}
     </>
   );
-  // When something last happened, in the row's bottom corner, in a column
-  // of one width so the times line up down the list.
+  // When the user last messaged the chat, which the list is ordered by, in
+  // the row's bottom corner, in a column of one width so the times line up
+  // down the list.
   const time = (
     <span
       className={cn(
@@ -225,7 +226,7 @@ export function ChatRow({
         isUnseen && "font-semibold",
       )}
     >
-      {activityLabel(new Date(chat.updatedAt), now)}
+      {activityLabel(new Date(chat.lastUserMessageAt), now)}
     </span>
   );
   // A starred chat's star, past its topics in the row's corner and a mark

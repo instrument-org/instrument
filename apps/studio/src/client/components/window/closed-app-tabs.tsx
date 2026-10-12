@@ -1,6 +1,5 @@
 import { freshTabId } from "@/client/lib/tab-actions";
 import { reopenClosed } from "@/client/lib/tabs-model";
-import { NEW_TAB_HREF } from "@/client/atoms/window";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { useAtom, useAtomValue } from "jotai";
@@ -19,7 +18,7 @@ import { TabIcon } from "./browser-tabs";
 import { useComputerVolumes } from "./computer-volumes";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
-import { parseHref } from "./window-href";
+import { matchScreen } from "./window-href";
 import { windowTabsAtom } from "./window-tabs";
 
 /** What one of the window's tabs is called and drawn with; a site's carries its page's address. */
@@ -90,7 +89,7 @@ export function useClosedAppTabs(names: {
   const putAway = useAtomValue(putAwaySitesAtom);
   const reopenable = recentlyClosed.flatMap((tab, entry) => {
     // A new tab closed is nothing to come back to.
-    if (parseHref(tab.pathname || INBOX_HREF).pathname === NEW_TAB_HREF) {
+    if (matchScreen(tab.pathname || INBOX_HREF).kind === "newTab") {
       return [];
     }
     const group = isSiteHref(tab.pathname)

@@ -1070,6 +1070,26 @@ a.cursor-pointer {
   }
 }
 
+/* A send the composer's model notice refused: the row lights in its own yellow
+ * and settles back, so the eye goes to the reason already on screen. Drawn
+ * inside the row, so a parent that clips cannot cut it off, and a color rather
+ * than a shake, so it reads the same with reduced motion. */
+@utility animate-notice-nudge {
+  animation: notice-nudge 900ms ease-out both;
+}
+
+@keyframes notice-nudge {
+  0%,
+  25% {
+    background-color: --alpha(var(--color-yellow-400) / 35%);
+    box-shadow: inset 0 0 0 2px --alpha(var(--color-yellow-500) / 70%);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 2px transparent;
+  }
+}
+
 /* A task's name arriving in place of the one before it; see `useTitleArrival`,
  * which puts the class there and only for a name the reader did not type.
  *

@@ -284,6 +284,8 @@ export const PromptInput = ({
     ),
   });
   const modelNotice = noticeFor(modelStatus);
+  // Counts the sends the notice refused, for the row to flash at each one.
+  const [noticeNudge, setNoticeNudge] = useState(0);
   const addProvider = () => {
     openLogin(hasToken ? { reason: "provider-required" } : undefined);
   };
@@ -316,6 +318,7 @@ export const PromptInput = ({
   const noticeRow = modelNotice && (
     <ModelNoticeRow
       notice={modelNotice}
+      nudge={noticeNudge}
       onAction={handleModelAction}
       onDismiss={dismissOffer}
     />
@@ -668,24 +671,14 @@ export const PromptInput = ({
     if (modelStatus.kind === "loading") {
       toast.info("Models are still loading", {
         description: "Try sending again in a moment.",
+        id: "models-loading",
       });
       return false;
     }
-    // The same sentence and the same fix the notice row shows, so a send that
-    // refuses says nothing the composer was not already saying.
+    // The notice row already says what is wrong and holds the fix, so a send
+    // it refuses draws the eye there rather than saying it again.
     if (modelNotice?.tone === "problem") {
-      const { action, detail, text } = modelNotice;
-      toast.error(text, {
-        ...(action && {
-          action: {
-            label: action.label,
-            onClick: () => {
-              handleModelAction(action);
-            },
-          },
-        }),
-        ...(detail && { description: detail }),
-      });
+      setNoticeNudge((n) => n + 1);
       return false;
     }
     return Boolean(canSubmit);

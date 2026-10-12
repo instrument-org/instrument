@@ -95,17 +95,16 @@ export async function trashChat({
           recordRemoved(chatId);
         }
 
-        // In the off chance that a future chat with the same id is
-        // created, it is no longer marked as being trashed.
+        return ok({ id });
+      } finally {
+        // Always unmark the chat, even if deletion fails: a chat still
+        // marked refuses new sessions, and a chat later made with the same
+        // id must not inherit the mark.
+        unmarkStorageAsDisposing(id);
         workspaceRef.send({
           type: "removeChatBeingTrashed",
           value: { id },
         });
-
-        return ok({ id });
-      } finally {
-        // Always unmark storage as disposing, even if deletion fails
-        unmarkStorageAsDisposing(id);
       }
     })(),
     (error: unknown) =>

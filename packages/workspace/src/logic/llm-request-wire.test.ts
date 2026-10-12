@@ -634,7 +634,6 @@ const SCENARIOS: Record<string, Scenario> = {
           "Invalid input for tool read_file: Type validation failed: Value: {}.",
         input: {},
         metadata: meta(),
-        rawInput: {},
         state: "output-error",
         toolCallId: "call_invalid",
         type: "tool-read_file",

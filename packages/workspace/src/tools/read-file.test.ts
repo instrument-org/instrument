@@ -1384,9 +1384,12 @@ describe("toModelOutput", () => {
             "type": "text",
           },
           {
-            "data": "abc123",
+            "data": {
+              "data": "abc123",
+              "type": "data",
+            },
             "mediaType": "image/png",
-            "type": "file-data",
+            "type": "file",
           },
         ],
       }
@@ -1414,9 +1417,12 @@ describe("toModelOutput", () => {
             "type": "text",
           },
           {
-            "data": "abc123",
+            "data": {
+              "data": "abc123",
+              "type": "data",
+            },
             "mediaType": "application/pdf",
-            "type": "file-data",
+            "type": "file",
           },
         ],
       }
@@ -1444,9 +1450,12 @@ describe("toModelOutput", () => {
             "type": "text",
           },
           {
-            "data": "abc123",
+            "data": {
+              "data": "abc123",
+              "type": "data",
+            },
             "mediaType": "audio/mpeg",
-            "type": "file-data",
+            "type": "file",
           },
         ],
       }
@@ -1474,9 +1483,12 @@ describe("toModelOutput", () => {
             "type": "text",
           },
           {
-            "data": "abc123",
+            "data": {
+              "data": "abc123",
+              "type": "data",
+            },
             "mediaType": "video/mp4",
-            "type": "file-data",
+            "type": "file",
           },
         ],
       }

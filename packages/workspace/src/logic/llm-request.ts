@@ -776,7 +776,7 @@ export const llmRequestLogic = fromPromise<
                 // oxlint-disable-next-line typescript/no-unsafe-assignment -- the AI SDK types a stored tool-call `input` as `any`
                 input:
                   toolCall.state === "input-streaming"
-                    ? undefined
+                    ? part.input
                     : toolCall.input,
                 metadata: {
                   ...toolCall.metadata,
@@ -784,7 +784,6 @@ export const llmRequestLogic = fromPromise<
                 },
                 ...providerMetadataProps,
                 providerExecuted: part.providerExecuted,
-                rawInput: part.input as never,
                 state: "output-error",
               };
               await scopedStore.savePart(updatedPart);
@@ -812,7 +811,6 @@ export const llmRequestLogic = fromPromise<
                 messageId: assistantMessage.id,
                 sessionId: input.sessionId,
               },
-              rawInput: part.input as never,
               state: "output-error",
               toolCallId: part.toolCallId,
               type: "tool-unavailable",

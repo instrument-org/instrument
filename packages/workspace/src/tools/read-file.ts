@@ -839,9 +839,9 @@ export const ReadFile = setupTool({
               type: "text",
             },
             {
-              data: output.base64Data,
+              data: { data: output.base64Data, type: "data" },
               mediaType: output.mimeType,
-              type: "file-data",
+              type: "file",
             },
           ],
         };

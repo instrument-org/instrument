@@ -699,7 +699,9 @@ describe("llmRequestLogic", () => {
           "message": "Invalid input: expected string, received undefined"
         }
       ]",
-              "input": undefined,
+              "input": {
+                "invalid": "params",
+              },
               "metadata": {
                 "createdAt": 2013-08-31T12:00:04.000Z,
                 "endedAt": 2013-08-31T12:00:05.000Z,
@@ -708,9 +710,6 @@ describe("llmRequestLogic", () => {
                 "sessionId": "ses_00000000018888888888888888",
               },
               "providerExecuted": undefined,
-              "rawInput": {
-                "invalid": "params",
-              },
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-read_file",
@@ -784,7 +783,7 @@ describe("llmRequestLogic", () => {
             {
               "errorText": "Invalid input for tool read_file: JSON parsing failed: Text: invalid json.
       Error message: Unexpected token 'i', "invalid json" is not valid JSON",
-              "input": undefined,
+              "input": "invalid json",
               "metadata": {
                 "createdAt": 2013-08-31T12:00:04.000Z,
                 "endedAt": 2013-08-31T12:00:05.000Z,
@@ -793,7 +792,6 @@ describe("llmRequestLogic", () => {
                 "sessionId": "ses_00000000018888888888888888",
               },
               "providerExecuted": undefined,
-              "rawInput": "invalid json",
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-read_file",
@@ -882,9 +880,6 @@ describe("llmRequestLogic", () => {
                 "sessionId": "ses_00000000018888888888888888",
               },
               "providerExecuted": undefined,
-              "rawInput": {
-                "invalid": "params",
-              },
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-read_file",
@@ -1030,7 +1025,9 @@ describe("llmRequestLogic", () => {
             },
             {
               "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, unavailable, web_fetch, web_search, write_file.",
-              "input": undefined,
+              "input": {
+                "unknown": "params",
+              },
               "metadata": {
                 "createdAt": 2013-08-31T12:00:04.000Z,
                 "endedAt": 2013-08-31T12:00:05.000Z,
@@ -1039,9 +1036,6 @@ describe("llmRequestLogic", () => {
                 "sessionId": "ses_00000000018888888888888888",
               },
               "providerExecuted": undefined,
-              "rawInput": {
-                "unknown": "params",
-              },
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-unavailable",
@@ -1114,7 +1108,9 @@ describe("llmRequestLogic", () => {
             },
             {
               "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, unavailable, web_fetch, web_search, write_file.",
-              "input": undefined,
+              "input": {
+                "filePath": "test.txt",
+              },
               "metadata": {
                 "createdAt": 2013-08-31T12:00:04.000Z,
                 "endedAt": 2013-08-31T12:00:05.000Z,
@@ -1123,9 +1119,6 @@ describe("llmRequestLogic", () => {
                 "sessionId": "ses_00000000018888888888888888",
               },
               "providerExecuted": undefined,
-              "rawInput": {
-                "filePath": "test.txt",
-              },
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-read_file",
@@ -1204,9 +1197,6 @@ describe("llmRequestLogic", () => {
                 "sessionId": "ses_00000000018888888888888888",
               },
               "providerExecuted": undefined,
-              "rawInput": {
-                "filePath": "test.txt",
-              },
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-unavailable",

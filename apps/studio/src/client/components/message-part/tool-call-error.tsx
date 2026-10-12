@@ -14,8 +14,8 @@ type ErrorPart = Extract<
 export function ToolCallError({ part }: { part: ErrorPart }) {
   const [isRawOpen, setIsRawOpen] = useState(false);
 
-  const rawInput =
-    typeof part.rawInput === "string" ? part.rawInput : undefined;
+  // A string input is text the model sent that never parsed as JSON.
+  const rawInput = typeof part.input === "string" ? part.input : undefined;
   const inputText =
     rawInput ?? (part.input ? JSON.stringify(part.input, null, 2) : undefined);
   const inputLabel = rawInput ? "Raw input" : "Input";

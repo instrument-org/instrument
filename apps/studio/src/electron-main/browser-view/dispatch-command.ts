@@ -76,6 +76,24 @@ const MEASUREMENT_FRESH_MS = 2000;
 // Half a CSS pixel is rounding, not movement.
 const MOVED_PX = 0.5;
 
+// What CDP answers when the frame, node or target a command named went away
+// while it was in flight: an ad iframe swapped out, a page navigating, an
+// element re-rendered. agent-browser retries or re-snapshots, so these are
+// races in a live page rather than failures worth an error line each.
+const NAVIGATION_RACE_ERRORS = [
+  "Frame with the given frameId is not found",
+  "target closed while handling command",
+  "Inspected target navigated or closed",
+  "Node is detached from document",
+  "Could not find node with given id",
+  "Could not compute box model",
+];
+
+function isNavigationRace(error: unknown): boolean {
+  const message = String(error);
+  return NAVIGATION_RACE_ERRORS.some((race) => message.includes(race));
+}
+
 export async function sendCommand({
   describeHost,
   ensureDebuggerAttached,
@@ -465,9 +483,12 @@ async function forwardToDebugger({
         `agent press targetId=${targetId} ${press.context} ack=failed after ${Date.now() - press.at}ms`,
       );
     }
-    log.error(
-      `sendCommand error targetId=${targetId} method=${method} error=${String(error)}`,
-    );
+    const line = `sendCommand error targetId=${targetId} method=${method} error=${String(error)}`;
+    if (isNavigationRace(error)) {
+      log.debug(line);
+    } else {
+      log.error(line);
+    }
     throw error;
   }
 }

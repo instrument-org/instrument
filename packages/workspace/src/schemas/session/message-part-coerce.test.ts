@@ -107,3 +107,54 @@ describe("coercing a stored data part", () => {
     expect(part.type).toBe("text");
   });
 });
+
+describe("coercing a stored failed tool call", () => {
+  function storedFailedCall(fields: { input?: unknown; rawInput?: unknown }) {
+    const { metadata: _metadata, ...part } = SessionMessagePart.coerce({
+      errorText: "Invalid input",
+      metadata: {
+        createdAt: new Date(0),
+        endedAt: new Date(0),
+        id: StoreId.newPartId(),
+        messageId: StoreId.newMessageId(),
+        sessionId: StoreId.newSessionId(),
+      },
+      state: "output-error",
+      toolCallId: "call-1",
+      type: "tool-read_file",
+      ...fields,
+    });
+    return part;
+  }
+
+  it("moves rawInput into an empty input", () => {
+    expect(storedFailedCall({ rawInput: "{not json" })).toMatchInlineSnapshot(`
+      {
+        "errorText": "Invalid input",
+        "input": "{not json",
+        "state": "output-error",
+        "toolCallId": "call-1",
+        "type": "tool-read_file",
+      }
+    `);
+  });
+
+  it("keeps input and drops rawInput", () => {
+    expect(
+      storedFailedCall({
+        input: { filePath: "a.txt" },
+        rawInput: { filePath: "a.txt" },
+      }),
+    ).toMatchInlineSnapshot(`
+      {
+        "errorText": "Invalid input",
+        "input": {
+          "filePath": "a.txt",
+        },
+        "state": "output-error",
+        "toolCallId": "call-1",
+        "type": "tool-read_file",
+      }
+    `);
+  });
+});

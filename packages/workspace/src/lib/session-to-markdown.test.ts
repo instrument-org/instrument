@@ -202,7 +202,6 @@ const session = Session.WithMessagesAndPartsSchema.parse({
             messageId: assistantMessageId,
             sessionId,
           },
-          rawInput: "{",
           state: "input-streaming",
           toolCallId: "tool-call-1",
           type: "tool-bash",
@@ -256,7 +255,7 @@ describe("session diagnostics", () => {
     expect(markdown).toContain(
       "### Tool Call 1: bash *(incomplete: input-streaming)*",
     );
-    expect(markdown).toContain('"rawInput": "{"');
+    expect(markdown).toContain("- **command:** `pnpm test`");
   });
 
   it("says how much of a tool call's span it spent running", async () => {

@@ -70,7 +70,7 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         break;
       }
       case "output-error": {
-        content += `\n${indent("<input>")}\n${indent(JSON.stringify(part.input || part.rawInput || "none", null, 2), 2)}\n${indent("</input>")}`;
+        content += `\n${indent("<input>")}\n${indent(JSON.stringify(part.input || "none", null, 2), 2)}\n${indent("</input>")}`;
         content += `\n${indent(`<error>${part.errorText}</error>`)}\n`;
 
         break;

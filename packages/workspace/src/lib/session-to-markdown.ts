@@ -927,7 +927,7 @@ function renderPersistedAssistantParts(
         }),
       ].join(""),
       "",
-      ...renderToolInput(part.rawInput ?? part.input),
+      ...renderToolInput(part.input),
       ...renderToolDiagnostics(part),
     );
   }
@@ -961,7 +961,6 @@ function renderToolDiagnostics(part: SessionMessagePart.ToolPart): string[] {
     part.approval !== undefined ||
     part.preliminary === true ||
     part.providerExecuted === true ||
-    part.rawInput !== undefined ||
     part.title !== undefined;
   if (!hasDiagnostics) {
     return [];
@@ -979,7 +978,6 @@ function renderToolDiagnostics(part: SessionMessagePart.ToolPart): string[] {
           ...(part.errorText === undefined
             ? {}
             : { errorText: part.errorText }),
-          ...(part.rawInput === undefined ? {} : { rawInput: part.rawInput }),
           ...(part.providerExecuted === undefined
             ? {}
             : { providerExecuted: part.providerExecuted }),

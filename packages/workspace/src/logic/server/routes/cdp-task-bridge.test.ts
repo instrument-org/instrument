@@ -38,17 +38,23 @@ vi.mock("../../../lib/chat-dir-utils", () => ({
   getBrowserSessionDir: () => "/tmp/profile",
   chatDir: (id: string) => `/tmp/tasks/${id}`,
 }));
+// The chats whose folders were read for a gate.
+const { layoutsReadFor } = vi.hoisted(() => ({
+  layoutsReadFor: [] as string[],
+}));
 vi.mock("../../../lib/resolve-workspace-file-path", async () => {
   const { buildWorkspaceFsLayout } =
     await import("../../../lib/workspace-fs-layout");
   const { ChatDirSchema } = await import("../../../schemas/paths");
   return {
-    taskFsLayout: () =>
-      Promise.resolve(
+    taskFsLayout: (chatId: string) => {
+      layoutsReadFor.push(chatId);
+      return Promise.resolve(
         buildWorkspaceFsLayout({
           taskHostRoot: ChatDirSchema.parse("/tmp/tasks/read-the-pages"),
         }),
-      ),
+      );
+    },
   };
 });
 // The window: what the task asked of it, answered with a tab of its own.
@@ -265,6 +271,26 @@ describe("a task's browser", () => {
       "Runtime.evaluate",
       expect.anything(),
     );
+  });
+
+  it("judges a handed tab's local files by the folders of the task's chat", async () => {
+    const handed = tab();
+    record.browserTabs = [handed.held];
+    layoutsReadFor.length = 0;
+    const { command } = connect();
+
+    const attached = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: handed.tabId,
+    });
+    await command(
+      "Runtime.evaluate",
+      { expression: "1" },
+      attached.result?.sessionId as string,
+    );
+
+    expect(layoutsReadFor).not.toEqual([]);
+    expect(new Set(layoutsReadFor)).toEqual(new Set([TASK_ID]));
   });
 
   it("refuses to attach to a tab the task does not hold", async () => {

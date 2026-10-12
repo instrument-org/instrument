@@ -207,6 +207,7 @@ export function handleTaskCdpClient(
       onDetach: () => {
         forget(tab.tabId);
       },
+      readLayout: () => taskFsLayout(chatId),
       send,
       sessionId: `session-${tab.tabId}`,
       targetId: tab.targetId,

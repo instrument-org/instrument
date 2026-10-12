@@ -8,8 +8,6 @@ import {
   agentPathOfFileUrl,
   isLocalAddress,
 } from "../../../lib/local-page-address";
-import { taskFsLayout } from "../../../lib/resolve-workspace-file-path";
-import { WINDOW_ID } from "../../../schemas/window-id";
 import {
   nonTaskMounts,
   type WorkspaceFsLayout,
@@ -367,10 +365,13 @@ export function notYourFile(url: string) {
  * `sessionId`, its commands go to the page's debugger behind the local-file
  * gate, a navigation's answer waits for the main frame's load, and ending the
  * session undoes what the agent set up on the page. `send` writes a frame to
- * the connection; `onDetach` hears the page going away.
+ * the connection; `onDetach` hears the page going away. `readLayout` reads
+ * the folders of the agent's chat, which are the local files the gate lets
+ * the page show.
  */
 export function openTargetSession({
   onDetach,
+  readLayout,
   send,
   sessionId,
   targetId,
@@ -378,6 +379,7 @@ export function openTargetSession({
   workspaceRef,
 }: {
   onDetach: () => void;
+  readLayout: () => Promise<WorkspaceFsLayout>;
   send: (payload: CdpEventFrame | CdpResponse) => void;
   sessionId: string;
   targetId: BrowserTargetId;
@@ -422,7 +424,7 @@ export function openTargetSession({
         );
       }
     },
-    readLayout: hasTarget ? () => taskFsLayout(WINDOW_ID) : undefined,
+    readLayout: hasTarget ? readLayout : undefined,
   });
   let queue = fileGate.load().catch(workspaceConfig.captureException);
 

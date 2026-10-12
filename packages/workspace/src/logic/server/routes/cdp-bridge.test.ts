@@ -17,17 +17,13 @@ import {
   parseCdpMessage,
 } from "./cdp-bridge";
 
-vi.mock("../../../lib/resolve-workspace-file-path", async () => {
-  const { buildWorkspaceFsLayout: build } =
-    await import("../../../lib/workspace-fs-layout");
-  const { ChatDirSchema: ChatDir } = await import("../../../schemas/paths");
-  return {
-    taskFsLayout: () =>
-      Promise.resolve(
-        build({ taskHostRoot: ChatDir.parse("/Users/me/Tasks/t1") }),
-      ),
-  };
-});
+/** The folders of the chat whose agent drives the page. */
+const chatLayout = () =>
+  Promise.resolve(
+    buildWorkspaceFsLayout({
+      taskHostRoot: ChatDirSchema.parse("/Users/me/Tasks/t1"),
+    }),
+  );
 
 /** Drain pending microtasks. */
 async function flush(): Promise<void> {
@@ -277,6 +273,7 @@ describe("openTargetSession on a local page", () => {
     } as unknown as WorkspaceConfig;
     const session = openTargetSession({
       onDetach: vi.fn(),
+      readLayout: chatLayout,
       send: (frame) => sent.push(frame),
       sessionId: `session-${target}`,
       targetId: target,

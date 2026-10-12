@@ -10,6 +10,7 @@ import { ipcMain } from "electron";
 import { EventEmitter } from "node:events";
 
 import { captureServerException } from "../lib/capture-server-exception";
+import { trackRPCForStalls } from "../lib/main-thread-stalls";
 import { type AppUpdaterHandle } from "../lib/create-app-updater";
 import { type InitialRPCContext } from "./context";
 import { createErrorClientInterceptor } from "./error-interceptor";
@@ -99,6 +100,7 @@ function shouldSkipCapture(error: unknown): boolean {
 
 const handler = new RPCHandler<InitialRPCContext>(router, {
   clientInterceptors: [
+    trackRPCForStalls,
     createErrorClientInterceptor({
       onAsyncIteratorError: (e, options) => {
         if (!shouldSkipCapture(e)) {

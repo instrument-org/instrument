@@ -43,7 +43,6 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [Edit a user message in place](active/edit-user-message-in-place.md) — rewind and rerun | proposed |
 | [Semantic prompt composer](active/semantic-prompt-composer.md) | landed for skills and apps |
 | [Render a file to look at it](active/render-a-file-to-look-at-it.md): letting a task look at what it made | proposed, nothing built |
-| [Chat status line and loading states](active/chat-status-line-and-loading-states.md): dots only while a reply is written, one activity line under the title | proposed |
 
 ### Files, folders, skills, and storage
 
@@ -94,12 +93,14 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [radashi to es-toolkit migration](active/radashi-to-es-toolkit-migration.md) | planned, not started |
 | [Radix upgrade, and whether to move to Base UI](active/radix-upgrade-and-base-ui-migration.md) | proposal, not started |
 | [React Compiler blind spots](active/react-compiler-blind-spots.md) | proposal, not started |
+| [Structure after the chat rework](active/structure-after-the-chat-rework.md): implicit state machines, parallel maps and task-era leftovers the reworks left | items 1-6, 11, 12 done |
 
 ## Completed
 
 | Plan | Outcome |
 | --- | --- |
 | [Agent browser ad blocking](completed/agent-browser-ad-blocking.md) | landed |
+| [Chat status line and loading states](completed/chat-status-line-and-loading-states.md): dots only while a reply is written, one activity line under the title | landed |
 | [The Instrument 2.0 orchestrator spike](completed/instrument-2-0-prototype.md) | became the 2.0 app |
 | [Apps in the 2.0 prototype](completed/instrument-2-0-apps.md) | landed |
 | [Threads, topics, and activity](completed/orchestrator-threads.md) | landed, then overtaken |

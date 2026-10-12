@@ -9,6 +9,7 @@ import { MarkdownTaskContext } from "@/client/components/markdown-task-context";
 import { MermaidDiagram } from "@/client/components/mermaid-diagram";
 import { MessageActions, MessageCard } from "@/client/components/message-card";
 import { messageKindOf } from "@/client/components/message-kind";
+import { SaveFailedPill } from "@/client/components/save-failed-pill";
 import { UpdatedPill } from "@/client/components/updated-pill";
 import { useAskMarks } from "@/client/components/window/ask-marks";
 import { WindowContext } from "@/client/components/window/context";
@@ -498,18 +499,27 @@ function LiveDocument({
           )}
         </div>
       </div>
-      {offscreen && (
-        <div className="pointer-events-none sticky bottom-4 flex justify-center">
-          <UpdatedPill
-            direction={offscreen}
-            onClick={() => {
-              changedRef.current?.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
-              });
-              setOffscreen(null);
-            }}
-          />
+      {(offscreen || status === "error") && (
+        <div className="pointer-events-none sticky bottom-4 flex flex-wrap justify-center gap-2">
+          {status === "error" && (
+            <SaveFailedPill
+              onRetry={() => {
+                session?.retrySave();
+              }}
+            />
+          )}
+          {offscreen && (
+            <UpdatedPill
+              direction={offscreen}
+              onClick={() => {
+                changedRef.current?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                });
+                setOffscreen(null);
+              }}
+            />
+          )}
         </div>
       )}
       {fences.map((fence) => {

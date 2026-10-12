@@ -1,6 +1,7 @@
 import "./code-editor.css";
 
 import { FileLoading } from "@/client/components/file-loading";
+import { SaveFailedPill } from "@/client/components/save-failed-pill";
 import { UpdatedPill } from "@/client/components/updated-pill";
 import { useAskMarks } from "@/client/components/window/ask-marks";
 import { linesLabel } from "@/client/components/window/staged-asks";
@@ -226,19 +227,28 @@ function LiveCodeDocument({
         data-variant={variant}
       >
         <div className="h-full" ref={rootRef} />
-        {offscreen && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
-            <UpdatedPill
-              direction={offscreen}
-              onClick={() => {
-                session?.view.dispatch({
-                  effects: EditorView.scrollIntoView(changedAt.current, {
-                    y: "center",
-                  }),
-                });
-                setOffscreen(null);
-              }}
-            />
+        {(offscreen || status === "error") && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex flex-wrap justify-center gap-2">
+            {status === "error" && (
+              <SaveFailedPill
+                onRetry={() => {
+                  session?.retrySave();
+                }}
+              />
+            )}
+            {offscreen && (
+              <UpdatedPill
+                direction={offscreen}
+                onClick={() => {
+                  session?.view.dispatch({
+                    effects: EditorView.scrollIntoView(changedAt.current, {
+                      y: "center",
+                    }),
+                  });
+                  setOffscreen(null);
+                }}
+              />
+            )}
           </div>
         )}
       </div>

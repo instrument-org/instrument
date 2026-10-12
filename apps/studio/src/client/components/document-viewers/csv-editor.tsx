@@ -1,3 +1,4 @@
+import { SaveFailedPill } from "@/client/components/save-failed-pill";
 import { WindowContext } from "@/client/components/window/context";
 import {
   linesLabel,
@@ -320,6 +321,10 @@ function createCsvSession(options: {
     /** Whether nothing is waiting to be written. */
     idle: async () => (await saves.idle()) && local.text === disk.text,
     pull,
+    /** Saves again now, after a save that failed. */
+    retrySave: () => {
+      scheduleSave(0);
+    },
     redo: () => {
       step(redoStack, undoStack);
     },
@@ -346,6 +351,7 @@ function LiveTable({
   );
   const [flashed, setFlashed] = useState<ReadonlySet<string>>(NO_FLASH);
   const [session, setSession] = useState<CsvSession | null>(null);
+  const [status, setStatus] = useState<SaveStatus>("saved");
   const readOnly = useMemo(() => readOnlyReason(doc), [doc]);
   const appWindow = useContext(WindowContext);
   const { begin, card } = useAskCard(hostPath);
@@ -387,8 +393,9 @@ function LiveTable({
         }
       },
       onNotes: reportNotes,
-      onStatus: (status, detail) => {
-        if (status === "error") {
+      onStatus: (saveStatus, detail) => {
+        setStatus(saveStatus);
+        if (saveStatus === "error") {
           toast.error("Couldn't save your changes", { cause: detail });
         }
       },
@@ -517,7 +524,9 @@ function LiveTable({
   };
 
   return (
-    <>
+    // The viewer's own column, positioned so the save failure can stand at
+    // its foot over the grid.
+    <div className="relative flex min-h-0 flex-1 flex-col">
       <DataGrid
         columns={columns}
         editing={editing}
@@ -527,8 +536,17 @@ function LiveTable({
         revealRef={revealRef}
         rows={rows}
       />
+      {status === "error" && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
+          <SaveFailedPill
+            onRetry={() => {
+              session?.retrySave();
+            }}
+          />
+        </div>
+      )}
       {card}
-    </>
+    </div>
   );
 }
 

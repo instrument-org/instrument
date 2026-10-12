@@ -60,7 +60,7 @@ vi.mock("../../../lib/resolve-workspace-file-path", async () => {
 // The window: what the task asked of it, answered with a tab of its own.
 const asked: WindowTabAction[] = [];
 /** The chat's tabs as the window lists them, a page's guest up or not. */
-let windowList: { id: string; kind: "page"; url: string }[] = [];
+let windowList: { id: string; kind: "page"; title: string; url: string }[] = [];
 vi.mock("../../../lib/chat/window-tab", () => ({
   askWindow: ({ action }: { action: WindowTabAction }) => {
     asked.push(action);
@@ -380,7 +380,12 @@ describe("a task's browser", () => {
     const resting = tab();
     record.browserTabs = [resting.held];
     windowList = [
-      { id: resting.tabId, kind: "page", url: "https://example.org/kept" },
+      {
+        id: resting.tabId,
+        kind: "page",
+        title: "Kept",
+        url: "https://example.org/kept",
+      },
     ];
     const { command, closeByUser } = connect();
     // Its guest went, and the tab stayed: discarded.
@@ -389,7 +394,11 @@ describe("a task's browser", () => {
 
     const targets = await command("Target.getTargets");
     expect(targets.result?.targetInfos).toMatchObject([
-      { targetId: resting.tabId, url: "https://example.org/kept" },
+      {
+        targetId: resting.tabId,
+        title: "Kept",
+        url: "https://example.org/kept",
+      },
     ]);
     expect(asked.map((action) => action.kind)).toEqual(["list"]);
 

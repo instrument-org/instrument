@@ -52,6 +52,7 @@ function answeringWindow() {
         tabs: [...live].map((id) => ({
           id,
           kind: "page" as const,
+          title: "Example",
           url: "https://example.com/",
         })),
       });

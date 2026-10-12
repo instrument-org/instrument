@@ -47,6 +47,8 @@ interface Held {
   openedBy: HeldTab["openedBy"];
   tabId: string;
   targetId: BrowserTargetId;
+  /** The page's title and address while it has no guest, as the window keeps them. */
+  title: string;
   /** The page's address: the guest's, or the one the window keeps for it while it has none. */
   url: string;
 }
@@ -139,13 +141,14 @@ export function handleTaskCdpClient(
           {
             ...base,
             live: true,
+            title: "",
             url: browser.getTargetUrl(tab.id) ?? "about:blank",
           },
         ];
       }
       const kept = listed.find((entry) => entry.id === tab.id);
       return tab.inWindow && kept?.kind === "page"
-        ? [{ ...base, live: false, url: kept.url }]
+        ? [{ ...base, live: false, title: kept.title, url: kept.url }]
         : [];
     });
   };
@@ -182,7 +185,7 @@ export function handleTaskCdpClient(
     attached: sessions.has(tab.tabId),
     canAccessOpener: false,
     targetId: tab.tabId,
-    title: titleOf.get(tab.targetId) ?? "",
+    title: titleOf.get(tab.targetId) ?? tab.title,
     type: "page",
     url: browser.getTargetUrl(tab.targetId) ?? tab.url,
   });
@@ -381,6 +384,7 @@ export function handleTaskCdpClient(
         openedBy: "task",
         tabId: targetId,
         targetId,
+        title: "",
         url: "about:blank",
       });
       answer(id, {
@@ -420,6 +424,7 @@ export function handleTaskCdpClient(
       openedBy: "task",
       tabId,
       targetId,
+      title: "",
       url: address,
     });
     answer(id, {

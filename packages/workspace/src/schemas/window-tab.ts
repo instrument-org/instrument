@@ -75,7 +75,12 @@ export const WindowTabAnswerSchema = z.object({
   tabs: z
     .array(
       z.discriminatedUnion("kind", [
-        z.object({ id: z.string(), kind: z.literal("page"), url: z.string() }),
+        z.object({
+          id: z.string(),
+          kind: z.literal("page"),
+          title: z.string(),
+          url: z.string(),
+        }),
         z.object({ id: z.string(), kind: z.literal("screen") }),
       ]),
     )

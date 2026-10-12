@@ -32,6 +32,12 @@ The AI models Instrument can use: your ChatGPT or Claude plan, or a provider you
 - **ChatGPT account** (`chatgpt-account`): Use your ChatGPT Plus or Pro plan.
 - **Claude account** (`claude-account`): Use your Claude plan.
 
+### Usage (`usage`)
+
+Every request Instrument made to an AI model, which you can filter, sort, and export.
+
+- **Usage** (`usage`): Every request Instrument sends to an AI, with its model, tokens, and time.
+
 ### Skills (`skills`)
 
 The skills Instrument's tasks can use, and making a new one.

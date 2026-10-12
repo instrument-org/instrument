@@ -410,8 +410,14 @@ const RECT_FOR = (kind, needle) => `(() => {
     const r = n.getBoundingClientRect();
     return r.width > 0 && r.height > 0;
   };
-  const onScreen = (r) =>
-    r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
+  // The point a click lands on, the element's center, has to be inside the
+  // window, not just some edge of the element: a row cut off at the bottom
+  // has its top on screen and its center below the fold.
+  const onScreen = (r) => {
+    const x = r.left + r.width / 2;
+    const y = r.top + r.height / 2;
+    return x >= 0 && y >= 0 && x < innerWidth && y < innerHeight;
+  };
 
   // Every role a menu item can carry, not just [role=menuitem]: a checkable row
   // (Radix's CheckboxItem/RadioItem, which is how a menu offers a choice rather
@@ -632,12 +638,21 @@ export async function connect({
     }
   };
 
+  // A window that is covered or minimized stops drawing, so its frames never
+  // come and a wait on them never ends. Give up after a few seconds and say
+  // why, rather than hang the command.
   const settle = async () => {
     await sleep(150);
-    await evaluate(
+    const framed = evaluate(
       cdp,
-      "new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))",
+      "new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))",
     );
+    const timedOut = sleep(5000).then(() => false);
+    if (!(await Promise.race([framed, timedOut]))) {
+      fail(
+        "The window drew no frame for 5 seconds after the input: it is covered or minimized, so input is not landing. Bring it to the front first.",
+      );
+    }
   };
 
   const drive = async (call) => {
@@ -651,7 +666,7 @@ export async function connect({
      * button but not a handler mounted on an ancestor -- and returns as if it
      * worked.
      */
-    click: async (target, label, { button = "left" } = {}) => {
+    click: async (target, label, { button = "left", count = 1 } = {}) => {
       const { kind, needle } = targetOf(target);
       return step(label ?? `click ${needle}`, async () => {
         const rect = await rectFor(cdp, kind, needle);
@@ -664,14 +679,18 @@ export async function connect({
           x,
           y,
         });
-        for (const type of ["mousePressed", "mouseReleased"]) {
-          await cdp.send("Input.dispatchMouseEvent", {
-            button,
-            clickCount: 1,
-            type,
-            x,
-            y,
-          });
+        // A double click is two presses, the second carrying clickCount 2,
+        // which is what fires dblclick.
+        for (let press = 1; press <= count; press++) {
+          for (const type of ["mousePressed", "mouseReleased"]) {
+            await cdp.send("Input.dispatchMouseEvent", {
+              button,
+              clickCount: press,
+              type,
+              x,
+              y,
+            });
+          }
         }
         await settle();
         // Recorded because it means the page moved under the run: what was on

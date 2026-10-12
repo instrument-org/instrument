@@ -1004,7 +1004,10 @@ async function dispatch(app) {
         undefined,
         // `--right` goes last: like every flag here it takes the word after
         // it, so `click --right Name` would read Name as its value.
-        { button: argv.includes("--right") ? "right" : "left" },
+        {
+          button: argv.includes("--right") ? "right" : "left",
+          count: argv.includes("--double") ? 2 : 1,
+        },
       );
     }
     case "eval":

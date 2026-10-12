@@ -56,6 +56,20 @@ function assertNoArguments() {
   }
 }
 
+async function firstFreePort(start) {
+  for (let port = start; port < start + 50; port++) {
+    try {
+      await assertPortAvailable(port);
+      return port;
+    } catch {
+      // Taken; try the next one.
+    }
+  }
+  fail(
+    `No free local port between ${start} and ${start + 49}; pass --local-port.`,
+  );
+}
+
 function assertPortAvailable(port) {
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     fail(`Invalid local port ${JSON.stringify(port)}.`);
@@ -182,6 +196,13 @@ async function main() {
       report(installPreview(host, run));
       break;
     }
+    case "purge-recycled": {
+      const folder = takeFlag("--path");
+      assertNoArguments();
+      if (!folder) fail("Pass --path <the folder the deleted items were in>.");
+      report(runPowerShellJson(host, purgeRecycledScript(folder)));
+      break;
+    }
     case "profile": {
       assertNoArguments();
       report(readProfile(host));
@@ -256,10 +277,14 @@ async function main() {
     case "tunnel": {
       const profile = readProfile(host);
       const remotePort = targetConfig(profile, target).cdpPort;
-      const localPort = Number(
-        takeFlag("--local-port", String(remotePort + 1000)),
-      );
+      const requestedPort = takeFlag("--local-port");
       assertNoArguments();
+      // A port given is used or refused; without one, the first free port from
+      // the conventional one up, since another tunnel (another host's, another
+      // session's) may already hold it. The forwarding line names the port.
+      const localPort = requestedPort
+        ? Number(requestedPort)
+        : await firstFreePort(remotePort + 1000);
       await assertPortAvailable(localPort);
       console.error(
         `Forwarding http://127.0.0.1:${localPort} to ${host} ${target} CDP port ${remotePort}. Press Ctrl-C to stop.`,
@@ -290,7 +315,7 @@ async function main() {
     }
     default: {
       fail(
-        `Unknown command ${JSON.stringify(command)}. Use install-preview, profile, seed, start, status, stop, or tunnel.`,
+        `Unknown command ${JSON.stringify(command)}. Use install-preview, profile, purge-recycled, seed, start, status, stop, or tunnel.`,
       );
     }
   }
@@ -475,6 +500,44 @@ foreach ($root in $roots) {
   if ($LASTEXITCODE -eq 0) { $stopped += $root.ProcessId }
 }
 [ordered]@{ stoppedProcessTrees = $stopped; target = '${PREVIEW_TARGET}' } | ConvertTo-Json -Compress`;
+}
+
+/**
+ * PowerShell that empties from the Recycle Bin only what was deleted from
+ * inside one folder, so a test that deletes files can clean up after itself
+ * without touching anything else there. Each deleted item is a `$R` file with
+ * a `$I` record beside it, and the record holds the item's original path: an
+ * 8-byte version, 8-byte size, 8-byte deletion time, then the path's length
+ * in characters and the path in UTF-16. Nothing goes through Explorer, so no
+ * confirmation dialog comes up on the person's screen.
+ */
+function purgeRecycledScript(folder) {
+  const literal = folder.replaceAll("'", "''");
+  return `$ErrorActionPreference = 'Stop'
+$folder = [IO.Path]::GetFullPath('${literal}').TrimEnd('\\')
+$segments = @($folder.Split('\\') | Where-Object { $_ })
+if ($segments.Count -lt 3 -or $folder -ieq $HOME.TrimEnd('\\')) {
+  throw "Refusing to purge everything deleted from $($folder). Name the folder the test created."
+}
+$prefix = $folder + '\\'
+$sid = ([Security.Principal.WindowsIdentity]::GetCurrent()).User.Value
+$bin = Join-Path ($folder.Substring(0, 3)) ('$Recycle.Bin\\' + $sid)
+$purged = @()
+if (Test-Path -LiteralPath $bin) {
+  foreach ($record in @(Get-ChildItem -LiteralPath $bin -Force -Filter '$I*')) {
+    $bytes = [IO.File]::ReadAllBytes($record.FullName)
+    if ($bytes.Length -lt 28) { continue }
+    $length = [BitConverter]::ToInt32($bytes, 24)
+    $original = [Text.Encoding]::Unicode.GetString($bytes, 28, [Math]::Min($length * 2, $bytes.Length - 28)).TrimEnd([char]0)
+    if ($original -ieq $folder -or $original.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+      $item = Join-Path $bin ('$R' + $record.Name.Substring(2))
+      if (Test-Path -LiteralPath $item) { Remove-Item -LiteralPath $item -Force -Recurse }
+      Remove-Item -LiteralPath $record.FullName -Force
+      $purged += $original
+    }
+  }
+}
+[ordered]@{ folder = $folder; purged = $purged } | ConvertTo-Json -Compress`;
 }
 
 /**

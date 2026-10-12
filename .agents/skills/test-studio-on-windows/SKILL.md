@@ -29,11 +29,12 @@ If the profile or either scheduled task is missing, read [references/host-enroll
   ```bash
   node "$WINDOWS_HOST" install-preview --host "$HOST" --run <run-id>
   node "$WINDOWS_HOST" start --host "$HOST" --target preview [--name <preview-name>]
-  node "$WINDOWS_HOST" tunnel --host "$HOST" --target preview --local-port 49163
+  node "$WINDOWS_HOST" tunnel --host "$HOST" --target preview
   node "$WINDOWS_HOST" stop --host "$HOST" --target preview
+  node "$WINDOWS_HOST" purge-recycled --host "$HOST" --path 'C:\Users\<user>\<your test folder>'
   ```
 
-  `install-preview` fetches the run's installer (cached locally by artifact id), copies it over and installs it silently, beside Instrument, as `Instrument Preview (<name>)` in `%LOCALAPPDATA%\Programs\instrument-preview-<name>`, with its own user data. `start` launches the named preview, or the most recently installed, without a console window on the desktop. `window.__studioDrive` is attached, so route helpers work. Every build is a first launch, since the run number is part of its name; for another first launch, build again. A preview's output folder is still `Documents\Instrument`, shared with the installed app.
+  `tunnel` without `--local-port` takes the first free port from the conventional one up (another host's tunnel may hold it) and names it in its first line; wait for that line before probing. `status` lists installed previews and which is running. `purge-recycled` empties from the Recycle Bin only what was deleted from inside the named folder, without Explorer's confirmation, so a test that deletes files cleans up after itself; it refuses a drive root or the home folder. `install-preview` fetches the run's installer (cached locally by artifact id), copies it over and installs it silently, beside Instrument, as `Instrument Preview (<name>)` in `%LOCALAPPDATA%\Programs\instrument-preview-<name>`, with its own user data. `start` launches the named preview, or the most recently installed, without a console window on the desktop. `window.__studioDrive` is attached, so route helpers work. Every build is a first launch, since the run number is part of its name; for another first launch, build again. A preview's output folder is still `Documents\Instrument`, shared with the installed app.
 
 - The installed and preview targets validate a packaged build, not the remote checkout. The dev targets validate the remote checkout's exact Git state, not uncommitted changes on the primary machine.
 

@@ -50,6 +50,7 @@ Actions go to the window in the background by default, without raising it, so th
 - **`kill_app` and invoking items act on the person's real desktop.** Invoking a file's icon opens it. Prefer the app under test's own windows, and never close something you did not open.
 - **Studio's own window reads as an empty tree** (Electron exposes no accessibility tree to the driver by default). Drive it with `studio-drive` over CDP; use this skill only for what lies outside it.
 - **A native file picker can ignore background keys.** Enter sent in the background to Windows' folder picker did nothing, with no error; `delivery_mode=foreground` worked. Prefer `set_value` on the folder field and a `click` on the confirm button found with `grep=button`.
+- **GNOME on Wayland gives no background input**, and `delivery_mode=foreground` raises GNOME's "Remote Desktop" consent dialog, then times out. Element actions through AT-SPI (`click` on an element, `set_value`) work without it; keys, drags and pointer clicks need that consent granted once on the host by the person who owns it. An agent cancels the dialog, never approves it.
 - **UAC prompts** sit on a secure desktop that no driver can reach. The Windows driver runs elevated (see enrollment), so it can drive apps run as administrator, which also means it can do anything an administrator can.
 
 ## Host enrollment

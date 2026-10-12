@@ -43,6 +43,20 @@ function assertNoArguments() {
   }
 }
 
+async function firstFreePort(start) {
+  for (let port = start; port < start + 50; port++) {
+    try {
+      await assertPortAvailable(port);
+      return port;
+    } catch {
+      // Taken; try the next one.
+    }
+  }
+  fail(
+    `No free local port between ${start} and ${start + 49}; pass --local-port.`,
+  );
+}
+
 function assertPortAvailable(port) {
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     fail(`Invalid local port ${JSON.stringify(port)}.`);
@@ -360,10 +374,14 @@ async function main() {
         readProfile(host, target),
         target,
       ).cdpPort;
-      const localPort = Number(
-        takeFlag("--local-port", String(remotePort + 1000)),
-      );
+      const requestedPort = takeFlag("--local-port");
       assertNoArguments();
+      // A port given is used or refused; without one, the first free port from
+      // the conventional one up, since another tunnel (another host's, another
+      // session's) may already hold it. The forwarding line names the port.
+      const localPort = requestedPort
+        ? Number(requestedPort)
+        : await firstFreePort(remotePort + 1000);
       await assertPortAvailable(localPort);
       console.error(
         `Forwarding http://127.0.0.1:${localPort} to ${host} ${target} CDP port ${remotePort}. Press Ctrl-C to stop.`,
@@ -816,11 +834,24 @@ function previewStopScript() {
   return `${baseScript(PREVIEW_TARGET)}
 ${previewFunction()}
 import signal
-# Not a blocking stop: an app that ignores SIGTERM (seen on the onboarding
-# screen) holds systemctl for the unit's whole 90-second stop timeout.
-subprocess.run(["systemctl", "--user", "stop", "--no-block", target["unit"]], check=False, capture_output=True, timeout=30)
+# The main process alone gets SIGTERM, the way a person quitting would end
+# it. Signaling the whole unit at once (what systemctl stop, logout and
+# shutdown do) also kills the GPU process mid-teardown, Chromium exits with
+# "GPU process isn't usable", and the main thread spins until systemd's
+# 90-second SIGKILL. The unit is stopped once its main process is gone.
+# The main process is the one whose command line carries no --type=: the
+# zygote, GPU, renderers and crash handler all say what they are, and some
+# are not its children, so a parent check misses them.
+def is_main(pid):
+    try:
+        with open("/proc/%d/cmdline" % pid, "rb") as handle:
+            return b"--type=" not in handle.read()
+    except OSError:
+        return False
 stopped = []
 for pid, _ in preview_processes():
+    if not is_main(pid):
+        continue
     try:
         os.kill(pid, signal.SIGTERM)
         stopped.append(pid)
@@ -837,6 +868,7 @@ for pid, _ in preview_processes():
     except OSError:
         pass
 time.sleep(1)
+subprocess.run(["systemctl", "--user", "stop", "--no-block", target["unit"]], check=False, capture_output=True, timeout=30)
 subprocess.run(["systemctl", "--user", "reset-failed", target["unit"]], check=False, capture_output=True, timeout=30)
 print(json.dumps({
     "killedAfterIgnoringTerm": killed,

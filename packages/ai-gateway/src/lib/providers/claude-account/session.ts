@@ -14,9 +14,8 @@ import {
   type CallToolResult,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { homedir } from "node:os";
-
 import { claudeCodeEnvironment } from "./environment";
+import { SESSION_CWD } from "./resume-record";
 
 /** The MCP server name our tools are served under, and so their prefix. */
 const SERVER_NAME = "instrument";
@@ -76,10 +75,16 @@ export class ClaudeCodeSession {
   private readonly results = new Map<string, Deferred<CallToolResult>>();
   private readonly stderrTail: string[] = [];
 
+  /**
+   * @param transcript The Claude Code session this process writes, under
+   * its own id, and whether to resume it rather than start it. None for a
+   * one-off, which nothing continues and so keeps no transcript.
+   */
   constructor(
     readonly key: string,
     shape: SessionShape,
     private readonly onClose: () => void,
+    readonly transcript?: { claudeSessionId: string; resume: boolean },
   ) {
     this.builtInTools = new Set(shape.builtInTools);
     this.modelId = shape.modelId;
@@ -87,7 +92,7 @@ export class ClaudeCodeSession {
     this.query = query({
       options: {
         allowedTools: [`mcp__${SERVER_NAME}`, ...shape.builtInTools],
-        cwd: homedir(),
+        cwd: SESSION_CWD,
         effort: shape.effort,
         env,
         includePartialMessages: true,
@@ -100,9 +105,15 @@ export class ClaudeCodeSession {
         },
         model: shape.modelId,
         pathToClaudeCodeExecutable: shape.executablePath,
-        // The CLI writes no transcript of its own: ours is the record, and a
-        // session the user never started has no place in their history.
-        persistSession: false,
+        // Ours is the record, but the CLI's own transcript, kept in the
+        // config folder Instrument signs it in through, is what lets a later
+        // request resume this session with its tool calls and images intact
+        // instead of replaying ours into a new one as text.
+        ...(transcript === undefined
+          ? { persistSession: false }
+          : transcript.resume
+            ? { resume: transcript.claudeSessionId }
+            : { sessionId: transcript.claudeSessionId }),
         settingSources: [],
         settings: { disableClaudeAiConnectors: true },
         stderr: (data) => {
@@ -154,10 +165,16 @@ export class ClaudeCodeSession {
     this.deferred(toolCallId).resolve(result);
   }
 
-  send(content: ContentBlockParam[]) {
+  /**
+   * @param priority `next` for a message sent while the process waits on our
+   * tools: Claude Code reads it once those calls are answered, in the same
+   * turn, rather than as a turn of its own after this one ends.
+   */
+  send(content: ContentBlockParam[], priority?: "next") {
     this.input.push({
       message: { content, role: "user" },
       parent_tool_use_id: null,
+      ...(priority && { priority }),
       type: "user",
     });
   }

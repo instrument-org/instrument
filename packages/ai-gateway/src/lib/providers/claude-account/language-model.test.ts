@@ -52,18 +52,35 @@ function continuation(
 }
 
 describe("continuationOf", () => {
-  it("names what followed the reply when tool results were awaited", () => {
+  // A step that hands work off ends the turn on its tool call, and the
+  // message saying the work finished arrives after the results.
+  it("continues with tool results and what was said after them", () => {
     const first = [system, user("one")];
     expect(
       continuation(after(first, ["t1"]), [
         ...first,
         callsTool("t1"),
         toolResult("t1"),
-        user("while you work"),
+        user("the task finished"),
+      ]),
+    ).toEqual({
+      kind: "tool-results",
+      results: toolResult("t1").content,
+      followedBy: [user("the task finished")],
+    });
+  });
+
+  it("names what followed the reply when tool results were awaited", () => {
+    const first = [system, user("one")];
+    expect(
+      continuation(after(first, ["t1"]), [
+        ...first,
+        callsTool("t1"),
+        reply("never ran it"),
       ]),
     ).toEqual({
       kind: "restart",
-      reason: "awaiting 1 tool results, the reply is followed by tool, user",
+      reason: "awaiting 1 tool results, the reply is followed by assistant",
     });
   });
 

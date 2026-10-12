@@ -366,6 +366,9 @@ export const llmRequestLogic = fromPromise<
       providerOptions[CLAUDE_ACCOUNT_PROVIDER_CONFIG.type] = {
         ...providerOptions[CLAUDE_ACCOUNT_PROVIDER_CONFIG.type],
         builtInTools: ["WebSearch"],
+        // Its own session even for a task, so a task and its chat each keep
+        // a Claude Code session of their own.
+        sessionId: input.sessionId,
       };
     }
 

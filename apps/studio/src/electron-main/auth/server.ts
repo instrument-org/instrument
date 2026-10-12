@@ -1,4 +1,3 @@
-import { AUTH_CALLBACK_PATHS } from "./routes";
 import { exchangeDesktopSignIn, store } from "@/electron-main/auth/client";
 import {
   GOOGLE_MARK,
@@ -8,10 +7,10 @@ import {
   previewOutcomes,
   renderAuthPage,
 } from "@/electron-main/auth/page";
+import { AUTH_CALLBACK_PATHS } from "@/electron-main/auth/routes";
 import { setAuthServerPort } from "@/electron-main/auth/state";
 import {
   announceConnected,
-  APP_OAUTH_CALLBACK_PATH,
   appMark,
   appName,
   getAppsDir,
@@ -19,10 +18,7 @@ import {
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { directoryIconDataUri } from "@/electron-main/lib/directory-icons";
 import { receiveChatGPTCallback } from "@/electron-main/lib/chatgpt-account";
-import {
-  OPENROUTER_CALLBACK_PATH,
-  receiveOpenRouterCallback,
-} from "@/electron-main/lib/openrouter-connect";
+import { receiveOpenRouterCallback } from "@/electron-main/lib/openrouter-connect";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getSessionStore } from "@/electron-main/stores/workspace/session";
@@ -178,7 +174,7 @@ export function createAuthCallbackApp() {
 
   // The API's Google sign-in lands here with a single-use token, or with the
   // error that ended it.
-  const instrumentCallback = async (c: Context) => {
+  get(AUTH_CALLBACK_PATHS.instrument, async (c) => {
     const token = c.req.query("token");
     const state = c.req.query("state");
     const ended = c.req.query("error");
@@ -241,14 +237,13 @@ export function createAuthCallbackApp() {
     return c.html(
       renderAuthPage({ email, kind: "signed-in", service: googleService }),
     );
-  };
-  get(AUTH_CALLBACK_PATHS.instrument, instrumentCallback);
+  });
 
   // An app's sign-in lands here after the user approves. Finish the parked
   // flow (the code becomes tokens, the app becomes connected), then tell the
   // window and the chat. The page opened in the window's own browser,
   // so this renders where the user is looking rather than pulling focus.
-  get(APP_OAUTH_CALLBACK_PATH, async (c) => {
+  get(AUTH_CALLBACK_PATHS.app, async (c) => {
     const code = c.req.query("code");
     const state = c.req.query("state");
     const oauthError = c.req.query("error");
@@ -337,7 +332,7 @@ export function createAuthCallbackApp() {
   // Sign in with ChatGPT lands here. The sign-in is finished before the page
   // renders, so it says whether the plan is ready, and the window comes back
   // to the front because the browser it ran in is the user's own.
-  const chatGPTCallback = async (c: Context) => {
+  get(AUTH_CALLBACK_PATHS.chatgpt, async (c) => {
     const params = new URL(c.req.url).searchParams;
     const finished = receiveChatGPTCallback(params);
     if (!finished) {
@@ -384,17 +379,9 @@ export function createAuthCallbackApp() {
         );
       }
     }
-  };
-  // Older APIs return Instrument sign-ins to ChatGPT's canonical path.
-  // Only the pending transaction's state establishes ownership.
-  get(AUTH_CALLBACK_PATHS.chatgpt, (c) => {
-    const state = c.req.query("state");
-    return state !== undefined && state === store.state
-      ? instrumentCallback(c)
-      : chatGPTCallback(c);
   });
 
-  get(OPENROUTER_CALLBACK_PATH, async (c) => {
+  get(AUTH_CALLBACK_PATHS.openrouter, async (c) => {
     const finished = receiveOpenRouterCallback(new URL(c.req.url).searchParams);
     if (!finished) {
       return c.html(renderAuthPage({ kind: "expired" }), 400);

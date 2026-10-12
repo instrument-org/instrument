@@ -1,4 +1,4 @@
-import { AUTH_CALLBACK_PATHS } from "../auth/routes";
+import { AUTH_CALLBACK_PATHS } from "@/electron-main/auth/routes";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -403,12 +403,6 @@ function saveUnlessReplaced(
   return true;
 }
 
-/**
- * Where the auth callback server takes ChatGPT's redirect. OpenAI fixes the
- * scheme, host and path of the redirect; only the port may vary.
- */
-export const CHATGPT_CALLBACK_PATH = AUTH_CALLBACK_PATHS.chatgpt;
-
 class TokenError extends Error {
   readonly code: string | undefined;
   constructor(
@@ -491,7 +485,7 @@ export function signInWithChatGPT({
     ...controls,
     promise: runSignIn({
       received,
-      redirectURI: `http://127.0.0.1:${String(callbackPort)}${CHATGPT_CALLBACK_PATH}`,
+      redirectURI: `http://127.0.0.1:${String(callbackPort)}${AUTH_CALLBACK_PATHS.chatgpt}`,
       state,
       target,
     }).finally(() => {

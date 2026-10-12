@@ -15,12 +15,12 @@ Studio receives browser sign-in results on an HTTP server bound to `127.0.0.1`. 
 
 ChatGPT retains its registered redirect path, with only the port varying when another listener occupies the preferred port. The authorization request and token exchange use the same exact redirect URI.
 
-## Instrument compatibility
+## Instrument sign-in
 
-[client.ts](../../apps/studio/src/electron-main/auth/client.ts) requests `callback_version=2` when starting Instrument sign-in through the API. Its canonical loopback callback is `/auth/callback/instrument`. An API that does not support that version can return to `/auth/callback`; that route dispatches to the Instrument handler only when the callback state matches the pending Instrument transaction. Otherwise it passes the callback to ChatGPT, which validates its own pending state.
+[client.ts](../../apps/studio/src/electron-main/auth/client.ts) requests `callback_version=2` when starting Instrument sign-in through the API, which then returns the browser to `/auth/callback/instrument`. An API that ignores that parameter returns to `/auth/callback`, where ChatGPT's handler answers with the expired page because the state is not its own.
 
-Token and code query parameters do not select a provider. A stale callback must not consume another flow's pending transaction. A recognized Instrument callback consumes its state and verifier before exchange, and publishes its success, decline, or failure to the waiting app.
+Each handler checks the callback state against its own pending transaction, so a stale callback never consumes another flow's. A recognized Instrument callback consumes its state and verifier before exchange, and publishes its success, decline, or failure to the waiting app.
 
 ## Verification
 
-[server.test.ts](../../apps/studio/src/electron-main/auth/server.test.ts) exercises the assembled router, including a ChatGPT callback while Instrument sign-in is pending, canonical and compatibility Instrument callbacks, exchange failure and replay, unknown states, other provider routes, and deliberately colliding paths. Provider-specific tests cover token exchange and cancellation separately.
+[server.test.ts](../../apps/studio/src/electron-main/auth/server.test.ts) exercises the assembled router, including a ChatGPT callback while Instrument sign-in is pending, an Instrument state arriving at ChatGPT's path, exchange failure and replay, unknown states, and the other provider routes. Provider-specific tests cover token exchange and cancellation separately.

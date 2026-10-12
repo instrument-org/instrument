@@ -84,7 +84,6 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
     screenView: null,
     state: { folders: { home: HOME } },
     surfaces: {},
-    viewsById: {},
     windowTabs: tabsOf([]),
     ...over,
   };
@@ -366,7 +365,6 @@ describe("draftContext", () => {
     const { draftContext } = contextReaders(
       windowOf({
         drafts: [DRAFT],
-        viewsById: { [GROUP]: { screen: "browser" } },
         windowTabs: tabsOf([band, chat]),
       }),
     );
@@ -484,7 +482,6 @@ describe("draftContext", () => {
       const { draftContext } = contextReaders(
         windowOf({
           drafts: [draft],
-          viewsById: { [GROUP]: { screen: "home" } },
           windowTabs: tabsOf([HOME_TAB, over]),
         }),
       );
@@ -501,7 +498,6 @@ describe("draftContext", () => {
         windowOf({
           drafts: [{ ...DRAFT, ...draft }],
           hrefOfAppTab: (id) => ({ [APPS_TAB]: APP, [FILES_TAB]: FOLDER })[id],
-          viewsById: { [GROUP]: { screen: "home" } },
           windowTabs: tabsOf([HOME_TAB]),
           ...over,
         }),
@@ -589,7 +585,6 @@ describe("draftContext", () => {
     const { draftContext } = contextReaders(
       windowOf({
         drafts: [DRAFT],
-        viewsById: { [GROUP]: { screen: "home" } },
         windowTabs: tabsOf([HOME_TAB]),
       }),
     );

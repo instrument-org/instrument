@@ -28,30 +28,13 @@ import { DRAFTS_KEY } from "@/shared/kept-state";
 export const chatFiltersAtom = atom<ChatFilters>(NO_FILTERS);
 
 /**
- * What each screen shows, by the tab it is drawn in (one of the window's own
- * tabs, or a group's tab beside a chat or in a draft's band), written by the
- * screen and cleared when it leaves. What goes with a message is read from
- * the tab in view at the moment of sending, so it is what the user was
- * looking at and never a screen they left. The page's words and the
- * screen's address are added at send time by the layout, which holds both.
+ * What a screen shows, in the terms the conversation is told it; see
+ * `TabSurface.view`.
  */
 export type ScreenView = Omit<
   SessionMessageDataPart.ViewContextDataPart,
   "page" | "url"
 >;
-
-export const screenViewsAtom = atom<Readonly<Record<string, ScreenView>>>({});
-
-/**
- * Where the folder each Files screen shows was walked to, by the same tab as
- * `screenViewsAtom`, which is how the location bar names it. Apart from the
- * view because it is for the person alone: an iCloud Drive app folder is
- * walked to under iCloud Drive, while the conversation is told where it
- * really is.
- */
-export const walkedFoldersAtom = atom<
-  Readonly<Record<string, { hostPath: string; walked: string }>>
->({});
 
 /** A file or folder on this computer picked to go with a draft, by its path. */
 export interface ChosenItem {

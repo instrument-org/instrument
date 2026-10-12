@@ -4,29 +4,23 @@ import {
   composeKeyOf,
   type ComposePlacement,
   draftGroupOf,
-  type ScreenView,
 } from "@/client/atoms/window";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useAtom, useAtomValue } from "jotai";
-import { useState } from "react";
 
 import { layoutCompose } from "./compose-layout";
 
 /**
  * The windows along the foot of the row: the drafts being written and the
- * chats in their small views, laid out, with what each draft window's band
- * has on screen, for the layout that draws the windows over the pane's page
- * and starts the chats the drafts become. Everything is keyed by the group
- * the window shows: the draft's key, or the chat's id. Where each window's
- * page is drawn the window says itself; see `usePageHost`.
+ * chats in their small views, laid out, for the layout that draws the
+ * windows over the pane's page and starts the chats the drafts become.
+ * Everything is keyed by the group the window shows: the draft's key, or the
+ * chat's id. Where each window's page is drawn the window says itself; see
+ * `usePageHost`.
  */
 export function useCompose(width: number) {
   const [entries, setEntries] = useAtom(composeAtom);
-  // What each draft window's band has up.
-  const [viewsById, setViewsById] = useState<Record<string, null | ScreenView>>(
-    {},
-  );
   const zoom = useAtomValue(zoomAtom);
   const placed = layoutCompose(entries, width, zoom);
   /** Whether a window is standing: a new one at the right, or the bar it was put down to, raised. */
@@ -104,16 +98,6 @@ export function useCompose(width: number) {
       current.filter((entry) => composeKeyOf(entry) !== key),
     );
   };
-  const setView = (key: string, view: null | ScreenView) => {
-    // By value: a window reports the same view again as it re-renders, and
-    // a fresh object each time would re-render the layout on every report.
-    setViewsById((current) =>
-      JSON.stringify(current[key] ?? null) === JSON.stringify(view)
-        ? current
-        : { ...current, [key]: view },
-    );
-  };
-
   return {
     becomeChat,
     becomeDraft,
@@ -123,7 +107,5 @@ export function useCompose(width: number) {
     placed,
     remove,
     setPlacement,
-    setView,
-    viewsById,
   };
 }

@@ -7,7 +7,6 @@ import {
   draftsAtom,
   inboxOpenAtom,
   paneOpenByGroupAtom,
-  screenViewsAtom,
   chatsOutOf,
 } from "@/client/atoms/window";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
@@ -496,16 +495,15 @@ function WindowShell({
 
   // What the tab in view says it shows: a chat's or a site's tab up while
   // its pane is open, or the screen the window's tab is at.
-  const screenViews = useAtomValue(screenViewsAtom);
   const groupUp = windowTabs.active;
   const groupInView = windowTabs.groupOnScreen;
   const screenView =
     groupInView === undefined
-      ? (screenViews[appTabs.model.selectedId ?? ""] ?? null)
+      ? (surfaces[appTabs.model.selectedId ?? ""]?.view ?? null)
       : groupUp?.kind === "screen" &&
           (chatOfGroup(groupInView) === undefined ||
             isPaneOpen(groupInView, paneOpenByGroup))
-        ? (screenViews[groupUp.id] ?? null)
+        ? (surfaces[groupUp.id]?.view ?? null)
         : null;
   // What goes with a message, read at the moment of sending.
   const { draftContext, sendContext } = contextReaders({
@@ -523,7 +521,6 @@ function WindowShell({
     screenView,
     state: opened,
     surfaces,
-    viewsById: compose.viewsById,
     windowTabs,
   });
   sendContextRef.current = sendContext;

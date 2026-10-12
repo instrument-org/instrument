@@ -41,7 +41,6 @@ import { useGroupTab } from "./group-tab";
 import { folderOf, segmentsOf } from "./host-path";
 import { hostGroupOf, useHostedPageNavigation } from "./hosted-page";
 import { LinkSurface } from "./link-surface";
-import { useOnScreen, useWalkedFolder } from "./on-screen";
 import { PageEditToggle } from "./page-edit";
 import { usePageHost } from "./page-hosts";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
@@ -338,12 +337,14 @@ export function FilesScreen({
     ? mountOfHostPath(activeFile.hostPath, reach.data?.folders ?? {})
     : undefined;
 
-  useWalkedFolder(
+  useTabSurface(
+    "walked",
     activeFile || !folder
       ? null
       : { hostPath: folder.hostPath, walked: folder.walked },
   );
-  useOnScreen(
+  useTabSurface(
+    "view",
     activeFile
       ? {
           file: {

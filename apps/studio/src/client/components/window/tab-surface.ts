@@ -1,4 +1,4 @@
-import { type FinderShown } from "@/client/atoms/window";
+import { type FinderShown, type ScreenView } from "@/client/atoms/window";
 import { useTabId } from "@/client/hooks/use-active-tab";
 import { atom, useSetAtom } from "jotai";
 import { useEffect, useState } from "react";
@@ -33,6 +33,21 @@ export interface TabSurface {
   finder?: FinderShown;
   /** Where the window's page is drawn while this tab is up; one of the window's own tabs alone. */
   slot?: PageSlot;
+  /**
+   * What the screen shows, in the terms the conversation is told it. What
+   * goes with a message is read from the tab in view at the moment of
+   * sending, so it is what the person was looking at and never a screen they
+   * left. The page's words and the screen's address are added at send time
+   * by the layout, which holds both.
+   */
+  view?: ScreenView;
+  /**
+   * Where the folder on the screen was walked to, which is how the location
+   * bar names it. Apart from the view because it is for the person alone: an
+   * iCloud Drive app folder is walked to under iCloud Drive, while the
+   * conversation is told where it really is.
+   */
+  walked?: { hostPath: string; walked: string };
 }
 
 /** Every tab's surface, by the tab's id; a tab with nothing to say is not named. In memory only, with the elements. */
@@ -95,6 +110,8 @@ const sameFact: SameFact = {
     a.host === b.host &&
     a.isShown === b.isShown &&
     a.chrome === b.chrome,
+  view: sameData,
+  walked: sameData,
 };
 
 function sameData(a: unknown, b: unknown) {

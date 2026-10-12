@@ -30,7 +30,7 @@ import { thisComputer } from "@/client/components/window/computer-name";
 import { ConnectControls } from "@/client/components/window/connect-controls";
 import { useWindow } from "@/client/components/window/context";
 import { GlyphButton } from "@/client/components/window/glyph-button";
-import { useOnScreen } from "@/client/components/window/on-screen";
+import { useTabSurface } from "@/client/components/window/tab-surface";
 import { PageSection } from "@/client/components/window/page-section";
 import { VisitedPageRows } from "@/client/components/window/visited-page-rows";
 import { useModalBack } from "@/client/hooks/use-modal-back";
@@ -150,7 +150,7 @@ export function AppFront({
     },
     screen: "apps" as const,
   };
-  useOnScreen(reportsScreen ? screen : null);
+  useTabSurface("view", reportsScreen ? screen : null);
   // The pages the window has shown on the app's site, newest first: the
   // best place to start in an app is where you already were in it.
   const visited = useRecentPages();

@@ -1,6 +1,6 @@
 import { AppsHome } from "@/client/components/window/apps-home";
 import { useGroupTab } from "@/client/components/window/group-tab";
-import { useOnScreen } from "@/client/components/window/on-screen";
+import { useTabSurface } from "@/client/components/window/tab-surface";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 /**
@@ -19,7 +19,7 @@ function AppsRoute() {
   // Beside a chat the apps are a place to pick one from, with nothing to
   // connect and nothing to say of themselves.
   const groupTab = useGroupTab();
-  useOnScreen(groupTab ? null : { screen: "apps" });
+  useTabSurface("view", groupTab ? null : { screen: "apps" });
   const navigate = useNavigate();
   return (
     <AppsHome

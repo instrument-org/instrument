@@ -7,8 +7,6 @@ import {
   inboxOpenAtom,
   inboxWidthAtom,
   paneOpenByGroupAtom,
-  screenViewsAtom,
-  walkedFoldersAtom,
   chatsOutOf,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
@@ -42,7 +40,10 @@ import { RightPane } from "@/client/components/window/right-pane";
 import { screenLocation } from "@/client/components/window/screen-presentation";
 import { useShell } from "@/client/components/window/shell-context";
 import { taskHref, tasksHref } from "@/client/components/window/tab-location";
-import { useTabSurface } from "@/client/components/window/tab-surface";
+import {
+  tabSurfaceAtom,
+  useTabSurface,
+} from "@/client/components/window/tab-surface";
 import { TabLocationRow } from "@/client/components/window/tab-location-row";
 import { chatHref, matchScreen } from "@/client/components/window/window-href";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
@@ -417,8 +418,8 @@ function RouteScreen({ href }: { href: string }) {
   const shell = useShell();
   const appsBySlug = useAppsBySlug();
   const tabId = useTabId();
-  const screenView = useAtomValue(screenViewsAtom)[tabId];
-  const walkedFolder = useAtomValue(walkedFoldersAtom)[tabId];
+  const { view: screenView, walked: walkedFolder } =
+    useAtomValue(tabSurfaceAtom)[tabId] ?? {};
   usePageSlot(null, undefined, false);
   // The row's head and tail, where a file's viewer puts a toggle for its
   // panel and its actions.

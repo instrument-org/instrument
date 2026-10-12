@@ -1,8 +1,4 @@
-import {
-  screenViewsAtom,
-  walkedFoldersAtom,
-  type WindowTab,
-} from "@/client/atoms/window";
+import { type WindowTab } from "@/client/atoms/window";
 import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { registerHistorySurface } from "@/client/lib/history-surfaces";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
@@ -31,6 +27,7 @@ import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow } from "./tab-location-row";
 import { isHomeTab } from "./tab-model";
+import { tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { useTabSteps } from "./use-tab-steps";
 import { chatOfGroup } from "./window-href";
@@ -81,8 +78,8 @@ export function GroupItem({
   const Frame = isFramed ? Card : Bare;
   const taskTitles = useTaskTitles();
   // What the screen up says it shows, which the row reads a folder's place off.
-  const filesView = useAtomValue(screenViewsAtom)[up.id];
-  const walkedFolder = useAtomValue(walkedFoldersAtom)[up.id];
+  const { view: filesView, walked: walkedFolder } =
+    useAtomValue(tabSurfaceAtom)[up.id] ?? {};
 
   // The page's reload and controls go into the address row, the way they do
   // in the pane beside a chat, rather than into a bar of the page's own.

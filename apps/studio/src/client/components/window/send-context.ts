@@ -17,6 +17,7 @@ import ms from "ms";
 import { type AppsBySlug } from "./apps-by-slug";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import {
+  bandViewOf,
   behindTabOf,
   includedItemsOf,
   includedTabOf,
@@ -27,7 +28,6 @@ import { computerTabOf, mountOfHostPath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { type TabSurface } from "./tab-surface";
-import { type useCompose } from "./use-compose";
 import { matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
 
@@ -58,10 +58,8 @@ export interface SendContextWindow {
   screenView: null | ScreenView;
   /** The folders the window reaches, which say how the conversation reaches a file; undefined until the window is open. */
   state: RPCOutput["workspace"]["window"]["ensure"] | undefined;
-  /** What each tab's screen says about itself, by the tab's id: each Files tab's Finder. */
+  /** What each tab's screen says about itself, by the tab's id: what a draft's band shows, and each Files tab's Finder. */
   surfaces: Readonly<Record<string, TabSurface>>;
-  /** What each draft window's band has up, by the draft's group. */
-  viewsById: ReturnType<typeof useCompose>["viewsById"];
   windowTabs: Pick<
     ReturnType<typeof useWindowTabs>,
     "active" | "allTabs" | "groupOnScreen" | "selectedTabIn"
@@ -86,7 +84,6 @@ export function contextReaders({
   screenView,
   state,
   surfaces,
-  viewsById,
   windowTabs,
 }: SendContextWindow) {
   const { active } = windowTabs;
@@ -243,7 +240,7 @@ export function contextReaders({
     const draft = drafts.find((entry) => entry.id === draftId);
     const group = draftGroupOf(draftId);
     const up = windowTabs.selectedTabIn(group);
-    const view = viewsById[group];
+    const view = bandViewOf(up, up && surfaces[up.id]?.view);
     if (!state) {
       return;
     }

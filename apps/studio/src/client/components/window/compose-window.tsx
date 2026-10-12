@@ -8,8 +8,6 @@ import {
   draftGroupOf,
   draftSnapshotsAtom,
   NEW_TAB_HREF,
-  type ScreenView,
-  screenViewsAtom,
 } from "@/client/atoms/window";
 import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -46,14 +44,7 @@ import { useRouterState } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
 import { motion } from "motion/react";
 import { isEqual } from "radashi";
-import {
-  type ReactNode,
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { ulid } from "ulid";
 
 import { appTabsAtom, hrefOfAppTab } from "./app-tabs";
@@ -73,7 +64,6 @@ import { useComputerVolumes } from "./computer-volumes";
 import { useWindow, WindowContext } from "./context";
 import { ChosenChip, heldChipOf, HeldMark, IncludedChip } from "./context-chip";
 import { behindTabOf, includedItemsOf, includedTabOf } from "./draft-context";
-import { computerTabOf } from "./file-tabs";
 import { GroupItem } from "./group-item";
 import { usePageHost } from "./page-hosts";
 import { tabSurfaceAtom } from "./tab-surface";
@@ -247,7 +237,6 @@ export function ComposeWindow({
   onNewTopic,
   onPlacementChange,
   onStart,
-  onViewChange,
   openOutside,
   placement,
   right,
@@ -267,8 +256,6 @@ export function ComposeWindow({
   onNewTopic: (name: string) => void;
   onPlacementChange: (placement: ComposePlacement) => void;
   onStart: (send: DraftSend) => void;
-  /** What the band has up, in the terms the conversation is told it, or null for nothing it can say. */
-  onViewChange: (view: null | ScreenView) => void;
   /** A screen the band cannot draw, handed to the window to open beside the chat. */
   openOutside: (href: string) => void;
   placement: Exclude<ComposePlacement, "bar">;
@@ -499,36 +486,6 @@ export function ComposeWindow({
     windowTabs.close(id);
   };
 
-  // What the band has up, for the chat the draft starts: a folder or file
-  // is said by the screen drawing it, since only that screen knows where the
-  // browser has walked to.
-  const filesView = useAtomValue(screenViewsAtom)[up?.id ?? ""] ?? null;
-  const onViewChangeEvent = useEffectEvent(onViewChange);
-  const upKind =
-    up === undefined || (up.kind === "screen" && isHomeTab(up))
-      ? "home"
-      : up.kind === "page"
-        ? "page"
-        : computerTabOf(up.href)
-          ? "computer"
-          : "other";
-  useEffect(() => {
-    onViewChangeEvent(
-      upKind === "home"
-        ? { screen: "home" }
-        : upKind === "page"
-          ? { screen: "browser" }
-          : upKind === "computer"
-            ? filesView
-            : null,
-    );
-  }, [upKind, filesView]);
-  useEffect(
-    () => () => {
-      onViewChangeEvent(null);
-    },
-    [],
-  );
   // The element the page is drawn into, held as state so the ref React
   // calls is one stable setter: a callback made afresh each render is
   // called with null and then the element on every render, and each of
@@ -548,7 +505,7 @@ export function ComposeWindow({
   // new tab is the band's own face rather than a tab.
   // Nothing open yet: the band is only its tiles and the strip under them,
   // so it takes what those need and the words take the rest.
-  const isEmpty = up === undefined || upKind === "home";
+  const isEmpty = up === undefined || (up.kind === "screen" && isHomeTab(up));
   const showsStrip =
     tabs.length > 1 || (tabs[0] !== undefined && !isHomeTab(tabs[0]));
   const wordsFill = isEmpty && !showsStrip;

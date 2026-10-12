@@ -274,9 +274,6 @@ export function ComposeLayer({
               onStart={(send) => {
                 onStart(draft.id, send);
               }}
-              onViewChange={(view) => {
-                compose.setView(key, view);
-              }}
               openOutside={openOutside}
               placement={entry.placement}
               right={entry.right}

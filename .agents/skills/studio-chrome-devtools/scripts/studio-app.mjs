@@ -402,8 +402,9 @@ const RECT_FOR = (kind, needle) => `(() => {
   const CLICKABLE = "button, a, [role=button], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=tab], [role=option], [role=checkbox], [role=switch], [role=radio]";
   // Whitespace is folded on both sides, so a name copied from snapshot, which
   // prints a label and its shortcut on one line, matches the element whose
-  // innerText puts them on two.
-  const fold = (text) => (text ?? "").replace(/\s+/g, " ").trim();
+  // innerText puts them on two. The backslash is doubled because this is
+  // template-literal source: the page has to receive \\s, not s.
+  const fold = (text) => (text ?? "").replace(/\\s+/g, " ").trim();
   const wanted = fold(needle);
 
   let el = null;
@@ -638,7 +639,11 @@ export async function connect({
         const y = Math.round(rect.y + rect.height / 2);
         // The pointer arrives before it presses, as a real one does: a menu
         // trigger that tracks hover ignores a bare press.
-        await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+        await cdp.send("Input.dispatchMouseEvent", {
+          type: "mouseMoved",
+          x,
+          y,
+        });
         for (const type of ["mousePressed", "mouseReleased"]) {
           await cdp.send("Input.dispatchMouseEvent", {
             button: "left",

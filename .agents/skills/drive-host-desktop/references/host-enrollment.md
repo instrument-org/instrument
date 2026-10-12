@@ -26,9 +26,37 @@ SSH runs in Session 0, which has no desktop, so the driver has to run in the log
 
 Write the profile with `[IO.File]::WriteAllText`, since `Set-Content -Encoding utf8` on Windows PowerShell 5.1 adds a byte-order mark. Never pass JSON to `cua-driver call` through Windows PowerShell 5.1 either: it strips the quotes from field names. That is part of why `desk.mjs` speaks MCP over stdin instead.
 
-## Linux
+## Linux (GNOME on Wayland)
 
-Not enrolled yet. Cua Driver lists GNOME on Wayland as supported with limits: it needs its bundled Shell helper, one Shell restart (a log-out on Wayland), and `CUA_DRIVER_RS_ENABLE_WAYLAND=1`, and AT-SPI needs `gsettings set org.gnome.desktop.interface toolkit-accessibility true`. Record what enrollment took here once a host has been through it.
+1. Unpack the `linux-<arch>` archive (not the `-binary` one, which lacks the Shell helper) under `~/.cua-driver/packages/`, point `~/.cua-driver/packages/current` at it, and link `~/.local/bin/cua-driver` to its executable.
+2. In the desktop session's environment (`DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus`, `XDG_RUNTIME_DIR=/run/user/<uid>` over SSH): `cua-driver telemetry disable`; `~/.cua-driver/packages/current/wayland-helper/install.sh`, which installs and enables the `winrects@cua` Shell extension; and `gsettings set org.gnome.desktop.interface toolkit-accessibility true`.
+3. Run the daemon as a user service bound to the graphical session, so it starts with the desktop and inherits its display:
+
+```ini
+[Unit]
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Environment=CUA_DRIVER_RS_ENABLE_WAYLAND=1
+Environment=CUA_DRIVER_RS_TELEMETRY_ENABLED=false
+ExecStart=%h/.local/bin/cua-driver serve
+Restart=on-failure
+
+[Install]
+WantedBy=graphical-session.target
+```
+
+4. GNOME loads extensions only at login, so restart the session once. On a host with automatic login, a reboot does it. Then `gnome-extensions info winrects@cua` reads `State: ACTIVE`, and `cua-driver status` over SSH reports the daemon on `~/.cache/cua-driver/cua-driver.sock`.
+5. Add to the host profile:
+
+```json
+"desktop": {
+  "mcp": "/home/<user>/.local/bin/cua-driver mcp --socket /home/<user>/.cache/cua-driver/cua-driver.sock"
+}
+```
+
+`cua-driver doctor` run over SSH warns that neither `DISPLAY` nor `WAYLAND_DISPLAY` is set. That describes the SSH shell, not the daemon; `cua-driver call list_windows` is the real check.
 
 ## macOS
 

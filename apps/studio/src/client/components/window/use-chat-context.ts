@@ -5,6 +5,7 @@ import { useState } from "react";
 import { chatContextItems, type ContextItem } from "./context-items";
 import { tabSurfaceAtom } from "./tab-surface";
 import { useTabInView } from "./use-tab-in-view";
+import { chatOfGroup } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /**
@@ -35,6 +36,7 @@ export function useChatContext({
   const [leftOut, setLeftOut] = useState<readonly string[]>([]);
   const items = chatContextItems({
     chatId,
+    chatOnScreen: chatOfGroup(windowTabs.groupOnScreen),
     finderOf: (id) => surfaces[id]?.finder ?? null,
     inView: isViewOpen ? undefined : inView,
     leftOut,

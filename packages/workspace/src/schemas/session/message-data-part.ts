@@ -677,6 +677,8 @@ export namespace SessionMessageDataPart {
       // Another chat, which `chat` names.
       "chat",
       "computer",
+      // The chat's own conversation, with nothing else in view beside it.
+      "conversation",
       "file",
       "home",
       // No screen is called this; messages already stored may still name it.

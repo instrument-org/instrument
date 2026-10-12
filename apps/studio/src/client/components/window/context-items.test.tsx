@@ -1,8 +1,8 @@
-import { type WindowTab } from "@/client/atoms/window";
+import { type Draft, type WindowTab } from "@/client/atoms/window";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
-import { chatContextItems } from "./context-items";
+import { chatContextItems, draftContextItems } from "./context-items";
 
 const CHAT = ChatIdSchema.parse("2026-10-01-lisbon");
 const OTHER = ChatIdSchema.parse("2026-10-02-porto");
@@ -20,6 +20,7 @@ const page = (id: string, group: string): WindowTab => ({
 function itemsFor(tab: WindowTab, { up = false } = {}) {
   return chatContextItems({
     chatId: CHAT,
+    chatOnScreen: undefined,
     finderOf: () => null,
     inView: up ? undefined : tab,
     leftOut: [],
@@ -54,11 +55,62 @@ describe("chatContextItems", () => {
     expect(
       chatContextItems({
         chatId: CHAT,
+        chatOnScreen: undefined,
         finderOf: () => null,
         inView: page("site", "site:1"),
         leftOut: ["tab:site"],
         up: undefined,
       }),
     ).toEqual([]);
+  });
+});
+
+describe("a chat on screen", () => {
+  const draft: Draft = { createdAt: 0, id: "d", updatedAt: 0, words: "" };
+  const forDraft = (over: Partial<Parameters<typeof draftContextItems>[0]>) =>
+    draftContextItems({
+      allTabs: [],
+      bandUp: undefined,
+      chatOnScreen: undefined,
+      draft,
+      finderOf: () => null,
+      group: "draft:d",
+      hrefOfAppTab: () => undefined,
+      inView: undefined,
+      ...over,
+    });
+
+  it("is a chat chip behind a draft, its pane open or not", () => {
+    expect(forDraft({ chatOnScreen: OTHER })).toEqual([
+      { chat: OTHER, key: `chat:${OTHER}`, kind: "chat" },
+    ]);
+    expect(
+      forDraft({ chatOnScreen: OTHER, inView: page("theirs", OTHER) }),
+    ).toEqual([{ chat: OTHER, key: `chat:${OTHER}`, kind: "chat" }]);
+  });
+
+  it("is the chat a draft opened over it names, and one chip with what is behind", () => {
+    expect(
+      forDraft({
+        chatOnScreen: OTHER,
+        draft: { ...draft, included: { chat: OTHER } },
+      }),
+    ).toEqual([{ chat: OTHER, key: `chat:${OTHER}`, kind: "chat" }]);
+  });
+
+  it("is a chat chip behind a popped-out chat, and nothing behind itself", () => {
+    const behind = (chatOnScreen: typeof CHAT) =>
+      chatContextItems({
+        chatId: CHAT,
+        chatOnScreen,
+        finderOf: () => null,
+        inView: undefined,
+        leftOut: [],
+        up: undefined,
+      });
+    expect(behind(OTHER)).toEqual([
+      { chat: OTHER, key: `chat:${OTHER}`, kind: "chat" },
+    ]);
+    expect(behind(CHAT)).toEqual([]);
   });
 });

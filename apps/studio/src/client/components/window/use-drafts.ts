@@ -31,6 +31,7 @@ import { isGroupShown, isIncludable, tabInView } from "./draft-context";
 import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
 import { type useCompose } from "./use-compose";
 import { isHomeTab } from "./tab-model";
+import { chatOfGroup } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
 
 /** How long a chat just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
@@ -165,7 +166,11 @@ export function useDrafts({
             isGroupTabShown: false,
           })
         : undefined;
+    // A chat on screen is the chat, its pane open or not: what is in it is
+    // the chat's to name, not the draft's.
+    const overChat = chatOfGroup(overGroup);
     const included =
+      (overChat === undefined ? undefined : { chat: overChat }) ??
       inPlace ??
       (onScreen && appTabId !== null && isIncludable(onScreen)
         ? { appTabId }

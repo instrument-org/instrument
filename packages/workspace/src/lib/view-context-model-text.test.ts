@@ -28,6 +28,16 @@ describe("viewContextModelNote", () => {
     `);
   });
 
+  it("says the conversation was all that was in view", () => {
+    expect(viewContextModelNote({ screen: "conversation", tabs: [] }))
+      .toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      When the user sent this, the window showed this conversation, with nothing else in view beside it.
+      </instrument-system-note>"
+    `);
+  });
+
   it("names another chat the user had open, and nothing in it", () => {
     expect(
       viewContextModelNote({

@@ -102,6 +102,7 @@ function heldPaths(items: ContextItem[]): ChosenItem[] {
 export function draftContextItems({
   allTabs,
   bandUp,
+  chatOnScreen,
   draft,
   finderOf,
   group,
@@ -111,6 +112,8 @@ export function draftContextItems({
   allTabs: WindowTab[];
   /** The tab the draft's own band has up, when the band shows one. */
   bandUp: undefined | WindowTab;
+  /** The chat the window has on screen, its pane open or not. */
+  chatOnScreen: ChatId | undefined;
   draft: Draft;
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
   group: string;
@@ -136,11 +139,29 @@ export function draftContextItems({
       items.push(item);
     }
   };
+  const addChat = (chat: ChatId | undefined) => {
+    if (chat === undefined) {
+      return;
+    }
+    const key = `chat:${chat}`;
+    if (!draft.leftOut?.includes(key)) {
+      items.push({ chat, key, kind: "chat" });
+    }
+  };
   add(bandUp, keyOfTab(bandUp));
-  const included = includedTabOf(draft, allTabs, hrefOfAppTab);
-  add(included, keyOfTab(included));
-  const behind = behindTabOf(draft, inView);
-  add(behind, keyOfTab(behind));
+  if (draft.included && "chat" in draft.included) {
+    addChat(draft.included.chat);
+  } else {
+    const included = includedTabOf(draft, allTabs, hrefOfAppTab);
+    add(included, keyOfTab(included));
+  }
+  // A chat on screen is the chat, its pane open or not.
+  if (chatOnScreen === undefined) {
+    const behind = behindTabOf(draft, inView);
+    add(behind, keyOfTab(behind));
+  } else {
+    addChat(chatOnScreen);
+  }
   return dedupeChats(items);
 }
 
@@ -151,12 +172,15 @@ export function draftContextItems({
  */
 export function chatContextItems({
   chatId,
+  chatOnScreen,
   finderOf,
   inView,
   leftOut,
   up,
 }: {
   chatId: ChatId;
+  /** The chat the window has on screen, its pane open or not. */
+  chatOnScreen: ChatId | undefined;
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
   /** What the window has in view, as the chat's own view of its tab is closed. */
   inView: undefined | WindowTab;
@@ -164,8 +188,14 @@ export function chatContextItems({
   /** The chat's tab up, while the chat's view of it is open. */
   up: undefined | WindowTab;
 }): ContextItem[] {
-  // The chat's own tab in view while its view of it is put away is the
-  // chat's screen itself, which says nothing more than its tabs do.
+  // Another chat on screen behind this one is that chat, its pane open or
+  // not; this chat's own screen says nothing more than its tabs do.
+  if (up === undefined && chatOnScreen !== undefined) {
+    const key = `chat:${chatOnScreen}`;
+    return chatOnScreen === chatId || leftOut.includes(key)
+      ? []
+      : [{ chat: chatOnScreen, key, kind: "chat" }];
+  }
   const tab = up ?? (inView?.group === chatId ? undefined : inView);
   const key = keyOfTab(tab);
   if (!tab || leftOut.includes(key)) {

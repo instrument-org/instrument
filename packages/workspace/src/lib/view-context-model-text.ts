@@ -167,6 +167,11 @@ function screenNote(data: ViewContext) {
     case "browser": {
       return pageNote(data);
     }
+    case "conversation": {
+      return systemNote`
+        When the user sent this, the window showed this conversation, with nothing else in view beside it.
+      `;
+    }
     case "chat": {
       return data.chat
         ? systemNote`

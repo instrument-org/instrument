@@ -29,7 +29,7 @@ import { screenLocation, screenPresentation } from "./screen-presentation";
 import { type Volume } from "./tab-location";
 import { isFreshTab, isHomeTab } from "./tab-model";
 import { type TabSurface } from "./tab-surface";
-import { matchScreen } from "./window-href";
+import { chatOfGroup, matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
 
 /** The longest a send waits on a page's words: a guest that never answers (mid-navigation, parked, hung) costs the conversation the page's text, not the send. */
@@ -339,7 +339,9 @@ export function contextReaders({
       ...(shown ??
         (chat
           ? { screen: "chat" as const }
-          : { screen: "home" as const, ...(isReply ? { url: href } : {}) })),
+          : isReply
+            ? { screen: "conversation" as const }
+            : { screen: "home" as const })),
       ...(attached.length > 0 ? { attached } : {}),
       ...(chat ? { chat } : {}),
       ...(chosen.length > 0 ? { chosen } : {}),
@@ -353,6 +355,7 @@ export function contextReaders({
     return draftContextItems({
       allTabs: windowTabs.allTabs,
       bandUp,
+      chatOnScreen: chatOfGroup(windowTabs.groupOnScreen),
       draft,
       finderOf,
       group,
@@ -388,6 +391,7 @@ export function contextReaders({
       chatId,
       chatContextItems({
         chatId,
+        chatOnScreen: chatOfGroup(windowTabs.groupOnScreen),
         finderOf,
         inView: isViewOpen ? undefined : inView,
         leftOut,

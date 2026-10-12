@@ -114,7 +114,7 @@ describe("sendContext", () => {
     await expect(sendContext({ chatId: CHAT, isViewOpen: false, leftOut: [] }))
       .resolves.toMatchInlineSnapshot(`
       {
-        "screen": "home",
+        "screen": "conversation",
         "tabs": [
           {
             "at": "https://example.com/",
@@ -122,7 +122,6 @@ describe("sendContext", () => {
             "title": "Example",
           },
         ],
-        "url": "/browser",
       }
     `);
   });
@@ -767,7 +766,7 @@ describe("draftContext", () => {
 
     const leftOut = contextReaders(
       windowOf({
-        drafts: [{ ...DRAFT, leftOut: ["tab:page"] }],
+        drafts: [{ ...DRAFT, leftOut: [`chat:${CHAT}`] }],
         paneOpenByGroup: { [CHAT]: true },
         windowTabs: tabsOf([page], CHAT),
       }),
@@ -781,7 +780,10 @@ describe("draftContext", () => {
         windowTabs: tabsOf([page], CHAT),
       }),
     );
-    await expect(paneShut.draftContext(DRAFT.id)).resolves.toBeUndefined();
+    // The chat is on screen with its pane shut: still the chat.
+    await expect(paneShut.draftContext(DRAFT.id)).resolves.toMatchObject({
+      chat: { id: CHAT },
+    });
   });
 
   it("counts a chat's pane the toggle never touched as open", async () => {

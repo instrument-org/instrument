@@ -81,6 +81,11 @@ export const ChatSchema = z.object({
   lastAsk: z.string().optional(),
   /** When the last reply with words finished, in ms; absent until there is one. */
   lastReplyAt: z.number().optional(),
+  /**
+   * The chat's own newest labeled step, and when the message holding it was
+   * sent: what its line says it last did once it is at rest.
+   */
+  lastStep: z.object({ at: z.number(), text: z.string() }).optional(),
   /** When the user last sent a message, in ms, wake notes aside; the chat's creation before one is saved. */
   lastUserMessageAt: z.number(),
   /** The user's first message, whatever it carried; absent only before one is saved. */
@@ -365,6 +370,8 @@ interface ChatDigest {
   session: Session.Type;
   /** The last reply with words: when it finished and its first line. */
   spoken?: { at: number; text: string };
+  /** The chat's own newest labeled step, in any turn, and when its message was sent. */
+  lastStep?: { at: number; text: string };
   /** The step the chat's current turn is on, from its own calls since the user's newest message. */
   stepInTurn?: string;
 }
@@ -510,6 +517,7 @@ async function chatFor(
     ...(digest.lastReplyAt === undefined
       ? {}
       : { lastReplyAt: digest.lastReplyAt }),
+    ...(digest.lastStep ? { lastStep: digest.lastStep } : {}),
     lastUserMessageAt: digest.lastUserMessageAt ?? createdAt,
     ...(root ? { root } : {}),
     runningTasks,
@@ -603,6 +611,7 @@ function digestOf(
     (message) => message.role === "user" && !joinedMidTurn(message),
   );
   const stepInTurn = latestStepIn(messages.slice(turnStart + 1));
+  const lastStep = lastStepIn(messages);
   const lastMessageAt = messages.at(-1)?.metadata.createdAt.getTime();
   const lastReplyAt = replies.at(-1)?.metadata.finishedAt?.getTime();
   // The last thing the agent did ended in an error, after the user's
@@ -644,6 +653,7 @@ function digestOf(
         text: firstLine(textOf(spoken)),
       },
     }),
+    ...(lastStep && { lastStep }),
     ...(stepInTurn !== undefined && { stepInTurn }),
   };
 }
@@ -735,6 +745,19 @@ function latestFor({
 
 async function loadShared(): Promise<Shared> {
   return { knownApps: await knownAppSlugs() };
+}
+
+/** The newest labeled step in a transcript, and when the message holding it was sent. */
+function lastStepIn(
+  messages: SessionMessage.WithParts[],
+): { at: number; text: string } | undefined {
+  for (const message of messages.toReversed()) {
+    const text = latestStepIn([message]);
+    if (text !== undefined) {
+      return { at: message.metadata.createdAt.getTime(), text };
+    }
+  }
+  return undefined;
 }
 
 /** Each item once, where it last appeared. */

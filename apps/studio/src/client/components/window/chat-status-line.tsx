@@ -1,18 +1,10 @@
 import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
-import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
-import {
-  joinedMidTurn,
-  latestStepIn,
-  type SessionMessage,
-  type StoreId,
-} from "@instrument-org/workspace/client";
+import { type StoreId } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
-import { useQuery } from "@tanstack/react-query";
 
 import { ChatTasksPopover } from "./chat-activity";
 import { useChatTasks } from "./child-tasks-query";
@@ -47,24 +39,8 @@ export function ChatStatusLine({
   /** Opens one of the chat's tasks beside it. */
   onOpenTask: (sessionId: StoreId.Session) => void;
 }) {
-  const { isAgentRunning } = useAgentSessionStatus({
-    id: chat.id,
-    sessionId: chat.sessionId,
-  });
-  // The same live list the transcript reads, so this shares its subscription.
-  const messages =
-    useQuery(
-      rpcClient.workspace.message.live.list.experimental_liveOptions({
-        input: { id: chat.id, sessionId: chat.sessionId },
-      }),
-    ).data ?? [];
   const listed = useChatTasks(chat.id).data;
-  const line = statusLine({
-    chat,
-    isAgentRunning,
-    listed,
-    messages,
-  });
+  const line = statusLine({ chat, listed });
   if (!line) {
     return null;
   }
@@ -146,23 +122,19 @@ function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
 
 /**
  * Where the chat's work stands, as one line, said only in labels of work and
- * task names. Running: the chat's own turn names its newest step (its phase,
- * or the call's explanation), then a task at work its step or its name, then
- * the plain line. Stalled: what the user is waited on for. At rest: the last
- * thing done, the chat's own last step or the task that finished last,
- * whichever came later, with a check. Nothing in a chat that has done no work.
- * Never the chat's own title again, right under it: a task named like the
- * chat says its last step instead, and one with nothing else to say says
- * nothing.
+ * task names. Running: the step the chat's record names (the chat's own turn
+ * first, then a task at work), or the plain line. Stalled: what the user is
+ * waited on for. At rest: the last thing done, the chat's own last step or
+ * the task that finished last, whichever came later, with a check. Nothing
+ * in a chat that has done no work. Never the chat's own title again, right
+ * under it: a task named like the chat says its last step instead, and one
+ * with nothing else to say says nothing.
  */
 export function statusLine({
   chat,
-  isAgentRunning,
   listed,
-  messages,
 }: {
-  chat: Pick<Chat, "runningTasks" | "state" | "title">;
-  isAgentRunning: boolean;
+  chat: Pick<Chat, "lastStep" | "latest" | "runningTasks" | "state" | "title">;
   listed:
     | {
         standing: { kind: string };
@@ -171,30 +143,12 @@ export function statusLine({
         updatedAt: Date;
       }[]
     | undefined;
-  messages: SessionMessage.WithParts[];
 }): StatusLine | undefined {
-  const moving = chat.runningTasks.filter((task) => !task.waiting);
-  const turnStart = messages.findLastIndex(
-    (message) => message.role === "user" && !joinedMidTurn(message),
-  );
-  // Sent and not yet answered: the turn is starting before the agent says so,
-  // which the chat's record confirms, so a message nothing went on to answer
-  // does not spin forever.
-  const isStarting =
-    chat.state === "working" &&
-    turnStart !== -1 &&
-    turnStart === messages.length - 1;
-  if (isAgentRunning || isStarting) {
-    // Only this turn's calls, so a new turn never shows the last one's step.
-    const step = latestStepIn(messages.slice(turnStart + 1));
+  if (chat.state === "working") {
     return {
-      text: step ?? moving[0]?.step ?? moving[0]?.title ?? WORKING,
+      text: chat.latest?.kind === "step" ? chat.latest.text : WORKING,
       tone: "run",
     };
-  }
-  const lead = moving[0];
-  if (lead) {
-    return { text: lead.step ?? lead.title, tone: "run" };
   }
   const waiting = chat.runningTasks.find((task) => task.waiting);
   if (waiting?.waiting) {
@@ -206,7 +160,7 @@ export function statusLine({
   if (chat.state === "failed") {
     return { text: "Stopped on an error", tone: "failed" };
   }
-  const own = lastStep(messages);
+  const own = chat.lastStep;
   const task = listed
     ?.filter(
       (each) =>
@@ -221,19 +175,6 @@ export function statusLine({
       ? { text, tone: task.standing.kind === "failed" ? "stopped" : "done" }
       : undefined;
   }
-  const text = differs(own?.step);
+  const text = differs(own?.text);
   return text ? { text, tone: "done" } : undefined;
-}
-
-/** The chat's newest labeled step, and when the message holding it was sent. */
-function lastStep(
-  messages: SessionMessage.WithParts[],
-): { at: number; step: string } | undefined {
-  for (const message of messages.toReversed()) {
-    const step = latestStepIn([message]);
-    if (step !== undefined) {
-      return { at: message.metadata.createdAt.getTime(), step };
-    }
-  }
-  return undefined;
 }

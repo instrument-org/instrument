@@ -10,6 +10,7 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-12 | [Programs on the PATH run natively, by name, under the same rules](2026-10-12-programs-on-path-run-natively.md) |
 | 2026-10-12 | [`python` and `node` run native, and the WebAssembly runtimes are gone](2026-10-12-python-and-node-run-native.md) |
 | 2026-10-11 | [Carry just-bash's error-code fix as a local patch rather than rewrite the builtins' output](2026-10-11-carry-the-error-code-patch.md) |
 | 2026-10-11 | [The agent works at real paths, held to the Permissions rules](2026-10-11-the-agent-works-at-real-paths.md) |

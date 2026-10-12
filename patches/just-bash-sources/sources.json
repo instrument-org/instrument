@@ -81,6 +81,10 @@
       "name": "error codes",
       "diff": "error-codes-3.6.0.diff",
       "ports": [570]
+    },
+    {
+      "name": "external commands",
+      "diff": "external-commands-3.6.0.diff"
     }
   ]
 }

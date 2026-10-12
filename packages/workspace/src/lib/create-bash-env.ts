@@ -96,6 +96,7 @@ import {
   createValidateSkillCommand,
   VALIDATE_SKILL_COMMAND,
 } from "./shell-commands/validate-skill";
+import { createPathProgramResolver } from "./shell-commands/path-program";
 import { createWhichCommand } from "./shell-commands/which";
 import {
   buildBashFs,
@@ -164,7 +165,7 @@ function stubCommand(
 // just-bash reports, which it types as plain `string`; the constructor's own
 // type parameter still holds these entries to real command names.
 const BROKEN_COMMANDS: ReadonlySet<string> = new Set<CommandName>([
-  "which", // always errors in this environment; replaced with a stub below
+  "which", // searches only the shell's own PATH; replaced below
   // Writes under /tmp, which no mount covers, so every call fails. Every
   // shell gets ours (shell-commands/mktemp.ts) instead.
   "mktemp",
@@ -596,7 +597,9 @@ export function createBashDescription() {
 
     TIP: Heredoc pipes/redirects go on the \`<<EOF\` line, not after \`EOF\`: \`cmd <<'EOF' | jq\` (not \`cmd <<'EOF'\` ... \`EOF\` ... \`| jq\`).
 
-    Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): ${namedOnly.join(", ")}
+    Available commands (the complete set of unix builtins): ${namedOnly.join(", ")}
+
+    Any other program on the computer's PATH runs too, held to the same rules as the specialized commands below; \`which <name>\` says whether one is there.
 
     IMPORTANT: Specialized commands below (e.g. ${FFMPEG_COMMAND.name}, ${FFPROBE_COMMAND.name}) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/${FFMPEG_COMMAND.name}, but that path does NOT exist; ignore it. These binaries are also on PATH inside ${NODE_COMMAND.name} and ${PYTHON_COMMAND.name} scripts, so a script may shell out to \`${FFMPEG_COMMAND.name}\`/\`${FFPROBE_COMMAND.name}\` directly.
 
@@ -767,6 +770,7 @@ export async function createLocalBashEnv({
           ...SESSION_COMMAND_DEFS.map((cmd) => cmd.name),
           ...specializedCommandNames,
         ]),
+        chatId,
       ),
       ...STATIC_STUB_COMMANDS,
     ].map((command) =>
@@ -793,14 +797,19 @@ export async function createLocalBashEnv({
     // The shell's own PATH names no folder it mounts. The home folder is
     // mounted at its real path, so the host's PATH would put a binary there
     // (a pnpm or nvm shim under ~/Library or ~/.local) ahead of the command
-    // registered by the same name. The native commands get the host's PATH
-    // from resolveCommandContext and the shims themselves.
+    // registered by the same name, and read it as a shell script. The host's
+    // PATH is searched only once the shell's commands pass on a name
+    // (`resolveExternalCommand`), and the native commands get it from
+    // resolveCommandContext and the shims themselves.
     env: {
       NO_COLOR: "1",
       PATH: SHELL_PATH,
       TZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
     },
     fs,
+    // A name no builtin or command of ours answers runs the program by that
+    // name on the computer's PATH, as a native command.
+    resolveExternalCommand: createPathProgramResolver(chatId),
   });
 
   // Order matters: the alias runs first so the recorded command list names

@@ -180,7 +180,7 @@ export function chatContextItems({
  * its tab's id wherever it walks, so it is keyed by where it stands too, and
  * a chip left out comes back once that screen is somewhere else.
  */
-export function keyOfTab(tab: undefined | WindowTab): string {
+function keyOfTab(tab: undefined | WindowTab): string {
   if (!tab) {
     return "";
   }

@@ -30,7 +30,7 @@ import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { isToolPart } from "../src/lib/is-tool-part";
 import { isWorking } from "../src/lib/chat/activity";
 import { isTypedByUser } from "../src/lib/typed-by-user";
-import { expectStop, wakeChatWithTaskEvent } from "../src/lib/chat/wake";
+import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { Store } from "../src/lib/store";
@@ -1652,10 +1652,13 @@ async function standInForTasks(
 ) {
   const resolved = resolveChat(chatId);
   for (const child of resolved ? await listChildTasks(resolved) : []) {
-    expectStop(child.id, { by: "chat", wakesChat: false });
     workspaceRef.send({
       type: "stopSessions",
-      value: { id: chatId, sessionId: child.id },
+      value: {
+        id: chatId,
+        notice: { by: "chat", wakesChat: false },
+        sessionId: child.id,
+      },
     });
     while (isWorking(chatId, child.id)) {
       await new Promise((resolve) => setTimeout(resolve, TREE_POLL_MS));

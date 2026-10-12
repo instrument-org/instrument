@@ -1097,6 +1097,39 @@ describe("sessionMachine", () => {
       `);
   });
 
+  it("keeps a message stopped before its turn starts unanswered, and says whose stop it was", async () => {
+    const result = await createActorAndTask({
+      chunkSets: [finishChunks],
+    });
+    const done: unknown[] = [];
+    const unsubscribe = publisher.subscribe("session.done", (payload) => {
+      done.push(payload);
+    });
+    result.actor.start();
+    expect(result.actor.getSnapshot().matches("UpdatingSession")).toBe(true);
+    result.actor.send({
+      notice: { by: "user", wakesChat: false },
+      type: "stop",
+    });
+
+    const session = await runTestMachine(result);
+    unsubscribe();
+    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
+      "<session title="Test session" count="1">
+        <user>
+          <text>Hello, I need help with something.</text>
+        </user>
+      </session>"
+    `);
+    expect(done).toEqual([
+      {
+        id: result.chatId,
+        notice: { by: "user", wakesChat: false },
+        sessionId: result.sessionId,
+      },
+    ]);
+  });
+
   it("should force stop agents before the stopping failsafe completes", async () => {
     let finishOnFinish: (() => void) | undefined;
     const onFinishPromise = new Promise<void>((resolve) => {

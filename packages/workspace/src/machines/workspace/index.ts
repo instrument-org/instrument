@@ -31,6 +31,7 @@ import {
   WorkspaceDirSchema,
 } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
+import { type StopNotice } from "../../schemas/stop-notice";
 import { type StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
 import { type WebSearchClient } from "../../schemas/web-search";
@@ -124,8 +125,8 @@ export type WorkspaceEvent =
     }
   | {
       type: "stopSessions";
-      /** Every session of the record, or the one named. */
-      value: { id: ChatId; sessionId?: StoreId.Session };
+      /** Every session of the record, or the one named, with whose stop it is. */
+      value: { id: ChatId; notice?: StopNotice; sessionId?: StoreId.Session };
     }
   | {
       type: "updateInteractiveToolCall";
@@ -663,13 +664,16 @@ export const workspaceMachine = setup({
         const sessionActorRefs = context.sessionRefsByChatId.get(
           event.value.id,
         );
-        const { sessionId } = event.value;
+        const { notice, sessionId } = event.value;
         for (const sessionActorRef of sessionActorRefs ?? []) {
           if (
             sessionId === undefined ||
             sessionActorRef.getSnapshot().context.sessionId === sessionId
           ) {
-            sessionActorRef.send({ type: "stop" });
+            sessionActorRef.send({
+              ...(notice ? { notice } : {}),
+              type: "stop",
+            });
           }
         }
       },

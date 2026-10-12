@@ -34,6 +34,7 @@ import {
   type AgentParentEvent,
   type ToolCallUpdate,
 } from "./agent";
+import { type StopNotice } from "../schemas/stop-notice";
 import { type StopReason } from "./execute-tool-call";
 
 export type SessionMachineParentEvent = {
@@ -62,7 +63,7 @@ type SessionMachineEvent =
       type: "addMessage";
       value: SessionMessage.UserWithParts;
     }
-  | { reason?: StopReason; type: "stop" }
+  | { notice?: StopNotice; reason?: StopReason; type: "stop" }
   | { type: "done" }
   | { type: "error"; value: { message: string } }
   | { type: "runTurn" }
@@ -76,6 +77,16 @@ export const sessionMachine = setup({
     assignEventError: createAssignEventError(),
 
     clearAgentRef: assign({ agentRef: undefined }),
+
+    rememberStopNotice: assign({
+      stopNotice: ({ context, event }) =>
+        (event.type === "stop" ? event.notice : undefined) ??
+        context.stopNotice,
+    }),
+
+    dropFirstQueued: assign({
+      queuedMessages: ({ context }) => context.queuedMessages.slice(1),
+    }),
 
     forceStopAgent: stopChild(({ context }) => context.agentRef ?? "agent"),
 
@@ -214,6 +225,10 @@ export const sessionMachine = setup({
       /** Queued messages the sender wrote to the store on arrival; see `addMessage`. */
       savedMessageIds: StoreId.Message[];
       sessionId: StoreId.Session;
+      /** Whose stop ended a turn of this session; goes out with `session.done`. */
+      stopNotice?: StopNotice;
+      /** A stop arrived before a turn began: what is queued is saved, and no turn starts. */
+      stoppedBeforeStart: boolean;
       subscription?: { unsubscribe: () => void };
       chatId: ChatId;
       usedNonReadOnlyTools: boolean;
@@ -261,6 +276,7 @@ export const sessionMachine = setup({
       runRequested: input.runRequested ?? false,
       savedMessageIds: input.savedMessageIds ?? [],
       sessionId: input.sessionId,
+      stoppedBeforeStart: false,
       subscription,
       chatId: input.chatId,
       usedNonReadOnlyTools: false,
@@ -352,8 +368,10 @@ export const sessionMachine = setup({
     runTurn: {
       actions: assign({ runRequested: true }),
     },
+    // Before the agent runs, a stop is held: what is queued is saved, and
+    // no turn starts.
     stop: {
-      actions: log("Agent not running"),
+      actions: ["rememberStopNotice", assign({ stoppedBeforeStart: true })],
     },
     updateInteractiveToolCall: [
       {
@@ -391,11 +409,11 @@ export const sessionMachine = setup({
         },
         stop: [
           {
-            actions: "stopAgent",
+            actions: ["rememberStopNotice", "stopAgent"],
             guard: "isAgentRefActive",
             target: ".Stopping",
           },
-          { target: ".AgentDone" },
+          { actions: "rememberStopNotice", target: ".AgentDone" },
         ],
       },
 
@@ -492,6 +510,7 @@ export const sessionMachine = setup({
 
         publisher.publish("session.done", {
           id: context.chatId,
+          ...(context.stopNotice ? { notice: context.stopNotice } : {}),
           sessionId: context.sessionId,
         });
         recordChanged(context.chatId, "agent");
@@ -519,7 +538,8 @@ export const sessionMachine = setup({
           target: "SavingMessageAndSpawningAgent",
         },
         {
-          guard: ({ context }) => context.runRequested,
+          guard: ({ context }) =>
+            context.runRequested && !context.stoppedBeforeStart,
           target: "SpawningAgentOverStoredMessages",
         },
         { target: "Done" },
@@ -539,21 +559,24 @@ export const sessionMachine = setup({
             chatId: context.chatId,
           };
         },
-        onDone: {
-          actions: [
-            {
-              params: ({ event }) => ({ parentMessageId: event.output.id }),
-              type: "spawnAgentMachine",
-            },
-            assign({
-              queuedMessages: ({ context }) => {
-                const [_, ...rest] = context.queuedMessages;
-                return rest;
+        onDone: [
+          {
+            // Stopped before its turn began: the message stays, unanswered.
+            actions: "dropFirstQueued",
+            guard: ({ context }) => context.stoppedBeforeStart,
+            target: "ProcessingQueuedMessages",
+          },
+          {
+            actions: [
+              {
+                params: ({ event }) => ({ parentMessageId: event.output.id }),
+                type: "spawnAgentMachine",
               },
-            }),
-          ],
-          target: "Agent",
-        },
+              "dropFirstQueued",
+            ],
+            target: "Agent",
+          },
+        ],
         onError: {
           actions: "assignEventError",
           target: "Done",
@@ -584,7 +607,8 @@ export const sessionMachine = setup({
               },
               assign({ runRequested: false }),
             ],
-            guard: ({ event }) => event.output !== undefined,
+            guard: ({ context, event }) =>
+              event.output !== undefined && !context.stoppedBeforeStart,
             target: "Agent",
           },
           { target: "Done" },

@@ -6,6 +6,7 @@ import { type WorkspaceSnapshot } from "../machines/workspace";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
+import { type StopNotice } from "../schemas/stop-notice";
 import {
   type WindowTabAnswer,
   type WindowTabRequest,
@@ -87,6 +88,8 @@ export const publisher = new EventPublisher<{
   };
   "session.done": {
     id: ChatId;
+    /** Present when a stop ended the turn and said whose it was. */
+    notice?: StopNotice;
     sessionId: StoreId.Session;
   };
   /**

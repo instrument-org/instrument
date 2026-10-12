@@ -6,6 +6,7 @@ import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { type StopNotice } from "../../schemas/stop-notice";
 import { StoreId } from "../../schemas/store-id";
 import { heldTabs, returnTabsToChat } from "../held-tabs";
 import {
@@ -82,17 +83,6 @@ const overdueReportedAt = new Map<StoreId.Session, number>();
  * task while the chat carries on does, so the chat knows the task did not
  * finish and leaves it stopped.
  */
-interface ExpectedStop {
-  by: "chat" | "user";
-  wakesChat: boolean;
-}
-
-/**
- * Stops on their way, by the task's session. Held until the turn they end
- * is done; the next finish after that is news again.
- */
-const expectedStops = new Map<StoreId.Session, ExpectedStop>();
-
 /**
  * Wakes a chat about one of its tasks with an event composed elsewhere,
  * through the same debounce and delivery a finish takes. What the eval
@@ -104,11 +94,6 @@ export function wakeChatWithTaskEvent(
   workspaceRef: WorkspaceActorRef,
 ) {
   schedule(chatId, event, workspaceRef);
-}
-
-/** Says a task's working turn is ending on a stop, and whose. */
-export function expectStop(sessionId: StoreId.Session, stop: ExpectedStop) {
-  expectedStops.set(sessionId, stop);
 }
 
 const pending = new Map<
@@ -248,9 +233,11 @@ async function deliver(
 async function onSessionDone(
   {
     id,
+    notice: stop,
     sessionId,
   }: {
     id: ChatId;
+    notice?: StopNotice;
     sessionId: StoreId.Session;
   },
   workspaceRef: WorkspaceActorRef,
@@ -275,8 +262,6 @@ async function onSessionDone(
   // from its words, so a turn that ended blocked reads as waiting rather than
   // finished and the fence is not said twice.
   const needs = said === undefined ? [] : needsNamedIn(said);
-  const stop = expectedStops.get(sessionId);
-  expectedStops.delete(sessionId);
   await touchTask(chatId, sessionId, { stoppedBy: stop?.by });
   // The pages it leaves open, read while it still drives them, then given
   // back: a tab has one driver, and a finished task drives nothing.

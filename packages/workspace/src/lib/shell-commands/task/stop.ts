@@ -5,7 +5,6 @@ import {
 import { isWorking, leftRunning } from "../../chat/activity";
 import { type ChatTask } from "../../chat/children";
 import { describeLeftRunning } from "../../chat/left-running";
-import { expectStop } from "../../chat/wake";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import { type SubcommandInput, subcommand } from "../subcommands";
 import { TASK_COMMAND } from "../task-command";
@@ -141,10 +140,13 @@ async function stopBackground(task: ChatTask, wanted?: string) {
 /** Ends a working task's turn, and says whether it went idle in time. */
 async function stopTurn(task: ChatTask, context: TaskCommandContext) {
   // The wake would report the turn this ends as a finish; it is not news.
-  expectStop(task.id, { by: "chat", wakesChat: false });
   getWorkspaceActorRef().send({
     type: "stopSessions",
-    value: { id: task.chatId, sessionId: task.id },
+    value: {
+      id: task.chatId,
+      notice: { by: "chat", wakesChat: false },
+      sessionId: task.id,
+    },
   });
   const timeoutMs = Math.max(
     0,

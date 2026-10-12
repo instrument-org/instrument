@@ -82,7 +82,13 @@ export type ClaudeAccountStatus = ClaudeCodeReading & {
    * ends on a code the person pastes back here.
    */
   signInLink: string | undefined;
-  /** A sign-in is open in the browser, waiting on the person. */
+  /**
+   * Claude Code stored a sign-in, and the account is being read back from it.
+   * Still `signingIn`, so the app holds rather than showing the account as it
+   * was before.
+   */
+  finishing: boolean;
+  /** A sign-in is open in the browser, waiting on the person, or finishing. */
   signingIn: boolean;
 };
 
@@ -90,6 +96,7 @@ let reading: ClaudeCodeReading = { canInstall: false, kind: "not-installed" };
 let install: ClaudeCodeInstall | undefined;
 let lastRefresh = 0;
 let refreshing: Promise<ClaudeAccountStatus> | undefined;
+let finishing = false;
 
 const signIn = createActor(
   claudeSignInMachine.provide({
@@ -99,6 +106,8 @@ const signIn = createActor(
       },
       ended: () => {
         void refreshClaudeAccountStatus({ force: true }).then((after) => {
+          finishing = false;
+          announce();
           if (after.kind === "signed-in") {
             focusAppWindow();
           }
@@ -108,6 +117,7 @@ const signIn = createActor(
       // Claude Code: that read takes seconds, and the person who just pressed
       // Authorize is looking at the browser until the app comes back.
       landed: () => {
+        finishing = true;
         focusAppWindow();
       },
     },
@@ -162,9 +172,10 @@ export function claudeAccountStatus(): ClaudeAccountStatus {
   const snapshot = signIn.getSnapshot();
   return {
     ...reading,
+    finishing,
     install,
     signInLink: snapshot.context.signIn?.linkForAnotherDevice,
-    signingIn: !snapshot.matches("idle"),
+    signingIn: finishing || !snapshot.matches("idle"),
   };
 }
 

@@ -115,9 +115,11 @@ export function ClaudeLoginButton({
         {hint ??
           (status?.install?.state === "downloading"
             ? `Getting Claude Code ready, ${installPercent(status.install)}% done`
-            : pressed && status?.signingIn
-              ? "Finish signing in to Claude in your browser"
-              : caption)}
+            : pressed && (status?.finishing || status?.kind === "signed-in")
+              ? "Connecting your Claude account"
+              : pressed && status?.signingIn
+                ? "Finish signing in to Claude in your browser"
+                : caption)}
       </p>
       {pressed && status?.signingIn && status.signInLink && (
         <ClaudeSignInCode

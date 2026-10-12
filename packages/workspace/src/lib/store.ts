@@ -11,8 +11,12 @@ import { type ChatId } from "../schemas/chat-id";
 import { TypedError } from "./errors";
 import { getParsedStorageItem } from "./get-parsed-storage-item";
 import { getSessionsStoreStorage } from "./session-store-storage";
-import { setParsedStorageItem } from "./set-parsed-storage-item";
+import {
+  parsedStoreWrite,
+  setParsedStorageItem,
+} from "./set-parsed-storage-item";
 import { StorageKey } from "./storage-key";
+import { type StoreWrite } from "./wrap-storage";
 
 export namespace Store {
   export function getMessageIds(
@@ -87,8 +91,8 @@ export namespace Store {
         },
       );
 
-      // Skip transiently missing messages, matching getMessagesWithParts: the
-      // index scan and individual fetches are not atomic.
+      // Skip a message removed between the key scan and its fetch, matching
+      // getMessagesWithParts.
       const found = messageResults.filter(
         (r) => !(r.isErr() && r.error.type === "workspace-not-found-error"),
       );
@@ -145,10 +149,8 @@ export namespace Store {
         },
       );
 
-      // Skip transiently missing messages - the key index scan and individual
-      // fetches are not atomic, so a message may appear in the index but not
-      // yet be readable (or may have just been removed). The live query will
-      // re-fetch on the next update event.
+      // Skip a message removed between the key scan and its fetch, which are
+      // not one read. The live query re-fetches on the next update event.
       const found = messageResults.filter(
         (r) => !(r.isErr() && r.error.type === "workspace-not-found-error"),
       );
@@ -387,15 +389,20 @@ export namespace Store {
       const partIds = yield* getPartIds(sessionId, messageId, chatId, {
         signal,
       });
-      for (const partId of partIds) {
-        yield* storage.removeItem(
-          StorageKey.part(sessionId, messageId, partId),
-          { signal },
-        );
-      }
-      yield* storage.removeItem(StorageKey.message(sessionId, messageId), {
-        signal,
-      });
+      // Together, so no reader finds the message with some of its parts gone.
+      yield* storage.batch(
+        [
+          ...partIds.map(
+            (partId) =>
+              ({
+                key: StorageKey.part(sessionId, messageId, partId),
+                remove: true,
+              }) satisfies StoreWrite,
+          ),
+          { key: StorageKey.message(sessionId, messageId), remove: true },
+        ],
+        { signal },
+      );
       publisher.publish("message.removed", {
         id: chatId,
         messageId,
@@ -494,12 +501,36 @@ export namespace Store {
       }
 
       const { parts, ...rest } = message;
-      // Save parts first without publishing part.updated events to avoid race condition
-      // where live queries try to read the message before it's saved
-      yield* await saveParts(parts, chatId, { publish: false, signal });
-      // Save message - this will publish message.updated after everything is committed
-      yield* saveMessage(rest, chatId, { signal });
-      // Now it's safe to publish part.updated for all parts
+      const rows = yield* Result.combine([
+        parsedStoreWrite(
+          StorageKey.message(rest.metadata.sessionId, rest.id),
+          rest,
+          SessionMessage.Schema,
+        ),
+        ...parts.map((part) =>
+          parsedStoreWrite(
+            StorageKey.part(
+              part.metadata.sessionId,
+              part.metadata.messageId,
+              part.metadata.id,
+            ),
+            part,
+            SessionMessagePart.CoercedSchema,
+          ),
+        ),
+      ]);
+      // The message and its parts land together, so no reader ever finds
+      // the one without the other.
+      const storage = yield* getSessionsStoreStorage(chatId);
+      yield* storage.batch(
+        rows.map(({ write }) => write),
+        { signal },
+      );
+      publisher.publish("message.updated", {
+        id: chatId,
+        messageId: rest.id,
+        sessionId: rest.metadata.sessionId,
+      });
       for (const part of parts) {
         publisher.publish("part.updated", {
           id: chatId,

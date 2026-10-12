@@ -62,6 +62,39 @@ describe("session store storage", () => {
     ]);
   });
 
+  it("writes a batch as one transaction a reader sees whole, and says what it changed", async () => {
+    const handle = await storage();
+    await handle.setItemRaw("parts:session:message:old", "{}");
+    const heard: string[] = [];
+    const stop = publisher.subscribe("record.changed", (change) => {
+      if (change.id === chatId) {
+        heard.push(change.kind);
+      }
+    });
+
+    const written = handle.batch([
+      { key: "messages:session:message", value: "message" },
+      { key: "parts:session:message:new", value: "part" },
+      { key: "parts:session:message:old", remove: true },
+    ]);
+    // Read while the batch is on its way: either before it or after it.
+    const keysDuring = await handle.getKeys("parts:session:message");
+    expect((await written).isOk()).toBe(true);
+    stop();
+
+    expect([
+      ["parts:session:message:old"],
+      ["parts:session:message:new"],
+    ]).toContainEqual(keysDuring._unsafeUnwrap());
+    expect(
+      (await handle.getItemRaw("messages:session:message"))._unsafeUnwrap(),
+    ).toBe("message");
+    expect(
+      (await handle.getKeys("parts:session:message"))._unsafeUnwrap(),
+    ).toEqual(["parts:session:message:new"]);
+    expect(heard).toEqual(["messages", "messages", "messages"]);
+  });
+
   it("reads back what it wrote, across a dispose", async () => {
     const handle = await storage();
     expect((await handle.setItemRaw("key", "value")).isOk()).toBe(true);

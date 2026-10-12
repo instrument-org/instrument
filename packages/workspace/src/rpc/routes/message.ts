@@ -1,6 +1,5 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { eventIterator, type } from "@orpc/server";
-import { sleep } from "radashi";
 import { z } from "zod";
 
 import { changedMessageBatches } from "../../lib/changed-message-batches";
@@ -244,27 +243,18 @@ const live = {
                 { signal },
               );
 
-            // A message can be unreadable mid-write (writes aren't atomic),
-            // so give the write a moment to settle before falling back to a
-            // full reload, which surfaces a persistent error the same way
-            // the initial read does.
-            let messages = await readUpdated();
-            for (
-              let retry = 0;
-              messages.isErr() && retry < 2 && !signal?.aborted;
-              retry++
-            ) {
-              await sleep(50);
-              messages = await readUpdated();
-            }
+            // A message and its parts are written and removed together, so
+            // a read that fails falls back to a full reload, which surfaces a
+            // persistent error the same way the initial read does.
+            const messages = await readUpdated();
 
             if (messages.isOk()) {
               for (const message of messages.value) {
                 snapshot.upsert(message);
               }
               // The read omits ids the index named but the fetch couldn't
-              // find (mid-write or just removed). Drop them; a later event
-              // re-adds a message that reappears.
+              // find, just removed. Drop them; a later event re-adds a
+              // message that reappears.
               const found = new Set(messages.value.map(({ id }) => id));
               for (const messageId of messageIds) {
                 if (!found.has(messageId)) {

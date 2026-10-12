@@ -24,6 +24,17 @@ const wrappedMockStorage = wrapStorage(mockStorage);
 export function getSessionsStoreStorage(chatId: ChatId) {
   const counted: WrappedStorage = {
     ...wrappedMockStorage,
+    batch: (writes, options) => {
+      for (const write of writes) {
+        bumpStoreGeneration(chatId, write.key);
+      }
+      return wrappedMockStorage.batch(writes, options).andTee(() => {
+        for (const write of writes) {
+          bumpStoreGeneration(chatId, write.key);
+          recordChanged(chatId, storeKeyChange(write.key));
+        }
+      });
+    },
     removeItem: (key, options) => {
       bumpStoreGeneration(chatId, key);
       return wrappedMockStorage.removeItem(key, options).andTee(() => {

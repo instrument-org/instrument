@@ -1,9 +1,19 @@
-import { ResultAsync } from "neverthrow";
+import { ResultAsync, safeTry, ok } from "neverthrow";
 import { type Storage } from "unstorage";
 
 import { TypedError } from "./errors";
 
+/** One row a batch writes: its value as stored, or its removal. */
+export type StoreWrite =
+  | { key: string; remove: true }
+  | { key: string; value: string };
+
 export interface WrappedStorage {
+  /** Writes every row or none: a reader sees all of them land at once. */
+  batch: (
+    writes: readonly StoreWrite[],
+    options?: { signal?: AbortSignal },
+  ) => ResultAsync<void, TypedError.Storage>;
   dispose: Storage["dispose"];
   getItemRaw: <T = unknown>(
     key: string,
@@ -26,7 +36,18 @@ export interface WrappedStorage {
 
 // Expose return values as neverthrow ResultAsync instead of Promise
 export function wrapStorage(storage: Storage): WrappedStorage {
-  return {
+  const wrapped: WrappedStorage = {
+    // One row at a time, so not atomic: for a storage with no transactions
+    // of its own, such as the in-memory one tests use.
+    batch: (writes, options) =>
+      safeTry(async function* () {
+        for (const write of writes) {
+          yield* "remove" in write
+            ? wrapped.removeItem(write.key, options)
+            : wrapped.setItemRaw(write.key, write.value, options);
+        }
+        return ok(undefined);
+      }),
     dispose: storage.dispose.bind(storage),
     getItemRaw: (key, options) =>
       ResultAsync.fromPromise(
@@ -73,4 +94,5 @@ export function wrapStorage(storage: Storage): WrappedStorage {
           ),
       ),
   };
+  return wrapped;
 }

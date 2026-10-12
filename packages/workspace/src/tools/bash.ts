@@ -22,7 +22,7 @@ import {
 } from "../lib/browser-skill-delivery";
 import { executeError } from "../lib/execute-error";
 import { ignoredBuildsNote } from "../lib/ignored-builds-note";
-import { chatConversation } from "../lib/chat/children";
+import { sessionRole } from "../lib/chat/children";
 import { folderReach } from "../lib/chat/folder-reach";
 import {
   FG_COMMAND,
@@ -170,12 +170,11 @@ export const BashTool = setupTool({
     const startedAt = performance.now();
     // The chat's own commands are its conversation's: a task of the chat's
     // runs in the same folder with a task's shell.
-    const conversation = chatConversation(chatId, sessionId);
-    const chat = conversation ? { id: conversation } : undefined;
+    const role = sessionRole(chatId, sessionId) ?? "task";
     const bash = await createBashEnv({
       folders,
       callPartId: partId,
-      chat,
+      role,
       // `fg` waits inside this call, so what is left of the window is its
       // ceiling. Measured from here rather than from the race below, which only
       // makes it return sooner than it strictly has to.
@@ -186,7 +185,7 @@ export const BashTool = setupTool({
     // The layout the native shims write their own output's host paths back
     // against, so the live copy a promoted command streams names them the way
     // the foreground copy does.
-    const layout = shellLayout({ folders, chat, chatId });
+    const layout = shellLayout({ folders, role, chatId });
     // Interpreter metadata, only available once the run finishes. A promoted
     // command reports none, which is what the empty default stands for.
     let commands: string[] = [];

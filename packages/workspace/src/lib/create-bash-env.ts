@@ -533,11 +533,11 @@ function customCommandDefs(): CustomCommandDef[] {
 export interface BashEnvOptions {
   folders?: Record<string, MountedFolder.Type>;
   /**
-   * Present when the shell is a chat's own conversation's: it gets the
-   * chat's own commands (`task`, `chat`, `memory`, `tab`) and the apps'
-   * folders.
+   * Whose shell this is. The chat's own conversation's gets the chat's own
+   * commands (`task`, `chat`, `memory`, `tab`) and the apps' folders; a
+   * task's, the default, gets neither.
    */
-  chat?: { id: ChatId };
+  role?: "chat" | "task";
   /**
    * The `bash` call this shell runs, so a fork it starts leaves that call out
    * of what it inherits.
@@ -658,13 +658,13 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
  */
 export function shellLayout({
   folders,
-  chat,
+  role,
   chatId,
-}: Pick<BashEnvOptions, "folders" | "chat" | "chatId">) {
+}: Pick<BashEnvOptions, "folders" | "role" | "chatId">) {
   return buildWorkspaceFsLayout({
     // The chat authors apps, so it gets their folders; a task reaches
     // the apps it was handed through the command alone.
-    apps: chat !== undefined,
+    apps: role === "chat",
     folders,
     taskHostRoot: workDir(chatId),
   });
@@ -685,7 +685,7 @@ export async function createBashEnv(
 export async function createLocalBashEnv({
   folders,
   callPartId,
-  chat,
+  role = "task",
   // Defaulted so the callers that never wait -- skill validation, tests, the
   // sandbox script -- do not have to describe a yield window they do not have.
   remainingYieldMs = () => Number.POSITIVE_INFINITY,
@@ -702,7 +702,7 @@ export async function createLocalBashEnv({
   /** Replaces each of `MAIN_THREAD_COMMANDS`; set by the bash worker. */
   standIn?: (name: string) => Command;
 }) {
-  const layout = shellLayout({ folders, chat, chatId });
+  const layout = shellLayout({ folders, role, chatId });
   // The working folder walks at the sandbox's budget, and the home folder at
   // its own, smaller one.
   const homeWalkBudget = createWalkBudget(HOME_MAX_TRAVERSAL);
@@ -725,24 +725,24 @@ export async function createLocalBashEnv({
   );
   const nativeCommandNames = customCommandDefs().map((cmd) => cmd.name);
   const specializedCommands = [
-    ...(chat
+    ...(role === "chat"
       ? [
           createTaskCommand({
             callPartId,
-            chatId: chat.id,
+            chatId,
             remainingYieldMs,
             sessionId,
           }),
           createChatCommand(),
-          createMemoryCommand({ chatId: chat.id, sessionId }),
-          createTabCommand({ chatId: chat.id, layout }),
+          createMemoryCommand({ chatId, sessionId }),
+          createTabCommand({ chatId, layout }),
         ]
       : []),
     createAppCommand({ chatId }),
     ...nativeCommands,
   ];
   const specializedCommandNames = [
-    ...(chat
+    ...(role === "chat"
       ? [
           TASK_COMMAND.name,
           CHAT_COMMAND.name,

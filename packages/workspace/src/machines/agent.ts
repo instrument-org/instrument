@@ -22,7 +22,7 @@ import { getErrorAction } from "../lib/get-error-action";
 import { isInteractiveTool } from "../lib/is-interactive-tool";
 import { isToolPart } from "../lib/is-tool-part";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
-import { chatConversation } from "../lib/chat/children";
+import { sessionRole } from "../lib/chat/children";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { llmRequestLogic } from "../logic/llm-request";
@@ -675,8 +675,7 @@ export const agentMachine = setup({
                 // nobody answers: its question runs, and says so.
                 if (
                   isInteractiveTool(tool.name) &&
-                  chatConversation(context.chatId, context.sessionId) !==
-                    undefined
+                  sessionRole(context.chatId, context.sessionId) === "chat"
                 ) {
                   pendingToolCalls.push(part);
                   continue;

@@ -12,8 +12,7 @@ import { forgetChatFolders } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
   addChildTask,
-  chatConversation,
-  isTaskSession,
+  sessionRole,
   listChildTasks,
 } from "./children";
 import { ChatIdSchema } from "../../schemas/chat-id";
@@ -110,15 +109,16 @@ describe("addChildTask", () => {
   });
 });
 
-describe("chatConversation", () => {
+describe("sessionRole", () => {
   it("tells the chat's own session from a task's", async () => {
     const sessionId = StoreId.newSessionId();
     const chat = chatFor(sessionId);
     const task = await chatTaskFor(chat);
 
-    expect(chatConversation(chat, sessionId)).toBe(chat);
-    expect(chatConversation(chat, task)).toBeUndefined();
-    expect(isTaskSession(chat, task)).toBe(true);
-    expect(isTaskSession(chat, sessionId)).toBe(false);
+    expect(sessionRole(chat, sessionId)).toBe("chat");
+    expect(sessionRole(chat, task)).toBe("task");
+    expect(
+      sessionRole(ChatIdSchema.parse("no-such-chat"), sessionId),
+    ).toBeUndefined();
   });
 });

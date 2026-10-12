@@ -13,7 +13,7 @@ import {
 import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { Store } from "../store";
 import { chatModelURI } from "../chat-settings";
-import { chatConversation } from "./children";
+import { sessionRole } from "./children";
 import { updateSessionTitle } from "../update-session-title";
 import { getWorkspaceConfig } from "../workspace-config";
 import { chatIsWorking, settleChatTitle } from "./chats";
@@ -223,10 +223,10 @@ async function retitleOnSettle({
   sessionId: StoreId.Session;
 }): Promise<void> {
   // A task's turn ending names nothing: the chat is named from its own.
-  const chatId = chatConversation(id, sessionId);
-  if (!chatId) {
+  if (sessionRole(id, sessionId) !== "chat") {
     return;
   }
+  const chatId = id;
   const session = await Store.getSession(sessionId, chatId);
   if (session.isErr() || session.value.titleSettledAt) {
     return;

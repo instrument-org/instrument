@@ -73,7 +73,7 @@ const runBash = base
     const chatId = resolveChat(input.chatId);
     const bash = await createBashEnv({
       folders: await folderReach(input.chatId),
-      ...(chatId ? { chat: { id: chatId } } : {}),
+      role: chatId ? "chat" : "task",
       sessionId: input.sessionId,
       chatId: input.chatId,
     });

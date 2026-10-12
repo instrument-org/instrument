@@ -17,7 +17,7 @@ import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
 import { callsItOff, MID_TURN_NOTE } from "../lib/chat/mid-turn";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
-import { chatConversation } from "../lib/chat/children";
+import { sessionRole } from "../lib/chat/children";
 import { recordChanged } from "../lib/record-changes";
 import { Store } from "../lib/store";
 import { isTypedByUser } from "../lib/typed-by-user";
@@ -309,7 +309,7 @@ export const sessionMachine = setup({
             return;
           }
           const typedIntoChat =
-            chatConversation(context.chatId, context.sessionId) !== undefined &&
+            sessionRole(context.chatId, context.sessionId) === "chat" &&
             isTypedByUser(event.value);
           if (
             event.interrupt ||

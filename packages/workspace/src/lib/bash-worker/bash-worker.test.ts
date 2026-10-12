@@ -236,7 +236,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
         '{"private":"overwritten"}',
       );
       const bashOptions: BashEnvOptions = {
-        chat: { id: nestedChat },
+        role: "chat",
         sessionId: StoreId.newSessionId(),
         chatId: nestedChat,
       };

@@ -18,7 +18,7 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { indexedByStore, kept, unkept } from "../workspace-index";
 import { askIn, type ChatActivity, chatActivity, isWorking } from "./activity";
 import { listChatIds } from "./chat-records";
-import { chatConversation, listChildTasks } from "./children";
+import { listChildTasks, sessionRole } from "./children";
 import { joinedMidTurn } from "./mid-turn";
 import { latestStepIn } from "./step-label";
 import { excerptOf } from "./standing";
@@ -256,9 +256,11 @@ export function startChatUnreadOnSettle(): void {
     for await (const { id, sessionId } of publisher.subscribe("session.done")) {
       try {
         // A task's turn ending is news the chat's own next reply carries.
-        const chatId = chatConversation(id, sessionId);
-        if (chatId && !(await chatIsWorking(chatId))) {
-          await markChatUnread(chatId, { byUser: false });
+        if (
+          sessionRole(id, sessionId) === "chat" &&
+          !(await chatIsWorking(id))
+        ) {
+          await markChatUnread(id, { byUser: false });
         }
       } catch (error) {
         getWorkspaceConfig().captureException(error);

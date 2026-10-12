@@ -41,7 +41,7 @@ import {
   getScreenshotsDir,
 } from "../chat-dir-utils";
 import { chatDir } from "../record-folders";
-import { isTaskSession } from "../chat/children";
+import { sessionRole } from "../chat/children";
 import { heldTabs, updateHeldTabs } from "../held-tabs";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
@@ -1101,7 +1101,7 @@ async function refuseBrowserFor(
   // A task handed tabs works in those alone; the chat, which gets them back
   // when the task finishes, goes on with a new one.
   if (
-    isTaskSession(id, sessionId) &&
+    sessionRole(id, sessionId) === "task" &&
     held.some((tab) => tab.openedBy === "handed")
   ) {
     // The user closed the tabs, or the window they were in, since the task

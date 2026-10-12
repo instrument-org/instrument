@@ -95,8 +95,8 @@ describe("sessionMachine", () => {
     vi.spyOn(recordFolders, "resolveChat").mockImplementation((id) =>
       id === taskFolder ? ChatIdSchema.parse(taskFolder) : undefined,
     );
-    vi.spyOn(children, "chatConversation").mockImplementation((id) =>
-      id === taskFolder ? ChatIdSchema.parse(taskFolder) : undefined,
+    vi.spyOn(children, "sessionRole").mockImplementation((id) =>
+      id === taskFolder ? "chat" : undefined,
     );
   }
   const defaultSessionId = StoreId.newSessionId();

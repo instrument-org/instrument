@@ -7,7 +7,7 @@ import { CHAT_FOLDER_NAMES } from "../constants";
 import { MountedFolder } from "../schemas/mounted-folder";
 import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 
@@ -43,7 +43,7 @@ async function run(command: string, { chat = false } = {}) {
       Home: attach("Home", homeDir),
       Wide: attach("Wide", wideDir),
     },
-    chat: chat ? { id: ChatIdSchema.parse(chatId) } : undefined,
+    role: chat ? "chat" : "task",
     sessionId,
     chatId,
   });

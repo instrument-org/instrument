@@ -17,7 +17,7 @@ import { getWorkspaceConfig } from "../lib/workspace-config";
 import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
-import { chatConversation } from "../lib/chat/children";
+import { sessionRole } from "../lib/chat/children";
 
 /**
  * Ask the user for the one thing only they can give an app: a sign-in, or a
@@ -67,7 +67,7 @@ export const ConnectApp = setupTool({
   `,
   execute: async ({ input, sessionId, chatId }) => {
     // A task runs the chat's agent where no card is seen.
-    if (!chatConversation(chatId, sessionId)) {
+    if (sessionRole(chatId, sessionId) !== "chat") {
       return ok({
         message:
           "You are running in the background, where nobody sees a card: only the chat asks the user to connect an app. End your last message with a needs fence naming the app.",

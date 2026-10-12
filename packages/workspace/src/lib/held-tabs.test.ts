@@ -18,8 +18,8 @@ const T2 = StoreId.newSessionId();
 
 vi.mock(import("./chat/children"), async (importOriginal) => ({
   ...(await importOriginal()),
-  isTaskSession: (_chatId: ChatId, sessionId: StoreId.Session) =>
-    sessionId !== CHAT_SESSION,
+  sessionRole: (_chatId: ChatId, sessionId: StoreId.Session) =>
+    sessionId === CHAT_SESSION ? "chat" : "task",
 }));
 
 const tab = () => encodeBrowserTargetId(WINDOW_ID, StoreId.newSessionId());

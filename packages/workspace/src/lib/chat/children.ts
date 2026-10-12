@@ -100,31 +100,19 @@ export async function childTask(
 }
 
 /**
- * The chat a session is the conversation of, or none for a task's session
- * and for a record that is no chat. What sets the conversation the user
- * talks in apart from the tasks it started in the same store: only it asks
- * the user anything, starts tasks, or hears the turn note.
+ * What a session is in its chat: the chat's own conversation, the session
+ * its settings name, or one of the tasks it started in the same store.
+ * Only the chat's own asks the user anything, starts tasks, or hears the
+ * turn note. None for a record that is no chat.
  */
-export function chatConversation(
+export function sessionRole(
   chatId: ChatId,
   sessionId: StoreId.Session,
-): ChatId | undefined {
-  return resolveChat(chatId) && sessionOfChat(chatId) === sessionId
-    ? chatId
-    : undefined;
-}
-
-/**
- * Whether a session is one of a chat's tasks: a session in a chat's store
- * that is not the chat's own conversation.
- */
-export function isTaskSession(
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-): boolean {
-  return (
-    resolveChat(chatId) !== undefined && sessionOfChat(chatId) !== sessionId
-  );
+): "chat" | "task" | undefined {
+  if (!resolveChat(chatId)) {
+    return undefined;
+  }
+  return sessionOfChat(chatId) === sessionId ? "chat" : "task";
 }
 
 /**

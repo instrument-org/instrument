@@ -6,7 +6,7 @@ import {
 import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { registerHistorySurface } from "@/client/lib/history-surfaces";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
-import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
+import { useGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import { browserTargetOf, StoreId } from "@instrument-org/workspace/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
@@ -147,6 +147,9 @@ export function GroupItem({
     [],
   );
 
+  // The router of a screen that is up; read before the early returns, as a hook.
+  const router = useGroupTabRouter(up.id);
+
   /**
    * The row over what is up, the one the pane beside a chat draws: its
    * arrows walk the page's own history or the screen's trail, and its field
@@ -256,7 +259,6 @@ export function GroupItem({
   }
   // Every other screen is a route of the window's own tree, under a router
   // of the tab's own; the folder says where it stands as its Finder reads it.
-  const router = getGroupTabRouter(up.id);
   const location = screenLocation(up.href, { appsBySlug, taskTitles });
   const shown =
     location.kind === "folder" && filesView?.folder

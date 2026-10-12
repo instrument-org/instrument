@@ -213,7 +213,7 @@ describe("workspaceMachine answers", () => {
     vi.spyOn(recordFolders, "sessionOfChat").mockReturnValue(chatSession);
     const answered: StoreId.Session[] = [];
     // A session that only knows its id and notes the answers it hears.
-    const listeningSession = setup({
+    const listeningSession: AnyActorLogic = setup({
       types: {
         context: {} as { sessionId: StoreId.Session },
         input: {} as { sessionId: StoreId.Session },

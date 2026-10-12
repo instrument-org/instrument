@@ -26,7 +26,7 @@ const DesktopSignInSchema = z.object({
  * Trade the single-use token the API handed the loopback for a session, with
  * the PKCE verifier that proves this app started the sign-in.
  */
-export async function exchangeDesktopSignIn({
+async function exchangeDesktopSignIn({
   codeVerifier,
   token,
 }: {

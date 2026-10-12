@@ -4,7 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { renameChat } from "../../lib/chat/chats";
 import { grantFolder } from "../../lib/chat/grants";
+import { sessionOfChat } from "../../lib/record-folders";
+import { Store } from "../../lib/store";
 import { setWorkspaceActorRef } from "../../lib/workspace-actor-ref";
 import {
   getWorkspaceConfig,
@@ -80,6 +83,39 @@ describe("chats.live.tasks", () => {
     expect(
       next.done ? [] : next.value.map((task) => [task.handle, task.title]),
     ).toEqual([["t1", "Child"]]);
+    controller.abort();
+    await live.return?.(undefined).catch(() => undefined);
+  });
+});
+
+describe("chats.live.info", () => {
+  it("answers again when the chat is renamed", async () => {
+    const context: WorkspaceRPCContext = {
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef: undefined as never,
+    };
+    const sessionId = sessionOfChat(chatId);
+    if (!sessionId) {
+      throw new Error("The chat has no session");
+    }
+    const now = new Date();
+    await Store.saveSession(
+      { createdAt: now, id: sessionId, title: "Untitled", updatedAt: now },
+      chatId,
+    );
+    const controller = new AbortController();
+    const live = await call(
+      chats.live.info,
+      { id: chatId },
+      { context, signal: controller.signal },
+    );
+    const title = (next: IteratorResult<{ title: string }>) =>
+      next.done ? undefined : next.value.title;
+    expect(title(await live.next())).not.toBe("Lisbon trip");
+
+    await renameChat(chatId, "Lisbon trip");
+
+    expect(title(await live.next())).toBe("Lisbon trip");
     controller.abort();
     await live.return?.(undefined).catch(() => undefined);
   });

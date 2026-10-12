@@ -26,9 +26,8 @@ describe("rendererContentSecurityPolicy", () => {
   });
 
   it("names a preview's own scheme", () => {
-    expect(
-      policyFor({ kind: "preview", name: "claude-resume-2-21" }),
-    ).toMatchInlineSnapshot(`
+    expect(policyFor({ kind: "preview", name: "claude-resume-2-21" }))
+      .toMatchInlineSnapshot(`
       "connect-src 'self' instrument-preview-claude-resume-2-21: http://localhost:* https://localhost:*;
       default-src 'self' http://localhost:* https://localhost:*;
       font-src 'self' data:;

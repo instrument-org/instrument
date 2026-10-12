@@ -52,6 +52,21 @@ function continuation(
 }
 
 describe("continuationOf", () => {
+  it("names what followed the reply when tool results were awaited", () => {
+    const first = [system, user("one")];
+    expect(
+      continuation(after(first, ["t1"]), [
+        ...first,
+        callsTool("t1"),
+        toolResult("t1"),
+        user("while you work"),
+      ]),
+    ).toEqual({
+      kind: "restart",
+      reason: "awaiting 1 tool results, the reply is followed by tool, user",
+    });
+  });
+
   it("continues a new turn with only the new message", () => {
     const first = [system, user("one")];
     expect(
@@ -125,7 +140,10 @@ describe("continuationOf", () => {
         reply("a"),
         user("two"),
       ]),
-    ).toBeUndefined();
+    ).toEqual({
+      kind: "restart",
+      reason: "message 1 of 2 (user) changed since the process saw it",
+    });
   });
 
   it("starts over when tool results answer calls it was not waiting on", () => {
@@ -136,11 +154,17 @@ describe("continuationOf", () => {
         callsTool("t2"),
         toolResult("t2"),
       ]),
-    ).toBeUndefined();
+    ).toEqual({
+      kind: "restart",
+      reason: "results answer 1 calls and leave 1 of 1 unanswered",
+    });
   });
 
   it("starts over when the reply is missing", () => {
     const first = [system, user("one")];
-    expect(continuation(after(first), [...first, user("two")])).toBeUndefined();
+    expect(continuation(after(first), [...first, user("two")])).toEqual({
+      kind: "restart",
+      reason: "message 2 is user, not the reply",
+    });
   });
 });

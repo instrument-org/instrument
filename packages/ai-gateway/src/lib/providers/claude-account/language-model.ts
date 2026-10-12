@@ -75,6 +75,9 @@ type Continuation =
   | { kind: "tool-results"; results: LanguageModelV4ToolResultPart[] }
   | { kind: "turn"; messages: LanguageModelV4Message[] };
 
+/** Why a request cannot continue the running process, for the log. */
+type Restart = { kind: "restart"; reason: string };
+
 /**
  * A message the workspace says for one request and keeps nowhere, such as a
  * notice of how much context is left. It is sent with the turn it rides on,
@@ -115,8 +118,8 @@ function fingerprintOf(message: LanguageModelV4Message) {
 }
 
 /**
- * How a request follows from what the running process saw, or nothing when
- * it does not and the process has to start over from our transcript. It
+ * How a request follows from what the running process saw, or why it does
+ * not and the process has to start over from our transcript. It
  * follows when every message the process saw opens the request unchanged,
  * then the reply it gave, then either the results of the tools that reply
  * called or a new turn.
@@ -126,38 +129,55 @@ export function continuationOf(
   kept: LanguageModelV4Message[],
   keptPrints: string[],
   transient: LanguageModelV4Message[],
-): Continuation | undefined {
+): Continuation | Restart {
+  const restart = (reason: string): Restart => ({ kind: "restart", reason });
   const { seen } = session;
-  if (seen.length === 0 || kept.length <= seen.length) {
-    return undefined;
+  if (seen.length === 0) {
+    return restart("the process saw no messages");
   }
-  if (seen.some((print, index) => keptPrints[index] !== print)) {
-    return undefined;
+  if (kept.length <= seen.length) {
+    return restart(
+      `the request has ${kept.length} messages, the process saw ${seen.length}`,
+    );
+  }
+  const changed = seen.findIndex((print, index) => keptPrints[index] !== print);
+  if (changed !== -1) {
+    return restart(
+      `message ${changed} of ${seen.length} (${kept[changed]?.role}) changed since the process saw it`,
+    );
   }
   const [reply, ...unseen] = kept.slice(seen.length);
   if (reply?.role !== "assistant") {
-    return undefined;
+    return restart(`message ${seen.length} is ${reply?.role}, not the reply`);
   }
+  const roles = unseen.map((message) => message.role).join(", ") || "none";
   if (session.awaitingToolCallIds.length > 0) {
     const [results] = unseen;
     if (unseen.length !== 1 || results?.role !== "tool") {
-      return undefined;
+      return restart(
+        `awaiting ${session.awaitingToolCallIds.length} tool results, the reply is followed by ${roles}`,
+      );
     }
     const parts = results.content.filter(
       (part): part is LanguageModelV4ToolResultPart =>
         part.type === "tool-result",
     );
     const answered = new Set(parts.map((part) => part.toolCallId));
-    return session.awaitingToolCallIds.every((id) => answered.has(id))
+    const missing = session.awaitingToolCallIds.filter(
+      (id) => !answered.has(id),
+    );
+    return missing.length === 0
       ? { kind: "tool-results", results: parts }
-      : undefined;
+      : restart(
+          `results answer ${parts.length} calls and leave ${missing.length} of ${session.awaitingToolCallIds.length} unanswered`,
+        );
   }
   return unseen.length > 0 &&
     unseen.every(
       (message) => message.role === "user" || message.role === "system",
     )
     ? { kind: "turn", messages: [...unseen, ...transient] }
-    : undefined;
+    : restart(`no tool results awaited, the reply is followed by ${roles}`);
 }
 
 function streamStep({
@@ -213,12 +233,12 @@ function streamStep({
       options.abortSignal?.addEventListener("abort", onAbort, { once: true });
 
       try {
-        if (!continuation || !session) {
-          if (session) {
+        if (!continuation || !session || continuation.kind === "restart") {
+          if (continuation?.kind === "restart" && session) {
             // The running process saw something other than what this request
             // continues, so it starts over from a lossy replay of ours.
             console.warn(
-              `[claude-account] session ${session.key} restarted from a transcript replay`,
+              `[claude-account] session ${session.key} restarted from a transcript replay: ${continuation.reason}`,
             );
             session.close();
           }

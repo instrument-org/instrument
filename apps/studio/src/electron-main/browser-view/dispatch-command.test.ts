@@ -731,51 +731,88 @@ describe("sendCommand", () => {
       expect(wcSendCommand).toHaveBeenCalledTimes(3);
     });
 
+    // The element was measured at box(393), whose center is 5,398; each case
+    // lists what the re-measures before the press answer.
     it.each([
-      ["refuses", 356, /layout shifted/],
-      ["sends", 393, null],
-    ])(
-      "%s a press when the element measures at y=%s again",
-      async (_label, yNow, refusal) => {
-        const boxes = [box(393), box(yNow)];
-        const wcSendCommand = vi
-          .fn()
-          .mockImplementation((method: string) =>
-            Promise.resolve(method === "DOM.getBoxModel" ? boxes.shift() : {}),
-          );
-        const entry = makeEntry({ sendCommand: wcSendCommand });
-        const entries = new Map([[TARGET_ID, entry]]);
-        const send = (method: string, params: unknown) =>
-          sendCommand({
-            ensureDebuggerAttached: vi.fn(),
-            entries,
-            method,
-            params,
-            targetId: TARGET_ID,
-          });
-
-        await send("DOM.getBoxModel", { backendNodeId: 7 });
-        const press = send("Input.dispatchMouseEvent", {
-          type: "mousePressed",
-          x: 5,
-          y: 398,
-        });
-
-        if (refusal) {
-          await expect(press).rejects.toThrow(refusal);
-          expect(wcSendCommand).not.toHaveBeenCalledWith(
-            "Input.dispatchMouseEvent",
-            expect.anything(),
-          );
-        } else {
-          await press;
-          expect(wcSendCommand).toHaveBeenCalledWith(
-            "Input.dispatchMouseEvent",
-            expect.objectContaining({ type: "mousePressed" }),
-          );
-        }
+      {
+        label: "sends an unmoved press as it came",
+        remeasures: [box(393)],
+        sentAt: { x: 5, y: 398 },
       },
-    );
+      {
+        label: "sends a press and its release to where a moved element settled",
+        remeasures: [box(356), box(356)],
+        sentAt: { x: 5, y: 361 },
+      },
+      {
+        label: "refuses a press when the moved element is gone",
+        refusal: /can no longer be found.*Take a snapshot/,
+        remeasures: [box(356), "detached"],
+      },
+      {
+        label: "refuses a press when the element is gone straight away",
+        refusal: /can no longer be found.*Take a snapshot/,
+        remeasures: ["detached"],
+      },
+      {
+        label: "refuses a press when the element keeps moving",
+        refusal: /kept moving/,
+        remeasures: [box(356), box(320)],
+      },
+    ])("$label", async ({ refusal, remeasures, sentAt }) => {
+      const answers: unknown[] = [box(393), ...remeasures];
+      const wcSendCommand = vi.fn().mockImplementation((method: string) => {
+        if (method !== "DOM.getBoxModel") {
+          return Promise.resolve({});
+        }
+        const answer = answers.shift();
+        return answer === "detached"
+          ? Promise.reject(new Error("Node is detached from document"))
+          : Promise.resolve(answer);
+      });
+      const entry = makeEntry({ sendCommand: wcSendCommand });
+      const entries = new Map([[TARGET_ID, entry]]);
+      const send = (method: string, params: unknown) =>
+        sendCommand({
+          ensureDebuggerAttached: vi.fn(),
+          entries,
+          method,
+          params,
+          targetId: TARGET_ID,
+        });
+      const click = { button: "left", clickCount: 1, x: 5, y: 398 };
+
+      await send("DOM.getBoxModel", { backendNodeId: 7 });
+      const press = send("Input.dispatchMouseEvent", {
+        ...click,
+        type: "mousePressed",
+      });
+
+      if (refusal) {
+        await expect(press).rejects.toThrow(refusal);
+        expect(wcSendCommand).not.toHaveBeenCalledWith(
+          "Input.dispatchMouseEvent",
+          expect.anything(),
+        );
+        return;
+      }
+      await press;
+      await send("Input.dispatchMouseEvent", {
+        ...click,
+        type: "mouseReleased",
+      });
+      expect(answers).toHaveLength(0);
+      expect(
+        wcSendCommand.mock.calls.filter(
+          ([m]) => m === "Input.dispatchMouseEvent",
+        ),
+      ).toEqual(
+        ["mousePressed", "mouseReleased"].map((type) => [
+          "Input.dispatchMouseEvent",
+          { ...click, ...sentAt, type },
+        ]),
+      );
+    });
 
     it("runs any other evaluation once", async () => {
       const wcSendCommand = vi.fn().mockResolvedValue({ result: {} });

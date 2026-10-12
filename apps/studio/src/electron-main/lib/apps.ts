@@ -13,12 +13,17 @@ import {
   appOAuthStore,
   clearAppOAuth,
 } from "@/electron-main/stores/workspace/app-oauth";
+import { settleSignIn } from "@/electron-main/browser-view/history-intents";
+import { settleConnection } from "@/electron-main/lib/app-connection";
 import { PORTS } from "@instrument-org/shared";
 import {
+  cancelMcpOAuth,
   catalogEntryForApp,
+  completeMcpOAuth,
   findAppIcon,
   loadApp,
   appChanged,
+  pendingMcpOAuthSlug,
   type WorkspaceConfig,
 } from "@instrument-org/workspace/electron";
 
@@ -139,4 +144,67 @@ export async function disconnectApp(
   clearAppOAuth(slug);
   await appConnectionStore.remove(slug);
   await appChanged(slug, { event });
+}
+
+/** How a sign-in that came back to the app callback ended, for its page. */
+export type AppCallbackOutcome =
+  | { opensIn: "app" | "external"; outcome: "connected"; slug: string }
+  | { outcome: "declined"; slug: string }
+  /** The browser came back to a sign-in nobody was waiting for. */
+  | { outcome: "expired" }
+  | { error: string; outcome: "failed"; slug: string };
+
+/**
+ * Finish the parked sign-in an app's provider sent the browser back for: the
+ * code becomes tokens and the app becomes connected, or a denial is a
+ * decline, the same as "Not now" on the card. Either way the window and the
+ * chat hear of it.
+ */
+export async function receiveAppCallback(
+  params: URLSearchParams,
+): Promise<AppCallbackOutcome> {
+  const code = params.get("code") ?? undefined;
+  const state = params.get("state") ?? undefined;
+  const oauthError = params.get("error") ?? undefined;
+  const appsDir = getAppsDir();
+  const slug = state === undefined ? undefined : pendingMcpOAuthSlug(state);
+  // The sign-in's pages in the window's browser end with this one: where
+  // the tab goes next is the person's own history again.
+  if (slug !== undefined) {
+    settleSignIn(slug);
+  }
+  if (state !== undefined && (oauthError !== undefined || code === undefined)) {
+    // Denied or abandoned in the provider's page: the flow is torn down.
+    await cancelMcpOAuth(state);
+    if (slug === undefined || !appsDir) {
+      return { outcome: "expired" };
+    }
+    await settleConnection(slug, { status: "declined" });
+    return { outcome: "declined", slug };
+  }
+  if (code === undefined || state === undefined) {
+    return { outcome: "expired" };
+  }
+  const result = await completeMcpOAuth({ code, state });
+  if (result.isErr()) {
+    // No flow was waiting for this state: an old tab or a second visit.
+    if (slug === undefined) {
+      return { outcome: "expired" };
+    }
+    if (appsDir) {
+      await settleConnection(slug, {
+        error: result.error.message,
+        status: "failed",
+      });
+    }
+    return { error: result.error.message, outcome: "failed", slug };
+  }
+  if (appsDir) {
+    await announceConnected(result.value.slug);
+  }
+  return {
+    opensIn: result.value.opensIn,
+    outcome: "connected",
+    slug: result.value.slug,
+  };
 }

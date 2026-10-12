@@ -29,13 +29,11 @@ import {
   catalogEntryForApp,
   catalogKeyHelp,
   getAppCatalog,
-  isConnected,
   isMcpManifest,
   listApps,
   listMcpTools,
   loadApp,
   readAppGuide,
-  recordConnection,
   removeLocalServer,
   setAppAccount,
   setUpFromDirectory,
@@ -58,29 +56,20 @@ import {
   appOAuthRelayUrl,
   disconnectApp,
 } from "../../lib/apps";
+import {
+  AppStandingSchema,
+  settleConnection,
+  standingOf,
+} from "../../lib/app-connection";
 import { accountSignedInOn } from "../../lib/web-sign-in-account";
 import {
   expectSignIn,
   settleSignIn,
 } from "@/electron-main/browser-view/history-intents";
 
-/** Where an app stands, as the Apps screen draws it. */
-const AppStandingSchema = z.enum([
-  "connected",
-  "declined",
-  "failed",
-  "needs-approval",
-  "needs-key",
-  "needs-sign-in",
-  // A manifest the agent edited since the connection passed.
-  "stale",
-  "untested",
-]);
-
-const AppListItemSchema = z.object({
+const AppListItemBaseSchema = z.object({
   /** Which account of the service the app is signed in as, when the agent or the user named it. */
   account: z.string().optional(),
-  authKind: z.string(),
   connection: AppConnectionSchema.optional(),
   /**
    * Where a key or sign-in given now would go: the card shows it and sends it
@@ -97,23 +86,44 @@ const AppListItemSchema = z.object({
   home: z.string().optional(),
   /** The app's own icon from its folder, else its Mac app's for a local server that drives one, else the directory's; drawn in place of the site's. */
   icon: z.string().optional(),
-  /** For an app opened with a key, where the directory says the user makes one, and what to do there. */
-  keyHelp: z
-    .object({ page: z.string(), steps: z.string().optional() })
-    .optional(),
   name: z.string(),
-  /** For an app whose server runs here, what runs, in words. */
-  runs: z.string().optional(),
-  /** For a web app, the page its sign-in opens in the window's browser. */
-  signIn: z.string().optional(),
   /** The directory's slug for the service the app reaches, shared by every app of that service. */
   service: z.string().optional(),
   /** The service's origin, for its icon. */
   site: z.string().optional(),
   slug: z.string(),
   standing: AppStandingSchema,
-  type: z.enum(["api", "mcp", "mcp-local", "web"]),
 });
+
+/** For an app opened with a key, where the directory says the user makes one, and what to do there. */
+const KeyHelpSchema = z
+  .object({ page: z.string(), steps: z.string().optional() })
+  .optional();
+
+const AppListItemSchema = z.discriminatedUnion("type", [
+  AppListItemBaseSchema.extend({
+    authKind: z.enum(["basic", "bearer", "header", "none", "query"]),
+    keyHelp: KeyHelpSchema,
+    type: z.literal("api"),
+  }),
+  AppListItemBaseSchema.extend({
+    authKind: z.enum(["bearer", "header", "none", "oauth"]),
+    keyHelp: KeyHelpSchema,
+    type: z.literal("mcp"),
+  }),
+  AppListItemBaseSchema.extend({
+    authKind: z.enum(["env", "none"]),
+    keyHelp: KeyHelpSchema,
+    /** What runs on this computer, in words. */
+    runs: z.string(),
+    type: z.literal("mcp-local"),
+  }),
+  AppListItemBaseSchema.extend({
+    /** The page its sign-in opens in the window's browser. */
+    signIn: z.string(),
+    type: z.literal("web"),
+  }),
+]);
 
 /**
  * The app's own icon, else its Mac app's, else the icon the directory's entry
@@ -196,46 +206,61 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
     apps: await Promise.all(
       apps.map(async (app) => {
         const connection = connections[app.slug];
-        const standing =
-          connection === undefined
-            ? "untested"
-            : connection.status === "connected"
-              ? isConnected(connection, app.manifestHash)
-                ? "connected"
-                : "stale"
-              : connection.status;
-        return {
+        const listed = {
           ...(app.manifest.account ? { account: app.manifest.account } : {}),
-          // A web app has no auth binding: the user signs in on the site.
-          authKind:
-            app.manifest.type === "web" ? "web" : app.manifest.auth.kind,
           connection,
           credentialOrigin: credentialOrigin(app.manifest),
           dir: app.dir,
-          endpoint:
-            app.manifest.type === "api"
-              ? app.manifest.baseUrl
-              : app.manifest.type === "mcp" || app.manifest.type === "web"
-                ? app.manifest.url
-                : app.manifest.package,
           hasCredential: hasAppCredential(app.slug),
           hasGuide: (await readAppGuide(app.dir)) !== null,
           home: appHomeFor(app.slug, app.manifest),
           ...(await iconFor(app)),
-          ...keyHelpFor(app.slug, app.manifest),
           name: app.manifest.name,
-          ...(app.manifest.type === "mcp-local"
-            ? { runs: describeLocalLaunch(app.manifest) }
-            : {}),
-          ...(app.manifest.type === "web"
-            ? { signIn: app.manifest.signIn ?? app.manifest.url }
-            : {}),
           ...withService(catalogEntryForApp(app.slug, app.manifest)?.slug),
           site: appSiteFor(app.slug, app.manifest),
           slug: app.slug,
-          standing,
-          type: app.manifest.type,
+          standing: standingOf(connection, app.manifestHash),
         };
+        const { manifest } = app;
+        switch (manifest.type) {
+          case "api": {
+            return {
+              ...listed,
+              authKind: manifest.auth.kind,
+              endpoint: manifest.baseUrl,
+              ...keyHelpFor(app.slug, manifest),
+              type: manifest.type,
+            };
+          }
+          case "mcp": {
+            return {
+              ...listed,
+              authKind: manifest.auth.kind,
+              endpoint: manifest.url,
+              ...keyHelpFor(app.slug, manifest),
+              type: manifest.type,
+            };
+          }
+          case "mcp-local": {
+            return {
+              ...listed,
+              authKind: manifest.auth.kind,
+              endpoint: manifest.package,
+              ...keyHelpFor(app.slug, manifest),
+              runs: describeLocalLaunch(manifest),
+              type: manifest.type,
+            };
+          }
+          case "web": {
+            // A web app has no auth binding: the user signs in on the site.
+            return {
+              ...listed,
+              endpoint: manifest.url,
+              signIn: manifest.signIn ?? manifest.url,
+              type: manifest.type,
+            };
+          }
+        }
       }),
     ),
     invalid,
@@ -476,11 +501,10 @@ async function withInspectorClient<T>({
     // the manifest names now, leaves the app needing a key: the page asks
     // for one, and nothing is captured as a fault.
     const message = error instanceof Error ? error.message : String(error);
-    await recordConnection(slug, {
+    await settleConnection(slug, {
       error: message.slice(0, 300),
       status: "needs-key",
     });
-    await appChanged(slug);
     throw errors.UNAUTHORIZED({ message });
   }
   const result = await withAppMcpClient({
@@ -497,11 +521,10 @@ async function withInspectorClient<T>({
     // and its page asks again, instead of reading as connected with nothing
     // working behind it. No chat hears of it until someone writes.
     if (result.error.reason === "unauthorized") {
-      await recordConnection(slug, {
+      await settleConnection(slug, {
         error: result.error.message.slice(0, 300),
         status: manifest.auth.kind === "oauth" ? "needs-sign-in" : "needs-key",
       });
-      await appChanged(slug);
       throw errors.UNAUTHORIZED({ message: result.error.message });
     }
     // Carried as the cause so a server that is not there (a desktop app's
@@ -589,15 +612,11 @@ const startOAuth = base
       store: appOAuthStore,
     });
     if (result.isErr()) {
-      await recordConnection(input.slug, {
-        error: result.error.message,
-        status: "failed",
-      });
       // A sign-in that cannot start is as much news as one that finished:
       // the conversation asked for it, and is the one to say what now.
-      await appChanged(input.slug, {
-        detail: result.error.message,
-        event: "failed",
+      await settleConnection(input.slug, {
+        error: result.error.message,
+        status: "failed",
       });
       // Carried as the cause so a sign-in that could not start because the
       // network is down is not captured as a fault.
@@ -689,7 +708,7 @@ const allow = base
     if (loaded.isErr()) {
       throw errors.NOT_FOUND({ message: loaded.error.message });
     }
-    await recordConnection(input.slug, {
+    await settleConnection(input.slug, {
       approvedManifestHash: loaded.value.manifestHash,
       status: "needs-approval",
     });
@@ -760,13 +779,10 @@ const markWebSignedIn = base
     if (signedIn.isErr()) {
       throw errors.NOT_FOUND({ message: signedIn.error.message });
     }
-    await recordConnection(input.slug, {
-      connectedAt: Date.now(),
-      error: undefined,
+    await settleConnection(input.slug, {
       manifestHash: signedIn.value.manifestHash,
       status: "connected",
     });
-    await appChanged(input.slug, { event: "connected" });
   });
 
 /**
@@ -809,7 +825,7 @@ const setAccount = base
 const dismiss = base
   .input(z.object({ slug: AppSlugSchema }))
   .handler(async ({ input }) => {
-    await decline(input.slug);
+    await settleConnection(input.slug, { status: "declined" });
   });
 
 /** Take the key or sign-in away; the folder stays, for connecting again. */
@@ -844,11 +860,6 @@ const test = base
     await appChanged(input.slug);
     return report;
   });
-
-async function decline(slug: string) {
-  await recordConnection(slug, { status: "declined" });
-  await appChanged(slug, { event: "declined" });
-}
 
 export const apps = {
   allow,

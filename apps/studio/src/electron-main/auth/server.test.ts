@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   openrouter: vi.fn(),
   instrument: vi.fn(),
   capture: vi.fn(),
-  completeApp: vi.fn(),
+  app: vi.fn<(params: URLSearchParams) => Promise<unknown>>(),
 }));
 
 vi.mock("./client", () => ({
@@ -20,10 +20,10 @@ vi.mock("./page", () => ({
   renderAuthPage: (page: { kind: string }) => page.kind,
 }));
 vi.mock("../lib/apps", () => ({
-  announceConnected: vi.fn(),
   appMark: vi.fn(),
   appName: vi.fn(),
   getAppsDir: () => undefined,
+  receiveAppCallback: mocks.app,
 }));
 vi.mock("../lib/chatgpt-account", () => ({
   receiveChatGPTCallback: mocks.chatgpt,
@@ -36,14 +36,6 @@ vi.mock("../lib/capture-server-exception", () => ({
 }));
 vi.mock("../lib/directory-icons", () => ({ directoryIconDataUri: vi.fn() }));
 vi.mock("../windows/foreground", () => ({ focusAppWindow: vi.fn() }));
-vi.mock("../browser-view/history-intents", () => ({ settleSignIn: vi.fn() }));
-vi.mock("@instrument-org/workspace/electron", () => ({
-  appChanged: vi.fn(),
-  cancelMcpOAuth: vi.fn(),
-  completeMcpOAuth: mocks.completeApp,
-  pendingMcpOAuthSlug: () => undefined,
-  recordConnection: vi.fn(),
-}));
 
 import { createAuthCallbackApp } from "./server";
 import { AUTH_CALLBACK_PATHS } from "./routes";
@@ -114,15 +106,19 @@ describe("the assembled auth callback server", () => {
   });
 
   it("routes connected apps independently", async () => {
-    mocks.completeApp.mockResolvedValue({ isErr: () => true });
+    mocks.app.mockResolvedValue({
+      error: "refused",
+      outcome: "failed",
+      slug: "linear",
+    });
     const response = await createAuthCallbackApp().request(
       `${AUTH_CALLBACK_PATHS.app}?state=app-state&code=code`,
     );
     expect(response.status).toBe(400);
-    expect(mocks.completeApp).toHaveBeenCalledWith({
-      code: "code",
-      state: "app-state",
-    });
+    expect(await response.text()).toBe("failed");
+    expect(mocks.app.mock.lastCall?.[0].toString()).toBe(
+      "state=app-state&code=code",
+    );
     expect(mocks.chatgpt).not.toHaveBeenCalled();
   });
 

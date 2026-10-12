@@ -569,7 +569,7 @@ export function AppFront({
                     alongside={withInstrument}
                     kind="run"
                     name={name}
-                    runs={app.runs}
+                    runs={app.type === "mcp-local" ? app.runs : undefined}
                     slug={slug}
                   />
                 ) : app?.standing === "needs-key" ? (

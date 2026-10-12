@@ -10,10 +10,10 @@ import {
 import { AUTH_CALLBACK_PATHS } from "@/electron-main/auth/routes";
 import { setAuthServerPort } from "@/electron-main/auth/state";
 import {
-  announceConnected,
   appMark,
   appName,
   getAppsDir,
+  receiveAppCallback,
 } from "@/electron-main/lib/apps";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { directoryIconDataUri } from "@/electron-main/lib/directory-icons";
@@ -22,16 +22,8 @@ import { receiveOpenRouterCallback } from "@/electron-main/lib/openrouter-connec
 import { focusAppWindow } from "@/electron-main/windows/foreground";
 import { serve } from "@hono/node-server";
 import { listenWithPortFallback, PORTS } from "@instrument-org/shared";
-import {
-  appChanged,
-  cancelMcpOAuth,
-  completeMcpOAuth,
-  pendingMcpOAuthSlug,
-  recordConnection,
-} from "@instrument-org/workspace/electron";
 import { type Context, type Handler, Hono } from "hono";
 import fs from "node:fs/promises";
-import { settleSignIn } from "../browser-view/history-intents";
 
 const DEFAULT_PORT =
   process.env.NODE_ENV === "development"
@@ -219,94 +211,43 @@ export function createAuthCallbackApp() {
     }
   });
 
-  // An app's sign-in lands here after the user approves. Finish the parked
-  // flow (the code becomes tokens, the app becomes connected), then tell the
-  // window and the chat. The page opened in the window's own browser,
-  // so this renders where the user is looking rather than pulling focus.
+  // An app's sign-in lands here after the user approves. The page opened in
+  // the window's own browser, so this renders where the user is looking
+  // rather than pulling focus.
   get(AUTH_CALLBACK_PATHS.app, async (c) => {
-    const code = c.req.query("code");
-    const state = c.req.query("state");
-    const oauthError = c.req.query("error");
-    const appsDir = getAppsDir();
-    // The sign-in's pages in the window's browser end with this one: where
-    // the tab goes next is the person's own history again.
-    const settling =
-      state === undefined ? undefined : pendingMcpOAuthSlug(state);
-    if (settling !== undefined) {
-      settleSignIn(settling);
-    }
-    if (
-      state !== undefined &&
-      (oauthError !== undefined || code === undefined)
-    ) {
-      // Denied or abandoned in the provider's page: the flow is torn down and
-      // the conversation hears a decline, the same as "Not now" on the card.
-      const slug = pendingMcpOAuthSlug(state);
-      await cancelMcpOAuth(state);
-      if (slug === undefined || !appsDir) {
-        return c.html(renderAuthPage({ kind: "expired" }), 400);
-      }
-      await recordConnection(slug, { status: "declined" });
-      await appChanged(slug, { event: "declined" });
-      const name = await appName(appsDir, slug);
-      focusAppWindow();
-      return c.html(
-        renderAuthPage({
-          kind: "declined",
-          service: { mark: await appMark(appsDir, slug), name },
-        }),
-      );
-    }
-    if (code === undefined || state === undefined) {
+    const result = await receiveAppCallback(new URL(c.req.url).searchParams);
+    if (result.outcome === "expired") {
       return c.html(renderAuthPage({ kind: "expired" }), 400);
     }
-    const slug = pendingMcpOAuthSlug(state);
-    const result = await completeMcpOAuth({ code, state });
-    if (result.isErr()) {
-      // No flow was waiting for this state: an old tab or a second visit.
-      if (slug === undefined) {
-        return c.html(renderAuthPage({ kind: "expired" }), 400);
+    const appsDir = getAppsDir();
+    const name = appsDir ? await appName(appsDir, result.slug) : result.slug;
+    const service = {
+      mark: appsDir ? await appMark(appsDir, result.slug) : undefined,
+      name,
+    };
+    switch (result.outcome) {
+      case "connected": {
+        // Either way the tab gets a page that says what happened. The window
+        // takes itself back to the app's page when the sign-in it waited on
+        // lands; one that ran in the user's own browser also brings the
+        // window to the front, so that way back is already taken.
+        if (result.opensIn !== "app") {
+          focusAppWindow();
+        }
+        return c.html(renderAuthPage({ kind: "connected", service }));
       }
-      const name = appsDir ? await appName(appsDir, slug) : slug;
-      const page = failed(
-        new Error(`App sign-in failed: ${result.error.message}`),
-        { connecting: name },
-      );
-      if (appsDir) {
-        await recordConnection(slug, {
-          error: result.error.message,
-          status: "failed",
-        });
-        await appChanged(slug, {
-          detail: result.error.message,
-          event: "failed",
-        });
+      case "declined": {
+        focusAppWindow();
+        return c.html(renderAuthPage({ kind: "declined", service }));
       }
-      focusAppWindow();
-      return c.html(page, 400);
+      case "failed": {
+        const page = failed(new Error(`App sign-in failed: ${result.error}`), {
+          connecting: name,
+        });
+        focusAppWindow();
+        return c.html(page, 400);
+      }
     }
-    const name = appsDir
-      ? await appName(appsDir, result.value.slug)
-      : result.value.slug;
-    if (appsDir) {
-      await announceConnected(result.value.slug);
-    }
-    // Either way the tab gets a page that says what happened. The window
-    // takes itself back to the app's page when the sign-in it waited on
-    // lands; one that ran in the user's own browser also brings the window
-    // to the front, so that way back is already taken.
-    if (result.value.opensIn !== "app") {
-      focusAppWindow();
-    }
-    return c.html(
-      renderAuthPage({
-        kind: "connected",
-        service: {
-          mark: appsDir ? await appMark(appsDir, result.value.slug) : undefined,
-          name,
-        },
-      }),
-    );
   });
 
   // Sign in with ChatGPT lands here. The sign-in is finished before the page

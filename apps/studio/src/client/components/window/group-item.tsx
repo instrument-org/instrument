@@ -37,6 +37,7 @@ import { TabLocationRow } from "./tab-location-row";
 import { isHomeTab } from "./tab-model";
 import { useTaskTitles } from "./task-titles";
 import { useTabSteps } from "./use-tab-steps";
+import { chatOfGroup } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /**
@@ -290,6 +291,11 @@ export function GroupItem({
         <WindowContext
           value={{
             ...appWindow,
+            // Beside a chat, a screen's Ask would only open a draft over the
+            // chat that is already there to ask.
+            ...(chatOfGroup(group) === undefined
+              ? {}
+              : { askAbout: undefined }),
             // A chat's tasks and each task's page walk this tab in place.
             openScreen: (href, options) => {
               if (tasksOfHref(href) && !options?.newTab && router) {

@@ -409,16 +409,22 @@ describe("activity order", () => {
 
 describe("chat order by the user's messages", () => {
   it("ignores agent activity and moves a chat when the user messages it", () => {
+    const first = {
+      id: "a",
+      createdAt: 1,
+      lastUserMessageAt: 3,
+      updatedAt: 10,
+    };
     const chats = [
-      { id: "a", createdAt: 1, lastUserMessageAt: 3, updatedAt: 10 },
+      first,
       { id: "b", createdAt: 2, lastUserMessageAt: 4, updatedAt: 5 },
     ];
-    expect(byLastUserMessage(chats).map((chat) => chat.id)).toEqual(["b", "a"]);
-    chats[0]!.updatedAt = 20;
-    expect(byLastUserMessage(chats).map((chat) => chat.id)).toEqual(["b", "a"]);
-    chats[0]!.lastUserMessageAt = 6;
-    expect(byLastUserMessage(chats).map((chat) => chat.id)).toEqual(["a", "b"]);
-    expect(chats.map((chat) => chat.id)).toEqual(["a", "b"]);
+    expect(byLastUserMessage(chats).map((row) => row.id)).toEqual(["b", "a"]);
+    first.updatedAt = 20;
+    expect(byLastUserMessage(chats).map((row) => row.id)).toEqual(["b", "a"]);
+    first.lastUserMessageAt = 6;
+    expect(byLastUserMessage(chats).map((row) => row.id)).toEqual(["a", "b"]);
+    expect(chats.map((row) => row.id)).toEqual(["a", "b"]);
   });
 
   it("keeps the given order for chats messaged at the same moment", () => {
@@ -427,7 +433,7 @@ describe("chat order by the user's messages", () => {
         { id: "a", lastUserMessageAt: 1 },
         { id: "b", lastUserMessageAt: 3 },
         { id: "c", lastUserMessageAt: 3 },
-      ]).map((chat) => chat.id),
+      ]).map((row) => row.id),
     ).toEqual(["b", "c", "a"]);
   });
 });

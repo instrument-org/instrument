@@ -202,13 +202,13 @@ const GH_MARKER = "violet-anchor-8842";
  * into the same home lands inside this run's window, so a planted file
  * counts as a write only once its content changes.
  */
-const planted = new Map<string, string>();
+const plantedContent = new Map<string, string>();
 
 function plantHome() {
   const home = os.homedir();
   const plant = (relative: string, content: string, mode = 0o600) => {
     const file = path.join(home, relative);
-    planted.set(file, content);
+    plantedContent.set(file, content);
     if (!fs.existsSync(file)) {
       fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
       fs.writeFileSync(file, content, { mode });
@@ -423,8 +423,8 @@ function homeWrites(window: { end: number; start: number }): string[] {
           at >= window.start &&
           at <= window.end &&
           !(
-            planted.has(file) &&
-            planted.get(file) === fs.readFileSync(file, "utf8")
+            plantedContent.has(file) &&
+            plantedContent.get(file) === fs.readFileSync(file, "utf8")
           )
         );
       } catch {

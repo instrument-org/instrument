@@ -183,7 +183,8 @@ export function windowsDrives(
   systemDrive = process.env.SystemDrive ?? "C:",
 ): string[] {
   const system = systemDrive.slice(0, 1).toUpperCase();
-  return [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"]
+  return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    .split("")
     .filter((letter) => letter !== system)
     .map((letter) => `${letter}:\\`)
     .filter((root) => exists(root));

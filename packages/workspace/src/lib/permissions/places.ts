@@ -38,18 +38,21 @@ export const PLACE_DEFAULTS = {
   drives: "ask",
   icloud: "ask",
   output: "allow",
-  passwords: "never",
+  passwords: "ask",
 } as const satisfies Record<PlaceId, Level>;
 
 /**
- * Places in the home folder that hold sign-ins rather than work: keys, cloud
- * and CLI credentials, password stores, and browser profiles with their
- * cookies. Any of them is enough to act as the person somewhere else.
+ * Places in the home folder where command-line tools keep the person's
+ * sign-ins: SSH and GPG keys, cloud and CLI credentials, password stores.
+ * The passwords place's level holds them, Ask first by default, so one card
+ * lets `ssh` or `aws` work in a chat. Each asks for itself, whatever folder
+ * in it the agent ran into, and "Use folders without asking" leaves them
+ * asking: the switch is for folders of work.
  *
  * `~/.npmrc` and `~/.gitconfig` are left out: pnpm and uv read them for
  * registry and proxy settings, and git's own env already ignores the config.
  */
-const PASSWORD_PLACES = [
+const SIGN_IN_PLACES = [
   ".ssh",
   ".gnupg",
   ".aws",
@@ -62,6 +65,15 @@ const PASSWORD_PLACES = [
   ".config/gh",
   ".config/op",
   ".password-store",
+];
+
+/**
+ * Places that hold every sign-in the person has at once: the Keychain,
+ * cookies, browser profiles and 1Password's own data. They stay closed
+ * unless the passwords place is set to Allowed, with no card to ask: no one
+ * job needs a whole browser's sessions.
+ */
+const PASSWORD_PLACES = [
   "Library/Keychains",
   "Library/Cookies",
   "Library/Application Support/Google/Chrome",
@@ -128,8 +140,11 @@ export const DANGEROUS_NAMES = [".git/hooks", ".gitconfig", ".vscode"];
 /**
  * A place as paths on this computer. `homeDotEntries` stands for every
  * hidden entry directly in the home folder, which no single path covers.
+ * `closedUnlessAllowed` are paths in the place that stay Not allowed while
+ * the place asks first.
  */
 export interface PlacePaths {
+  closedUnlessAllowed?: string[];
   homeDotEntries?: true;
   id: PlaceId;
   paths: string[];
@@ -149,7 +164,11 @@ export function placePaths(home = os.homedir()): PlacePaths[] {
     { id: "desktop", paths: inHome("Desktop") },
     { id: "documents", paths: inHome("Documents") },
     { id: "downloads", paths: inHome("Downloads") },
-    { id: "passwords", paths: inHome(...PASSWORD_PLACES) },
+    {
+      closedUnlessAllowed: inHome(...PASSWORD_PLACES),
+      id: "passwords",
+      paths: inHome(...SIGN_IN_PLACES),
+    },
   ];
   if (mac) {
     places.push(

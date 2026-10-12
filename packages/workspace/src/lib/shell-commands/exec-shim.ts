@@ -111,7 +111,10 @@ export async function execShim(
     ...(onMessage ? { ipc: true } : {}),
     // Only what a program needs of the app's own environment, so a key or
     // token set for the app never reaches a script the agent runs.
-    env: { ...inheritedEnv(), ...subprocessOptions.env },
+    env: {
+      ...inheritedEnv(process.env, spawned.reach),
+      ...subprocessOptions.env,
+    },
     extendEnv: false,
     all: true,
     cancelSignal: sink ? undefined : cancelSignal,

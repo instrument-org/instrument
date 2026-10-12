@@ -148,6 +148,14 @@ export function rulesFor({
     for (const placePath of place.paths) {
       rules.push({ level, path: placePath, place: place.id, source: "place" });
     }
+    for (const placePath of place.closedUnlessAllowed ?? []) {
+      rules.push({
+        level: level === "allow" ? "allow" : "never",
+        path: placePath,
+        place: place.id,
+        source: "place",
+      });
+    }
     if (place.homeDotEntries) {
       rules.push({
         dotEntries: true,
@@ -198,14 +206,29 @@ export const SOURCE_RANK = {
 } as const;
 
 /**
+ * A rule's level with "Use folders without asking" applied: every Ask first
+ * becomes a yes but the passwords place's, which holds sign-ins rather than
+ * work and keeps asking.
+ */
+export function levelWithoutAsking<L extends Access>(
+  level: L,
+  rule: Rule | undefined,
+  withoutAsking: boolean,
+): "allow" | L {
+  return level === "ask" && withoutAsking && rule?.place !== "passwords"
+    ? "allow"
+    : level;
+}
+
+/**
  * Whether the agent may read or change `hostPath`. The deepest rule holding
  * the path decides, so a folder allowed inside a place that asks is allowed,
  * and a folder closed inside it stays closed. Where no rule holds the path,
  * reading is allowed so the agent can find what it needs, and changing
  * anything asks.
  *
- * "Use folders without asking" turns every ask into an allow. Nothing turns a
- * never into anything else.
+ * "Use folders without asking" turns an ask into an allow, but for the
+ * passwords place's. Nothing turns a never into anything else.
  */
 export function reachOf(
   rules: Rules,
@@ -249,7 +272,7 @@ export function reachOf(
   const level =
     access === "readOnly" ? (op === "read" ? "allow" : "never") : access;
   return {
-    level: level === "ask" && rules.withoutAsking ? "allow" : level,
+    level: levelWithoutAsking(level, best?.rule, rules.withoutAsking),
     rule: best?.rule,
   };
 }
@@ -303,7 +326,8 @@ function compiled(rules: Rules) {
  * The folder to ask for when the agent needs `hostPath`: one level below the
  * place or folder rule that asks, so the person sees a name they made rather
  * than the whole of Documents or a folder five levels down. The rule's own
- * folder when the path is that folder or a file directly in it.
+ * folder when the path is that folder or a file directly in it, and always
+ * for a sign-in folder, which is answered for whole.
  */
 export function folderToAskFor({
   home,
@@ -316,6 +340,9 @@ export function folderToAskFor({
   isDirectory: boolean;
   rule: Rule | undefined;
 }): string {
+  if (rule?.place === "passwords") {
+    return rule.path;
+  }
   const root = rule && !rule.dotEntries ? rule.path : home;
   const within = hostPathWithin(root, hostPath);
   if (within === null) {

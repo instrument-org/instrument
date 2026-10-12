@@ -18,6 +18,7 @@ import { raiseAsk, waitingNote } from "./permissions/asks";
 import { DANGEROUS_NAMES, placePaths } from "./permissions/places";
 import {
   folderToAskFor,
+  levelWithoutAsking,
   type Reach,
   reachOf,
   type Rules,
@@ -26,6 +27,9 @@ import {
 import { getWorkspaceConfig } from "./workspace-config";
 
 const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
+
+/** The app's own environment, read live, as any process's. */
+const appEnv: NodeJS.ProcessEnv = process.env;
 
 /**
  * Places in the home folder a native command still writes whatever the
@@ -55,8 +59,22 @@ export function toolPlaces(home = os.homedir()): {
  * applies: the passwords and sign-ins place, as the built-in rules spell it.
  */
 export function credentialPlaces(home = os.homedir()): string[] {
+  const passwords = placePaths(home).find((place) => place.id === "passwords");
+  return [
+    ...(passwords?.paths ?? []),
+    ...(passwords?.closedUnlessAllowed ?? []),
+  ];
+}
+
+/**
+ * Whether a command held to `reach` may use the person's SSH keys, and so
+ * their ssh-agent: the rules allow `~/.ssh`, by a grant in the chat or a
+ * rule in Settings.
+ */
+export function reachesSshKeys(reach: NativeReach): boolean {
+  const { home } = reach.rules;
   return (
-    placePaths(home).find((place) => place.id === "passwords")?.paths ?? []
+    reachOf(reach.rules, path.join(home, ".ssh"), "read").level === "allow"
   );
 }
 
@@ -87,7 +105,11 @@ export function withNativeReach<T>(reach: NativeReach, run: () => T): T {
  * Seatbelt compares real paths, so each one is resolved through any symlink
  * first, including a missing path under a linked folder.
  */
-export function seatbeltProfile(reach: NativeReach): string {
+export function seatbeltProfile(
+  reach: NativeReach,
+  /** The ssh-agent's socket the app was started with, if any. */
+  agentSocket = appEnv.SSH_AUTH_SOCK,
+): string {
   const { home, rules, withoutAsking } = reach.rules;
   const entries: {
     depth: number;
@@ -103,7 +125,7 @@ export function seatbeltProfile(reach: NativeReach): string {
     },
   ];
   for (const rule of rules) {
-    const level = rule.level === "ask" && withoutAsking ? "allow" : rule.level;
+    const level = levelWithoutAsking(rule.level, rule, withoutAsking);
     const filter = (spelled: string) =>
       rule.dotEntries
         ? `(regex #"^${regexEscape(spelled)}/\\.[^/]+(/|$)")`
@@ -180,7 +202,7 @@ export function seatbeltProfile(reach: NativeReach): string {
   // what is in them is a different path and stays as the rules say.
   const closedAbove = new Set<string>();
   for (const rule of rules) {
-    const level = rule.level === "ask" && withoutAsking ? "allow" : rule.level;
+    const level = levelWithoutAsking(rule.level, rule, withoutAsking);
     if (level === "allow" || level === "readOnly" || rule.dotEntries) {
       continue;
     }
@@ -201,12 +223,32 @@ export function seatbeltProfile(reach: NativeReach): string {
       .map((folder) => `(deny file-write* (literal ${sbplString(folder)}))`),
   ];
   // The Keychain is reached through a service rather than a file, so a closed
-  // passwords place closes the service too. Certificate checks go through a
+  // Keychains folder closes the service too. Certificate checks go through a
   // different one, so https still works.
-  const passwords = rules.find((rule) => rule.place === "passwords");
-  if (passwords && passwords.level !== "allow") {
+  const keychains = path.join(home, "Library", "Keychains");
+  if (
+    rules.some(
+      (rule) =>
+        rule.place === "passwords" &&
+        rule.path === keychains &&
+        rule.level !== "allow",
+    )
+  ) {
     texts.push(
       '(deny mach-lookup (global-name "com.apple.SecurityServer") (global-name "com.apple.securityd.xpc"))',
+    );
+  }
+  // The ssh-agent holds the keys in ~/.ssh unlocked, so it opens with that
+  // folder: connecting to its socket is refused until then, and allowed
+  // then wherever the socket lives, a link to it in a closed folder included.
+  if (agentSocket && path.isAbsolute(agentSocket)) {
+    const socket = spellings(agentSocket).map(
+      (spelled) => `(literal ${sbplString(spelled)})`,
+    );
+    texts.push(
+      reachesSshKeys(reach)
+        ? `(allow file-read* network-outbound ${socket.join(" ")})`
+        : `(deny network-outbound ${socket.join(" ")})`,
     );
   }
   // A name that runs code when its folder is used stays closed to changes
@@ -377,7 +419,7 @@ export function bwrapArgs(reach: NativeReach): string[] {
   };
   add(home, "read", -1);
   for (const rule of rules) {
-    const level = rule.level === "ask" && withoutAsking ? "allow" : rule.level;
+    const level = levelWithoutAsking(rule.level, rule, withoutAsking);
     const access =
       level === "allow" ? "write" : level === "readOnly" ? "read" : "none";
     const targets = rule.dotEntries ? dotEntriesIn(rule.path) : [rule.path];

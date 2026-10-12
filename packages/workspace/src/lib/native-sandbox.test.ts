@@ -22,6 +22,7 @@ import {
   seatbeltProfile,
   wrapNativeCommand,
 } from "./native-sandbox";
+import { inheritedEnv } from "./native-env";
 import { type Rule } from "./permissions/rules";
 
 function reachOver(home: string, rules: Rule[]): NativeReach {
@@ -72,6 +73,93 @@ describe("seatbeltProfile", () => {
         "(deny mach-lookup (global-name "com.apple.coreservices.appleevents"))",
       ]
     `);
+  });
+});
+
+describe("the passwords place in a profile", () => {
+  const home = "/nope/home";
+  const socket = "/nope/agent.sock";
+  const lines = (rules: Rule[]) =>
+    seatbeltProfile(reachOver(home, rules), socket)
+      .split("\n")
+      .filter((line) => line.includes(socket) || line.includes("Security"));
+  const signIns: Rule = {
+    level: "ask",
+    path: `${home}/.ssh`,
+    place: "passwords",
+    source: "place",
+  };
+  const keychains: Rule = {
+    level: "never",
+    path: `${home}/Library/Keychains`,
+    place: "passwords",
+    source: "place",
+  };
+
+  it("keeps the Keychain service and the ssh-agent closed while .ssh asks", () => {
+    expect(lines([signIns, keychains])).toMatchInlineSnapshot(`
+      [
+        "(deny mach-lookup (global-name "com.apple.SecurityServer") (global-name "com.apple.securityd.xpc"))",
+        "(deny network-outbound (literal "/nope/agent.sock"))",
+      ]
+    `);
+  });
+
+  it("opens the ssh-agent with .ssh, and leaves the Keychain closed", () => {
+    expect(
+      lines([
+        signIns,
+        keychains,
+        { level: "allow", path: `${home}/.ssh`, source: "grant" },
+      ]),
+    ).toMatchInlineSnapshot(`
+      [
+        "(deny mach-lookup (global-name "com.apple.SecurityServer") (global-name "com.apple.securityd.xpc"))",
+        "(allow file-read* network-outbound (literal "/nope/agent.sock"))",
+      ]
+    `);
+  });
+
+  it("opens the Keychain service when the place is allowed", () => {
+    expect(
+      lines([
+        { ...signIns, level: "allow" },
+        { ...keychains, level: "allow" },
+      ]),
+    ).toMatchInlineSnapshot(`
+      [
+        "(allow file-read* network-outbound (literal "/nope/agent.sock"))",
+      ]
+    `);
+  });
+});
+
+describe("inheritedEnv", () => {
+  const env = { PATH: "/usr/bin", SSH_AUTH_SOCK: "/tmp/agent", TOKEN: "t" };
+  const home = "/nope/home";
+  const signIns: Rule = {
+    level: "ask",
+    path: `${home}/.ssh`,
+    place: "passwords",
+    source: "place",
+  };
+
+  it.each([
+    ["no reach", undefined, false],
+    ["rules where .ssh asks", reachOver(home, [signIns]), false],
+    [
+      "rules with .ssh granted",
+      reachOver(home, [
+        signIns,
+        { level: "allow", path: `${home}/.ssh`, source: "grant" },
+      ]),
+      true,
+    ],
+  ])("keeps the ssh-agent's socket for %s: %s", (_name, reach, kept) => {
+    expect(inheritedEnv(env, reach)).toEqual({
+      PATH: "/usr/bin",
+      ...(kept && { SSH_AUTH_SOCK: "/tmp/agent" }),
+    });
   });
 });
 

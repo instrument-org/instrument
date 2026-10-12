@@ -37,7 +37,7 @@ export function execaNodeForChat<
     // Only what a program needs of the app's own environment; see native-env.
     extendEnv: false,
     env: {
-      ...inheritedEnv(),
+      ...inheritedEnv(process.env, spawned.reach),
       ...baseEnv,
       // Covers what resolveCommandContext cannot: the user's own app processes
       // (spawn-runtime) and anything else spawned for a task. A build script

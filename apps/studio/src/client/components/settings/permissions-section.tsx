@@ -138,6 +138,7 @@ export function PermissionsSection() {
   };
 
   const placeById = new Map(view.places.map((place) => [place.id, place]));
+  const passwordsAsk = placeById.get("passwords")?.level === "ask";
   const placeRows = (
     [
       "output",
@@ -195,7 +196,9 @@ export function PermissionsSection() {
             </span>
             <span className="block text-xs text-muted-foreground">
               {view.withoutAsking
-                ? "Instrument uses any folder that isn't marked Not allowed."
+                ? passwordsAsk
+                  ? "Instrument uses any folder that isn't marked Not allowed, but still asks before using your passwords and keys."
+                  : "Instrument uses any folder that isn't marked Not allowed."
                 : "When a chat needs a folder marked Ask first, Instrument asks you in that chat."}
             </span>
           </span>
@@ -410,8 +413,15 @@ function PlaceRow({
         };
       }
       case "passwords": {
+        // Asking first covers the sign-in folders alone; the browsers and
+        // the Keychain open only when the whole place is allowed.
         return {
-          line: "Keys, sign-ins and browser cookies",
+          line:
+            place.level === "ask"
+              ? isWindows() || isLinux()
+                ? "Folders like .ssh ask first; your browsers stay closed"
+                : "Folders like .ssh ask first; your browsers and Keychain stay closed"
+              : "Keys, sign-ins and browser cookies",
           mark: <KeyIcon className={className} />,
           name: "Passwords and keys",
         };

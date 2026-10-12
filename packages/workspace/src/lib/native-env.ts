@@ -1,3 +1,5 @@
+import { type NativeReach, reachesSshKeys } from "./native-sandbox";
+
 /**
  * What a native command inherits from the app's own environment: the
  * variables a program needs to find itself and its platform, and nothing
@@ -72,9 +74,13 @@ const INHERITED = new Set(
 /**
  * The app's environment as a native command may see it. Names compare
  * without case, as Windows does, and every locale variable (`LC_*`) is kept.
+ * The ssh-agent's socket is kept for a command held to rules that allow
+ * `~/.ssh`, so `ssh` signs in with the keys the agent holds once the person
+ * allowed that folder.
  */
 export function inheritedEnv(
   env: NodeJS.ProcessEnv = process.env,
+  reach?: NativeReach,
 ): Record<string, string> {
   const kept: Record<string, string> = {};
   for (const [name, value] of Object.entries(env)) {
@@ -85,6 +91,9 @@ export function inheritedEnv(
     ) {
       kept[name] = value;
     }
+  }
+  if (env.SSH_AUTH_SOCK && reach && reachesSshKeys(reach)) {
+    kept.SSH_AUTH_SOCK = env.SSH_AUTH_SOCK;
   }
   return kept;
 }

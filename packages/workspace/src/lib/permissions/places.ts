@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
 
+import { SYSTEM_DRIVE } from "../disk-root";
 import { iCloudDrivePath } from "../chat/icloud-drive";
 import { outputFolderPath } from "../chat/output-folder";
 
@@ -199,7 +200,7 @@ export function placePaths(home = os.homedir()): PlacePaths[] {
  */
 export function windowsDrives(
   exists: (root: string) => boolean = existsSync,
-  systemDrive = process.env.SystemDrive ?? "C:",
+  systemDrive = SYSTEM_DRIVE,
 ): string[] {
   const system = systemDrive.slice(0, 1).toUpperCase();
   return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"

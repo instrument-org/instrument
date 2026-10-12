@@ -12,6 +12,7 @@ import nodePath from "node:path";
 
 import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import { type MountedFolder } from "../schemas/mounted-folder";
+import { isClosedDiskRoot } from "./disk-root";
 import { ruleRefusal, rulesFs } from "./permissions/rules-fs";
 import { raiseAsk, waitingNote } from "./permissions/asks";
 import { reachOf, type Rule, type Rules } from "./permissions/rules";
@@ -775,11 +776,7 @@ export function outsideFolderRefusal(
   if (!statSync(folder).isDirectory()) {
     folder = nodePath.dirname(folder);
   }
-  if (
-    rules.asker &&
-    folder !== rules.home &&
-    folder !== nodePath.parse(folder).root
-  ) {
+  if (rules.asker && folder !== rules.home && !isClosedDiskRoot(folder)) {
     raiseAsk(rules.asker, "folder", folder);
     return waitingNote(shellPath(folder));
   }

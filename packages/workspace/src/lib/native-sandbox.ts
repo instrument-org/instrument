@@ -15,6 +15,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import { canonicalizeThroughMissing } from "./host-path";
 import { raiseAsk, waitingNote } from "./permissions/asks";
+import { isClosedDiskRoot } from "./disk-root";
 import { DANGEROUS_NAMES, placePaths } from "./permissions/places";
 import {
   folderToAskFor,
@@ -630,7 +631,7 @@ export function refusalNote(
   if (
     !refused.rules.asker ||
     folder === refused.rules.home ||
-    folder === path.parse(folder).root
+    isClosedDiskRoot(folder)
   ) {
     return `${shown(refused.hostPath)} needs the person's yes first.`;
   }

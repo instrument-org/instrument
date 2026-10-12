@@ -2,6 +2,7 @@ import { type IFileSystem } from "just-bash";
 import nodePath from "node:path";
 
 import { raiseAsk, waitingNote } from "./asks";
+import { isClosedDiskRoot } from "../disk-root";
 import { folderToAskFor, reachOf, type Rules } from "./rules";
 
 /**
@@ -50,7 +51,7 @@ export function ruleRefusal({
     !asks ||
     !rules.asker ||
     folder === rules.home ||
-    folder === nodePath.parse(folder).root
+    isClosedDiskRoot(folder)
   ) {
     return `${spell(hostPath)} needs the person's yes first.`;
   }

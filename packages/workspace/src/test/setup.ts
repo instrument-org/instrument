@@ -39,6 +39,7 @@ setWorkspaceConfig({
   browser: {
     closeTarget: () => Promise.resolve(),
     hasNoWindow: false,
+    isGuestBusy: () => false,
     createTarget: rejectBrowserTarget,
     contentBlocking: () => ({ task: true, workspace: true }),
     getTargetMeta: () => null,

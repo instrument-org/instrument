@@ -10,6 +10,7 @@ import {
   AGENT_BROWSER_PATH,
   AGENT_BROWSER_SOCKET_DIR,
   externalBrowserSessionName,
+  readSessionName,
 } from "./agent-browser";
 import { getExternalBrowserTmpDir } from "./chat-dir-utils";
 
@@ -19,6 +20,7 @@ export async function closeAgentBrowserSessionsForSessions(
   const sessionNames = sessionIds.flatMap((sessionId) => [
     sessionId,
     externalBrowserSessionName(sessionId),
+    readSessionName(sessionId),
   ]);
   await Promise.all(
     sessionNames.map(async (sessionName) => {

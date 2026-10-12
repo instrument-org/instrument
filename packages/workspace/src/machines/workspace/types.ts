@@ -9,9 +9,9 @@ export interface WorkspaceContext {
   config: WorkspaceConfig;
   error?: unknown;
   sessionRefsByChatId: Map<ChatId, SessionActorRef[]>;
-  // The window's browser machine while it has a page or a viewer. Spawned
-  // lazily and dropped on windowBrowser.stopped.
-  windowBrowserRef: null | WindowBrowserActorRef;
+  // The lifetime of the window's browser guests, for as long as the
+  // workspace runs.
+  windowBrowserRef: WindowBrowserActorRef;
   chatsBeingTrashed: ChatId[];
   workspaceServerRef: WorkspaceServerActorRef;
 }

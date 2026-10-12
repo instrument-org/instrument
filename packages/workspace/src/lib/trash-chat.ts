@@ -10,7 +10,14 @@ import { killChatBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
 import { recordRemoved } from "./record-changes";
-import { forgetChat, resolveChat, chatDir } from "./record-folders";
+import {
+  forgetChat,
+  resolveChat,
+  chatDir,
+  sessionOfChat,
+} from "./record-folders";
+import { closeAgentBrowserSessionsForSessions } from "./agent-browser-cleanup";
+import { listChildTasks } from "./chat/children";
 import {
   disposeSessionsStoreStorage,
   markStorageAsDisposing,
@@ -49,6 +56,16 @@ export async function trashChat({
       await backgroundCleanedUp.catch((error: unknown) => {
         workspaceConfig.captureException(error);
       });
+      // Every session's agent-browser daemons, read before the store goes.
+      const sessions = [
+        sessionOfChat(id),
+        ...(await listChildTasks(id)).map((task) => task.id),
+      ].filter((session) => session !== undefined);
+      await closeAgentBrowserSessionsForSessions(sessions).catch(
+        (error: unknown) => {
+          workspaceConfig.captureException(error);
+        },
+      );
 
       // Mark storage as disposing to prevent recreation during deletion
       markStorageAsDisposing(id);

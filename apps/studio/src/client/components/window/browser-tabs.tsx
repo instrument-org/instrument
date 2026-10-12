@@ -239,18 +239,6 @@ export function BrowserTabs({
   const everyTabId = useAtomValue(everyTabIdAtom);
   const tabs = allTabs.filter((tab): tab is PageTab => tab.kind === "page");
   const attached = useBrowserTargets();
-  // Holds every tab's guest for as long as the window is open, the way the
-  // task page holds its browser: subscribing is the hold.
-  useQuery(
-    rpcClient.workspace.browser.live.presence.experimental_liveOptions({
-      input: { level: "retained" },
-    }),
-  );
-  useQuery(
-    rpcClient.workspace.browser.live.presence.experimental_liveOptions({
-      input: { level: "visible" },
-    }),
-  );
 
   const targetOf = (tab: BrowserTab): BrowserTargetId =>
     browserTargetOf(StoreId.SessionSchema.parse(tab.id));

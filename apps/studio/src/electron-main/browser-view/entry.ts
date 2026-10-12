@@ -90,6 +90,8 @@ export interface BrowserEntry {
   // or detach). Each disposer must be idempotent-safe; it will be called at
   // most once because the set is cleared after draining.
   disposers: Set<() => void>;
+  /** Downloads the guest started that have not finished, which keep it from being discarded. */
+  downloadsRunning: number;
   eventListeners: Set<(method: string, params: unknown) => void>;
   // Monotonic per-entry id, bumped on every createEntry. The renderer pool keys
   // its `<webview>` by targetId, which is stable across a destroy+recreate of
@@ -150,6 +152,7 @@ export function createEntry({
     destructionListeners: new Set(),
     detachListeners: new Set(),
     disposers: new Set(),
+    downloadsRunning: 0,
     eventListeners: new Set(),
     generation: ++generationCounter,
     navigated: false,

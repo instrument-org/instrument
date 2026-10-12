@@ -26,7 +26,7 @@ const stubActor: AnyActorLogic = fromCallback(noop);
 // stand in for every child; the test only needs spawnable, stoppable children.
 const stubActors = {
   sessionMachine: stubActor,
-  windowBrowserMachine: stubActor,
+  windowBrowserLogic: stubActor,
   workspaceServerLogic: stubActor,
 } as Parameters<typeof workspaceMachine.provide>[0]["actors"];
 

@@ -140,23 +140,20 @@ Every rule comes from a navigation signal rather than from the address. Electron
 
 ## Lifetime
 
-[`window-browser.ts`](../../packages/workspace/src/machines/window-browser.ts) supervises the window's guests, each named by the id of the tab it is drawn in, as an XState machine with `Observed` / `Retained` / `Unobserved` / `GracePeriod` / `Stopping` / `Stopped` states. Which state it sits in is decided by the leases viewers hold, not by any event: `acquirePresence` / `releasePresence` only move counts, and eventless transitions on each live state route from there.
+Opening and closing are the tabs': a guest is made when a tab is opened, or shown with none attached, and destroyed when its tab closes. [`window-browser.ts`](../../packages/workspace/src/machines/window-browser.ts) decides only when a guest whose tab stays is discarded, one tab at a time, on Chromium's discard rules.
 
-The renderer takes those leases through `browser.live.presence` in the workspace RPC, where subscribing *is* the hold and aborting releases it. There are two levels, and the difference between them is the whole design:
+Each page that is drawn (the tab up in its group, a page beside a chat or in a draft's band, Quick Look) holds `browser.live.presence` for its tab, from the `BrowserPanel` drawing it and only while that panel's app tab is in front; subscribing is the hold, and aborting releases it. A tab with a guest and no hold has a clock, and a check each minute discards the guests whose clocks ran out:
 
-| Lease | Held while | Clock when it is the highest lease |
-| --- | --- | --- |
-| `visible` | the task page is on screen | none — `Observed` never reaps |
-| `retained` | the task page is mounted at all | `RETAINED_TIMEOUT_MS` (8 hours) |
-| none | — | `USER_PRESENCE_TIMEOUT_MS` (5 minutes), or `AGENT_IDLE_TIMEOUT_MS` (1 hour) from the last CDP heartbeat |
+| Tab | Discarded after |
+| --- | --- |
+| The person has seen its page | 4 hours off screen (`SEEN_TAB_DISCARD_MS`, Chromium's Memory Saver default) |
+| Only an agent opened it, and nobody has looked | 1 hour (`UNSEEN_TAB_DISCARD_MS`) |
 
-A task page the user turned away from is not one they abandoned, so backgrounding it costs the browser nothing for a working day; closing it drops the short clock on the browser within minutes. The browser panel holds both leases and gates `visible` on [`use-task-page-visible.ts`](../../apps/studio/src/client/hooks/use-task-page-visible.ts), which is the single place that knows the app currently draws one task per foreground tab. Nothing below that hook — not the machine, not the RPC — names tabs, so a shell that keeps pages alive some other way changes only the hook.
+A tab is kept past its clock while an agent sent it a command in the last 10 minutes, while an agent with a turn running drives it (a task it was handed to, or the chat's own conversation), or while its guest is playing sound, downloading, or open in DevTools. The clock is `performance.now()`, which stops while the computer sleeps.
 
-A reap is unobservable after the fact: the panel builds a new tab the moment it remounts, so a model that was driving a page finds a plausible-looking browser that is not the one it left. Teardown therefore records `closedAt` on the session's browser state ([`browser-state.ts`](../../packages/workspace/src/lib/browser-state.ts)), [`create-browser-status-part.ts`](../../packages/workspace/src/lib/create-browser-status-part.ts) reports it on the next user message and clears it, and `browser.open` puts a freshly built tab back on `lastUrl` — so the user gets their page back and the model is told it is a fresh load whose page state and snapshot refs are gone.
+A discarded tab stays in the strip with its address. When it is shown again its panel opens a fresh guest with that address as `restoreUrl`, which `browser.open` navigates a blank guest to: the same path that brings a page back after a launch, and in a draft's band. The page's own back and forward history is lost, which Chromium keeps. A held tab the agent asks for again is brought back the same way, through the window, before the agent is told it closed.
 
-A page tab of the window's own comes back the same way. The panel showing it opens it with the address the tab remembers as `restoreUrl`, which `browser.open` uses only for a guest that comes up blank and only when its session recorded no page of its own; a session an agent drove comes back at the page it recorded. That one open is how a page returns after a launch, after its site tab is reopened, after a reap, and in a draft's band.
-
-Sessions are torn down through `agent-browser-cleanup.ts`; see [agent-browser-orphaned-daemons](../findings/agent-browser-orphaned-daemons.md) and [agent-browser-ref-map-idle-ttl](../findings/agent-browser-ref-map-idle-ttl.md) for the failure modes that shaped it.
+An agent's `agent-browser` daemons (named for its session, with `-ext` and `-read` siblings) are closed through `agent-browser-cleanup.ts` when a task's turn ends and when its chat is trashed, and otherwise end on their own idle timeout or at quit; see [agent-browser-orphaned-daemons](../findings/agent-browser-orphaned-daemons.md) and [agent-browser-ref-map-idle-ttl](../findings/agent-browser-ref-map-idle-ttl.md) for the failure modes that shaped it.
 
 ## Related
 

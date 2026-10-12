@@ -20,6 +20,7 @@ import {
   AGENT_BROWSER_PATH,
   AGENT_BROWSER_SOCKET_DIR,
   externalBrowserSessionName,
+  readSessionName,
 } from "../agent-browser";
 import {
   INSTRUMENT_PROVIDER_NAME,
@@ -813,7 +814,11 @@ export function createAgentBrowserCommand({
       // still only ever started by an invocation that resolves the provider:
       // one started without it holds no CDP endpoint and would launch its own
       // browser the next time a command needed a page.
-      commandArgs.push("--session", `${sessionId}-read`, ...resolvedArgs);
+      commandArgs.push(
+        "--session",
+        readSessionName(sessionId),
+        ...resolvedArgs,
+      );
     } else if (workspaceConfig.browser.hasNoWindow) {
       // No window to drive, so leave the provider unregistered and let the CLI
       // start a browser of its own. It does that correctly, and it is the

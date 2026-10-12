@@ -14,10 +14,9 @@ export const EMPTY_GUEST_MEMO: GuestMemo = {
  * The attached guests set against the tabs the window holds.
  *
  * A guest is one of the window's page tabs, keyed by the tab's id, and
- * closing the tab only takes it off the list. The window holds its browser on
- * screen for as long as it is open, so the lease clock that reaps a browser
- * never runs for these: one that no tab or visit in a tab's history holds any
- * more is the window's to close.
+ * closing the tab only takes it off the list. The browser's clocks discard a
+ * guest whose tab stays; one that no tab or visit in a tab's history holds
+ * any more is the window's to close.
  */
 export function reconcileGuests({
   attached,

@@ -641,6 +641,18 @@ export function createBrowserViewManager(): BrowserViewManager {
       }
       return { partitionDir: entry.partitionDir };
     },
+    isGuestBusy: (targetId) => {
+      const entry = entries.get(targetId);
+      const guest = entry?.webContents;
+      return (
+        entry !== undefined &&
+        (entry.downloadsRunning > 0 ||
+          (guest !== null &&
+            guest !== undefined &&
+            !guest.isDestroyed() &&
+            (guest.isCurrentlyAudible() || guest.isDevToolsOpened())))
+      );
+    },
     getTargetUrl: (targetId) => {
       const entry = entries.get(targetId);
       const guest = entry?.webContents;

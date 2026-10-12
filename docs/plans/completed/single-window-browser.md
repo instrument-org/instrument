@@ -1,6 +1,6 @@
 # Plan: one window browser
 
-Status: part 1 (one browser, a target named by its tab) landed. Part 2 (a lifetime per tab) is proposed, waiting on approval of where it changes when a guest goes away.
+Status: landed. Part 1 named a target by its tab and made one browser; part 2 gave each tab its own lifetime, as approved below.
 
 ## Why
 

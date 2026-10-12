@@ -43,6 +43,11 @@ export interface BrowserConfig {
    * error it can do nothing about (docs/findings/a-task-cannot-look-at-what-it-drew.md).
    */
   hasNoWindow: boolean;
+  /**
+   * Whether the guest is in the middle of something its page cannot get
+   * back after a reload: playing sound, downloading, or open in DevTools.
+   */
+  isGuestBusy: (targetId: BrowserTargetId) => boolean;
   listTargets: () => Promise<BrowserTarget[]>;
   /**
    * Told just before a blank guest is navigated back to the page its tab was

@@ -1,18 +1,8 @@
 import { noop } from "radashi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  type ActorRefFrom,
-  type AnyActorRef,
-  createActor,
-  setup,
-  waitFor,
-} from "xstate";
+import { createActor } from "xstate";
 
-import {
-  getWorkspaceConfig,
-  setWorkspaceConfig,
-} from "../lib/workspace-config";
-import { type AbsolutePath } from "../schemas/paths";
+import { noteBrowserAgentActivity } from "../lib/browser-agent-activity";
 import { StoreId } from "../schemas/store-id";
 import {
   type BrowserConfig,
@@ -20,437 +10,234 @@ import {
   browserTargetOf,
 } from "../types";
 import {
-  AGENT_IDLE_TIMEOUT_MS,
-  RETAINED_TIMEOUT_MS,
-  USER_PRESENCE_TIMEOUT_MS,
-  windowBrowserMachine,
-  type WindowBrowserParentEvent,
+  AGENT_PROTECTION_MS,
+  DISCARD_CHECK_MS,
+  SEEN_TAB_DISCARD_MS,
+  UNSEEN_TAB_DISCARD_MS,
+  windowBrowserLogic,
 } from "./window-browser";
 
-function asyncNoop(): Promise<void> {
-  return Promise.resolve();
-}
-
-function disposerNoop(): void {
-  // intentionally empty
-}
-
-function emptyResult(): Promise<Record<string, never>> {
-  return Promise.resolve({});
-}
-
-function emptyTargets(): Promise<never[]> {
-  return Promise.resolve([]);
-}
-
-function makeDisposer(): () => void {
-  return disposerNoop;
-}
-
-vi.mock(import("../lib/agent-browser-cleanup"), () => ({
-  closeAgentBrowserSessionsForSessions: vi.fn(asyncNoop),
-  closeAllAgentBrowserSessions: vi.fn(asyncNoop),
-}));
-
-const { closeAgentBrowserSessionsForSessions } =
-  await import("../lib/agent-browser-cleanup");
-
-function makeBrowser(): BrowserConfig {
-  return {
-    closeTarget: vi.fn(asyncNoop),
+/** A browser whose guests live until closed, with the closes it was asked for. */
+function makeBrowser() {
+  const destroyed = new Map<BrowserTargetId, () => void>();
+  const busy = new Set<BrowserTargetId>();
+  const closed: BrowserTargetId[] = [];
+  const browser: BrowserConfig = {
+    closeTarget: (targetId) => {
+      closed.push(targetId);
+      destroyed.get(targetId)?.();
+      return Promise.resolve();
+    },
+    contentBlocking: () => ({ task: true, workspace: true }),
+    createTarget: () => Promise.resolve(),
+    getTargetMeta: () => null,
+    getTargetUrl: () => undefined,
     hasNoWindow: false,
-    contentBlocking: vi.fn(() => ({ task: true, workspace: true })),
-    createTarget: vi.fn(asyncNoop),
-    getTargetMeta: vi.fn(() => null),
-    getTargetUrl: vi.fn<() => string | undefined>(),
-    listTargets: vi.fn(emptyTargets),
-    onTargetDestroyed: vi.fn(makeDisposer),
-    sendCommand: vi.fn(emptyResult),
-    setAgentFileRoots: vi.fn(noop),
-    stopScreencast: vi.fn(noop),
-    subscribeEvents: vi.fn(makeDisposer),
+    isGuestBusy: (targetId) => busy.has(targetId),
+    listTargets: () => Promise.resolve([]),
+    onTargetDestroyed: (targetId, listener) => {
+      destroyed.set(targetId, listener);
+      return () => {
+        destroyed.delete(targetId);
+      };
+    },
+    sendCommand: () => Promise.resolve({}),
+    setAgentFileRoots: noop,
+    stopScreencast: noop,
+    subscribeEvents: () => noop,
+  };
+  return {
+    browser,
+    busy,
+    closed,
+    /** The guest goes on its own: its tab closed, or its renderer crashed. */
+    destroy: (targetId: BrowserTargetId) => destroyed.get(targetId)?.(),
   };
 }
 
-const partitionDir = "/tmp/partition" as AbsolutePath;
+let clock = 0;
+let driven = new Set<BrowserTargetId>();
 
-interface Harness {
-  actor: ActorRefFrom<typeof windowBrowserMachine>;
-  browser: BrowserConfig;
-  parentEvents: WindowBrowserParentEvent[];
-  parentRef: AnyActorRef;
-}
-
-function spawnHarness(): Harness {
+function start() {
   const browser = makeBrowser();
-  const parentEvents: WindowBrowserParentEvent[] = [];
-
-  const parentMachine = setup({
-    actors: { windowBrowserMachine },
-    types: {
-      context: {} as {
-        childRef: ActorRefFrom<typeof windowBrowserMachine> | null;
-      },
-      events: {} as WindowBrowserParentEvent,
+  const actor = createActor(windowBrowserLogic, {
+    input: {
+      browser: browser.browser,
+      isDrivenByWorkingAgent: (targetId) =>
+        Promise.resolve(driven.has(targetId)),
+      now: () => clock,
     },
-  }).createMachine({
-    context: ({ spawn }) => ({
-      childRef: spawn("windowBrowserMachine", {
-        id: "child",
-        input: { browser },
-      }),
-    }),
-    id: "harnessParent",
-    on: {
-      "windowBrowser.stopped": {
-        actions: ({ event }) => {
-          parentEvents.push(event);
-        },
-      },
-    },
-  });
-
-  const parentRef = createActor(parentMachine).start();
-  const childRef = parentRef.getSnapshot().context.childRef;
-  if (!childRef) {
-    throw new Error("childRef should have been spawned");
-  }
-
-  return { actor: childRef, browser, parentEvents, parentRef };
+  }).start();
+  const send = (
+    type: "acquireVisible" | "registerTarget" | "releaseVisible",
+    targetId: BrowserTargetId,
+  ) => {
+    actor.send({ type, value: { targetId } });
+  };
+  return { ...browser, actor, send };
 }
 
-const SESSION_A = StoreId.newSessionId();
-const TARGET_A: BrowserTargetId = browserTargetOf(SESSION_A);
+/** Lets time pass, the way both clocks see it, with every check it brings. */
+async function pass(duration: number) {
+  clock += duration;
+  await vi.advanceTimersByTimeAsync(duration);
+}
 
-const captureException = vi.fn();
+const tab = () => browserTargetOf(StoreId.newSessionId());
 
-describe("windowBrowserMachine", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.mocked(closeAgentBrowserSessionsForSessions).mockClear();
-    captureException.mockClear();
-    setWorkspaceConfig({ ...getWorkspaceConfig(), captureException });
+beforeEach(() => {
+  vi.useFakeTimers();
+  clock = 0;
+  driven = new Set();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe("windowBrowserLogic", () => {
+  it("keeps a page for as long as it is drawn", async () => {
+    const { closed, send } = start();
+    const page = tab();
+    send("acquireVisible", page);
+    send("registerTarget", page);
+
+    await pass(SEEN_TAB_DISCARD_MS * 3);
+
+    expect(closed).toEqual([]);
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
+  it("discards a page the person saw once it has been off screen for the seen clock", async () => {
+    const { closed, send } = start();
+    const page = tab();
+    send("acquireVisible", page);
+    send("registerTarget", page);
+    send("releaseVisible", page);
+
+    await pass(SEEN_TAB_DISCARD_MS - DISCARD_CHECK_MS);
+    expect(closed).toEqual([]);
+
+    await pass(DISCARD_CHECK_MS);
+    expect(closed).toEqual([page]);
   });
 
-  it("agent idle timer reaps after AGENT_IDLE_TIMEOUT_MS", async () => {
-    const { actor, browser } = spawnHarness();
+  it("discards a page only an agent opened, never shown, on the shorter clock", async () => {
+    const { closed, send } = start();
+    const page = tab();
+    send("registerTarget", page);
 
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
+    await pass(UNSEEN_TAB_DISCARD_MS);
 
-    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS);
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(browser.closeTarget).toHaveBeenCalledTimes(1);
-    expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
+    expect(closed).toEqual([page]);
   });
 
-  it("stays alive while presence is held even after the agent goes idle", async () => {
-    const { actor, browser } = spawnHarness();
+  it("counts the clock from when the page last left the screen", async () => {
+    const { closed, send } = start();
+    const page = tab();
+    send("registerTarget", page);
+    await pass(UNSEEN_TAB_DISCARD_MS / 2);
+    send("acquireVisible", page);
+    send("releaseVisible", page);
 
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    actor.send({ type: "acquirePresence", value: { level: "visible" } });
-
-    // The user is present (watching), so agent idleness alone must not reap the
-    // browser -- reaping waits until they leave (grace period) or nobody watches.
-    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS * 2);
-
-    expect(actor.getSnapshot().value).toBe("Observed");
-    expect(browser.closeTarget).not.toHaveBeenCalled();
+    // Seen now, so the long clock, from the moment it was hidden again.
+    await pass(UNSEEN_TAB_DISCARD_MS);
+    expect(closed).toEqual([]);
+    await pass(SEEN_TAB_DISCARD_MS - UNSEEN_TAB_DISCARD_MS);
+    expect(closed).toEqual([page]);
   });
 
-  it("reaps after the last presence release and grace period", async () => {
-    const { actor, browser } = spawnHarness();
+  it("keeps a page drawn in two places while one of them is left", async () => {
+    const { closed, send } = start();
+    const page = tab();
+    send("registerTarget", page);
+    send("acquireVisible", page);
+    send("acquireVisible", page);
+    send("releaseVisible", page);
 
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    actor.send({ type: "acquirePresence", value: { level: "visible" } });
-    actor.send({ type: "acquirePresence", value: { level: "visible" } });
-    actor.send({ type: "releasePresence", value: { level: "visible" } });
+    await pass(SEEN_TAB_DISCARD_MS * 2);
 
-    await vi.advanceTimersByTimeAsync(USER_PRESENCE_TIMEOUT_MS);
-    expect(actor.getSnapshot().value).toBe("Observed");
-
-    actor.send({ type: "releasePresence", value: { level: "visible" } });
-    await vi.advanceTimersByTimeAsync(USER_PRESENCE_TIMEOUT_MS);
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
+    expect(closed).toEqual([]);
   });
 
-  it("survives far past the grace period while the page stays mounted", async () => {
-    const { actor, browser } = spawnHarness();
+  it("keeps a page an agent sent a command to in the last ten minutes", async () => {
+    const { closed, send } = start();
+    const page = tab();
+    send("registerTarget", page);
+    await pass(UNSEEN_TAB_DISCARD_MS - AGENT_PROTECTION_MS / 2);
+    noteBrowserAgentActivity(page);
 
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    actor.send({ type: "acquirePresence", value: { level: "retained" } });
-    actor.send({ type: "acquirePresence", value: { level: "visible" } });
+    await pass(AGENT_PROTECTION_MS / 2);
+    expect(closed).toEqual([]);
 
-    // The user turns to another chat. The page they left is still open, so the
-    // short clock -- and the agent's own idle clock -- must not touch it.
-    actor.send({ type: "releasePresence", value: { level: "visible" } });
-    expect(actor.getSnapshot().value).toBe("Retained");
-
-    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS);
-    expect(actor.getSnapshot().value).toBe("Retained");
-    expect(browser.closeTarget).not.toHaveBeenCalled();
-
-    actor.send({ type: "acquirePresence", value: { level: "visible" } });
-    expect(actor.getSnapshot().value).toBe("Observed");
+    await pass(AGENT_PROTECTION_MS);
+    expect(closed).toEqual([page]);
   });
 
-  it("reaps a retained page after RETAINED_TIMEOUT_MS", async () => {
-    const { actor, browser } = spawnHarness();
+  it("keeps a page a working agent drives, and lets it go once the agent is done", async () => {
+    const { closed, send } = start();
+    const page = tab();
+    driven.add(page);
+    send("registerTarget", page);
 
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    actor.send({ type: "acquirePresence", value: { level: "retained" } });
+    await pass(SEEN_TAB_DISCARD_MS);
+    expect(closed).toEqual([]);
 
-    await vi.advanceTimersByTimeAsync(RETAINED_TIMEOUT_MS);
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
+    driven.delete(page);
+    await pass(DISCARD_CHECK_MS);
+    expect(closed).toEqual([page]);
   });
 
-  it("closing the page drops to the short clock even mid-retention", async () => {
-    const { actor, browser } = spawnHarness();
+  it("keeps a page whose guest is busy", async () => {
+    const { busy, closed, send } = start();
+    const page = tab();
+    busy.add(page);
+    send("registerTarget", page);
 
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    actor.send({ type: "acquirePresence", value: { level: "retained" } });
+    await pass(SEEN_TAB_DISCARD_MS);
+    expect(closed).toEqual([]);
 
-    await vi.advanceTimersByTimeAsync(RETAINED_TIMEOUT_MS / 2);
-    actor.send({ type: "releasePresence", value: { level: "retained" } });
-    expect(actor.getSnapshot().value).toBe("GracePeriod");
-
-    await vi.advanceTimersByTimeAsync(USER_PRESENCE_TIMEOUT_MS);
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
+    busy.delete(page);
+    await pass(DISCARD_CHECK_MS);
+    expect(closed).toEqual([page]);
   });
 
-  it("a visible page whose lease outlives the retained one stays Observed", async () => {
-    const { actor, browser } = spawnHarness();
+  it("discards only the pages whose clocks ran out", async () => {
+    const { closed, send } = start();
+    const old = tab();
+    const shown = tab();
+    send("registerTarget", old);
+    send("acquireVisible", shown);
+    send("registerTarget", shown);
 
-    actor.send({ type: "acquirePresence", value: { level: "retained" } });
-    actor.send({ type: "acquirePresence", value: { level: "visible" } });
-    // Ordering between the two subscriptions is not guaranteed, so a teardown
-    // that drops retention first must not reap a page still on screen.
-    actor.send({ type: "releasePresence", value: { level: "retained" } });
+    await pass(UNSEEN_TAB_DISCARD_MS);
 
-    await vi.advanceTimersByTimeAsync(USER_PRESENCE_TIMEOUT_MS * 2);
-
-    expect(actor.getSnapshot().value).toBe("Observed");
-    expect(browser.closeTarget).not.toHaveBeenCalled();
+    expect(closed).toEqual([old]);
   });
 
-  it("cancels the grace period when presence is reacquired", async () => {
-    const { actor, browser } = spawnHarness();
+  it("keeps a page still drawn when its guest goes and comes back", async () => {
+    const { closed, destroy, send } = start();
+    const page = tab();
+    send("acquireVisible", page);
+    send("registerTarget", page);
+    destroy(page);
+    send("registerTarget", page);
 
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    actor.send({ type: "acquirePresence", value: { level: "visible" } });
-    actor.send({ type: "releasePresence", value: { level: "visible" } });
+    await pass(SEEN_TAB_DISCARD_MS * 2);
 
-    await vi.advanceTimersByTimeAsync(USER_PRESENCE_TIMEOUT_MS / 2);
-    actor.send({ type: "acquirePresence", value: { level: "visible" } });
-    await vi.advanceTimersByTimeAsync(USER_PRESENCE_TIMEOUT_MS);
-
-    expect(actor.getSnapshot().value).toBe("Observed");
-    expect(browser.closeTarget).not.toHaveBeenCalled();
+    expect(closed).toEqual([]);
   });
 
-  it("reap closes targets, runs daemon cleanup, and notifies parent", async () => {
-    const { actor, browser, parentEvents } = spawnHarness();
+  it("asks for a discard once, however long the guest takes to go", async () => {
+    const { browser, closed, send } = start();
+    browser.closeTarget = (targetId) => {
+      closed.push(targetId);
+      return Promise.resolve();
+    };
+    const page = tab();
+    send("registerTarget", page);
 
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    actor.send({
-      type: "attachAgentSession",
-      value: { sessionId: SESSION_A },
-    });
-    actor.send({ type: "forceReap" });
+    await pass(UNSEEN_TAB_DISCARD_MS + DISCARD_CHECK_MS * 3);
 
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(browser.closeTarget).toHaveBeenCalledTimes(1);
-    expect(closeAgentBrowserSessionsForSessions).toHaveBeenCalledTimes(1);
-    expect(closeAgentBrowserSessionsForSessions).toHaveBeenCalledWith([
-      SESSION_A,
-    ]);
-    expect(parentEvents).toEqual([{ type: "windowBrowser.stopped" }]);
-  });
-
-  it("targetDestroyedExternally skips closeTarget but still runs daemon cleanup", async () => {
-    const { actor, browser } = spawnHarness();
-
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    actor.send({
-      type: "targetDestroyedExternally",
-      value: { targetId: TARGET_A },
-    });
-
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(browser.closeTarget).not.toHaveBeenCalled();
-    expect(closeAgentBrowserSessionsForSessions).toHaveBeenCalledTimes(1);
-  });
-
-  it("registerTarget records a user-opened target so reap closes it", async () => {
-    const { actor, browser } = spawnHarness();
-
-    actor.send({
-      type: "registerTarget",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    actor.send({ type: "forceReap" });
-
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(browser.closeTarget).toHaveBeenCalledTimes(1);
-    expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
-    expect(closeAgentBrowserSessionsForSessions).toHaveBeenCalledWith([
-      SESSION_A,
-    ]);
-  });
-
-  it("registerTarget does not reset the agent idle timer", async () => {
-    const { actor, browser } = spawnHarness();
-
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-
-    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS / 2);
-    // A user re-opening the panel is not agent activity; it must not extend the
-    // idle window.
-    actor.send({
-      type: "registerTarget",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    await vi.advanceTimersByTimeAsync(AGENT_IDLE_TIMEOUT_MS / 2);
-
-    await waitFor(actor, (s) => s.status === "done");
-    expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
-  });
-
-  it("ignores registerTarget once teardown has started", async () => {
-    const { actor, browser } = spawnHarness();
-
-    // Enter Stopping, then a browser.open createTarget resolves late and fires a
-    // registerTarget. It must be ignored, not spawn a destruction watcher on a
-    // target that's already being reaped.
-    actor.send({ type: "forceReap" });
-    actor.send({
-      type: "registerTarget",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(browser.onTargetDestroyed).not.toHaveBeenCalled();
-    expect(browser.closeTarget).not.toHaveBeenCalled();
-  });
-
-  it("targetDestroyedExternally after registerTarget skips closeTarget", async () => {
-    const { actor, browser } = spawnHarness();
-
-    actor.send({
-      type: "registerTarget",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    actor.send({
-      type: "targetDestroyedExternally",
-      value: { targetId: TARGET_A },
-    });
-
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(browser.closeTarget).not.toHaveBeenCalled();
-    expect(closeAgentBrowserSessionsForSessions).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps the other pages when one of several closes on its own", async () => {
-    const { actor, browser } = spawnHarness();
-    const sessionB = StoreId.newSessionId();
-    const targetB: BrowserTargetId = browserTargetOf(sessionB);
-
-    actor.send({
-      type: "registerTarget",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    actor.send({
-      type: "registerTarget",
-      value: { partitionDir, sessionId: sessionB, targetId: targetB },
-    });
-    actor.send({
-      type: "targetDestroyedExternally",
-      value: { targetId: TARGET_A },
-    });
-
-    expect(actor.getSnapshot().status).toBe("active");
-    expect(browser.closeTarget).not.toHaveBeenCalled();
-
-    actor.send({ type: "forceReap" });
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(browser.closeTarget).toHaveBeenCalledTimes(1);
-    expect(browser.closeTarget).toHaveBeenCalledWith(targetB);
-    expect(closeAgentBrowserSessionsForSessions).toHaveBeenCalledWith([
-      SESSION_A,
-      sessionB,
-    ]);
-  });
-
-  it("closes one view per session for multi-session chats", async () => {
-    const { actor, browser } = spawnHarness();
-    const sessionB = StoreId.newSessionId();
-    const targetB: BrowserTargetId = browserTargetOf(sessionB);
-
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: SESSION_A, targetId: TARGET_A },
-    });
-    actor.send({
-      type: "updateCdpHeartbeat",
-      value: { partitionDir, sessionId: sessionB, targetId: targetB },
-    });
-
-    actor.send({ type: "forceReap" });
-
-    await waitFor(actor, (s) => s.status === "done");
-
-    expect(browser.closeTarget).toHaveBeenCalledTimes(2);
-    expect(browser.closeTarget).toHaveBeenCalledWith(TARGET_A);
-    expect(browser.closeTarget).toHaveBeenCalledWith(targetB);
-    expect(closeAgentBrowserSessionsForSessions).toHaveBeenCalledTimes(1);
-    expect(closeAgentBrowserSessionsForSessions).toHaveBeenCalledWith(
-      expect.arrayContaining([SESSION_A, sessionB]),
-    );
+    expect(closed).toEqual([page]);
   });
 });

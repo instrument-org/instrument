@@ -21,6 +21,7 @@ import { taskFsLayout } from "../resolve-workspace-file-path";
 import { Store } from "../store";
 import { chatModelURI, recordChatActivity } from "../chat-settings";
 import { getUsageSummary } from "../usage-summary";
+import { closeAgentBrowserSessionsForSessions } from "../agent-browser-cleanup";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
 import { currentChatApps, setChatAppsBaseline } from "../chat-app-changes";
@@ -266,6 +267,11 @@ async function onSessionDone(
   // back: a tab has one driver, and a finished task drives nothing.
   const tabs = await openTabsOf(ref);
   await returnTabsToChat(chatId, sessionId);
+  // Its agent-browser daemons, which would otherwise idle out on their own
+  // clock; a later `task send` starts them again.
+  void closeAgentBrowserSessionsForSessions([sessionId]).catch(
+    getWorkspaceConfig().captureException,
+  );
   if (stop && !stop.wakesChat) {
     return;
   }

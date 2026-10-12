@@ -59,6 +59,10 @@ export function routeGuestDownloads(
       return;
     }
     const stillOwned = () => registry.entryOf(webContents.id) === entry;
+    entry.downloadsRunning += 1;
+    item.once("done", () => {
+      entry.downloadsRunning -= 1;
+    });
     if (entry.authorizedDownloadPath) {
       saveForAgent(entry, item, entry.authorizedDownloadPath, stillOwned);
     } else {

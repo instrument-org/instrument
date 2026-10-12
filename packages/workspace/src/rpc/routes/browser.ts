@@ -6,7 +6,6 @@ import { lastBrowserAgentActivity } from "../../lib/browser-agent-activity";
 import { navigateTarget, restoreLastPage } from "../../lib/browser-state";
 import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
 import { getBrowserSessionDir } from "../../lib/chat-dir-utils";
-import { BrowserPresenceLevelSchema } from "../../machines/window-browser";
 import { BrowserTargetIdSchema } from "../../types";
 import { base } from "../base";
 import { publisher } from "../publisher";
@@ -54,7 +53,7 @@ const open = base
     // records a phantom target the reaper would try to close.
     context.workspaceRef.send({
       type: "registerBrowserTarget",
-      value: { partitionDir, targetId },
+      value: { targetId },
     });
 
     // An explicit page replaces the restore rather than racing it: both would
@@ -78,27 +77,23 @@ const open = base
   });
 
 /**
- * A hold, not a query: subscribing acquires presence and aborting releases it,
- * so the subscription's lifetime is the whole payload. A viewer keeps the
- * window's browser alive; drop the subscription and the browser machine starts
- * the clock that matches the lease that was dropped.
- *
- * `retained` is held for as long as the client keeps the page alive and
- * `visible` only while it is on screen, so a client that shows one page at a
- * time holds both for that page and `retained` alone for the rest. What decides
- * either is entirely the client's business.
+ * A hold, not a query: subscribing says the tab's page is drawn and aborting
+ * says it left the screen, so the subscription's lifetime is the whole
+ * payload. A tab with no hold starts its clock, and its guest is discarded
+ * when the clock runs out (see `windowBrowserLogic`). The client holds one
+ * for each page it draws and only while it draws it.
  *
  * The yielded value carries nothing, so the caller subscribes and ignores the
  * result. That is correct here and would be a bug on anything else under `live`.
  */
 const presence = base
-  .input(z.object({ level: BrowserPresenceLevelSchema }))
+  .input(z.object({ targetId: BrowserTargetIdSchema }))
   .output(eventIterator(PresenceSchema))
   .handler(async function* ({ context, input, signal }) {
     invariant(signal, "presence subscription requires an AbortSignal");
     context.workspaceRef.send({
       type: "acquireBrowserPresence",
-      value: { level: input.level },
+      value: { targetId: input.targetId },
     });
 
     try {
@@ -119,7 +114,7 @@ const presence = base
     } finally {
       context.workspaceRef.send({
         type: "releaseBrowserPresence",
-        value: { level: input.level },
+        value: { targetId: input.targetId },
       });
     }
   });

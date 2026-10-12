@@ -386,13 +386,12 @@ export function openTargetSession({
 }): TargetSession {
   let unsubscribe: (() => void) | null = null;
 
-  // Surface this page's connection to the browser machine so it can fan
-  // out `agent-browser close --session <id>` at reap time. Lookup is cheap
-  // and missing meta means the target was already destroyed; skip.
+  // Make the page known to the browser's lifetime as the agent connects.
+  // Missing meta means the target was already destroyed; skip.
   const hasTarget = workspaceConfig.browser.getTargetMeta(targetId) !== null;
   if (hasTarget) {
     workspaceRef.send({
-      type: "workspaceServer.attachAgentSession",
+      type: "workspaceServer.updateCdpHeartbeat",
       value: { targetId },
     });
   }
@@ -536,14 +535,13 @@ export function openTargetSession({
     }
 
     // Real inbound command from agent-browser: count it as agent activity and
-    // forward target meta into the browser machine. The agent is the only
+    // make the page known to the browser's lifetime. The agent is the only
     // writer on this page so this matches real agent command rate without
     // throttling.
-    const meta = workspaceConfig.browser.getTargetMeta(targetId);
-    if (meta) {
+    if (workspaceConfig.browser.getTargetMeta(targetId)) {
       workspaceRef.send({
         type: "workspaceServer.updateCdpHeartbeat",
-        value: { partitionDir: meta.partitionDir, targetId },
+        value: { targetId },
       });
       if (!SILENT_COMMANDS.has(method)) {
         noteBrowserAgentActivity(targetId);

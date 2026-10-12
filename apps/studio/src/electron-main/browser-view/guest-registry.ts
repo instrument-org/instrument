@@ -91,7 +91,7 @@ export function createGuestRegistry() {
       roleOf: (contents: WebContents) => GuestRole;
     }
   >();
-  const unblockedTasks = new Set<ChatId>();
+  const unblockedChats = new Set<ChatId>();
   let listening = false;
 
   function track(contents: WebContents, role: GuestRole): GuestRecord {
@@ -153,7 +153,7 @@ export function createGuestRegistry() {
     /** Whether the contents' task turned ad blocking off for its own tabs. */
     isAdBlockExempt(id: number): boolean {
       const task = records.get(id)?.entry?.id;
-      return task !== undefined && unblockedTasks.has(task);
+      return task !== undefined && unblockedChats.has(task);
     },
     records(): IterableIterator<GuestRecord> {
       return records.values();
@@ -164,11 +164,11 @@ export function createGuestRegistry() {
      */
     setAdBlocking(task: ChatId, blocking: boolean | undefined): boolean {
       if (blocking === false) {
-        unblockedTasks.add(task);
+        unblockedChats.add(task);
       } else if (blocking === true) {
-        unblockedTasks.delete(task);
+        unblockedChats.delete(task);
       }
-      return !unblockedTasks.has(task);
+      return !unblockedChats.has(task);
     },
     /** Records one contents directly; the app's sessions go through {@link watchSession}. */
     track,

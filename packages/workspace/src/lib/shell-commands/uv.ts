@@ -2,7 +2,7 @@ import { type CommandContext, defineCommand } from "just-bash";
 
 import { type AbsolutePath } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
-import { ensureTaskVenvForTask } from "../ensure-task-venv";
+import { ensureChatVenv } from "../ensure-chat-venv";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getUvBinPath } from "../uv";
@@ -38,7 +38,7 @@ export function createUvCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
     // Ensure it here so `uv pip install` works even before any `python`/`pip`
     // call has run, matching the behavior of the `pip` custom command.
     if (args[0] === "pip") {
-      const venvError = await ensureTaskVenv({ ctx, chatId });
+      const venvError = await ensureVenvForCommand({ ctx, chatId });
       if (venvError !== undefined) {
         return { exitCode: 1, stderr: venvError, stdout: "" };
       }
@@ -60,14 +60,14 @@ export function createUvCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
  * The first call (machine-wide) downloads a managed CPython, so it can take a
  * few seconds.
  */
-export async function ensureTaskVenv({
+export async function ensureVenvForCommand({
   ctx,
   chatId,
 }: {
   ctx: CommandContext;
   chatId: ChatId;
 }): Promise<string | undefined> {
-  const result = await ensureTaskVenvForTask({ signal: ctx.signal, chatId });
+  const result = await ensureChatVenv({ signal: ctx.signal, chatId });
   return result?.output;
 }
 

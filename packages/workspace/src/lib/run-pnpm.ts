@@ -1,7 +1,7 @@
 import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { commandLineToolsEnv } from "./command-line-tools-env";
-import { execaNodeForTask } from "./execa-node-for-task";
+import { execaNodeForChat } from "./execa-node-for-chat";
 import { filterShellOutput } from "./filter-shell-output";
 import {
   collectAndForward,
@@ -36,7 +36,7 @@ export async function runPnpmCommand({
   chatId: ChatId;
 }) {
   const sink = currentShellOutputSink();
-  const subprocess = execaNodeForTask(
+  const subprocess = execaNodeForChat(
     chatId,
     getWorkspaceConfig().pnpmBinPath,
     args,

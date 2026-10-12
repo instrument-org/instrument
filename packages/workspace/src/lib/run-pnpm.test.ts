@@ -6,12 +6,12 @@ import { runPnpmCommand } from "./run-pnpm";
 import { getWorkspaceConfig } from "./workspace-config";
 import { taskLayout } from "../test/helpers/task-layout";
 
-vi.mock(import("./execa-node-for-task"));
+vi.mock(import("./execa-node-for-chat"));
 
 describe("runPnpmCommand", () => {
   it("sets pnpm_config_reporter=append-only on the child process env", async () => {
-    const { execaNodeForTask } = await import("./execa-node-for-task");
-    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
+    const { execaNodeForChat } = await import("./execa-node-for-chat");
+    vi.mocked(execaNodeForChat).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
     });
@@ -23,12 +23,12 @@ describe("runPnpmCommand", () => {
       chatId,
     });
 
-    expect(execaNodeForTask).toHaveBeenCalledTimes(1);
+    expect(execaNodeForChat).toHaveBeenCalledTimes(1);
 
-    const firstCall = vi.mocked(execaNodeForTask).mock.calls[0];
+    const firstCall = vi.mocked(execaNodeForChat).mock.calls[0];
     expect(firstCall).toBeDefined();
     if (firstCall === undefined) {
-      throw new Error("expected execaNodeForTask to have been called");
+      throw new Error("expected execaNodeForChat to have been called");
     }
 
     const [passedChatId, pnpmBin, cliArgs, execaOpts, cwdArg] = firstCall as [
@@ -50,8 +50,8 @@ describe("runPnpmCommand", () => {
   });
 
   it("sets pnpm_config_loglevel=error when pnpmLogLevel is error", async () => {
-    const { execaNodeForTask } = await import("./execa-node-for-task");
-    vi.mocked(execaNodeForTask).mockResolvedValueOnce({
+    const { execaNodeForChat } = await import("./execa-node-for-chat");
+    vi.mocked(execaNodeForChat).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
     });
@@ -64,7 +64,7 @@ describe("runPnpmCommand", () => {
       chatId,
     });
 
-    expect(execaNodeForTask).toHaveBeenCalledWith(
+    expect(execaNodeForChat).toHaveBeenCalledWith(
       chatId,
       getWorkspaceConfig().pnpmBinPath,
       ["dlx", "jiti@2.6.1", "x.ts"],

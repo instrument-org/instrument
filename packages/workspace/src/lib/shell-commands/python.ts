@@ -8,7 +8,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { isAtOrUnder } from "../path-containment";
-import { taskVenvDir, taskVenvPython } from "../uv";
+import { chatVenvDir, chatVenvPython } from "../uv";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
   bridgeInlineCodePaths,
@@ -17,7 +17,7 @@ import {
   scanScriptFileForVirtualPaths,
   unreachablePathArgError,
 } from "./utils";
-import { ensureTaskVenv } from "./uv";
+import { ensureVenvForCommand } from "./uv";
 
 /**
  * Two Pythons, told apart by what they can reach.
@@ -454,12 +454,12 @@ async function runNativePython(
   }
 
   // After the path checks, so a run they refuse costs no virtualenv.
-  const venvError = await ensureTaskVenv({ ctx, chatId });
+  const venvError = await ensureVenvForCommand({ ctx, chatId });
   if (venvError !== undefined) {
     return { exitCode: 1, stderr: venvError, stdout: "" };
   }
 
-  const result = await execShim(taskVenvPython(chatId), finalArgs, {
+  const result = await execShim(chatVenvPython(chatId), finalArgs, {
     cancelSignal: ctx.signal,
     cwd: taskCwd,
     env,
@@ -478,7 +478,7 @@ async function runNativePython(
 
 /** What the task's virtualenv has installed, by file name, or none. */
 async function sitePackagesEntries(chatId: ChatId): Promise<string[]> {
-  const venv = taskVenvDir(chatId);
+  const venv = chatVenvDir(chatId);
   const libDirs =
     process.platform === "win32"
       ? [path.join(venv, "Lib")]

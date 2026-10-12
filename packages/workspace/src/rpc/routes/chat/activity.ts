@@ -11,7 +11,7 @@ import {
 import { base } from "../../base";
 import { recordChanges } from "../../../lib/record-changes";
 
-function getTaskActivity(workspaceRef: WorkspaceActorRef) {
+function getChatActivity(workspaceRef: WorkspaceActorRef) {
   const activity: ChatAgentStatus[] = [];
   const { sessionRefsByChatId } = workspaceRef.getSnapshot().context;
 
@@ -37,7 +37,7 @@ export const liveChatActivity = base
     let previousState: ChatAgentStatus[] | undefined;
     for await (const currentState of liveRead({
       changes: [recordChanges(signal, (change) => change.kind === "agent")],
-      read: () => getTaskActivity(context.workspaceRef),
+      read: () => getChatActivity(context.workspaceRef),
     })) {
       if (
         previousState === undefined ||

@@ -3,10 +3,10 @@ import path from "node:path";
 
 import { type ChatId } from "../schemas/chat-id";
 import { runUvCommand } from "./run-uv";
-import { MANAGED_PYTHON_VERSION, taskVenvDir, taskVenvPython } from "./uv";
+import { MANAGED_PYTHON_VERSION, chatVenvDir, chatVenvPython } from "./uv";
 import { workDir } from "./work-dir";
 
-export interface TaskVenvError {
+export interface ChatVenvError {
   exitCode: number;
   output: string;
 }
@@ -15,7 +15,7 @@ export interface TaskVenvError {
 // in-flight creation so two `uv venv` processes cannot race on the venv.
 const inFlightVenvCreation = new Map<
   ChatId,
-  Promise<TaskVenvError | undefined>
+  Promise<ChatVenvError | undefined>
 >();
 
 /**
@@ -23,15 +23,15 @@ const inFlightVenvCreation = new Map<
  * thread, so creation has one owner and the dedupe above covers the skill
  * installs that run there too.
  */
-let createTaskVenv = runUvVenv;
+let createChatVenv = runUvVenv;
 
-export async function ensureTaskVenvForTask({
+export async function ensureChatVenv({
   signal,
   chatId,
 }: {
   signal?: AbortSignal;
   chatId: ChatId;
-}): Promise<TaskVenvError | undefined> {
+}): Promise<ChatVenvError | undefined> {
   if (hasUsableVenv(chatId)) {
     return undefined;
   }
@@ -41,7 +41,7 @@ export async function ensureTaskVenvForTask({
     return awaitVenvCreation({ creation: existing, signal });
   }
 
-  const creation = createTaskVenv(chatId).finally(() =>
+  const creation = createChatVenv(chatId).finally(() =>
     inFlightVenvCreation.delete(chatId),
   );
 
@@ -49,17 +49,17 @@ export async function ensureTaskVenvForTask({
   return awaitVenvCreation({ creation, signal });
 }
 
-export function setTaskVenvCreator(
-  next: (chatId: ChatId) => Promise<TaskVenvError | undefined>,
+export function setChatVenvCreator(
+  next: (chatId: ChatId) => Promise<ChatVenvError | undefined>,
 ): void {
-  createTaskVenv = next;
+  createChatVenv = next;
 }
 
 function awaitVenvCreation({
   creation,
   signal,
 }: {
-  creation: Promise<TaskVenvError | undefined>;
+  creation: Promise<ChatVenvError | undefined>;
   signal?: AbortSignal;
 }) {
   if (signal === undefined) {
@@ -71,13 +71,13 @@ function awaitVenvCreation({
   }
 
   const abortSignal = signal;
-  return new Promise<TaskVenvError | undefined>((resolve) => {
+  return new Promise<ChatVenvError | undefined>((resolve) => {
     function onAbort() {
       abortSignal.removeEventListener("abort", onAbort);
       resolve(cancelledVenvCreation());
     }
 
-    const finish = (result: TaskVenvError | undefined) => {
+    const finish = (result: ChatVenvError | undefined) => {
       abortSignal.removeEventListener("abort", onAbort);
       resolve(result);
     };
@@ -87,7 +87,7 @@ function awaitVenvCreation({
   });
 }
 
-function cancelledVenvCreation(): TaskVenvError {
+function cancelledVenvCreation(): ChatVenvError {
   return {
     exitCode: 1,
     output: "Python environment setup was cancelled.",
@@ -96,12 +96,12 @@ function cancelledVenvCreation(): TaskVenvError {
 
 function hasUsableVenv(chatId: ChatId) {
   return (
-    existsSync(taskVenvPython(chatId)) &&
-    existsSync(path.join(taskVenvDir(chatId), "pyvenv.cfg"))
+    existsSync(chatVenvPython(chatId)) &&
+    existsSync(path.join(chatVenvDir(chatId), "pyvenv.cfg"))
   );
 }
 
-function runUvVenv(chatId: ChatId): Promise<TaskVenvError | undefined> {
+function runUvVenv(chatId: ChatId): Promise<ChatVenvError | undefined> {
   // `--clear` because we only get here when the venv is missing or unusable,
   // so replacing whatever is there is the intent. Without it uv refuses to
   // touch an existing venv, which would strand a task whose interpreter went
@@ -114,7 +114,7 @@ function runUvVenv(chatId: ChatId): Promise<TaskVenvError | undefined> {
       "--clear",
       "--python",
       MANAGED_PYTHON_VERSION,
-      taskVenvDir(chatId),
+      chatVenvDir(chatId),
     ],
     cwd: workDir(chatId),
     chatId,

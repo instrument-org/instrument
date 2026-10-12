@@ -10,7 +10,7 @@ import {
   MessageScrollerViewport,
 } from "@/client/components/ui/message-scroller";
 import { Spinner } from "@/client/components/ui/spinner";
-import { TaskSessionProvider } from "@/client/hooks/use-task-session";
+import { ChatSessionProvider } from "@/client/hooks/use-chat-session";
 import { isOutputFolder } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -97,7 +97,7 @@ export function ChildTranscript({
             <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
               {/* Names the task and session for the links inside, so a page
                   the task names offers its browser as well as the user's. */}
-              <TaskSessionProvider sessionId={sessionId} chatId={chatInfo.id}>
+              <ChatSessionProvider sessionId={sessionId} chatId={chatInfo.id}>
                 {/* Task paths are placed on the computer through the task's own layout before navigation. */}
                 <FileOpenContext value={openFile}>
                   <ChatStream
@@ -110,7 +110,7 @@ export function ChildTranscript({
                     chatInfo={chatInfo}
                   />
                 </FileOpenContext>
-              </TaskSessionProvider>
+              </ChatSessionProvider>
               {stoppedBy && (
                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <StopCircleIcon className="size-3.5 shrink-0" />

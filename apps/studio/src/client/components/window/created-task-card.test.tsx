@@ -1,4 +1,4 @@
-import { TaskSessionProvider } from "@/client/hooks/use-task-session";
+import { ChatSessionProvider } from "@/client/hooks/use-chat-session";
 import { renderWithProviders } from "@/tests/render";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { fireEvent, screen } from "@testing-library/react";
@@ -56,9 +56,9 @@ function renderCard() {
       }}
     >
       {/* The chat's transcript, which the card is drawn in. */}
-      <TaskSessionProvider sessionId={CHAT_SESSION} chatId={CHAT_ID}>
+      <ChatSessionProvider sessionId={CHAT_SESSION} chatId={CHAT_ID}>
         <CreatedTaskCard chatId={TASK_ID} />
-      </TaskSessionProvider>
+      </ChatSessionProvider>
     </WindowContext>,
   );
   return { openScreen };

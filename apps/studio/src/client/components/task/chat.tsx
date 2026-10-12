@@ -82,7 +82,7 @@ const TRANSCRIPT_PREVIOUS_TURN_PEEK = 40;
  * session queues what arrives mid-turn and runs it the moment the turn ends.
  * For the same reason the composer never turns into a stop.
  */
-export function TaskChat({
+export function ChatConversation({
   asks,
   beforeComposer,
   composerLead,

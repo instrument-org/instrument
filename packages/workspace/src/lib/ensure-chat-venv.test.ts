@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
-import { ensureTaskVenvForTask } from "./ensure-task-venv";
+import { ensureChatVenv } from "./ensure-chat-venv";
 
 vi.mock(import("node:fs"), () => ({
   existsSync: vi.fn(() => false),
@@ -10,7 +10,7 @@ vi.mock(import("node:fs"), () => ({
 }));
 vi.mock(import("./run-uv"));
 
-describe("ensureTaskVenvForTask", () => {
+describe("ensureChatVenv", () => {
   it("recreates a venv when its interpreter lacks venv metadata", async () => {
     const { existsSync } = await import("node:fs");
     const { runUvCommand } = await import("./run-uv");
@@ -23,7 +23,7 @@ describe("ensureTaskVenvForTask", () => {
 
     const chatId = createMockChatConfig(ChatIdSchema.parse("incomplete-venv"));
 
-    await expect(ensureTaskVenvForTask({ chatId })).resolves.toBeUndefined();
+    await expect(ensureChatVenv({ chatId })).resolves.toBeUndefined();
     expect(runUvCommand).toHaveBeenCalledTimes(1);
     // `--clear` is what lets uv replace the unusable venv rather than refuse.
     expect(vi.mocked(runUvCommand).mock.calls[0]?.[0].args).toContain(
@@ -46,11 +46,11 @@ describe("ensureTaskVenvForTask", () => {
     const chatId = createMockChatConfig(ChatIdSchema.parse("venv-race"));
     const firstSignal = new AbortController();
     const secondSignal = new AbortController();
-    const first = ensureTaskVenvForTask({
+    const first = ensureChatVenv({
       signal: firstSignal.signal,
       chatId,
     });
-    const second = ensureTaskVenvForTask({
+    const second = ensureChatVenv({
       signal: secondSignal.signal,
       chatId,
     });

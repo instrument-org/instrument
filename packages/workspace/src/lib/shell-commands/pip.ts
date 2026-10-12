@@ -8,7 +8,7 @@ import {
   resolvePathArgs,
   unreachablePathArgError,
 } from "./utils";
-import { ensureTaskVenv, runUv } from "./uv";
+import { ensureVenvForCommand, runUv } from "./uv";
 
 // `pip` (and the `pip3` alias) route through `uv pip`, which installs into the
 // task venv (.venv) without needing pip seeded into the env. `uv pip`
@@ -71,7 +71,7 @@ function createPipCommandNamed(
 
     const { env, taskCwd } = resolveCommandContext(chatId, ctx);
 
-    const venvError = await ensureTaskVenv({ ctx, chatId });
+    const venvError = await ensureVenvForCommand({ ctx, chatId });
     if (venvError !== undefined) {
       return { exitCode: 1, stderr: venvError, stdout: "" };
     }

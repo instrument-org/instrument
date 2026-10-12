@@ -1,12 +1,12 @@
 import { type StoreId, type ChatId } from "@instrument-org/workspace/client";
 import { createContext, type ReactNode, useContext } from "react";
 
-interface TaskSession {
+interface ChatSession {
   sessionId?: StoreId.Session;
   chatId?: ChatId;
 }
 
-const TaskSessionContext = createContext<TaskSession>({});
+const ChatSessionContext = createContext<ChatSession>({});
 
 /**
  * Names the task and session everything drawn inside belongs to.
@@ -19,15 +19,15 @@ const TaskSessionContext = createContext<TaskSession>({});
  *
  * Empty outside a task, which is what an anchor there degrades against.
  */
-export function TaskSessionProvider({
+export function ChatSessionProvider({
   children,
   sessionId,
   chatId,
-}: TaskSession & { children: ReactNode }) {
+}: ChatSession & { children: ReactNode }) {
   return (
-    <TaskSessionContext value={{ sessionId, chatId }}>
+    <ChatSessionContext value={{ sessionId, chatId }}>
       {children}
-    </TaskSessionContext>
+    </ChatSessionContext>
   );
 }
 
@@ -38,6 +38,6 @@ export function TaskSessionProvider({
  * one guest per task and session, so a task without a session names no browser
  * to open anything in.
  */
-export function useTaskSession(): TaskSession {
-  return useContext(TaskSessionContext);
+export function useChatSession(): ChatSession {
+  return useContext(ChatSessionContext);
 }

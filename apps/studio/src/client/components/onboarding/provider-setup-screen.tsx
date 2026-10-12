@@ -48,6 +48,9 @@ export function ProviderSetupScreen({
     rpcClient.claudeAccount.live.status.experimental_liveOptions(),
   );
 
+  // Signed in to Claude already, there is no Claude plan left to add.
+  const offersClaude = !signedIn || claudeStatus?.kind !== "signed-in";
+
   if (page === "add-provider") {
     return (
       <OnboardingScreen align="top" className="px-11 pt-6 pb-11">
@@ -95,7 +98,9 @@ export function ProviderSetupScreen({
             </h1>
             <p className="text-sm text-foreground/80">
               {signedIn
-                ? "Use the ChatGPT or Claude plan you already pay for."
+                ? offersClaude
+                  ? "Use the ChatGPT or Claude plan you already pay for."
+                  : "Use the ChatGPT plan you already pay for."
                 : "A guided AI workspace for ambitious work"}
             </p>
           </div>
@@ -147,7 +152,7 @@ export function ProviderSetupScreen({
                 onSuccess={onLoginSuccess}
               />
 
-              {(!signedIn || claudeStatus?.kind !== "signed-in") && (
+              {offersClaude && (
                 <ClaudeLoginButton
                   caption="Pay for Claude Pro or Max? Use it here."
                   className="w-full justify-center"

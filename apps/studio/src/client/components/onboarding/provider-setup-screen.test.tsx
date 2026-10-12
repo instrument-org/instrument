@@ -78,6 +78,15 @@ describe("provider setup Claude sign-in", () => {
       expect(
         screen.getByRole("button", { name: "Continue with ChatGPT" }),
       ).toBeTruthy();
+      if (signedIn) {
+        expect(
+          screen.getByText(
+            visible
+              ? "Use the ChatGPT or Claude plan you already pay for."
+              : "Use the ChatGPT plan you already pay for.",
+          ),
+        ).toBeTruthy();
+      }
     },
   );
 });

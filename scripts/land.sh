@@ -103,6 +103,12 @@ git -C "$main_root" merge --ff-only --quiet "$branch" ||
   fail "main could not fast-forward; rerun to rebase onto it again"
 echo "land: main is at $(git -C "$main_root" log -1 --format='%h %s')"
 
+# Fast-forwarding moves the primary checkout's lockfile, not its node_modules.
+if grep -qx 'pnpm-lock.yaml' <<< "$changed"; then
+  (cd "$main_root" && pnpm install --frozen-lockfile --reporter=silent)
+  echo "land: installed the new lockfile in $main_root"
+fi
+
 if [[ "$keep" == false ]]; then
   cd "$main_root"
   # --force because git refuses to remove a worktree holding a submodule

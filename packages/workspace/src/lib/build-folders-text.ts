@@ -3,6 +3,7 @@ import { dedent } from "radashi";
 
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { TOOL_NAMES } from "../tools/name";
+import { shellPath } from "./workspace-fs-layout";
 import { folderLabel, folderParentLabel } from "./folder-parent-label";
 
 /**
@@ -23,7 +24,6 @@ export function buildFoldersText({
     access: MountedFolder.Access;
     /** Reached, but no longer on disk when the list was built. */
     missing?: boolean;
-    mountPoint: string;
     path: string;
     /**
      * Open to look through, while changing anything in it takes the person's
@@ -46,7 +46,7 @@ export function buildFoldersText({
   }
 
   const folderList = folders
-    .map(({ access, missing, mountPoint, path, writableInside }, index) => {
+    .map(({ access, missing, path, writableInside }, index) => {
       const name = displayNames[index] ?? path;
       const parent =
         (nameCounts.get(name) ?? 0) > 1 ? folderParentLabel(path) : undefined;
@@ -61,7 +61,7 @@ export function buildFoldersText({
       ]
         .filter((part) => part !== null)
         .join(", ");
-      return `- "${name}"${where} -> \`${mountPoint}\` (${state})`;
+      return `- "${name}"${where} -> \`${shellPath(path)}\` (${state})`;
     })
     .join("\n");
 

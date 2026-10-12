@@ -63,9 +63,9 @@ export async function rewriteNavigationArgToFileUrl(
       : { args };
   }
 
-  // A path the agent named that no mount holds is refused whatever its
+  // A path the agent named that no folder holds is refused whatever its
   // spelling: passed on, the CLI would read `/Users/...` as a host name.
-  const resolved = resolveHostPath(layout, parsed.virtualPath);
+  const resolved = resolveHostPath(layout, parsed.path);
   if (
     resolved === null ||
     classifyHostPath(layout, resolved.hostPath, resolved.mount)?.masked !==
@@ -102,9 +102,7 @@ async function parseSandboxTarget(
       resolvePath(cwd: string, path: string): string;
     };
   },
-): Promise<
-  undefined | { isFileUrl: boolean; suffix: string; virtualPath: string }
-> {
+): Promise<undefined | { isFileUrl: boolean; suffix: string; path: string }> {
   if (arg.toLowerCase().startsWith("file:")) {
     let url: URL;
     try {
@@ -126,7 +124,7 @@ async function parseSandboxTarget(
     return {
       isFileUrl: true,
       suffix: `${url.search}${url.hash}`,
-      virtualPath: normalizePath(pathname),
+      path: normalizePath(pathname),
     };
   }
 
@@ -135,15 +133,15 @@ async function parseSandboxTarget(
   }
 
   if (arg.startsWith("/")) {
-    return { isFileUrl: false, suffix: "", virtualPath: normalizePath(arg) };
+    return { isFileUrl: false, suffix: "", path: normalizePath(arg) };
   }
 
   // A bare relative path is indistinguishable from a bare hostname the CLI
   // would normalize to https (`example.com/pricing`), so it only becomes a
   // file address when the sandbox actually holds that file.
-  const virtualPath = normalizePath(ctx.fs.resolvePath(ctx.cwd, arg));
-  return (await ctx.fs.exists(virtualPath))
-    ? { isFileUrl: false, suffix: "", virtualPath }
+  const path = normalizePath(ctx.fs.resolvePath(ctx.cwd, arg));
+  return (await ctx.fs.exists(path))
+    ? { isFileUrl: false, suffix: "", path }
     : undefined;
 }
 

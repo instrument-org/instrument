@@ -44,10 +44,10 @@ export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 const DEV_MOUNT_POINT = "/dev";
 
 /**
- * The complete filesystem layout for a chat: the writable task mount (the
- * chat's folder), one mount per skill source, and the folders the chat
- * reaches, each writable unless it holds the workspace. Every mount sits at
- * its own host path in the shell's spelling. This is the single source of
+ * The complete filesystem layout for a chat: the chat's own folder,
+ * writable, one folder per skill source, and the folders the chat reaches,
+ * each writable unless it holds the workspace. Every folder sits at its own
+ * host path in the shell's spelling. This is the single source of
  * truth shared by the bash sandbox (just-bash filesystem) and the dedicated
  * file tools, so both agree on what the agent can see and where.
  */
@@ -94,8 +94,8 @@ export interface WorkspaceFsMount {
    * spelled per consumer is one the next mount does not inherit.
    */
   maskedEntries: readonly MaskedEntry[];
-  /** Absolute, normalized path in the shell's spelling where the directory appears. */
-  mountPoint: string;
+  /** The folder's path in the shell's spelling: {@link shellPath} of `hostRoot`. */
+  shellRoot: string;
   /**
    * When true the mount is read-only: writes throw EROFS in the shell.
    * A folder is read-only when it holds the workspace
@@ -108,8 +108,8 @@ export interface WorkspaceFsMount {
  * Build the just-bash filesystem the bash interpreter runs against, from the
  * layout: an empty read-only base holds the root (so stray writes like
  * /tmp/x fail loudly instead of evaporating with the per-call filesystem), the
- * task mounts writable at its mount point, and the chat's folders mount with
- * the access each gets.
+ * chat's folder mounts writable at its own path, and the other folders mount
+ * with the access each gets.
  */
 export async function buildBashFs(
   layout: WorkspaceFsLayout,
@@ -130,7 +130,7 @@ export async function buildBashFs(
 ): Promise<IFileSystem> {
   const { rules } = layout;
   const outsideFolder = (path: string, op: "read" | "write") => {
-    const refusal = outsideMountRefusal(layout, path, op);
+    const refusal = outsideFolderRefusal(layout, path, op);
     if (refusal) {
       onRefusal?.(refusal);
     }
@@ -204,9 +204,9 @@ export async function buildBashFs(
       spell: (hostPath) => shellPath(hostPath),
     });
     fs.mount(
-      mount.mountPoint,
+      mount.shellRoot,
       homeWalkBudget && folderHoldsWorkspace(mount.hostRoot)
-        ? homeWalkBudget.wrap(mounted, mount.mountPoint, (path) => {
+        ? homeWalkBudget.wrap(mounted, mount.shellRoot, (path) => {
             // The chat's own folder walks at the sandbox's budget wherever
             // it sits, the home folder included.
             const inChat = hostPathWithin(
@@ -249,7 +249,7 @@ export function buildWorkspaceFsLayout({
       // A folder on the user's disk is theirs, and an `.instrument` dir in it
       // is an ordinary directory of theirs rather than one of ours.
       maskedEntries: [],
-      mountPoint: shellPath(folder.path),
+      shellRoot: shellPath(folder.path),
       // What may change in it is the rules' to say.
       readOnly: false,
     }),
@@ -263,7 +263,7 @@ export function buildWorkspaceFsLayout({
             // Ours rather than a task's, and it holds no
             // settings: an `.instrument` dir in it would be an ordinary one.
             maskedEntries: [],
-            mountPoint: shellPath(getWorkspaceConfig().appsDir),
+            shellRoot: shellPath(getWorkspaceConfig().appsDir),
             readOnly: false as const,
           },
         }
@@ -274,7 +274,7 @@ export function buildWorkspaceFsLayout({
     task: {
       hostRoot: taskHostRoot,
       maskedEntries: taskMaskedEntries(taskHostRoot),
-      mountPoint: shellPath(taskHostRoot),
+      shellRoot: shellPath(taskHostRoot),
       readOnly: false,
     },
   };
@@ -351,8 +351,8 @@ export function folderHoldsWorkspace(folderPath: string): boolean {
   );
 }
 
-/** Every mount other than the task, in the order they are advertised. */
-export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
+/** Every folder in the layout but the chat's own, in the order they are advertised. */
+export function otherFolders(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [
     ...layout.folders,
     ...layout.skills,
@@ -360,33 +360,25 @@ export function nonTaskMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   ];
 }
 
-/** Mount point of the masked-off private dir under the task mount. */
-export function privateMountPoint(taskMountPoint: string): string {
-  return `${taskMountPoint}/${CHAT_FOLDER_NAMES.private}`;
-}
-
 /**
  * Resolve an absolute path in the shell's spelling to the real on-disk path
  * that backs it, plus the mount that owns it. Returns null if no mount owns
- * the path. The longest matching mount point wins, so a folder mount inside
- * the task mount's folder takes precedence over it.
+ * the path. The longest matching root wins, so a folder inside the chat's
+ * folder takes precedence over it.
  */
 export function resolveHostPath(
   layout: WorkspaceFsLayout,
-  virtualAbsPath: string,
+  shellAbsPath: string,
 ): null | { hostPath: AbsolutePath; mount: WorkspaceFsMount } {
-  const normalized = normalizePath(virtualAbsPath);
+  const normalized = normalizePath(shellAbsPath);
 
   let best: null | { mount: WorkspaceFsMount; relative: string } = null;
   for (const mount of allMounts(layout)) {
-    const relative = relativeWithin(mount.mountPoint, normalized);
+    const relative = relativeWithin(mount.shellRoot, normalized);
     if (relative === null) {
       continue;
     }
-    if (
-      best === null ||
-      mount.mountPoint.length > best.mount.mountPoint.length
-    ) {
+    if (best === null || mount.shellRoot.length > best.mount.shellRoot.length) {
       best = { mount, relative };
     }
   }
@@ -420,9 +412,9 @@ export function resolveHostPath(
  */
 export function resolveReadOnlyHostPath(
   layout: WorkspaceFsLayout,
-  virtualAbsPath: string,
+  shellAbsPath: string,
 ): AbsolutePath | null {
-  const resolved = resolveHostPath(layout, virtualAbsPath);
+  const resolved = resolveHostPath(layout, shellAbsPath);
   if (resolved === null) {
     return null;
   }
@@ -445,11 +437,11 @@ export function resolveReadOnlyHostPath(
  * {@link classifyHostPath} for a shell path, through the mount that owns
  * it. Null for a path no mount owns.
  */
-export function classifyVirtualPath(
+export function classifyShellPath(
   layout: WorkspaceFsLayout,
-  virtualAbsPath: string,
+  shellAbsPath: string,
 ): ReturnType<typeof classifyHostPath> {
-  const resolved = resolveHostPath(layout, virtualAbsPath);
+  const resolved = resolveHostPath(layout, shellAbsPath);
   return resolved === null
     ? null
     : classifyHostPath(layout, resolved.hostPath, resolved.mount);
@@ -484,7 +476,7 @@ export function classifyHostPath(
   escapes: boolean;
   masked: MaskedEntry | undefined;
   mount: WorkspaceFsMount;
-  virtualPath: string;
+  shellPath: string;
 } {
   const mounts = allMounts(layout);
   const canonical = canonicalizeThroughMissing(hostPath);
@@ -538,17 +530,17 @@ export function classifyHostPath(
         ? maskedEntryOf(real.relative, real.mount.maskedEntries)
         : undefined),
     mount: reached.mount,
-    virtualPath: normalizePath(
+    shellPath: normalizePath(
       reached.relative === "/"
-        ? reached.mount.mountPoint
-        : `${reached.mount.mountPoint}${reached.relative}`,
+        ? reached.mount.shellRoot
+        : `${reached.mount.shellRoot}${reached.relative}`,
     ),
   };
 }
 
 /** All mounts, task first. */
 function allMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
-  return [layout.task, ...nonTaskMounts(layout)];
+  return [layout.task, ...otherFolders(layout)];
 }
 
 /**
@@ -572,13 +564,12 @@ function buildSkillMounts(): WorkspaceFsMount[] {
     if (mounts.has(hostRoot)) {
       continue;
     }
-    const mountPoint = shellPath(hostRoot);
     mounts.set(hostRoot, {
       hostRoot,
       // Every one of these belongs to a tool rather than to a task,
       // so an `.instrument` dir in one is an ordinary directory of theirs.
       maskedEntries: [],
-      mountPoint,
+      shellRoot: shellPath(hostRoot),
       readOnly: id !== "workspace",
     });
   }
@@ -744,7 +735,7 @@ function holdsWritable(
  * folders, a lookup on the shell's PATH, a folder above a mount, and a
  * path nothing on disk holds.
  */
-export function outsideMountRefusal(
+export function outsideFolderRefusal(
   layout: WorkspaceFsLayout,
   path: string,
   op: "read" | "write",
@@ -756,7 +747,7 @@ export function outsideMountRefusal(
   if (
     SHELL_PATH_DIRS.has(nodePath.posix.dirname(path)) ||
     allMounts(layout).some((mount) =>
-      mount.mountPoint.startsWith(`${path === "/" ? "" : path}/`),
+      mount.shellRoot.startsWith(`${path === "/" ? "" : path}/`),
     )
   ) {
     return undefined;

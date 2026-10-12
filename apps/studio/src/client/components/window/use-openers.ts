@@ -409,9 +409,9 @@ export function useOpeners({
               }),
             };
       }
-      const href = await hrefOfNamedPath(target.mount, group);
+      const href = await hrefOfNamedPath(target.path, group);
       if (href === undefined) {
-        return { error: `nothing this window can show is at ${target.mount}.` };
+        return { error: `nothing this window can show is at ${target.path}.` };
       }
       const into = group ?? windowTabs.groupOnScreen;
       const tabId = windowTabs.openOrFocusScreen(href, {
@@ -449,10 +449,10 @@ export function useOpeners({
           }
           return { tabId: browser?.pageInPlaceOf(tab, target.url) };
         }
-        const href = await hrefOfNamedPath(target.mount, group);
+        const href = await hrefOfNamedPath(target.path, group);
         if (href === undefined) {
           return {
-            error: `nothing this window can show is at ${target.mount}.`,
+            error: `nothing this window can show is at ${target.path}.`,
           };
         }
         const next = visitInTab(tab, {

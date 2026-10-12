@@ -26,7 +26,7 @@ describe("nodeCommand", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
   const layout = taskLayout(chatId);
   const command = createNodeCommand(chatId);
-  const taskPath = layout.task.mountPoint;
+  const taskPath = layout.task.shellRoot;
 
   afterEach(() => {
     vi.resetAllMocks();

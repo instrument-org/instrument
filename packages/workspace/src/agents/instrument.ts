@@ -97,7 +97,6 @@ export const instrumentAgent = setupAgent({
               const access = effectiveFolderAccess(folder);
               return {
                 access,
-                mountPoint: shellPath(folder.path),
                 path: folder.path,
                 writableInside:
                   access === "read-only" &&

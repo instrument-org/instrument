@@ -10,7 +10,7 @@ import {
 } from "../../../lib/local-page-address";
 import { taskFsLayout } from "../../../lib/resolve-workspace-file-path";
 import {
-  nonTaskMounts,
+  otherFolders,
   type WorkspaceFsLayout,
 } from "../../../lib/workspace-fs-layout";
 import { type BrowserTargetId, type WorkspaceConfig } from "../../../types";
@@ -693,9 +693,11 @@ function addressOfEvent(params: unknown) {
   return typeof url === "string" ? url : undefined;
 }
 
-/** The host folders behind every mount of a layout. */
+/** The host path of every folder in a layout. */
 function hostRootsOf(layout: WorkspaceFsLayout) {
-  return [layout.task, ...nonTaskMounts(layout)].map((mount) => mount.hostRoot);
+  return [layout.task, ...otherFolders(layout)].map(
+    (folder) => folder.hostRoot,
+  );
 }
 
 /** The address a command asks the guest to load, for the commands that carry one. */

@@ -8,7 +8,7 @@ const WindowTabTargetSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("path"),
     /** The path as the agent wrote it; a folder's ends with a slash. */
-    mount: z.string(),
+    path: z.string(),
   }),
 ]);
 

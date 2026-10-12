@@ -36,7 +36,7 @@ interface MktempArgs {
 }
 
 /**
- * `mktemp`, against the virtual filesystem.
+ * `mktemp`, against the shell's own filesystem.
  *
  * just-bash has no implementation, and its absence is why the agent reaches
  * for `/tmp` -- the idiom it knows for "somewhere safe to put a scratch file"
@@ -66,9 +66,9 @@ export function createMktempCommand() {
     }
     const { directory, dryRun, quiet, template } = parsed;
 
-    const virtualPath = ctx.fs.resolvePath(ctx.cwd, template);
-    const parent = virtualPath.slice(0, virtualPath.lastIndexOf("/")) || "/";
-    const name = virtualPath.slice(virtualPath.lastIndexOf("/") + 1);
+    const path = ctx.fs.resolvePath(ctx.cwd, template);
+    const parent = path.slice(0, path.lastIndexOf("/")) || "/";
+    const name = path.slice(path.lastIndexOf("/") + 1);
     // A malformed template is a usage error rather than a creation failure, so
     // `-q` does not silence it, matching GNU.
     if (!TRAILING_X.test(name)) {

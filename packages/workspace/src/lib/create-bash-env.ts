@@ -774,7 +774,7 @@ export async function createLocalBashEnv({
         ? standIn(command.name)
         : command,
     ),
-    cwd: layout.task.mountPoint,
+    cwd: layout.task.shellRoot,
     executionLimits: {
       maxOutputSize: SANDBOX_MAX_OUTPUT_BYTES,
       maxStringLength: SANDBOX_MAX_BYTES,

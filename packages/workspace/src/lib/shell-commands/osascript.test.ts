@@ -28,7 +28,7 @@ describe("osascriptCommand", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
   const layout = taskLayout(chatId);
   const command = createOsascriptCommand(chatId, layout);
-  const taskPath = layout.task.mountPoint;
+  const taskPath = layout.task.shellRoot;
   const mockCtx = createCommandContext({
     cwd: taskPath,
     env: new Map<string, string>(),

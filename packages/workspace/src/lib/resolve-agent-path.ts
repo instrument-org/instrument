@@ -147,7 +147,7 @@ export function resolveAgentPath(options: {
   if (path.isAbsolute(trimmedPath)) {
     return heldToRules(
       layout,
-      resolveVirtualAbsolutePath(layout, trimmedPath),
+      resolveAbsolutePath(layout, trimmedPath),
       "read",
     );
   }
@@ -237,7 +237,7 @@ export function resolveWritableToolPath(options: {
 
   const result = heldToRules(
     layout,
-    resolveVirtualAbsolutePath(layout, trimmedPath),
+    resolveAbsolutePath(layout, trimmedPath),
     "write",
   );
   if (result.isErr()) {
@@ -262,9 +262,9 @@ export function resolveWritableToolPath(options: {
  */
 function heldToRules(
   layout: WorkspaceFsLayout,
-  resolved: ReturnType<typeof resolveVirtualAbsolutePath>,
+  resolved: ReturnType<typeof resolveAbsolutePath>,
   op: "read" | "write",
-): ReturnType<typeof resolveVirtualAbsolutePath> {
+): ReturnType<typeof resolveAbsolutePath> {
   if (resolved.isErr()) {
     return resolved;
   }
@@ -278,7 +278,7 @@ function heldToRules(
     op,
     rules: layout.rules,
     spell: (hostPath) =>
-      classifyHostPath(layout, hostPath)?.virtualPath ?? hostPath,
+      classifyHostPath(layout, hostPath)?.shellPath ?? hostPath,
   });
   return refusal ? executeError(refusal) : resolved;
 }
@@ -311,15 +311,12 @@ function maskedEntryError(displayPath: string, entry: MaskedEntry) {
  * Absolute paths outside every mount error with steering toward a relative
  * path or a folder request.
  */
-function resolveVirtualAbsolutePath(
-  layout: WorkspaceFsLayout,
-  virtualPath: string,
-) {
-  const resolved = resolveHostPath(layout, virtualPath);
+function resolveAbsolutePath(layout: WorkspaceFsLayout, shellAbsPath: string) {
+  const resolved = resolveHostPath(layout, shellAbsPath);
 
   if (resolved === null) {
     return executeError(
-      `The absolute path "${virtualPath}" is not in a folder you reach. ` +
+      `The absolute path "${shellAbsPath}" is not in a folder you reach. ` +
         `Use a path relative to this conversation's folder, or the full path of a file in one of the user's folders.`,
     );
   }
@@ -331,15 +328,15 @@ function resolveVirtualAbsolutePath(
   // by a route the bash sandbox's mask does not cover.
   const found = classifyHostPath(layout, hostPath, mount);
   if (found?.masked !== undefined) {
-    return maskedEntryError(normalizePath(virtualPath), found.masked);
+    return maskedEntryError(normalizePath(shellAbsPath), found.masked);
   }
 
   if (mount === layout.task) {
     // Normalize a full path in the chat's folder into the same task-relative
     // form as relative input so display paths stay consistent across tools.
     const relative = relativeWithin(
-      layout.task.mountPoint,
-      normalizePath(virtualPath),
+      layout.task.shellRoot,
+      normalizePath(shellAbsPath),
     );
     return ok({
       absolutePath: hostPath,
@@ -353,13 +350,13 @@ function resolveVirtualAbsolutePath(
   // a symlink inside the folder could read host files.
   if (found === null || found.escapes) {
     return executeError(
-      `The path "${virtualPath}" resolves outside its mount (via a symlink) and cannot be accessed.`,
+      `The path "${shellAbsPath}" resolves outside its folder (via a symlink) and cannot be accessed.`,
     );
   }
 
   return ok({
     absolutePath: hostPath,
-    displayPath: normalizePath(virtualPath),
+    displayPath: normalizePath(shellAbsPath),
     mount,
   });
 }

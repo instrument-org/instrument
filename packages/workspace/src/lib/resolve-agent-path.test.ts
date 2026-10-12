@@ -228,7 +228,7 @@ describe("private-dir (.instrument) restriction", () => {
 });
 
 // A chat's folder may hold a tasks/ dir an earlier version kept its tasks in,
-// each with its private dir, and the folder mounts writable at /task, so none
+// each with its private dir, and the folder mounts writable at its own path, so none
 // of these resolvers may reach that dir through it.
 describe("a chat's tasks dir", () => {
   const chat = ChatDirSchema.parse(path.join(chatsDir(), "2026-09-26-chat"));
@@ -480,7 +480,7 @@ describe("symlink containment in a folder", () => {
     });
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
-      expect(result.error.message).toMatch(/resolves outside its mount/);
+      expect(result.error.message).toMatch(/resolves outside its folder/);
     }
   });
 });

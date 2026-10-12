@@ -71,7 +71,7 @@ function run(options: { timeoutMs?: number }, ...args: string[]) {
   return createTabCommand({ chatId, layout, ...options }).execute(
     args,
     createCommandContext({
-      cwd: layout.task.mountPoint,
+      cwd: layout.task.shellRoot,
       env: new Map<string, string>(),
       fs: fsTree,
       stdin: EMPTY_BYTES,
@@ -135,7 +135,7 @@ describe("tab open", () => {
     expect(asked[0]?.action).toEqual({
       kind: "open",
       show: true,
-      target: { kind: "path", mount: "/Users/me/Instrument/" },
+      target: { kind: "path", path: "/Users/me/Instrument/" },
     });
   });
 

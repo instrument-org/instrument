@@ -13,7 +13,7 @@ describe("shortcuts", () => {
   const layout = taskLayout(chatId);
   const command = createShortcutsCommand(chatId, layout);
   const ctx = createCommandContext({
-    cwd: layout.task.mountPoint,
+    cwd: layout.task.shellRoot,
     env: new Map<string, string>(),
     fs: new InMemoryFs(),
     stdin: EMPTY_BYTES,
@@ -45,13 +45,13 @@ describe("shortcuts", () => {
     vi.mocked(execa).mockResolvedValueOnce({ all: "", exitCode: 0 } as never);
 
     await command.execute(
-      ["run", "Resize", "-o", `${layout.task.mountPoint}/out.png`],
+      ["run", "Resize", "-o", `${layout.task.shellRoot}/out.png`],
       ctx,
     );
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       "/usr/bin/shortcuts",
-      ["run", "Resize", "-o", `${layout.task.mountPoint}/out.png`],
+      ["run", "Resize", "-o", `${layout.task.shellRoot}/out.png`],
       expect.anything(),
     );
   });

@@ -52,7 +52,7 @@ describe("createPnpmCommand", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
-      `\`cd ${taskLayout(chatId).task.mountPoint} && pnpm add lodash\``,
+      `\`cd ${taskLayout(chatId).task.shellRoot} && pnpm add lodash\``,
     );
   });
 

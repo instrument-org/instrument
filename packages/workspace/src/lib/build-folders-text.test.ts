@@ -19,7 +19,6 @@ describe("buildFoldersText", () => {
       folders: [
         {
           access: "read-write",
-          mountPoint: "/Users/sam/Documents/test",
           path: "/Users/sam/Documents/test",
         },
       ],
@@ -35,9 +34,7 @@ describe("buildFoldersText", () => {
 
   it("tells the model to speak the name and address the path", () => {
     const text = buildFoldersText({
-      folders: [
-        { access: "read-only", mountPoint: "/tmp/notes", path: "/tmp/notes" },
-      ],
+      folders: [{ access: "read-only", path: "/tmp/notes" }],
       intro: INTRO,
     });
 
@@ -48,10 +45,9 @@ describe("buildFoldersText", () => {
   it("leaves a name unqualified when nothing else shares it", () => {
     const text = buildFoldersText({
       folders: [
-        { access: "read-only", mountPoint: "/tmp/a/test", path: "/tmp/a/test" },
+        { access: "read-only", path: "/tmp/a/test" },
         {
           access: "read-only",
-          mountPoint: "/tmp/b/notes",
           path: "/tmp/b/notes",
         },
       ],
@@ -73,12 +69,10 @@ describe("buildFoldersText", () => {
       folders: [
         {
           access: "read-write",
-          mountPoint: "/Users/sam/Downloads/test",
           path: "/Users/sam/Downloads/test",
         },
         {
           access: "read-only",
-          mountPoint: "/Users/sam/Documents/test",
           path: "/Users/sam/Documents/test",
         },
       ],
@@ -98,12 +92,10 @@ describe("buildFoldersText", () => {
       folders: [
         {
           access: "read-only",
-          mountPoint: path.join(os.homedir(), "test"),
           path: path.join(os.homedir(), "test"),
         },
         {
           access: "read-only",
-          mountPoint: path.join(os.homedir(), "Documents", "test"),
           path: path.join(os.homedir(), "Documents", "test"),
         },
       ],
@@ -121,7 +113,6 @@ describe("buildFoldersText", () => {
       folders: [
         {
           access: "read-only",
-          mountPoint: "/Users/sam",
           path: "/Users/sam",
           writableInside: true,
         },
@@ -140,7 +131,6 @@ describe("buildFoldersText", () => {
     const folders = [
       {
         access: "read-write" as const,
-        mountPoint: "/Users/sam/Desktop",
         path: "/Users/sam/Desktop",
       },
     ];
@@ -155,7 +145,6 @@ describe("buildFoldersText", () => {
         {
           access: "read-write",
           missing: true,
-          mountPoint: "/tmp/gone/test",
           path: "/tmp/gone/test",
         },
       ],

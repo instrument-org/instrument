@@ -223,7 +223,7 @@ export function createTabCommand({
 }
 
 function describeTarget(target: WindowTabTarget) {
-  return target.kind === "page" ? (target.url ?? "a new page") : target.mount;
+  return target.kind === "page" ? (target.url ?? "a new page") : target.path;
 }
 
 function outsideFile(tabId: string) {
@@ -272,10 +272,10 @@ async function targetOf(
   if (isUrl(arg)) {
     return { kind: "page", url: arg };
   }
-  const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
+  const path = ctx.fs.resolvePath(ctx.cwd, arg);
   let stat;
   try {
-    stat = await ctx.fs.stat(virtualPath);
+    stat = await ctx.fs.stat(path);
   } catch {
     return { error: `${TAB_NAME}: "${arg}" does not exist.` };
   }
@@ -284,6 +284,6 @@ async function targetOf(
   }
   return {
     kind: "path",
-    mount: stat.isDirectory ? `${virtualPath}/` : virtualPath,
+    path: stat.isDirectory ? `${path}/` : path,
   };
 }

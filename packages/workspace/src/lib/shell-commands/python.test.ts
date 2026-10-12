@@ -22,7 +22,7 @@ describe("python", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
   const layout = taskLayout(chatId);
   const command = createPythonCommand(chatId, layout);
-  const taskPath = layout.task.mountPoint;
+  const taskPath = layout.task.shellRoot;
   const mockCtx = createCommandContext({
     cwd: taskPath,
     env: new Map<string, string>(),

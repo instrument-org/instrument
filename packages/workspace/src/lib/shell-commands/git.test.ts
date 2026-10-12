@@ -36,7 +36,7 @@ describe("createGitCommand arg policy", () => {
   const chatId = createMockChatConfigForDir(chatDir);
   const layout = taskLayout(chatId);
   const command = createGitCommand({ layout, chatId });
-  const mockCtx = ctxIn(layout.task.mountPoint);
+  const mockCtx = ctxIn(layout.task.shellRoot);
   // The later blocks point the workspace elsewhere as they are collected.
   beforeAll(() => {
     createMockChatConfigForDir(chatDir);
@@ -139,7 +139,7 @@ describe("createGitCommand arg policy", () => {
     const result = await command.execute(args, mockCtx);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("points outside the task directory");
+    expect(result.stderr).toContain("points outside this conversation's folder");
   });
 });
 
@@ -157,7 +157,7 @@ describe("createGitCommand", () => {
     layout: smokeLayout,
     chatId: smokeChatId,
   });
-  const mockCtx = ctxIn(smokeLayout.task.mountPoint);
+  const mockCtx = ctxIn(smokeLayout.task.shellRoot);
   beforeAll(() => {
     createMockChatConfigForDir(dir);
   });
@@ -313,7 +313,7 @@ describe("createGitCommand over folder mounts", () => {
       },
     });
     command = createGitCommand({ layout, chatId: mountedChatId });
-    inTask = ctxIn(layout.task.mountPoint);
+    inTask = ctxIn(layout.task.shellRoot);
     // Seeded with the real binary directly.
     for (const dir of [repoDir, workDir]) {
       await fs.writeFile(path.join(dir, "note.md"), "hello\n");
@@ -381,7 +381,7 @@ describe("createGitCommand over folder mounts", () => {
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("points outside the task directory");
+    expect(result.stderr).toContain("points outside this conversation's folder");
   });
 
   it("refuses a folder that is not attached", async () => {
@@ -391,7 +391,7 @@ describe("createGitCommand over folder mounts", () => {
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("points outside the task directory");
+    expect(result.stderr).toContain("points outside this conversation's folder");
   });
 });
 

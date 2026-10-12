@@ -70,7 +70,7 @@ describe("buildBashFs", () => {
     const bashFs = await buildBashFs(layout, {
       maxFileReadSize: 1024 * 1024,
     });
-    return new Bash({ cwd: layout.task.mountPoint, fs: bashFs });
+    return new Bash({ cwd: layout.task.shellRoot, fs: bashFs });
   }
 
   // just-bash raises some filesystem refusals as thrown errors rather than exit
@@ -169,7 +169,7 @@ describe("buildBashFs", () => {
 
   it("masks the private dir so the agent shell can't read task internals", async () => {
     // A real private file, written the way the app does (direct fs, not the
-    // virtual FS).
+    // agent's shell).
     await fs.mkdir(path.join(tmpDir, "task", ".instrument"), {
       recursive: true,
     });
@@ -322,7 +322,7 @@ describe("buildBashFs skills mount", () => {
       taskHostRoot: ChatDirSchema.parse(path.join(tmpDir, "task")),
     });
     const bashFs = await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 });
-    return new Bash({ cwd: layout.task.mountPoint, fs: bashFs });
+    return new Bash({ cwd: layout.task.shellRoot, fs: bashFs });
   }
 
   const WORKSPACE_SKILLS = () => getWorkspaceSkillsDir();
@@ -490,7 +490,7 @@ describe("classifyHostPath", () => {
 
   it("names the deepest mount holding a path, by its path there", () => {
     const found = classifyHostPath(layout(), path.join(task, "work", "a.md"));
-    expect(found?.virtualPath).toBe(path.join(task, "work", "a.md"));
+    expect(found?.shellPath).toBe(path.join(task, "work", "a.md"));
     expect(found?.masked).toBeUndefined();
     expect(found?.escapes).toBe(false);
   });
@@ -503,9 +503,7 @@ describe("classifyHostPath", () => {
       path.join(task, ".instrument", "state.json"),
       homeMount,
     );
-    expect(found?.virtualPath).toBe(
-      path.join(task, ".instrument", "state.json"),
-    );
+    expect(found?.shellPath).toBe(path.join(task, ".instrument", "state.json"));
     expect(found?.masked).toBe(".instrument");
   });
 
@@ -514,7 +512,7 @@ describe("classifyHostPath", () => {
       layout(),
       path.join(home, "Docs", "out", "hosts"),
     );
-    expect(found?.virtualPath).toBe(path.join(home, "Docs", "out", "hosts"));
+    expect(found?.shellPath).toBe(path.join(home, "Docs", "out", "hosts"));
     expect(found?.escapes).toBe(true);
   });
 
@@ -525,7 +523,7 @@ describe("classifyHostPath", () => {
     );
     expect(found).toMatchObject({
       escapes: false,
-      virtualPath: path.join(home, "Docs", "new", "deeper.md"),
+      shellPath: path.join(home, "Docs", "new", "deeper.md"),
     });
   });
 
@@ -539,7 +537,7 @@ describe("classifyHostPath", () => {
       expect(found?.masked).toBe(".instrument");
       expect(
         classifyHostPath(layout(), path.join(home.toUpperCase(), "Docs"))
-          ?.virtualPath,
+          ?.shellPath,
       ).toBe(path.join(home, "Docs"));
     },
   );

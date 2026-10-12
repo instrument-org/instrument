@@ -42,7 +42,7 @@ export function createStandInWindow() {
             kind: "page",
           }
         : {
-            at: target.mount,
+            at: target.path,
             id: `screen-${crypto.randomUUID()}`,
             kind: "screen",
           };

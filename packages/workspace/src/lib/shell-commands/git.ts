@@ -7,7 +7,7 @@ import { gitBinaryPath } from "../git";
 import { ruleRefusal } from "../permissions/rules-fs";
 import {
   hostPathOf,
-  nonTaskMounts,
+  otherFolders,
   shellPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
@@ -230,7 +230,7 @@ export function createGitCommand({
     const escape = findEscapingPathValue(resolvedArgs, taskCwd, layout);
     if (escape) {
       return fail(
-        `${escape} points outside the task directory and every folder mount. ` +
+        `${escape} points outside this conversation's folder and every folder you reach. ` +
           `git can only operate on repositories inside those.`,
       );
     }
@@ -279,7 +279,7 @@ function fail(message: string) {
 }
 
 /**
- * Report the first argument naming a path outside the task and every mount,
+ * Report the first argument naming a path outside every folder the chat reaches,
  * resolved against the real host directory git runs in.
  *
  * Repeated `-C` is why this folds rather than checking each value on its own:
@@ -295,7 +295,7 @@ function findEscapingPathValue(
 ): string | undefined {
   const roots = [
     layout.task.hostRoot,
-    ...nonTaskMounts(layout).map((mount) => mount.hostRoot),
+    ...otherFolders(layout).map((folder) => folder.hostRoot),
   ];
   const escapes = (value: string, from: string) => {
     const resolved = path.resolve(from, value);

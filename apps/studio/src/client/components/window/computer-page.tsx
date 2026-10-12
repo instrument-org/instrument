@@ -938,8 +938,8 @@ export function ComputerPage({
     ? recentFolder
     : (currentListing?.path ?? refusedHostPath);
   const mount = isRecents
-    ? selectedRecent?.access && folderOf(selectedRecent.access.mountPath)
-    : currentListing?.access?.mountPath;
+    ? selectedRecent?.access && folderOf(selectedRecent.access.shellPath)
+    : currentListing?.access?.shellPath;
   const access = isRecents
     ? selectedRecent?.access?.access
     : currentListing?.access?.access;

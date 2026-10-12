@@ -11,9 +11,9 @@ import { isAtOrUnder } from "../path-containment";
 import { ruleRefusal } from "../permissions/rules-fs";
 import { RG_DISK_PATH } from "../ripgrep";
 import {
-  nonTaskMounts,
-  classifyVirtualPath,
-  outsideMountRefusal,
+  otherFolders,
+  classifyShellPath,
+  outsideFolderRefusal,
   resolveHostPath,
   resolveReadOnlyHostPath,
   shellPath,
@@ -86,7 +86,7 @@ export function createRgCommand({
   layout,
   chatId,
 }: {
-  /** The shell's own layout, so rg reaches exactly the mounts the shell has. */
+  /** The shell's own layout, so rg reaches exactly the folders the shell has. */
   layout: WorkspaceFsLayout;
   chatId: ChatId;
 }) {
@@ -177,14 +177,15 @@ export function createRgCommand({
  * receive (the same path on macOS and Linux, drive-lettered on Windows), and
  * refuse the ones that name the private dir.
  *
- * Only arguments that name a mount are resolved. Anything else starting with
- * `/` is left alone: it is far more likely to be a regex (`rg '/api/'`) than a
- * path, and a real absolute path is no wider a capability than the `python` and
- * `node` hatches already documented in the agent sandbox. A path that resolves
- * into the private dir, or out of its mount through a symlink, is refused.
+ * Only arguments that name a folder the chat reaches are resolved. Anything
+ * else starting with `/` is left alone: it is far more likely to be a regex
+ * (`rg '/api/'`) than a path, and a real absolute path is no wider a
+ * capability than the `python` and `node` hatches already documented in the
+ * agent sandbox. A path that resolves
+ * into the private dir, or out of its folder through a symlink, is refused.
  *
  * The private-dir question is asked of every argument that is not a flag, not
- * only of the ones naming a mount, because ripgrep applies no glob filter to a
+ * only of the ones naming a folder, because ripgrep applies no glob filter to a
  * file named on the command line: the deny glob covers the walk, and
  * `rg NEEDLE .instrument/state.json` goes straight past it. Which positional is
  * the pattern and which is a path would take parsing every flag this wrapper
@@ -195,23 +196,21 @@ export function createRgCommand({
 function bridgePathArgs(
   args: string[],
   layout: WorkspaceFsLayout,
-  resolveVirtual: (arg: string) => string,
+  resolvePath: (arg: string) => string,
 ): { args: string[] } | { error: string } {
-  const mountPoints = [layout.task, ...nonTaskMounts(layout)].map(
-    (mount) => mount.mountPoint,
+  const roots = [layout.task, ...otherFolders(layout)].map(
+    (folder) => folder.shellRoot,
   );
 
   const bridged: string[] = [];
   let operandsOnly = false;
   for (const arg of args) {
-    const owner = mountPoints.find((mountPoint) =>
-      isAtOrUnder(mountPoint, arg),
-    );
+    const owner = roots.find((root) => isAtOrUnder(root, arg));
     if (!owner) {
       const isOperand = operandsOnly || !arg.startsWith("-");
       operandsOnly ||= arg === "--";
       const masked = isOperand
-        ? classifyVirtualPath(layout, resolveVirtual(arg))?.masked
+        ? classifyShellPath(layout, resolvePath(arg))?.masked
         : undefined;
       if (masked === CHAT_FOLDER_NAMES.private) {
         return {
@@ -223,7 +222,7 @@ function bridgePathArgs(
       // would cost more than it guards.
       if (
         masked === TASKS_DIR_NAME &&
-        !isMaskedDirItself(layout, resolveVirtual(arg), TASKS_DIR_NAME)
+        !isMaskedDirItself(layout, resolvePath(arg), TASKS_DIR_NAME)
       ) {
         return {
           error: `${RG_COMMAND.name}: ${arg}: path is not accessible`,
@@ -232,13 +231,13 @@ function bridgePathArgs(
       // A path outside every folder the chat reaches is refused here the
       // way the shell's own commands refuse it, and asked for the same way,
       // rather than read by the real binary the rules hold to less.
-      const resolved = isOperand ? resolveVirtual(arg) : undefined;
+      const resolved = isOperand ? resolvePath(arg) : undefined;
       const refusal =
         resolved === undefined
           ? undefined
-          : mountPoints.some((mountPoint) => isAtOrUnder(mountPoint, resolved))
+          : roots.some((root) => isAtOrUnder(root, resolved))
             ? operandRefusal(layout, resolved)
-            : outsideMountRefusal(layout, resolved, "read");
+            : outsideFolderRefusal(layout, resolved, "read");
       if (refusal) {
         return {
           error: `${RG_COMMAND.name}: ${arg}: Permission denied\n${refusal}`,
@@ -271,9 +270,9 @@ function bridgePathArgs(
  */
 function operandRefusal(
   layout: WorkspaceFsLayout,
-  virtualPath: string,
+  path: string,
 ): string | undefined {
-  const resolved = resolveHostPath(layout, virtualPath);
+  const resolved = resolveHostPath(layout, path);
   if (resolved === null || !existsSync(resolved.hostPath)) {
     return undefined;
   }
@@ -374,7 +373,7 @@ function maskSearchRoots(
   layout: WorkspaceFsLayout,
   taskCwd: string,
 ): { args: string[]; globs: string[] } | { error: string } {
-  const maskedRoots = [layout.task, ...nonTaskMounts(layout)]
+  const maskedRoots = [layout.task, ...otherFolders(layout)]
     .filter((mount) => mount.maskedEntries.length > 0)
     .map((mount) => ({
       entries: mount.maskedEntries,
@@ -451,12 +450,12 @@ function maskSearchRoots(
  */
 function isMaskedDirItself(
   layout: WorkspaceFsLayout,
-  virtualPath: string,
+  path: string,
   entry: string,
 ): boolean {
   return (
-    normalizePath(virtualPath).toLowerCase() ===
-    `${layout.task.mountPoint}/${entry}`.toLowerCase()
+    normalizePath(path).toLowerCase() ===
+    `${layout.task.shellRoot}/${entry}`.toLowerCase()
   );
 }
 

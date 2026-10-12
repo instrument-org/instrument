@@ -67,6 +67,7 @@ import { ensureChat } from "../src/lib/chat/chat-records";
 import { createTopic, updateTopic } from "../src/lib/chat/topics";
 import { StoreId } from "../src/schemas/store-id";
 import { type WorkspaceConfig } from "../src/types";
+import { toolBinDirIn } from "../scripts/lib/tool-bin-dir";
 
 /** The Mac helper a checkout builds, when it has; see the harness input. */
 const MAC_HELPER_BIN = path.resolve(
@@ -585,6 +586,7 @@ export async function runEvals(
       uvBinPath: await execa({ reject: false })`which uv`.then(
         (result) => result.stdout.trim() || "uv",
       ),
+      toolBinDir: toolBinDirIn(workspaceRootDir),
       uvDataDir: path.join(workspaceRootDir, "uv-data"),
       webSearch: unavailableWebSearchClient,
     },

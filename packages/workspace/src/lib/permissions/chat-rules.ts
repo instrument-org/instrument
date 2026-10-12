@@ -1,3 +1,4 @@
+import { readdirSync, realpathSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -70,12 +71,45 @@ export async function chatReach(
 }
 
 /** What a native command the chat's shell spawns is held to. */
+/**
+ * The app's bin folder and the folders its links lead to, which a program
+ * has to read to run `node` or `pnpm` off PATH. Read once per folder: the
+ * links are made at launch.
+ */
+const toolBinFolderCache = new Map<string, string[]>();
+
+function toolBinFolders(toolBinDir: string): string[] {
+  let folders = toolBinFolderCache.get(toolBinDir);
+  if (!folders) {
+    let entries: string[] = [];
+    try {
+      entries = readdirSync(toolBinDir);
+    } catch {
+      // Not made yet; the folder alone is opened.
+    }
+    const targets = entries.flatMap((entry) => {
+      try {
+        return [path.dirname(realpathSync(path.join(toolBinDir, entry)))];
+      } catch {
+        return [];
+      }
+    });
+    folders = [...new Set([toolBinDir, ...targets])];
+    toolBinFolderCache.set(toolBinDir, folders);
+  }
+  return folders;
+}
+
 export function nativeReachFor(
   rules: Rules,
   layout: WorkspaceFsLayout,
 ): NativeReach {
+  const { toolBinDir } = getWorkspaceConfig();
   return {
-    readOnly: layout.skills.map((mount) => mount.hostRoot),
+    readOnly: [
+      ...layout.skills.map((mount) => mount.hostRoot),
+      ...(toolBinDir ? toolBinFolders(toolBinDir) : []),
+    ],
     readWrite: [
       layout.task.hostRoot,
       getWorkspaceConfig().uvDataDir,

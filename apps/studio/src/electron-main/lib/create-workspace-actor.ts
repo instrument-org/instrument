@@ -44,6 +44,7 @@ import { createBrowserViewManager } from "../browser-view/manager";
 import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { createAppsConfig, rememberAppsDir } from "./apps";
+import { getBinDirectoryPath } from "./setup-bin-directory";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
@@ -185,6 +186,7 @@ export function createWorkspaceActor() {
         : UNPACKAGED_SYSTEM_SKILLS_DIR,
       trashItem: (pathToTrash) => shell.trashItem(pathToTrash),
       uvBinPath: getUvBinPath(),
+      toolBinDir: getBinDirectoryPath(),
       uvDataDir: path.join(app.getPath("userData"), "uv"),
       webSearch: searchWeb,
     },

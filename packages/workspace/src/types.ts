@@ -268,6 +268,10 @@ export interface WorkspaceConfig {
   // the home folder by its English name: Windows moves Desktop and Documents
   // into OneDrive, and Linux names them in the desktop's language.
   knownFolders?: Record<KnownFolder, string>;
+  // The app's folder on PATH that links `node`, `pnpm`, `uv` and the rest,
+  // which a package script or bin shim finds `node` through. Native commands
+  // may read it whatever the rules say about the folder it sits in.
+  toolBinDir?: AbsolutePath;
   // Base dir for uv's isolated cache/python-install/tool dirs. Lives under the
   // app's userData so a sandboxed `HOME=/` never sends uv writing to the host.
   uvDataDir: AbsolutePath;

@@ -23,6 +23,8 @@ import "./lib/define-globals-apply";
 
 import { noopModelCache } from "@instrument-org/ai-gateway";
 import { execa } from "execa";
+import { createRequire } from "node:module";
+import { toolBinDirIn } from "./lib/tool-bin-dir";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -136,9 +138,20 @@ setWorkspaceConfig({
   modelCache: noopModelCache,
   nodeExecEnv: {},
   nativeSandbox: true,
+  // The pnpm the app ships, as its JS entry, which the workspace runs with
+  // node: a shell shim from PATH is neither JS nor readable in the sandbox.
   pnpmBinPath: AbsolutePathSchema.parse(
-    await execa({ reject: false })`which pnpm`.then(
-      ({ stdout }) => stdout.trim() || "/usr/bin/pnpm",
+    path.join(
+      path.dirname(
+        createRequire(
+          path.resolve(
+            import.meta.dirname,
+            "../../../apps/studio/package.json",
+          ),
+        ).resolve("pnpm"),
+      ),
+      "bin",
+      "pnpm.mjs",
     ),
   ),
   preparedSkillsDir: AbsolutePathSchema.parse(
@@ -151,6 +164,7 @@ setWorkspaceConfig({
   ),
   chatsDir: AbsolutePathSchema.parse(chatsDir),
   legacyTasksDir: AbsolutePathSchema.parse(path.join(rootDir, "tasks")),
+  toolBinDir: AbsolutePathSchema.parse(toolBinDirIn(rootDir)),
   trashItem: () => Promise.resolve(),
   uvBinPath,
   uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),

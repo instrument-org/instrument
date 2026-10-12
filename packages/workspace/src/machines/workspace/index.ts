@@ -381,6 +381,7 @@ export const workspaceMachine = setup({
       rootDir: string;
       systemSkillsDir: string;
       trashItem: (path: AbsolutePath) => Promise<void>;
+      toolBinDir?: string;
       uvBinPath: string;
       uvDataDir: string;
       macHelperBinPath?: string;
@@ -427,6 +428,9 @@ export const workspaceMachine = setup({
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
+      ...(input.toolBinDir && {
+        toolBinDir: AbsolutePathSchema.parse(input.toolBinDir),
+      }),
       chatsDir: absolutePathJoin(rootDir, CHATS_DIR_NAME),
       legacyTasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
       trashItem: input.trashItem,

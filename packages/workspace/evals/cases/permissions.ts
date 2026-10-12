@@ -871,6 +871,7 @@ function plantTaxes(relative: string): string {
   const file = path.join(os.homedir(), relative);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, TAXES);
+  plantedContent.set(file, TAXES);
   return file;
 }
 

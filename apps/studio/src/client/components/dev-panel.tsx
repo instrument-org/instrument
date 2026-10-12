@@ -623,8 +623,7 @@ function ThemeToggle() {
       <TooltipContent side="bottom">
         Switch to {next}{" "}
         <span className="opacity-60">
-          {formatAcceleratorText(SHORTCUTS.themeSystem.accelerator)} for
-          system
+          {formatAcceleratorText(SHORTCUTS.themeSystem.accelerator)} for system
         </span>
       </TooltipContent>
     </Tooltip>

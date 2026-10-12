@@ -44,9 +44,7 @@ export function ToolbarTooltip({
       </TooltipTrigger>
       <TooltipContent className="flex items-center gap-2" side="bottom">
         {text}
-        {entry ? (
-          <ShortcutKeys accelerator={entry.accelerator} />
-        ) : null}
+        {entry ? <ShortcutKeys accelerator={entry.accelerator} /> : null}
       </TooltipContent>
     </Tooltip>
   );

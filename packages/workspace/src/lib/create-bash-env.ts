@@ -106,18 +106,34 @@ import { type ChatId } from "../schemas/chat-id";
 import { createWalkBudget, type WalkBudget } from "./walk-budget";
 import { workDir } from "./work-dir";
 
-/** FS reads, HTTP bodies, maxStringLength; maxHeredocSize unchanged (64 MiB). */
+/**
+ * FS reads, HTTP bodies, maxStringLength, and what one pipeline may carry
+ * (`maxOutputSize`); maxHeredocSize unchanged (64 MiB). Pipelines buffer
+ * rather than stream, so a file passes through `cat big.csv | wc -l` whole, and
+ * an output bound below the read bound fails a file the agent may read. The
+ * shell runs in a worker thread, so carrying it costs the window nothing.
+ */
 const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
 
 /**
- * What one command may build as output, which is a different question from how
- * large a file the agent may work on. A broad walk over a folder mount
- * produces a string the size of the tree and every byte of it is allocated on
- * the thread that paints the window: one unfiltered `rg --files` over a home
- * folder measures 185 MiB and stalls the window for 25 seconds without
- * exceeding anything. Bounding this leaves the file sizes alone.
+ * Lines, records, and JSON values one command may hold, against just-bash's
+ * 1,000,000 (`grep`, `awk`'s record array, `jq`) and 100,000 (`awk`'s records
+ * and loops, `sed`'s branch loops). A 1M-row CSV export or a 50 MB JSON file
+ * is ordinary desktop data and passed neither. Spread over the 256 MiB read
+ * bound this is 26 bytes a line, so it covers nearly any text file the agent
+ * may read while still bounding a runaway: an endless `awk` loop reaches it in
+ * about 5 seconds, `sed` in under one.
  */
-const SANDBOX_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
+const SANDBOX_MAX_RECORDS = 10_000_000;
+
+/**
+ * Commands and shell loop iterations one call may run, against just-bash's
+ * 100,000, which `cut` and `seq` also count lines against: `seq 1 200000`
+ * and `cut -f1` over a 100,001-line file failed. A `while read` loop over a
+ * 1M-line file runs a few million commands. A runaway `while true` reaches this
+ * in about 20 seconds, still while the user is watching.
+ */
+const SANDBOX_MAX_COMMANDS = 10_000_000;
 
 /**
  * Operations and entries one traversal may spend, both 1,000,000 by default.
@@ -789,9 +805,15 @@ export async function createLocalBashEnv({
     ),
     cwd: MOUNT.task,
     executionLimits: {
+      maxArrayElements: SANDBOX_MAX_RECORDS,
+      maxAwkIterations: SANDBOX_MAX_RECORDS,
+      maxCommandCount: SANDBOX_MAX_COMMANDS,
       maxJsTimeoutMs: SANDBOX_SCRIPT_TIMEOUT_MS,
-      maxOutputSize: SANDBOX_MAX_OUTPUT_BYTES,
+      maxLoopIterations: SANDBOX_MAX_COMMANDS,
+      maxOutputSize: SANDBOX_MAX_BYTES,
       maxPythonTimeoutMs: SANDBOX_SCRIPT_TIMEOUT_MS,
+      maxQueryElements: SANDBOX_MAX_RECORDS,
+      maxSedIterations: SANDBOX_MAX_RECORDS,
       maxStringLength: SANDBOX_MAX_BYTES,
       maxTraversalEntries: SANDBOX_MAX_TRAVERSAL,
       maxTraversalWork: SANDBOX_MAX_TRAVERSAL,

@@ -13,7 +13,7 @@ WINDOWS_HOST=.agents/skills/test-studio-on-windows/scripts/windows-studio-host.m
 DRIVE=.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
 ```
 
-`studio-chrome-devtools` owns that driver and carries what holds wherever Studio is driven: the page model, the traps, and why real input is not `element.click()`. Read it too; this skill adds only what the remote Windows host changes.
+`studio-chrome-devtools` owns that driver and carries what holds wherever Studio is driven: the page model, the traps, and why real input is not `element.click()`. Read it too; this skill adds only what the remote Windows host changes. Anything on the host outside Studio's window, such as a native dialog or the system browser during sign-in, goes through `drive-host-desktop`.
 
 The SSH alias must already work noninteractively. The Windows user must remain logged in because Task Scheduler launches Electron into that interactive desktop. The host must have `%USERPROFILE%\.instrument\studio-host.json`; `status` explains when it is missing.
 

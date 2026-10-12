@@ -15,7 +15,7 @@ LINUX_HOST=.agents/skills/test-studio-on-linux/scripts/linux-studio-host.mjs
 DRIVE=.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
 ```
 
-`studio-chrome-devtools` owns that driver and carries what holds wherever Studio is driven: the page model, the traps, and why real input is not `element.click()`. Read it too; this skill adds only what the remote Linux host changes. `test-studio-on-windows` is its sibling and the two are deliberately shaped alike, so what you know from one transfers.
+`studio-chrome-devtools` owns that driver and carries what holds wherever Studio is driven: the page model, the traps, and why real input is not `element.click()`. Read it too; this skill adds only what the remote Linux host changes. Anything on the host outside Studio's window, such as a native dialog or the system browser during sign-in, goes through `drive-host-desktop`. `test-studio-on-windows` is its sibling and the two are deliberately shaped alike, so what you know from one transfers.
 
 The SSH alias must already work noninteractively. A user must stay logged into the desktop, because the launcher inherits that session's environment to find a display. The host must have `~/.instrument/studio-host.json`; `status` explains when it is missing.
 

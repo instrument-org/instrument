@@ -16,6 +16,7 @@ import {
   draftTitle,
   hasWords,
   matchesFilters,
+  NO_FILTERS,
   outsideFilters,
   type Topic,
   widenToSearch,
@@ -189,6 +190,11 @@ export function ChatPane({
         <TopicBanner
           onDetails={(topic) => {
             setEditingId(topic.id);
+          }}
+          // Back to the chats, as picking Chats in the head is: the search
+          // is its own thing and stays as it was.
+          onLeave={() => {
+            setFilters({ ...NO_FILTERS, search: filters.search });
           }}
           topic={chosenTopic}
         />

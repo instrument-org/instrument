@@ -10,6 +10,7 @@ import {
 import { AssistantMessage } from "./assistant-message";
 import { isDataPart, renderDataPart } from "./chat-stream-data-parts";
 import { ChatDevOnly } from "./dev-mode-card";
+import { getToolExplanation } from "../lib/get-tool-explanation";
 import { PermissionAsksForPart } from "./permission-asks";
 import { ToolCall, ToolCallBody } from "./message-part/tool-call";
 import {
@@ -157,6 +158,7 @@ export function renderChatPart({
     const asked = (
       <PermissionAsksForPart
         chatId={ctx.chatInfo.id}
+        explanation={getToolExplanation(part)}
         key={`asks-${part.metadata.id}`}
         partId={part.metadata.id}
       />

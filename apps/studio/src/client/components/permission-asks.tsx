@@ -1,8 +1,11 @@
 import { rpcClient } from "@/client/rpc/client";
+import { getToolExplanation } from "@/client/lib/get-tool-explanation";
 import { folderLabel, displayPath } from "@/client/lib/path-utils";
 import { toast } from "@/client/lib/toast";
 import {
   type ChatId,
+  isToolPart,
+  type SessionMessage,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -53,6 +56,57 @@ export function permissionTargetName(kind: Ask["kind"], target: string) {
   return kind === "folder" ? folderLabel(target) : target;
 }
 
+/**
+ * What each folder of sign-ins the agent asks first about holds, by its path
+ * in the home folder, as the workspace's passwords place lists them.
+ */
+const SIGN_IN_LINES: Record<string, string> = {
+  ".aws": "This folder holds the keys to your Amazon Web Services account.",
+  ".azure": "This folder holds your sign-in to Microsoft Azure.",
+  ".config/gcloud": "This folder holds your sign-in to Google Cloud.",
+  ".config/gh": "This folder holds your sign-in to GitHub.",
+  ".config/op": "This folder holds your sign-in to 1Password.",
+  ".docker/config.json":
+    "This file holds your sign-ins to the places Docker gets images from.",
+  ".git-credentials": "This file holds the passwords git signs in with.",
+  ".gnupg": "This folder holds the keys you sign and encrypt things with.",
+  ".kube": "This folder holds the keys to your Kubernetes clusters.",
+  ".netrc": "This file holds passwords for websites and servers.",
+  ".password-store": "This folder holds your saved passwords.",
+  ".ssh": "This folder holds the keys you sign in to other computers with.",
+};
+
+/** What a folder of sign-ins holds, said plainly; undefined for any other folder. */
+function signInLine(target: string): string | undefined {
+  const home = window.api.homeDir.replace(/[\\/]+$/, "");
+  if (!target.startsWith(home)) {
+    return undefined;
+  }
+  const inHome = target
+    .slice(home.length)
+    .replaceAll("\\", "/")
+    .replace(/^\/+/, "");
+  return SIGN_IN_LINES[inHome];
+}
+
+/** The explanation the tool call with this part id gave for itself. */
+function explanationOf(
+  messages: readonly SessionMessage.WithParts[],
+  partId: string | undefined,
+): string | undefined {
+  if (partId === undefined) {
+    return undefined;
+  }
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (isToolPart(part) && part.metadata.id === partId) {
+        return getToolExplanation(part);
+      }
+    }
+  }
+  return undefined;
+}
+
 /** A folder's path from the home folder down, `Documents › Clients`; the home folder is its own name. */
 function readablePath(target: string): string {
   const home = window.api.homeDir;
@@ -72,9 +126,12 @@ function readablePath(target: string): string {
  */
 export function PermissionAsksForPart({
   chatId,
+  explanation,
   partId,
 }: {
   chatId: ChatId;
+  /** What the call said it was doing, shown on its cards. */
+  explanation: string | undefined;
   partId: string;
 }) {
   const asks = useAsks(chatId)?.filter((ask) => ask.partId === partId);
@@ -82,7 +139,12 @@ export function PermissionAsksForPart({
     return null;
   }
   return asks.map((ask) => (
-    <PermissionAskCard ask={ask} chatId={chatId} key={ask.id} />
+    <PermissionAskCard
+      ask={ask}
+      chatId={chatId}
+      explanation={explanation}
+      key={ask.id}
+    />
   ));
 }
 
@@ -91,7 +153,14 @@ export function PermissionAsksForPart({
  * a tool part also shows keeps the short form here; one with no part has only
  * this card, so it gets the whole set of answers.
  */
-export function PermissionAsksFoot({ chatId }: { chatId: ChatId }) {
+export function PermissionAsksFoot({
+  chatId,
+  messages,
+}: {
+  chatId: ChatId;
+  /** The chat's messages, where the call that raised an ask is found. */
+  messages: readonly SessionMessage.WithParts[];
+}) {
   const asks = useAsks(chatId);
   if (!asks?.length) {
     return null;
@@ -103,6 +172,7 @@ export function PermissionAsksFoot({ chatId }: { chatId: ChatId }) {
           ask={ask}
           chatId={chatId}
           compact={ask.partId !== undefined}
+          explanation={explanationOf(messages, ask.partId)}
           key={ask.id}
         />
       ))}
@@ -114,13 +184,16 @@ function PermissionAskCard({
   ask,
   chatId,
   compact = false,
+  explanation,
 }: {
   ask: Ask;
   chatId: ChatId;
   compact?: boolean;
+  explanation: string | undefined;
 }) {
   const { isBusy, send } = useAnswer(chatId, ask);
   const name = permissionTargetName(ask.kind, ask.target);
+  const holds = ask.kind === "folder" ? signInLine(ask.target) : undefined;
   const reach = useQuery({
     ...rpcClient.workspace.permissions.appReach.queryOptions({
       input: { app: ask.target, id: chatId },
@@ -141,9 +214,16 @@ function PermissionAskCard({
     return (
       <ToolCard className="mt-0 rounded-xl">
         <div className="flex items-center justify-between gap-3 px-3 py-2">
-          <p className="min-w-0 truncate text-sm">
-            {`Let Instrument use "${name}"?`}
-          </p>
+          <div className="min-w-0">
+            <p className="truncate text-sm">
+              {`Let Instrument use "${name}"?`}
+            </p>
+            {explanation ? (
+              <p className="truncate text-xs text-muted-foreground">
+                {explanation}
+              </p>
+            ) : null}
+          </div>
           <div className="flex shrink-0 gap-2">
             <Button
               disabled={isBusy}
@@ -178,6 +258,10 @@ function PermissionAskCard({
             ? `Let Instrument use "${name}"?`
             : `Let Instrument use ${name}?`}
         </p>
+        {explanation ? (
+          <p className="mt-1 text-sm text-muted-foreground">{explanation}</p>
+        ) : null}
+        {holds ? <p className="mt-1 text-sm">{holds}</p> : null}
         {ask.kind === "folder" ? (
           <p className="mt-1 text-xs break-all text-muted-foreground">
             {readablePath(ask.target)}

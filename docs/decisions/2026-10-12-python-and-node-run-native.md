@@ -2,7 +2,7 @@
 
 Date: 2026-10-12
 
-Supersedes [2026-09-10-python-is-the-sandboxed-interpreter.md](2026-09-10-python-is-the-sandboxed-interpreter.md). Carries out [plans/active/native-script-runtimes.md](../plans/active/native-script-runtimes.md).
+Supersedes [2026-09-10-python-is-the-sandboxed-interpreter.md](2026-09-10-python-is-the-sandboxed-interpreter.md). Carries out [plans/completed/native-script-runtimes.md](../plans/completed/native-script-runtimes.md).
 
 ## Context
 

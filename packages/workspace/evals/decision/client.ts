@@ -108,7 +108,7 @@ async function requestOnce(
         };
         usage?: { cost?: number; input_tokens?: number };
       };
-      // Workers AI wraps the System One response in `result`.
+      // Workers AI wraps the decision response in `result`.
       const result = json.result ?? json;
       const inputTokens = result.usage?.input_tokens ?? 0;
       return {

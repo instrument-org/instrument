@@ -1,20 +1,19 @@
+import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { encodeUtf8ToBytes } from "just-bash";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { noop } from "radashi";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
+import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
+import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
-import { initializeTask } from "../initialize-task";
-import { taskDir } from "../task-dir-utils";
-import { holdTask, taskHold } from "../task-hold";
-import { getTaskState, setTaskState } from "../task-record";
+import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
+import { Store } from "../store";
+import { updateChatSettings } from "../chat-settings";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { sendSubcommand } from "./task/send";
@@ -26,11 +25,11 @@ import { subcommandRunner } from "../../test/helpers/run-subcommand";
 const runSend = subcommandRunner(sendSubcommand, "task send");
 const runStop = subcommandRunner(stopSubcommand, "task stop");
 
-// A chat and a task of their own per test: a store handle is kept per record
-// id, and each test's workspace is a folder of its own.
+// A chat of its own per test: a store handle is kept per record id, and each
+// test's workspace is a folder of its own.
 let counter = 0;
 let CHAT_ID = ChatIdSchema.parse("2026-09-29-conversation");
-let CHILD_ID = TaskIdSchema.parse("write-the-story");
+let CHILD_ID = StoreId.newSessionId();
 
 // Whether the child is working, read each time it is asked, so a test can
 // have it go idle part way through a wait.
@@ -67,7 +66,6 @@ let rootDir: string;
 beforeEach(async () => {
   counter += 1;
   CHAT_ID = ChatIdSchema.parse(`2026-09-29-conversation-${counter}`);
-  CHILD_ID = TaskIdSchema.parse(`write-the-story-${counter}`);
   context = {
     chatId: CHAT_ID,
     remainingYieldMs: () => Number.POSITIVE_INFINITY,
@@ -75,35 +73,26 @@ beforeEach(async () => {
   working.value = () => true;
   sent.events = [];
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-send-stop-"));
-  createMockTaskConfigForDir(path.join(rootDir, "tasks", CHILD_ID), {
+  createMockChatConfigForDir(path.join(rootDir, "tasks", "unused"), {
     unplaced: true,
   });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    defaultTaskTemplateDir: AbsolutePathSchema.parse(
+    chatTemplateDir: AbsolutePathSchema.parse(
       path.resolve(import.meta.dirname, "../../../templates/default"),
+    ),
+    chatsDir: AbsolutePathSchema.parse(
+      path.join(path.join(rootDir, "workspace"), "chats"),
     ),
     rootDir: WorkspaceDirSchema.parse(path.join(rootDir, "workspace")),
   });
   chatFor(StoreId.newSessionId(), CHAT_ID);
-  await setTaskState(taskDir(CHAT_ID), {
-    selectedModelURI:
+  await updateChatSettings(CHAT_ID, {
+    modelURI: AIGatewayModelURI.Schema.parse(
       "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
+    ),
   });
-  const created = await initializeTask(
-    {
-      chatId: CHAT_ID,
-      initialSettings: {
-        name: "Write the story",
-      },
-      taskId: CHILD_ID,
-      workspaceConfig: getWorkspaceConfig(),
-    },
-    {},
-  );
-  if (created.isErr()) {
-    throw created.error;
-  }
+  CHILD_ID = await chatTaskFor(CHAT_ID, { title: "Write the story" });
 });
 
 afterEach(async () => {
@@ -112,7 +101,7 @@ afterEach(async () => {
 
 function send(args: string[]) {
   return runSend(
-    [CHILD_ID, ...args],
+    ["t1", ...args],
     context,
     encodeUtf8ToBytes("Make it about a submarine captain instead."),
     "/",
@@ -137,7 +126,7 @@ function sentAddMessage() {
 describe("task send", () => {
   it("leaves a busy task to hear the message at its next step", async () => {
     const result = await send([]);
-    expect(result.stdout.replaceAll(CHILD_ID, "<id>")).toMatchInlineSnapshot(`
+    expect(result.stdout.replaceAll("t1", "<id>")).toMatchInlineSnapshot(`
       "Sent to <id>. It is busy and will hear this at its next step; you will be told when its turn finishes. If its latest step has run for minutes without a tool call, \`send --now\` interrupts it.
       "
     `);
@@ -146,37 +135,92 @@ describe("task send", () => {
 
   it("stops the step in flight with --now", async () => {
     const result = await send(["--now"]);
-    expect(result.stdout.replaceAll(CHILD_ID, "<id>")).toMatchInlineSnapshot(`
+    expect(result.stdout.replaceAll("t1", "<id>")).toMatchInlineSnapshot(`
       "Sent to <id>. Its step in flight was stopped, and it takes this up as its next turn; you will be told when that turn finishes.
       "
     `);
     expect(sentAddMessage()).toEqual([{ interrupt: true }]);
   });
 
+  it("sends the chat's words as the chat's, not as the user's", async () => {
+    await send([]);
+    const message = sent.events.flatMap((event) =>
+      typeof event === "object" &&
+      event !== null &&
+      "type" in event &&
+      event.type === "addMessage" &&
+      "value" in event &&
+      typeof event.value === "object" &&
+      event.value !== null &&
+      "message" in event.value
+        ? [event.value.message as SessionMessage.WithParts]
+        : [],
+    )[0];
+    expect(message?.parts.filter((part) => part.type === "text")).toEqual([]);
+    expect(
+      message?.parts.find((part) => part.type === "data-fromChat"),
+    ).toMatchObject({
+      data: {
+        kind: "message",
+        text: "Make it about a submarine captain instead.",
+      },
+    });
+  });
+
   it("reports the send as a hand-off to the bash call", async () => {
     const handOffs: HandOff[] = [];
     await withHandOffs(handOffs, () => send([]));
-    expect(handOffs).toEqual([{ kind: "sent", taskId: CHILD_ID }]);
+    expect(handOffs).toEqual([{ kind: "sent", sessionId: CHILD_ID }]);
   });
 
-  it("moves the task to the model the chat's picker is on now", async () => {
-    await setTaskState(taskDir(CHILD_ID), {
-      selectedModelURI:
-        "openai/gpt-6-luna?provider=openrouter&providerConfigId=mock-provider-config-id",
-    });
+  it("runs the task on the model the chat's picker is on now", async () => {
     const picked =
       "anthropic/claude-opus-5.5?provider=openrouter&providerConfigId=mock-provider-config-id";
-    await setTaskState(taskDir(CHAT_ID), { selectedModelURI: picked });
+    await updateChatSettings(CHAT_ID, {
+      modelURI: AIGatewayModelURI.Schema.parse(picked),
+    });
     await send([]);
-    expect((await getTaskState(taskDir(CHILD_ID))).selectedModelURI).toBe(
-      picked,
+    expect(
+      sent.events.find(
+        (event): event is { type: "addMessage"; value: { id: string } } =>
+          typeof event === "object" &&
+          event !== null &&
+          "type" in event &&
+          event.type === "addMessage",
+      )?.value,
+    ).toMatchObject({ id: CHAT_ID, sessionId: CHILD_ID });
+  });
+
+  it("finds the task by its title too", async () => {
+    const result = await runSend(
+      ["write the story"],
+      context,
+      encodeUtf8ToBytes("Shorter."),
+      "/",
     );
+    expect(result.stdout).toContain("Sent to t1.");
+  });
+
+  it("writes the message into the task's session, in the chat's store", async () => {
+    working.value = () => false;
+    await send([]);
+    const own = (
+      await Store.getMessagesWithParts({
+        inherited: false,
+        sessionId: CHILD_ID,
+        chatId: CHAT_ID,
+      })
+    )._unsafeUnwrap();
+    expect(own).toHaveLength(1);
+    expect(
+      (await Store.getSession(CHILD_ID, CHAT_ID))._unsafeUnwrap().status,
+    ).toBe("running");
   });
 
   it("starts an idle task either way", async () => {
     working.value = () => false;
     const result = await send(["--now"]);
-    expect(result.stdout.replaceAll(CHILD_ID, "<id>")).toMatchInlineSnapshot(`
+    expect(result.stdout.replaceAll("t1", "<id>")).toMatchInlineSnapshot(`
       "Sent to <id>. It is running now; you will be told when it finishes.
       "
     `);
@@ -191,123 +235,53 @@ describe("task stop", () => {
       checks += 1;
       return checks < 3;
     };
-    const result = await runStop([CHILD_ID], context);
-    expect(result.stdout.replaceAll(CHILD_ID, "<id>")).toMatchInlineSnapshot(`
+    const result = await runStop(["t1"], context);
+    expect(result.stdout.replaceAll("t1", "<id>")).toMatchInlineSnapshot(`
       "Stopped <id>. Its turn ended where it was; \`task send\` gives it the next thing to do.
       "
     `);
     expect(sent.events).toEqual([
-      { type: "stopSessions", value: { id: CHILD_ID } },
+      { type: "stopSessions", value: { id: CHAT_ID, sessionId: CHILD_ID } },
     ]);
   });
 
   it("says it is still ending when it does not go idle in time", async () => {
-    const result = await runStop([CHILD_ID], {
+    const result = await runStop(["t1"], {
       ...context,
       remainingYieldMs: () => 700,
     });
-    expect(result.stdout.replaceAll(CHILD_ID, "<id>")).toMatchInlineSnapshot(`
-      "Told <id> to stop, and it is still ending; \`task show <id>\` will say when it has.
+    expect(result.stdout.replaceAll("t1", "<id>")).toMatchInlineSnapshot(`
+      "Told <id> to stop, and it is still ending; \`task list\` will say when it has.
       "
     `);
+  });
+
+  // "Stop everything" reads as every task at once, never as a process of the
+  // first one's.
+  it("stops several tasks named together", async () => {
+    const second = await chatTaskFor(CHAT_ID, { title: "Draw the cover" });
+    let asked = 0;
+    working.value = () => {
+      asked += 1;
+      // Each is working when stop checks first, and idle on the next poll.
+      return asked % 2 === 1;
+    };
+    const result = await runStop(["t1", "t2"], context);
+    expect(result.stdout).toContain("Stopped t1.");
+    expect(result.stdout).toContain("Stopped t2.");
+    expect(sent.events).toEqual([
+      { type: "stopSessions", value: { id: CHAT_ID, sessionId: CHILD_ID } },
+      { type: "stopSessions", value: { id: CHAT_ID, sessionId: second } },
+    ]);
   });
 
   it("says a task that is not running is not running", async () => {
     working.value = () => false;
-    const result = await runStop([CHILD_ID], context);
-    expect(result.stdout.replaceAll(CHILD_ID, "<id>")).toMatchInlineSnapshot(`
+    const result = await runStop(["t1"], context);
+    expect(result.stdout.replaceAll("t1", "<id>")).toMatchInlineSnapshot(`
       "<id> is not running.
       "
     `);
-    expect(sent.events).toEqual([]);
-  });
-});
-
-/** Output with the id and the hold's age, which the clock decides, taken out. */
-function held(stdout: string) {
-  return stdout.replaceAll(CHILD_ID, "<id>").replace(/\(\d+s\)/, "(<age>)");
-}
-
-/**
- * Holds the child from starting the way `task new` does while macOS asks
- * about a folder; the returned function lets it go.
- */
-function holdChild() {
-  let release: () => void = noop;
-  holdTask(CHILD_ID, {
-    reason: 'macOS is asking the user about "Desktop"',
-    start: () => {
-      sent.events.push({ type: "createSession" });
-    },
-    until: new Promise<void>((resolve) => {
-      release = resolve;
-    }),
-    userReason: "Waiting for you to allow access to Desktop",
-  });
-  return () => {
-    release();
-    return new Promise((resolve) => setTimeout(resolve, 0));
-  };
-}
-
-describe("a task held from starting", () => {
-  beforeEach(() => {
-    working.value = () => false;
-  });
-
-  it("queues a message sent to it, and delivers it after the brief once it starts", async () => {
-    const release = holdChild();
-    const result = await send(["--now"]);
-    expect(held(result.stdout)).toMatchInlineSnapshot(`
-      "Queued for <id>, which has not started: macOS is asking the user about "Desktop" (<age>). It hears this right after its brief once it starts; you will be told when it finishes.
-      "
-    `);
-    expect(sent.events).toEqual([]);
-
-    await release();
-
-    expect(
-      sent.events.map((event) =>
-        typeof event === "object" && event !== null && "type" in event
-          ? event.type
-          : event,
-      ),
-    ).toEqual(["createSession", "addMessage"]);
-  });
-
-  it("does not report a message queued behind it as a hand-off", async () => {
-    const release = holdChild();
-    const handOffs: HandOff[] = [];
-    await withHandOffs(handOffs, () => send([]));
-    expect(handOffs).toEqual([]);
-    await release();
-  });
-
-  it("cancels its start on stop, so it never runs", async () => {
-    const release = holdChild();
-    const result = await runStop([CHILD_ID], context);
-    expect(held(result.stdout)).toMatchInlineSnapshot(`
-      "Stopped <id> before it started; it was waiting: macOS is asking the user about "Desktop" (<age>). It never ran, and nothing sent to it will run; start a new task if the work is still wanted.
-      "
-    `);
-    expect(taskHold(CHILD_ID)).toBeUndefined();
-
-    await release();
-
-    expect(sent.events).toEqual([]);
-  });
-
-  it("cancels its start on stop --all too", async () => {
-    const release = holdChild();
-    const result = await runStop([CHILD_ID, "--all"], context);
-    expect(held(result.stdout)).toMatchInlineSnapshot(`
-      "Stopped <id> before it started; it was waiting: macOS is asking the user about "Desktop" (<age>). It never ran, and nothing sent to it will run; start a new task if the work is still wanted.
-      <id> has nothing running in the background.
-      "
-    `);
-
-    await release();
-
     expect(sent.events).toEqual([]);
   });
 });

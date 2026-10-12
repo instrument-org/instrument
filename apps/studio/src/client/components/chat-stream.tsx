@@ -6,12 +6,13 @@ import {
   type SessionMessageDataPart,
   type SessionMessagePart,
   type StoreId,
-  type Task,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useEffect, useMemo, useState } from "react";
 
 import { useTaskBackgroundProcesses } from "../hooks/use-task-background-processes";
+import { useTaskSession } from "../hooks/use-task-session";
 import { chatSeparators } from "../lib/chat-separators";
 import { cn } from "../lib/utils";
 import {
@@ -27,7 +28,7 @@ import {
   renderChatPart,
   type RenderPartContext,
 } from "./chat-stream-render-part";
-import { FolderAttachmentsCard } from "./folder-attachments-card";
+import { SentFoldersCard } from "./sent-folders-card";
 import { PlanningDotIcon } from "./icons/planning-dot";
 import { MessageError } from "./message-error";
 import {
@@ -42,7 +43,6 @@ import {
   TranscriptGroup,
   TranscriptGroupHead,
 } from "./message-part/transcript-group";
-import { ProjectContextNote } from "./project-context-note";
 import { SentReplyQuote } from "./reply-quote";
 import {
   type TranscriptExpansion,
@@ -174,7 +174,7 @@ interface ChatStreamProps {
   // anchor turns. Only the top-level transcript sets this; nested tool-agent
   // streams render flat.
   renderAsItems?: boolean;
-  task: Task;
+  chatInfo: ChatInfo;
 }
 
 interface MessageRow {
@@ -199,7 +199,7 @@ export function ChatStream({
   onRunAgain,
   presentation,
   renderAsItems = false,
-  task,
+  chatInfo,
 }: ChatStreamProps) {
   const releaseAutoScroll = useReleaseAutoScroll();
   const holdRowInPlace = useHoldRowInPlace();
@@ -385,15 +385,18 @@ export function ChatStream({
     lastMessageId,
     onRetry,
     presentation,
-    task,
+    chatInfo,
   };
 
   // Ids of everything this task still has running, so a folded group can say
   // that one of the commands behind it has outlived the turn that started it.
   // The same query the task header reads, so a transcript full of promoted
   // calls costs no extra request.
+  const { sessionId } = useTaskSession();
   const runningProcessIds = new Set(
-    useTaskBackgroundProcesses(task.id).map((process) => process.id),
+    useTaskBackgroundProcesses(chatInfo.id, sessionId).map(
+      (process) => process.id,
+    ),
   );
 
   // A group's head line copies the step the agent is on, which lives in some
@@ -542,7 +545,6 @@ export function ChatStream({
 
       // Attachments are hoisted into per-message chrome below.
       const fileAttachments: SessionMessagePart.Type[] = [];
-      let projectContextPart: SessionMessagePart.DataPart | undefined;
       let replyPart: SessionMessageDataPart.ReplyDataPart | undefined;
       let sentChips: SessionMessageDataPart.SentChip[] = [];
       const seenSourceIds = new Set<string>();
@@ -605,11 +607,6 @@ export function ChatStream({
 
         if (message.role === "user" && part.type === "data-attachments") {
           fileAttachments.push(part);
-          continue;
-        }
-
-        if (message.role === "user" && part.type === "data-projectContext") {
-          projectContextPart = part;
           continue;
         }
 
@@ -714,20 +711,7 @@ export function ChatStream({
             ? fileAttachmentsPart.data
             : undefined;
 
-        // Folders auto-included from the project are split out by their source
-        // and shown in a slim "from project" note instead of the hand-attached
-        // card.
-        const projectData =
-          projectContextPart?.type === "data-projectContext"
-            ? projectContextPart.data
-            : undefined;
-        const allFolders = attachmentsData?.folders ?? [];
-        const userFolders = allFolders.filter(
-          (folder) => folder.source !== "project",
-        );
-        const projectFolders = allFolders.filter(
-          (folder) => folder.source === "project",
-        );
+        const userFolders = attachmentsData?.folders ?? [];
         const files = attachmentsData?.files ?? [];
 
         if (files.length > 0) {
@@ -735,7 +719,7 @@ export function ChatStream({
             <AttachmentsCard
               files={files}
               key={`attachments-${message.id}`}
-              taskId={task.id}
+              chatId={chatInfo.id}
             />,
           );
         }
@@ -744,7 +728,7 @@ export function ChatStream({
         // over the prompt and its attachments.
         if (userFolders.length > 0) {
           messageElements.unshift(
-            <FolderAttachmentsCard
+            <SentFoldersCard
               folders={userFolders}
               key={`folders-${message.id}`}
             />,
@@ -755,16 +739,6 @@ export function ChatStream({
         if (sentChips.length > 0) {
           messageElements.unshift(
             <SentChips chips={sentChips} key={`sent-chips-${message.id}`} />,
-          );
-        }
-
-        if (projectData) {
-          messageElements.unshift(
-            <ProjectContextNote
-              data={projectData}
-              folders={projectFolders}
-              key={`project-context-${message.id}`}
-            />,
           );
         }
 
@@ -939,12 +913,15 @@ export function ChatStream({
       );
     }
 
-    // The conversation at work: from the moment the user sends, through the
-    // words of a step being composed and the gaps between calls and steps, the
-    // dots stand at its end, since that is where the next thing comes out.
-    // One row under one key for the whole run, so going from one of those to
-    // the next never takes the dots away and fades a new copy in.
-    if (presentation === "chat" && (isAgentRunning || isAwaitingFirstRow)) {
+    // The conversation drafting a reply: the dots stand at its end, where the
+    // words will land, only while a step is writing words, never while it
+    // calls a tool or waits. Every other kind of working is the line under
+    // the chat's title, so the dots only ever promise a reply that is coming.
+    if (
+      presentation === "chat" &&
+      isAgentRunning &&
+      isDraftingReply(messages)
+    ) {
       // The dots are the assistant's last bubble while they stand, so the
       // reply above them gives its tail up to them.
       boxBubbles.push(TYPING_TAIL_ID);
@@ -1014,6 +991,20 @@ export function ChatStream({
         </div>
       </FollowedBubblesContext>
     </TranscriptExpansionContext>
+  );
+}
+
+/**
+ * Whether the conversation's newest step is writing words the reader will
+ * get: a step still open whose latest part is text. A step calling a tool,
+ * thinking, or not begun yet is working, not drafting.
+ */
+function isDraftingReply(messages: SessionMessage.WithParts[]): boolean {
+  const last = messages.at(-1);
+  return (
+    last?.role === "assistant" &&
+    last.metadata.finishedAt === undefined &&
+    last.parts.at(-1)?.type === "text"
   );
 }
 

@@ -4,12 +4,11 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
-import { TaskIdSchema } from "../schemas/task-id";
 import { chatFor } from "../test/helpers/chat-record";
-import { initializeTask } from "./initialize-task";
-import { forgetRecordFolders, recordIdTaken } from "./record-folders";
-import { taskDir } from "./task-dir-utils";
-import { trashChat } from "./trash-task";
+import { chatTaskFor } from "../test/helpers/chat-task";
+import { forgetChatFolders, resolveChat, chatDir } from "./record-folders";
+import { Store } from "./store";
+import { trashChat } from "./trash-chat";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { ChatIdSchema } from "../schemas/chat-id";
 
@@ -28,46 +27,34 @@ beforeEach(async () => {
   trashed = [];
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
-    defaultTaskTemplateDir: AbsolutePathSchema.parse(
-      path.join(rootDir, "template"),
-    ),
+    chatTemplateDir: AbsolutePathSchema.parse(path.join(rootDir, "template")),
+    chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
     rootDir: WorkspaceDirSchema.parse(rootDir),
-    tasksDir: WorkspaceDirSchema.parse(path.join(rootDir, "tasks")),
+    legacyTasksDir: WorkspaceDirSchema.parse(path.join(rootDir, "tasks")),
     trashItem: async (item: string) => {
       trashed.push(path.relative(rootDir, item));
       await fs.rm(item, { force: true, recursive: true });
     },
   });
   await fs.mkdir(path.join(rootDir, "template"));
-  forgetRecordFolders();
+  forgetChatFolders();
 });
 
 afterEach(async () => {
-  forgetRecordFolders();
+  forgetChatFolders();
   await fs.rm(rootDir, { force: true, recursive: true });
 });
 
-async function make(id: string, chatId: string) {
-  const taskId = TaskIdSchema.parse(id);
-  const made = await initializeTask(
-    {
-      chatId: ChatIdSchema.parse(chatId),
-      initialSettings: { name: id },
-      taskId,
-      workspaceConfig: getWorkspaceConfig(),
-    },
-    {},
-  );
-  expect(made.isOk()).toBe(true);
-  return taskId;
-}
-
 describe("trashChat", () => {
-  it("trashes the chat's folder once, with the tasks it started inside it", async () => {
+  it("trashes the chat's folder once, with the tasks in its store", async () => {
     const chat = chatFor();
-    await make("2026-09-24-first-task", chat);
-    await make("2026-09-24-second-task", chat);
-    const other = await make("2026-09-24-not-this-chats", chatFor());
+    await chatTaskFor(chat, { title: "First task" });
+    await chatTaskFor(chat, { title: "Second task" });
+    const otherChat = chatFor(
+      undefined,
+      ChatIdSchema.parse("2026-09-24-other"),
+    );
+    const other = await chatTaskFor(otherChat);
 
     const result = await trashChat({
       id: chat,
@@ -77,7 +64,8 @@ describe("trashChat", () => {
 
     expect(result.isOk()).toBe(true);
     expect(trashed).toEqual([`chats/${chat}`]);
-    expect(recordIdTaken("2026-09-24-first-task")).toBe(false);
-    await expect(fs.access(taskDir(other))).resolves.toBeUndefined();
+    expect(resolveChat(chat)).toBeUndefined();
+    await expect(fs.access(chatDir(otherChat))).resolves.toBeUndefined();
+    expect((await Store.getSession(other, otherChat)).isOk()).toBe(true);
   });
 });

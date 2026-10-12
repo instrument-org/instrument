@@ -2,15 +2,13 @@ import { err, ok, ResultAsync, safeTry } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { type FileUpload } from "../schemas/file-upload";
-import { type FolderAttachment } from "../schemas/folder-attachment";
 import {
   type AbsolutePath,
-  AbsolutePathSchema,
   type RelativePath,
   RelativePathSchema,
-  type TaskDir,
+  type ChatDir,
 } from "../schemas/paths";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
@@ -18,14 +16,11 @@ import { StoreId } from "../schemas/store-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { findAvailableName } from "./find-available-name";
-import { getCurrentDate } from "./get-current-date";
 import { getMimeType } from "./get-mime-type";
-import { type FolderGrant, grantFolders } from "./grant-folders";
 import { normalizePath } from "./normalize-path";
 import { pathExists } from "./path-exists";
 import { sanitizeFilename } from "./sanitize-filename";
-import { getTaskAttachmentsDir } from "./task-dir-utils";
-import { getTaskState, setTaskState } from "./task-record";
+import { getChatAttachmentsDir } from "./chat-dir-utils";
 
 type PathFileUpload = Extract<FileUpload.Type, { path: string }>;
 interface PreparedUploadedFile {
@@ -42,24 +37,17 @@ interface PreparedUploadedFile {
 export async function writeUploadedAttachments({
   dir,
   files,
-  folders,
   messageId,
   sessionId,
 }: {
-  dir: TaskDir;
+  /** The folder the files land in, under `attachments/`: the chat's (`workDir`). */
+  dir: ChatDir;
   files?: FileUpload.Type[];
-  folders?: {
-    access?: FolderAttachment.Access;
-    mountName?: string;
-    path: string;
-    source?: FolderAttachment.Source;
-  }[];
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
 }) {
   return safeTry(async function* () {
     const fileInfos: SessionMessageDataPart.FileAttachmentDataPart[] = [];
-    const folderAttachments: FolderAttachment.Type[] = [];
 
     if (files && files.length > 0) {
       const preparedFiles = yield* await prepareUploadedFiles({
@@ -129,42 +117,11 @@ export async function writeUploadedAttachments({
       }
     }
 
-    if (folders && folders.length > 0) {
-      const taskState = await getTaskState(dir);
-      const held = Object.values(taskState.attachedFolders ?? {});
-
-      // A path already attached is not attached twice: two mounts over one
-      // directory would give the agent two names for one folder. Nor is it
-      // re-granted: sending a folder again says nothing about its access.
-      const heldPaths = new Set(held.map((folder) => folder.path));
-      const grants: FolderGrant[] = [];
-      for (const folder of folders) {
-        const folderPath = AbsolutePathSchema.parse(folder.path);
-        if (heldPaths.has(folderPath)) {
-          continue;
-        }
-        heldPaths.add(folderPath);
-        grants.push({
-          access: folder.access ?? "read-write",
-          ...(folder.mountName ? { mountName: folder.mountName } : {}),
-          path: folderPath,
-          source: folder.source ?? "user",
-        });
-      }
-
-      const granted = grantFolders(held, grants, getCurrentDate().getTime());
-      await setTaskState(dir, { attachedFolders: granted.folders });
-      folderAttachments.push(...granted.granted);
-    }
-
     const fileMetadata: SessionMessageDataPart.FileAttachmentDataPart[] =
       fileInfos.map((file) => ({ ...file }));
 
     const part: SessionMessagePart.Type = {
-      data: {
-        files: fileMetadata,
-        folders: folderAttachments.length > 0 ? folderAttachments : undefined,
-      },
+      data: { files: fileMetadata },
       metadata: {
         createdAt: new Date(),
         id: StoreId.newPartId(),
@@ -205,11 +162,11 @@ function prepareUploadedFiles({
   dir,
   files,
 }: {
-  dir: TaskDir;
+  dir: ChatDir;
   files: FileUpload.Type[];
 }) {
   return safeTry(async function* () {
-    const inputDir = getTaskAttachmentsDir(dir);
+    const inputDir = getChatAttachmentsDir(dir);
     yield* ResultAsync.fromPromise(
       fs.mkdir(inputDir, { recursive: true }),
       fileSystemError,
@@ -248,7 +205,7 @@ function prepareUploadedFiles({
       reservedFilenames.add(uniqueFilename);
 
       const relativePath = RelativePathSchema.parse(
-        `${TASK_FOLDER_NAMES.attachments}/${uniqueFilename}`,
+        `${CHAT_FOLDER_NAMES.attachments}/${uniqueFilename}`,
       );
 
       preparedFiles.push({
@@ -274,7 +231,7 @@ function taskAttachmentPath({
   dir,
   filePath,
 }: {
-  dir: TaskDir;
+  dir: ChatDir;
   filePath: AbsolutePath;
 }): RelativePath | undefined {
   const relative = normalizePath(path.relative(dir, filePath));
@@ -283,7 +240,7 @@ function taskAttachmentPath({
     relative === ".." ||
     relative.startsWith("../") ||
     path.isAbsolute(relative) ||
-    relative.split("/")[0] === TASK_FOLDER_NAMES.private
+    relative.split("/")[0] === CHAT_FOLDER_NAMES.private
   ) {
     return undefined;
   }

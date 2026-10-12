@@ -2,8 +2,9 @@ import { studioModalAtom } from "@/client/atoms/studio-modal";
 import { getDefaultStore } from "jotai";
 
 export interface LoginModalProps {
-  // Hide the manual-provider option (caller only wants account login).
-  hideManualProvider?: boolean;
+  // Offer only the Instrument account login: no ChatGPT, Claude, or manual
+  // provider, for callers that mean signing in to Instrument itself.
+  instrumentOnly?: boolean;
   // Open straight to the add-provider form because a provider is required.
   reason?: "provider-required";
 }

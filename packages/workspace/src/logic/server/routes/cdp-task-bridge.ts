@@ -3,15 +3,16 @@ import type { Protocol } from "devtools-protocol";
 import { WebSocket } from "ws";
 
 import { isLocalAddress } from "../../../lib/local-page-address";
-import { chatOf } from "../../../lib/record-folders";
+import { resolveChat } from "../../../lib/record-folders";
 import { WINDOW_ID } from "../../../schemas/window-id";
 import { askWindow, requestWindowTab } from "../../../lib/chat/window-tab";
 import { taskFsLayout } from "../../../lib/resolve-workspace-file-path";
-import { getBrowserSessionDir, taskDir } from "../../../lib/task-dir-utils";
-import { getTaskState, setTaskState } from "../../../lib/task-record";
+import { heldTabs, updateHeldTabs } from "../../../lib/held-tabs";
+import { getBrowserSessionDir } from "../../../lib/chat-dir-utils";
 import { publisher } from "../../../rpc/publisher";
-import { type TaskId } from "../../../schemas/task-id";
-import { type HeldTab } from "../../../schemas/task-state";
+import { type StoreId } from "../../../schemas/store-id";
+import { type ChatId } from "../../../schemas/chat-id";
+import { type HeldTab } from "../../../schemas/chat-state";
 import {
   type BrowserTargetId,
   decodeBrowserTargetId,
@@ -63,7 +64,7 @@ interface Held {
  */
 export function handleTaskCdpClient(
   clientWs: WebSocket,
-  taskId: TaskId,
+  { sessionId, chatId }: { sessionId: StoreId.Session; chatId: ChatId },
   workspaceConfig: WorkspaceConfig,
   workspaceRef: WorkspaceServerParentRef,
 ) {
@@ -100,8 +101,7 @@ export function handleTaskCdpClient(
 
   /** The tabs the task holds that are open, in the order it came by them. */
   const held = async (): Promise<Held[]> => {
-    const state = await getTaskState(taskDir(taskId));
-    return state.browserTabs.flatMap((tab) => {
+    return (await heldTabs(chatId, sessionId)).flatMap((tab) => {
       const decoded = decodeBrowserTargetId(tab.id);
       return decoded && browser.getTargetMeta(tab.id)
         ? [
@@ -236,17 +236,16 @@ export function handleTaskCdpClient(
   };
 
   const holdOpened = async (targetId: BrowserTargetId) => {
-    const state = await getTaskState(taskDir(taskId));
-    await setTaskState(taskDir(taskId), {
-      browserTabs: [...state.browserTabs, { id: targetId, openedBy: "task" }],
-    });
+    await updateHeldTabs(chatId, sessionId, (tabs) => [
+      ...tabs,
+      { id: targetId, openedBy: "task" },
+    ]);
   };
 
   const release = async (targetId: BrowserTargetId) => {
-    const state = await getTaskState(taskDir(taskId));
-    await setTaskState(taskDir(taskId), {
-      browserTabs: state.browserTabs.filter((tab) => tab.id !== targetId),
-    });
+    await updateHeldTabs(chatId, sessionId, (tabs) =>
+      tabs.filter((tab) => tab.id !== targetId),
+    );
   };
 
   const createTarget = async (id: number, params: unknown) => {
@@ -265,7 +264,7 @@ export function handleTaskCdpClient(
       // Asked of an address before any tab is at it, so no page is current.
       const gate = createLocalFileGate({
         currentUrl: noPageYet,
-        readLayout: () => taskFsLayout(taskId),
+        readLayout: () => taskFsLayout(chatId),
       });
       if (!(await gate.mayOpen(address))) {
         send({ error: notYourFile(address), id });
@@ -273,8 +272,8 @@ export function handleTaskCdpClient(
       }
     }
     const tabId = await requestWindowTab({
-      askedBy: taskId,
-      group: chatOf(taskId),
+      askedBy: chatId,
+      group: resolveChat(chatId),
       show: false,
       ...(address === undefined ? {} : { url: address }),
     });
@@ -317,8 +316,8 @@ export function handleTaskCdpClient(
     if (tab.openedBy === "task") {
       await askWindow({
         action: { kind: "close", tabId: tab.tabId },
-        askedBy: taskId,
-        group: chatOf(taskId),
+        askedBy: chatId,
+        group: resolveChat(chatId),
       });
     }
     answer(id, { success: true } satisfies Protocol.Target.CloseTargetResponse);
@@ -356,7 +355,7 @@ export function handleTaskCdpClient(
         // Electron doesn't support CDP browser context management. A synthetic
         // context lets agent-browser's recording flow proceed.
         answer(id, {
-          browserContextId: `context-${taskId}`,
+          browserContextId: `context-${chatId}`,
         } satisfies Protocol.Target.CreateBrowserContextResponse);
         return;
       }
@@ -477,7 +476,7 @@ export function handleTaskCdpClient(
 
   // A tab handed over, or taken back, while the agent is connected.
   const stopWatching = publisher.subscribe("record.changed", (change) => {
-    if (change.id === taskId && change.kind === "state" && !closed) {
+    if (change.id === chatId && change.kind === "state" && !closed) {
       queue = queue
         .then(async () => {
           await reconcile();

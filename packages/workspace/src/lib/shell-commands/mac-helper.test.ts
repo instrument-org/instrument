@@ -2,8 +2,8 @@ import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
   CALENDAR_COMMAND,
@@ -21,7 +21,7 @@ const ctx = createCommandContext({
 });
 
 describe("mac helper commands", () => {
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("calendar-test"));
+  const chatId = createMockChatConfig(ChatIdSchema.parse("calendar-test"));
   const config = getWorkspaceConfig();
 
   afterEach(() => {
@@ -39,7 +39,7 @@ describe("mac helper commands", () => {
 
     const result = await createMacHelperCommand(
       CALENDAR_COMMAND,
-      taskId,
+      chatId,
     ).execute(["events", "--from", "tomorrow"], ctx);
 
     expect(result.exitCode).toBe(0);
@@ -58,7 +58,7 @@ describe("mac helper commands", () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({ all: "[]", exitCode: 0 } as never);
 
-    await createMacHelperCommand(CONTACTS_COMMAND, taskId).execute(
+    await createMacHelperCommand(CONTACTS_COMMAND, chatId).execute(
       ["--search", "neil"],
       ctx,
     );
@@ -76,7 +76,7 @@ describe("mac helper commands", () => {
 
     const result = await createMacHelperCommand(
       CALENDAR_COMMAND,
-      taskId,
+      chatId,
     ).execute(["events"], ctx);
 
     expect(result.exitCode).toBe(1);

@@ -6,7 +6,25 @@ import { atom, getDefaultStore } from "jotai";
  */
 export const commandMenuOpenAtom = atom(false);
 
+/** The menu already drawn on the screen up, which Cmd+K puts the caret in rather than opening a second one over it. */
+let inPage: (() => void) | null = null;
+
+/** Names the menu drawn on the screen up, while it is up; returns its removal. */
+export function registerInPageCommandMenu(focus: () => void): () => void {
+  inPage = focus;
+  return () => {
+    if (inPage === focus) {
+      inPage = null;
+    }
+  };
+}
+
 export function toggleCommandMenu() {
   const store = getDefaultStore();
-  store.set(commandMenuOpenAtom, !store.get(commandMenuOpenAtom));
+  const isOpen = store.get(commandMenuOpenAtom);
+  if (!isOpen && inPage) {
+    inPage();
+    return;
+  }
+  store.set(commandMenuOpenAtom, !isOpen);
 }

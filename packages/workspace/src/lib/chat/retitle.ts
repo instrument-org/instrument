@@ -1,10 +1,9 @@
-import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
+import { fetchModel } from "@instrument-org/ai-gateway";
 import { alphabetical } from "radashi";
 
 import { publisher } from "../../rpc/publisher";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
 import { askDecisionModel } from "../decision-model";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import {
@@ -13,9 +12,8 @@ import {
 } from "../generate-title-from-user-message";
 import { truncateAtWordBoundary } from "../sanitize-model-text";
 import { Store } from "../store";
-import { taskDir } from "../task-dir-utils";
-import { getTaskState } from "../task-record";
-import { resolveChat } from "../record-folders";
+import { chatModelURI } from "../chat-settings";
+import { chatConversation } from "./children";
 import { updateSessionTitle } from "../update-session-title";
 import { getWorkspaceConfig } from "../workspace-config";
 import { chatIsWorking, settleChatTitle } from "./chats";
@@ -52,7 +50,7 @@ export async function retitleChat({
   keep?: boolean;
   sessionId: StoreId.Session;
 }): Promise<string | undefined> {
-  const messages = await Store.getMessagesWithParts({ sessionId, taskId: id });
+  const messages = await Store.getMessagesWithParts({ sessionId, chatId: id });
   if (messages.isErr()) {
     return undefined;
   }
@@ -84,19 +82,20 @@ export async function retitleChat({
       currentTitle,
       opening: titleSourceText(root),
       reply,
+      chatId: id,
     }))
   ) {
     return currentTitle;
   }
-  const state = await getTaskState(taskDir(id));
-  if (!state.selectedModelURI) {
+  const modelURI = await chatModelURI(id);
+  if (!modelURI) {
     return undefined;
   }
   const model = await fetchModel({
     captureException: workspaceConfig.captureException,
     configs: workspaceConfig.getAIProviderConfigs(),
     modelCache: workspaceConfig.modelCache,
-    modelURI: AIGatewayModelURI.Schema.parse(state.selectedModelURI),
+    modelURI,
   });
   if (!model.ok) {
     return undefined;
@@ -106,6 +105,7 @@ export async function retitleChat({
     message: root,
     model: model.value,
     reply,
+    chatId: id,
     workspaceConfig,
   });
   if (title.isErr()) {
@@ -119,7 +119,7 @@ export async function retitleChat({
   await updateSessionTitle({
     expectedCurrentTitle: session.value.title,
     sessionId,
-    taskId: id,
+    chatId: id,
     title: title.value,
   });
   return title.value;
@@ -164,12 +164,14 @@ export async function titleStillFits({
   currentTitle,
   opening,
   reply,
+  chatId,
 }: {
   ask: typeof askDecisionModel;
   configs: Parameters<typeof askDecisionModel>[0]["configs"];
   currentTitle: string;
   opening: string;
   reply: string;
+  chatId: ChatId;
 }): Promise<boolean> {
   try {
     const asked = await ask({
@@ -193,6 +195,7 @@ export async function titleStillFits({
         },
       },
       configs,
+      usage: { purpose: "title-check", chatId },
     });
     const moved = asked?.response.answers.moved?.noul;
     return moved !== undefined && moved < MOVED_BELOW;
@@ -216,10 +219,11 @@ async function retitleOnSettle({
   id,
   sessionId,
 }: {
-  id: TaskId;
+  id: ChatId;
   sessionId: StoreId.Session;
 }): Promise<void> {
-  const chatId = resolveChat(id);
+  // A task's turn ending names nothing: the chat is named from its own.
+  const chatId = chatConversation(id, sessionId);
   if (!chatId) {
     return;
   }

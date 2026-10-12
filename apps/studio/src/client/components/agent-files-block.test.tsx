@@ -1,6 +1,6 @@
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { renderWithProviders } from "@/tests/render";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -47,7 +47,7 @@ vi.mock("@/client/rpc/client", () => ({
   ),
 }));
 vi.mock("@/client/hooks/use-host-paths", () => ({
-  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+  useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
     Object.fromEntries(
       filePaths.map((filePath) => [
         filePath,
@@ -68,7 +68,7 @@ vi.mock("@/client/lib/computer-file-url", () => ({
     `instrument://computer-test${hostPath}${version === undefined ? "" : `?version=${version}`}`,
 }));
 
-const TASK_ID = TaskIdSchema.parse("a-task");
+const TASK_ID = ChatIdSchema.parse("a-task");
 
 function renderBlock(
   content: string,
@@ -89,7 +89,7 @@ function renderBlock(
           ? {
               assetVersion,
               isStreaming,
-              taskId: TASK_ID,
+              chatId: TASK_ID,
             }
           : { isStreaming }
       }

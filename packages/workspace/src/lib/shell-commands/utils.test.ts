@@ -1,9 +1,9 @@
 import { InMemoryFs } from "just-bash";
 import { describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { taskDir } from "../task-dir-utils";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { chatDir } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   bridgeInlineCodePaths,
@@ -14,8 +14,8 @@ import {
   unreachablePathArgError,
 } from "./utils";
 
-const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
-const dir = taskDir(taskId);
+const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
+const dir = chatDir(chatId);
 const fs = new InMemoryFs();
 
 function resolvePath(cwd: string) {
@@ -24,7 +24,7 @@ function resolvePath(cwd: string) {
 
 describe("resolvePathArgs native-binary bridge", () => {
   it("maps a /mnt path to a nonexistent task path, never the real folder", () => {
-    const resolved = resolvePathArgs(["/mnt/Photos/clip.mov"], taskId, {
+    const resolved = resolvePathArgs(["/mnt/Photos/clip.mov"], chatId, {
       cwd: "/task",
       fs,
     });
@@ -36,7 +36,7 @@ describe("resolvePathArgs native-binary bridge", () => {
   });
 
   it("maps /task paths to the real task dir", () => {
-    const resolved = resolvePathArgs(["/task/work/in.wav"], taskId, {
+    const resolved = resolvePathArgs(["/task/work/in.wav"], chatId, {
       cwd: "/task",
       fs,
     });
@@ -44,7 +44,7 @@ describe("resolvePathArgs native-binary bridge", () => {
   });
 
   it("quarantines any other virtual absolute path into the task dir", () => {
-    const resolved = resolvePathArgs(["/tmp/scratch.txt"], taskId, {
+    const resolved = resolvePathArgs(["/tmp/scratch.txt"], chatId, {
       cwd: "/task",
       fs,
     });
@@ -52,13 +52,13 @@ describe("resolvePathArgs native-binary bridge", () => {
   });
 
   it("quarantines a /task/.instrument path so native binaries can't read task internals", () => {
-    const resolved = resolvePathArgs(["/task/.instrument/state.json"], taskId, {
+    const resolved = resolvePathArgs(["/task/.instrument/state.json"], chatId, {
       cwd: "/task",
       fs,
     });
     // Must NOT resolve to the real private file (`${dir}/.instrument/...`); the
     // private dir quarantines like /mnt, to a nonexistent nested path so the
-    // binary fails not-found instead of reading task.db/state.json/settings.
+    // binary fails not-found instead of reading chat.db/state.json/settings.
     expect(resolved).toEqual([`${dir}/task/.instrument/state.json`]);
     expect(resolved[0]).not.toBe(`${dir}/.instrument/state.json`);
   });
@@ -75,7 +75,7 @@ describe("resolvePathArgs native-binary bridge", () => {
     "/dev/stdout",
     "/dev/stderr",
   ])("passes %s through to the host unchanged", (device) => {
-    expect(resolvePathArgs([device], taskId, { cwd: "/task", fs })).toEqual([
+    expect(resolvePathArgs([device], chatId, { cwd: "/task", fs })).toEqual([
       device,
     ]);
   });
@@ -83,7 +83,7 @@ describe("resolvePathArgs native-binary bridge", () => {
   it.each(["/dev/disk0", "/dev/rdisk0", "/dev/fd/63", "/dev/nullify"])(
     "still quarantines %s, which the allowlist does not name",
     (device) => {
-      expect(resolvePathArgs([device], taskId, { cwd: "/task", fs })).toEqual([
+      expect(resolvePathArgs([device], chatId, { cwd: "/task", fs })).toEqual([
         `${dir}${device}`,
       ]);
     },
@@ -94,7 +94,7 @@ describe("resolvePathArgs native-binary bridge", () => {
   // ffmpeg on Windows accepts that spelling; it rejects `/dev/null` outright,
   // which is what the mapping exists to prevent.
   it("maps the sink to the platform's spelling", () => {
-    const [resolved] = resolvePathArgs(["/dev/null"], taskId, {
+    const [resolved] = resolvePathArgs(["/dev/null"], chatId, {
       cwd: "/task",
       fs,
     });
@@ -104,7 +104,7 @@ describe("resolvePathArgs native-binary bridge", () => {
   });
 
   it("quarantines the devices Windows cannot spell", () => {
-    const [resolved] = resolvePathArgs(["/dev/zero"], taskId, {
+    const [resolved] = resolvePathArgs(["/dev/zero"], chatId, {
       cwd: "/task",
       fs,
     });
@@ -115,10 +115,10 @@ describe("resolvePathArgs native-binary bridge", () => {
 });
 
 describe("unreachablePathArgError", () => {
-  it("names the attached folder the agent asked for, not the quarantined path", () => {
+  it("names the folder mount the agent asked for, not the quarantined path", () => {
     expect(
       unreachablePathArgError("ffprobe", ["/mnt/Photos/clip.mov"], "/task"),
-    ).toContain("/mnt/Photos/clip.mov is inside an attached folder");
+    ).toContain("/mnt/Photos/clip.mov is inside a folder mount");
   });
 
   it("points a path outside every mount at the task, and at mktemp", () => {
@@ -201,7 +201,7 @@ describe("bridgeInlineCodePaths", () => {
       taskCwd: dir,
     },
   ])("$label", ({ code, expected, taskCwd }) => {
-    const result = bridgeInlineCodePaths(code, taskId, taskCwd);
+    const result = bridgeInlineCodePaths(code, chatId, taskCwd);
     expect(result).toEqual({ code: expected });
     if ("code" in result) {
       expect(result.code).not.toContain(dir);
@@ -211,14 +211,14 @@ describe("bridgeInlineCodePaths", () => {
   it("strips a bare quoted /task from the task root without leaving an empty path", () => {
     // "." not "" so string concatenation like root + "/x" stays a valid
     // relative path.
-    const result = bridgeInlineCodePaths('cd("/task")', taskId, dir);
+    const result = bridgeInlineCodePaths('cd("/task")', chatId, dir);
     expect(result).toEqual({ code: 'cd(".")' });
   });
 
   it("fails fast on quoted /mnt paths with copy-first guidance", () => {
     const result = bridgeInlineCodePaths(
       'ffprobe("/mnt/Photos/clip.mov")',
-      taskId,
+      chatId,
       dir,
     );
     expect(result).toHaveProperty("error");
@@ -231,12 +231,12 @@ describe("bridgeInlineCodePaths", () => {
   it("names the quoted file in the copy command when it is one whole file", () => {
     const result = bridgeInlineCodePaths(
       "import pandas as pd\nprint(pd.read_csv('/mnt/Q3 Reports/sales.csv'))",
-      taskId,
+      chatId,
       dir,
     );
     expect(result).toMatchInlineSnapshot(`
       {
-        "error": "Inline script code references a /mnt/... path. Attached-folder mounts are visible to the sandbox shell, the file tools, and the sandboxed script runtimes, never to a real interpreter process. Copy the file into the task first (cp '/mnt/Q3 Reports/sales.csv' attachments/) and open the copy as attachments/sales.csv.",
+        "error": "Inline script code references a /mnt/... path. Folder mounts are visible to the sandbox shell, the file tools, and the sandboxed script runtimes, never to a real interpreter process. Copy the file into the task first (cp '/mnt/Q3 Reports/sales.csv' attachments/) and open the copy as attachments/sales.csv.",
       }
     `);
   });
@@ -247,7 +247,7 @@ describe("bridgeInlineCodePaths", () => {
     { code: "glob.glob('/mnt/Reports/*.csv')", label: "a pattern" },
     { code: 'open("/mnt/Bob\'s/x.csv")', label: "a single quote inside" },
   ])("keeps the generic copy guidance for $label", ({ code }) => {
-    const result = bridgeInlineCodePaths(code, taskId, dir);
+    const result = bridgeInlineCodePaths(code, chatId, dir);
     expect(result).toHaveProperty(
       "error",
       expect.stringContaining("(cp '/mnt/<folder>/<file>' attachments/)"),
@@ -257,7 +257,7 @@ describe("bridgeInlineCodePaths", () => {
   it("fails fast on quoted /task/.instrument paths instead of rewriting them", () => {
     const result = bridgeInlineCodePaths(
       'fs.readFileSync("/task/.instrument/state.json")',
-      taskId,
+      chatId,
       dir,
     );
     expect(result).toHaveProperty("error");
@@ -273,7 +273,7 @@ describe("extractFileAndScriptArgs", () => {
     const result = extractFileAndScriptArgs(
       [],
       [],
-      taskId,
+      chatId,
       dir,
       resolvePath("/"),
     );
@@ -341,7 +341,7 @@ describe("extractFileAndScriptArgs", () => {
       const result = extractFileAndScriptArgs(
         [input],
         [input],
-        taskId,
+        chatId,
         taskCwd,
         resolvePath(cwd),
       );
@@ -415,7 +415,7 @@ describe("extractFileAndScriptArgs", () => {
       const result = extractFileAndScriptArgs(
         [file],
         args,
-        taskId,
+        chatId,
         taskCwd,
         resolvePath(cwd),
       );

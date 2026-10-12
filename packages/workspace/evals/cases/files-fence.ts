@@ -119,7 +119,7 @@ const assertNoFence: Assertion = {
 
 /** Every line is a bare path, and every path resolves to a real file. */
 const assertLinesResolve: Assertion = {
-  check: async ({ sessions, taskId }) => {
+  check: async ({ sessions, chatId }) => {
     const lines = fenceBodies(assistantText(sessions)).flatMap(fenceLines);
     if (lines.length === 0) {
       return {
@@ -134,7 +134,7 @@ const assertLinesResolve: Assertion = {
         // The syntax says the line IS the path, so it is handed over as
         // written. A line needing repair is exactly the failure being counted.
         filePath: line as WorkspaceFilePath,
-        taskId,
+        chatId,
       });
       if (resolved.isErr()) {
         failures.push(line);
@@ -243,14 +243,13 @@ function namesEditedNote(text: string): string[] {
  * assertions could pass on a note nobody changed.
  */
 const assertNoteEdited: Assertion = {
-  check: async ({ taskId }) => {
+  check: async ({ chatId }) => {
     const text = "Added the items at the bottom of the first section";
     // Read at the mount the conversation sees, whatever it said, so the edit
     // is scored apart from whether anyone handed it over.
     const resolved = await getCurrentFileInfo({
-      filePath:
-        `${MOUNT.attachedFolders}/Journal/${EDITED_NOTE}` as WorkspaceFilePath,
-      taskId,
+      filePath: `${MOUNT.folders}/Journal/${EDITED_NOTE}` as WorkspaceFilePath,
+      chatId,
     });
     if (resolved.isErr()) {
       return { evidence: resolved.error.message, passed: false, text };
@@ -270,29 +269,10 @@ const assertNoteEdited: Assertion = {
   text: "Added the items at the bottom of the first section",
 };
 
-/** The task's receipt named the note it changed, by the path it reached. */
-const assertTaskFencedEditedNote: Assertion = {
-  check: async ({ childSessions }) => {
-    const text = "The task's receipt fenced the note it changed";
-    const children = await childSessions();
-    const receipts = children.map((child) => lastAssistantText(child.sessions));
-    const named = receipts.flatMap(namesEditedNote);
-    return {
-      evidence:
-        named.length > 0
-          ? named.join(" | ")
-          : `No fenced note; receipts: ${JSON.stringify(receipts)}`,
-      passed: named.length > 0,
-      text,
-    };
-  },
-  text: "The task's receipt fenced the note it changed",
-};
-
 // A link whose target is the note, either as its path or as the app's own
 // address for a file; both draw the same chip the fence's card opens.
 const NOTE_LINK = new RegExp(
-  String.raw`\[[^\]]*\]\(\s*((?:${APP_NAME_SLUG}://file/)?/*${MOUNT.attachedFolders.slice(1)}/[^)\s]*${EDITED_NOTE.replaceAll(".", String.raw`\.`)})\s*\)`,
+  String.raw`\[[^\]]*\]\(\s*((?:${APP_NAME_SLUG}://file/)?/*${MOUNT.folders.slice(1)}/[^)\s]*${EDITED_NOTE.replaceAll(".", String.raw`\.`)})\s*\)`,
   "giu",
 );
 
@@ -302,7 +282,7 @@ const NOTE_LINK = new RegExp(
  * because the carrier a model reaches for is part of what is measured.
  */
 const assertConversationHandedBackNote: Assertion = {
-  check: async ({ sessions, taskId }) => {
+  check: async ({ sessions, chatId }) => {
     const text = "The closing reply handed back the note that changed";
     const reply = lastAssistantText(sessions);
     const handed = [
@@ -324,7 +304,7 @@ const assertConversationHandedBackNote: Assertion = {
         const filePath = `/${line.replace(/^.*?:\/\/file\//u, "").replace(/^\/+/u, "")}`;
         const resolved = await getCurrentFileInfo({
           filePath: filePath as WorkspaceFilePath,
-          taskId,
+          chatId,
         });
         return `${carrier} ${line}${resolved.isErr() ? " (does not resolve)" : ""}`;
       }),
@@ -347,7 +327,7 @@ export const FILES_FENCE_EVALS = [
       assertLinesResolve,
       assertNamedMountedFile,
     ],
-    folders: [{ access: "read-write", path: path.join(FIXTURES, "Reports") }],
+    folders: [{ path: path.join(FIXTURES, "Reports") }],
     name: "files-fence-shared-folder-deliverable",
     prompt:
       "Chart the monthly revenue in the sales spreadsheet in my Reports folder as a PNG, and save it next to the spreadsheet.",
@@ -365,14 +345,13 @@ export const FILES_FENCE_EVALS = [
   }),
   defineEval({
     // A file the work found rather than made reaches the user through the
-    // conversation's fence; a task answers such a question in its receipt and
-    // fences only what it made or changed.
+    // conversation's fence.
     assertions: [
       assertEmittedFence,
       assertLinesResolve,
       assertNamedMountedFile,
     ],
-    folders: [{ access: "read-only", path: path.join(FIXTURES, "Notes") }],
+    folders: [{ path: path.join(FIXTURES, "Notes") }],
     kind: "chat",
     name: "files-fence-chat-retrieval-from-shared-folder",
     prompt:
@@ -385,15 +364,10 @@ export const FILES_FENCE_EVALS = [
       "In two sentences, what is the difference between a semaphore and a mutex?",
   }),
   defineEval({
-    // A file of the user's that a task changed in place is handed back where
-    // it sits, by the task to the conversation and by the conversation to the
-    // user, so they can check what was written.
-    assertions: [
-      assertTaskFencedEditedNote,
-      assertConversationHandedBackNote,
-      assertNoteEdited,
-    ],
-    folders: [{ access: "read-write", path: path.join(FIXTURES, "Journal") }],
+    // A file of the user's changed in place is handed back where it sits,
+    // so they can check what was written.
+    assertions: [assertConversationHandedBackNote, assertNoteEdited],
+    folders: [{ path: path.join(FIXTURES, "Journal") }],
     kind: "chat",
     name: "files-fence-chat-edited-note",
     prompt: `Add these as checkboxes at the bottom of the first section of ${EDITED_NOTE} in my Journal folder: call the dentist, renew my passport, order a new water filter.`,

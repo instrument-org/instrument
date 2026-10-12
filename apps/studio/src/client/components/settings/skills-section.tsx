@@ -23,7 +23,7 @@ import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useContext, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /** The system skill that knows how a skill is packaged, placed and checked. */
 const SKILL_CREATOR = skillMentionToken("skill-creator");
@@ -148,10 +148,7 @@ function SkillActions({
       toast.success(`Deleted “${skill.title}”`);
       onDeleted();
     } catch (error) {
-      toast.error("Could not delete the skill", {
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-      });
+      toast.error(`Couldn't delete “${skill.title}”`, { cause: error });
     }
   };
 

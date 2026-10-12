@@ -3,14 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { TASK_FOLDER_NAMES } from "../constants";
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { TaskDirSchema } from "../schemas/paths";
+import { CHAT_FOLDER_NAMES } from "../constants";
+import { MountedFolder } from "../schemas/mounted-folder";
+import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
-import { ChatIdSchema } from "../schemas/chat-id";
 
 /**
  * `du` walks the real directories behind the mounts in a worker thread rather
@@ -26,29 +25,27 @@ const WIDE_FILES = 21_000;
 let tmpDir: string;
 let homeDir: string;
 let wideDir: string;
-let taskId: TaskId;
+let chatId: ChatId;
 
 async function run(command: string, { chat = false } = {}) {
   const attach = (name: string, folder: string) => ({
     access: "read-only" as const,
     createdAt: Date.now(),
-    id: FolderAttachment.IdSchema.parse(`${name}-id`),
+    id: MountedFolder.IdSchema.parse(`${name}-id`),
     mountName: name,
-    path: TaskDirSchema.parse(folder),
+    path: ChatDirSchema.parse(folder),
     source: "user" as const,
   });
   const bash = await createBashEnv({
-    attachedFolders: {
+    folders: {
       // Deleted on disk since it was attached, so the sandbox leaves it out.
       Gone: attach("Gone", path.join(tmpDir, "Gone")),
       Home: attach("Home", homeDir),
       Wide: attach("Wide", wideDir),
     },
-    chat: chat
-      ? { childMounts: [], id: ChatIdSchema.parse(taskId) }
-      : undefined,
+    chat: chat ? { id: ChatIdSchema.parse(chatId) } : undefined,
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
 }
@@ -73,11 +70,11 @@ beforeAll(async () => {
 
   await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
   await fs.writeFile(path.join(taskRoot, "work", "small.txt"), "s".repeat(10));
-  await fs.mkdir(path.join(taskRoot, TASK_FOLDER_NAMES.private), {
+  await fs.mkdir(path.join(taskRoot, CHAT_FOLDER_NAMES.private), {
     recursive: true,
   });
   await fs.writeFile(
-    path.join(taskRoot, TASK_FOLDER_NAMES.private, "task.db"),
+    path.join(taskRoot, CHAT_FOLDER_NAMES.private, "chat.db"),
     Buffer.alloc(5_000_000),
   );
 
@@ -88,7 +85,7 @@ beforeAll(async () => {
     ),
   );
 
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
 });
 
 afterAll(async () => {
@@ -146,8 +143,8 @@ describe("du", () => {
   });
 
   it.each([
-    [`/task/${TASK_FOLDER_NAMES.private}`],
-    [`/task/${TASK_FOLDER_NAMES.private.toUpperCase()}`],
+    [`/task/${CHAT_FOLDER_NAMES.private}`],
+    [`/task/${CHAT_FOLDER_NAMES.private.toUpperCase()}`],
   ])("reports %s as absent", async (target) => {
     const result = await run(`du -sb ${target}`);
 

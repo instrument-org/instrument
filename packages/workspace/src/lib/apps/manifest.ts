@@ -135,6 +135,10 @@ function isAllowedBaseUrl(value: string): boolean {
  */
 const AccountSchema = z.string().trim().min(1).max(120).optional();
 
+// The directory's slug for the service the app reaches ("gmail"), so every
+// app of one service, whatever its own slug, is known as that service.
+const ServiceSchema = z.string().min(1).optional();
+
 const ApiAppManifestSchema = z.strictObject({
   account: AccountSchema,
   auth: ApiAuthSchema,
@@ -160,6 +164,7 @@ const ApiAppManifestSchema = z.strictObject({
       message:
         'test.body requires "method": "POST" (a GET canary cannot have a body)',
     }),
+  service: ServiceSchema,
   type: z.literal("api"),
 });
 
@@ -171,6 +176,7 @@ const McpAppManifestSchema = z.strictObject({
   account: AccountSchema,
   auth: McpAuthSchema,
   name: z.string().min(1),
+  service: ServiceSchema,
   type: z.literal("mcp"),
   url: z.string().refine(isAllowedBaseUrl, {
     message:
@@ -205,6 +211,7 @@ const LocalMcpAppManifestSchema = z
     name: z.string().min(1),
     package: z.string().min(1),
     runtime: z.enum(["node", "python"]),
+    service: ServiceSchema,
     type: z.literal("mcp-local"),
   })
   .refine((value) => PACKAGE_SPEC[value.runtime].test(value.package), {
@@ -231,6 +238,7 @@ const WebAppManifestSchema = z.strictObject({
         "signIn must be a valid https:// URL (http:// is allowed only for loopback hosts) with no embedded credentials",
     })
     .optional(),
+  service: ServiceSchema,
   type: z.literal("web"),
   // Where the work happens: the signed-in web app, e.g. https://drive.google.com.
   url: z.string().refine(isAllowedBaseUrl, {

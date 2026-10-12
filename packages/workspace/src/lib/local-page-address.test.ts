@@ -3,8 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { AbsolutePathSchema, TaskDirSchema } from "../schemas/paths";
+import { MountedFolder } from "../schemas/mounted-folder";
+import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
 import {
   agentPathOfFileUrl,
   agentSpellingOfFileUrls,
@@ -15,17 +15,15 @@ import { buildWorkspaceFsLayout } from "./workspace-fs-layout";
 
 function layoutFor(taskRoot: string, docsRoot: string) {
   return buildWorkspaceFsLayout({
-    attachedFolders: {
+    folders: {
       docs: {
         access: "read-only",
-        createdAt: 0,
-        id: FolderAttachment.IdSchema.parse("docs"),
+        id: MountedFolder.IdSchema.parse("docs"),
         mountName: "Docs",
         path: AbsolutePathSchema.parse(docsRoot),
-        source: "user",
       },
     },
-    taskHostRoot: TaskDirSchema.parse(taskRoot),
+    taskHostRoot: ChatDirSchema.parse(taskRoot),
   });
 }
 

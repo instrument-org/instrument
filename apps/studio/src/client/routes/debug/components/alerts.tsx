@@ -4,7 +4,7 @@ import {
   UpgradeSubscriptionAlertView,
 } from "@/client/components/upgrade-subscription-alert";
 import { createFileRoute } from "@tanstack/react-router";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 export const Route = createFileRoute("/debug/components/alerts")({
   component: RouteComponent,
@@ -15,26 +15,42 @@ export const Route = createFileRoute("/debug/components/alerts")({
 
 const upgradeStates: {
   description: string;
+  label: string;
+  loggingIn?: boolean;
   state: UpgradeSubscriptionAlertState;
 }[] = [
   {
-    description: "User has credits — shown after purchasing/waiting for reset.",
-    state: "credits-available",
-  },
-  {
-    description: "The critical state: no credits left, must contact support.",
+    description:
+      "The person has no credits left, so the only way forward is to contact support.",
+    label: "out-of-credits",
     state: "out-of-credits",
   },
   {
-    description: "Not logged in — shown when there is no auth token.",
+    description:
+      "The person has credits again, after adding some or waiting for them to reset.",
+    label: "credits-available",
+    state: "credits-available",
+  },
+  {
+    description: "The person is logged out of Instrument.",
+    label: "logged-out",
     state: "logged-out",
   },
   {
-    description: "Subscription status RPC failed.",
+    description:
+      "The person pressed Log in, and the app is waiting for them to finish in the browser.",
+    label: "logged-out, logging in",
+    loggingIn: true,
+    state: "logged-out",
+  },
+  {
+    description: "The app couldn't load the person's subscription.",
+    label: "status-error",
     state: "status-error",
   },
   {
-    description: "Waiting for subscription status to load.",
+    description: "The app is still loading the person's subscription.",
+    label: "loading",
     state: "loading",
   },
 ];
@@ -49,8 +65,8 @@ function RouteComponent() {
           </p>
           <h1 className="text-2xl font-semibold tracking-tight">Alerts</h1>
           <p className="text-sm text-muted-foreground">
-            Special-case alert states that are hard to reproduce in a real
-            session.
+            Alerts that only show up when something goes wrong with an account,
+            which is hard to set up in a real session.
           </p>
         </header>
 
@@ -58,19 +74,22 @@ function RouteComponent() {
           <div>
             <h2 className="text-base font-semibold">Upgrade / credit alert</h2>
             <p className="text-sm text-muted-foreground">
-              Shown inline in the chat when a session fails due to credits.
+              A chat shows this in place of its error when a turn fails because
+              the person ran out of credits.
             </p>
           </div>
           <div className="flex flex-col gap-6">
-            {upgradeStates.map(({ description, state }) => (
-              <div className="flex flex-col gap-2" key={state}>
+            {upgradeStates.map(({ description, label, loggingIn, state }) => (
+              <div className="flex flex-col gap-2" key={label}>
                 <div>
                   <p className="font-mono text-xs text-muted-foreground">
-                    {state}
+                    {label}
                   </p>
                   <p className="text-sm text-muted-foreground">{description}</p>
                 </div>
                 <UpgradeSubscriptionAlertView
+                  loggingIn={loggingIn}
+                  onCancelLogin={() => toast.info("onCancelLogin")}
                   onContinue={() => toast.info("onContinue")}
                   onLogin={() => toast.info("onLogin")}
                   state={state}
@@ -84,7 +103,8 @@ function RouteComponent() {
           <div>
             <h2 className="text-base font-semibold">Contact error alert</h2>
             <p className="text-sm text-muted-foreground">
-              Shown when an operation fails and the user may need support.
+              Settings shows this under your account when it can&apos;t reach
+              the server to load it.
             </p>
           </div>
           <div className="flex flex-col gap-6">
@@ -99,16 +119,6 @@ function RouteComponent() {
                 title="Connection error"
               >
                 Could not connect to the workspace server.
-              </ContactErrorAlert>
-            </div>
-            <div className="flex flex-col gap-2">
-              <div>
-                <p className="font-mono text-xs text-muted-foreground">
-                  without retry
-                </p>
-              </div>
-              <ContactErrorAlert title="Something went wrong">
-                An unexpected error occurred while loading your data.
               </ContactErrorAlert>
             </div>
           </div>

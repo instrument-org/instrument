@@ -15,21 +15,20 @@ import {
 import { z } from "zod";
 
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { loadApp } from "../apps/store";
 import { createLocalBashEnv } from "../create-bash-env";
-import { taskDir } from "../task-dir-utils";
-import { updateTaskSettings } from "../task-settings";
+import { chatDir } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
-import { knowTask } from "../../test/helpers/mock-task-config";
+import { knowChat } from "../../test/helpers/mock-chat-config";
 
 vi.mock("../apps/preflight", () => ({
   mcpSignInSupport: vi.fn(() => Promise.resolve("unknown")),
   packageExists: vi.fn(() => Promise.resolve("unknown")),
 }));
 
-const taskId = TaskIdSchema.parse("app-call-task");
+const chatId = ChatIdSchema.parse("app-call-task");
 const slug = "tracker";
 let server: http.Server;
 let fs = new InMemoryFs();
@@ -90,7 +89,7 @@ beforeAll(async () => {
     throw new Error("Expected a TCP address");
   }
 
-  knowTask(taskId);
+  knowChat(chatId);
   const created = await app(
     "new",
     slug,
@@ -120,13 +119,13 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  knowTask(taskId);
+  knowChat(chatId);
   fs = new InMemoryFs();
   await fs.mkdir("/task", { recursive: true });
 });
 
 async function app(...args: string[]) {
-  return createAppCommand({ taskId }).execute(
+  return createAppCommand({ chatId }).execute(
     args,
     createCommandContext({
       cwd: "/task",
@@ -179,10 +178,10 @@ describe("app call --out", () => {
 
 describe("app call in a pipeline", () => {
   it("hands jq the service's JSON", async () => {
-    await mkdir(taskDir(taskId), { recursive: true });
+    await mkdir(chatDir(chatId), { recursive: true });
     const bash = await createLocalBashEnv({
       sessionId: StoreId.newSessionId(),
-      taskId,
+      chatId,
     });
     const result = await bash.exec(`app call ${slug} json_text | jq 'length'`);
     expect(result.stderr).toBe("");
@@ -191,11 +190,11 @@ describe("app call in a pipeline", () => {
 });
 
 describe("js-exec tools.*", () => {
-  async function script(code: string, id = taskId) {
-    await mkdir(taskDir(id), { recursive: true });
+  async function script(code: string, id = chatId) {
+    await mkdir(chatDir(id), { recursive: true });
     const bash = await createLocalBashEnv({
       sessionId: StoreId.newSessionId(),
-      taskId: id,
+      chatId: id,
     });
     return bash.exec(`js-exec <<'EOF'
 ${code}
@@ -231,18 +230,6 @@ ${use}`,
     expect(result.stdout).toMatchInlineSnapshot(`
       "tools.tracker.broken: project is required
       The tool refused the call. If the arguments were the problem, \`app tool tracker broken\` shows the JSON it takes.
-      "
-    `);
-  });
-
-  it("refuses an app the task was not handed", async () => {
-    const scoped = TaskIdSchema.parse("app-call-scoped-task");
-    knowTask(scoped);
-    (await updateTaskSettings(scoped, { apps: ["notes"] }))._unsafeUnwrap();
-    const result = await script(`await tools.${slug}.issues();`, scoped);
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).toMatchInlineSnapshot(`
-      "at <stdin>:1:26: tools.tracker.issues: this task was not handed the app "tracker". Apps it has: notes.
       "
     `);
   });

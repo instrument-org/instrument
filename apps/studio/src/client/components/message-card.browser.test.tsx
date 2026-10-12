@@ -3,7 +3,7 @@ import { renderInBrowser } from "@/tests/render-browser";
 import {
   type SessionMessagePart,
   StoreId,
-  TaskIdSchema,
+  ChatIdSchema,
 } from "@instrument-org/workspace/client";
 import { afterEach, expect, test, vi } from "vitest";
 
@@ -12,7 +12,7 @@ import { AssistantMessage } from "./assistant-message";
 import { MarkdownTaskContext } from "./markdown-task-context";
 
 vi.mock("@/client/hooks/use-host-paths", () => ({
-  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+  useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
     Object.fromEntries(
       filePaths.map((filePath) => [filePath, `/Users/casey/${filePath}`]),
     ),
@@ -23,7 +23,7 @@ vi.mock(import("@/client/lib/computer-file-url"), async (importOriginal) => ({
     `http://files.example.test${hostPath}`,
 }));
 
-const taskId = TaskIdSchema.parse("dishwasher");
+const chatId = ChatIdSchema.parse("dishwasher");
 
 const EMAIL = [
   "Here's a note for Marcy.",
@@ -64,7 +64,7 @@ afterEach(() => {
 test("a reply's message fence stands under the bubble as a card", async () => {
   const screen = await renderInBrowser(
     <div style={{ width: 560 }}>
-      <AssistantMessage bubble part={textPart(EMAIL)} taskId={taskId} />
+      <AssistantMessage bubble part={textPart(EMAIL)} chatId={chatId} />
     </div>,
   );
 
@@ -99,7 +99,7 @@ test("a message file named in a files fence draws as the card", async () => {
   );
   const screen = await renderInBrowser(
     <div style={{ width: 560 }}>
-      <MarkdownTaskContext value={{ isStreaming: false, taskId }}>
+      <MarkdownTaskContext value={{ isStreaming: false, chatId }}>
         <AgentFilesBlock content={"work/text-to-sam.md\n"} />
       </MarkdownTaskContext>
     </div>,

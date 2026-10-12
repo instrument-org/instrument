@@ -1,7 +1,7 @@
 import { defineCommand, type IFileSystem } from "just-bash";
 import { randomBytes } from "node:crypto";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
+import { CHAT_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
 
 export const MKTEMP_COMMAND = {
@@ -18,7 +18,7 @@ export const MKTEMP_COMMAND = {
  * is not writable and never will be: it is outside every mount, so a file
  * written there would have nowhere to live once the call ended.
  */
-const TMP_DIR = `${MOUNT.task}/${TASK_FOLDER_NAMES.tmp}`;
+const TMP_DIR = `${MOUNT.task}/${CHAT_FOLDER_NAMES.tmp}`;
 
 /** GNU's default template, used whenever no operand is given. */
 const DEFAULT_TEMPLATE = "tmp.XXXXXXXXXX";

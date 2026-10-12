@@ -6,12 +6,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { dedent, sleep } from "radashi";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
+import { CHAT_FOLDER_NAMES } from "../../constants";
 import { cdpBridgeUrl } from "../../logic/server/cdp-bridge-path";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { MOUNT } from "../../mount-points";
 import { type StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { type BrowserConfig } from "../../types";
 import { WebSearch } from "../../tools/web-search";
 import { absolutePathJoin } from "../absolute-path-join";
@@ -29,20 +29,20 @@ import {
 import { agentBrowserGuide } from "../agent-browser-guide";
 import { recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
-import { isTaskId } from "../is-task-id";
+import { isChatId } from "../is-chat-id";
 import { virtualizeHostPaths } from "../filter-shell-output";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import { liveHeldTabs } from "../chat/window-tab";
 import { isAtOrUnder } from "../path-containment";
-import { resolveChat } from "../record-folders";
 import { taskFsLayout } from "../resolve-workspace-file-path";
 import {
   getDownloadsDir,
   getExternalBrowserTmpDir,
   getScreenshotsDir,
-  taskDir,
-} from "../task-dir-utils";
-import { getTaskState, setTaskState } from "../task-record";
+} from "../chat-dir-utils";
+import { chatDir } from "../record-folders";
+import { isTaskSession } from "../chat/children";
+import { heldTabs, updateHeldTabs } from "../held-tabs";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   buildWorkspaceFsLayout,
@@ -60,12 +60,13 @@ import {
   FOLLOW_UP_WAIT_ARGS,
 } from "./agent-browser-follow-up";
 import {
-  attachedMountLiteralError,
+  mountLiteralError,
   privateDirLiteralError,
   resolveCommandContext,
   resolvePathArgs,
   subprocessStdin,
 } from "./utils";
+import { workDir } from "../work-dir";
 
 const AGENT_BROWSER_SKILL_NAME = "agent-browser";
 
@@ -226,7 +227,7 @@ function skills(
  */
 function adblock(
   browser: BrowserConfig,
-  id: TaskId,
+  id: ChatId,
   mode: string | undefined,
 ): { exitCode: number; stderr: string; stdout: string } {
   if (mode !== undefined && mode !== "on" && mode !== "off") {
@@ -268,7 +269,7 @@ const WORKSPACE_HELP_MANAGED = dedent`
 
   Inspecting a file you created:
     agent-browser open work/report.html     Task files load in the browser
-    agent-browser open ${MOUNT.task}/work/x.html  Task-relative, ${MOUNT.task}/..., ${MOUNT.attachedFolders}/...,
+    agent-browser open ${MOUNT.task}/work/x.html  Task-relative, ${MOUNT.task}/..., ${MOUNT.folders}/...,
                                             and file://${MOUNT.task}/... all work
   Use this to check an HTML deliverable end to end -- rendered layout, interactivity, and console errors -- not just its source.
 
@@ -450,7 +451,7 @@ const FILE_OPERAND_SUBCOMMANDS = new Set([
  */
 export async function resolveAgentBrowserPathArgs(
   args: string[],
-  taskId: TaskId,
+  chatId: ChatId,
   ctx: {
     cwd: string;
     fs: {
@@ -468,18 +469,18 @@ export async function resolveAgentBrowserPathArgs(
   const resolved = args.map((arg, index) =>
     textOperands.has(index)
       ? arg
-      : (resolvePathArgs([arg], taskId, ctx)[0] ?? arg),
+      : (resolvePathArgs([arg], chatId, ctx)[0] ?? arg),
   );
   if (subcommand !== "upload") {
     return { args: resolved };
   }
 
-  const layout = buildWorkspaceFsLayout({ taskHostRoot: taskDir(taskId) });
+  const layout = buildWorkspaceFsLayout({ taskHostRoot: workDir(chatId) });
   for (const { index, value } of subArgs.slice(2)) {
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, value);
 
-    if (isAtOrUnder(MOUNT.attachedFolders, virtualPath)) {
-      return { error: attachedMountLiteralError("Upload") };
+    if (isAtOrUnder(MOUNT.folders, virtualPath)) {
+      return { error: mountLiteralError("Upload") };
     }
 
     if (classifyVirtualPath(layout, virtualPath)?.masked !== undefined) {
@@ -498,7 +499,7 @@ export async function resolveAgentBrowserPathArgs(
       return { error: `Upload file not found: "${value}".` };
     }
 
-    resolved[index] = resolveNativeHostPath(taskDir(taskId), virtualPath);
+    resolved[index] = resolveNativeHostPath(workDir(chatId), virtualPath);
   }
   return { args: resolved };
 }
@@ -620,16 +621,16 @@ interface SpawnAgentBrowserOptions {
 
 export function createAgentBrowserCommand({
   sessionId,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
   return defineCommand(AGENT_BROWSER_COMMAND.name, async (args, ctx) => {
     const workspaceConfig = getWorkspaceConfig();
     const serverPort = getWorkspaceServerPort();
 
-    if (!isTaskId(taskId)) {
+    if (!isChatId(chatId)) {
       return {
         exitCode: 1,
         stderr: "agent-browser: browser is only available in task contexts.\n",
@@ -637,7 +638,7 @@ export function createAgentBrowserCommand({
       };
     }
 
-    const id = taskId;
+    const id = chatId;
 
     const isWorkspaceHelp = args.some((a) => a === "--help" || a === "-h");
     if (isWorkspaceHelp) {
@@ -717,9 +718,9 @@ export function createAgentBrowserCommand({
       };
     }
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
-    const layout = await taskFsLayout(taskId);
+    const layout = await taskFsLayout(chatId);
     const navigationArgs = await rewriteNavigationArgToFileUrl(
       strippedArgs,
       layout,
@@ -734,7 +735,7 @@ export function createAgentBrowserCommand({
     }
     const bridgedArgs = await resolveAgentBrowserPathArgs(
       navigationArgs.args,
-      taskId,
+      chatId,
       ctx,
     );
     if ("error" in bridgedArgs) {
@@ -751,8 +752,8 @@ export function createAgentBrowserCommand({
     // download path); this is a per-task sink for anything that falls back
     // to $HOME, and holds the managed config and provider plugin script.
     const homeDir = absolutePathJoin(
-      taskDir(taskId),
-      TASK_FOLDER_NAMES.private,
+      chatDir(chatId),
+      CHAT_FOLDER_NAMES.private,
       "agent-browser-home",
     );
     const configPath = path.join(homeDir, "config.json");
@@ -817,13 +818,13 @@ export function createAgentBrowserCommand({
         ...resolvedArgs,
       );
     } else {
-      const refused = await refuseBrowserFor(id);
+      const refused = await refuseBrowserFor(id, sessionId);
       if (refused !== undefined) {
         return { exitCode: 1, stderr: refused, stdout: "" };
       }
       drivesHeldTabs = true;
 
-      const cdpUrl = cdpBridgeUrl(serverPort, id);
+      const cdpUrl = cdpBridgeUrl(serverPort, id, sessionId);
       const pluginPath = await writeInstrumentProviderPlugin(homeDir);
       pluginRegistry = instrumentPluginRegistry({ cdpUrl, pluginPath });
       commandArgs.push("--session", sessionId, ...resolvedArgs);
@@ -841,7 +842,7 @@ export function createAgentBrowserCommand({
       await fs.mkdir(externalTmpDir, { recursive: true });
     }
 
-    const screenshotDir = getScreenshotsDir(taskDir(taskId));
+    const screenshotDir = getScreenshotsDir(workDir(chatId));
     // Managed browser only. The CLI applies this at launch as a browser-wide
     // `Browser.setDownloadBehavior`, so on an external browser it would capture
     // every download that browser makes for the rest of its life: ones the user
@@ -850,7 +851,7 @@ export function createAgentBrowserCommand({
     // user expects them, and get reported as the agent's own file changes.
     const downloadPath = isExternal
       ? undefined
-      : getDownloadsDir(taskDir(taskId));
+      : getDownloadsDir(workDir(chatId));
     const agentBrowserStateDir = screenshotDir;
     // Relative so agent-browser outputs screenshot paths the agent sees as
     // relative to its cwd (e.g. "work/screenshots/shot.png"), not host
@@ -929,7 +930,7 @@ export function createAgentBrowserCommand({
       });
     } finally {
       if (drivesHeldTabs) {
-        await recordHeldTabHosts({ sessionId, taskId });
+        await recordHeldTabHosts({ sessionId, chatId });
       }
     }
 
@@ -1054,19 +1055,18 @@ export function isExternalLocalLaunch(args: string[]): boolean {
  */
 async function recordHeldTabHosts({
   sessionId,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
   const { browser } = getWorkspaceConfig();
   try {
-    const { browserTabs } = await getTaskState(taskDir(taskId));
-    const urls = browserTabs.flatMap((tab) => {
+    const urls = (await heldTabs(chatId, sessionId)).flatMap((tab) => {
       const url = browser.getTargetUrl(tab.id);
       return url ? [url] : [];
     });
-    const result = await recordVisitedHosts({ sessionId, taskId, urls });
+    const result = await recordVisitedHosts({ sessionId, chatId, urls });
     if (result.isErr()) {
       getWorkspaceConfig().captureException(result.error);
     }
@@ -1076,37 +1076,43 @@ async function recordHeldTabHosts({
 }
 
 /**
- * Why a task cannot browse right now, or nothing when it can. A task drives
- * the tabs of its chat it holds: tabs the conversation handed it, which are
- * the user's and outlive the task, and tabs it opened itself, each opened
- * behind whatever the user has up, so every page a task works in is one the
- * user can find in the chat's tabs and none is put in front of them. A chat
- * does not browse; it hands a page to a task.
+ * Why a chat or task cannot browse right now, or nothing when it can. Each
+ * drives the tabs of the chat it holds: tabs the conversation handed it,
+ * which are the user's and outlive the task, and tabs it opened itself, each
+ * opened behind whatever the user has up, so every page the agent works in
+ * is one the user can find in the chat's tabs and none is put in front of
+ * them. A page the user has open is handed to a task (`task new --tab`).
  */
-async function refuseBrowserFor(id: TaskId): Promise<string | undefined> {
-  if (resolveChat(id)) {
-    return "agent-browser: a chat does not browse. `tab read <id>` prints a page's text; hand work on the page to a task with `task new --tab <id>`.\n";
-  }
-  const state = await getTaskState(taskDir(id));
-  const heldTabs = state.browserTabs;
-  const live = await liveHeldTabs(id, heldTabs);
+async function refuseBrowserFor(
+  id: ChatId,
+  sessionId: StoreId.Session,
+): Promise<string | undefined> {
+  const held = await heldTabs(id, sessionId);
+  const live = await liveHeldTabs(id, held);
   if (live.length > 0) {
-    if (live.length < heldTabs.length) {
+    if (live.length < held.length) {
       // Tabs closed since: the browser already told the agent they are gone.
-      await setTaskState(taskDir(id), { browserTabs: live });
+      await updateHeldTabs(id, sessionId, (tabs) =>
+        tabs.filter((tab) => live.some((alive) => alive.id === tab.id)),
+      );
     }
     return undefined;
   }
-  if (heldTabs.some((tab) => tab.openedBy === "handed")) {
+  // A task handed tabs works in those alone; the chat, which gets them back
+  // when the task finishes, goes on with a new one.
+  if (
+    isTaskSession(id, sessionId) &&
+    held.some((tab) => tab.openedBy === "handed")
+  ) {
     // The user closed the tabs, or the window they were in, since the task
     // was handed them.
     return "agent-browser: the tab this task was handed is closed, so there is no page to act on. Say so and finish with what you have.\n";
   }
-  if (heldTabs.length > 0) {
+  if (held.length > 0) {
     // The task's own tabs, closed by the user or by the conversation: said
     // once, so the task knows the pages it was on are gone rather than
     // finding a blank one, and the next command opens a new tab.
-    await setTaskState(taskDir(id), { browserTabs: [] });
+    await updateHeldTabs(id, sessionId, () => []);
     return "agent-browser: the tab this task opened was closed by the user or the conversation, and the page in it is gone. The next command opens a new tab; start again from the page's address.\n";
   }
   // None yet: agent-browser asks a browser with no pages for one, which the

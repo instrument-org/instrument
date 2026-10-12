@@ -7,12 +7,11 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Input } from "@/client/components/ui/input";
-import { Kbd, KbdGroup } from "@/client/components/ui/kbd";
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useShortcutGuideHotkey } from "@/client/hooks/use-shortcut-guide-hotkey";
-import { formatAccelerator } from "@/client/lib/format-accelerator";
+import { ShortcutKeys } from "@/client/components/shortcut-keys";
 import {
   matchShortcuts,
   type ShortcutMatch,
@@ -40,7 +39,11 @@ export function ShortcutGuideModal() {
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
   useShortcutGuideHotkey();
-  useBlockTabNavigation(isOpen);
+  useHoldWindow(isOpen, {
+    onClose: () => {
+      setState(null);
+    },
+  });
 
   return (
     <Dialog
@@ -139,11 +142,7 @@ function ShortcutRow({ match }: { match: ShortcutMatch }) {
       <span className="min-w-0 truncate text-sm">
         <FuzzyHighlight ranges={match.labelRanges} text={match.entry.label} />
       </span>
-      <KbdGroup>
-        {formatAccelerator(match.entry.accelerator).map((key) => (
-          <Kbd key={key}>{key}</Kbd>
-        ))}
-      </KbdGroup>
+      <ShortcutKeys accelerator={match.entry.accelerator} />
     </div>
   );
 }

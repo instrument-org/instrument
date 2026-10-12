@@ -13,7 +13,7 @@ node .agents/skills/transcript-view/scripts/render.mjs <transcript.md> [--out pa
 ```
 
 - Without `--out` the page lands next to the transcript as `<name>.html`. When the user's own instructions name a folder for visual answers or pages, write it there with a dated name instead.
-- Pass `--children` for a chat (`task new` / `task send` in its calls): it finds the tasks the chat started in this Mac's chat and task folders and exports each, the same way `transcript-digest --children` does.
+- Pass `--children` for a chat (`task new` / `task send` in its calls): it reads the tasks the chat started from its `chat.db` (each a session whose parent is the chat's) and exports each, the same way `transcript-digest --children` does.
 - The page is one self-contained file with no network dependencies and follows the system's light or dark theme.
 
 Hand back the path. Do not also summarize the transcript unless asked; this skill is the view, and analysis is `transcript-digest`'s job.

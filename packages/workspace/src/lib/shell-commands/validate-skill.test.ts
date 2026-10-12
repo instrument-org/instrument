@@ -16,13 +16,13 @@ import {
 import { WORKSPACE_SKILLS_MOUNT } from "../../mount-points";
 import { WorkspaceDirSchema } from "../../schemas/paths";
 import {
-  createMockTaskConfigForDir,
+  createMockChatConfigForDir,
   MOCK_WORKSPACE_DIRS,
-} from "../../test/helpers/mock-task-config";
+} from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createValidateSkillCommand } from "./validate-skill";
 
-createMockTaskConfigForDir(`${MOCK_WORKSPACE_DIRS.tasks}/validate-skill`);
+createMockChatConfigForDir(`${MOCK_WORKSPACE_DIRS.chats}/validate-skill`);
 
 // The shared mock workspace root is a real directory on disk, so skills written
 // there would be discovered by every other test file's process too. This suite

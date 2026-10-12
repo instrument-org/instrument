@@ -2,9 +2,9 @@ import { defineCommand } from "just-bash";
 import { realpathSync } from "node:fs";
 import nodePath from "node:path";
 
-import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
+import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
 import { MOUNT } from "../../mount-points";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { hostPathWithin } from "../host-path";
 import { normalizePath } from "../normalize-path";
@@ -85,11 +85,11 @@ const GLOB_METACHARACTERS = /[*?[{}\\]/g;
 
 export function createRgCommand({
   layout,
-  taskId,
+  chatId,
 }: {
   /** The shell's own layout, so rg reaches exactly the mounts the shell has. */
   layout: WorkspaceFsLayout;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
   return defineCommand(RG_COMMAND.name, async (args, ctx) => {
     const denied = args.map((arg) => deniedFlag(arg)).find(Boolean);
@@ -108,7 +108,7 @@ export function createRgCommand({
       return { exitCode: 2, stderr: `${bridged.error}\n`, stdout: "" };
     }
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const masked = maskSearchRoots(bridged.args, layout, taskCwd);
     if ("error" in masked) {
       return { exitCode: 2, stderr: `${masked.error}\n`, stdout: "" };
@@ -216,7 +216,7 @@ function bridgePathArgs(
       const masked = isOperand
         ? classifyVirtualPath(layout, resolveVirtual(arg))?.masked
         : undefined;
-      if (masked === TASK_FOLDER_NAMES.private) {
+      if (masked === CHAT_FOLDER_NAMES.private) {
         return {
           error: privateDirLiteralError(`${RG_COMMAND.name}: "${arg}"`),
         };
@@ -229,7 +229,7 @@ function bridgePathArgs(
         !isMaskedDirItself(resolveVirtual(arg), TASKS_DIR_NAME)
       ) {
         return {
-          error: `${RG_COMMAND.name}: ${arg}: path is not accessible; each task's folder is at ${MOUNT.tasks}/<id>`,
+          error: `${RG_COMMAND.name}: ${arg}: path is not accessible`,
         };
       }
       bridged.push(arg);
@@ -251,10 +251,10 @@ function bridgePathArgs(
  * holds some: `/mnt`, or `/mnt/Home` in a task handed `/mnt/Home/Downloads`
  * and `/mnt/Home/Desktop` alone. The sandbox shows such a directory as the
  * mounts under it, so a search of it is a search of them. Only under the
- * attached-folder root, so neither `/` nor a pattern elsewhere is read as one.
+ * folder mount's root, so neither `/` nor a pattern elsewhere is read as one.
  */
 function mountsBelow(layout: WorkspaceFsLayout, arg: string): string[] {
-  if (!isAtOrUnder(MOUNT.attachedFolders, arg)) {
+  if (!isAtOrUnder(MOUNT.folders, arg)) {
     return [];
   }
   return nonTaskMounts(layout).flatMap((mount) => {

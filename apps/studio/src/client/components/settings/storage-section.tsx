@@ -26,7 +26,7 @@ import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 type InvalidFolder =
   RPCOutput["workspace"]["storage"]["invalidFolders"]["list"][number];
@@ -132,8 +132,10 @@ function UnrecognizedFolders() {
         queryKey: rpcClient.workspace.storage.invalidFolders.list.key(),
       });
       toast.success(`Moved “${folder.name}” to the trash`);
-    } catch {
-      toast.error(`Couldn't move “${folder.name}” to the trash`);
+    } catch (error) {
+      toast.error(`Couldn't move “${folder.name}” to the trash`, {
+        cause: error,
+      });
     }
   };
 
@@ -142,8 +144,8 @@ function UnrecognizedFolders() {
   }
 
   const chats = folders.filter((folder) => folder.kind === "chat");
-  // A task inside a chat is a task to the person, wherever its folder is.
-  const tasks = folders.filter((folder) => folder.kind !== "chat");
+  // Tasks an earlier version kept, which the move into chats left behind.
+  const tasks = folders.filter((folder) => folder.kind === "legacy-task");
 
   return (
     <section className="space-y-4" {...settingAnchor("broken-folders")}>

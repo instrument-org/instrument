@@ -20,6 +20,7 @@ import { openClickGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
@@ -240,6 +241,8 @@ export function ChatRow({
   );
   // The same groups, in the same order, as the menu in the chat's head.
   const groups = chatMenuGroups(actions);
+  // Beside the ways to open the chat, where the list offers it.
+  const popOut = actions.find((action) => action.id === "popOut");
   const item = (action: RowAction) => (
     <ContextMenuItem
       key={action.id}
@@ -329,6 +332,12 @@ export function ChatRow({
           <NewTabIcon className="size-4" />
           Open in New Tab
         </ContextMenuItem>
+        {popOut && (
+          <ContextMenuItem onSelect={popOut.run}>
+            <PictureInPictureIcon className="size-4" />
+            Pop Out
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         {groups.marks.map(item)}
         <ContextMenuSeparator />
@@ -643,12 +652,12 @@ function TagControl({
 }
 
 /**
- * The current step alone, or Instrument is working until a step lands.
+ * What the chat is on, as the line under its title says it: the step its own
+ * turn or a task at work names, or Instrument is working until a step lands.
  * One line keeps the row's height stable as the status changes.
  */
 function WorkingPeek({ chat }: { chat: Chat }) {
-  const working = chat.runningTasks.filter((task) => !task.waiting);
-  const step = working.find((task) => task.step)?.step;
+  const step = chat.latest?.kind === "step" ? chat.latest.text : undefined;
   // `brand-shiny-text` is an inline-block, which a parent's truncate cannot
   // shrink, so it carries its own.
   return (

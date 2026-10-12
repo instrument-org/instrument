@@ -156,7 +156,7 @@ Neither is fixed by a direct-dependency bump alone. This wants a `pnpm dedupe` p
 
 ### arctic is deprecated at every published version
 
-`arctic` is marked "Package no longer supported" on npm for 3.5.0, 3.6.0, and 3.7.0 alike, so 3.7.0 is not an upgrade path, it is the same dead end one version later. We use it for the Google OAuth flow in [auth/client.ts](../../../apps/studio/src/electron-main/auth/client.ts). No action is urgent (nothing is known-vulnerable), but an unmaintained OAuth library on the sign-in path is a standing risk and should get a replacement decision rather than a version bump. Relevant to [connector-authentication-technical-notes.md](../../findings/connector-authentication-technical-notes.md).
+Resolved by removing it: sign-in runs Google's flow on the API ([sign-in-through-the-api.md](sign-in-through-the-api.md)), so Studio no longer has an OAuth library on the sign-in path.
 
 ### better-auth: real advisories, but not ours
 

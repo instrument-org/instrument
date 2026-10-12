@@ -14,12 +14,10 @@ import ms from "ms";
 import { dedent } from "radashi";
 
 import { MOUNT } from "../mount-points";
-import { type FolderAttachment } from "../schemas/folder-attachment";
+import { type MountedFolder } from "../schemas/mounted-folder";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
 import { TOOL_NAMES } from "../tools/name";
 import { bashWorkerEnabled, createRemoteBash } from "./bash-worker/client";
-import { createSandboxFetch } from "./sandbox-fetch";
 import {
   AGENT_BROWSER_COMMAND,
   agentBrowserCommandDescription,
@@ -99,21 +97,21 @@ import {
   VALIDATE_SKILL_COMMAND,
 } from "./shell-commands/validate-skill";
 import { createWhichCommand } from "./shell-commands/which";
-import { taskDir } from "./task-dir-utils";
 import {
   buildBashFs,
   buildWorkspaceFsLayout,
   type WorkspaceFsLayout,
-  type WorkspaceFsMount,
 } from "./workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
+import { createWalkBudget, type WalkBudget } from "./walk-budget";
+import { workDir } from "./work-dir";
 
 /** FS reads, HTTP bodies, maxStringLength; maxHeredocSize unchanged (64 MiB). */
 const SANDBOX_MAX_BYTES = 256 * 1024 * 1024;
 
 /**
  * What one command may build as output, which is a different question from how
- * large a file the agent may work on. A broad walk over an attached folder
+ * large a file the agent may work on. A broad walk over a folder mount
  * produces a string the size of the tree and every byte of it is allocated on
  * the thread that paints the window: one unfiltered `rg --files` over a home
  * folder measures 185 MiB and stalls the window for 25 seconds without
@@ -133,20 +131,19 @@ const SANDBOX_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 const SANDBOX_MAX_TRAVERSAL = 300_000;
 
 /**
- * The same budget for the chat's shell, which only reads what its
- * tasks produced and moves finished files into place. It holds the user's
- * whole home folder, so a stray `find` over it is the likeliest runaway walk
- * there is, and the budget counts entries rather than time: 300,000 of them
- * costs a few seconds of `find` on macOS and over half a minute on Windows,
- * all on the thread that paints the window. A walk bigger than this is a
- * task's to do.
+ * The same budget for walks over a folder that holds the workspace (the
+ * user's whole home folder), counted on their own (`WalkBudget`). A stray
+ * `find` over the home folder is the likeliest runaway walk there is, and the
+ * budget counts entries rather than time: 300,000 of them costs a few
+ * seconds of `find` on macOS and over half a minute on Windows, all on the
+ * thread that paints the window.
  */
-const CHAT_MAX_TRAVERSAL = 20_000;
+const HOME_MAX_TRAVERSAL = 20_000;
 
 /**
  * How long one run of a sandboxed script runtime (`python`, `js-exec`) may
  * take, against just-bash's 30 second default. Those runtimes are where a
- * script over an attached folder runs, and a parse of a large tree is minutes
+ * script over a folder mount runs, and a parse of a large tree is minutes
  * of work rather than seconds. A call that outlives its `yieldMs` is promoted
  * to a background process like any other, so the cap only has to bound a
  * runaway; anything longer belongs to the native interpreters, which have no
@@ -179,9 +176,8 @@ function stubCommand(
 // type parameter still holds these entries to real command names.
 const BROKEN_COMMANDS: ReadonlySet<string> = new Set<CommandName>([
   "which", // always errors in this environment; replaced with a stub below
-  // Writes under /tmp, which no mount covers, so every call fails. A task's
-  // shell gets ours (shell-commands/mktemp.ts) instead; the chat's writes no
-  // files, so it gets none.
+  // Writes under /tmp, which no mount covers, so every call fails. Every
+  // shell gets ours (shell-commands/mktemp.ts) instead.
   "mktemp",
 ]);
 
@@ -295,6 +291,19 @@ const waitAliasPlugin: TransformPlugin<Record<string, never>> = {
   },
 };
 
+/** Starts a walk budget over at every command the shell runs. */
+function resetEachCommand(
+  budget: WalkBudget,
+): TransformPlugin<Record<string, never>> {
+  return {
+    name: "reset-walk-budget",
+    transform(context: { ast: ScriptNode; metadata: Record<string, unknown> }) {
+      budget.reset();
+      return { ast: context.ast };
+    },
+  };
+}
+
 /** Records which commands a script runs, in order, for the tool's metadata. */
 const commandOrderPlugin: TransformPlugin<{ commands: string[] }> = {
   name: "command-order",
@@ -327,11 +336,11 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
 /**
  * What a custom command is built from: the task, and the layout of the shell
  * it runs in, which every native hatch writes its output's host paths back
- * against and `git` also reaches attached folders through.
+ * against and `git` also reaches folder mounts through.
  */
 interface CustomCommandContext {
   layout: WorkspaceFsLayout;
-  taskId: TaskId;
+  chatId: ChatId;
 }
 
 interface CustomCommandDef {
@@ -377,13 +386,13 @@ const SESSION_COMMAND_DEFS: {
 const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
     description: FFMPEG_COMMAND.description,
-    factory: ({ layout, taskId }) => createFfmpegCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createFfmpegCommand(chatId, layout),
     listInDescription: true,
     name: FFMPEG_COMMAND.name,
   },
   {
     description: FFPROBE_COMMAND.description,
-    factory: ({ layout, taskId }) => createFfprobeCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createFfprobeCommand(chatId, layout),
     listInDescription: true,
     name: FFPROBE_COMMAND.name,
   },
@@ -401,14 +410,14 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   },
   {
     description: NODE_COMMAND.description,
-    factory: ({ layout, taskId }) => createNodeCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createNodeCommand(chatId, layout),
     listInDescription: true,
     name: NODE_COMMAND.name,
   },
   {
     available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
     description: CALENDAR_COMMAND.description,
-    factory: ({ taskId }) => createMacHelperCommand(CALENDAR_COMMAND, taskId),
+    factory: ({ chatId }) => createMacHelperCommand(CALENDAR_COMMAND, chatId),
     listInDescription: true,
     name: CALENDAR_COMMAND.name,
     platforms: ["darwin"],
@@ -416,21 +425,21 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   {
     available: () => getWorkspaceConfig().macHelperBinPath !== undefined,
     description: CONTACTS_COMMAND.description,
-    factory: ({ taskId }) => createMacHelperCommand(CONTACTS_COMMAND, taskId),
+    factory: ({ chatId }) => createMacHelperCommand(CONTACTS_COMMAND, chatId),
     listInDescription: true,
     name: CONTACTS_COMMAND.name,
     platforms: ["darwin"],
   },
   {
     description: SHORTCUTS_COMMAND.description,
-    factory: ({ layout, taskId }) => createShortcutsCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createShortcutsCommand(chatId, layout),
     listInDescription: true,
     name: SHORTCUTS_COMMAND.name,
     platforms: ["darwin"],
   },
   {
     description: OSASCRIPT_COMMAND.description,
-    factory: ({ layout, taskId }) => createOsascriptCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createOsascriptCommand(chatId, layout),
     listInDescription: true,
     name: OSASCRIPT_COMMAND.name,
     platforms: ["darwin"],
@@ -444,62 +453,62 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
 
   {
     description: PNPM_COMMAND.description,
-    factory: ({ layout, taskId }) => createPnpmCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createPnpmCommand(chatId, layout),
     listInDescription: true,
     name: PNPM_COMMAND.name,
   },
   {
     description: NPX_COMMAND.description,
-    factory: ({ layout, taskId }) => createNpxCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createNpxCommand(chatId, layout),
     listInDescription: false,
     name: NPX_COMMAND.name,
   },
   {
     description: PNPX_COMMAND.description,
-    factory: ({ layout, taskId }) => createPnpxCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createPnpxCommand(chatId, layout),
     listInDescription: false,
     name: PNPX_COMMAND.name,
   },
   {
     description: PNX_COMMAND.description,
-    factory: ({ layout, taskId }) => createPnxCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createPnxCommand(chatId, layout),
     listInDescription: true,
     name: PNX_COMMAND.name,
   },
   {
     description: UV_COMMAND.description,
-    factory: ({ layout, taskId }) => createUvCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createUvCommand(chatId, layout),
     listInDescription: true,
     name: UV_COMMAND.name,
   },
   {
     description: PYTHON_COMMAND.description,
-    factory: ({ layout, taskId }) => createPythonCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createPythonCommand(chatId, layout),
     listInDescription: true,
     name: PYTHON_COMMAND.name,
   },
   {
     description: PYTHON3_COMMAND.description,
-    factory: ({ layout, taskId }) => createPython3Command(taskId, layout),
+    factory: ({ layout, chatId }) => createPython3Command(chatId, layout),
     // Alias of python; omitted from the description to avoid redundancy.
     listInDescription: false,
     name: PYTHON3_COMMAND.name,
   },
   {
     description: PYTHON_NATIVE_COMMAND.description,
-    factory: ({ layout, taskId }) => createPythonNativeCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createPythonNativeCommand(chatId, layout),
     listInDescription: true,
     name: PYTHON_NATIVE_COMMAND.name,
   },
   {
     description: PIP_COMMAND.description,
-    factory: ({ layout, taskId }) => createPipCommand(taskId, layout),
+    factory: ({ layout, chatId }) => createPipCommand(chatId, layout),
     listInDescription: true,
     name: PIP_COMMAND.name,
   },
   {
     description: PIP3_COMMAND.description,
-    factory: ({ layout, taskId }) => createPip3Command(taskId, layout),
+    factory: ({ layout, chatId }) => createPip3Command(chatId, layout),
     // Alias of pip; omitted from the description to avoid redundancy.
     listInDescription: false,
     name: PIP3_COMMAND.name,
@@ -522,24 +531,41 @@ function customCommandDefs(): CustomCommandDef[] {
 }
 
 export interface BashEnvOptions {
-  attachedFolders?: Record<string, FolderAttachment.Type>;
+  folders?: Record<string, MountedFolder.Type>;
   /**
-   * Present when the task is a chat: its children mount read-only and
-   * its command set shrinks to reading and `task`. See
-   * `createChatBashDescription`.
+   * Present when the shell is a chat's own conversation's: it gets the
+   * chat's own commands (`task`, `chat`, `memory`, `tab`) and the apps'
+   * folders.
    */
-  chat?: { childMounts: WorkspaceFsMount[]; id: ChatId };
+  chat?: { id: ChatId };
+  /**
+   * The `bash` call this shell runs, so a fork it starts leaves that call out
+   * of what it inherits.
+   */
+  callPartId?: StoreId.Part;
   remainingYieldMs?: () => number;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  chatId: ChatId;
 }
 
 /** What callers of `createBashEnv` get, wherever the interpreter runs. */
 export type BashRunner = Pick<Bash, "exec">;
 
-export function createBashDescription({
-  chat = false,
-}: { chat?: boolean } = {}) {
+/**
+ * What the chat runs beside a task's shell, listed in every shell's
+ * description: it is the same in a fork, which keeps the tool definitions
+ * the provider cache is keyed on the same as the chat's, and the fork is
+ * told these are not there.
+ */
+const CHAT_COMMAND_LINES = [
+  `  ${TASK_COMMAND.name} - ${TASK_COMMAND.description}`,
+  `  ${CHAT_COMMAND.name} - ${CHAT_COMMAND.description}`,
+  `  ${MEMORY_COMMAND.name} - ${MEMORY_COMMAND.description}`,
+  `  ${TAB_COMMAND.name} - ${TAB_COMMAND.description}`,
+  `  (In the chat, the workspace's apps are at \`${MOUNT.apps}\`.)`,
+];
+
+export function createBashDescription() {
   const allowedCommandNames = getCommandNames().filter(
     (name) => !BROKEN_COMMANDS.has(name),
   );
@@ -547,10 +573,6 @@ export function createBashDescription({
   const namedOnly = allowedCommandNames
     .filter((name) => !(name in DESCRIBED_COMMANDS))
     .sort();
-
-  if (chat) {
-    return createChatBashDescription(namedOnly);
-  }
 
   const described = Object.entries(DESCRIBED_COMMANDS)
     .filter(([name]) => allowedCommandNames.includes(name))
@@ -562,6 +584,7 @@ export function createBashDescription({
       .filter((cmd) => cmd.listInDescription)
       .map((cmd) => `  ${cmd.name} - ${cmd.description}`),
     ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
+    ...CHAT_COMMAND_LINES,
   ];
 
   const specializedCommands = [...described, ...customLines].join("\n");
@@ -569,11 +592,11 @@ export function createBashDescription({
   return dedent`
     Execute bash commands in the task directory.
 
-    IMPORTANT: Folders the user attaches appear as mounts under \`${MOUNT.attachedFolders}/\`, each read-only or read-and-write; the attached-folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. The shell builtins, \`rg\`, \`${PYTHON_COMMAND.name}\`, and \`${JS_EXEC_COMMAND.name}\` read mount paths directly. The native hatches (\`${PYTHON_NATIVE_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, \`${PNPM_COMMAND.name}\`, \`${UV_COMMAND.name}\`) cannot resolve one: for those, copy the file into the task first (e.g. \`cp '${MOUNT.attachedFolders}/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
+    IMPORTANT: Folders on the user's computer appear as mounts under \`${MOUNT.folders}/\`, each read-only or read-and-write; the folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. The shell builtins, \`rg\`, \`${PYTHON_COMMAND.name}\`, and \`${JS_EXEC_COMMAND.name}\` read mount paths directly. The native hatches (\`${PYTHON_NATIVE_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, \`${PNPM_COMMAND.name}\`, \`${UV_COMMAND.name}\`) cannot resolve one: for those, copy the file into the task first (e.g. \`cp '${MOUNT.folders}/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
 
-    IMPORTANT: Two Pythons. \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) is the default: CPython 3.13 with the whole standard library, running inside the sandbox, so it opens \`${MOUNT.attachedFolders}/...\` and \`${MOUNT.task}/...\` paths exactly as written and needs no copying. It has no packages of its own, cannot start processes, and reads a file whole (8 MB at most). \`${PYTHON_NATIVE_COMMAND.name}\` is the real interpreter in the task's virtualenv: it runs anything \`${PIP_COMMAND.name}\` installed and any native binary, but sees only the task folder. \`${PYTHON_COMMAND.name}\` runs there on its own for a program that imports a package \`${PIP_COMMAND.name}\` installed and for a loaded skill's script under work/skills/, so write \`${PYTHON_COMMAND.name}\`, and name \`${PYTHON_NATIVE_COMMAND.name}\` only for a native binary, a process, or a file over 8 MB. JavaScript is the other way around: \`${NODE_COMMAND.name}\` is the default (real process, task packages, task folder only) and \`${JS_EXEC_COMMAND.name}\` is the sandboxed one for reading attached folders with built-ins only. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside code run by the native hatches, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`${MOUNT.task}/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`${MOUNT.attachedFolders}/...\` never is, and paths inside script FILES on disk are never translated.
+    IMPORTANT: Two Pythons. \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) is the default: CPython 3.13 with the whole standard library, running inside the sandbox, so it opens \`${MOUNT.folders}/...\` and \`${MOUNT.task}/...\` paths exactly as written and needs no copying. It has no packages of its own, cannot start processes, and reads a file whole (8 MB at most). \`${PYTHON_NATIVE_COMMAND.name}\` is the real interpreter in the task's virtualenv: it runs anything \`${PIP_COMMAND.name}\` installed and any native binary, but sees only the task folder. \`${PYTHON_COMMAND.name}\` runs there on its own for a program that imports a package \`${PIP_COMMAND.name}\` installed and for a loaded skill's script under work/skills/, so write \`${PYTHON_COMMAND.name}\`, and name \`${PYTHON_NATIVE_COMMAND.name}\` only for a native binary, a process, or a file over 8 MB. JavaScript is the other way around: \`${NODE_COMMAND.name}\` is the default (real process, task packages, task folder only) and \`${JS_EXEC_COMMAND.name}\` is the sandboxed one for reading folder mounts with built-ins only. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside code run by the native hatches, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`${MOUNT.task}/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`${MOUNT.folders}/...\` never is, and paths inside script FILES on disk are never translated.
 
-    IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${MOUNT.task}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`). Only \`${MOUNT.task}\`, the \`${MOUNT.attachedFolders}\` mounts your context lists, and \`${MOUNT.skills}\` exist; any other path, one a brief names included, is out of reach, so name it in a needs fence rather than looking for it, and writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files, or \`${MKTEMP_COMMAND.name}\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+    IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${MOUNT.task}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`). Only \`${MOUNT.task}\`, the \`${MOUNT.folders}\` mounts your context lists, and \`${MOUNT.skills}\` exist; any other path, one named in the conversation included, is out of reach, so name it in a needs fence rather than looking for it, and writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files, or \`${MKTEMP_COMMAND.name}\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
     A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
@@ -581,7 +604,7 @@ export function createBashDescription({
     A background process is stopped once it has run for ${ms(MAX_RUNNING_AGE_MS, { long: true })}, whatever it is doing. \`${JOBS_COMMAND.name}\` reports that as \`stopped (${ms(MAX_RUNNING_AGE_MS)} cap)\` rather than as a failure or a kill; start it again if the work still needs it.
     Only output written by real binaries (\`${PNPM_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${PYTHON_NATIVE_COMMAND.name}\`, \`${UV_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, ...) streams while a process runs; a long shell pipeline of builtins, or a \`${PYTHON_COMMAND.name}\`/\`${JS_EXEC_COMMAND.name}\` run, reports its output only when it finishes.
 
-    \`curl\` reaches the internet and this computer's own network alike: \`localhost\`, a server you started (\`curl http://127.0.0.1:<port>/\`; pick an explicit port when you start it so you know which one to call), and devices on the user's local network such as \`192.168.x.x\` or \`name.local\` hosts. The one address it refuses is Instrument's own workspace server.
+    \`curl\` reaches the internet and this computer's own network alike: \`localhost\`, a server you started (\`curl http://127.0.0.1:<port>/\`; pick an explicit port when you start it so you know which one to call), and devices on the user's local network such as \`192.168.x.x\` or \`name.local\` hosts.
 
     Prefer specialized tools over shell equivalents:
       - Use the \`${TOOL_NAMES.readFile}\` tool instead of \`cat\`/\`head\`/\`tail\`.
@@ -628,23 +651,22 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
 /**
  * What a shell built with these options mounts. The single source of truth
  * for what the agent can see in it: the writable task directory mounted at
- * /task (the working directory), any user-attached folders under /mnt, each
+ * /task (the working directory), any folders the chat reaches under /mnt, each
  * read-only or writable, and for the chat its tasks and apps. The bash
  * native-binary path bridge, rg, du, and the output a promoted command
  * streams all take it from here so they agree on virtual<->real mapping.
  */
 export function shellLayout({
-  attachedFolders,
+  folders,
   chat,
-  taskId,
-}: Pick<BashEnvOptions, "attachedFolders" | "chat" | "taskId">) {
+  chatId,
+}: Pick<BashEnvOptions, "folders" | "chat" | "chatId">) {
   return buildWorkspaceFsLayout({
     // The chat authors apps, so it gets their folders; a task reaches
     // the apps it was handed through the command alone.
     apps: chat !== undefined,
-    attachedFolders,
-    extraMounts: chat?.childMounts,
-    taskHostRoot: taskDir(taskId),
+    folders,
+    taskHostRoot: workDir(chatId),
   });
 }
 
@@ -661,15 +683,16 @@ export async function createBashEnv(
 }
 
 export async function createLocalBashEnv({
-  attachedFolders,
+  folders,
+  callPartId,
   chat,
   // Defaulted so the callers that never wait -- skill validation, tests, the
   // sandbox script -- do not have to describe a yield window they do not have.
   remainingYieldMs = () => Number.POSITIVE_INFINITY,
   sessionId,
   standIn,
-  taskId,
-  invokeTool = appToolHook(taskId),
+  chatId,
+  invokeTool = appToolHook,
 }: BashEnvOptions & {
   /**
    * Answers a `js-exec` script's `tools.<slug>.<tool>()`; the bash worker
@@ -679,57 +702,69 @@ export async function createLocalBashEnv({
   /** Replaces each of `MAIN_THREAD_COMMANDS`; set by the bash worker. */
   standIn?: (name: string) => Command;
 }) {
-  const layout = shellLayout({ attachedFolders, chat, taskId });
-  const fs = await buildBashFs(layout, { maxFileReadSize: SANDBOX_MAX_BYTES });
+  const layout = shellLayout({ folders, chat, chatId });
+  // The working folder walks at the sandbox's budget, and the home folder at
+  // its own, smaller one.
+  const homeWalkBudget = createWalkBudget(HOME_MAX_TRAVERSAL);
+  const fs = await buildBashFs(layout, {
+    homeWalkBudget,
+    maxFileReadSize: SANDBOX_MAX_BYTES,
+  });
 
   const allowedCommands = [
     ...getCommandNames(),
-    ...(chat ? [] : getNetworkCommandNames()),
+    ...getNetworkCommandNames(),
   ].filter((name) => !BROKEN_COMMANDS.has(name)) as CommandName[];
 
-  // What sets the two shells apart: the chat gets `task`, `chat`,
-  // `memory` and `tab` and nothing else beyond reading, the working agent
-  // gets the native hatches. Both get `app`, which does its network work host-side behind its
-  // own guards, so the chat's shell stays network-free. Putting a
-  // thing on the user's screen is the chat's `tab`: a task's reply is
-  // read by the chat, and a pane of the task's own has nobody looking.
-  const specializedCommands = chat
-    ? [
-        createTaskCommand({
-          chatId: chat.id,
-          remainingYieldMs,
-          sessionId,
-        }),
-        createChatCommand(),
-        createMemoryCommand({ chatId: chat.id, sessionId }),
-        createAppCommand({ taskId }),
-        createTabCommand({ chatId: chat.id }),
-      ]
-    : [
-        createAppCommand({ taskId }),
-        ...customCommandDefs().map((cmd) => cmd.factory({ layout, taskId })),
-      ];
-  const specializedCommandNames = chat
-    ? [
-        TASK_COMMAND.name,
-        CHAT_COMMAND.name,
-        MEMORY_COMMAND.name,
-        APP_COMMAND.name,
-        TAB_COMMAND.name,
-      ]
-    : [APP_COMMAND.name, ...customCommandDefs().map((cmd) => cmd.name)];
+  // What sets the chat's shell apart from a task's: it gets `task`, `chat`,
+  // `memory` and `tab` beside the native hatches every shell has. Putting a
+  // thing on the user's screen is the chat's `tab`: a task's reply is read
+  // by the chat, and a pane of the task's own has nobody looking.
+  const nativeCommands = customCommandDefs().map((cmd) =>
+    cmd.factory({ layout, chatId }),
+  );
+  const nativeCommandNames = customCommandDefs().map((cmd) => cmd.name);
+  const specializedCommands = [
+    ...(chat
+      ? [
+          createTaskCommand({
+            callPartId,
+            chatId: chat.id,
+            remainingYieldMs,
+            sessionId,
+          }),
+          createChatCommand(),
+          createMemoryCommand({ chatId: chat.id, sessionId }),
+          createTabCommand({ chatId: chat.id, layout }),
+        ]
+      : []),
+    createAppCommand({ chatId }),
+    ...nativeCommands,
+  ];
+  const specializedCommandNames = [
+    ...(chat
+      ? [
+          TASK_COMMAND.name,
+          CHAT_COMMAND.name,
+          MEMORY_COMMAND.name,
+          TAB_COMMAND.name,
+        ]
+      : []),
+    APP_COMMAND.name,
+    ...nativeCommandNames,
+  ];
 
   const bash = new Bash({
     commands: allowedCommands,
     customCommands: [
-      // For the chat, the tab the user has on screen or none: it never
-      // creates a browser of its own, so a command with no tab up refuses.
-      createAgentBrowserCommand({ sessionId, taskId }),
+      // The tabs the chat or task holds, opening its own behind whatever the
+      // user has up.
+      createAgentBrowserCommand({ sessionId, chatId }),
       // Registered after the bundled commands, which is what lets it shadow
       // just-bash's own `rg`. The built-in is a TypeScript reimplementation;
       // the real binary is orders of magnitude faster on a large tree and does
       // not carry its `(?i)` and root-level-glob bugs.
-      createRgCommand({ layout, taskId }),
+      createRgCommand({ layout, chatId }),
       createDuCommand({ layout }),
       ...specializedCommands,
       // After the bundled commands so these shadow just-bash's own `kill` and
@@ -758,13 +793,19 @@ export async function createLocalBashEnv({
       maxOutputSize: SANDBOX_MAX_OUTPUT_BYTES,
       maxPythonTimeoutMs: SANDBOX_SCRIPT_TIMEOUT_MS,
       maxStringLength: SANDBOX_MAX_BYTES,
-      maxTraversalEntries: chat ? CHAT_MAX_TRAVERSAL : SANDBOX_MAX_TRAVERSAL,
-      maxTraversalWork: chat ? CHAT_MAX_TRAVERSAL : SANDBOX_MAX_TRAVERSAL,
+      maxTraversalEntries: SANDBOX_MAX_TRAVERSAL,
+      maxTraversalWork: SANDBOX_MAX_TRAVERSAL,
     },
     // `curl`, `js-exec`'s `fetch` and `python`'s `jb_http` reach every
-    // address the native interpreters can, the local network included, except
-    // Instrument's own workspace server.
-    fetch: createSandboxFetch({ maxResponseSize: SANDBOX_MAX_BYTES }),
+    // address the native interpreters can, the local network and loopback
+    // included. The workspace server on loopback needs a per-launch key the
+    // sandbox never sees, so reaching it gets a 401 and nothing more.
+    network: {
+      dangerouslyAllowFullInternetAccess: true,
+      // Defaults to on when NODE_ENV is production.
+      denyPrivateRanges: false,
+      maxResponseSize: SANDBOX_MAX_BYTES,
+    },
     // Seed with process.env so PATH and other system vars are available to
     // commands that pass ctx.env explicitly (e.g. pnpm, tsx). pnpm shim files
     // also use sed, uname, etc when on unix systems.
@@ -781,42 +822,16 @@ export async function createLocalBashEnv({
     // skill's script to the native interpreter. `javascript` also registers
     // a `node` stub, which the native `node` command shadows, and runs the
     // bootstrap inside QuickJS before every script to give its Node shims
-    // Node's shapes. The chat's shell runs no scripts at all, so it
-    // gets neither.
-    javascript: chat === undefined && {
-      bootstrap: JS_EXEC_BOOTSTRAP,
-      invokeTool,
-    },
-    python: chat === undefined,
+    // Node's shapes.
+    javascript: { bootstrap: JS_EXEC_BOOTSTRAP, invokeTool },
+    python: true,
   });
 
   // Order matters: the alias runs first so the recorded command list names
   // what actually ran rather than what was typed.
   bash.registerTransformPlugin(waitAliasPlugin);
   bash.registerTransformPlugin(commandOrderPlugin);
+  bash.registerTransformPlugin(resetEachCommand(homeWalkBudget));
 
   return bash;
-}
-
-/**
- * The chat's shell is for reading, for `task`, and for the one tab
- * the user has on screen. It has no network commands and none of the native
- * hatches (python, node, pnpm, ffmpeg, git), because it never does long work:
- * a shell that can read, delegate, and act on the page in front of the user is
- * what keeps every turn short, and what keeps the host paths of the user's
- * folders out of a process that could act on them.
- */
-function createChatBashDescription(_builtins: string[]) {
-  return dedent`
-    Run one of the commands that are your job, \`${TASK_COMMAND.name}\`, \`${APP_COMMAND.name}\`, \`${CHAT_COMMAND.name}\`, \`${MEMORY_COMMAND.name}\` and \`${TAB_COMMAND.name}\`, or a file command for looking at a file (ls, cat, head, tail, wc, stat, file, find) or putting a finished one where it belongs (cp, mv, mkdir). Output may go through a filter (head, tail, rg, grep, wc, sort, cut, sed, awk, jq). Nothing else runs here, on purpose: nothing that writes a file's contents, no python or node, no browser, no network. That work is a task's job, and you start the task instead. Each task's folder is mounted read-only at \`${MOUNT.tasks}/<id>\`; the user's folders under \`${MOUNT.attachedFolders}\` are yours to read and write.
-
-    Not a persistent terminal: every call starts fresh. Pass a brief or a message through a quoted heredoc (\`<<'EOF'\`), never as a double-quoted argument.
-
-    Specialized commands:
-      ${TASK_COMMAND.name} - ${TASK_COMMAND.description}
-      ${APP_COMMAND.name} - ${APP_COMMAND.description}
-      ${CHAT_COMMAND.name} - ${CHAT_COMMAND.description}
-      ${MEMORY_COMMAND.name} - ${MEMORY_COMMAND.description}
-      ${TAB_COMMAND.name} - ${TAB_COMMAND.description}
-  `.trim();
 }

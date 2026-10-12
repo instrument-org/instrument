@@ -35,7 +35,7 @@ Squirrel's file survives six weeks in 38 KB because it writes one line per miles
 
 `maxSize` raised to 8 MB and `sync` set to false. The second introduces a trade worth stating: electron-log's async path queues into `asyncWriteQueue` and drains via `fs.writeFile` with no flush API and no drain on exit, so lines still queued when the process dies are lost. That window is one write round trip, but it covers the last lines before a crash, which are the ones worth having.
 
-The plan's Phase 3 Crashpad minidumps are the compensating record, and they are not built, so nothing currently covers what the queue drops. Two things narrow the exposure to its real shape.
+Crashpad minidumps are the compensating record for a native crash, and the next start logs where each one is. They do not cover what the queue drops from an ordinary exit. Two things narrow the exposure to its real shape.
 
 **A crash the app survives is a crash it has time to write down.** [register-crash-diagnostics.ts](../../apps/studio/src/electron-main/lib/register-crash-diagnostics.ts) records `render-process-gone`, `child-process-gone`, and unhandled rejections through the logger. All three run with the main process still alive, so their lines drain like any other.
 

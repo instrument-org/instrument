@@ -3,7 +3,7 @@ import { accessSync, constants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
+import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import { MOUNT } from "../mount-points";
 import {
   type AbsolutePath,
@@ -114,7 +114,7 @@ export async function getSimilarPathSuggestions({
 
 /**
  * Resolve a read-path input against the workspace layout. Accepts task-relative
- * paths, the task's own virtual paths (/task/...), attached-folder mount paths
+ * paths, the task's own virtual paths (/task/...), folder mount paths
  * (/mnt/<name>/...), and the workspace skills mount (/skills/...). Any other
  * absolute path is an error that steers the agent back into the layout.
  *
@@ -240,7 +240,7 @@ export function resolveWritableToolPath(options: {
   const { absolutePath, displayPath, mount } = result.value;
   if (mount?.readOnly) {
     return executeError(
-      `"${displayPath}" is in a read-only attached folder and cannot be written. ` +
+      `"${displayPath}" is in a read-only folder and cannot be written. ` +
         `Copy the file into the task first (e.g. cp '${displayPath}' attachments/) and work on the copy.`,
     );
   }
@@ -262,15 +262,14 @@ function fileExistsSync(filePath: string): boolean {
 function maskedEntryError(displayPath: string, entry: MaskedEntry) {
   if (entry === TASKS_DIR_NAME) {
     return executeError(
-      `"${displayPath}" is inside this chat's ${TASKS_DIR_NAME}/ directory, ` +
-        `which is not accessible from here. Each task's folder is mounted ` +
-        `read-only at ${MOUNT.tasks}/<id>.`,
+      `"${displayPath}" is inside the ${TASKS_DIR_NAME}/ directory an earlier ` +
+        `version left in this folder, which is not accessible.`,
     );
   }
   return executeError(
-    `"${displayPath}" is inside the private ${TASK_FOLDER_NAMES.private} ` +
+    `"${displayPath}" is inside the private ${CHAT_FOLDER_NAMES.private} ` +
       `directory, which holds task internals and is not accessible. Agent ` +
-      `outputs like screenshots live under ${TASK_FOLDER_NAMES.work}/.`,
+      `outputs like screenshots live under ${CHAT_FOLDER_NAMES.work}/.`,
   );
 }
 

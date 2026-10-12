@@ -16,19 +16,19 @@ export const MOUNT = {
    * The workspace's own `apps/` directory: one folder per app the agent has
    * set up, each holding a manifest and a guide and never a secret.
    *
-   * Writable for the chat, which authors apps; a task reaches the
-   * apps it was handed through the `app` command rather than the folder.
+   * Writable for the chat, which authors apps; a task reaches its apps
+   * through the `app` command rather than the folder.
    */
   apps: "/apps",
 
   /**
-   * Root of the attached-folder mounts (e.g. `/mnt/Photos`). Attached folders
-   * live on the user's real disk and are surfaced under this prefix, read-only
-   * or read-write according to the access the user granted each one. The path
-   * schemas, the attached-folder mount points, and the asset server all derive
-   * from it.
+   * Root of the folder mounts (e.g. `/mnt/Photos`): every folder the chat
+   * reaches on the user's real disk (the home folder, the workspace folder,
+   * the folders granted in the chat and those of its topics), each read and
+   * write unless it holds the workspace. The path schemas, the mount points,
+   * and the asset server all derive from it.
    */
-  attachedFolders: "/mnt",
+  folders: "/mnt",
 
   /**
    * The skills the agent can see, one mount per skill source at
@@ -41,7 +41,8 @@ export const MOUNT = {
   skills: "/skills",
 
   /**
-   * The task itself, and the agent's working directory.
+   * The agent's working folder, and its working directory: the chat's own
+   * folder, which its tasks share.
    *
    * A named home rather than the filesystem root, so the agent has a clear,
    * stable place to work and is less prone to hallucinating host paths.
@@ -50,15 +51,6 @@ export const MOUNT = {
    * through the layout, so this is the single value to change.
    */
   task: "/task",
-
-  /**
-   * Where a chat sees the tasks it created, one read-only mount per
-   * task at `/tasks/<id>`. Plural, beside the singular `/task` that is the
-   * chat's own scratch, because the two are different things: its own
-   * folder is where it keeps notes, and these are the folders of the work it
-   * delegated, which it reads and never writes.
-   */
-  tasks: "/tasks",
 } as const;
 
 /**

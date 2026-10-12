@@ -2,16 +2,15 @@ import { ulid } from "ulid";
 
 import { publisher } from "../../rpc/publisher";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
-import { type HeldTab } from "../../schemas/task-state";
+import { type HeldTab } from "../../schemas/chat-state";
 import {
   type WindowTabAction,
   type WindowTabAnswer,
 } from "../../schemas/window-tab";
 import { decodeBrowserTargetId } from "../../types";
-import { chatOf } from "../record-folders";
-import { getBrowserSessionDir, taskDir } from "../task-dir-utils";
-import { getTaskState } from "../task-record";
+import { resolveChat, chatDir } from "../record-folders";
+import { getBrowserSessionDir } from "../chat-dir-utils";
+import { getChatState } from "../chat-record";
 import { getWorkspaceConfig } from "../workspace-config";
 import { isWorking } from "./activity";
 import { listChildTasks } from "./children";
@@ -39,7 +38,7 @@ export async function askWindow({
   timeoutMs = WINDOW_TAB_TIMEOUT_MS,
 }: {
   action: WindowTabAction;
-  askedBy: TaskId;
+  askedBy: ChatId;
   group: ChatId | undefined;
   timeoutMs?: number;
 }): Promise<undefined | WindowTabAnswer> {
@@ -78,7 +77,7 @@ export async function askWindow({
  * launch. A tab the window no longer has stays out: it was closed.
  */
 export async function liveHeldTabs(
-  taskId: TaskId,
+  chatId: ChatId,
   heldTabs: HeldTab[],
 ): Promise<HeldTab[]> {
   const { browser } = getWorkspaceConfig();
@@ -94,8 +93,8 @@ export async function liveHeldTabs(
     }
     const answer = await askWindow({
       action: { kind: "restore", tabId: decoded.sessionId },
-      askedBy: taskId,
-      group: chatOf(taskId),
+      askedBy: chatId,
+      group: resolveChat(chatId),
     });
     if (answer?.tabId === undefined) {
       continue;
@@ -125,7 +124,7 @@ export async function requestWindowTab({
   timeoutMs,
   url,
 }: {
-  askedBy: TaskId;
+  askedBy: ChatId;
   group: ChatId | undefined;
   show: boolean;
   timeoutMs?: number;
@@ -152,17 +151,21 @@ export async function requestWindowTab({
  */
 export async function tabHolders(
   chatId: ChatId,
-): Promise<Map<string, { id: TaskId; title: string }>> {
-  const holders = new Map<string, { id: TaskId; title: string }>();
-  for (const task of await listChildTasks(chatId)) {
-    if (!isWorkingNow(task.id)) {
-      continue;
-    }
-    const state = await getTaskState(taskDir(task.id));
-    for (const held of state.browserTabs) {
+): Promise<Map<string, { id: string; title: string }>> {
+  const holders = new Map<string, { id: string; title: string }>();
+  const working = await listChildTasks(chatId, (id) =>
+    isWorkingNow(chatId, id),
+  );
+  if (working.length === 0) {
+    return holders;
+  }
+  const { browserTabs } = await getChatState(chatDir(chatId));
+  for (const task of working) {
+    for (const held of browserTabs) {
       const decoded = decodeBrowserTargetId(held.id);
-      if (decoded) {
-        holders.set(decoded.sessionId, { id: task.id, title: task.title });
+      if (decoded && held.driver === task.id) {
+        // By its handle, which is what the conversation steers it by.
+        holders.set(decoded.sessionId, { id: task.handle, title: task.title });
       }
     }
   }
@@ -170,9 +173,9 @@ export async function tabHolders(
 }
 
 /** Whether a task is working, or false where no workspace is running to ask. */
-function isWorkingNow(taskId: TaskId): boolean {
+function isWorkingNow(chatId: ChatId, sessionId: StoreId.Session): boolean {
   try {
-    return isWorking(taskId);
+    return isWorking(chatId, sessionId);
   } catch {
     return false;
   }

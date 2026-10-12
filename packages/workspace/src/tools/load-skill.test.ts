@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { REGISTRY_FOLDER_NAMES, TASK_FOLDER_NAMES } from "../constants";
+import { REGISTRY_FOLDER_NAMES, CHAT_FOLDER_NAMES } from "../constants";
 import { SKILL_CONTENT_LIMIT } from "../lib/skills";
 import {
   getWorkspaceConfig,
@@ -12,7 +12,7 @@ import {
 } from "../lib/workspace-config";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { LoadSkill } from "./load-skill";
 
@@ -52,19 +52,17 @@ afterEach(async () => {
 
 function baseExecuteArgs() {
   return {
-    agentName: "main" as const,
     model,
     signal: AbortSignal.timeout(10_000),
-    taskId: createTaskConfigWithDirs(),
-    taskState: { browserTabs: [] },
+    chatId: createTaskConfigWithDirs(),
   };
 }
 
 function copiedSkillDir(name: string, source = APP_NAME_SLUG) {
   return path.join(
     dir,
-    TASK_FOLDER_NAMES.work,
-    TASK_FOLDER_NAMES.skills,
+    CHAT_FOLDER_NAMES.work,
+    CHAT_FOLDER_NAMES.skills,
     source,
     name,
   );
@@ -93,9 +91,9 @@ async function createSkill({
 }
 
 function createTaskConfigWithDirs() {
-  // Point the singleton's tasksDir at dir's parent so taskDir(id) ===
+  // Point the singleton's tasksDir at dir's parent so chatDir(id) ===
   // dir, then also override registryDir for skill resolution.
-  const id = createMockTaskConfigForDir(dir, { model });
+  const id = createMockChatConfigForDir(dir, { model });
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     registryDir: AbsolutePathSchema.parse(registryDir),
@@ -115,9 +113,8 @@ describe("LoadSkill", () => {
     expect(typeof LoadSkill.description).toBe("string");
     const description = await (typeof LoadSkill.description === "function"
       ? LoadSkill.description({
-          agentName: "main",
           model,
-          taskId: createTaskConfigWithDirs(),
+          chatId: createTaskConfigWithDirs(),
         })
       : LoadSkill.description);
     expect(description).not.toContain("invisible-skill");
@@ -719,7 +716,7 @@ describe("LoadSkill", () => {
     expect(installPythonSkill).toHaveBeenCalledWith({
       signal: args.signal,
       skillDir: copiedSkillDir("python-skill"),
-      taskId: args.taskId,
+      chatId: args.chatId,
     });
     expect(result).toMatchObject({
       installResults: [{ runtime: "python", state: "success" }],

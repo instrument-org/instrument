@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 import {
+  AIUsagePurposeSchema,
+  AIUsageSurfaceSchema,
+} from "../../lib/ai-usage/schema";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import {
   askDecisionModel,
   decisionModelAvailable,
   DecisionQuestionSchema,
@@ -8,10 +13,17 @@ import {
 } from "../../lib/decision-model";
 import { base } from "../base";
 
+/** Why the app is asking, which the record of model requests files the ask under. */
+const AIUsageAskSchema = z.object({
+  chatId: ChatIdSchema.optional(),
+  purpose: AIUsagePurposeSchema,
+  surface: AIUsageSurfaceSchema.optional(),
+});
+
 /**
  * Typed questions about a state, answered by the decision model with a
  * probability for every option. The questions are passed through in the
- * System One contract's own shape (`choice`, `score`, `noul`), so a caller
+ * decision contract's own shape (`choice`, `score`, `noul`), so a caller
  * builds them from its own data and reads the distributions back.
  */
 const ask = base
@@ -19,6 +31,7 @@ const ask = base
     z.object({
       questions: z.record(z.string(), DecisionQuestionSchema),
       state: z.unknown(),
+      usage: AIUsageAskSchema,
     }),
   )
   .output(
@@ -28,9 +41,10 @@ const ask = base
     let asked: Awaited<ReturnType<typeof askDecisionModel>>;
     try {
       asked = await askDecisionModel({
-        body: input,
+        body: { questions: input.questions, state: input.state },
         configs: context.workspaceConfig.getAIProviderConfigs(),
         signal,
+        usage: input.usage,
       });
     } catch (error) {
       if (signal?.aborted) {

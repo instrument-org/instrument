@@ -1,5 +1,6 @@
 import { bookmarksAtom } from "@/client/atoms/window";
 import { OpenInAppMenuItems } from "@/client/components/open-in-app";
+import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
 import { BrowserFindBar } from "@/client/components/window/browser-find-bar";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
@@ -59,7 +60,7 @@ import {
   type BrowserTargetId,
   encodeBrowserTargetId,
   type StoreId,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
@@ -79,7 +80,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * A page of the in-app browser, hosted in the artifact panel. The guest `<webview>`
@@ -105,7 +106,7 @@ export function BrowserPanel({
   restoreUrl,
   sessionId,
   sliding,
-  taskId,
+  chatId,
 }: {
   active: boolean;
   /**
@@ -158,9 +159,9 @@ export function BrowserPanel({
   // The pane is sliding open or shut, so the slot is moving under a guest that
   // only follows it while something is watching. See useBrowserSlot.
   sliding?: boolean;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
-  const targetId = encodeBrowserTargetId(taskId, sessionId);
+  const targetId = encodeBrowserTargetId(chatId, sessionId);
   const inputRef = useRef<HTMLInputElement>(null);
   const isVisible = useIsTaskPageVisible();
   const [draftUrl, setDraftUrl] = useState("");
@@ -268,13 +269,13 @@ export function BrowserPanel({
     }
     autoOpenedRef.current.add(targetId);
     openBrowser({
-      id: taskId,
+      id: chatId,
       sessionId,
       ...(restoreUrl && restoreUrl !== "about:blank" ? { restoreUrl } : {}),
     });
     // Once per target: the address is only where a blank guest goes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, openBrowser, sessionId, sliding, targetId, taskId]);
+  }, [active, openBrowser, sessionId, sliding, targetId, chatId]);
 
   // Track main-frame load failures so we can show a light error state.
   const guest = useGuest(active ? targetId : null);
@@ -622,6 +623,7 @@ export function BrowserPanel({
         const controls = (
           <>
             {pageControls}
+            <BrowserDownloadsButton />
             {menu}
           </>
         );
@@ -751,6 +753,7 @@ export function BrowserPanel({
                 </InputGroupAddon>
               </InputGroup>
             </form>
+            <BrowserDownloadsButton />
             {menu}
           </>
         );
@@ -845,7 +848,7 @@ export function BrowserPanel({
               <Button
                 onClick={() => {
                   openBrowser({
-                    id: taskId,
+                    id: chatId,
                     sessionId,
                   });
                 }}
@@ -859,7 +862,7 @@ export function BrowserPanel({
             <Button
               onClick={() => {
                 openBrowser({
-                  id: taskId,
+                  id: chatId,
                   sessionId,
                 });
               }}

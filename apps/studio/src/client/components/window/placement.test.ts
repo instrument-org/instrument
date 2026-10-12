@@ -2,7 +2,6 @@ import {
   ChatIdSchema,
   encodeBrowserTargetId,
   StoreId,
-  TaskIdSchema,
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
@@ -219,7 +218,7 @@ describe("chatOfAskingPage", () => {
     ["a chat's own page", encodeBrowserTargetId(WINDOW_ID, chatPage), CHAT],
     [
       "a task's page in a chat",
-      encodeBrowserTargetId(TaskIdSchema.parse("roofer-quote"), taskPage),
+      encodeBrowserTargetId(ChatIdSchema.parse("roofer-quote"), taskPage),
       CHAT,
     ],
     [

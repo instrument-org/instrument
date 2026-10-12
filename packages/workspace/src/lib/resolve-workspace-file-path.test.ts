@@ -4,48 +4,31 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { WORKSPACE_SKILLS_MOUNT } from "../mount-points";
-import { FolderAttachment } from "../schemas/folder-attachment";
-import {
-  AbsolutePathSchema,
-  TaskDirSchema,
-  WorkspaceDirSchema,
-  WorkspaceFilePathSchema,
-} from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { WorkspaceDirSchema, WorkspaceFilePathSchema } from "../schemas/paths";
+import { type ChatId } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
-import { setTaskState } from "./task-record";
+import { grantFolder } from "./chat/grants";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 describe("resolveWorkspaceFilePath", () => {
   let photosRoot: string;
   let root: string;
-  let taskId: TaskId;
+  let chatId: ChatId;
   let taskRoot: string;
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-workspace-path-"));
     taskRoot = path.join(root, "tasks", "resolve-path-task");
     photosRoot = path.join(root, "Photos");
-    taskId = createMockTaskConfigForDir(taskRoot);
+    chatId = createMockChatConfigForDir(taskRoot);
 
     await fs.mkdir(taskRoot, { recursive: true });
     await fs.mkdir(photosRoot);
     await fs.writeFile(path.join(taskRoot, "notes.txt"), "task file");
     await fs.writeFile(path.join(photosRoot, "cat.png"), "mounted file");
 
-    await setTaskState(TaskDirSchema.parse(taskRoot), {
-      attachedFolders: {
-        photos: {
-          access: "read-only",
-          createdAt: 0,
-          id: FolderAttachment.IdSchema.parse("photos-id"),
-          mountName: "Photos",
-          path: AbsolutePathSchema.parse(photosRoot),
-          source: "user",
-        },
-      },
-    });
+    await grantFolder({ chatId, path: photosRoot, source: "attached" });
   });
 
   afterEach(async () => {
@@ -59,7 +42,7 @@ describe("resolveWorkspaceFilePath", () => {
   ] as const)("resolves %s", async (filePath, expected) => {
     const resolved = await resolveWorkspaceFilePath({
       filePath: WorkspaceFilePathSchema.parse(filePath),
-      taskId,
+      chatId,
     });
 
     expect(resolved).toBe(expected());
@@ -78,7 +61,7 @@ describe("resolveWorkspaceFilePath", () => {
       filePath: WorkspaceFilePathSchema.parse(
         `${WORKSPACE_SKILLS_MOUNT}/csv-table/SKILL.md`,
       ),
-      taskId,
+      chatId,
     });
 
     expect(resolved).toBe(skillFile);
@@ -90,7 +73,7 @@ describe("resolveWorkspaceFilePath", () => {
   ])("returns null for $label", async ({ filePath }) => {
     const resolved = await resolveWorkspaceFilePath({
       filePath: WorkspaceFilePathSchema.parse(filePath),
-      taskId,
+      chatId,
     });
 
     expect(resolved).toBeNull();

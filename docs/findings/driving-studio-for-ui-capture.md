@@ -47,10 +47,9 @@ A commit or file change anywhere in the checkout triggers an HMR sweep that retu
 
 ### Some states are unreachable in dev by construction
 
-- The post-update toast requires `lastLaunchedVersion` in the dev preferences store to be older than the running version plus `FORCE_DEV_AUTO_UPDATE=true`. Reproducing it means writing to a developer's real config.
 - The running-agent quit confirmation short-circuits on `is.dev` (`lib/create-workspace-actor.ts`), and is a native `dialog.showMessageBox` besides, so it is outside the web contents CDP can see at all.
 
-The dev panel's Updates submenu simulates download, error, and no-updates, but not either of these.
+The dev panel's Updates submenu simulates download, error, no-updates, and the bell's notice for a just-installed update, but not this.
 
 ### Tooling gaps in the CDP CLI
 

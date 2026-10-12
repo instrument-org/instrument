@@ -1,6 +1,6 @@
 import { defineCommand } from "just-bash";
 
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { FFMPEG_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
@@ -23,7 +23,7 @@ export const FFMPEG_COMMAND = {
   name: "ffmpeg",
 } as const;
 
-export function createFfmpegCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createFfmpegCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
   return defineCommand(FFMPEG_COMMAND.name, async (args, ctx) => {
     const unreachable = unreachablePathArgError(
       FFMPEG_COMMAND.name,
@@ -34,7 +34,7 @@ export function createFfmpegCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
       return { exitCode: 1, stderr: unreachable, stdout: "" };
     }
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
 
     const result = await execShim(
@@ -50,7 +50,7 @@ export function createFfmpegCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
         // before every run. An explicit `-version` still prints it, so the
         // agent can still ask; it just no longer arrives with each encode.
         "-hide_banner",
-        ...resolvePathArgs(args, taskId, ctx),
+        ...resolvePathArgs(args, chatId, ctx),
       ],
       {
         cancelSignal: ctx.signal,

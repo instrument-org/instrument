@@ -1,5 +1,5 @@
 import { publisher } from "../rpc/publisher";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { type BrowserTargetId } from "../types";
 
 /** How many guests' last activity is kept; the oldest go first past it. */
@@ -21,7 +21,7 @@ export function lastBrowserAgentActivity(
  * already exists) knows how long ago it was.
  */
 export function noteBrowserAgentActivity(
-  id: TaskId,
+  id: ChatId,
   targetId: BrowserTargetId,
 ): void {
   lastAt.delete(targetId);

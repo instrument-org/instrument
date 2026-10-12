@@ -1,8 +1,6 @@
-import { SUPPORT_URL } from "@instrument-org/shared";
 import { type ReactNode } from "react";
 
 import { ErrorDetails } from "./error-details";
-import { ExternalLink } from "./external-link";
 import {
   Card,
   CardContent,
@@ -15,8 +13,8 @@ import {
 /**
  * Router-free shell shared by {@link ErrorCard} (router-caught) and
  * {@link AppErrorFallback} (shell crashes, rendered outside any router): the
- * card chrome, error details, and support link. Recovery affordances differ per
- * caller, so they pass their own footer `actions`.
+ * card chrome and error details. Recovery affordances differ per caller, so
+ * they pass their own footer `actions`, a report among them.
  */
 export function ErrorCardShell({
   actions,
@@ -38,16 +36,7 @@ export function ErrorCardShell({
       <CardContent className="space-y-2">
         <ErrorDetails error={error} />
       </CardContent>
-      <CardFooter className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
-          Still having trouble?{" "}
-          <ExternalLink
-            className="underline underline-offset-2 hover:text-foreground"
-            href={SUPPORT_URL}
-          >
-            Get help
-          </ExternalLink>
-        </p>
+      <CardFooter className="flex items-center justify-end">
         {actions}
       </CardFooter>
     </Card>

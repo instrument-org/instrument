@@ -1,15 +1,15 @@
+import { Bash, ReadWriteFs } from "just-bash";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { TaskDirSchema } from "../schemas/paths";
+import { MountedFolder } from "../schemas/mounted-folder";
+import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
-import { ChatIdSchema } from "../schemas/chat-id";
 
 /**
  * Guards the `ls` part of the local just-bash patch, carried until upstream
@@ -22,9 +22,9 @@ import { ChatIdSchema } from "../schemas/chat-id";
  * how much of the tree it reads, and walks most of a home folder before the
  * budget stops it.
  *
- * The second is observable only against a budget the tree exceeds, which is
- * what the chat's smaller one is for here, so this also pins that the
- * chat's shell has that smaller budget and a task's does not.
+ * The second is observable only against a budget the tree exceeds, so those
+ * cases run just-bash itself over the folder with a budget smaller than the
+ * tree (`budgeted`); the agent's shell walks it whole.
  */
 const DIRECTORIES = 3;
 const FILES_PER_DIRECTORY = 10_000;
@@ -33,25 +33,36 @@ const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
 let attachedDir: string;
-let taskId: TaskId;
+let chatId: ChatId;
 
-async function run(command: string, { chat = false } = {}) {
+/** Smaller than the tree, which holds `DIRECTORIES * FILES_PER_DIRECTORY` entries. */
+const BUDGET = 20_000;
+
+async function run(command: string) {
   const bash = await createBashEnv({
-    attachedFolders: {
+    folders: {
       Home: {
         access: "read-only",
-        createdAt: Date.now(),
-        id: FolderAttachment.IdSchema.parse("home-id"),
+        id: MountedFolder.IdSchema.parse("home-id"),
         mountName: "Home",
-        path: TaskDirSchema.parse(attachedDir),
-        source: "user",
+        path: ChatDirSchema.parse(attachedDir),
       },
     },
-    chat: chat
-      ? { childMounts: [], id: ChatIdSchema.parse(taskId) }
-      : undefined,
     sessionId,
-    taskId,
+    chatId,
+  });
+  return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
+}
+
+/** just-bash itself over the folder, with `BUDGET` as its traversal limits. */
+function budgeted(command: string) {
+  const bash = new Bash({
+    cwd: "/",
+    executionLimits: {
+      maxTraversalEntries: BUDGET,
+      maxTraversalWork: BUDGET,
+    },
+    fs: new ReadWriteFs({ root: attachedDir }),
   });
   return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
 }
@@ -70,14 +81,14 @@ beforeAll(async () => {
       ),
     );
   }
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
 });
 
 afterAll(async () => {
   await fs.rm(tmpDir, { force: true, recursive: true });
 });
 
-describe("ls over a large attached folder", () => {
+describe("ls over a large folder mount", () => {
   it("lists a large directory in long format in linear time", async () => {
     // Guarded by the test timeout.
     const result = await run("ls -l /mnt/Home/d00 | wc -l");
@@ -86,18 +97,16 @@ describe("ls over a large attached folder", () => {
     expect(result.stdout.trim()).toBe(String(FILES_PER_DIRECTORY + 1));
   });
 
-  it("stops a recursive listing at the chat's entry budget", async () => {
-    const result = await run("ls -R /mnt/Home", { chat: true });
+  it("stops a recursive listing at the entry budget", async () => {
+    const result = await budgeted("ls -R /");
 
     expect(result.exitCode).toBe(126);
     expect(result.stdout).toBe("");
     expect(result.stderr).toMatch(/ls: filesystem traversal .*limit exceeded/);
   });
 
-  it("lists directories past the chat's entry budget when not recursing", async () => {
-    const result = await run("ls /mnt/Home/d00 /mnt/Home/d01 /mnt/Home/d02", {
-      chat: true,
-    });
+  it("lists directories past the entry budget when not recursing", async () => {
+    const result = await budgeted("ls /d00 /d01 /d02");
 
     expect(result.stderr).toBe("");
     expect(
@@ -109,7 +118,7 @@ describe("ls over a large attached folder", () => {
     // A directory read still in flight when find fails used to settle after
     // the command returned and surface as an unhandled rejection, which
     // vitest reports as a failed run (vercel-labs/just-bash#451).
-    const result = await run("find /mnt/Home -type f", { chat: true });
+    const result = await budgeted("find / -type f");
 
     expect(result.exitCode).toBe(126);
     expect(result.stderr).toMatch(
@@ -117,7 +126,7 @@ describe("ls over a large attached folder", () => {
     );
   });
 
-  it("lists the whole tree from a task, whose budget is larger", async () => {
+  it("lists the whole tree from the agent's shell, whose budget is larger", async () => {
     const result = await run("ls -R /mnt/Home | wc -l");
 
     expect(result.exitCode).toBe(0);

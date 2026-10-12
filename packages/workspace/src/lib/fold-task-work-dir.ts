@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 
 // Where the package lived when `work/` was the task's runnable root. Spelled
 // out rather than built from the current folder names, because these are the
@@ -49,7 +49,7 @@ export function foldTaskWorkDir(taskFolder: string): void {
   // some earlier turn surfaces to the user as files they changed.
   moveIfMissingTarget(
     path.join(workDir, LEGACY_TMP_DIR_NAME),
-    path.join(taskFolder, TASK_FOLDER_NAMES.tmp),
+    path.join(taskFolder, CHAT_FOLDER_NAMES.tmp),
   );
 
   // `.tool-output` deliberately stays where it is, like `.state`: the task db

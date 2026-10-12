@@ -42,14 +42,9 @@ export function sinceOf(id: TimeRangeId, now: number): number | undefined {
   return spanMs === null ? undefined : now - spanMs;
 }
 
-/** "3 sites", "1 site". */
-function sites(count: number) {
-  return `${count} ${count === 1 ? "site" : "sites"}`;
-}
-
-/** "3 more sites", "1 more site". */
+/** "3 other sites", "1 other site". */
 function moreSites(count: number) {
-  return `${count} more ${count === 1 ? "site" : "sites"}`;
+  return `${count} other ${count === 1 ? "site" : "sites"}`;
 }
 
 /**
@@ -68,18 +63,16 @@ export function historyDetail({
     return "There’s no history from this time.";
   }
   if (hosts.length === 1) {
-    return `From ${first}.`;
+    return `You visited ${first}.`;
   }
-  return `From ${first} and ${moreSites(hosts.length - 1)}.`;
+  return `You visited ${first} and ${moreSites(hosts.length - 1)}.`;
 }
 
 export function cookiesDetail(cookieSites: string[]): string {
   if (cookieSites.length === 0) {
     return "No sites have saved any yet.";
   }
-  return cookieSites.length === 1
-    ? "From 1 site. This signs you out of it."
-    : `From ${sites(cookieSites.length)}. This signs you out of most of them.`;
+  return "You'll be signed out of most sites.";
 }
 
 /** "12 MB", "1.4 GB", or "less than 1 MB". */
@@ -98,7 +91,7 @@ export function cacheDetail(bytes: number): string {
   if (bytes === 0) {
     return "Nothing is cached right now.";
   }
-  return `Frees up ${formatCacheSize(bytes)}. Some sites may load more slowly the next time you visit.`;
+  return `Clearing it frees up ${formatCacheSize(bytes)}, though some sites may load more slowly the next time you visit.`;
 }
 
 /**

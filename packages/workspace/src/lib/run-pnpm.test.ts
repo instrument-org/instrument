@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { runPnpmCommand } from "./run-pnpm";
 import { getWorkspaceConfig } from "./workspace-config";
 import { taskLayout } from "../test/helpers/task-layout";
@@ -16,11 +16,11 @@ describe("runPnpmCommand", () => {
       exitCode: 0,
     });
 
-    const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
+    const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
     await runPnpmCommand({
       args: ["install"],
-      layout: taskLayout(taskId),
-      taskId,
+      layout: taskLayout(chatId),
+      chatId,
     });
 
     expect(execaNodeForTask).toHaveBeenCalledTimes(1);
@@ -31,15 +31,15 @@ describe("runPnpmCommand", () => {
       throw new Error("expected execaNodeForTask to have been called");
     }
 
-    const [passedTaskId, pnpmBin, cliArgs, execaOpts, cwdArg] = firstCall as [
-      typeof taskId,
+    const [passedChatId, pnpmBin, cliArgs, execaOpts, cwdArg] = firstCall as [
+      typeof chatId,
       string,
       string[],
       { env?: Record<string, string> },
       unknown,
     ];
 
-    expect(passedTaskId).toBe(taskId);
+    expect(passedChatId).toBe(chatId);
     expect(pnpmBin).toBe(getWorkspaceConfig().pnpmBinPath);
     expect(cliArgs).toEqual(["install"]);
     expect(execaOpts.env).toMatchObject({
@@ -56,16 +56,16 @@ describe("runPnpmCommand", () => {
       exitCode: 0,
     });
 
-    const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
+    const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
     await runPnpmCommand({
       args: ["dlx", "jiti@2.6.1", "x.ts"],
-      layout: taskLayout(taskId),
+      layout: taskLayout(chatId),
       pnpmLogLevel: "error",
-      taskId,
+      chatId,
     });
 
     expect(execaNodeForTask).toHaveBeenCalledWith(
-      taskId,
+      chatId,
       getWorkspaceConfig().pnpmBinPath,
       ["dlx", "jiti@2.6.1", "x.ts"],
       expect.objectContaining({

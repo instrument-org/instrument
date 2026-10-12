@@ -6,17 +6,24 @@ import {
   getWebSearchModel,
   namesSameModel,
 } from "@instrument-org/ai-gateway";
-import { OUR_MODELS, type WorkspaceServerURL } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  OUR_MODELS,
+  type WorkspaceServerURL,
+} from "@instrument-org/shared";
 import { APICallError, type LanguageModelUsage, streamText } from "ai";
 import { err, ok, type Result } from "neverthrow";
 import { dedent } from "radashi";
 import { z } from "zod";
 
 import { type StoreId } from "../schemas/store-id";
+import { type ChatId } from "../schemas/chat-id";
 import { type WebSearchResult } from "../schemas/web-search";
 import { type WorkspaceConfig } from "../types";
+import { aiUsageTelemetry, recordAIUsage } from "./ai-usage/record";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
+import { searchKeyless } from "./keyless-web-search";
 
 export interface WebSearchFailure {
   errorMessage: string;
@@ -91,6 +98,7 @@ export async function* webSearch({
   prompt,
   sessionId,
   signal,
+  chatId,
   workspaceConfig,
   workspaceServerURL,
 }: {
@@ -99,6 +107,8 @@ export async function* webSearch({
   prompt: string;
   sessionId: StoreId.Session;
   signal: AbortSignal;
+  /** The chat searching, which its record of model requests files the search under. */
+  chatId?: ChatId;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 }): AsyncGenerator<Result<WebSearchResults, WebSearchFailure>> {
@@ -108,7 +118,9 @@ export async function* webSearch({
   if (callingModel.params.provider === OUR_MODELS.providerType) {
     const platformResult = await searchWithPlatform({
       prompt,
+      sessionId,
       signal,
+      chatId,
       workspaceConfig,
     });
     if (
@@ -130,6 +142,7 @@ export async function* webSearch({
     prompt,
     sessionId,
     signal,
+    chatId,
     workspaceConfig,
     workspaceServerURL,
   })) {
@@ -141,7 +154,19 @@ export async function* webSearch({
       result.error.errorType === "no-search-backend" &&
       callingModel.params.provider !== OUR_MODELS.providerType
     ) {
-      yield await searchWithPlatform({ prompt, signal, workspaceConfig });
+      const platformResult = await searchWithPlatform({
+        prompt,
+        sessionId,
+        signal,
+        chatId,
+        workspaceConfig,
+      });
+      // A signed-out user cannot reach our endpoint, so a keyless search gives
+      // them a working lookup; signing in is what gets them ours.
+      yield platformResult.isErr() &&
+      platformResult.error.errorType === "not-authenticated"
+        ? await searchWithKeyless({ prompt, signal, workspaceConfig })
+        : platformResult;
       return;
     }
     yield result;
@@ -187,19 +212,48 @@ function getPerplexityResults(output: unknown) {
     .map((result) => result.data);
 }
 
+/** What a search on our endpoint is recorded as having asked for. */
+const PLATFORM_SEARCH_MODEL = "instrument/search";
+
 async function requestPlatformSearch({
   prompt,
+  sessionId,
   signal,
+  chatId,
   workspaceConfig,
 }: {
   prompt: string;
+  sessionId: StoreId.Session;
   signal: AbortSignal;
+  chatId?: ChatId;
   workspaceConfig: WorkspaceConfig;
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
+  const startedAt = Date.now();
   const response = await workspaceConfig.webSearch({
     input: { query: prompt },
     signal,
   });
+  // Our endpoint is reached from the app's main process rather than through
+  // the model proxy or the AI SDK, so it is recorded here.
+  recordAIUsage(
+    {
+      connection: {
+        id: OUR_MODELS.providerType,
+        type: OUR_MODELS.providerType,
+      },
+      kind: "search",
+      purpose: "web-search",
+      chatId,
+      sessionId,
+    },
+    {
+      durationMs: Date.now() - startedAt,
+      error: response.ok ? null : response.errorMessage,
+      modelRequested: PLATFORM_SEARCH_MODEL,
+      startedAt,
+      status: response.ok ? "finished" : signal.aborted ? "stopped" : "failed",
+    },
+  );
 
   if (!response.ok) {
     return err({
@@ -244,7 +298,9 @@ function searchSystemPrompt() {
 
 async function searchWithPlatform(args: {
   prompt: string;
+  sessionId: StoreId.Session;
   signal: AbortSignal;
+  chatId?: ChatId;
   workspaceConfig: WorkspaceConfig;
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
   const first = await requestPlatformSearch(args);
@@ -257,12 +313,40 @@ async function searchWithPlatform(args: {
   return args.signal.aborted ? first : requestPlatformSearch(args);
 }
 
+async function searchWithKeyless({
+  prompt,
+  signal,
+  workspaceConfig,
+}: {
+  prompt: string;
+  signal: AbortSignal;
+  workspaceConfig: WorkspaceConfig;
+}): Promise<Result<WebSearchResults, WebSearchFailure>> {
+  const result = await searchKeyless({
+    appVersion: workspaceConfig.appVersion,
+    query: prompt,
+    signal,
+  });
+  return result
+    .map((sources) => ({
+      costDollars: 0,
+      kind: "excerpts" as const,
+      sources,
+    }))
+    .mapErr((message) => ({
+      errorMessage: `${message} Try again in a moment, or sign in to ${APP_NAME} to search the web.`,
+      // Signing in is the lasting fix, so the failure offers it.
+      errorType: "not-authenticated" as const,
+    }));
+}
+
 async function* searchWithProviderModel({
   callingModel,
   configs,
   prompt,
   sessionId,
   signal,
+  chatId,
   workspaceConfig,
   workspaceServerURL,
 }: {
@@ -271,6 +355,7 @@ async function* searchWithProviderModel({
   prompt: string;
   sessionId: StoreId.Session;
   signal: AbortSignal;
+  chatId?: ChatId;
   workspaceConfig: WorkspaceConfig;
   workspaceServerURL: WorkspaceServerURL;
 }): AsyncGenerator<Result<WebSearchResults, WebSearchFailure>> {
@@ -323,6 +408,13 @@ async function* searchWithProviderModel({
       model,
       prompt,
       providerOptions,
+      telemetry: aiUsageTelemetry({
+        connection: config,
+        kind: "search",
+        purpose: "web-search",
+        chatId,
+        sessionId,
+      }),
       tools,
     });
 

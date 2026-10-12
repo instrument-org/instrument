@@ -5,6 +5,6 @@
  */
 export const TASK_COMMAND = {
   description:
-    "Create, message, stop, list, inspect and read the tasks that do the work. `task help` prints the full surface.",
+    "Start, message, stop and read your tasks: you, carrying on in the background with this conversation in hand. `task help` prints the full surface.",
   name: "task",
 } as const;

@@ -2,9 +2,9 @@ export const REGISTRY_FOLDER_NAMES = {
   skills: "skills",
 } as const;
 
-import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 
-export const TASK_FOLDER_NAMES = {
+export const CHAT_FOLDER_NAMES = {
   attachments: "attachments",
   browserSession: "browser-session",
   downloads: "downloads",
@@ -12,7 +12,7 @@ export const TASK_FOLDER_NAMES = {
   // workspace root rather than in a task (see getExternalBrowserTmpDir): what
   // lands there is a copy of the host's browser state, not task content.
   externalBrowserTmp: "external-browser-tmp",
-  private: TASK_PRIVATE_FOLDER_NAME,
+  private: PRIVATE_FOLDER_NAME,
   screenshots: "screenshots",
   skills: "skills",
   // Subprocess temp dir (TMPDIR/TEMP/TMP), inside the task so tempfile spill
@@ -27,8 +27,8 @@ export const TASK_FOLDER_NAMES = {
   work: "work",
 } as const;
 export const TASKS_DIR_NAME = "tasks";
-// One folder per chat at the workspace root, and the tasks a chat started in a
-// `tasks/` folder inside its own, so a chat and its work are one folder.
+// One folder per chat at the workspace root, its tasks included: a task is a
+// session in the chat's database, with no folder of its own.
 export const CHATS_DIR_NAME = "chats";
 // One folder per app at the workspace root, mounted at /apps for the
 // chat. Secrets never live here; the app's stores hold them.
@@ -41,8 +41,11 @@ export const MEMORY_DIR_NAME = "memory";
 // settings in `.instrument/settings.json` and its instructions in
 // `instructions.md`.
 export const TOPICS_DIR_NAME = "topics";
-// Per-task SQLite store in the task's `.instrument/` private dir.
-export const TASK_DB_FILE_NAME = "task.db";
+// A chat's SQLite store, every session in it, in its `.instrument/` private dir.
+export const CHAT_DB_FILE_NAME = "chat.db";
+// What the store was named in a 1.x task and in a chat before the layout
+// sweep renamed it: read by the migrations alone.
+export const LEGACY_TASK_DB_FILE_NAME = "task.db";
 export const TASK_STATE_FILE_NAME = "state.json";
 
 /**
@@ -68,19 +71,12 @@ export const AGENT_MESSAGE_LANGUAGE = "message";
  */
 export const AGENT_NEEDS_LANGUAGE = "needs";
 
-/**
- * Character budget for the project instructions inlined into a task's standing
- * context.
- *
- * The instructions are an `AGENTS.md` the user can paste anything into, and they
- * ride in the session-context message on every turn, so an unbounded one eats
- * the context window before the task starts. Characters rather than tokens for
- * the same reason as the skill catalog's budget: no tokenizer is right for every
- * provider we run against. This is roughly 4,200 tokens of Markdown prose, and
- * closer to 13,000 if the file is written in CJK.
- */
-export const MAX_PROJECT_INSTRUCTIONS_LENGTH = 20_000;
-
 export const TOOL_ACTIVITY_PARAM_NAME = "activity";
 
 export const TOOL_EXPLANATION_PARAM_NAME = "explanation";
+
+/**
+ * What a chat is called until it is named: its session's title, and its
+ * settings' name, until the first exchange retitles it.
+ */
+export const UNTITLED_CHAT_TITLE = "Untitled chat";

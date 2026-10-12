@@ -141,7 +141,7 @@ export const GIT_OVER_MOUNTS_EVALS = [
       neverCopiedTheRepository,
       replyNamesTheCommits,
     ],
-    folders: [{ access: "read-only", path: REPOSITORY }],
+    folders: [{ path: REPOSITORY }],
     name: "git-reads-history-in-the-mount",
     prompt:
       "My Ledger folder is a git repository. List its commits, oldest first, one line each with the subject. Just the list in your reply; no files.",

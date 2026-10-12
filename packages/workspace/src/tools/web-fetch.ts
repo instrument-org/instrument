@@ -6,15 +6,10 @@ import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { SKILL_NAMES } from "../lib/skill-names";
-import { taskDir } from "../lib/task-dir-utils";
-import {
-  isWorkspaceServerUrl,
-  workspaceServerRefusal,
-} from "../lib/workspace-server-address";
 import {
   CACHE_TTL_SECONDS,
   cachePage,
@@ -24,6 +19,7 @@ import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { TOOL_NAMES } from "./name";
+import { workDir } from "../lib/work-dir";
 
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 // Converted pages can run to hundreds of thousands of characters (a single
@@ -130,7 +126,7 @@ export const WebFetch = setupTool({
 
     This is a lightweight, read-only fetch of the page's server-returned HTML, far faster and cheaper than driving a browser, so prefer it whenever you only need to read a page. It does NOT run JavaScript, log in, or interact with the page. Use the browser instead for client-rendered apps, pages behind a login, anything needing clicks/forms/scrolling, visual verification, or sites that block simple fetches. It also does not read binary files: for a PDF or office document, download it into the task folder (\`curl -L -o\`) and use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to read it.
   `,
-  async execute({ input, partId, signal, taskId }) {
+  async execute({ input, partId, signal, chatId }) {
     const parsedUrl = parseHttpUrl(input.url);
     if (!parsedUrl) {
       return ok({
@@ -155,10 +151,10 @@ export const WebFetch = setupTool({
       let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
       if (result.ok && result.spillText !== undefined) {
         spillFilePath = RelativePathSchema.parse(
-          path.posix.join(TASK_FOLDER_NAMES.toolOutput, `${partId}.txt`),
+          path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${partId}.txt`),
         );
         const absoluteSpillPath = absolutePathJoin(
-          taskDir(taskId),
+          workDir(chatId),
           spillFilePath,
         );
         await fs.mkdir(path.dirname(absoluteSpillPath), { recursive: true });
@@ -355,10 +351,8 @@ async function fetchTextual({
   });
 }
 
-// Follows redirects manually so every hop is checked before it is requested:
-// any address is open, the local network and loopback included, except
-// Instrument's own workspace server, and `fetch`'s built-in `redirect:
-// "follow"` would chase a redirect into it unchecked.
+// Follows redirects manually so every hop is checked to be http(s) before it
+// is requested.
 async function guardedFetch({
   headers,
   signal,
@@ -374,12 +368,6 @@ async function guardedFetch({
     if (!parsed) {
       return {
         error: "Refusing to follow a redirect to a non-http(s) URL.",
-        ok: false,
-      };
-    }
-    if (await isWorkspaceServerUrl(parsed)) {
-      return {
-        error: `Refusing to fetch ${parsed.href}: ${workspaceServerRefusal(parsed)}.`,
         ok: false,
       };
     }

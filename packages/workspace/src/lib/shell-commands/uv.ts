@@ -1,7 +1,7 @@
 import { type CommandContext, defineCommand } from "just-bash";
 
 import { type AbsolutePath } from "../../schemas/paths";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { ensureTaskVenvForTask } from "../ensure-task-venv";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
@@ -20,7 +20,7 @@ export const UV_COMMAND = {
   name: "uv",
 } as const;
 
-export function createUvCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createUvCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
   return defineCommand(UV_COMMAND.name, async (args, ctx) => {
     const blocked = blockedSelfUpdate(args);
     if (blocked) {
@@ -32,20 +32,20 @@ export function createUvCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
       return { exitCode: 1, stderr: unreachable, stdout: "" };
     }
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
 
     // `uv pip` requires the venv to exist (VIRTUAL_ENV points at .venv).
     // Ensure it here so `uv pip install` works even before any `python`/`pip`
     // call has run, matching the behavior of the `pip` custom command.
     if (args[0] === "pip") {
-      const venvError = await ensureTaskVenv({ ctx, taskId });
+      const venvError = await ensureTaskVenv({ ctx, chatId });
       if (venvError !== undefined) {
         return { exitCode: 1, stderr: venvError, stdout: "" };
       }
     }
 
     const result = await runUv({
-      args: resolvePathArgs(args, taskId, ctx),
+      args: resolvePathArgs(args, chatId, ctx),
       ctx,
       env,
       layout,
@@ -62,12 +62,12 @@ export function createUvCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
  */
 export async function ensureTaskVenv({
   ctx,
-  taskId,
+  chatId,
 }: {
   ctx: CommandContext;
-  taskId: TaskId;
+  chatId: ChatId;
 }): Promise<string | undefined> {
-  const result = await ensureTaskVenvForTask({ signal: ctx.signal, taskId });
+  const result = await ensureTaskVenvForTask({ signal: ctx.signal, chatId });
   return result?.output;
 }
 

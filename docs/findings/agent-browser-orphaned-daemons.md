@@ -113,7 +113,7 @@ this is not the [quit livelock](quit-teardown-can-livelock-the-app.md).
 `close --all` is not what started them: upstream `run_close_all` sends `close`
 only to the daemons `walk_daemons` finds and never reaches `ensure_daemon`, so
 its environment cannot spawn or restart anything. Tearing down the browser views
-stops each `taskBrowser` machine, whose reap calls `closeAgentBrowserSessionsForSessions`
+stops each `chatBrowser` machine, whose reap calls `closeAgentBrowserSessionsForSessions`
 for every session it knew, and a page the user opened makes its session known
 whether or not the agent ever ran `agent-browser` in it. That helper ran `close
 --session` for the session and its `-ext` sibling, and `close --session` goes

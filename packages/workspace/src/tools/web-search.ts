@@ -1,4 +1,3 @@
-import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import ms from "ms";
 import { ok } from "neverthrow";
 import { dedent } from "radashi";
@@ -7,7 +6,7 @@ import { z } from "zod";
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { allocateFairShare } from "../lib/fair-share";
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
-import { webSearch, type WebSearchResults } from "../lib/web-search";
+import { webSearch } from "../lib/web-search";
 import { readWebSearchResults } from "../lib/web-search-results";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
@@ -17,7 +16,6 @@ import {
   UsageOutputSchema,
 } from "./base";
 import { setupTool } from "./create-tool";
-import { TOOL_NAMES } from "./name";
 
 /** The parts of a result the text budget acts on, in either backend's shape. */
 type BudgetedSearch =
@@ -167,7 +165,7 @@ export const WebSearch = setupTool({
 
     Results close with a \`Sources:\` list of \`[Title](URL)\`. Carry the ones you relied on into your reply, as links on what they describe or as a \`Sources:\` list of your own.
   `,
-  async *execute({ input, model, sessionId, signal }) {
+  async *execute({ input, model, sessionId, signal, chatId }) {
     if (input.query.trim().toLowerCase() === PLACEHOLDER_QUERY) {
       yield ok({
         errorMessage: `No search was performed: "${input.query}" does not name anything to look for. Call web_search again with the question you actually want answered, or skip the call.`,
@@ -177,14 +175,13 @@ export const WebSearch = setupTool({
       return;
     }
 
-    let lastResults: undefined | WebSearchResults;
-
     for await (const result of webSearch({
       callingModel: model,
       configs: getWorkspaceConfig().getAIProviderConfigs(),
       prompt: input.query,
       sessionId,
       signal,
+      chatId,
       workspaceConfig: getWorkspaceConfig(),
       workspaceServerURL: getWorkspaceServerURL(),
     })) {
@@ -198,7 +195,6 @@ export const WebSearch = setupTool({
       }
 
       const results = result.value;
-      lastResults = results;
       yield ok({
         results:
           results.kind === "excerpts"
@@ -213,10 +209,6 @@ export const WebSearch = setupTool({
               },
         state: "success" as const,
       });
-    }
-
-    if (lastResults) {
-      reportBudget({ model, results: lastResults });
     }
   },
   readOnly: true,
@@ -414,35 +406,6 @@ function formatExcerpts(
         .join("\n\n");
     })
     .join("\n\n");
-}
-
-/**
- * Record that a search was clipped, from the one place that runs per search.
- *
- * The clipping itself happens in `toModelOutput`, which replays on every later
- * turn, so counting it there would report the same search once per request for
- * the rest of the session. This runs the same budget over the same results at
- * the moment the search finished, which is the thing worth counting.
- */
-function reportBudget({
-  model,
-  results,
-}: {
-  model: AIGatewayModel.Type;
-  results: WebSearchResults;
-}) {
-  const budgeted = budgetSearchText(results);
-  if (!budgeted.clipped) {
-    return;
-  }
-
-  getWorkspaceConfig().captureEvent("llm.tool_result_clipped", {
-    modelId: model.canonicalId,
-    original_characters: budgeted.originalCharacters,
-    providerId: model.params.provider,
-    retained_characters: budgeted.retainedCharacters,
-    tool_name: TOOL_NAMES.webSearch,
-  });
 }
 
 function splitLines(text: string): string[] {

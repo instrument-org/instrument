@@ -3,17 +3,17 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { type WorkspaceFilePath } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { TypedError } from "./errors";
 import { getMimeType } from "./get-mime-type";
 import { resolveWorkspaceFilePath } from "./resolve-workspace-file-path";
 
 export async function getCurrentFileInfo({
   filePath,
-  taskId,
+  chatId,
 }: {
   filePath: WorkspaceFilePath;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
   const filename = path.basename(filePath);
   const mimeType = getMimeType(filename);
@@ -22,7 +22,7 @@ export async function getCurrentFileInfo({
     return err(new TypedError.NotFound("File path has no filename"));
   }
 
-  const resolvedPath = await resolveWorkspaceFilePath({ filePath, taskId });
+  const resolvedPath = await resolveWorkspaceFilePath({ filePath, chatId });
   if (!resolvedPath) {
     return err(new TypedError.NotFound(`File not found: ${filePath}`));
   }

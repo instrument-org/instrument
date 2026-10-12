@@ -8,8 +8,7 @@ import {
 } from "@instrument-org/shared";
 import {
   AbsolutePathSchema,
-  FolderAttachment,
-  ProjectIdSchema,
+  MountedFolder,
   RelativePathSchema,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
@@ -99,11 +98,11 @@ export function folder({
   access,
   path,
 }: {
-  access: FolderAttachment.Access;
+  access: MountedFolder.Access;
   path: string;
-}): FolderAttachment.Type {
+}): MountedFolder.Type {
   const name = path.split("/").at(-1) ?? path;
-  return FolderAttachment.Schema.parse({
+  return MountedFolder.Schema.parse({
     access,
     createdAt: AT,
     id: name,
@@ -148,14 +147,3 @@ export function platformFailure({
     url: "https://example.com",
   };
 }
-
-/**
- * The project a task was started from, frozen onto its first message.
- *
- * Written out rather than minted, since a project id carries a timestamp and a
- * freshly minted one would make a scenario read differently every time it was
- * built.
- */
-export const PROJECT_ID = ProjectIdSchema.parse(
-  "prj_01H8XGJWBWBAQ4ZQ9NG0R8FZ0G",
-);

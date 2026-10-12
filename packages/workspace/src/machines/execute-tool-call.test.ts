@@ -6,12 +6,12 @@ import { createActor, waitFor } from "xstate";
 import { Store } from "../lib/store";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
-  createMockTaskConfig,
+  createMockChatConfig,
   MOCK_WORKSPACE_DIRS,
-} from "../test/helpers/mock-task-config";
+} from "../test/helpers/mock-chat-config";
 import {
   executeToolCallMachine,
   saveStoppedToolCallPart,
@@ -44,7 +44,7 @@ function mockSubprocess(outcome: Promise<MockExecResult>, all: string) {
 
 describe("executeToolCallMachine", () => {
   const model = createMockAIGatewayModel();
-  const taskConfig = createMockTaskConfig(TaskIdSchema.parse("test"), {
+  const taskConfig = createMockChatConfig(ChatIdSchema.parse("test"), {
     model,
   });
   const sessionId = StoreId.newSessionId();
@@ -92,7 +92,7 @@ describe("executeToolCallMachine", () => {
     );
 
     mockFs({
-      [MOCK_WORKSPACE_DIRS.tasks]: {
+      [MOCK_WORKSPACE_DIRS.chats]: {
         [taskConfig]: {
           "nonexistent.js": "",
           "package.json": "{}",
@@ -138,11 +138,10 @@ describe("executeToolCallMachine", () => {
   }) {
     const actor = createActor(executeToolCallMachine, {
       input: {
-        agentName: "main",
         model,
         part,
         sessionId,
-        taskId: taskConfig,
+        chatId: taskConfig,
       },
     });
 
@@ -560,7 +559,7 @@ describe("executeToolCallMachine", () => {
       await saveStoppedToolCallPart({
         part,
         reason: "manual",
-        taskId: taskConfig,
+        chatId: taskConfig,
       });
 
       expect(await readStoredPart(part.metadata.id)).toMatchObject({
@@ -593,7 +592,7 @@ describe("executeToolCallMachine", () => {
       await saveStoppedToolCallPart({
         part,
         reason: "manual",
-        taskId: taskConfig,
+        chatId: taskConfig,
       });
 
       const stored = await readStoredPart(part.metadata.id);

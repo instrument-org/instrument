@@ -2,23 +2,22 @@ import { z } from "zod";
 
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { getToolNameByType } from "../get-tool-name-by-type";
 import { isInteractiveTool } from "../is-interactive-tool";
 import { isToolPart } from "../is-tool-part";
 import { Store } from "../store";
-import { latestSessionId } from "./latest-session";
 
 /**
  * One line of a task's transcript read as a sequence of steps: what its agent
  * set out to do, each call it made and how the call ended, what it and the user
- * said. Tool output is left out on purpose. The transcript's last lines are
+ * said, and what the chat sent it. Tool output is left out on purpose. The transcript's last lines are
  * whatever printed last, and a search that listed ten thousand paths reads as a
  * task lost in them; the steps say what the task was doing.
  */
 export interface Step {
   at: Date;
-  kind: "activity" | "call" | "said" | "user";
+  kind: "activity" | "call" | "said" | "sent" | "user";
   text: string;
 }
 
@@ -43,6 +42,9 @@ export function renderSteps(steps: Step[]): string {
         case "said": {
           return `${time}  said: ${step.text}`;
         }
+        case "sent": {
+          return `${time}  you sent: ${step.text}`;
+        }
         case "user": {
           return `${time}  user: ${step.text}`;
         }
@@ -51,14 +53,22 @@ export function renderSteps(steps: Step[]): string {
     .join("\n");
 }
 
+/**
+ * A session's own steps, oldest first: a task's, without the conversation
+ * it carries on from.
+ */
 export async function sessionSteps({
   sessionId,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  chatId: ChatId;
 }): Promise<Step[]> {
-  const messages = await Store.getMessagesWithParts({ sessionId, taskId });
+  const messages = await Store.getMessagesWithParts({
+    inherited: false,
+    sessionId,
+    chatId,
+  });
   if (messages.isErr()) {
     return [];
   }
@@ -78,6 +88,15 @@ export async function sessionSteps({
           kind: "user",
           text: clip(text, SAID_MAX_LENGTH),
         });
+      }
+      for (const part of message.parts) {
+        if (part.type === "data-fromChat") {
+          steps.push({
+            at: message.metadata.createdAt,
+            kind: "sent",
+            text: clip(part.data.text, SAID_MAX_LENGTH),
+          });
+        }
       }
       continue;
     }
@@ -119,21 +138,16 @@ export async function sessionSteps({
 }
 
 /**
- * Where a task's agent has gone since a moment, oldest first, from its newest
- * session: the activities its calls named, or each call it made when they named
- * none, which a model can leave out. What an overdue note carries in place of
- * the one latest step, so the conversation reads a trajectory rather than a
- * snapshot.
+ * Where a task's agent has gone since a moment, oldest first: the activities
+ * its calls named, or each call it made when they named none, which a model
+ * can leave out. What an overdue note carries in place of the one latest
+ * step, so the conversation reads a trajectory rather than a snapshot.
  */
 export async function trajectorySince(
-  taskId: TaskId,
+  ref: { sessionId: StoreId.Session; chatId: ChatId },
   since: Date,
 ): Promise<string[]> {
-  const sessionId = await latestSessionId(taskId);
-  if (sessionId.isErr() || !sessionId.value) {
-    return [];
-  }
-  const allSteps = await sessionSteps({ sessionId: sessionId.value, taskId });
+  const allSteps = await sessionSteps(ref);
   const steps = allSteps.filter((step) => step.at >= since);
   const activities = steps.filter((step) => step.kind === "activity");
   return (

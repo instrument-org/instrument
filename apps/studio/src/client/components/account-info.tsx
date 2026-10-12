@@ -101,7 +101,7 @@ export function AccountInfo() {
                 <div className="flex shrink-0 items-center gap-2">
                   <Button
                     onClick={() => {
-                      openLogin({ hideManualProvider: true });
+                      openLogin({ instrumentOnly: true });
                     }}
                     variant="outline"
                   >
@@ -109,7 +109,7 @@ export function AccountInfo() {
                   </Button>
                   <Button
                     onClick={() => {
-                      openLogin({ hideManualProvider: true });
+                      openLogin({ instrumentOnly: true });
                     }}
                     variant="brand"
                   >

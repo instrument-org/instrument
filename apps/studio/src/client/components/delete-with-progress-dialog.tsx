@@ -1,4 +1,4 @@
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import {
   getTrashTerminology,
@@ -41,7 +41,6 @@ export function DeleteWithProgressDialog<T>({
   open,
   title,
 }: DeleteWithProgressDialogProps<T>) {
-  useBlockTabNavigation(open);
   // Keep the body mounted through the close animation instead of unmounting it
   // the instant `open` flips false, which would animate out an empty frame.
   // Cleared when AlertDialogContent's exit animation actually ends.
@@ -67,6 +66,7 @@ export function DeleteWithProgressDialog<T>({
             key={openKey}
             onDelete={onDelete}
             onOpenChange={onOpenChange}
+            open={open}
             title={title}
           />
         )}
@@ -81,10 +81,23 @@ function DeleteWithProgressDialogBody<T>({
   items,
   onDelete,
   onOpenChange,
+  open,
   title,
-}: Omit<DeleteWithProgressDialogProps<T>, "open">) {
+}: DeleteWithProgressDialogProps<T>) {
   const trashTerminology = getTrashTerminology();
   const [isPending, setIsPending] = useState(false);
+  // Held for as long as it is open; it can be left only while nothing is
+  // being deleted.
+  useHoldWindow(
+    open,
+    isPending
+      ? {}
+      : {
+          onClose: () => {
+            onOpenChange(false);
+          },
+        },
+  );
   const [showWarning, setShowWarning] = useState(false);
   const [messageIndex, setMessageIndex] = useState(0);
 

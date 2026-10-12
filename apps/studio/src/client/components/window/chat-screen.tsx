@@ -5,7 +5,6 @@ import { TaskChat } from "@/client/components/task/chat";
 import { Alert, AlertDescription } from "@/client/components/ui/alert";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
-import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { TaskSessionProvider } from "@/client/hooks/use-task-session";
 import { createMessageOptions } from "@/client/lib/message-sends";
@@ -23,7 +22,6 @@ import { chatListOptions } from "./chat-list-query";
 import { type OpenOptions, useWindow, WindowContext } from "./context";
 import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { useReadOnView } from "./use-read-on-view";
-import { WorkingRow } from "./working-row";
 
 /**
  * How long a chat with no session is waited for before it is called gone: a
@@ -90,7 +88,7 @@ export function ChatScreen(props: ChatScreenProps) {
 }
 
 function ChatScreenOfRecord({
-  chatId: taskId,
+  chatId,
   composerLead,
   isUp,
   sendContext,
@@ -99,44 +97,33 @@ function ChatScreenOfRecord({
   tiles,
 }: ChatScreenProps & { sessionId: StoreId.Session }) {
   const appWindow = useWindow();
-  const task = useQuery(
-    rpcClient.workspace.task.live.byId.experimental_liveOptions({
-      input: { id: taskId },
+  const info = useQuery(
+    rpcClient.workspace.chats.live.info.experimental_liveOptions({
+      input: { id: chatId },
     }),
   );
-  const state = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({
-      input: { id: taskId },
+  const folders = useQuery(
+    rpcClient.workspace.chats.live.folders.experimental_liveOptions({
+      input: { id: chatId },
     }),
   );
   // The chat as the list beside the tabs knows it, for the newest reply
   // that has landed, which is what marks it read below.
   const chats = useQuery(chatListOptions());
-  const chat = chats.data?.find((entry) => entry.id === taskId);
-  // While the chat's own agent composes, the transcript shows the typing
-  // dots; the chat is otherwise at work when a task filed from it is, and
-  // that is said at the transcript's tail too. Read from the tasks filed
-  // from it rather than from the chat's state, which folds its own agent
-  // in: the state is the list's, a re-read behind the actor the dots follow,
-  // so at a turn's end it still says working for a moment after the dots
-  // have gone, and the tail would say so in their place.
-  const { isAgentRunning } = useAgentSessionStatus({ id: taskId, sessionId });
-  const isWorkingElsewhere =
-    chat?.runningTasks.some((running) => !running.waiting) === true &&
-    !isAgentRunning;
+  const chat = chats.data?.find((entry) => entry.id === chatId);
   const [defaultModelURI] = useDefaultModelURI();
   const openFile = useContext(FileOpenContext);
   const createMessage = useMutation(createMessageOptions());
   // What was marked in files and moved into this chat's composer goes
   // with its next message, as pills there.
-  const groupAsks = useComposerAsks({ chatId: taskId, kind: "chat" });
+  const groupAsks = useComposerAsks({ chatId, kind: "chat" });
   const { remove: removeAsks } = useStagedAskActions();
 
   // Looking at the chat is what takes its unread mark off. The pane beside
   // the tabs does not clear it on its own.
-  useReadOnView({ chat, chatId: taskId, isUp });
+  useReadOnView({ chat, chatId, isUp });
 
-  const loadError = task.error ?? state.error;
+  const loadError = info.error ?? folders.error;
   if (loadError) {
     return (
       <div className="flex h-full items-center justify-center p-6">
@@ -149,8 +136,8 @@ function ChatScreenOfRecord({
             <div className="flex gap-2">
               <Button
                 onClick={() => {
-                  void task.refetch();
-                  void state.refetch();
+                  void info.refetch();
+                  void folders.refetch();
                 }}
               >
                 Try again
@@ -161,20 +148,20 @@ function ChatScreenOfRecord({
       </div>
     );
   }
-  if (!task.data || !state.data) {
+  if (!info.data || !folders.data) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-5" />
       </div>
     );
   }
-  const modelURI = state.data.selectedModelURI ?? defaultModelURI;
-  const attachedFolders = state.data.attachedFolders ?? {};
+  const modelURI = info.data.modelURI ?? defaultModelURI;
+  const reach = folders.data;
   // Into this chat's own group, shown: an open from a chat's transcript is the
   // chat's whatever the window has up at that moment, and never a silent
   // nothing because the group on screen was another's.
   // A new-tab gesture over any of it asks for a tab of the window's own.
-  const into = { group: taskId, ownTab: true, show: true };
+  const into = { group: chatId, ownTab: true, show: true };
   const intoOr = (options?: OpenOptions) =>
     options?.newTab ? { behind: options.behind, newTab: true } : into;
   return (
@@ -193,7 +180,7 @@ function ChatScreenOfRecord({
                 return;
               }
               createMessage.mutate({
-                id: taskId,
+                id: chatId,
                 modelURI,
                 prompt,
                 sessionId,
@@ -205,7 +192,7 @@ function ChatScreenOfRecord({
             openScreen: (href, options) => {
               appWindow.openScreen(href, intoOr(options));
             },
-            chatId: taskId,
+            chatId,
           }}
         >
           <FileOpenContext
@@ -218,7 +205,7 @@ function ChatScreenOfRecord({
                 appWindow.openPage(url, intoOr(options));
               }}
             >
-              <TaskSessionProvider sessionId={sessionId} taskId={taskId}>
+              <TaskSessionProvider sessionId={sessionId} chatId={chatId}>
                 <TaskChat
                   asks={
                     groupAsks.length === 0
@@ -226,7 +213,7 @@ function ChatScreenOfRecord({
                       : {
                           pills: <AskPills asks={groupAsks} />,
                           take: () => {
-                            const part = asksPart(groupAsks, attachedFolders);
+                            const part = asksPart(groupAsks, reach);
                             const ids = groupAsks.map((ask) => ask.id);
                             return part
                               ? {
@@ -245,15 +232,12 @@ function ChatScreenOfRecord({
                   composerPlaceholder="Talk to Instrument"
                   // Kept past this screen's unmount, so the row in the inbox
                   // can say the chat holds a draft while it does.
-                  draftKey={{ chatId: taskId, scope: "chat" }}
+                  draftKey={{ chatId, scope: "chat" }}
                   selectedModelURI={modelURI}
                   selectedSessionId={sessionId}
                   sendContext={sendContext}
                   sentPrompt={sentPrompt}
-                  task={task.data}
-                  transcriptTrailing={
-                    isWorkingElsewhere ? <WorkingRow /> : null
-                  }
+                  chatInfo={info.data}
                 />
               </TaskSessionProvider>
             </PageOpenContext>

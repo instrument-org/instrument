@@ -4,7 +4,7 @@ import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { spokenMessage, toast } from "@/client/lib/toast";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { ChatList } from "./chat-list";
@@ -45,7 +45,9 @@ export function ChatPane({
   onListed,
   onOpenChat,
   onOpenDraft,
+  onPopOut,
   openChatId,
+  outIds,
 }: {
   /** The chat that just started from a draft, whose row arrives with a motion of its own. */
   arrivedId?: string;
@@ -62,8 +64,12 @@ export function ChatPane({
   onOpenChat: (chat: Chat) => void;
   /** Opens a draft to go on writing it. */
   onOpenDraft: (id: string) => void;
+  /** Floats a chat in a window of its own over the row, from its row. */
+  onPopOut?: (chat: Chat) => void;
   /** The chat open beside the list, if one is. */
   openChatId: string | undefined;
+  /** The chats already up in a window of their own. */
+  outIds?: ReadonlySet<string>;
 }) {
   const appsBySlug = useAppsBySlug();
   const chatsQuery = useQuery(chatListOptions());
@@ -72,7 +78,11 @@ export function ChatPane({
   const topics: Topic[] = topicsQuery.data ?? [];
   const afterTopicChange = {
     onError: (error: Error) => {
-      toast.error(error.message);
+      // A name a topic can't take comes back in words written for people.
+      toast.error("Couldn't change the topic", {
+        cause: error,
+        description: spokenMessage(error, ["BAD_REQUEST"]),
+      });
     },
     onSuccess: () => void topicsQuery.refetch(),
   };
@@ -213,6 +223,7 @@ export function ChatPane({
         }}
         onOpen={onOpenChat}
         onOpenDraft={onOpenDraft}
+        onPopOut={onPopOut}
         onSetTopics={(chat, next) => {
           setChatTopics(chat.id, next);
         }}
@@ -220,6 +231,7 @@ export function ChatPane({
           changeFilters(widenToSearch(filters));
         }}
         openId={openChatId}
+        outIds={outIds}
         outside={outside}
         scrollSignal={scrollSignal}
         // The decision model's finds are not matches of the words, so

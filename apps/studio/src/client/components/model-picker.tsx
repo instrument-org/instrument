@@ -12,7 +12,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
-import { captureClientEvent } from "@/client/lib/capture-client-event";
 import {
   type Connection,
   connectionsOf,
@@ -170,7 +169,6 @@ export function ModelPicker({
       onOpenChange={(next) => {
         if (next) {
           setOpen(true);
-          captureClientEvent("model_picker.opened");
         } else {
           closePopover();
         }
@@ -270,10 +268,6 @@ export function ModelPicker({
               onAddProvider?.();
             }}
             onPick={(model) => {
-              captureClientEvent("model_picker.model_selected", {
-                modelId: model.canonicalId,
-                providerId: model.params.provider,
-              });
               onValueChange(model.uri);
               closePopover();
             }}

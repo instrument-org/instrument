@@ -3,7 +3,6 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { type Worker, type WorkerOptions } from "node:worker_threads";
 import { omit, pick } from "radashi";
 
-import { getWorkspaceServerPort } from "../../logic/server/url";
 import { type AppToolInvoker, appToolHook } from "../app-tool-hook";
 import { type BashEnvOptions, type BashRunner } from "../create-bash-env";
 import { ensureTaskVenvForTask } from "../ensure-task-venv";
@@ -23,7 +22,7 @@ import {
   type WireResult,
   WORKER_CONFIG_KEYS,
 } from "./protocol";
-import { dirOf, resolveRecord } from "../record-folders";
+import { chatDir, resolveChat } from "../record-folders";
 
 /**
  * Starts the worker. The host supplies it because only the host knows where
@@ -88,7 +87,7 @@ export function bashWorkerEnabled(): boolean {
 export function createRemoteBash(
   options: BashEnvOptions,
   mainBashFactory: () => Promise<BashRunner>,
-  invokeTool: AppToolInvoker = appToolHook(options.taskId),
+  invokeTool: AppToolInvoker = appToolHook,
 ): BashRunner {
   return {
     exec: (command, { signal, ...execOptions }: ExecOptions = {}) =>
@@ -128,19 +127,16 @@ export function createRemoteBash(
         // one with a call in flight must: an awaited result is not a handle.
         instance.worker.ref();
         try {
-          const ref = resolveRecord(options.taskId);
+          const chatId = resolveChat(options.chatId);
           instance.post({
             bashEnv: omit(options, ["remainingYieldMs"]),
             command,
             config: pick(getWorkspaceConfig(), WORKER_CONFIG_KEYS),
             execOptions,
             id,
-            record: ref.isOk()
-              ? { dir: dirOf(ref.value), ref: ref.value }
-              : undefined,
+            chat: chatId ? { dir: chatDir(chatId), id: chatId } : undefined,
             stream: sink !== undefined,
             type: "exec",
-            workspaceServerPort: getWorkspaceServerPort(),
           });
         } catch (error) {
           // A value structured clone refuses (a function, say) never reached
@@ -280,7 +276,7 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       return;
     }
     case "venv": {
-      const result = await ensureTaskVenvForTask({ taskId: message.taskId });
+      const result = await ensureTaskVenvForTask({ chatId: message.chatId });
       instance.post({
         requestId: message.requestId,
         result,

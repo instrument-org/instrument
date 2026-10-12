@@ -7,7 +7,7 @@ import {
   isSelfFileDrag,
   releaseSelfFileDrag,
 } from "@/client/lib/self-file-drag";
-import { captureException } from "@/client/lib/telemetry";
+import { captureException } from "@/client/lib/capture-exception";
 import { splitTransferItems } from "@/client/lib/transfer-items";
 import { cn } from "@/client/lib/utils";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";

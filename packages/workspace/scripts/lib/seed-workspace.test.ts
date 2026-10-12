@@ -5,19 +5,20 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { disposeSessionsStoreStorage } from "../../src/lib/session-store-storage";
 import { Store } from "../../src/lib/store";
-import { taskDir } from "../../src/lib/task-dir-utils";
-import { getTaskState } from "../../src/lib/task-record";
-import { getTaskSettings } from "../../src/lib/task-settings";
+import { chatDir, sessionOfChat } from "../../src/lib/record-folders";
+import { folderReach } from "../../src/lib/chat/folder-reach";
+import { getChatSettings } from "../../src/lib/chat-settings";
+import { ChatIdSchema, type ChatId } from "../../src/schemas/chat-id";
+import { StoreId } from "../../src/schemas/store-id";
 import { SubdomainPartSchema } from "../../src/schemas/subdomain-part";
-import { type TaskId } from "../../src/schemas/task-id";
-import { seedWorkspace } from "./seed-workspace";
+import { type SeededTask, seedWorkspace } from "./seed-workspace";
 import {
   listFixtureNames,
   loadWorkspaceFixture,
   type WorkspaceFixture,
 } from "./workspace-fixture";
 
-const opened: TaskId[] = [];
+const opened: ChatId[] = [];
 
 // Storage handles are cached by task id, and every case here seeds the same
 // fixture into a new directory under the same ids. Without this, a read in one
@@ -34,13 +35,26 @@ function at<T>(items: readonly T[], index: number): T {
   return item;
 }
 
-/** Reads a seeded record back the way the app does, not off the fixture. */
-async function readSeededSession(taskId: TaskId) {
-  const storeIds = await Store.getStoreId(taskId);
-  const sessionIds = storeIds._unsafeUnwrap();
+/**
+ * Reads what was seeded back the way the app does, not off the fixture: a
+ * record's own sessions, or for a task a chat started, its session in the
+ * chat's store.
+ */
+async function readSeededSession(seeded: SeededTask) {
+  if (seeded.chat !== undefined) {
+    const sessionId = StoreId.SessionSchema.parse(seeded.id);
+    const loaded = await Store.getSessionWithMessagesAndParts(
+      sessionId,
+      seeded.chat,
+    );
+    return { session: loaded._unsafeUnwrap(), sessionIds: [sessionId] };
+  }
+  const chatId = ChatIdSchema.parse(seeded.id);
+  const sessions = await Store.getSessions(chatId);
+  const sessionIds = sessions._unsafeUnwrap().map((session) => session.id);
   const loaded = await Store.getSessionWithMessagesAndParts(
     at(sessionIds, 0),
-    taskId,
+    chatId,
   );
   return { session: loaded._unsafeUnwrap(), sessionIds };
 }
@@ -55,10 +69,15 @@ async function seedInto(
     const fixture = await loadWorkspaceFixture(name);
     loaded.push(fixture);
     const records = await seedWorkspace({ fixture, now, userDataDir });
-    opened.push(...records.map((record) => record.id));
+    opened.push(...records.flatMap((record) => recordOf(record)));
     seeded.push(...records);
   }
   return { fixtures: loaded, seeded };
+}
+
+/** The record a seeded entry's store is in: its own, or its chat's. */
+function recordOf(seeded: SeededTask): ChatId[] {
+  return seeded.chat === undefined ? [ChatIdSchema.parse(seeded.id)] : [];
 }
 
 async function seedIntoTempDir(options?: { fixtures?: string[]; now?: Date }) {
@@ -103,7 +122,7 @@ describe("the committed corpus", () => {
 });
 
 describe("seedWorkspace", () => {
-  it("makes each chat a chat record and puts the tasks it started inside it", async () => {
+  it("makes each chat a chat record and the tasks it started sessions in its store", async () => {
     const { chat, seeded } = await seedIntoTempDir();
 
     expect(seeded).toEqual([
@@ -115,34 +134,34 @@ describe("seedWorkspace", () => {
       },
       ...chat.tasks.map(({ task }) => ({
         chat: chat.chat.key,
-        id: task.key,
+        id: expect.stringMatching(/^ses_/),
         key: task.key,
         kind: "task",
         name: task.name,
       })),
     ]);
 
-    const chatId = at(seeded, 0).id;
-    const chatSettings = await getTaskSettings(taskDir(chatId));
-    const { session } = await readSeededSession(chatId);
-    expect(chatSettings).toMatchObject({
-      chatSessionId: session.id,
-      name: chat.chat.name,
-    });
+    const chatId = ChatIdSchema.parse(at(seeded, 0).id);
+    const chatSettings = await getChatSettings(chatDir(chatId));
+    const { session } = await readSeededSession(at(seeded, 0));
+    expect(chatSettings).toMatchObject({ chatSessionId: session.id });
+    expect(session.title).toBe(chat.chat.name);
     // Named by the manifest, so the app never renames it.
     expect(session.titleSettledAt).toBeDefined();
 
-    for (const task of seeded.slice(1)) {
-      expect(taskDir(task.id)).toBe(
-        path.join(path.dirname(taskDir(chatId)), chatId, "tasks", task.id),
-      );
-      const settings = await getTaskSettings(taskDir(task.id));
-      expect(settings).toMatchObject({ name: task.name });
+    for (const [index, task] of seeded.slice(1).entries()) {
+      const { session: started } = await readSeededSession(task);
+      expect(started).toMatchObject({
+        handle: `t${index + 1}`,
+        parentId: sessionOfChat(chatId),
+        title: task.name,
+      });
     }
+    expect(await fs.readdir(chatDir(chatId))).not.toContain("tasks");
   });
 
-  it("makes the chat's folders beside the workspace, granted to the chat and to the tasks handed them", async () => {
-    const { chat, chatTask, seeded, userDataDir } = await seedIntoTempDir();
+  it("makes the chat's folders beside the workspace, granted to the chat", async () => {
+    const { chat, seeded, userDataDir } = await seedIntoTempDir();
 
     const folder = at(chat.folders, 0);
     const made = path.join(userDataDir, "folders", folder.mount);
@@ -152,16 +171,8 @@ describe("seedWorkspace", () => {
       );
     }
 
-    const chatState = await getTaskState(taskDir(at(seeded, 0).id));
-    expect(chatState.attachedFolders?.[folder.mount]).toMatchObject({
-      access: "read-write",
-      mountName: folder.mount,
-      path: made,
-    });
-    const taskState = await getTaskState(taskDir(at(seeded, 1).id));
-    expect(Object.keys(taskState.attachedFolders ?? {})).toEqual(
-      chatTask.task.folders,
-    );
+    const reach = await folderReach(ChatIdSchema.parse(at(seeded, 0).id));
+    expect(Object.values(reach).map((mounted) => mounted.path)).toContain(made);
   });
 
   it("seeds a task no chat owns as 1.x left it, with a pin as a raw settings key", async () => {
@@ -183,7 +194,14 @@ describe("seedWorkspace", () => {
     ]);
     const settings = JSON.parse(
       await fs.readFile(
-        path.join(taskDir(at(seeded, 0).id), ".instrument", "settings.json"),
+        path.join(
+          userDataDir,
+          "workspace",
+          "tasks",
+          at(seeded, 0).id,
+          ".instrument",
+          "settings.json",
+        ),
         "utf8",
       ),
     ) as Record<string, unknown>;
@@ -192,7 +210,7 @@ describe("seedWorkspace", () => {
   });
 
   // The caller clears the directory first; if it ever stops doing that, the
-  // fallback naming inside `newTaskId` would quietly hand the chat a dated
+  // fallback naming inside `newChatId` would quietly hand the chat a dated
   // folder and the fixture's promised id would be a lie.
   it("refuses to seed on top of a workspace that already holds the chat", async () => {
     const { userDataDir } = await seedIntoTempDir();
@@ -233,7 +251,7 @@ describe("seedWorkspace", () => {
       })),
     };
     const seeded = await seedWorkspace({ fixture: second, userDataDir });
-    opened.push(...seeded.map((task) => task.id));
+    opened.push(...seeded.flatMap((task) => recordOf(task)));
 
     expect(
       JSON.parse(
@@ -242,9 +260,13 @@ describe("seedWorkspace", () => {
     ).toEqual({ developerMode: true, theme: "dark" });
   });
 
-  it("copies the task's files to the paths it declares", async () => {
+  it("copies the task's files to the paths it declares, in its chat's folder", async () => {
     const { chatTask, seeded } = await seedIntoTempDir();
-    const dir = taskDir(at(seeded, 1).id);
+    const filedIn = at(seeded, 1).chat;
+    if (!filedIn) {
+      throw new Error("the task was seeded in no chat");
+    }
+    const dir = chatDir(filedIn);
 
     expect(chatTask.files.length).toBeGreaterThan(0);
     for (const file of chatTask.files) {
@@ -262,7 +284,7 @@ describe("seedWorkspace", () => {
       ...chat.tasks.map((task) => task.session),
     ].entries()) {
       const { session, sessionIds } = await readSeededSession(
-        at(seeded, index).id,
+        at(seeded, index),
       );
       expect(sessionIds).toHaveLength(1);
       expect(session.messages.map((message) => message.role)).toEqual(
@@ -277,7 +299,7 @@ describe("seedWorkspace", () => {
   it("mints new ids rather than reusing the recorded ones", async () => {
     const { chatTask, seeded } = await seedIntoTempDir();
 
-    const { session, sessionIds } = await readSeededSession(at(seeded, 1).id);
+    const { session, sessionIds } = await readSeededSession(at(seeded, 1));
     expect(at(sessionIds, 0)).not.toBe(chatTask.session.id);
 
     const recordedMessageIds = new Set(
@@ -296,7 +318,7 @@ describe("seedWorkspace", () => {
     const now = new Date("2026-03-04T05:06:07.000Z");
     const { chatTask, seeded } = await seedIntoTempDir({ now });
 
-    const { session } = await readSeededSession(at(seeded, 1).id);
+    const { session } = await readSeededSession(at(seeded, 1));
 
     // Every recorded instant counts, a reply's finish included, as it does
     // for the seeder.

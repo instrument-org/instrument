@@ -3,14 +3,14 @@
 #
 # Runs on every session start but no-ops unless we're in a *linked* worktree
 # (claude --worktree, subagent isolation: worktree, or Agent Teams). It carries
-# over gitignored state that `git worktree add` does not: env files, the
-# registry/ submodule, and installed node_modules.
+# over the env files `git worktree add` does not, then runs scripts/prepare.ts
+# for the rest (registry/, dependencies, the Mac bridge).
 #
 # Also runnable by hand against a worktree created with plain `git worktree
 # add` (which the hooks never see): worktree-setup.sh <path-to-worktree>
 #
-# Idempotent: copies env files only when missing, installs only when the root
-# node_modules is absent. stdout is surfaced to the agent as session context.
+# Idempotent: copies env files only when missing, and prepare is a quick no-op
+# on a ready checkout. stdout is surfaced to the agent as session context.
 set -euo pipefail
 
 if [[ $# -ge 1 ]]; then
@@ -79,27 +79,10 @@ done < <(
 )
 [[ $copied -gt 0 ]] && echo "[worktree-setup] copied $copied env file(s)"
 
-# 2. Initialize the registry/ submodule (network; non-fatal on failure).
-if [[ -f "$worktree_root/.gitmodules" ]]; then
-  git -C "$worktree_root" submodule update --init --recursive \
-    && echo "[worktree-setup] submodules ready" \
-    || echo "[worktree-setup] WARN submodule init failed (run: git submodule update --init)"
-fi
-
-# 3. Install dependencies only if they're missing.
-if [[ ! -d "$worktree_root/node_modules" ]]; then
-  echo "[worktree-setup] installing dependencies (pnpm install)..."
-  if command -v corepack > /dev/null 2>&1; then
-    corepack pnpm -C "$worktree_root" install --prefer-offline \
-      && echo "[worktree-setup] dependencies installed" \
-      || echo "[worktree-setup] WARN pnpm install failed (run pnpm install manually)"
-  else
-    pnpm -C "$worktree_root" install --prefer-offline \
-      && echo "[worktree-setup] dependencies installed" \
-      || echo "[worktree-setup] WARN pnpm install failed (run pnpm install manually)"
-  fi
-else
-  echo "[worktree-setup] node_modules present, skipping install"
-fi
+# 2. Everything else a checkout needs (submodules, dependencies, the Mac
+# bridge), by the same step a person's `pnpm studio` takes. Non-fatal: the
+# session starts either way, and says what is missing.
+node "$worktree_root/scripts/prepare.ts" \
+  || echo "[worktree-setup] WARN prepare failed (run: node scripts/prepare.ts)"
 
 exit 0

@@ -6,10 +6,10 @@ import { addTab } from "@/client/lib/tabs-model";
 import { getFileManagerName, getRevealInFolderLabel } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { getDefaultStore } from "jotai";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * Whether this window has a folder view of its own to show a thing in. The
@@ -30,7 +30,7 @@ export async function revealInFileManager(hostPath: string) {
   );
   if (error) {
     toast.error(`Couldn't show it in ${getFileManagerName()}`, {
-      description: error.message,
+      cause: error,
     });
   }
 }
@@ -67,7 +67,7 @@ export async function showInFolder(
       rpcClient.utils.openFolder.call({ folderPath: hostPath }),
     );
     if (error) {
-      toast.error("Failed to open folder", { description: error.message });
+      toast.error("Couldn't open the folder", { cause: error });
     }
     return;
   }
@@ -87,14 +87,12 @@ export function showInFolderLabel(kind: "file" | "folder") {
 }
 
 /** Shows a task's own folder, which is where what it made lands, as `showInFolder` shows any folder. */
-export async function showTaskFolder(taskId: TaskId) {
+export async function showTaskFolder(chatId: ChatId) {
   const [error, hostPath] = await safe(
-    rpcClient.utils.taskFolderPath.call({ id: taskId }),
+    rpcClient.utils.taskFolderPath.call({ id: chatId }),
   );
   if (error) {
-    toast.error("Couldn't find the task's folder", {
-      description: error.message,
-    });
+    toast.error("Couldn't find the task's folder", { cause: error });
     return;
   }
   await showInFolder(hostPath, { kind: "folder" });

@@ -5,6 +5,7 @@ import {
   BROWSER_HREF,
   chatGroupAtom,
   CHATS_HREF,
+  NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
 import { freshTabId } from "@/client/lib/tab-actions";
@@ -29,7 +30,7 @@ import { atom, useAtom, useAtomValue } from "jotai";
 
 import { chatOfGroup, chatOfHref, parseHref } from "./window-href";
 
-/** The chat with no chat open: the inbox, and where every new tab opens. */
+/** The chat with no chat open: the inbox, and where a tab opens when the last one closes. */
 export const INBOX_HREF = "/chats";
 
 /** The route of the sites opened at the window's own level, each followed by the id its page group is kept under. */
@@ -138,11 +139,6 @@ export function useAppTabs() {
   const lastChat = useAtomValue(chatGroupAtom);
   const activeRouter = getTabRouter(model.selectedId);
 
-  /** Where the tab up stands. */
-  const hrefOfSelected = () =>
-    activeRouter?.history.location.href ??
-    model.tabs.find((tab) => tab.id === model.selectedId)?.pathname ??
-    INBOX_HREF;
   /** A tab of its own at an address, up at once unless asked to wait behind. */
   const open = (href: string, { select = true }: { select?: boolean } = {}) => {
     setModel((current) =>
@@ -218,13 +214,12 @@ export function useAppTabs() {
     goToPlace: (place: AppPlace, { behind = false, newTab = false } = {}) => {
       go(placeHrefOf(place, lastChat), { behind, newTab });
     },
-    /** A new tab of the place the tab up stands in, or of the chat outside any place. */
     model,
     navigate,
     open,
+    /** A new tab: the command menu, until something is picked there. */
     openNewTab: () => {
-      const href = hrefOfSelected();
-      open(placeHrefOf(placeOfHref(href) ?? "chat", null));
+      open(NEW_TAB_HREF);
     },
     reopen: () => {
       setModel((current) => reopenClosed(current, { id: freshTabId() }));
@@ -252,8 +247,7 @@ export function useAppTabs() {
 /**
  * Where the rail takes a tab for a place: the chat at the one it last had
  * open, the computer at the Instrument folder, the browser's start, and the
- * apps. With no chat named, the chat is the inbox, which is
- * where a new tab of the chat opens.
+ * apps. With no chat named, the chat is the inbox.
  */
 function placeHrefOf(place: AppPlace, lastChat: null | string): string {
   switch (place) {

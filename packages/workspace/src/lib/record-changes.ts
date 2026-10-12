@@ -1,8 +1,7 @@
 import { AsyncIteratorClass } from "@orpc/server";
 
 import { publisher } from "../rpc/publisher";
-import { type TaskId } from "../schemas/task-id";
-import { type RecordRef } from "./record-folders";
+import { type ChatId } from "../schemas/chat-id";
 
 /**
  * What moved in a record:
@@ -26,25 +25,23 @@ export type RecordChange =
   | "settings"
   | "state";
 
-/**
- * One change to one record. A removal carries what the record was, since
- * the record index has forgotten it by the time anything hears.
- */
-export type RecordChanged =
-  | { id: TaskId; kind: "removed"; ref: RecordRef }
-  | { id: TaskId; kind: Exclude<RecordChange, "removed"> };
+/** One change to one chat. */
+export interface RecordChanged {
+  id: ChatId;
+  kind: RecordChange;
+}
 
 /** Says that something about a record moved. */
 export function recordChanged(
-  id: TaskId,
+  id: ChatId,
   kind: Exclude<RecordChange, "removed">,
 ): void {
   publisher.publish("record.changed", { id, kind });
 }
 
-/** Says that a record is gone, once the index has forgotten it. */
-export function recordRemoved(ref: RecordRef): void {
-  publisher.publish("record.changed", { id: ref.id, kind: "removed", ref });
+/** Says that a chat is gone, once the index has forgotten it. */
+export function recordRemoved(id: ChatId): void {
+  publisher.publish("record.changed", { id, kind: "removed" });
 }
 
 /**

@@ -17,6 +17,7 @@ import {
   HOUSE_FLOOR,
   runEvals,
 } from "./harness";
+import { removePreparedSkills, sweepOldRuns } from "./lib/sweep-old-runs";
 import { generateReport } from "./report";
 import {
   c,
@@ -99,11 +100,15 @@ const maxRunSeconds = values["max-run-seconds"]
 // Every positional past the subcommand is a pattern, matched as alternatives.
 // Reading only the first silently ran a subset: `run region unreadable` looked
 // like it covered both suites and covered one.
+// A pattern that is an eval's whole name means that eval alone, so a name
+// that begins another still picks out one.
 const namePatterns = positionals.slice(1);
 const matchesPattern = (name: string) =>
   namePatterns.length === 0 ||
   namePatterns.some((pattern) =>
-    name.toLowerCase().includes(pattern.toLowerCase()),
+    EVALS.some((one) => one.name.toLowerCase() === pattern.toLowerCase())
+      ? name.toLowerCase() === pattern.toLowerCase()
+      : name.toLowerCase().includes(pattern.toLowerCase()),
   );
 const patternLabel = namePatterns.join(", ");
 
@@ -178,7 +183,7 @@ if (paidModels.length > 0 && !values.paid) {
 const adHocEval = values.prompt
   ? defineEval({
       // `--chat` runs the prompt through the agent the user talks to
-      // in the app window, which delegates to tasks of its own.
+      // in the app window, which forks tasks of its own.
       kind: values.chat ? "chat" : undefined,
       name: values.name ?? "ad-hoc",
       prompt: values.prompt,
@@ -220,6 +225,9 @@ if (
   );
   process.stderr.write(
     "  report <dir>     Generate report from an existing workspace dir\n",
+  );
+  process.stderr.write(
+    "                   --name <case> scores every task no chat started as that case\n",
   );
   process.stderr.write("  list [pattern]   List available evals\n");
   process.stderr.write(
@@ -452,6 +460,8 @@ switch (subcommand) {
     write(`Workspace: ${absoluteWorkspaceDir}\n`);
 
     const rollup = await generateReport({
+      // With --name, the workspace is taken to hold that one case's run.
+      caseForRoots: values.name,
       evalCases: EVALS,
       includeContextMessages,
       outputDir,
@@ -524,6 +534,7 @@ switch (subcommand) {
       write("\n");
     }
 
+    sweepOldRuns();
     const { runs, workspaceRootDir } = await runEvals(filteredEvals, {
       concurrency,
       dryRun,
@@ -548,6 +559,7 @@ switch (subcommand) {
         runs,
         workspaceRootDir,
       });
+      removePreparedSkills(workspaceRootDir);
 
       printSummary({ outputDir, rollup, workspaceRootDir });
       printTranscripts({ outputDir, rollup });

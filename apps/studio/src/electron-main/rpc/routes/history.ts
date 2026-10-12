@@ -1,5 +1,8 @@
 import { noteTyped } from "@/electron-main/browser-view/history-intents";
-import { getHistoryStore } from "@/electron-main/browser-view/history-store";
+import {
+  getHistoryStore,
+  recordFileOpen,
+} from "@/electron-main/browser-view/history-store";
 import { liveRead } from "@instrument-org/workspace/electron";
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
@@ -54,6 +57,17 @@ const noteTypedPage = base
     noteTyped(input.url);
   });
 
+/**
+ * The person opened a file in one of the app's tabs. Every way in lands on
+ * the file screen, which says so once each time a file comes up in a tab
+ * they are looking at.
+ */
+const noteFileOpened = base
+  .input(z.object({ path: z.string() }))
+  .handler(({ input }) => {
+    recordFileOpen(input.path, "tab");
+  });
+
 /** Takes a page off the person's history, for "Remove from Recent Pages". */
 const remove = base
   .input(z.object({ url: z.string() }))
@@ -61,7 +75,25 @@ const remove = base
     getHistoryStore().remove(input.url);
   });
 
+const OpenedFileSchema = z.object({
+  /** When the person last opened it, epoch ms. */
+  at: z.number(),
+  openCount: z.number(),
+  path: z.string(),
+});
+
 const live = {
+  /** The files the person opened, most recently opened first. */
+  files: base
+    .input(z.object({ limit: z.number().max(LIMIT_MAX).default(LIMIT_MAX) }))
+    .output(eventIterator(z.array(OpenedFileSchema)))
+    .handler(async function* ({ input, signal }) {
+      const store = getHistoryStore();
+      yield* liveRead({
+        changes: [store.changes.subscribe("changed", { signal })],
+        read: () => store.openedFiles(input.limit),
+      });
+    }),
   /**
    * The pages the address field completes to: Chromium's significant ones,
    * typed at least once, visited four times, or visited in the last three
@@ -90,4 +122,11 @@ const live = {
     }),
 };
 
-export const history = { clear, live, noteTypedPage, remove, summary };
+export const history = {
+  clear,
+  live,
+  noteFileOpened,
+  noteTypedPage,
+  remove,
+  summary,
+};

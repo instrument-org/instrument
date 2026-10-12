@@ -8,19 +8,19 @@ import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import type { SessionMessage } from "../schemas/session/message";
 
 import { type AnyAgent } from "../agents/types";
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { RelativePathSchema } from "../schemas/paths";
 import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import {
   prepareModelMessages,
   SESSION_CONTEXT_VERSION,
 } from "./prepare-model-messages";
 import { Store } from "./store";
-import { taskDir } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
 
 vi.mock(import("./session-store-storage"));
 
@@ -52,7 +52,7 @@ const HOSTILE_TOOL_CALL_ID = StoreId.ToolCallSchema.parse("call/01:abc.def");
 
 describe("prepareModelMessages", () => {
   let sessionId: StoreId.Session;
-  let taskId: ReturnType<typeof TaskIdSchema.parse>;
+  let chatId: ReturnType<typeof ChatIdSchema.parse>;
   let contextMessages: SessionMessage.ContextWithParts[];
   let getMessages: Mock<AnyAgent["getMessages"]>;
   let agent: AnyAgent;
@@ -236,7 +236,7 @@ describe("prepareModelMessages", () => {
 
   /** Store a message, failing the test loudly if the store refuses it. */
   async function save(message: SessionMessage.WithParts) {
-    const result = await Store.saveMessageWithParts(message, taskId);
+    const result = await Store.saveMessageWithParts(message, chatId);
     result._unsafeUnwrap();
   }
 
@@ -246,14 +246,14 @@ describe("prepareModelMessages", () => {
       model,
       sessionId,
       signal: AbortSignal.timeout(30_000),
-      taskId,
+      chatId,
     });
     return result._unsafeUnwrap();
   }
 
   beforeEach(async () => {
     sessionId = StoreId.newSessionId();
-    taskId = createMockTaskConfig(TaskIdSchema.parse("mock"), {
+    chatId = createMockChatConfig(ChatIdSchema.parse("mock"), {
       model: anthropicModel,
     });
     contextMessages = [contextMessage(new Date(), "You are a helpful agent.")];
@@ -264,7 +264,7 @@ describe("prepareModelMessages", () => {
       agentTools: {},
       getMessages,
       getTools: () => Promise.resolve([]),
-      name: "main",
+      name: "instrument",
       onFinish: () => Promise.resolve(),
       onStart: () => Promise.resolve(),
       shouldContinue: () => Promise.resolve(true),
@@ -278,7 +278,7 @@ describe("prepareModelMessages", () => {
     };
     await Store.saveSession(
       { createdAt: new Date(), id: sessionId, title: "Test session" },
-      taskId,
+      chatId,
     );
   });
 
@@ -530,7 +530,7 @@ describe("prepareModelMessages", () => {
       );
       const storedResult = await Store.getMessagesWithParts({
         sessionId,
-        taskId,
+        chatId,
       });
       expect(storedResult._unsafeUnwrap().map((message) => message.id)).toEqual(
         [stored.id],
@@ -596,7 +596,7 @@ describe("prepareModelMessages", () => {
       // be sent alongside the new one for the rest of the session.
       const storedResult = await Store.getMessagesWithParts({
         sessionId,
-        taskId,
+        chatId,
       });
       expect(storedResult._unsafeUnwrap().map((message) => message.id)).toEqual(
         contextMessages.map((message) => message.id),
@@ -637,6 +637,48 @@ describe("prepareModelMessages", () => {
       );
     });
 
+    it("leaves a task's inherited baseline to its chat when rebuilding", async () => {
+      const chatSessionId = sessionId;
+      await save(
+        contextMessage(new Date(), "The prompt the previous build wrote."),
+      );
+      const forkedAt = userMessage("Look into it in the background.");
+      await save(forkedAt);
+      sessionId = StoreId.newSessionId();
+      await Store.saveSession(
+        {
+          createdAt: new Date(),
+          forkedAtMessageId: forkedAt.id,
+          id: sessionId,
+          parentId: chatSessionId,
+          title: "Task",
+        },
+        chatId,
+      );
+      contextMessages = [
+        contextMessage(new Date(), "The prompt this build writes."),
+      ];
+
+      const messages = await prepare();
+
+      expect(JSON.stringify(messages)).toContain(
+        "The prompt this build writes.",
+      );
+      expect(JSON.stringify(messages)).not.toContain(
+        "The prompt the previous build wrote.",
+      );
+      const chatOwn = await Store.getMessagesWithParts({
+        chatId,
+        inherited: false,
+        sessionId: chatSessionId,
+      });
+      expect(
+        chatOwn
+          ._unsafeUnwrap()
+          .filter((message) => message.role === "session-context"),
+      ).toHaveLength(1);
+    });
+
     it("rebuilds a baseline whose system prompt this build no longer writes, once", async () => {
       await save(
         contextMessage(new Date(), "The prompt the previous build wrote."),
@@ -657,6 +699,26 @@ describe("prepareModelMessages", () => {
 
       expect(getMessages).toHaveBeenCalledOnce();
       expect(second).toEqual(first);
+    });
+
+    it("rebuilds the baseline of a session an agent since merged into this one wrote", async () => {
+      const stored = contextMessage(
+        new Date(),
+        "You are a task. Write a brief.",
+      );
+      await save({
+        ...stored,
+        metadata: { ...stored.metadata, agentName: "main" },
+      });
+      contextMessages = [
+        contextMessage(new Date(), "You are Instrument: the one agent."),
+      ];
+
+      const request = JSON.stringify(await prepare());
+
+      expect(getMessages).toHaveBeenCalledOnce();
+      expect(request).toContain("You are Instrument: the one agent.");
+      expect(request).not.toContain("Write a brief.");
     });
 
     it("keeps a baseline whose context message differs but whose prompt is current", async () => {
@@ -708,19 +770,19 @@ describe("prepareModelMessages", () => {
 
     /** The boundary the session records, or undefined if it has never reset. */
     beforeEach(async () => {
-      await fs.rm(path.join(taskDir(taskId), TASK_FOLDER_NAMES.work), {
+      await fs.rm(path.join(chatDir(chatId), CHAT_FOLDER_NAMES.work), {
         force: true,
         recursive: true,
       });
     });
 
     async function storedBoundary() {
-      const result = await Store.getSession(sessionId, taskId);
+      const result = await Store.getSession(sessionId, chatId);
       return result._unsafeUnwrap().rolledOverAfterMessageId;
     }
 
     async function storedRolloverParts() {
-      const result = await Store.getMessagesWithParts({ sessionId, taskId });
+      const result = await Store.getMessagesWithParts({ sessionId, chatId });
       return result
         ._unsafeUnwrap()
         .flatMap((message) => message.parts)
@@ -775,7 +837,7 @@ describe("prepareModelMessages", () => {
         sessionId = StoreId.newSessionId();
         await Store.saveSession(
           { createdAt: new Date(), id: sessionId, title: "Test session" },
-          taskId,
+          chatId,
         );
         await save(userMessage("First question"));
         await save(assistantMessageWithUsage("tiny", 10_000_000));
@@ -822,7 +884,7 @@ describe("prepareModelMessages", () => {
 
         await prepare(smallWindowModel);
 
-        const stored = await Store.getMessagesWithParts({ sessionId, taskId });
+        const stored = await Store.getMessagesWithParts({ sessionId, chatId });
         expect(JSON.stringify(stored._unsafeUnwrap())).not.toContain(
           "<context-budget>",
         );
@@ -850,7 +912,7 @@ describe("prepareModelMessages", () => {
 
       it("records the boundary on the newest message once it can reclaim", async () => {
         await fillPast(4);
-        const before = await Store.getMessagesWithParts({ sessionId, taskId });
+        const before = await Store.getMessagesWithParts({ sessionId, chatId });
         const newestId = before._unsafeUnwrap().at(-1)?.id;
 
         await prepare(smallWindowModel);
@@ -878,7 +940,7 @@ describe("prepareModelMessages", () => {
         async function conversationIds() {
           const result = await Store.getMessagesWithParts({
             sessionId,
-            taskId,
+            chatId,
           });
           return result
             ._unsafeUnwrap()
@@ -905,11 +967,11 @@ describe("prepareModelMessages", () => {
       });
 
       it("hands back the notes the agent left, in the request itself", async () => {
-        await fs.mkdir(path.join(taskDir(taskId), TASK_FOLDER_NAMES.work), {
+        await fs.mkdir(path.join(chatDir(chatId), CHAT_FOLDER_NAMES.work), {
           recursive: true,
         });
         await fs.writeFile(
-          path.join(taskDir(taskId), "work", "handoff-notes.md"),
+          path.join(chatDir(chatId), "work", "handoff-notes.md"),
           "Format: the number, then the English word.",
           "utf8",
         );
@@ -1003,7 +1065,7 @@ describe("prepareModelMessages", () => {
       }
 
       async function storedModelChangeParts() {
-        const result = await Store.getMessagesWithParts({ sessionId, taskId });
+        const result = await Store.getMessagesWithParts({ sessionId, chatId });
         return result
           ._unsafeUnwrap()
           .flatMap((message) => message.parts)

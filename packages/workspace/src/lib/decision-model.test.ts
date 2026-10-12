@@ -20,6 +20,7 @@ const configs = [
   { type: "openrouter" },
 ] as unknown as AIGatewayProviderConfig.Type[];
 const body = { questions: {}, state: {} };
+const usage = { purpose: "emoji-suggestion" as const };
 const answer = { answers: {}, model: "typesafe/jev-1.13" };
 
 describe("askDecisionModel", () => {
@@ -30,14 +31,14 @@ describe("askDecisionModel", () => {
     // Ends any minute left alone by a test, so the next starts reachable.
     vi.advanceTimersByTime(60_000);
     requestDecision.mockResolvedValueOnce(answer);
-    await askDecisionModel({ body, configs });
+    await askDecisionModel({ body, configs, usage });
     requestDecision.mockReset();
     vi.useRealTimers();
   });
 
   it("sends nothing with no provider that reaches the model", async () => {
     expect(decisionModelAvailable([])).toBe(false);
-    await expect(askDecisionModel({ body, configs: [] })).resolves.toBe(
+    await expect(askDecisionModel({ body, configs: [], usage })).resolves.toBe(
       undefined,
     );
     expect(requestDecision).not.toHaveBeenCalled();
@@ -47,9 +48,11 @@ describe("askDecisionModel", () => {
     requestDecision.mockRejectedValueOnce(
       new DecisionRequestError("no provider for instrument/decision", 503),
     );
-    await expect(askDecisionModel({ body, configs })).rejects.toThrow();
+    await expect(askDecisionModel({ body, configs, usage })).rejects.toThrow();
     expect(decisionModelAvailable(configs)).toBe(false);
-    await expect(askDecisionModel({ body, configs })).resolves.toBe(undefined);
+    await expect(askDecisionModel({ body, configs, usage })).resolves.toBe(
+      undefined,
+    );
     expect(requestDecision).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(60_000);
@@ -60,7 +63,7 @@ describe("askDecisionModel", () => {
     requestDecision.mockRejectedValueOnce(
       new DecisionRequestError("too many options", 400),
     );
-    await expect(askDecisionModel({ body, configs })).rejects.toThrow();
+    await expect(askDecisionModel({ body, configs, usage })).rejects.toThrow();
     expect(decisionModelAvailable(configs)).toBe(true);
   });
 });

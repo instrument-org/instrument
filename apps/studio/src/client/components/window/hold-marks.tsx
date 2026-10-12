@@ -150,9 +150,11 @@ export function HoldMarks({
         className,
       )}
       data-slot="holds"
+      // A right click is left to reach the row: a mark that opens something
+      // raises its own menu and refuses the event, so the row's menu answers
+      // only over a bare mark and the empty line past the marks.
       onAuxClick={stopHere}
       onClick={stopHere}
-      onContextMenu={stopHere}
       onKeyDown={stopHere}
     >
       {marked.map((item) =>

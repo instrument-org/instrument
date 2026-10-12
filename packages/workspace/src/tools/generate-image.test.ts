@@ -4,11 +4,10 @@ import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { measureImage } from "../lib/render-image";
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { AbsolutePathSchema } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { grantFolder } from "../lib/chat/grants";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { withTempDir } from "../test/helpers/temp-dir";
 import { GenerateImage } from "./generate-image";
@@ -41,42 +40,30 @@ const mockImageModel: ImageModelV4 = {
 const model = createMockAIGatewayModel();
 const root = withTempDir("generate-image");
 
-let taskId: TaskId;
+let chatId: ChatId;
 let photosDir: string;
-let photos: FolderAttachment.Type;
-let attachedFolders: Record<string, FolderAttachment.Type>;
 
 beforeEach(async () => {
   photosDir = path.join(root.path, "Photos");
-  const taskDir = path.join(root.path, "tasks", "test");
+  const chatDir = path.join(root.path, "tasks", "test");
   await fs.mkdir(photosDir, { recursive: true });
-  await fs.mkdir(taskDir, { recursive: true });
+  await fs.mkdir(chatDir, { recursive: true });
 
-  taskId = createMockTaskConfigForDir(taskDir, {
+  chatId = createMockChatConfigForDir(chatDir, {
     imageModel: mockImageModel,
     model,
   });
-  photos = {
-    access: "read-only",
-    createdAt: 0,
-    id: FolderAttachment.IdSchema.parse("photos-id"),
-    mountName: "Photos",
-    path: AbsolutePathSchema.parse(photosDir),
-    source: "user",
-  };
-  attachedFolders = { Photos: photos };
+  await grantFolder({ chatId, path: photosDir, source: "attached" });
 });
 
 function makeExecuteArgs(
   input: Parameters<typeof GenerateImage.execute>[0]["input"],
 ) {
   return {
-    agentName: "main" as const,
     input,
     model,
     signal: AbortSignal.timeout(30_000),
-    taskId,
-    taskState: { attachedFolders, browserTabs: [] },
+    chatId,
   };
 }
 
@@ -259,17 +246,13 @@ describe("GenerateImage source images", () => {
 
   // Everything below the path resolve assumes a task-relative path, so a mount
   // path has to be refused rather than joined onto the task directory.
-  it("refuses to generate into a mount path, whatever its access", async () => {
+  it("refuses to generate into a mount path", async () => {
     const result = await runTool(GenerateImage, {
       ...makeExecuteArgs({
         explanation: "write into the folder",
         filePath: "/mnt/Photos/generated",
         prompt: "A cat",
       }),
-      taskState: {
-        browserTabs: [],
-        attachedFolders: { Photos: { ...photos, access: "read-write" } },
-      },
     });
 
     const error = result._unsafeUnwrapErr();

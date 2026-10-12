@@ -4,8 +4,7 @@ import {
   ChatIdSchema,
   type SessionMessage,
   StoreId,
-  type Task,
-  TaskIdSchema,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
@@ -32,7 +31,7 @@ import {
 // A reply's file is drawn once the main process says where it is on the
 // computer, which it cannot here, so every path is answered with one.
 vi.mock("@/client/hooks/use-host-paths", () => ({
-  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+  useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
     Object.fromEntries(filePaths.map((path) => [path, `/computer/${path}`])),
 }));
 
@@ -40,11 +39,9 @@ const VIEWPORT_HEIGHT = 320;
 
 const sessionId = StoreId.newSessionId();
 
-const task: Task = {
+const chatInfo: ChatInfo = {
   createdAt: new Date(0),
-  id: TaskIdSchema.parse("quarterly-numbers"),
-  chatId: ChatIdSchema.parse("a-chat"),
-  isChat: false,
+  id: ChatIdSchema.parse("quarterly-numbers"),
   title: "Quarterly numbers",
   updatedAt: new Date(0),
 };
@@ -312,7 +309,7 @@ function Transcript({
         onRetry={vi.fn()}
         onRunAgain={vi.fn()}
         renderAsItems
-        task={task}
+        chatInfo={chatInfo}
       />
     </TranscriptScrollContext>
   );

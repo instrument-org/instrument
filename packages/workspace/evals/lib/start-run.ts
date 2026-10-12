@@ -1,29 +1,27 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 
 import { type WorkspaceActorRef } from "../../src/machines/workspace";
-import { agentNameForTask } from "../../src/lib/agent-name-for-task";
 import { ensureChat } from "../../src/lib/chat/chat-records";
+import { addChildTask } from "../../src/lib/chat/children";
 import { createSession } from "../../src/lib/create-session";
-import { initializeTask } from "../../src/lib/initialize-task";
 import { newMessage } from "../../src/lib/new-message";
-import { newTaskId } from "../../src/lib/new-task-id";
 import { Store } from "../../src/lib/store";
+import { updateChatSettings } from "../../src/lib/chat-settings";
 import { type FileUpload } from "../../src/schemas/file-upload";
-import { type FolderAttachment } from "../../src/schemas/folder-attachment";
 import { type SessionMessageDataPart } from "../../src/schemas/session/message-data-part";
 import { StoreId } from "../../src/schemas/store-id";
-import { type TaskId } from "../../src/schemas/task-id";
+import { type ChatId } from "../../src/schemas/chat-id";
 import { type WorkspaceConfig } from "../../src/types";
 
 /**
  * Starts one eval run the way the product starts the agent it measures.
  *
  * A chat case opens a chat with the prompt, as the window's first send does.
- * A task case makes a chat and a task inside it, then sends the prompt to the
- * task, as `task new` does after the chat decides to delegate: the task agent
- * answers in a task a chat owns, the only kind the product makes, without
- * spending a chat turn to get there. That chat is never written in, so it is
- * never woken when the task finishes.
+ * A task case makes a chat and a task in it, a session of the chat's started
+ * from its empty conversation, then sends the prompt to the task, as `task
+ * new` does: the agent answers in a task a chat owns, the only kind the
+ * product makes, without spending a chat turn to get there. That chat is
+ * never written in, so it is never woken when the task finishes.
  */
 export async function startRun(
   {
@@ -36,10 +34,10 @@ export async function startRun(
     prompt,
     viewing,
   }: {
-    /** The apps a task case is handed, as a chat's `task new --app` hands them. */
+    /** The apps a task case reaches through the `app` command, by slug. */
     apps?: string[];
     files?: FileUpload.Type[];
-    folders?: { access?: FolderAttachment.Access; path: string }[];
+    folders?: { path: string }[];
     kind: "chat" | "task";
     modelURI: string;
     name: string;
@@ -51,7 +49,7 @@ export async function startRun(
     workspaceConfig,
     workspaceRef,
   }: { workspaceConfig: WorkspaceConfig; workspaceRef: WorkspaceActorRef },
-): Promise<{ id: TaskId; sessionId: StoreId.Session }> {
+): Promise<{ id: ChatId; sessionId: StoreId.Session }> {
   const uri = AIGatewayModelURI.Schema.parse(modelURI);
   const modelResult = await fetchModel({
     captureException: workspaceConfig.captureException,
@@ -65,37 +63,37 @@ export async function startRun(
   const model = modelResult.value;
 
   const chatSession = StoreId.newSessionId();
-  const chatId = await ensureChat(chatSession, prompt);
-  let taskId: TaskId = chatId;
+  const chatId: ChatId = await ensureChat(chatSession, prompt);
   let sessionId = chatSession;
+  (await createSession({ sessionId: chatSession, chatId }))._unsafeUnwrap();
   if (kind === "task") {
+    // The chat's model and apps are the task's, so the case's are the chat's,
+    // as the composer's send would have made them.
     (
-      await createSession({ sessionId: chatSession, taskId: chatId })
+      await updateChatSettings(chatId, {
+        ...(apps ? { apps } : {}),
+        modelURI: uri,
+      })
     )._unsafeUnwrap();
-    taskId = await newTaskId({ prompt, workspaceConfig });
-    (
-      await initializeTask(
-        {
-          chatId,
-          initialSettings: { apps, name },
-          taskId,
-          workspaceConfig,
-        },
-        {},
-      )
-    )._unsafeUnwrap();
-    sessionId = StoreId.newSessionId();
+    const now = new Date();
+    sessionId = (
+      await addChildTask(chatId, {
+        createdAt: now,
+        id: StoreId.newSessionId(),
+        status: "running",
+        title: name,
+        updatedAt: now,
+      })
+    ).id;
   }
-  (await createSession({ sessionId, taskId }))._unsafeUnwrap();
 
   const sent = await newMessage({
     files,
-    folders: folders?.map((folder) => ({ ...folder, source: "user" })),
-    model,
+    folders,
     modelURI: uri,
     prompt,
     sessionId,
-    taskId,
+    chatId,
     ...(viewing ? { viewing } : {}),
   });
   if (sent.isErr()) {
@@ -103,23 +101,22 @@ export async function startRun(
   }
   const message = sent.value;
 
-  const session = (await Store.getSession(sessionId, taskId))._unsafeUnwrap();
+  const session = (await Store.getSession(sessionId, chatId))._unsafeUnwrap();
   (
     await Store.saveSession(
       { ...session, title: name, updatedAt: new Date() },
-      taskId,
+      chatId,
     )
   )._unsafeUnwrap();
 
   workspaceRef.send({
     type: "createSession",
     value: {
-      agentName: agentNameForTask(taskId),
-      id: taskId,
+      id: chatId,
       message,
       model,
       sessionId,
     },
   });
-  return { id: taskId, sessionId };
+  return { id: chatId, sessionId };
 }

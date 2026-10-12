@@ -1,5 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId, type ChatId } from "@instrument-org/workspace/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
@@ -27,12 +27,15 @@ export interface RunningBackgroundProcess {
  */
 export function useRunningBackgroundProcess({
   processId,
-  taskId,
+  sessionId,
+  chatId,
 }: {
   processId: string | undefined;
-  taskId: TaskId;
+  /** The session whose call it is: a chat's tasks run in its record. */
+  sessionId?: StoreId.Session;
+  chatId: ChatId;
 }): RunningBackgroundProcess | undefined {
-  const processes = useTaskBackgroundProcesses(taskId);
+  const processes = useTaskBackgroundProcesses(chatId, sessionId);
   if (processId === undefined) {
     return undefined;
   }
@@ -52,20 +55,24 @@ export function useRunningBackgroundProcess({
  * lives in the main process, nothing about a running process reaches the store,
  * and only `backgroundProcesses.changed` says when the set moved.
  */
-export function useTaskBackgroundProcesses(taskId: TaskId) {
+export function useTaskBackgroundProcesses(
+  chatId: ChatId,
+  /** One session's of the record alone: the chat's own, or a task's. */
+  sessionId?: StoreId.Session,
+) {
   const queryClient = useQueryClient();
 
   const { data: processes } = useQuery(
-    rpcClient.workspace.task.backgroundProcesses.list.queryOptions({
-      input: { id: taskId },
+    rpcClient.workspace.chats.backgroundProcesses.list.queryOptions({
+      input: { id: chatId, ...(sessionId ? { sessionId } : {}) },
     }),
   );
 
   // A revision counter, not the list: the popover is usually closed, and what
   // changes is whether anything is running at all.
   const { data: changed } = useQuery(
-    rpcClient.workspace.task.backgroundProcesses.events.changed.experimental_liveOptions(
-      { input: { id: taskId } },
+    rpcClient.workspace.chats.backgroundProcesses.events.changed.experimental_liveOptions(
+      { input: { id: chatId } },
     ),
   );
   const revision = changed?.revision;
@@ -74,7 +81,7 @@ export function useTaskBackgroundProcesses(taskId: TaskId) {
       return;
     }
     void queryClient.invalidateQueries({
-      queryKey: rpcClient.workspace.task.backgroundProcesses.key(),
+      queryKey: rpcClient.workspace.chats.backgroundProcesses.key(),
     });
   }, [revision, queryClient]);
 

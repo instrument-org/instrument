@@ -3,7 +3,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { matchSettings, SETTINGS_INDEX } from "./settings-index";
+import {
+  matchSettings,
+  SETTINGS_INDEX,
+  settingsPathOf,
+  settingsTargetOf,
+} from "./settings-index";
 
 const COMPONENTS_DIR = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -48,7 +53,6 @@ describe("matchSettings", () => {
   it.each([
     ["theme", "Theme"],
     ["diag log", "Diagnostic log"],
-    ["usage", "Usage metrics"],
     ["claude", "Claude account"],
   ])("finds %s", (query, title) => {
     expect(titles(query)[0]).toBe(title);
@@ -99,5 +103,61 @@ describe("matchSettings", () => {
           ],
         }
       `);
+  });
+});
+
+describe("settingsTargetOf", () => {
+  it("lands a row, a page in any case, a label at its row, a data row, and searches for the rest", () => {
+    expect(
+      Object.fromEntries(
+        [
+          "zoom",
+          "Memory",
+          "memory",
+          "release-notes",
+          "provider:openai-1",
+          "text-size",
+        ].map((name) => [
+          name,
+          { path: settingsPathOf(name), ...settingsTargetOf(name) },
+        ]),
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "Memory": {
+          "kind": "page",
+          "path": "Settings › Memory",
+          "tab": "Memory",
+        },
+        "memory": {
+          "kind": "page",
+          "path": "Settings › Memory",
+          "tab": "Memory",
+        },
+        "provider:openai-1": {
+          "kind": "row",
+          "mark": "provider:openai-1",
+          "path": "Settings › Providers",
+          "tab": "Providers",
+        },
+        "release-notes": {
+          "kind": "row",
+          "mark": "version",
+          "path": "Settings › General › Release notes",
+          "tab": "General",
+        },
+        "text-size": {
+          "kind": "search",
+          "path": "Settings",
+          "search": "text size",
+        },
+        "zoom": {
+          "kind": "row",
+          "mark": "zoom",
+          "path": "Settings › General › Zoom",
+          "tab": "General",
+        },
+      }
+    `);
   });
 });

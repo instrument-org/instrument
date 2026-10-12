@@ -1,5 +1,9 @@
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
-import { workspacePrivateDir } from "@/electron-main/lib/workspaces";
+import {
+  DRAFTS_DIR_NAME,
+  draftDirOf,
+  freeNameIn,
+} from "@/electron-main/stores/workspace/drafts-folder";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
@@ -18,23 +22,18 @@ const NameSchema = z
   );
 
 /**
- * Where a draft keeps what its composer was given with no file behind it (a
- * pasted image, long pasted words), in the workspace's own folder beside its
- * settings. One folder per item, so two pastes both named `image.png` stay
- * two files under their own names.
+ * Where each item already written went, by draft and item: the composer
+ * hands an item over again when its window comes back up in the same run,
+ * and that rewrites its file rather than adding a copy beside it.
  */
-function draftDir(draftId: string) {
-  return path.join(
-    workspacePrivateDir(getWorkspaceFolder()),
-    "drafts",
-    draftId,
-  );
-}
+const written = new Map<string, string>();
 
 /**
- * Writes bytes a draft was given to a file of its own, so the draft can keep
- * them past a relaunch as a path and send them the way a file from disk is
- * sent. Writing the same item again replaces it.
+ * Writes bytes a draft was given with no file behind them (a pasted image,
+ * long pasted words) into the draft's own folder, under their own name, so
+ * the draft can keep them past a relaunch as a path and send them the way a
+ * file from disk is sent. A second paste of the same name is numbered beside
+ * the first, the way Finder numbers a copy.
  */
 const stage = base
   .input(
@@ -48,38 +47,18 @@ const stage = base
   )
   .output(z.object({ path: z.string(), size: z.number() }))
   .handler(async ({ input }) => {
-    const dir = path.join(draftDir(input.draftId), input.itemId);
-    const file = path.join(dir, input.name);
+    const dir = draftDirOf(
+      path.join(getWorkspaceFolder(), DRAFTS_DIR_NAME),
+      input.draftId,
+    );
+    const item = `${input.draftId}/${input.itemId}`;
+    const file =
+      written.get(item) ?? path.join(dir, freeNameIn(dir, input.name));
+    written.set(item, file);
     const bytes = Buffer.from(input.content, "base64");
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(file, bytes);
     return { path: file, size: bytes.byteLength };
   });
 
-/** Lets go of everything a draft kept on disk, for a draft sent or thrown away. */
-const clear = base
-  .input(z.object({ draftId: IdSchema }))
-  .handler(async ({ input }) => {
-    await fs.rm(draftDir(input.draftId), { force: true, recursive: true });
-  });
-
-/**
- * Lets go of what drafts no longer here kept on disk: one thrown away while
- * its clear never ran, say, because the app quit first.
- */
-const prune = base
-  .input(z.object({ keep: z.array(IdSchema) }))
-  .handler(async ({ input }) => {
-    const root = path.join(workspacePrivateDir(getWorkspaceFolder()), "drafts");
-    const keep = new Set(input.keep);
-    const entries = await fs.readdir(root).catch(() => []);
-    await Promise.all(
-      entries
-        .filter((entry) => !keep.has(entry))
-        .map((entry) =>
-          fs.rm(path.join(root, entry), { force: true, recursive: true }),
-        ),
-    );
-  });
-
-export const drafts = { clear, prune, stage };
+export const drafts = { stage };

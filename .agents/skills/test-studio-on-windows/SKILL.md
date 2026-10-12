@@ -86,7 +86,7 @@ This target needs two things, and `status` only reports the first: `devSeeded` e
 ```bash
 node "$WINDOWS_HOST" start --host "$HOST" --target dev-seeded --workspace documents
 node "$WINDOWS_HOST" tunnel --host "$HOST" --target dev-seeded --local-port 49162
-node "$DRIVE" goto /tasks/generated-pdf --port 49162
+node "$DRIVE" goto /chats/red-and-blue-squares --port 49162
 ```
 
 Seeding is idempotent, so starting the same fixture again reuses what is on disk. Pass `--fresh` to rebuild a workspace the app has written to since. Neither seeds a workspace a running instance has open: stop that target first.
@@ -97,7 +97,7 @@ Seeding is idempotent, so starting the same fixture again reuses what is on disk
 node "$WINDOWS_HOST" seed --host "$HOST" --workspace documents
 ```
 
-The directory holds one fixture at a time, so naming a different one rebuilds it. `status` reports which fixture is in it, and the task ids it seeded, under `devSeeded.workspace`.
+The directory holds one fixture at a time, so naming a different one rebuilds it. `status` reports which fixture is in it, and the chats and tasks it seeded, under `devSeeded.workspace`.
 
 A seeded workspace has no provider credentials and must not have any, so the composer reads "No models available". That is the tell that the workspace is the seeded one and not the developer's.
 
@@ -110,11 +110,11 @@ node "$DRIVE" state --port 49160
 node "$DRIVE" goto /release-notes --port 49160
 node "$DRIVE" click --text "New chat" --port 49160
 node "$DRIVE" shot /tmp/windows-dev.png --port 49160
-node "$DRIVE" rpc workspace.task.status '{"id":"<task-id>"}' --port 49160
-node "$DRIVE" wait --idle --task <task-id> --port 49160
+node "$DRIVE" rpc workspace.chats.byId '{"id":"<chat-id>"}' --port 49160
+node "$DRIVE" wait --idle --chat <chat-id> --port 49160
 ```
 
-Every `--port` here is the local end of the tunnel, so the whole driver works against a remote host unchanged: it only ever needs a CDP endpoint. That includes running a task end to end without the UI (`studio-chrome-devtools`), with one caveat this platform adds nothing to — the seeded workspace carries no credentials, so a live turn needs the `dev` target rather than `dev-seeded`.
+Every `--port` here is the local end of the tunnel, so the whole driver works against a remote host unchanged: it only ever needs a CDP endpoint. That includes running a chat end to end without the UI (`studio-chrome-devtools`), with one caveat this platform adds nothing to — the seeded workspace carries no credentials, so a live turn needs the `dev` target rather than `dev-seeded`.
 
 Against an installed build:
 
@@ -135,7 +135,7 @@ Do not use `state`, `goto`, or `modal` against the installed build. They wait fo
 node "$DRIVE" rpc workspace.chats.tasks '{"id":"<chat-id>"}' --port 49161
 ```
 
-Two things it needs on a remote host. Developer Mode has to be on in that machine's own settings, because the preference is checked per call and the bridge cannot turn itself on; a call made while it is off says exactly that. And `wait --idle` needs an explicit `--task` here, since without one it asks the dev-only handle which task the active tab is showing.
+Two things it needs on a remote host. Developer Mode has to be on in that machine's own settings, because the preference is checked per call and the bridge cannot turn itself on; a call made while it is off says exactly that. And `wait --idle` needs an explicit `--chat` here, since without one it asks the dev-only handle which chat the active tab is showing.
 
 Treat screenshots as supporting evidence. Also assert the expected DOM or state, inspect relevant logs, and include the remote commit or installed version in the result.
 

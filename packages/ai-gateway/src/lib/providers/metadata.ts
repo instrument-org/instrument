@@ -34,8 +34,7 @@ const PROVIDER_METADATA = {
       keyFormat: "csk-",
       keyURL: addRef("https://cloud.cerebras.ai"),
     },
-    description:
-      "Ultra-fast inference with open models like gpt-oss and Qwen",
+    description: "Ultra-fast inference with open models like gpt-oss and Qwen",
     name: "Cerebras",
     type: "cerebras",
     url: addRef("https://www.cerebras.ai"),
@@ -291,7 +290,9 @@ const PROVIDER_METADATA = {
   together: {
     api: {
       defaultBaseURL: "https://api.together.xyz/v1",
-      keyURL: addRef("https://api.together.ai/settings/projects/~current/api-keys"),
+      keyURL: addRef(
+        "https://api.together.ai/settings/projects/~current/api-keys",
+      ),
     },
     description:
       "Access to 200+ open-source AI models with optimized performance at scale",

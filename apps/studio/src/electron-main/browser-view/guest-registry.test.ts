@@ -7,7 +7,7 @@ import type { Session, WebContents } from "electron";
 import {
   encodeBrowserTargetId,
   StoreId,
-  TaskIdSchema,
+  ChatIdSchema,
 } from "@instrument-org/workspace/electron";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
@@ -35,7 +35,7 @@ vi.mock("electron", () => ({
   },
 }));
 
-const TASK = TaskIdSchema.parse("registry-test");
+const TASK = ChatIdSchema.parse("registry-test");
 
 let nextId = 1;
 

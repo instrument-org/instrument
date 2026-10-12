@@ -3,12 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { TaskDirSchema } from "../schemas/paths";
+import { MountedFolder } from "../schemas/mounted-folder";
+import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 
 /**
@@ -16,9 +16,9 @@ import { createBashEnv } from "./create-bash-env";
  * upstream fix (vercel-labs/just-bash#422) is released: a copy from one mount
  * into another finishes around an entry it cannot copy and reports the
  * failures together, rather than ending at the first one. Without the patch,
- * `cp -R` of any attached folder holding a symlink stops at the link with
+ * `cp -R` of any folder mount holding a symlink stops at the link with
  * `EPERM: operation not permitted, symlink ...`, everything after it uncopied,
- * and the errno is the one the attached-folders prompt reserves for a macOS
+ * and the errno is the one the folders prompt reserves for a macOS
  * denial of the folder.
  */
 const model = createMockAIGatewayModel();
@@ -27,22 +27,20 @@ const sessionId = StoreId.newSessionId();
 let tmpDir: string;
 let attachedDir: string;
 let taskRoot: string;
-let taskId: TaskId;
+let chatId: ChatId;
 
-async function run(access: FolderAttachment.Access, command: string) {
+async function run(access: MountedFolder.Access, command: string) {
   const bash = await createBashEnv({
-    attachedFolders: {
+    folders: {
       Docs: {
         access,
-        createdAt: Date.now(),
-        id: FolderAttachment.IdSchema.parse("docs-id"),
+        id: MountedFolder.IdSchema.parse("docs-id"),
         mountName: "Docs",
-        path: TaskDirSchema.parse(attachedDir),
-        source: "user",
+        path: ChatDirSchema.parse(attachedDir),
       },
     },
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
 }
@@ -58,14 +56,14 @@ beforeEach(async () => {
   await fs.symlink("readme.txt", path.join(attachedDir, "link.txt"));
   await fs.symlink("../readme.txt", path.join(attachedDir, "sub", "up"));
   await fs.writeFile(path.join(attachedDir, "zed.txt"), "zed");
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
 });
 
 afterEach(async () => {
   await fs.rm(tmpDir, { force: true, recursive: true });
 });
 
-describe.each<FolderAttachment.Access>(["read-only", "read-write"])(
+describe.each<MountedFolder.Access>(["read-only", "read-write"])(
   "cp -R of a %s mount holding symlinks",
   (access) => {
     it("copies everything but the links and names them", async () => {

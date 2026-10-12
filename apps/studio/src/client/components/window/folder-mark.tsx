@@ -42,7 +42,7 @@ export function FolderMark({
     return <HouseIcon className={iconClassName} />;
   }
   const place = [
-    ...(places.data?.favorites ?? []),
+    ...(places.data?.pinned ?? []),
     ...(places.data?.volumes ?? []),
   ].find((each) => each.path === hostPath);
   if (place?.kind === "drive") {
@@ -52,7 +52,7 @@ export function FolderMark({
     return <CloudIcon className={iconClassName} />;
   }
   const outputFolder =
-    places.data?.favorites.find((each) => each.name === "Instrument")?.path ??
+    places.data?.pinned.find((each) => each.kind === "output")?.path ??
     expandHomePath(OUTPUT_FOLDER, home);
   return (
     <FileSystemFolderGlyph

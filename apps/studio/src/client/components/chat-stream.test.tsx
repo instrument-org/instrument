@@ -3,8 +3,7 @@ import {
   ChatIdSchema,
   type SessionMessage,
   StoreId,
-  type Task,
-  TaskIdSchema,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { act, fireEvent, screen } from "@testing-library/react";
 import { noop } from "radashi";
@@ -60,11 +59,9 @@ const INDENTED = '[class~="pl-6.5"]';
 const sessionId = StoreId.newSessionId();
 const messageId = StoreId.newMessageId();
 
-const task: Task = {
+const chatInfo: ChatInfo = {
   createdAt: new Date(0),
-  id: TaskIdSchema.parse("quarterly-numbers"),
-  chatId: ChatIdSchema.parse("a-chat"),
-  isChat: false,
+  id: ChatIdSchema.parse("quarterly-numbers"),
   title: "Quarterly numbers",
   updatedAt: new Date(0),
 };
@@ -183,7 +180,7 @@ function chatStream(
         onRunAgain={vi.fn()}
         {...(presentation ? { presentation } : {})}
         renderAsItems={renderAsItems}
-        task={task}
+        chatInfo={chatInfo}
       />
     </TranscriptScrollContext>
   );
@@ -1445,5 +1442,33 @@ describe("ChatStream and what a message went with", () => {
     );
 
     expect(container.querySelector('[data-slot="sent-chips"]')).toBeNull();
+  });
+});
+
+// The dots promise a reply: they stand only while a step is writing words,
+// and every other kind of working is said under the chat's title instead.
+describe("ChatStream in the conversation, and the typing dots", () => {
+  it.each<[string, unknown[], boolean]>([
+    ["the turn just sent", [userMessage("Check the listing")], false],
+    [
+      "a step calling a tool",
+      [
+        userMessage("Check the listing"),
+        assistantMessage([read({ explanation: "Reading", running: true })]),
+      ],
+      false,
+    ],
+    [
+      "a step writing its reply",
+      [
+        userMessage("Check the listing"),
+        assistantMessage([{ ...prose("It is out"), state: "streaming" }]),
+      ],
+      true,
+    ],
+  ])("over %s", (_, messages, hasDots) => {
+    renderMessages(messages, { isAgentRunning: true, presentation: "chat" });
+
+    expect(screen.queryByLabelText("Typing") !== null).toBe(hasDots);
   });
 });

@@ -1,9 +1,11 @@
-// Tasks a chat started, found by folder name anywhere in the
-// chat and exported from their own task.db with the repo's exporter. The
-// only part of the digest that needs this machine's task folders.
+// Tasks a chat started, read from the chat's own chat.db, where each is a
+// session whose parentId is the chat's, and exported with the repo's
+// exporter. The only part of the digest that needs this machine's chat
+// folders.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 import { analyze, parseTranscript } from "./parse.mjs";
 
@@ -12,43 +14,42 @@ const REPO = path.resolve(
   "../../../..",
 );
 
-// Where a task the chat named can be: inside the chat's own chat folder
-// (`chats/<chat>/tasks/<id>`), flat beside it for a chat with no chat
-// folder (`tasks/<id>`), or inside another chat of the same workspace.
-function candidateDirs(taskDir, id) {
-  const parent = path.dirname(taskDir);
-  const dirs = [path.join(taskDir, "tasks", id), path.join(parent, id)];
-  const kind = path.basename(parent);
-  if (kind === "chats" || kind === "tasks") {
-    const workspace = path.dirname(parent);
-    dirs.push(path.join(workspace, "tasks", id));
-    const chats = path.join(workspace, "chats");
-    for (const chat of fs.existsSync(chats) ? fs.readdirSync(chats) : [])
-      dirs.push(path.join(chats, chat, "tasks", id));
+// The store keeps every record in one key/value table; a session's row is
+// keyed `sessions:<id>` and its value is superjson text in `blob`.
+function readSessions(dbPath) {
+  const db = new DatabaseSync(dbPath, { readOnly: true });
+  try {
+    return db
+      .prepare("select blob from sessions where key like 'sessions:%'")
+      .all()
+      .map((row) => JSON.parse(String(row.blob)).json);
+  } finally {
+    db.close();
   }
-  return dirs;
 }
 
 export function loadChildren(root) {
-  const taskDir = root.p.meta.taskDir ?? "";
-  const ids = new Set();
-  for (const e of root.p.events)
-    for (const m of e.body
-      .join("\n")
-      .matchAll(/tasks\/(\d{4}-\d{2}-\d{2}-[a-z0-9-]+)/g))
-      ids.add(m[1]);
-  if (!ids.size) return [];
+  // `chatDir` in the app's export (`taskDir` in an older one), `source` in
+  // script:dump-session-transcript's.
+  const chatDir =
+    root.p.meta.chatDir ?? root.p.meta.taskDir ?? root.p.meta.source ?? "";
+  const db = path.join(chatDir, ".instrument", "chat.db");
+  if (!chatDir || !fs.existsSync(db)) {
+    return [{ id: "(the chat's tasks)", missing: db }];
+  }
+  const sessions = readSessions(db);
+  const chatSession =
+    root.p.meta.sessionId ?? sessions.find((s) => !s.parentId)?.id;
+  const tasks = sessions
+    .filter((s) => s.parentId && s.parentId === chatSession)
+    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
   // One cached export per task, overwritten on each run, so the path the
   // digest prints stays valid for reading the child's transcript directly.
   const cache = path.join(process.env.TMPDIR ?? "/tmp", "transcript-digest");
   fs.mkdirSync(cache, { recursive: true });
-  return [...ids].map((id) => {
-    const tried = candidateDirs(taskDir, id);
-    const dir = tried.find((candidate) =>
-      fs.existsSync(path.join(candidate, ".instrument", "task.db")),
-    );
-    if (!dir) return { id, missing: tried[0] };
-    const md = path.join(cache, `${id}.md`);
+  return tasks.map((task) => {
+    const id = task.handle ? `${task.handle} ${task.id}` : task.id;
+    const md = path.join(cache, `${task.id}.md`);
     execFileSync(
       "pnpm",
       [
@@ -57,7 +58,9 @@ export function loadChildren(root) {
         "@instrument-org/workspace",
         "run",
         "script:dump-session-transcript",
-        dir,
+        chatDir,
+        "--session",
+        task.id,
         "--output",
         md,
       ],

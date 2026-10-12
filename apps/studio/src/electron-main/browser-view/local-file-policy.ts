@@ -1,4 +1,4 @@
-import { TASK_PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
+import { PRIVATE_FOLDER_NAME } from "@instrument-org/shared";
 import {
   type CallbackResponse,
   type OnBeforeRequestListenerDetails,
@@ -83,7 +83,7 @@ export async function localFileResponse(
 }
 
 const PRIVATE_DIR_SEGMENT_REGEX = new RegExp(
-  `(?:^|[/\\\\])${TASK_PRIVATE_FOLDER_NAME.replace(".", "\\.")}(?:[/\\\\]|$)`,
+  `(?:^|[/\\\\])${PRIVATE_FOLDER_NAME.replace(".", "\\.")}(?:[/\\\\]|$)`,
   "i",
 );
 

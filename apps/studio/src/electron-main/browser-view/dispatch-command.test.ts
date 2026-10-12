@@ -9,7 +9,7 @@ import {
   cdpMethodsHandled,
   encodeBrowserTargetId,
   StoreId,
-  TaskIdSchema,
+  ChatIdSchema,
 } from "@instrument-org/workspace/electron";
 import { noop } from "radashi";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -24,7 +24,7 @@ import {
 } from "./guest-surface";
 import { log } from "./log";
 
-const SUBDOMAIN = TaskIdSchema.parse("agent-browser-test");
+const SUBDOMAIN = ChatIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
 const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
 

@@ -2,7 +2,7 @@ import { defineCommand } from "just-bash";
 import path from "node:path";
 
 import { MOUNT } from "../../mount-points";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { gitBinaryPath } from "../git";
 import {
@@ -31,7 +31,7 @@ import {
 export const GIT_COMMAND = {
   description:
     `Clone and fetch public repositories over http(s), inspect history, branch, and commit locally. ` +
-    `Works in an attached folder by its mount path (\`git -C ${MOUNT.attachedFolders}/<folder> log\`, or \`cd\` there first); in a read-only one it may only read (log, show, diff, blame, status), and committing there needs the folder attached read and write. ` +
+    `Works in a folder by its mount path (\`git -C ${MOUNT.folders}/<folder> log\`, or \`cd\` there first); in a read-only one it may only read (log, show, diff, blame, status), and committing there needs write on the repository's own folder. ` +
     `No credentials are configured, so private repositories, pushing, and ssh:// remotes are unavailable. ` +
     `Pass commit messages with -m or -F; there is no editor. ` +
     `A large clone that outlives the call keeps running in the background rather than failing, and leaves a partial directory to delete if it is stopped.`,
@@ -198,10 +198,10 @@ const CONFIG_READ_FLAGS = new Set([
 
 export function createGitCommand({
   layout,
-  taskId,
+  chatId,
 }: {
   layout: WorkspaceFsLayout;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
   return defineCommand(GIT_COMMAND.name, async (args, ctx) => {
     const rejection = rejectUnsafeArgs(args);
@@ -209,7 +209,7 @@ export function createGitCommand({
       return fail(rejection);
     }
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const resolveVirtual = (p: string) => ctx.fs.resolvePath(ctx.cwd, p);
 
     // Where git runs. A mount is a real directory the user attached, so unlike
@@ -233,7 +233,7 @@ export function createGitCommand({
         layout,
         resolveVirtual,
         taskCwd,
-        taskId,
+        chatId,
       });
       if ("error" in bridged) {
         return fail(bridged.error);
@@ -247,17 +247,17 @@ export function createGitCommand({
     const readOnly = [...touchedMounts].find((mount) => mount.readOnly);
     if (readOnly && !readsOnly(args)) {
       return fail(
-        `${readOnly.mountPoint} is attached read-only, so git may only read there ` +
+        `${readOnly.mountPoint} is read-only, so git may only read there ` +
           `(log, show, diff, blame, status, and the other commands that write nothing). ` +
-          `Committing or changing files in it needs the folder attached read and write; ` +
-          `say so if the work needs that.`,
+          `Committing or changing files in it needs write on the repository's own folder, ` +
+          `which \`task folder --add\` gives.`,
       );
     }
 
     const escape = findEscapingPathValue(resolvedArgs, hostCwd, layout);
     if (escape) {
       return fail(
-        `${escape} points outside the task directory and every attached folder. ` +
+        `${escape} points outside the task directory and every folder mount. ` +
           `git can only operate on repositories inside those.`,
       );
     }
@@ -303,7 +303,7 @@ function bridgeArg(
     layout,
     resolveVirtual,
     taskCwd,
-    taskId,
+    chatId,
   }: {
     ctx: {
       cwd: string;
@@ -312,7 +312,7 @@ function bridgeArg(
     layout: WorkspaceFsLayout;
     resolveVirtual: (p: string) => string;
     taskCwd: string;
-    taskId: TaskId;
+    chatId: ChatId;
   },
 ): { arg: string; mount?: WorkspaceFsMount } | { error: string } {
   const eqIndex = arg.indexOf("=");
@@ -339,8 +339,8 @@ function bridgeArg(
   // containment check as a literal `/task/...` and is reported as escaping,
   // while the space-separated spelling of the same thing works.
   const [bridged] = inline
-    ? [bridgeFlagValuePath(arg, taskId, taskCwd, resolveVirtual)]
-    : resolvePathArgs([arg], taskId, ctx);
+    ? [bridgeFlagValuePath(arg, chatId, taskCwd, resolveVirtual)]
+    : resolvePathArgs([arg], chatId, ctx);
   return { arg: bridged ?? arg };
 }
 

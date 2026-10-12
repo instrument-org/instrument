@@ -133,5 +133,5 @@ async function parseSandboxTarget(
 }
 
 function unreachableFileMessage(arg: string) {
-  return `${arg} is not a file you can open. Open a file by the path you reach it at (agent-browser open work/page.html, or ${MOUNT.attachedFolders}/<folder>/page.html).`;
+  return `${arg} is not a file you can open. Open a file by the path you reach it at (agent-browser open work/page.html, or ${MOUNT.folders}/<folder>/page.html).`;
 }

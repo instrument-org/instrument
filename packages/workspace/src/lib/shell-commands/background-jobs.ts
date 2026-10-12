@@ -308,7 +308,7 @@ function listJobs(args: string[], sessionId: StoreId.Session) {
  * how a real shell names its first job. A bare number is a host pid, which is
  * deliberately not addressable from here.
  */
-function normalizeId(argument: string): string | undefined {
+export function normalizeId(argument: string): string | undefined {
   if (/^bg_\d+$/.test(argument)) {
     return argument;
   }

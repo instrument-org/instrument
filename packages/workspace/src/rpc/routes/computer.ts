@@ -5,12 +5,12 @@ import {
   ComputerPlacesSchema,
 } from "../../lib/chat/computer-places";
 import {
+  ComputerFileEntrySchema,
   ComputerFolderSchema,
-  ComputerRecentSchema,
+  describeComputerFiles,
   listComputerFolder,
-  recentComputerFiles,
 } from "../../lib/chat/computer";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { base } from "../base";
 
 /**
@@ -37,11 +37,11 @@ const list = base
       message: "Nothing is at the path",
     },
   })
-  .input(z.object({ id: TaskIdSchema, path: z.string() }))
+  .input(z.object({ id: ChatIdSchema, path: z.string() }))
   .output(ComputerFolderSchema)
   .handler(async ({ errors, input }) => {
     try {
-      return await listComputerFolder({ path: input.path, taskId: input.id });
+      return await listComputerFolder({ path: input.path, chatId: input.id });
     } catch (error) {
       if (errorCode(error) === "ENOTDIR") {
         throw errors.NOT_A_FOLDER({ data: { path: input.path } });
@@ -64,15 +64,18 @@ const places = base
   .handler(() => computerPlaces());
 
 /**
- * The files the chats have shown the user, newest first, each with whether
- * the chat that showed it can still reach it.
+ * Files by host path, in the order asked, each with whether the chat `id`
+ * can reach it. Paths no longer there, or no longer files, are left out.
  */
-const recents = base
-  .output(ComputerRecentSchema.array())
-  .handler(() => recentComputerFiles());
+const describe = base
+  .input(z.object({ id: ChatIdSchema, paths: z.array(z.string()) }))
+  .output(ComputerFileEntrySchema.array())
+  .handler(({ input }) =>
+    describeComputerFiles({ chatId: input.id, paths: input.paths }),
+  );
 
 export const computer = {
+  describe,
   list,
   places,
-  recents,
 };

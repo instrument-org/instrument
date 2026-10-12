@@ -4,13 +4,11 @@ import { MockLanguageModelV4 } from "ai/test";
 import os from "node:os";
 import { describe, expect, it, vi } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { AbsolutePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { generateTitleFromUserMessage } from "./generate-title-from-user-message";
 import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -84,7 +82,7 @@ function setupTest(
 ) {
   const mockLanguageModel = createMockLanguageModel(generatedText, options);
   const model = createMockAIGatewayModel();
-  createMockTaskConfig(TaskIdSchema.parse("mock"), {
+  createMockChatConfig(ChatIdSchema.parse("mock"), {
     aiSDKModel: mockLanguageModel,
     model,
   });
@@ -101,6 +99,7 @@ function setupTest(
       generateTitleFromUserMessage({
         message,
         model,
+        chatId: ChatIdSchema.parse("mock"),
         workspaceConfig,
       }),
     mockLanguageModel,
@@ -112,7 +111,7 @@ function setupTestWithModel(
   options: { captureException?: (...args: unknown[]) => void } = {},
 ) {
   const model = createMockAIGatewayModel();
-  createMockTaskConfig(TaskIdSchema.parse("mock"), {
+  createMockChatConfig(ChatIdSchema.parse("mock"), {
     aiSDKModel: languageModel,
     model,
   });
@@ -129,6 +128,7 @@ function setupTestWithModel(
       generateTitleFromUserMessage({
         message,
         model,
+        chatId: ChatIdSchema.parse("mock"),
         workspaceConfig,
       }),
   };
@@ -243,24 +243,8 @@ describe("generateTitleFromUserMessage", () => {
   });
 
   describe("what the model is shown", () => {
-    function folderAttachment(
-      name: string,
-      source: FolderAttachment.Source,
-    ): FolderAttachment.Type {
-      return {
-        access: "read-write",
-        createdAt: 0,
-        id: FolderAttachment.IdSchema.parse(name),
-        mountName: `Home-${name}`,
-        path: AbsolutePathSchema.parse(`${os.homedir()}/Downloads/${name}`),
-        source,
-      };
-    }
-
     function messageWithFolders(
-      folders: FolderAttachment.Type[] = [
-        folderAttachment("Screenshots", "user"),
-      ],
+      folders = [{ path: `${os.homedir()}/Downloads/Screenshots` }],
     ) {
       const message = createMockMessage("wat images are in here");
       return {
@@ -298,7 +282,7 @@ describe("generateTitleFromUserMessage", () => {
 
     // Where a folder lives is what tells two folders of the same name apart, so
     // the path is the useful signal here.
-    it("locates an attached folder under a bare home directory", async () => {
+    it("locates a folder mount under a bare home directory", async () => {
       const prompt = await promptFor(messageWithFolders());
 
       expect(prompt).toContain(
@@ -306,39 +290,12 @@ describe("generateTitleFromUserMessage", () => {
       );
     });
 
-    // The mount name is the agent's handle for the folder and the real path
-    // names the machine's user; a title is stored, listed, and exported.
-    it("shows neither the mount name nor the host path", async () => {
+    // The real path names the machine's user; a title is stored, listed, and
+    // exported.
+    it("does not show the host path", async () => {
       const prompt = await promptFor(messageWithFolders());
 
-      expect(prompt).not.toContain("Home-Screenshots");
       expect(prompt).not.toContain(os.homedir());
-    });
-
-    // A project's folders arrive on the first message of every task in the
-    // project, so they name the neighbors rather than this one.
-    it("shows the user's folders and not the project's", async () => {
-      const prompt = await promptFor(
-        messageWithFolders([
-          folderAttachment("Screenshots", "user"),
-          folderAttachment("Brand Assets", "project"),
-        ]),
-      );
-
-      expect(prompt).toContain(
-        "Folders attached by user: ~/Downloads/Screenshots",
-      );
-      expect(prompt).not.toContain("Brand Assets");
-    });
-
-    // Every folder on the message can be the project's, leaving a heading with
-    // nothing under it.
-    it("omits the folder line when only the project's folders are attached", async () => {
-      const prompt = await promptFor(
-        messageWithFolders([folderAttachment("Brand Assets", "project")]),
-      );
-
-      expect(prompt).not.toContain("Folders attached by user");
     });
   });
 
@@ -486,7 +443,7 @@ describe("generateTitleFromUserMessage with a current title", () => {
   async function callWith(currentTitle?: string) {
     const mockLanguageModel = createMockLanguageModel("Lentil soup for dinner");
     const model = createMockAIGatewayModel();
-    createMockTaskConfig(TaskIdSchema.parse("mock"), {
+    createMockChatConfig(ChatIdSchema.parse("mock"), {
       aiSDKModel: mockLanguageModel,
       model,
     });
@@ -495,6 +452,7 @@ describe("generateTitleFromUserMessage with a current title", () => {
       message: createMockMessage("what should I make for dinner"),
       model,
       reply: "Here is a lentil soup recipe.",
+      chatId: ChatIdSchema.parse("mock"),
       workspaceConfig: getWorkspaceConfig(),
     });
     const prompt = mockLanguageModel.doGenerateCalls[0]?.prompt ?? [];

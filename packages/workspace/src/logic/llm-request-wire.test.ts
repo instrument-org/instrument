@@ -32,9 +32,9 @@ import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { TOOLS } from "../tools/all";
 import { llmRequestLogic } from "./llm-request";
 import { setWorkspaceServerPort } from "./server/url";
@@ -670,18 +670,18 @@ describe.skipIf(!captureDir)("llm request wire capture", () => {
   describe.each(TARGETS)("$name", (target) => {
     it.each(Object.keys(SCENARIOS))("%s", async (scenario) => {
       const model = modelFor(target);
-      const taskId = createMockTaskConfig(TaskIdSchema.parse("wire"), {
+      const chatId = createMockChatConfig(ChatIdSchema.parse("wire"), {
         catalog: [model],
         model,
       });
       const sessionId = StoreId.newSessionId();
       await Store.saveSession(
         { createdAt: new Date(0), id: sessionId, title: "Wire" },
-        taskId,
+        chatId,
       );
       const build = SCENARIOS[scenario];
       for (const message of build?.({ model, sessionId, target }) ?? []) {
-        const saved = await Store.saveMessageWithParts(message, taskId);
+        const saved = await Store.saveMessageWithParts(message, chatId);
         saved._unsafeUnwrap();
       }
 
@@ -719,7 +719,7 @@ describe.skipIf(!captureDir)("llm request wire capture", () => {
                 contextMessage("user", "<task_layout>work/</task_layout>"),
               ]),
             getTools: () => Promise.resolve(Object.values(TOOLS)),
-            name: "main",
+            name: "instrument",
             onFinish: () => Promise.resolve(),
             onStart: () => Promise.resolve(),
             shouldContinue: () => Promise.resolve(true),
@@ -729,7 +729,7 @@ describe.skipIf(!captureDir)("llm request wire capture", () => {
           self: { send: vi.fn() } as unknown as AnyActorRef,
           sessionId,
           stepCount: 1,
-          taskId,
+          chatId,
         },
       });
       actor.start();
@@ -749,7 +749,7 @@ describe.skipIf(!captureDir)("llm request wire capture", () => {
 
     it("title", async () => {
       const model = modelFor(target);
-      createMockTaskConfig(TaskIdSchema.parse("wire"), {
+      createMockChatConfig(ChatIdSchema.parse("wire"), {
         catalog: [model],
         model,
       });
@@ -763,6 +763,7 @@ describe.skipIf(!captureDir)("llm request wire capture", () => {
       const result = await generateTitleFromUserMessage({
         message,
         model,
+        chatId: ChatIdSchema.parse("wire"),
         workspaceConfig: getWorkspaceConfig(),
       });
       write(target, "title", {

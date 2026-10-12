@@ -1,6 +1,6 @@
 import { defineCommand } from "just-bash";
 
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { PYTHON_COMMAND, PYTHON_NATIVE_COMMAND } from "./python";
 import {
@@ -23,23 +23,23 @@ export const PIP_COMMAND = {
  * downstream: `pip install requests && python -c "import requests"` fails,
  * and the failure names the import rather than the interpreter.
  */
-const INSTALLED_NOTE = `pip: installed into the task's virtualenv. A program that imports it runs there, under \`${PYTHON_COMMAND.name}\` or \`${PYTHON_NATIVE_COMMAND.name}\` alike, and sees only the task folder (copy an attached file into the task first).\n`;
+const INSTALLED_NOTE = `pip: installed into the task's virtualenv. A program that imports it runs there, under \`${PYTHON_COMMAND.name}\` or \`${PYTHON_NATIVE_COMMAND.name}\` alike, and sees only the task folder (copy a file from a folder mount into the task first).\n`;
 
 export const PIP3_COMMAND = {
   description: "Alias for pip.",
   name: "pip3",
 } as const;
 
-export function createPip3Command(taskId: TaskId, layout: WorkspaceFsLayout) {
-  return createPipCommandNamed(taskId, layout, PIP3_COMMAND.name);
+export function createPip3Command(chatId: ChatId, layout: WorkspaceFsLayout) {
+  return createPipCommandNamed(chatId, layout, PIP3_COMMAND.name);
 }
 
-export function createPipCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
-  return createPipCommandNamed(taskId, layout, PIP_COMMAND.name);
+export function createPipCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
+  return createPipCommandNamed(chatId, layout, PIP_COMMAND.name);
 }
 
 function createPipCommandNamed(
-  taskId: TaskId,
+  chatId: ChatId,
   layout: WorkspaceFsLayout,
   name: string,
 ) {
@@ -48,7 +48,7 @@ function createPipCommandNamed(
     // pip-compatible version string so agents that probe with `pip --version`
     // get a useful response rather than a confusing uv usage error.
     if (args[0] === "--version" || args[0] === "-V") {
-      const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+      const { env, taskCwd } = resolveCommandContext(chatId, ctx);
       const uvResult = await runUv({
         args: ["--version"],
         ctx,
@@ -69,15 +69,15 @@ function createPipCommandNamed(
       return { exitCode: 1, stderr: unreachable, stdout: "" };
     }
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
 
-    const venvError = await ensureTaskVenv({ ctx, taskId });
+    const venvError = await ensureTaskVenv({ ctx, chatId });
     if (venvError !== undefined) {
       return { exitCode: 1, stderr: venvError, stdout: "" };
     }
 
     const result = await runUv({
-      args: ["pip", ...resolvePathArgs(args, taskId, ctx)],
+      args: ["pip", ...resolvePathArgs(args, chatId, ctx)],
       ctx,
       env,
       layout,

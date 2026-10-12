@@ -54,15 +54,12 @@ const refresh = base.handler(() => refreshClaudeAccountStatus({ force: true }));
  * done, and the model Claude Code recommends becomes the default. Answers the
  * status either way, and the model's name when one was chosen.
  */
-const connect = base.handler(async ({ context }) => {
+const connect = base.handler(async () => {
   const status = await refreshClaudeAccountStatus({ force: true });
   if (status.kind !== "signed-in") {
     return { modelName: undefined, status };
   }
   getWorkspaceState().set("hasCompletedProviderSetup", true);
-  context.workspaceConfig.captureEvent("provider.created", {
-    provider_type: "claude-account",
-  });
   return { modelName: await setClaudeAccountDefaultModel(), status };
 });
 

@@ -3,12 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { TaskDirSchema } from "../schemas/paths";
+import { MountedFolder } from "../schemas/mounted-folder";
+import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 
 /**
@@ -23,22 +23,20 @@ const sessionId = StoreId.newSessionId();
 let tmpDir: string;
 let attachedDir: string;
 let taskRoot: string;
-let taskId: TaskId;
+let chatId: ChatId;
 
 async function run(command: string) {
   const bash = await createBashEnv({
-    attachedFolders: {
+    folders: {
       Docs: {
         access: "read-write",
-        createdAt: Date.now(),
-        id: FolderAttachment.IdSchema.parse("docs-id"),
+        id: MountedFolder.IdSchema.parse("docs-id"),
         mountName: "Docs",
-        path: TaskDirSchema.parse(attachedDir),
-        source: "user",
+        path: ChatDirSchema.parse(attachedDir),
       },
     },
     sessionId,
-    taskId,
+    chatId,
   });
   const result = await bash.exec(command, {
     signal: AbortSignal.timeout(30_000),
@@ -54,7 +52,7 @@ beforeEach(async () => {
   await fs.mkdir(path.join(taskRoot, "work", "full"), { recursive: true });
   await fs.writeFile(path.join(taskRoot, "work", "full", "a.txt"), "a");
   await fs.mkdir(path.join(attachedDir, "empty"), { recursive: true });
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
 });
 
 afterEach(async () => {
@@ -92,7 +90,7 @@ describe("rmdir on a writable mount", () => {
     ]);
   });
 
-  it("leaves an empty attached folder's own directory in place", async () => {
+  it("leaves an empty folder mount's own directory in place", async () => {
     await fs.rm(path.join(attachedDir, "empty"), { recursive: true });
 
     expect((await run("rmdir /mnt/Docs")).exitCode).toBe(1);

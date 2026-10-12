@@ -1,5 +1,6 @@
 import {
   type AIGatewayProviderConfig,
+  decisionModelFor,
   DecisionRequestError,
   requestDecision,
   selectDecisionConfigs,
@@ -8,6 +9,7 @@ import ms from "ms";
 import { z } from "zod";
 
 import { getWorkspaceServerURL } from "../logic/server/url";
+import { type AIUsageCall, recordAIUsage } from "./ai-usage/record";
 
 const AnswerSchema = z.object({
   choice: z.string().optional(),
@@ -68,6 +70,7 @@ export async function askDecisionModel({
   body,
   configs,
   signal,
+  usage,
 }: {
   body: {
     questions: Record<string, z.output<typeof DecisionQuestionSchema>>;
@@ -75,6 +78,8 @@ export async function askDecisionModel({
   };
   configs: AIGatewayProviderConfig.Type[];
   signal?: AbortSignal;
+  /** Why the app is asking and for what, which the record of model requests files each attempt under. */
+  usage: Omit<AIUsageCall, "connection" | "kind">;
 }): Promise<
   | undefined
   | {
@@ -91,20 +96,47 @@ export async function askDecisionModel({
   let requestAtFault = false;
   for (const config of reachable) {
     const started = performance.now();
+    const startedAt = Date.now();
+    // The decision API is a plain fetch rather than an AI SDK call, so each
+    // attempt is recorded here.
+    const call: AIUsageCall = {
+      ...usage,
+      connection: config,
+      kind: "decision",
+    };
+    const modelRequested = decisionModelFor(config.type) ?? null;
     try {
-      const response = await requestDecision({
-        body,
-        config,
-        signal,
-        workspaceServerURL: getWorkspaceServerURL(),
-      });
+      const response = DecisionResponseSchema.parse(
+        await requestDecision({
+          body,
+          config,
+          signal,
+          workspaceServerURL: getWorkspaceServerURL(),
+        }),
+      );
       unreachableUntil = 0;
+      const elapsed = Math.round(performance.now() - started);
+      recordAIUsage(call, {
+        durationMs: elapsed,
+        inputTokens: response.usage?.input_tokens ?? null,
+        modelRequested,
+        modelServed: response.model,
+        startedAt,
+        status: "finished",
+      });
       return {
-        ms: Math.round(performance.now() - started),
+        ms: elapsed,
         provider: config.type,
-        response: DecisionResponseSchema.parse(response),
+        response,
       };
     } catch (error) {
+      recordAIUsage(call, {
+        durationMs: performance.now() - started,
+        error: error instanceof Error ? error.message : String(error),
+        modelRequested,
+        startedAt,
+        status: signal?.aborted ? "stopped" : "failed",
+      });
       if (signal?.aborted) {
         throw error;
       }

@@ -9,21 +9,25 @@ import { startMcpTracker } from "./mcp-tracker";
 
 /** A connected app a case wants to exist before it runs. */
 export interface AppFixture {
+  /** The account it is signed in as, as the manifest names it. */
+  account?: string;
   /**
    * `api` (the default) serves the small REST tracker below; `mcp` serves
-   * the larger issue tracker in `mcp-tracker.ts` over MCP.
+   * the larger issue tracker in `mcp-tracker.ts` over MCP; `web` is a site
+   * the user said they are signed in to, at `url`, with no server at all.
    */
-  kind?: "api" | "mcp";
+  kind?: "api" | "mcp" | "web";
   /** What the user calls it, as the manifest carries it. */
   name: string;
   slug: string;
+  /** For a web app, where it is worked. */
+  url?: string;
 }
 
 /**
  * Stands up the apps a case declared: a real HTTP server on loopback, a real
  * manifest in the workspace's apps directory, and a connection on record, so
- * `app request` goes end to end and `task app --add` has something it can
- * actually hand over.
+ * `app request` goes end to end against something real.
  *
  * Loopback rather than a stub inside the process because the whole path is what
  * is being scored: the manifest gate, the connection check, and the request. A
@@ -42,6 +46,27 @@ export async function seedConnectedApps(
   for (const fixture of fixtures) {
     const dir = path.join(appsDir, fixture.slug);
     await fs.mkdir(dir, { recursive: true });
+    if (fixture.kind === "web") {
+      await fs.writeFile(
+        path.join(dir, "app.json"),
+        `${JSON.stringify(
+          {
+            ...(fixture.account ? { account: fixture.account } : {}),
+            name: fixture.name,
+            type: "web",
+            url: fixture.url,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      await fs.writeFile(
+        path.join(dir, "guide.md"),
+        `# ${fixture.name}\n\nWorked on the web${fixture.url === undefined ? "" : ` at ${fixture.url}`}.\n`,
+      );
+      await recordConnected(fixture.slug, { apps, appsDir });
+      continue;
+    }
     if (fixture.kind === "mcp") {
       const tracker = await startMcpTracker();
       closers.push(tracker.close);

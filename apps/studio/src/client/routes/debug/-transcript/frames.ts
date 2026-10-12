@@ -81,7 +81,7 @@ export interface FrameMark {
 }
 
 /** The agent every transcript here is attributed to; there is only the one. */
-const AGENT_NAME: AgentName = "main";
+const AGENT_NAME: AgentName = "instrument";
 
 // How far the clock moves between frames. Fixed, so a scenario reads the same
 // every time it is built and the durations rows report are stable.

@@ -3,41 +3,39 @@ import { eventIterator, type } from "@orpc/server";
 import { sleep } from "radashi";
 import { z } from "zod";
 
-import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { createSession } from "../../lib/create-session";
 import { createWriteQueue } from "../../lib/create-write-queue";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
-import { chatContextFor } from "../../lib/chat/chat-context";
 import { setChatTopics } from "../../lib/chat/chats";
 
 import { resolveChat, sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
-import { recordTaskActivity } from "../../lib/task-settings";
+import { recordChatActivity } from "../../lib/chat-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
 import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { base, toORPCError } from "../base";
 
 const listWithParts = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       sessionId: StoreId.SessionSchema,
     }),
   )
   .output(z.array(SessionMessage.WithPartsSchema))
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
     const messages = await Store.getMessagesWithParts({
       sessionId,
-      taskId,
+      chatId,
     });
 
     if (messages.isErr()) {
@@ -48,7 +46,7 @@ const listWithParts = base
   });
 
 /**
- * One send at a time per task, in the order they arrived. The opening
+ * One send at a time per chat, in the order they arrived. The opening
  * message of a chat reads the other chats before it is stored, which can
  * take a moment, and a message sent into the chat meanwhile would otherwise
  * be stored, numbered, and handed to the agent ahead of the one it follows.
@@ -62,7 +60,7 @@ const create = base
       asks: SessionMessageDataPart.AsksDataPartSchema.optional(),
       files: z.array(FileUpload.Schema).optional(),
       folders: z.array(z.object({ path: z.string() })).optional(),
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       modelURI: AIGatewayModelURI.Schema,
       /**
        * The id for the session this message opens, when the caller chose
@@ -100,7 +98,7 @@ const create = base
       },
     }) =>
       sendsInOrder(id, async () => {
-        const taskId = id;
+        const chatId = id;
 
         const modelResult = await fetchModel({
           captureException: context.workspaceConfig.captureException,
@@ -118,23 +116,16 @@ const create = base
         const model = modelResult.value;
 
         // A chat's record holds one session, the one its settings name.
-        const chatId = resolveChat(taskId);
-        const chatSession = chatId ? sessionOfChat(chatId) : undefined;
-        const isChat = chatId !== undefined;
+        const isChat = resolveChat(chatId) !== undefined;
+        const chatSession = isChat ? sessionOfChat(chatId) : undefined;
 
         let finalSessionId: StoreId.Session;
-        // The other chats as they stand when a new one opens, read before
-        // the new session exists so it is not among them.
-        let chatContext: SessionMessageDataPart.ChatContextDataPart | undefined;
         if (sessionId) {
           finalSessionId = sessionId;
         } else {
-          if (isChat) {
-            chatContext = await chatContextFor();
-          }
           const sessionResult = await createSession({
             sessionId: chatSession ?? newSessionId ?? StoreId.newSessionId(),
-            taskId,
+            chatId,
           });
           if (sessionResult.isErr()) {
             context.workspaceConfig.captureException(sessionResult.error);
@@ -148,7 +139,7 @@ const create = base
 
         const messageIdsBeforeResult = await Store.getMessageIds(
           finalSessionId,
-          taskId,
+          chatId,
         );
         if (messageIdsBeforeResult.isErr()) {
           context.workspaceConfig.captureException(
@@ -161,15 +152,13 @@ const create = base
 
         const messageResult = await newMessage({
           asks,
-          chatContext,
           files,
           folders,
-          model,
           modelURI,
           prompt,
           replyTo,
           sessionId: finalSessionId,
-          taskId,
+          chatId,
           viewing,
         });
 
@@ -187,12 +176,13 @@ const create = base
             const title = await generateTitleFromUserMessage({
               message,
               model,
+              chatId,
               workspaceConfig: context.workspaceConfig,
             });
             if (title.isOk()) {
               await updateSessionTitle({
                 sessionId: message.metadata.sessionId,
-                taskId,
+                chatId,
                 title: title.value,
               });
             }
@@ -203,14 +193,13 @@ const create = base
 
         // Written now, so the conversation shows it the moment it was sent; the
         // session runs it when its turn comes and never writes it again.
-        const written = await Store.saveMessageWithParts(message, taskId);
+        const written = await Store.saveMessageWithParts(message, chatId);
         if (written.isErr()) {
           throw toORPCError(written.error, errors);
         }
         context.workspaceRef.send({
           type: "addMessage",
           value: {
-            agentName: agentNameForTask(taskId),
             id,
             message,
             model,
@@ -220,8 +209,8 @@ const create = base
         });
 
         // A settings write, which the record change feed reports: what moves
-        // the task in the list.
-        await recordTaskActivity(taskId);
+        // the chat in the list.
+        await recordChatActivity(chatId);
 
         return { sessionId: message.metadata.sessionId };
       }),
@@ -231,7 +220,7 @@ const live = {
   list: base
     .input(
       z.object({
-        id: TaskIdSchema,
+        id: ChatIdSchema,
         sessionId: StoreId.SessionSchema,
       }),
     )
@@ -246,7 +235,7 @@ const live = {
 
       try {
         const initial = await Store.getMessagesWithParts(
-          { sessionId: input.sessionId, taskId: input.id },
+          { sessionId: input.sessionId, chatId: input.id },
           { signal },
         );
         if (initial.isErr()) {
@@ -269,7 +258,7 @@ const live = {
             const messageIds = [...batch.updated];
             const readUpdated = () =>
               Store.getMessagesWithParts(
-                { messageIds, sessionId: input.sessionId, taskId: input.id },
+                { messageIds, sessionId: input.sessionId, chatId: input.id },
                 { signal },
               );
 
@@ -302,7 +291,7 @@ const live = {
               }
             } else {
               const reload = await Store.getMessagesWithParts(
-                { sessionId: input.sessionId, taskId: input.id },
+                { sessionId: input.sessionId, chatId: input.id },
                 { signal },
               );
               if (reload.isErr()) {

@@ -10,7 +10,7 @@ import { TaskPage } from "@/client/components/window/task-page";
 import {
   type ChildTask,
   type ChatId,
-  type TaskId,
+  type StoreId,
 } from "@instrument-org/workspace/client";
 import { useRouter } from "@tanstack/react-router";
 
@@ -33,7 +33,7 @@ export function ChatTasksScreen({ chat }: { chat: ChatId }) {
   useOnScreen(
     children.data ? { screen: "tasks", tasks: own.map(describe) } : null,
   );
-  const open = (id: TaskId) => {
+  const open = (id: StoreId.Session) => {
     router.history.push(taskHref(id, chat));
   };
   if (!children.data) {
@@ -53,6 +53,7 @@ export function ChatTasksScreen({ chat }: { chat: ChatId }) {
   }));
   return (
     <ChatTaskList
+      chat={chat}
       items={items}
       onOpen={open}
       onOpenInNewTab={(id) => {
@@ -62,17 +63,26 @@ export function ChatTasksScreen({ chat }: { chat: ChatId }) {
   );
 }
 
-/** One task's page as a screen: its own chat, told to the conversation as the task and where it stands. */
-export function TaskScreen({ taskId }: { taskId: TaskId }) {
-  const child = useChildTask(taskId);
+/** One task's page as a screen, told to the conversation as the task and where it stands. */
+export function TaskScreen({
+  chat,
+  sessionId,
+}: {
+  chat: ChatId;
+  sessionId: StoreId.Session;
+}) {
+  const child = useChildTask(chat, sessionId);
   useOnScreen(child ? { screen: "task", task: describe(child) } : null);
-  return <TaskPage taskId={taskId} />;
+  return <TaskPage chat={chat} sessionId={sessionId} />;
 }
 
-/** A task as the conversation is told it: what it is called and where it stands. */
+/**
+ * A task as the conversation is told it: by the handle its `task` command
+ * takes, what it is called, and where it stands.
+ */
 function describe(child: Child) {
   return {
-    id: child.id,
+    id: child.handle,
     status:
       child.standing.kind === "running"
         ? ("working" as const)

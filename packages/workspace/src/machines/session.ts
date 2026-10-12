@@ -15,17 +15,20 @@ import {
 
 import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
+import { callsItOff, MID_TURN_NOTE } from "../lib/chat/mid-turn";
 import { createSession } from "../lib/create-session";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
+import { chatConversation } from "../lib/chat/children";
 import { recordChanged } from "../lib/record-changes";
 import { Store } from "../lib/store";
+import { isTypedByUser } from "../lib/typed-by-user";
 import { interruptWaits } from "../lib/wait-interrupts";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
-import { type SessionTag } from "../schemas/task-agent-status";
-import { type TaskId } from "../schemas/task-id";
+import { type SessionTag } from "../schemas/chat-agent-status";
+import { type ChatId } from "../schemas/chat-id";
 import {
   agentMachine,
   type AgentMachineActorRef,
@@ -39,7 +42,7 @@ export type SessionMachineParentEvent = {
   value: {
     actorId: string;
     error?: unknown;
-    taskId: TaskId;
+    chatId: ChatId;
     usedNonReadOnlyTools: boolean;
   };
 };
@@ -69,17 +72,6 @@ type SessionMachineEvent =
       value: ToolCallUpdate;
     };
 
-/**
- * Whether a message is the user's own words rather than a note the harness
- * wrote for the agent: a task finishing, an app changing. Only the user's own
- * words supersede a reply in flight.
- */
-function isTypedByUser(message: SessionMessage.UserWithParts) {
-  return !message.parts.some(
-    (part) => part.type === "data-taskEvent" || part.type === "data-appEvent",
-  );
-}
-
 export const sessionMachine = setup({
   actions: {
     assignEventError: createAssignEventError(),
@@ -106,7 +98,7 @@ export const sessionMachine = setup({
             parentMessageId,
             parentRef: self,
             sessionId: context.sessionId,
-            taskId: context.taskId,
+            chatId: context.chatId,
           },
         }),
     }),
@@ -130,9 +122,9 @@ export const sessionMachine = setup({
     // the session is empty, which leaves the agent nothing to answer.
     getLastMessageId: fromPromise<
       StoreId.Message | undefined,
-      { sessionId: StoreId.Session; taskId: TaskId }
+      { sessionId: StoreId.Session; chatId: ChatId }
     >(async ({ input, signal }) => {
-      const result = await Store.getMessageIds(input.sessionId, input.taskId, {
+      const result = await Store.getMessageIds(input.sessionId, input.chatId, {
         signal,
       });
       if (result.isErr()) {
@@ -148,7 +140,7 @@ export const sessionMachine = setup({
         message: SessionMessage.UserWithParts;
         saved: boolean;
         sessionId: StoreId.Session;
-        taskId: TaskId;
+        chatId: ChatId;
       }
     >(async ({ input, signal }) => {
       const hasMismatchedSessionId = input.message.parts.some(
@@ -164,7 +156,7 @@ export const sessionMachine = setup({
       }
       const result = await Store.saveMessageWithParts(
         input.message,
-        input.taskId,
+        input.chatId,
         { signal },
       );
       if (result.isErr()) {
@@ -177,10 +169,10 @@ export const sessionMachine = setup({
       void,
       {
         sessionId: StoreId.Session;
-        taskId: TaskId;
+        chatId: ChatId;
       }
-    >(async ({ input: { sessionId, taskId }, signal }) => {
-      const existingSession = await Store.getSession(sessionId, taskId, {
+    >(async ({ input: { sessionId, chatId }, signal }) => {
+      const existingSession = await Store.getSession(sessionId, chatId, {
         signal,
       });
       if (existingSession.isErr()) {
@@ -188,7 +180,7 @@ export const sessionMachine = setup({
           const result = await createSession({
             sessionId,
             signal,
-            taskId,
+            chatId,
           });
           if (result.isErr()) {
             throw new Error(
@@ -207,7 +199,7 @@ export const sessionMachine = setup({
             ...existingSession.value,
             updatedAt: new Date(),
           },
-          taskId,
+          chatId,
           { signal },
         );
         if (result.isErr()) {
@@ -236,7 +228,7 @@ export const sessionMachine = setup({
       savedMessageIds: StoreId.Message[];
       sessionId: StoreId.Session;
       subscription?: { unsubscribe: () => void };
-      taskId: TaskId;
+      chatId: ChatId;
       usedNonReadOnlyTools: boolean;
     },
     events: {} as SessionMachineEvent,
@@ -252,7 +244,7 @@ export const sessionMachine = setup({
       /** Those of `queuedMessages` the sender wrote to the store on arrival. */
       savedMessageIds?: StoreId.Message[];
       sessionId: StoreId.Session;
-      taskId: TaskId;
+      chatId: ChatId;
     },
     tags: {} as SessionTag,
   },
@@ -264,12 +256,12 @@ export const sessionMachine = setup({
       const currentTags = alphabetical([...snapshot.tags], (tag) => tag);
 
       if (!isEqual(currentTags, previousTags)) {
-        recordChanged(input.taskId, "agent");
+        recordChanged(input.chatId, "agent");
         previousTags = currentTags;
       }
     });
 
-    recordChanged(input.taskId, "agent");
+    recordChanged(input.chatId, "agent");
 
     return {
       agent: input.agent,
@@ -283,7 +275,7 @@ export const sessionMachine = setup({
       savedMessageIds: input.savedMessageIds ?? [],
       sessionId: input.sessionId,
       subscription,
-      taskId: input.taskId,
+      chatId: input.chatId,
       usedNonReadOnlyTools: false,
     };
   },
@@ -318,29 +310,45 @@ export const sessionMachine = setup({
         // A running agent hears it at its next point between steps and then
         // says so, which is what takes it back out of the queue. Until then it
         // stays queued, so a turn that ends first runs it as a turn of its own.
-        // The conversation's own agent is superseded instead: a message the
-        // user typed while it was composing stops the turn, and the queue runs
-        // the message as a turn of its own, over everything said so far. A
-        // note from a task or an app steers, since the reply in flight is
-        // still the reply to what the user said. A sender that asks to
+        // A message the user typed into a chat's working turn joins it the
+        // same way, with a note that it arrived mid-turn, and the turn decides
+        // what it is (lib/chat/mid-turn.ts). It supersedes the turn instead
+        // when it calls the work off, or when the turn is waiting on the user
+        // to answer a question, which typing answers. A sender that asks to
         // interrupt supersedes any agent's step the same way.
         enqueueActions(({ context, enqueue, event }) => {
           const agentRef = context.agentRef;
           if (agentRef?.getSnapshot().status !== "active") {
             return;
           }
+          const typedIntoChat =
+            chatConversation(context.chatId, context.sessionId) !== undefined &&
+            isTypedByUser(event.value);
           if (
             event.interrupt ||
-            (context.agent.name === "instrument" && isTypedByUser(event.value))
+            (typedIntoChat &&
+              (callsItOff(event.value) ||
+                agentRef.getSnapshot().matches("WaitingForPendingToolCalls")))
           ) {
             enqueue.raise({ reason: "superseded", type: "stop" });
             return;
           }
-          agentRef.send({
-            saved: event.saved,
-            type: "steer",
-            value: event.value,
-          });
+          let message = event.value;
+          let saved = event.saved;
+          if (typedIntoChat) {
+            message = withNote(message, MID_TURN_NOTE);
+            // Written again with the note, if the sender wrote it already.
+            saved = false;
+            enqueue.assign({
+              queuedMessages: context.queuedMessages.map((queued) =>
+                queued.id === message.id ? message : queued,
+              ),
+              savedMessageIds: context.savedMessageIds.filter(
+                (id) => id !== message.id,
+              ),
+            });
+          }
+          agentRef.send({ saved, type: "steer", value: message });
           // The next step may be minutes away inside a wait; end it.
           interruptWaits(context.sessionId);
         }),
@@ -400,16 +408,14 @@ export const sessionMachine = setup({
             guard: "isAgentRefActive",
             target: ".Stopping",
           },
-          {
-            target: ".AgentDone",
-          },
+          { target: ".AgentDone" },
         ],
       },
 
       // A message that arrived while the agent ran is waiting in the queue, and
       // a turn that ends by finalizing the session would drop it. The queue
       // decides whether this is the end: empty, it is.
-      onDone: "ProcessingQueuedMessages",
+      onDone: { target: "ProcessingQueuedMessages" },
 
       states: {
         AgentDone: { type: "final" },
@@ -498,17 +504,17 @@ export const sessionMachine = setup({
         }
 
         publisher.publish("session.done", {
-          id: context.taskId,
+          id: context.chatId,
           sessionId: context.sessionId,
         });
-        recordChanged(context.taskId, "agent");
+        recordChanged(context.chatId, "agent");
 
         context.parentRef.send({
           type: "session.done",
           value: {
             actorId: self.id,
             error: context.error,
-            taskId: context.taskId,
+            chatId: context.chatId,
             usedNonReadOnlyTools: context.usedNonReadOnlyTools,
           },
         });
@@ -543,7 +549,7 @@ export const sessionMachine = setup({
             message,
             saved: context.savedMessageIds.includes(message.id),
             sessionId: context.sessionId,
-            taskId: context.taskId,
+            chatId: context.chatId,
           };
         },
         onDone: {
@@ -577,7 +583,7 @@ export const sessionMachine = setup({
       invoke: {
         input: ({ context }) => ({
           sessionId: context.sessionId,
-          taskId: context.taskId,
+          chatId: context.chatId,
         }),
         onDone: [
           {
@@ -609,7 +615,7 @@ export const sessionMachine = setup({
       invoke: {
         input: ({ context }) => ({
           sessionId: context.sessionId,
-          taskId: context.taskId,
+          chatId: context.chatId,
         }),
         onDone: {
           target: "ProcessingQueuedMessages",
@@ -626,3 +632,41 @@ export const sessionMachine = setup({
 });
 
 export type SessionActorRef = ActorRefFrom<typeof sessionMachine>;
+
+/**
+ * A message with a note for the agent beside the user's words, as an intent
+ * part, which the transcript shows only to developers. Added to one the
+ * message already has rather than beside it, since a turn reads one.
+ */
+function withNote(
+  message: SessionMessage.UserWithParts,
+  note: string,
+): SessionMessage.UserWithParts {
+  const existing = message.parts.find((part) => part.type === "data-intent");
+  if (existing?.type === "data-intent") {
+    return {
+      ...message,
+      parts: message.parts.map((part) =>
+        part === existing
+          ? { ...existing, data: { text: `${existing.data.text}\n\n${note}` } }
+          : part,
+      ),
+    };
+  }
+  return {
+    ...message,
+    parts: [
+      ...message.parts,
+      {
+        data: { text: note },
+        metadata: {
+          createdAt: message.metadata.createdAt,
+          id: StoreId.newPartId(),
+          messageId: message.id,
+          sessionId: message.metadata.sessionId,
+        },
+        type: "data-intent",
+      },
+    ],
+  };
+}

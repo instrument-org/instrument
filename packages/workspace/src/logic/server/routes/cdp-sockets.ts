@@ -3,15 +3,16 @@ import { type IncomingMessage } from "node:http";
 import { type Duplex } from "node:stream";
 import { WebSocketServer } from "ws";
 
-import { TaskIdSchema } from "../../../schemas/task-id";
+import { StoreId } from "../../../schemas/store-id";
+import { ChatIdSchema } from "../../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../../types";
 import { parseCdpBridgePath } from "../cdp-bridge-path";
 import { type WorkspaceServerParentRef } from "../types";
 import { handleTaskCdpClient } from "./cdp-task-bridge";
 
 /**
- * Routes an agent's CDP connection by its path to the browser of the task it
- * names: the tabs that task holds. Every path carries the launch's bridge
+ * Routes an agent's CDP connection by its path to the browser of the session
+ * it names: the tabs that session holds. Every path carries the launch's bridge
  * secret (`cdp-bridge-path.ts`), and an upgrade carrying an
  * `Origin` header is refused whatever its path: browsers always send one on a
  * WebSocket, and agent-browser's client never does, so the header marks a web
@@ -34,13 +35,19 @@ export function setupCdpWebSocketBridge(
       return;
     }
 
-    const taskId = TaskIdSchema.safeParse(target.taskId);
-    if (!taskId.success) {
+    const chatId = ChatIdSchema.safeParse(target.chatId);
+    const sessionId = StoreId.SessionSchema.safeParse(target.sessionId);
+    if (!chatId.success || !sessionId.success) {
       socket.destroy();
       return;
     }
     wss.handleUpgrade(req, socket, head, (clientWs) => {
-      handleTaskCdpClient(clientWs, taskId.data, workspaceConfig, workspaceRef);
+      handleTaskCdpClient(
+        clientWs,
+        { sessionId: sessionId.data, chatId: chatId.data },
+        workspaceConfig,
+        workspaceRef,
+      );
     });
   });
 }

@@ -2,15 +2,15 @@ import { noop } from "radashi";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type AnyActorRef, createActor, fromPromise, waitFor } from "xstate";
 
-import { mainAgent } from "../agents/main";
+import { instrumentAgent } from "../agents/instrument";
 import { isToolPart } from "../lib/is-tool-part";
 import { Store } from "../lib/store";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { agentMachine } from "./agent";
 import { executeToolCallMachine } from "./execute-tool-call";
 
@@ -18,7 +18,7 @@ vi.mock(import("../lib/session-store-storage"));
 
 describe("agentMachine", () => {
   const model = createMockAIGatewayModel();
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("test"), { model });
+  const chatId = createMockChatConfig(ChatIdSchema.parse("test"), { model });
   const sessionId = StoreId.newSessionId();
   const messageId = StoreId.newMessageId();
   const createdAt = new Date("2025-01-01T00:00:00.000Z");
@@ -79,7 +79,7 @@ describe("agentMachine", () => {
       }),
       {
         input: {
-          agent: mainAgent,
+          agent: instrumentAgent,
           baseLLMRetryDelayMs: 1,
           llmRequestChunkTimeoutMs: 120_000,
           maxStepCount: 1,
@@ -87,7 +87,7 @@ describe("agentMachine", () => {
           parentMessageId: messageId,
           parentRef: { send: noop } as unknown as AnyActorRef,
           sessionId,
-          taskId,
+          chatId,
         },
       },
     );
@@ -106,13 +106,13 @@ describe("agentMachine", () => {
     sessionId: StoreId.Session;
   }) {
     return {
-      agent: mainAgent,
+      agent: instrumentAgent,
       baseLLMRetryDelayMs: 1,
       llmRequestChunkTimeoutMs: 120_000,
       maxStepCount: 1,
       model,
       parentRef: { send: noop } as unknown as AnyActorRef,
-      taskId,
+      chatId,
       ...ids,
     };
   }
@@ -182,7 +182,7 @@ describe("agentMachine", () => {
   async function readToolParts(runSessionId: StoreId.Session) {
     const messagesResult = await Store.getMessagesWithParts({
       sessionId: runSessionId,
-      taskId,
+      chatId,
     });
     return messagesResult
       ._unsafeUnwrap()
@@ -354,7 +354,7 @@ describe("agentMachine", () => {
           llmRequestLogic: fromPromise(async () => {
             const savedResult = await Store.saveMessageWithParts(
               { ...runMessage, parts: queuedParts },
-              taskId,
+              chatId,
             );
             savedResult._unsafeUnwrap();
             return { message: runMessage, parts: queuedParts };
@@ -432,7 +432,7 @@ describe("agentMachine", () => {
           llmRequestLogic: fromPromise(async () => {
             const savedResult = await Store.saveMessageWithParts(
               { ...runMessage, parts: queuedParts },
-              taskId,
+              chatId,
             );
             savedResult._unsafeUnwrap();
             return { message: runMessage, parts: queuedParts };
@@ -508,7 +508,7 @@ describe("agentMachine", () => {
           llmRequestLogic: fromPromise(async () => {
             const savedResult = await Store.saveMessageWithParts(
               { ...runMessage, parts: savedParts },
-              taskId,
+              chatId,
             );
             savedResult._unsafeUnwrap();
             resolveSaved();
@@ -582,7 +582,7 @@ describe("agentMachine", () => {
           llmRequestLogic: fromPromise(async () => {
             const runResult = await Store.saveMessageWithParts(
               { ...runMessage, parts: runParts },
-              taskId,
+              chatId,
             );
             runResult._unsafeUnwrap();
             return { message: runMessage, parts: runParts };
@@ -651,12 +651,12 @@ describe("agentMachine", () => {
           llmRequestLogic: fromPromise(async () => {
             const earlierResult = await Store.saveMessageWithParts(
               { ...earlierMessage, parts: earlierParts },
-              taskId,
+              chatId,
             );
             earlierResult._unsafeUnwrap();
             const runResult = await Store.saveMessageWithParts(
               { ...runMessage, parts: runParts },
-              taskId,
+              chatId,
             );
             runResult._unsafeUnwrap();
             return { message: runMessage, parts: runParts };

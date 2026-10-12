@@ -50,7 +50,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { useFileActionVisibility } from "../hooks/use-file-action-visibility";
 import { useFileDrag } from "../hooks/use-file-drag";
@@ -351,7 +351,7 @@ const VIEWERS = {
     hasToolbar: true,
     render: ({ fallback, file }) => (
       <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
-        <LazyArchiveViewer url={file.url} />
+        <LazyArchiveViewer file={file} />
       </ViewerSurface>
     ),
     scrolls: "self",

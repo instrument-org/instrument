@@ -2,8 +2,8 @@ import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import {
   type SessionMessageDataPart,
-  TASK_FOLDER_NAMES,
-  type TaskId,
+  CHAT_FOLDER_NAMES,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 
 import { FilesGrid } from "./files-grid";
@@ -18,16 +18,16 @@ const LEGACY_ATTACHMENT_DIR_PREFIXES = ["user-provided/", "agent-retrieved/"];
 
 interface FileAttachmentsCardProps {
   files: SessionMessageDataPart.FileAttachmentDataPart[];
-  taskId: TaskId;
+  chatId: ChatId;
 }
 
-export function AttachmentsCard({ files, taskId }: FileAttachmentsCardProps) {
+export function AttachmentsCard({ files, chatId }: FileAttachmentsCardProps) {
   const attachments = files.map((file) => ({
     ...file,
     filePath: normalizeAttachmentFilePath(file.filePath),
   }));
   const hostPaths = useHostPaths(
-    taskId,
+    chatId,
     attachments.map((file) => file.filePath),
   );
   const fileItems = attachments.flatMap((file) => {
@@ -41,7 +41,7 @@ export function AttachmentsCard({ files, taskId }: FileAttachmentsCardProps) {
         hostPath,
         mimeType: file.mimeType,
         modifiedAt: file.modifiedAt,
-        taskFile: { filePath: file.filePath, taskId },
+        taskFile: { filePath: file.filePath, chatId },
         url: getComputerFileUrl({ hostPath, version: file.modifiedAt }),
       },
     ];
@@ -59,6 +59,6 @@ function normalizeAttachmentFilePath(filePath: string): string {
     bare.startsWith(prefix),
   );
   return legacyPrefix
-    ? `${TASK_FOLDER_NAMES.attachments}/${bare.slice(legacyPrefix.length)}`
+    ? `${CHAT_FOLDER_NAMES.attachments}/${bare.slice(legacyPrefix.length)}`
     : bare;
 }

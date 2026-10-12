@@ -1,4 +1,3 @@
-import { useTabSurface } from "@/client/hooks/use-tab-surface";
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import {
   APPS_HREF,
@@ -577,24 +576,6 @@ export function ComposeWindow({
   const openNewTab = () => {
     windowTabs.openScreen(NEW_TAB_HREF, { group, select: true });
   };
-  // Cmd+T in the window opens a tab in the draft: the browser while its lone
-  // new tab is the band's face, since another would only stand beside it,
-  // and a new tab once the strip is up. Cmd+W in the band closes the tab up.
-  const surfaceRef = useRef<HTMLDivElement>(null);
-  const bandRef = useRef<HTMLDivElement>(null);
-  useTabSurface({
-    anchor: surfaceRef,
-    closeTabUp: () => {
-      if (!showsStrip || !up) {
-        return false;
-      }
-      closeTab(up.id);
-      return true;
-    },
-    openTab: showsStrip ? openNewTab : openBrowser,
-    tabIds: tabs.map((tab) => tab.id),
-    tabsAnchor: bandRef,
-  });
 
   const content = (() => {
     if (isEmpty) {
@@ -631,7 +612,6 @@ export function ComposeWindow({
     // slides to its new place along the foot when a neighbor goes, and its
     // page is placed again as it moves (see the host's `place`).
     <motion.div
-      ref={surfaceRef}
       animate={{ opacity: 1, right: isExpanded ? 0 : right, y: 0 }}
       className={cn(
         // An opaque edge, and the shadow ramp without its own hairline: these
@@ -767,6 +747,7 @@ export function ComposeWindow({
                     <MinusIcon className="size-4" />
                   </WindowButton>
                   <WindowButton
+                    keepsFocus
                     label={isExpanded ? "Shrink" : "Expand"}
                     onClick={() => {
                       onPlacementChange(isExpanded ? "docked" : "expanded");
@@ -883,7 +864,6 @@ export function ComposeWindow({
               {/* The band: the draft's own pane, on a gray floor with nothing
                   between it and the words but the color. */}
               <div
-                ref={bandRef}
                 className={cn(
                   "mx-2 flex flex-col overflow-hidden rounded-t-xl bg-gray-200 dark:bg-gray-900",
                   wordsFill ? "shrink-0" : "min-h-80 flex-1",
@@ -924,13 +904,19 @@ export function ComposeWindow({
   );
 }
 
-/** One of a window's own buttons: discard, minimize, expand, close. */
+/**
+ * One of a window's own buttons: discard, minimize, expand, close. One that
+ * `keepsFocus` takes no focus when pressed, so the caret stays in the words
+ * while the window changes around them.
+ */
 export function WindowButton({
   children,
+  keepsFocus = false,
   label,
   onClick,
 }: {
   children: ReactNode;
+  keepsFocus?: boolean;
   label: string;
   onClick: () => void;
 }) {
@@ -940,6 +926,13 @@ export function WindowButton({
         aria-label={label}
         className="size-7 text-muted-foreground hover:text-foreground"
         onClick={onClick}
+        onMouseDown={
+          keepsFocus
+            ? (event) => {
+                event.preventDefault();
+              }
+            : undefined
+        }
         size="icon-sm"
         variant="ghost"
       >

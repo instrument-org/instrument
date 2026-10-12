@@ -160,8 +160,8 @@ export async function withMcpClient<T>({
       reason: "connect",
     });
   }
-  // Same guard the api path runs, so a manifest cannot reach the workspace
-  // server or send a credential over plain http by choosing the mcp type.
+  // Same guard the api path runs, so a manifest cannot send a credential over
+  // plain http by choosing the mcp type.
   const unsafe = await checkAppUrl(url);
   if (unsafe !== null) {
     return err({ message: unsafe, reason: "connect" });

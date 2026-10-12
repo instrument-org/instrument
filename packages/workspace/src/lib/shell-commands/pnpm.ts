@@ -7,7 +7,7 @@ import {
 import { dedent } from "radashi";
 
 import { MOUNT } from "../../mount-points";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
@@ -73,16 +73,16 @@ const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
   "update",
 ]);
 
-export function createNpxCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createNpxCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
   return createDlxAliasCommand(
     NPX_COMMAND.name,
-    taskId,
+    chatId,
     layout,
     stripNpxCompatibilityFlags,
   );
 }
 
-export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
   return defineCommand(PNPM_COMMAND.name, async (args, ctx) => {
     const subcommand = args[0];
 
@@ -117,7 +117,7 @@ export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
           stdout: "",
         };
       }
-      const { env: execEnv, taskCwd } = resolveCommandContext(taskId, ctx);
+      const { env: execEnv, taskCwd } = resolveCommandContext(chatId, ctx);
       const execResult = await runPnpmCommand({
         layout,
         args: ["exec", ...args.slice(1)],
@@ -125,7 +125,7 @@ export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
         env: execEnv,
         signal: ctx.signal,
         stdin: subprocessStdin(ctx.stdin),
-        taskId,
+        chatId,
       });
       return {
         exitCode: execResult.exitCode,
@@ -171,7 +171,7 @@ export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
 
     // Map the virtual cwd to its real host dir via the shared bridge so pnpm
     // runs in the right place regardless of where the task is mounted.
-    const { taskCwd: cwd } = resolveCommandContext(taskId, ctx);
+    const { taskCwd: cwd } = resolveCommandContext(chatId, ctx);
 
     // The manifest is at the task root, which is also where the agent starts,
     // so reaching this means it ran the command from somewhere else. Fail fast
@@ -201,7 +201,7 @@ export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
         cwd,
         env,
         signal: ctx.signal,
-        taskId,
+        chatId,
       });
       if (installResult.exitCode !== 0) {
         installOutput = `[auto-install failed]\n${installResult.stdout}${installResult.stderr}\n\n`;
@@ -214,7 +214,7 @@ export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
       env,
       signal: ctx.signal,
       stdin: subprocessStdin(ctx.stdin),
-      taskId,
+      chatId,
     });
 
     let globalNote = "";
@@ -237,17 +237,17 @@ export function createPnpmCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
   });
 }
 
-export function createPnpxCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
-  return createDlxAliasCommand(PNPX_COMMAND.name, taskId, layout);
+export function createPnpxCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
+  return createDlxAliasCommand(PNPX_COMMAND.name, chatId, layout);
 }
 
-export function createPnxCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
-  return createDlxAliasCommand(PNX_COMMAND.name, taskId, layout);
+export function createPnxCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
+  return createDlxAliasCommand(PNX_COMMAND.name, chatId, layout);
 }
 
 function createDlxAliasCommand(
   name: string,
-  taskId: TaskId,
+  chatId: ChatId,
   layout: WorkspaceFsLayout,
   normalizeArgs = (args: string[]) => args,
 ) {
@@ -258,7 +258,7 @@ function createDlxAliasCommand(
       return aliasResult;
     }
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const result = await runPnpmCommand({
       layout,
       args: ["dlx", ...normalizedArgs],
@@ -267,7 +267,7 @@ function createDlxAliasCommand(
       pnpmLogLevel: "error",
       signal: ctx.signal,
       stdin: subprocessStdin(ctx.stdin),
-      taskId,
+      chatId,
     });
 
     return {

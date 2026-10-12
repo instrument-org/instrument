@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import superjson from "superjson";
 
 /**
- * The table a record's `task.db` keeps every row in, keyed by `StorageKey`.
+ * The table a chat's `chat.db` keeps every row in, keyed by `StorageKey`.
  * The store reaches it through unstorage's db0 driver, which makes it on
  * first use with `STORE_TABLE_SCHEMA`.
  */

@@ -5,7 +5,7 @@ import { type RecordChanged } from "../lib/record-changes";
 import { type WorkspaceSnapshot } from "../machines/workspace";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import {
   type WindowTabAnswer,
   type WindowTabRequest,
@@ -20,6 +20,8 @@ export const publisher = new EventPublisher<{
    * with it.
    */
   "app.event": {
+    /** The account the app is signed in as, when it is named. */
+    account?: string;
     detail?: string;
     event: AppEvent;
     name: string;
@@ -33,22 +35,22 @@ export const publisher = new EventPublisher<{
    */
   "app.updated": null;
   /**
-   * A background process in this task appeared, ended, or was removed. Carries
+   * A background process in this chat appeared, ended, or was removed. Carries
    * no detail because every listener re-reads the list, and deliberately not
    * published per chunk of output: what a viewer needs is whether the process
    * is still there, not what it just printed.
    */
   "backgroundProcesses.changed": {
-    id: TaskId;
+    id: ChatId;
   };
   /**
-   * The agent sent a command to this task's browser. One per command rather
+   * The agent sent a command to this chat's browser. One per command rather
    * than a start/stop pair: the agent's browser work arrives as separate tool
    * calls seconds apart, so where one stretch of it ends is a question for
    * whoever is displaying it, not one this can answer.
    */
   "browser.agentActivity": {
-    id: TaskId;
+    id: ChatId;
     /** The guest the command went to: a task's own, or a tab of the window's it was handed. */
     targetId: BrowserTargetId;
   };
@@ -58,33 +60,33 @@ export const publisher = new EventPublisher<{
    */
   "memory.changed": null;
   "message.removed": {
-    id: TaskId;
+    id: ChatId;
     messageId: StoreId.Message;
     sessionId: StoreId.Session;
   };
   "message.updated": {
-    id: TaskId;
+    id: ChatId;
     messageId: StoreId.Message;
     sessionId: StoreId.Session;
   };
   "part.updated": {
-    id: TaskId;
+    id: ChatId;
     part: SessionMessagePart.Type;
   };
   /**
    * Something about one record moved: its transcript, its sessions, its
    * settings or state, its agent, or the record itself is gone. Published
    * where the change is made (the store's write layer, the record writer,
-   * the session actor, the hold registry), so a view that re-reads on it
+   * the session actor), so a view that re-reads on it
    * hears every change without keeping a list of events. Read through
    * `recordChanges` in `lib/record-changes.ts`.
    */
   "record.changed": RecordChanged;
   "runtime.log.updated": {
-    id: TaskId;
+    id: ChatId;
   };
   "session.done": {
-    id: TaskId;
+    id: ChatId;
     sessionId: StoreId.Session;
   };
   /**
@@ -98,13 +100,13 @@ export const publisher = new EventPublisher<{
    * one forward. Each ask carries a request id, which the window's answer
    * comes back under.
    */
-  "window.tab": WindowTabRequest & { id: TaskId };
+  "window.tab": WindowTabRequest & { id: ChatId };
   /**
    * The window answering an ask: the tab it acted on or made, by the id the
    * conversation names it with and a task can be handed, or why it did
    * nothing.
    */
-  "window.tabDone": WindowTabAnswer & { id: TaskId };
+  "window.tabDone": WindowTabAnswer & { id: ChatId };
   "workspaceActor.snapshot": WorkspaceSnapshot;
 }>({
   // Per subscription, starting empty when it subscribes: what a subscriber

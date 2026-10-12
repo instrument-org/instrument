@@ -13,7 +13,7 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { PlugsIcon } from "@phosphor-icons/react/Plugs";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import {
   childrenOf,
@@ -867,7 +867,7 @@ function LinkValue({ url }: { url: string }) {
         void safe(rpcClient.utils.openExternalLink.call({ url })).then(
           ([error]) => {
             if (error) {
-              toast.error("Could not open that link");
+              toast.error("Couldn't open the link", { cause: error });
             }
           },
         );

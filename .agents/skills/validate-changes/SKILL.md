@@ -68,8 +68,9 @@ pnpm eval run --yes --prompt "<task for the agent>" --model cf:zai-org/glm-5.3-f
 ```
 
 - Runs from the repo root; no `cd` first.
-- `--prompt` runs a task agent; add `--chat` to send it through the chat
-  agent the user talks to, which starts tasks of its own.
+- `--prompt` runs the agent as a task of a chat the run makes for it; add
+  `--chat` to send it through the chat the user talks to, which does quick
+  work itself and hands the rest to tasks.
 - **`--model` is required, and there is no default set.** `pnpm eval models
 [pattern]` lists what the configured providers can run today, newest first,
   each row spelled the way `--model` takes it. Pick for the question you are
@@ -139,7 +140,7 @@ still hot reload: an edit landing mid-run resets the state you navigated to.
 
 Two things not to do, each of which costs someone else their session:
 
-- **`pnpm dev` or `pnpm dev:studio` with a `REMOTE_DEBUGGING_PORT` you picked.**
+- **`pnpm studio` or `pnpm dev` with a `REMOTE_DEBUGGING_PORT` you picked.**
   A hand-picked port is either already a window someone is using, and you will
   connect to their app and report confidently about the wrong code, or it is
   nobody's, and nothing can drive what you just started. Either way it is a
@@ -152,6 +153,6 @@ Two things not to do, each of which costs someone else their session:
 
 - `session-transcript` skill — render any task's session as markdown, including
   one from an exported `.zip`. This is also how you read a real user's run.
-- `task-database-query` skill — read-only SQL against a task's `task.db` when
+- `chat-database-query` skill — read-only SQL against a chat's `chat.db` when
   the transcript is not enough.
 - `find-ui-changes` skill — which recent commits changed user-visible surfaces.

@@ -1,7 +1,7 @@
 import { useRunningBackgroundProcess } from "@/client/hooks/use-task-background-processes";
 import {
   type SessionMessagePart,
-  type Task,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 
 import { ToolBash } from "./tool-bash";
@@ -31,14 +31,14 @@ export function ToolCall({
   isStreaming,
   onRetry,
   part,
-  task,
+  chatInfo,
 }: {
   isDeveloperMode: boolean;
   isRunning: boolean;
   isStreaming: boolean;
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
-  task: Task;
+  chatInfo: ChatInfo;
 }) {
   // Read for every call rather than only for bash, because a hook cannot sit
   // behind the visibility check below. One query key backs the whole transcript,
@@ -48,7 +48,8 @@ export function ToolCall({
       part.type === "tool-bash" && part.state === "output-available"
         ? part.output.processId
         : undefined,
-    taskId: task.id,
+    sessionId: part.metadata.sessionId,
+    chatId: chatInfo.id,
   });
 
   if (!isToolCallVisible({ isDeveloperMode, isRunning, part })) {
@@ -70,12 +71,12 @@ export function ToolCall({
       <ToolCallSummary
         isDeadDevMode={isDeadDevMode}
         part={part}
-        taskId={task.id}
+        chatId={chatInfo.id}
       >
         {isDeadDevMode ? (
           <DeadDevModeBody part={part} />
         ) : (
-          <ToolCallBody onRetry={onRetry} part={part} task={task} />
+          <ToolCallBody onRetry={onRetry} part={part} chatInfo={chatInfo} />
         )}
       </ToolCallSummary>
     </ToolCallSessionProvider>
@@ -107,11 +108,11 @@ function DeadDevModeBody({ part }: { part: SessionMessagePart.ToolPart }) {
 export function ToolCallBody({
   onRetry,
   part,
-  task,
+  chatInfo,
 }: {
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
-  task: Task;
+  chatInfo: ChatInfo;
 }) {
   if (part.state === "output-error") {
     return <ToolCallError part={part} />;
@@ -122,7 +123,7 @@ export function ToolCallBody({
       return <ToolBash part={part} />;
     }
     case "tool-choose": {
-      return <ToolChoose part={part} taskId={task.id} />;
+      return <ToolChoose part={part} chatId={chatInfo.id} />;
     }
     case "tool-connect_app": {
       return <ToolConnectApp part={part} />;
@@ -131,7 +132,9 @@ export function ToolCallBody({
       return <ToolEditFile part={part} />;
     }
     case "tool-generate_image": {
-      return <ToolGenerateImage id={task.id} onRetry={onRetry} part={part} />;
+      return (
+        <ToolGenerateImage id={chatInfo.id} onRetry={onRetry} part={part} />
+      );
     }
     case "tool-load_skill": {
       return <ToolLoadSkill part={part} />;
@@ -140,7 +143,7 @@ export function ToolCallBody({
       return <ToolReadFile part={part} />;
     }
     case "tool-request_folder": {
-      return <ToolRequestFolder part={part} taskId={task.id} />;
+      return <ToolRequestFolder part={part} chatId={chatInfo.id} />;
     }
     case "tool-unavailable": {
       return <ToolUnavailable part={part} />;

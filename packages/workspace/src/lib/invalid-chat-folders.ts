@@ -2,47 +2,38 @@ import { err, type Result, ResultAsync } from "neverthrow";
 import fs from "node:fs";
 import path from "node:path";
 
-import { TASKS_DIR_NAME } from "../constants";
-import { ChatIdSchema } from "../schemas/chat-id";
 import { AbsolutePathSchema } from "../schemas/paths";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { type WorkspaceConfig } from "../types";
 import { TypedError } from "./errors";
 import { chatReadProblem } from "./chat/chats";
-import {
-  hasReadableTaskSettings,
-  UNREADABLE_SETTINGS_REASON,
-} from "./invalid-task-folders";
+import { UNREADABLE_SETTINGS_REASON } from "./invalid-legacy-task-folders";
 import {
   chatsDir,
-  forgetRecord,
+  forgetChat,
   sessionOfChat,
   storedChatSession,
 } from "./record-folders";
 import { disposeSessionsStoreStorage } from "./session-store-storage";
 
 interface InvalidChatFolder {
-  /** A chat's own folder, or a task's inside one. */
-  kind: "chat" | "chat-task";
-  /** The folder's path under `chats/`. */
+  /** The folder's name under `chats/`. */
   name: string;
   reason: string;
 }
 
 const REASONS = {
   "no-session": "No chat session in its settings (.instrument/settings.json)",
-  "unreadable-messages": "Unreadable messages (.instrument/task.db)",
-  "unreadable-session": "Unreadable chat session (.instrument/task.db)",
+  "unreadable-messages": "Unreadable messages (.instrument/chat.db)",
+  "unreadable-session": "Unreadable chat session (.instrument/chat.db)",
   "unreadable-settings": UNREADABLE_SETTINGS_REASON,
 } as const;
 
 /**
  * Folders under `chats/` that the chat list leaves out: a chat whose folder
  * name is not a record id, whose settings name no session, or whose session
- * or messages cannot be read, and a task inside a chat whose folder name is
- * not a record id or whose settings are missing or unreadable. The lists skip
- * them without a trace, so they are surfaced here for Settings > Storage
- * instead of reported one by one.
+ * or messages cannot be read. The list skips them without a trace, so they
+ * are surfaced here for Settings > Storage instead of reported one by one.
  */
 export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
   const root = chatsDir();
@@ -51,7 +42,6 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
     const id = ChatIdSchema.safeParse(name);
     if (!id.success) {
       invalid.push({
-        kind: "chat",
         name,
         reason: id.error.issues[0]?.message ?? "Not a recognized chat folder",
       });
@@ -59,7 +49,7 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
     }
     const stored = storedChatSession(path.join(root, name));
     if ("problem" in stored) {
-      invalid.push({ kind: "chat", name, reason: REASONS[stored.problem] });
+      invalid.push({ name, reason: REASONS[stored.problem] });
       continue;
     }
     // The store is reached through the index, which knows the chat by this
@@ -67,24 +57,7 @@ export async function listInvalidChatFolders(): Promise<InvalidChatFolder[]> {
     if (sessionOfChat(id.data) === stored.sessionId) {
       const problem = await chatReadProblem(id.data, stored.sessionId);
       if (problem) {
-        invalid.push({ kind: "chat", name, reason: REASONS[problem] });
-        continue;
-      }
-    }
-    const tasksDir = path.join(root, name, TASKS_DIR_NAME);
-    for (const taskName of listDirs(tasksDir)) {
-      const taskId = TaskIdSchema.safeParse(taskName);
-      const reason = taskId.success
-        ? hasReadableTaskSettings(path.join(tasksDir, taskName))
-          ? undefined
-          : UNREADABLE_SETTINGS_REASON
-        : (taskId.error.issues[0]?.message ?? "Not a recognized task folder");
-      if (reason) {
-        invalid.push({
-          kind: "chat-task",
-          name: path.join(name, TASKS_DIR_NAME, taskName),
-          reason,
-        });
+        invalid.push({ name, reason: REASONS[problem] });
       }
     }
   }
@@ -107,11 +80,7 @@ export async function trashInvalidChatFolder(
       new TypedError.Parse(`Not a chat folder the app cannot read: ${name}`),
     );
   }
-  // A chat's own folder is named by its id; a task's inside one ends in its.
-  const isChatTask = name.includes(path.sep);
-  const recordId = TaskIdSchema.safeParse(
-    isChatTask ? path.basename(name) : name,
-  );
+  const recordId = ChatIdSchema.safeParse(name);
   return ResultAsync.fromPromise(
     (async () => {
       if (recordId.success) {
@@ -124,7 +93,7 @@ export async function trashInvalidChatFolder(
         AbsolutePathSchema.parse(path.join(chatsDir(), name)),
       );
       if (recordId.success) {
-        forgetRecord(recordId.data);
+        forgetChat(recordId.data);
       }
     })(),
     (error) =>

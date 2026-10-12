@@ -3,7 +3,7 @@ import { ClearBrowsingDataModal } from "@/client/components/studio-modals/clear-
 import { renderWithDefaultStore } from "@/tests/render";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { act } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { clearHistory, clearSiteData } = vi.hoisted(() => ({
@@ -11,7 +11,9 @@ const { clearHistory, clearSiteData } = vi.hoisted(() => ({
   clearSiteData: vi.fn(),
 }));
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("@/client/lib/toast", () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
@@ -44,7 +46,7 @@ async function open() {
   act(() => {
     openClearBrowsingData();
   });
-  await screen.findByText("From github.com and 1 more site.");
+  await screen.findByText("You visited github.com and 1 other site.");
 }
 
 const checkbox = (name: string) => screen.getByRole("checkbox", { name });
@@ -59,9 +61,9 @@ describe("ClearBrowsingDataModal", () => {
     await open();
 
     expect(
-      screen.getByText("From 2 sites. This signs you out of most of them."),
+      screen.getByText("You'll be signed out of most sites."),
     ).toBeTruthy();
-    expect(screen.getByText(/^Frees up 11 MB\./)).toBeTruthy();
+    expect(screen.getByText(/^Clearing it frees up 11 MB,/)).toBeTruthy();
     expect(checkbox("Browsing history").getAttribute("aria-checked")).toBe(
       "true",
     );

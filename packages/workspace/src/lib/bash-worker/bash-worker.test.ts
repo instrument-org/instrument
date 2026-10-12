@@ -9,16 +9,16 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { MOUNT } from "../../mount-points";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
-import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { createTsxBashWorker } from "../../test/helpers/tsx-bash-worker";
 import {
   type BashEnvOptions,
   type BashRunner,
   createLocalBashEnv,
 } from "../create-bash-env";
-import { placeTask } from "../record-folders";
+import { resolveChat, chatDir } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 import { withTurnContext } from "../turn-context";
@@ -29,8 +29,6 @@ import {
 } from "../workspace-skill-index";
 import { createRemoteBash, setBashWorkerFactory } from "./client";
 import { fromWireError, type FromWorker, toWireError } from "./protocol";
-import { type ChatId } from "../../schemas/chat-id";
-import { taskDir } from "../task-dir-utils";
 
 // The worker compiles from source under tsx, which takes seconds the first
 // time; the shared worker is warm for every test after the first.
@@ -38,15 +36,23 @@ const WORKER_TIMEOUT_MS = 60_000;
 
 const workers: Worker[] = [];
 let root: string;
-let taskId: TaskId;
+let chatId: ChatId;
 
 beforeAll(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "bash-worker-"));
-  const taskPath = path.join(root, "tasks", `01k${"worker".padEnd(23, "0")}`);
+  const taskPath = path.join(root, "chats", `01k${"worker".padEnd(23, "0")}`);
   await fs.mkdir(path.join(taskPath, "work"), { recursive: true });
-  taskId = createMockTaskConfigForDir(taskPath);
+  // Its settings name a session, so the chat is found again on disk after a
+  // test below reads the index afresh.
+  await fs.mkdir(path.join(taskPath, ".instrument"));
+  await fs.writeFile(
+    path.join(taskPath, ".instrument", "settings.json"),
+    JSON.stringify({ chatSessionId: StoreId.newSessionId() }),
+  );
+  chatId = createMockChatConfigForDir(taskPath);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
+    chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
   });
   setBashWorkerFactory((workerOptions) => {
@@ -96,7 +102,7 @@ function nextTreePid() {
 }
 
 function options(): BashEnvOptions {
-  return { sessionId: StoreId.newSessionId(), taskId };
+  return { sessionId: StoreId.newSessionId(), chatId };
 }
 
 /** Answers a script's `tools.*` with what it was called with, or refuses `tools.no.*`. */
@@ -154,7 +160,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
 
   it("credits a skill written from the shell to the turn that wrote it", async () => {
     const bashOptions = options();
-    const turn = { id: taskId, sessionId: bashOptions.sessionId };
+    const turn = { id: chatId, sessionId: bashOptions.sessionId };
     await beginSkillChangeTracking(turn);
     const skill = `${MOUNT.skills}/workspace/tracked`;
 
@@ -169,54 +175,53 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     });
   });
 
-  it("finds a task made inside a chat after the worker started", async () => {
-    const chatId = chatFor();
-    const chatTaskId = TaskIdSchema.parse(`01k${"chattask".padEnd(23, "0")}`);
-    const dir = placeTask(chatTaskId, chatId);
+  it("finds a chat made after the worker started", async () => {
+    const made = chatFor();
+    const dir = chatDir(made);
     await fs.mkdir(path.join(dir, "work"), { recursive: true });
     await fs.writeFile(path.join(dir, "work", "here.txt"), "inside the chat\n");
 
     const result = await remoteBash({
       sessionId: StoreId.newSessionId(),
-      taskId: chatTaskId,
+      chatId: made,
     }).exec("cat work/here.txt");
     expect(result.stdout).toBe("inside the chat\n");
   });
 
   it("runs in the record main resolved, without reading the index itself", async () => {
-    const chatId = chatFor();
-    const chatTaskId = TaskIdSchema.parse(`01k${"handedtask".padEnd(23, "0")}`);
-    const dir = placeTask(chatTaskId, chatId);
+    const made = chatFor();
+    const dir = chatDir(made);
     await fs.mkdir(path.join(dir, "work"), { recursive: true });
     await fs.writeFile(path.join(dir, "work", "here.txt"), "handed\n");
     // A scan of the disk now skips the chat, whose settings name no session;
-    // only main's index still knows where the task is.
-    await fs.rm(path.join(taskDir(chatId), ".instrument", "settings.json"));
+    // only main's index, read before they went, still knows where it is.
+    expect(resolveChat(made)).toBe(made);
+    await fs.rm(path.join(dir, ".instrument", "settings.json"));
 
     const result = await remoteBash({
       sessionId: StoreId.newSessionId(),
-      taskId: chatTaskId,
+      chatId: made,
     }).exec("cat work/here.txt");
     expect(result.stdout).toBe("handed\n");
   });
 
-  // A chat's tasks sit inside the chat's own folder, which mounts writable at
-  // /task. The chat reaches them at /tasks/<id>, read-only with their private
-  // dirs masked, and must not get around that through /task/tasks/<id>.
+  // A `tasks/` folder an earlier version left inside a chat's own folder,
+  // which mounts writable at /task: nothing of it is the chat's, and the chat
+  // must not reach it through /task/tasks/<id>.
   describe("a chat's tasks", () => {
-    const childId = TaskIdSchema.parse(`01k${"nestedchild".padEnd(23, "0")}`);
-    let chatId: ChatId;
+    const childId = ChatIdSchema.parse(`01k${"nestedchild".padEnd(23, "0")}`);
+    let nestedChat: ChatId;
     let childDir: string;
-    let chatDir: string;
+    let chatFolder: string;
     let chatBash: (command: string) => ReturnType<BashRunner["exec"]>;
 
     const childSettings = () =>
       fs.readFile(path.join(childDir, ".instrument", "settings.json"), "utf8");
 
     beforeAll(async () => {
-      chatId = chatFor();
-      childDir = placeTask(childId, chatId);
-      chatDir = path.dirname(path.dirname(childDir));
+      nestedChat = chatFor();
+      chatFolder = chatDir(nestedChat);
+      childDir = path.join(chatFolder, "tasks", childId);
       await fs.mkdir(path.join(childDir, ".instrument"), { recursive: true });
       await fs.writeFile(
         path.join(childDir, ".instrument", "settings.json"),
@@ -224,41 +229,19 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
       );
       await fs.mkdir(path.join(childDir, "output"), { recursive: true });
       await fs.writeFile(path.join(childDir, "output", "report.md"), "made\n");
-      await fs.mkdir(path.join(chatDir, "attachments"), { recursive: true });
-      await fs.mkdir(path.join(chatDir, "work"), { recursive: true });
+      await fs.mkdir(path.join(chatFolder, "attachments"), { recursive: true });
+      await fs.mkdir(path.join(chatFolder, "work"), { recursive: true });
       await fs.writeFile(
-        path.join(chatDir, "attachments", "replacement.json"),
+        path.join(chatFolder, "attachments", "replacement.json"),
         '{"private":"overwritten"}',
       );
       const bashOptions: BashEnvOptions = {
-        chat: {
-          // The mount `childTaskMounts` gives the chat for this task.
-          childMounts: [
-            {
-              hostRoot: AbsolutePathSchema.parse(childDir),
-              maskedEntries: [".instrument"],
-              mountPoint: `${MOUNT.tasks}/${childId}`,
-              readOnly: true,
-            },
-          ],
-          id: chatId,
-        },
+        chat: { id: nestedChat },
         sessionId: StoreId.newSessionId(),
-        taskId: chatId,
+        chatId: nestedChat,
       };
       const bash = remoteBash(bashOptions);
       chatBash = (command) => bash.exec(command);
-    });
-
-    it("reads a task through its read-only mount", async () => {
-      const result = await chatBash(
-        `cat ${MOUNT.tasks}/${childId}/output/report.md`,
-      );
-      expect(result).toMatchObject({ exitCode: 0, stdout: "made\n" });
-      const privateRead = await chatBash(
-        `cat ${MOUNT.tasks}/${childId}/.instrument/settings.json`,
-      );
-      expect(privateRead.exitCode).not.toBe(0);
     });
 
     it.each([
@@ -293,7 +276,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
         fs.stat(path.join(childDir, "output", "more")),
       ).rejects.toThrow();
       await expect(
-        fs.stat(path.join(chatDir, "attachments", "replacement.json")),
+        fs.stat(path.join(chatFolder, "attachments", "replacement.json")),
       ).resolves.toBeDefined();
     });
 
@@ -330,7 +313,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
       );
       expect(result.exitCode).not.toBe(0);
       await expect(
-        fs.stat(path.join(chatDir, "work", "copy")),
+        fs.stat(path.join(chatFolder, "work", "copy")),
       ).rejects.toThrow();
     });
 
@@ -393,7 +376,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
 
   it("ends a dead worker's process trees and starts a fresh worker", async () => {
     await fs.writeFile(
-      path.join(root, "tasks", taskId, "work", "idle.js"),
+      path.join(root, "chats", chatId, "work", "idle.js"),
       "setInterval(() => {}, 1000);\n",
     );
     const treePid = nextTreePid();

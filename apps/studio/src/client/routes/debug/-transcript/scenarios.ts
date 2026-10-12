@@ -1,4 +1,4 @@
-import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
+import { CHAT_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
 import {
   CHATGPT_ACCOUNT_MODEL,
@@ -7,7 +7,6 @@ import {
   folder,
   OUR_MODEL,
   platformFailure,
-  PROJECT_ID,
 } from "./parts";
 import {
   type Act,
@@ -1224,31 +1223,31 @@ done`,
           data: {
             files: [
               file({
-                filePath: `${TASK_FOLDER_NAMES.attachments}/hero.png`,
+                filePath: `${CHAT_FOLDER_NAMES.attachments}/hero.png`,
                 mimeType: "image/png",
                 size: 245_760,
               }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.attachments}/brief.md`,
+                filePath: `${CHAT_FOLDER_NAMES.attachments}/brief.md`,
                 mimeType: "text/markdown",
               }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.attachments}/data.csv`,
+                filePath: `${CHAT_FOLDER_NAMES.attachments}/data.csv`,
                 mimeType: "text/csv",
                 size: 4096,
               }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.attachments}/voice.mp3`,
+                filePath: `${CHAT_FOLDER_NAMES.attachments}/voice.mp3`,
                 mimeType: "audio/mpeg",
                 size: 512_000,
               }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.work}/summary.pdf`,
+                filePath: `${CHAT_FOLDER_NAMES.work}/summary.pdf`,
                 mimeType: "application/pdf",
                 size: 88_000,
               }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.work}/demo.mp4`,
+                filePath: `${CHAT_FOLDER_NAMES.work}/demo.mp4`,
                 mimeType: "video/mp4",
                 size: 1_024_000,
               }),
@@ -1260,13 +1259,13 @@ done`,
                 size: 2048,
               }),
               // The supporting sections.
-              file({ filePath: `${TASK_FOLDER_NAMES.work}/deploy.sh` }),
+              file({ filePath: `${CHAT_FOLDER_NAMES.work}/deploy.sh` }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.skills}/pdf/SKILL.md`,
+                filePath: `${CHAT_FOLDER_NAMES.skills}/pdf/SKILL.md`,
                 mimeType: "text/markdown",
               }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.work}/draft.json`,
+                filePath: `${CHAT_FOLDER_NAMES.work}/draft.json`,
                 mimeType: "application/json",
               }),
               file({ filePath: "docs/API.md", mimeType: "text/markdown" }),
@@ -1283,7 +1282,7 @@ done`,
       user("Folder rows sit above the compact file attachments.", {
         data: {
           files: [
-            file({ filePath: `${TASK_FOLDER_NAMES.attachments}/one-off.txt` }),
+            file({ filePath: `${CHAT_FOLDER_NAMES.attachments}/one-off.txt` }),
           ],
           folders: [
             folder({ access: "read-write", path: "/tmp/workspace/components" }),
@@ -1315,34 +1314,13 @@ done`,
           data: {
             files: [
               file({
-                filePath: `${TASK_FOLDER_NAMES.attachments}/brief.md`,
+                filePath: `${CHAT_FOLDER_NAMES.attachments}/brief.md`,
                 mimeType: "text/markdown",
                 size: 4096,
               }),
             ],
           },
           type: "data-attachments",
-        },
-        {
-          data: {
-            instructions: "Prefer Tailwind utilities.",
-            projectId: PROJECT_ID,
-            projectName: "Marketing Site",
-          },
-          type: "data-projectContext",
-        },
-        {
-          data: {
-            foldersAdded: [
-              { access: "read-only", name: "assets", path: "/tmp/assets" },
-            ],
-            foldersRemoved: [],
-            instructions: "Prefer Tailwind utilities. Keep copy concise.",
-            instructionsChanged: true,
-            projectId: PROJECT_ID,
-            projectName: "Marketing Site",
-          },
-          type: "data-projectChanges",
         },
         { data: { names: ["wireframe"] }, type: "data-skillMentions" },
         {
@@ -1368,9 +1346,6 @@ done`,
         },
         {
           data: {
-            accessChanged: [
-              { access: "read-only", name: "Photos", path: "/tmp/Photos" },
-            ],
             added: [
               { access: "read-write", name: "Exports", path: "/tmp/Exports" },
             ],
@@ -1383,7 +1358,7 @@ done`,
               },
             ],
           },
-          type: "data-attachedFolderChanges",
+          type: "data-folderChanges",
         },
       ),
       prose(

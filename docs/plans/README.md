@@ -43,6 +43,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [Edit a user message in place](active/edit-user-message-in-place.md) — rewind and rerun | proposed |
 | [Semantic prompt composer](active/semantic-prompt-composer.md) | landed for skills and apps |
 | [Render a file to look at it](active/render-a-file-to-look-at-it.md): letting a task look at what it made | proposed, nothing built |
+| [Chat status line and loading states](active/chat-status-line-and-loading-states.md): dots only while a reply is written, one activity line under the title | proposed |
 
 ### Files, folders, skills, and storage
 
@@ -106,6 +107,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [Split the orchestrator route component](completed/orchestrator-route-split.md) | landed |
 | [Rename threads to chats](completed/threads-to-chats-rename.md) | landed |
 | [Chats as folders that own their tasks](completed/chat-folders.md) | landed |
+| [One chat, one database](completed/one-chat-one-database.md): a chat is the only record; its database holds sessions as a tree, and a task is a child session that reads its history from the parent | landed |
 | [Chat list index](completed/chat-list-index.md): a workspace index the chat list reads from | stage A landed |
 | [Find chats and tasks from the omnibar](completed/chat-search-in-the-omnibar.md) | not built, superseded |
 | [App-level tabs](completed/app-level-tabs.md) | landed |

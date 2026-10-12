@@ -227,10 +227,10 @@ export async function loadWorkspaceFixture(
 
   const loadTask = async <T extends FixtureChatTask | FixtureTask>(
     task: T,
-    taskDir: string,
+    chatDir: string,
   ): Promise<LoadedTask<T>> => ({
-    files: await resolveTaskFiles({ dir: taskDir, task }),
-    session: await readFixtureSession(path.join(taskDir, SESSION_FILE_NAME)),
+    files: await resolveTaskFiles({ dir: chatDir, task }),
+    session: await readFixtureSession(path.join(chatDir, SESSION_FILE_NAME)),
     task,
   });
 

@@ -20,11 +20,8 @@ export type AbsolutePath = z.output<typeof AbsolutePathSchema>;
 export const WorkspaceDirSchema = AbsolutePathSchema.brand("WorkspaceDir");
 export type WorkspaceDir = z.output<typeof WorkspaceDirSchema>;
 
-export const TaskDirSchema = AbsolutePathSchema.brand("TaskDir");
-export type TaskDir = z.output<typeof TaskDirSchema>;
-
-/** A chat's folder, `chats/<id>/`: a record's folder like a task's, never a task's. */
-export const ChatDirSchema = TaskDirSchema.brand("ChatDir");
+/** A chat's folder, `chats/<id>/`, or the window's, which is scoped like one. */
+export const ChatDirSchema = AbsolutePathSchema.brand("ChatDir");
 export type ChatDir = z.output<typeof ChatDirSchema>;
 
 const UnbrandedRelativePathSchema = z.string().refine((val) => {
@@ -44,25 +41,18 @@ export const RelativeTaskPathSchema = RelativePathSchema.refine(
 );
 
 /**
- * Root of the attached-folder mounts in the workspace virtual FS (e.g.
- * `/mnt/Photos`). Attached folders live on the user's real disk and are
- * surfaced under this prefix, read-only or read-write according to the access
- * the user granted each one. Single source of truth for the mount root: this
- * schema, the attached-folder mount points, and the asset server all derive
- * from it.
+ * An absolute virtual path under a mount the agent reaches outside its own
+ * folder: a folder on the user's disk under `MOUNT.folders` (e.g.
+ * `/mnt/Photos/cat.png`), or a skill under `MOUNT.skills`.
  */
-
 const MountedWorkspacePathSchema = z
   .string()
   .refine(
     (val) =>
-      val.startsWith(`${MOUNT.attachedFolders}/`) ||
-      // A chat's read-only view of a task it created; resolved by the
-      // same layout the attached folders are, for a task of that kind only.
-      val.startsWith(`${MOUNT.tasks}/`) ||
+      val.startsWith(`${MOUNT.folders}/`) ||
       // A skill, read where its source is mounted (`/skills/<source>/...`).
       val.startsWith(`${MOUNT.skills}/`),
-    `Mounted path must be under ${MOUNT.attachedFolders}/, ${MOUNT.tasks}/, or ${MOUNT.skills}/`,
+    `Mounted path must be under ${MOUNT.folders}/ or ${MOUNT.skills}/`,
   )
   .brand("MountedWorkspacePath")
   .refine(
@@ -73,7 +63,7 @@ const MountedWorkspacePathSchema = z
     "Mounted path must not contain traversal or invalid separators",
   );
 
-/** A task-relative path or an attached folder's absolute virtual mount path. */
+/** A task-relative path or a folder mount's absolute virtual mount path. */
 export const WorkspaceFilePathSchema = z.union([
   RelativeTaskPathSchema,
   MountedWorkspacePathSchema,

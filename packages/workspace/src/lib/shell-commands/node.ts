@@ -2,11 +2,10 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 
 import { MOUNT } from "../../mount-points";
 import { type AbsolutePath } from "../../schemas/paths";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
-import { taskDir } from "../task-dir-utils";
 import { getWorkspaceConfig } from "../workspace-config";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
@@ -20,6 +19,7 @@ import {
   stringArray,
   subprocessStdin,
 } from "./utils";
+import { workDir } from "../work-dir";
 
 // Unrecognized flags are forwarded to node as-is; these are refused instead,
 // because they park the process on a debugger or a file watcher that nothing
@@ -29,7 +29,7 @@ const BLOCKED_FLAGS = new Set(["--interactive", "-i"]);
 const BLOCKED_FLAG_PREFIXES = ["--inspect", "--debug", "--watch"];
 
 function execNode(
-  taskId: TaskId,
+  chatId: ChatId,
   args: string[],
   signal?: AbortSignal,
   cwd?: AbsolutePath,
@@ -38,7 +38,7 @@ function execNode(
 ) {
   return execShim(process.execPath, args, {
     cancelSignal: signal,
-    cwd: cwd ?? taskDir(taskId),
+    cwd: cwd ?? workDir(chatId),
     env: {
       ...getWorkspaceConfig().nodeExecEnv,
       ...env,
@@ -73,18 +73,18 @@ const KNOWN_OPTIONS = {
 } as const;
 
 export const NODE_COMMAND = {
-  description: `Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd, quoted "${MOUNT.task}/..." strings are bridged; ${MOUNT.attachedFolders} paths are not available (\`js-exec\` reads them, without packages).`,
+  description: `Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd, quoted "${MOUNT.task}/..." strings are bridged; ${MOUNT.folders} paths are not available (\`js-exec\` reads them, without packages).`,
   name: "node",
 } as const;
 
 /** What the mount guard offers in place of copying, when no package is involved. */
 const SANDBOXED_ALTERNATIVE = {
-  alternative: `Run it with \`js-exec\` instead, which reads attached folders directly, if the code imports no package.`,
+  alternative: `Run it with \`js-exec\` instead, which reads folder mounts directly, if the code imports no package.`,
 };
 
-export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createNodeCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
   return defineCommand(NODE_COMMAND.name, async (args, ctx) => {
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const stdinProgram = latin1FromBytes(ctx.stdin);
 
     if (args.length === 0 && !stdinProgram) {
@@ -115,7 +115,7 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
 
     if (isVersion) {
       const execResult = await execNode(
-        taskId,
+        chatId,
         ["--version"],
         ctx.signal,
         taskCwd,
@@ -146,7 +146,7 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
     // silently changing what the script does (a dropped `--env-file` left the
     // script running against the wrong environment, exit code 0).
     const nodeFlags = unknownFlags.map((flag) =>
-      bridgeFlagValuePath(flag, taskId, taskCwd, (p) =>
+      bridgeFlagValuePath(flag, chatId, taskCwd, (p) =>
         ctx.fs.resolvePath(ctx.cwd, p),
       ),
     );
@@ -169,7 +169,7 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
     if (evalCode !== undefined) {
       const bridged = bridgeInlineCodePaths(
         evalCode,
-        taskId,
+        chatId,
         taskCwd,
         SANDBOXED_ALTERNATIVE,
       );
@@ -177,7 +177,7 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
         return { exitCode: 1, stderr: bridged.error, stdout: "" };
       }
       const execResult = await execNode(
-        taskId,
+        chatId,
         [...nodeFlags, wantsPrint ? "-p" : "-e", bridged.code],
         ctx.signal,
         taskCwd,
@@ -201,7 +201,7 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
       if (stdinProgram) {
         const bridged = bridgeInlineCodePaths(
           stdinProgram,
-          taskId,
+          chatId,
           taskCwd,
           SANDBOXED_ALTERNATIVE,
         );
@@ -209,7 +209,7 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
           return { exitCode: 1, stderr: bridged.error, stdout: "" };
         }
         const execResult = await execNode(
-          taskId,
+          chatId,
           nodeFlags,
           ctx.signal,
           taskCwd,
@@ -234,7 +234,7 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
     const fileAndArgs = extractFileAndScriptArgs(
       positionals,
       args,
-      taskId,
+      chatId,
       taskCwd,
       (p) => ctx.fs.resolvePath(ctx.cwd, p),
     );
@@ -259,7 +259,7 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
     }
 
     const execResult = await execNode(
-      taskId,
+      chatId,
       [...nodeFlags, filePath, ...scriptArgs],
       ctx.signal,
       taskCwd,

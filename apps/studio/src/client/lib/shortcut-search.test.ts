@@ -41,6 +41,10 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
       [
         "General: Close Window  ⇧⌘W",
         "General: Command Menu  ⌘K",
+        "General: Go to Apps  ⌃⌘4",
+        "General: Go to Browser  ⌃⌘3",
+        "General: Go to Chat  ⌃⌘1",
+        "General: Go to Files  ⌃⌘2",
         "General: Keyboard Shortcuts  ?",
         "General: New Chat  ⌘N",
         "General: Search or Ask  ⌘L",

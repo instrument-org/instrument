@@ -6,20 +6,21 @@ import {
 } from "@/electron-main/lib/quit";
 import { devOnly } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { setRecentVersionBump } from "@/electron-main/stores/machine/state";
+import { noteUpdate } from "@/electron-main/lib/notices";
 import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { openAppWindow } from "@/electron-main/windows/app-window";
 import {
   closeOnboardingWindow,
   openOnboardingWindow,
 } from "@/electron-main/windows/onboarding";
-import { PORTS } from "@instrument-org/shared";
+import {
+  DEV_INSTANCE_COLORS,
+  isDevInstanceColor,
+} from "@/shared/dev-instance-colors";
 import { app, shell } from "electron";
 import fsSync from "node:fs";
 import path from "node:path";
 import { z } from "zod";
-
-import { browserViewManagerDebugRoutes } from "../../browser-view/debug-snapshot";
 
 const systemInfo = devOnly.handler(async ({ context }) => {
   const pnpmVersionValue = await pnpmVersion();
@@ -38,32 +39,6 @@ const systemInfo = devOnly.handler(async ({ context }) => {
     },
   ];
 });
-
-const throwError = devOnly
-  .input(
-    z.object({
-      type: z.enum(["known", "unknown"]),
-    }),
-  )
-  .handler(({ errors, input }) => {
-    const error =
-      input.type === "known"
-        ? errors.NOT_FOUND({ message: "This is a known error for testing" })
-        : new Error("This is an uncaught error for testing");
-    throw error;
-  });
-
-const events = {
-  testNotification: devOnly.handler(async function* ({ signal }) {
-    for await (const _payload of publisher.subscribe("test-notification", {
-      signal,
-    })) {
-      yield {
-        testNotification: true,
-      };
-    }
-  }),
-};
 
 const trigger = {
   testDownloadNotification: devOnly.handler(() => {
@@ -124,9 +99,6 @@ const trigger = {
       });
     });
   }),
-  testNotification: devOnly.handler(() => {
-    publisher.publish("test-notification", null);
-  }),
   testNoUpdateNotification: devOnly.handler(() => {
     publisher.publish("updates.status", {
       status: { notifyUser: true, type: "checking" },
@@ -151,23 +123,15 @@ const trigger = {
       },
     });
   }),
-  // Queues the bump only. The toast fires once per renderer lifetime, off a
-  // query that runs on mount, so the caller reloads afterwards to see it --
-  // which is also the path a real update takes.
-  testUpdatedToast: devOnly.handler(() => {
-    setRecentVersionBump({ from: "0.0.0-simulated", to: app.getVersion() });
+  // Records an update into the running build, which the bell lists as soon
+  // as it's recorded.
+  testUpdatedNotice: devOnly.handler(() => {
+    noteUpdate({ from: "0.0.0-simulated", to: app.getVersion() });
   }),
 };
 
 const openOnboarding = devOnly.input(z.void()).handler(() => {
   openOnboardingWindow();
-});
-
-const openAuthTestPage = devOnly.input(z.void()).handler(() => {
-  const port = app.isPackaged
-    ? PORTS.authCallback.prod
-    : PORTS.authCallback.dev;
-  void shell.openExternal(`http://localhost:${port}/test`);
 });
 
 /**
@@ -187,6 +151,15 @@ function drivePurpose() {
     return;
   }
   return process.env.STUDIO_DRIVE_PURPOSE || undefined;
+}
+
+/** The color studio-drive marked this dev instance with, matching its Dock dot. */
+function driveColor() {
+  const color = process.env.STUDIO_DRIVE_COLOR;
+  if (app.isPackaged || !isDevInstanceColor(color)) {
+    return;
+  }
+  return DEV_INSTANCE_COLORS[color];
 }
 
 /**
@@ -225,6 +198,7 @@ const getAppEnvironment = devOnly
   .output(
     z.object({
       debugPort: z.number().optional(),
+      driveColor: z.string().optional(),
       drivePurpose: z.string().optional(),
       isPackaged: z.boolean(),
       userData: z.string().optional(),
@@ -233,6 +207,7 @@ const getAppEnvironment = devOnly
   )
   .handler(() => ({
     debugPort: debugPort(),
+    driveColor: driveColor(),
     drivePurpose: drivePurpose(),
     isPackaged: app.isPackaged,
     userData: userDataName(),
@@ -279,17 +254,13 @@ const setQuitGuardForced = devOnly
   });
 
 export const debug = {
-  browserViewManager: browserViewManagerDebugRoutes,
-  events,
   getAppEnvironment,
   getQuitGuardForced,
-  openAuthTestPage,
   openOnboarding,
   openUserDataFolder,
   openWorkspaceFolder,
   setQuitGuardForced,
   skipOnboarding,
   systemInfo,
-  throwError,
   trigger,
 };

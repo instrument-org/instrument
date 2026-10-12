@@ -29,7 +29,7 @@ export const RequestFolder = setupTool({
       .string()
       .optional()
       .meta({
-        description: `A folder under ${MOUNT.attachedFolders} that macOS has not let ${APP_NAME} into, as a command refusing it named it. The panel opens at that folder, so letting ${APP_NAME} in is one press.`,
+        description: `A folder under ${MOUNT.folders} that macOS has not let ${APP_NAME} into, as a command refusing it named it. The panel opens at that folder, so letting ${APP_NAME} in is one press.`,
       }),
   }),
   name: "request_folder",
@@ -41,9 +41,14 @@ export const RequestFolder = setupTool({
     z.object({ status: z.literal("declined") }),
   ]),
 }).create({
-  description: `Ask the user for a folder you do not reach: one outside their home folder (an external drive, another volume), or, given as \`folder\`, one of yours that macOS has not let ${APP_NAME} into. The conversation waits while they pick one; it then arrives mounted under ${MOUNT.attachedFolders}, and the answer names the mount, which you pass to a task with --folder. Ask for one folder at a time, and only when the work cannot proceed without it.`,
+  description: `Ask the user for a folder you do not reach: one outside their home folder (an external drive, another volume), or, given as \`folder\`, one of yours that macOS has not let ${APP_NAME} into. The conversation waits while they pick one; it then arrives mounted under ${MOUNT.folders}, and the answer names the mount. Ask for one folder at a time, and only when the work cannot proceed without it.`,
+  // Reached only in a fork, where a question has nobody to park for.
   execute: () => {
-    return Promise.resolve(executeError("Not implemented"));
+    return Promise.resolve(
+      executeError(
+        "You are running in the background, where nobody sees a question: only the chat asks the user. Do what you can, and end your last message with a needs fence naming what you need.",
+      ),
+    );
   },
   readOnly: true,
   timeoutMs: ms("1 second"),
@@ -51,7 +56,7 @@ export const RequestFolder = setupTool({
     type: "text",
     value:
       output.status === "granted"
-        ? `The user attached the folder. It is mounted at ${output.mountPoint}; pass it to a task as --folder ${output.mountPoint}, with :ro when the task should only read it.`
+        ? `The user attached the folder. It is mounted at ${output.mountPoint}, for you and every task you start.`
         : "The user declined. Say what you cannot do without the folder and carry on with what you can.",
   }),
 });

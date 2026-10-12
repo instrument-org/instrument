@@ -41,14 +41,14 @@ describe("browsing data", () => {
     ).toMatchInlineSnapshot(`
       [
         "There’s no history from this time.",
-        "From google.com.",
-        "From google.com and 1 more site.",
-        "From google.com and 2 more sites.",
+        "You visited google.com.",
+        "You visited google.com and 1 other site.",
+        "You visited google.com and 2 other sites.",
       ]
     `);
   });
 
-  it("counts the sites holding cookies", () => {
+  it("warns about signing out once any site holds cookies", () => {
     expect(
       [[], ["google.com"], ["google.com", "github.com", "x.com"]].map(
         cookiesDetail,
@@ -56,8 +56,8 @@ describe("browsing data", () => {
     ).toMatchInlineSnapshot(`
       [
         "No sites have saved any yet.",
-        "From 1 site. This signs you out of it.",
-        "From 3 sites. This signs you out of most of them.",
+        "You'll be signed out of most sites.",
+        "You'll be signed out of most sites.",
       ]
     `);
   });
@@ -67,10 +67,10 @@ describe("browsing data", () => {
       .toMatchInlineSnapshot(`
       [
         "Nothing is cached right now.",
-        "Frees up less than 1 MB. Some sites may load more slowly the next time you visit.",
-        "Frees up 4.2 MB. Some sites may load more slowly the next time you visit.",
-        "Frees up 50 MB. Some sites may load more slowly the next time you visit.",
-        "Frees up 3.0 GB. Some sites may load more slowly the next time you visit.",
+        "Clearing it frees up less than 1 MB, though some sites may load more slowly the next time you visit.",
+        "Clearing it frees up 4.2 MB, though some sites may load more slowly the next time you visit.",
+        "Clearing it frees up 50 MB, though some sites may load more slowly the next time you visit.",
+        "Clearing it frees up 3.0 GB, though some sites may load more slowly the next time you visit.",
       ]
     `);
   });

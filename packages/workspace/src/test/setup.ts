@@ -29,7 +29,7 @@ const rejectBrowserTarget = () => {
 // Install a workspace config for every test, the way the workspace machine does
 // at boot in production. Without it, code that reads getWorkspaceConfig() would
 // need an "if initialized" escape hatch just to survive tests. Tests that need
-// specific paths override it (createMockTaskConfig). Keep this setup free of
+// specific paths override it (createMockChatConfig). Keep this setup free of
 // runtime imports from `../types`, which would preload `store-id` before
 // `vi.mock(import("ulid"))` runs in snapshot tests.
 setWorkspaceConfig({
@@ -53,10 +53,9 @@ setWorkspaceConfig({
     stopScreencast: noop,
     subscribeEvents: noopCleanup,
   },
-  captureEvent: noop,
   captureException: noop,
-  defaultTaskTemplateDir: AbsolutePathSchema.parse(
-    path.join(rootDir, "default-task-template"),
+  chatTemplateDir: AbsolutePathSchema.parse(
+    path.join(rootDir, "chat-template"),
   ),
   getAIProviderConfigs: () => [],
   isExternalBrowserEnabled: () => false,
@@ -71,7 +70,8 @@ setWorkspaceConfig({
   systemSkillsDir: AbsolutePathSchema.parse(
     path.join(rootDir, "system-skills"),
   ),
-  tasksDir: WorkspaceDirSchema.parse(tasksDir),
+  chatsDir: AbsolutePathSchema.parse(path.join(rootDir, "chats")),
+  legacyTasksDir: WorkspaceDirSchema.parse(tasksDir),
   trashItem: () => Promise.resolve(),
   uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
   uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),

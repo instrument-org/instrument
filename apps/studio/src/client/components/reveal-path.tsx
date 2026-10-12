@@ -4,7 +4,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * A path read from the home folder's own name, that shows its folder: in Files
@@ -40,7 +40,10 @@ export function RevealPath({
           rpcClient.utils.showFileInFolder.call({ filepath: path }),
         );
         if (error) {
-          toast.error("That folder is no longer on disk.");
+          toast.error("Couldn't show the folder", {
+            cause: error,
+            description: "It may have been moved or deleted.",
+          });
         }
       }}
       type="button"

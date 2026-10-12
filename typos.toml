@@ -83,7 +83,6 @@ extend-exclude = [
   "packages/ai-gateway/src/lib/providers/*/fixtures/",
   # An eval whose subject is whether the agent honors a standing instruction to
   # write British English. The spellings in it are the fixture.
-  "packages/workspace/evals/cases/project-instructions.ts",
   # Quotes the misspellings it is about, so correcting them erases the point.
   "docs/findings/spelling-check-cost-versus-signal.md",
 ]

@@ -13,9 +13,6 @@ vi.mock("@/electron-main/rpc/base", () => ({ base: os }));
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
   getWorkspaceFolder: () => workspace,
 }));
-vi.mock("@/electron-main/lib/workspaces", () => ({
-  workspacePrivateDir: (folder: string) => path.join(folder, ".instrument"),
-}));
 
 const options = { context: {} as InitialRPCContext };
 
@@ -28,7 +25,7 @@ afterEach(async () => {
 
 const PNG = Buffer.from("not really a png").toString("base64");
 
-it("writes two pastes of the same name to files of their own, under that name", async () => {
+it("writes two pastes of the same name into the draft's folder, the second numbered", async () => {
   const first = await call(
     drafts.stage,
     { content: PNG, draftId: "d1", itemId: "a", name: "image.png" },
@@ -40,10 +37,26 @@ it("writes two pastes of the same name to files of their own, under that name", 
     options,
   );
 
-  expect(path.basename(first.path)).toBe("image.png");
-  expect(first.path).not.toBe(second.path);
+  expect(path.relative(workspace, first.path)).toBe("drafts/d1/image.png");
+  expect(path.relative(workspace, second.path)).toBe("drafts/d1/image 2.png");
   expect(first.size).toBe(16);
   expect(await fs.readFile(second.path, "utf8")).toBe("not really a png");
+});
+
+it("rewrites an item handed over again rather than adding a copy", async () => {
+  const stage = () =>
+    call(
+      drafts.stage,
+      { content: PNG, draftId: "d2", itemId: "a", name: "notes.txt" },
+      options,
+    );
+  const first = await stage();
+  const again = await stage();
+
+  expect(again.path).toBe(first.path);
+  expect(await fs.readdir(path.join(workspace, "drafts/d2"))).toEqual([
+    "notes.txt",
+  ]);
 });
 
 it.each(["../escape.png", "a/b.png", "..", ""])(
@@ -58,28 +71,3 @@ it.each(["../escape.png", "a/b.png", "..", ""])(
     ).rejects.toThrow();
   },
 );
-
-it("clears one draft's files and prunes those of drafts no longer kept", async () => {
-  const stage = (draftId: string) =>
-    call(
-      drafts.stage,
-      { content: PNG, draftId, itemId: "a", name: "image.png" },
-      options,
-    );
-  const gone = await stage("gone");
-  const kept = await stage("kept");
-  const orphan = await stage("orphan");
-
-  await call(drafts.clear, { draftId: "gone" }, options);
-  await call(drafts.prune, { keep: ["kept"] }, options);
-
-  await expect(fs.stat(gone.path)).rejects.toThrow();
-  await expect(fs.stat(orphan.path)).rejects.toThrow();
-  expect((await fs.stat(kept.path)).isFile()).toBe(true);
-});
-
-it("prunes nothing when no draft ever kept a file", async () => {
-  await expect(
-    call(drafts.prune, { keep: [] }, options),
-  ).resolves.toBeUndefined();
-});

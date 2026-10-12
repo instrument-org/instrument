@@ -10,6 +10,7 @@ import { CopyButton } from "@/client/components/copy-button";
 import { ExternalLink } from "@/client/components/external-link";
 import { ThemeToggle } from "@/client/components/theme-toggle";
 import { Button } from "@/client/components/ui/button";
+import { Switch } from "@/client/components/ui/switch";
 import { Card } from "@/client/components/ui/card";
 import {
   Dialog,
@@ -26,7 +27,6 @@ import {
   SelectTrigger,
 } from "@/client/components/ui/select";
 import { StateArrival } from "@/client/components/state-arrival";
-import { Switch } from "@/client/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
@@ -51,7 +51,7 @@ import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 function SettingsSection({
   children,
@@ -81,7 +81,6 @@ export function GeneralSection() {
       <About />
       <ReleaseChannel />
       <SettingsSection title="Advanced">
-        <UsageMetrics />
         <DiagnosticLog />
       </SettingsSection>
     </div>
@@ -418,8 +417,8 @@ function ReleaseChannel() {
   );
   const setReleaseChannelMutation = useMutation(
     rpcClient.preferences.setReleaseChannel.mutationOptions({
-      onError: () => {
-        toast.error("Failed to change the release channel");
+      onError: (error) => {
+        toast.error("Couldn't change the release channel", { cause: error });
       },
     }),
   );
@@ -545,8 +544,8 @@ function DiagnosticLog() {
 
   const saveLogMutation = useMutation(
     rpcClient.utils.saveDiagnosticLog.mutationOptions({
-      onError: () => {
-        toast.error("Couldn't save the log");
+      onError: (error) => {
+        toast.error("Couldn't save the log", { cause: error });
       },
       onSuccess: ({ status }) => {
         switch (status) {
@@ -578,9 +577,9 @@ function DiagnosticLog() {
           <div className="text-sm font-medium">Diagnostic log</div>
           <p className="text-xs text-muted-foreground">
             {APP_NAME} keeps a private, local-only record of what it did while
-            running. Send this log to {APP_NAME} Support when you report a
-            problem. It can include the names of files and tasks you worked on,
-            so read it before you share it.
+            running. A report about the app includes its last lines, which can
+            name files and tasks you worked on, so you can read them in the
+            report before you send it.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -600,6 +599,7 @@ function DiagnosticLog() {
             }}
           />
         </div>
+        <AutomaticErrorReports />
       </div>
 
       <Dialog onOpenChange={setViewerOpen} open={viewerOpen}>
@@ -707,6 +707,43 @@ function DiagnosticLog() {
  * ("save a copy", "export") each read as something slightly different from what
  * happens. The tooltip carries the name for anyone who wants one.
  */
+/**
+ * Whether crashes and app errors are sent without asking. It's turned on from
+ * a report's own checkbox, so this is where it's turned off.
+ */
+function AutomaticErrorReports() {
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setSendAutomatically = useMutation(
+    rpcClient.problems.setSendAutomatically.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't change that setting", { cause: error });
+      },
+    }),
+  );
+  return (
+    <label className="flex items-start justify-between gap-4 border-t border-border pt-3">
+      <span className="space-y-1">
+        <span className="block text-sm font-medium">
+          Send error reports automatically
+        </span>
+        <span className="block text-xs text-muted-foreground">
+          When {APP_NAME} crashes or runs into an error, it sends a report
+          without asking. Chats are never sent automatically.
+        </span>
+      </span>
+      <Switch
+        checked={preferences?.sendErrorReportsAutomatically === true}
+        disabled={setSendAutomatically.isPending}
+        onCheckedChange={(enabled) => {
+          setSendAutomatically.mutate({ enabled });
+        }}
+      />
+    </label>
+  );
+}
+
 function DownloadLogButton({
   disabled,
   onDownload,
@@ -762,8 +799,8 @@ function Notifications() {
   const requestPermission = useMutation(
     rpcClient.mac.notifications.request.mutationOptions({
       onError: (error) => {
-        toast.error("Couldn't ask macOS about notifications.", {
-          description: error.message,
+        toast.error("Couldn't ask macOS about notifications", {
+          cause: error,
         });
       },
       onSettled: () => {
@@ -773,10 +810,11 @@ function Notifications() {
         // macOS refused without asking anyone: in development because the
         // build is not signed, which is the one case worth explaining.
         if (error !== undefined) {
-          toast.error("macOS didn't allow notifications.", {
+          toast.error("macOS didn't allow notifications", {
+            cause: error,
             description: import.meta.env.DEV
               ? "Development builds aren't signed, and macOS lets only a signed app notify."
-              : error,
+              : undefined,
           });
         }
       },
@@ -798,7 +836,7 @@ function Notifications() {
       const { supported } =
         await sendTestNotificationMutation.mutateAsync(undefined);
       if (!supported) {
-        toast.error("Notifications aren't supported on this device.");
+        toast.error("This computer doesn't support notifications");
         return;
       }
       toast.success("Test notification sent", {
@@ -810,8 +848,8 @@ function Notifications() {
         },
         description: `Not seeing it? Turn on notifications for ${APP_NAME}.`,
       });
-    } catch {
-      toast.error("Couldn't send a test notification.");
+    } catch (error) {
+      toast.error("Couldn't send a test notification", { cause: error });
     }
   };
 
@@ -975,44 +1013,4 @@ function toLogLines(text: string): { level: LogLevel; text: string }[] {
       }
       return { level: "plain" as const, text: line };
     });
-}
-
-function UsageMetrics() {
-  const { data: preferences } = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions(),
-  );
-
-  const setUsageMetricsMutation = useMutation(
-    rpcClient.preferences.setEnableUsageMetrics.mutationOptions(),
-  );
-
-  const handleToggleUsageMetrics = async (checked: boolean) => {
-    try {
-      await setUsageMetricsMutation.mutateAsync({ enabled: checked });
-      toast.success(
-        checked ? "Usage metrics enabled" : "Usage metrics disabled",
-      );
-    } catch {
-      toast.error("Failed to update usage metrics preference");
-    }
-  };
-
-  return (
-    <Card className="p-4">
-      <div
-        className="flex items-center space-x-2"
-        {...settingAnchor("usage-metrics")}
-      >
-        <Switch
-          checked={preferences?.enableUsageMetrics ?? false}
-          disabled={setUsageMetricsMutation.isPending}
-          id="usage-metrics"
-          onCheckedChange={handleToggleUsageMetrics}
-        />
-        <Label className="inline" htmlFor="usage-metrics">
-          Help {APP_NAME} improve by submitting usage metrics
-        </Label>
-      </div>
-    </Card>
-  );
 }

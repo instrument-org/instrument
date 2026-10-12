@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import { publisher } from "../rpc/publisher";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import {
   type ChangedMessageBatch,
   changedMessageBatches,
 } from "./changed-message-batches";
 
-const taskId = TaskIdSchema.parse("task-batches");
+const chatId = ChatIdSchema.parse("task-batches");
 const sessionId = StoreId.newSessionId();
 const otherSessionId = StoreId.newSessionId();
 
@@ -40,11 +40,11 @@ function partUpdated(messageId: StoreId.Message, session = sessionId) {
     text: "",
     type: "text",
   } satisfies SessionMessagePart.Type;
-  publisher.publish("part.updated", { id: taskId, part });
+  publisher.publish("part.updated", { id: chatId, part });
 }
 
 function start(signal: AbortSignal) {
-  const batches = changedMessageBatches({ id: taskId, sessionId }, signal);
+  const batches = changedMessageBatches({ id: chatId, sessionId }, signal);
   return { batches, first: batches.next() };
 }
 
@@ -75,7 +75,7 @@ describe("changedMessageBatches", () => {
     // Subscriptions register at call time, so events raised while a caller is
     // still taking its initial snapshot land in the first batch.
     const batches = changedMessageBatches(
-      { id: taskId, sessionId },
+      { id: chatId, sessionId },
       controller.signal,
     );
 
@@ -142,7 +142,7 @@ describe("changedMessageBatches", () => {
 
     partUpdated(a);
     publisher.publish("message.removed", {
-      id: taskId,
+      id: chatId,
       messageId: a,
       sessionId,
     });
@@ -162,7 +162,7 @@ describe("changedMessageBatches", () => {
   it("watches every session in the task when no sessionId is given", async () => {
     const controller = new AbortController();
     // Omitting sessionId scopes to the whole task (e.g. a usage rollup).
-    const batches = changedMessageBatches({ id: taskId }, controller.signal);
+    const batches = changedMessageBatches({ id: chatId }, controller.signal);
 
     const here = StoreId.newMessageId();
     const elsewhere = StoreId.newMessageId();

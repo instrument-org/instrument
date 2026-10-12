@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import {
   AGENT_BROWSER_GUIDE_NAME,
   agentBrowserGuide,
@@ -43,16 +43,16 @@ export type BrowserSkill = z.output<typeof BrowserSkillSchema>;
 export async function browserSkillToDeliver({
   sessionId,
   signal,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: TaskId;
+  chatId: ChatId;
 }): Promise<BrowserSkill | undefined> {
   try {
     const [messages, session] = await Promise.all([
-      Store.getMessagesWithParts({ sessionId, taskId }, { signal }),
-      Store.getSession(sessionId, taskId, { signal }),
+      Store.getMessagesWithParts({ sessionId, chatId }, { signal }),
+      Store.getSession(sessionId, chatId, { signal }),
     ]);
     if (messages.isErr()) {
       return undefined;

@@ -6,9 +6,9 @@ import {
 } from "just-bash";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
-import { taskDir } from "../task-dir-utils";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { chatDir } from "../record-folders";
 import {
   addressAppsById,
   createOsascriptCommand,
@@ -32,8 +32,8 @@ async function mockExeca() {
 }
 
 describe("osascriptCommand", () => {
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
-  const command = createOsascriptCommand(taskId, taskLayout(taskId));
+  const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
+  const command = createOsascriptCommand(chatId, taskLayout(chatId));
 
   afterEach(() => {
     vi.resetAllMocks();
@@ -152,12 +152,12 @@ describe("osascriptCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       "/usr/bin/osascript",
-      ["-e", `read POSIX file "${taskDir(taskId)}/invite.ics"`],
+      ["-e", `read POSIX file "${chatDir(chatId)}/invite.ics"`],
       expect.anything(),
     );
   });
 
-  it("refuses a quoted attached-folder path in the script", async () => {
+  it("refuses a quoted folder-mount path in the script", async () => {
     const result = await command.execute(
       ["-e", 'read POSIX file "/mnt/Home/invite.ics"'],
       mockCtx,

@@ -5,29 +5,27 @@ import {
   type GetProviderConfigs,
   type ModelCache,
 } from "@instrument-org/ai-gateway";
-import {
-  type CaptureEventFunction,
-  type CaptureExceptionFunction,
-} from "@instrument-org/shared";
+import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { z } from "zod";
 
 import { type AppConnectionStore } from "./lib/apps/connection";
 import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 import { type StoredAppCredential } from "./lib/apps/origin-bound";
+import { type FinderEntry } from "./lib/chat/finder-entries";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
-import { type TaskId, TaskIdSchema } from "./schemas/task-id";
+import { type ChatId, ChatIdSchema } from "./schemas/chat-id";
 import { type WebSearchClient } from "./schemas/web-search";
 
 export interface BrowserConfig {
   closeTarget: (targetId: BrowserTargetId) => Promise<void>;
   createTarget: (
-    id: TaskId,
+    id: ChatId,
     sessionId: StoreId.Session,
     partitionDir: AbsolutePath,
   ) => Promise<{ targetId: BrowserTargetId }>;
   getTargetMeta: (targetId: BrowserTargetId) => null | {
-    id: TaskId;
+    id: ChatId;
     partitionDir: AbsolutePath;
     sessionId: StoreId.Session;
   };
@@ -49,7 +47,7 @@ export interface BrowserConfig {
    * error it can do nothing about (docs/findings/a-task-cannot-look-at-what-it-drew.md).
    */
   hasNoWindow: boolean;
-  listTargets: (id: TaskId) => Promise<BrowserTarget[]>;
+  listTargets: (id: ChatId) => Promise<BrowserTarget[]>;
   /**
    * Told just before a blank guest is navigated back to the page its tab was
    * last on (`restoreLastPage`), so the browser's history can tell reopening
@@ -63,7 +61,7 @@ export interface BrowserConfig {
    * and never touches the person's.
    */
   contentBlocking: (
-    id: TaskId,
+    id: ChatId,
     blocking?: boolean,
   ) => { task: boolean; workspace: boolean };
   onTargetDestroyed: (
@@ -108,11 +106,11 @@ export interface BrowserTarget {
 
 // The bridge routing key for a single browser view: a (id, sessionId)
 // tuple encoded as `${id}/${sessionId}`. The schema delegates to the
-// existing TaskId and StoreId.Session validators so a parse failure
+// existing ChatId and StoreId.Session validators so a parse failure
 // pinpoints the offending half. Use `encodeBrowserTargetId` /
 // `decodeBrowserTargetId` to construct or parse one; never build by hand.
 export const BrowserTargetIdSchema = z
-  .custom<`${TaskId}/${StoreId.Session}`>()
+  .custom<`${ChatId}/${StoreId.Session}`>()
   .superRefine((val, ctx) => {
     if (typeof val !== "string") {
       ctx.addIssue({
@@ -134,9 +132,9 @@ export const BrowserTargetIdSchema = z
       });
       return;
     }
-    const taskIdResult = TaskIdSchema.safeParse(val.slice(0, slash));
-    if (!taskIdResult.success) {
-      for (const issue of taskIdResult.error.issues) {
+    const chatIdResult = ChatIdSchema.safeParse(val.slice(0, slash));
+    if (!chatIdResult.success) {
+      for (const issue of chatIdResult.error.issues) {
         ctx.addIssue({ ...issue, path: ["id", ...issue.path] });
       }
     }
@@ -169,9 +167,12 @@ export interface WorkspaceAppsConfig {
    * Present in the desktop app: backs OAuth MCP apps with the app's encrypted
    * store. Optional so headless and test contexts run without sign-in. The
    * redirect URL is read per sign-in, from the port the callback server bound.
+   * The relay redirect is where a vendor sends back a sign-in made with
+   * Instrument's own client for `service`, on its way to that same port.
    */
   oauth?: {
     redirectUrl: () => string;
+    relayRedirectUrl: (service: string) => string;
     store: McpOAuthStore;
   };
 }
@@ -179,13 +180,30 @@ export interface WorkspaceAppsConfig {
 export interface WorkspaceConfig {
   apps: WorkspaceAppsConfig;
   appsDir: AbsolutePath;
+  /**
+   * The file this workspace's record of the model requests it made is kept
+   * in, inside the workspace's own `.instrument` folder. Absent where nothing
+   * should persist (tests, scripts), and then nothing is recorded.
+   */
+  aiUsageFile?: AbsolutePath;
   appVersion: string;
   browser: BrowserConfig;
-  captureEvent: CaptureEventFunction;
   captureException: CaptureExceptionFunction;
-  defaultTaskTemplateDir: AbsolutePath;
+  chatTemplateDir: AbsolutePath;
   /** Desktop decoration after the default output folder exists. */
   ensureOutputFolderIcon?: (folderPath: string) => Promise<void>;
+  /**
+   * What the Finder knows about a folder's entries beyond what `stat` says
+   * (packages, hidden extensions, hidden entries), for the file browser's
+   * listing. Absent off macOS and in builds without the Mac module.
+   */
+  finderEntries?: (folder: string) => Promise<FinderEntry[]>;
+  /**
+   * Where a Finder alias leads, for the file browser to follow one as it
+   * follows a symbolic link; undefined for a path that is not an alias.
+   * Absent off macOS and in builds without the Mac module.
+   */
+  resolveAlias?: (path: string) => Promise<string | undefined>;
   getAIProviderConfigs: GetProviderConfigs;
   /**
    * Who is signed in, for the agents to know whose work it is: the account's
@@ -225,8 +243,13 @@ export interface WorkspaceConfig {
   preparedSkillsDir: AbsolutePath;
   registryDir: AbsolutePath;
   rootDir: WorkspaceDir;
+  // Where every chat's folder is, `chats/` under the root.
+  chatsDir: AbsolutePath;
   systemSkillsDir: AbsolutePath;
-  tasksDir: AbsolutePath;
+  // Where 1.x kept its tasks, `tasks/` under the root: what the 1.x
+  // migration reads, and names a new chat stays clear of while a folder
+  // there waits to move.
+  legacyTasksDir: AbsolutePath;
   trashItem: (path: AbsolutePath) => Promise<void>;
   // Path to the bundled `uv` binary (escape hatch for python/pip/uv commands).
   uvBinPath: AbsolutePath;
@@ -268,20 +291,20 @@ type CdpSendArgs<M extends CdpMethod> =
 
 export function decodeBrowserTargetId(
   targetId: string,
-): null | { id: TaskId; sessionId: StoreId.Session } {
+): null | { id: ChatId; sessionId: StoreId.Session } {
   const result = BrowserTargetIdSchema.safeParse(targetId);
   if (!result.success) {
     return null;
   }
   const slash = result.data.indexOf("/");
   return {
-    id: result.data.slice(0, slash) as TaskId,
+    id: result.data.slice(0, slash) as ChatId,
     sessionId: result.data.slice(slash + 1) as StoreId.Session,
   };
 }
 
 export function encodeBrowserTargetId(
-  id: TaskId,
+  id: ChatId,
   sessionId: StoreId.Session,
 ): BrowserTargetId {
   return BrowserTargetIdSchema.parse(`${id}/${sessionId}`);

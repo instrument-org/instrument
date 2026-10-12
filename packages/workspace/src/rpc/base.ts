@@ -61,7 +61,7 @@ export function toORPCError(
     case "workspace-storage-error": {
       return orpcErrors.STORAGE_ERROR(options);
     }
-    // No code of their own: each reaches the client, and telemetry, as an
+    // No code of their own: each reaches the client, and the exception log, as an
     // unexpected failure. A type added to either union fails to compile below
     // until it is placed here or above.
     case "gateway-unknown-error":

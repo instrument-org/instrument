@@ -7,12 +7,11 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { parentPort } from "node:worker_threads";
 
-import { setWorkspaceServerPort } from "../../logic/server/url";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { createLocalBashEnv } from "../create-bash-env";
 import { setTaskVenvCreator, type TaskVenvError } from "../ensure-task-venv";
-import { handRecord } from "../record-folders";
+import { handChat } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
 import { setWorkspaceConfig } from "../workspace-config";
@@ -82,11 +81,11 @@ setSubprocessTreeObserver({
   },
 });
 setTaskVenvCreator(
-  (taskId: TaskId) =>
+  (chatId: ChatId) =>
     new Promise((resolve) => {
       const requestId = nextVenvRequestId++;
       venvRequests.set(requestId, resolve);
-      post({ requestId, taskId, type: "venv" });
+      post({ requestId, chatId, type: "venv" });
     }),
 );
 
@@ -147,20 +146,18 @@ async function runExec({
   config,
   execOptions,
   id,
-  record,
+  chat,
   stream,
-  workspaceServerPort,
 }: Extract<ToWorker, { type: "exec" }>) {
   const controller = new AbortController();
   runs.set(id, controller);
   // One config per process on main, so the latest snapshot is the only one.
   setWorkspaceConfig(workerConfig(config));
-  setWorkspaceServerPort(workspaceServerPort);
-  // Main keeps the folder index current as it makes and trashes records, so
-  // the record comes resolved with the command rather than read here, where a
-  // copy of the index would miss a task made since.
-  if (record) {
-    handRecord(record);
+  // Main keeps the folder index current as it makes and trashes chats, so
+  // the chat comes resolved with the command rather than read here, where a
+  // copy of the index would miss a chat made since.
+  if (chat) {
+    handChat(chat);
   }
   try {
     const bash = await createLocalBashEnv({

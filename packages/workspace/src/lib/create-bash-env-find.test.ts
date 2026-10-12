@@ -3,12 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { TaskDirSchema } from "../schemas/paths";
+import { MountedFolder } from "../schemas/mounted-folder";
+import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 
 /**
@@ -29,22 +29,20 @@ const sessionId = StoreId.newSessionId();
 let tmpDir: string;
 let attachedDir: string;
 let lockedDir: string;
-let taskId: TaskId;
+let chatId: ChatId;
 
 async function run(command: string) {
   const bash = await createBashEnv({
-    attachedFolders: {
+    folders: {
       Home: {
         access: "read-only",
-        createdAt: Date.now(),
-        id: FolderAttachment.IdSchema.parse("home-id"),
+        id: MountedFolder.IdSchema.parse("home-id"),
         mountName: "Home",
-        path: TaskDirSchema.parse(attachedDir),
-        source: "user",
+        path: ChatDirSchema.parse(attachedDir),
       },
     },
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
 }
@@ -63,7 +61,7 @@ beforeEach(async () => {
     "# notes\n",
   );
   await fs.chmod(lockedDir, 0o000);
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
 });
 
 afterEach(async () => {

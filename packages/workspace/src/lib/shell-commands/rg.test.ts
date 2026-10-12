@@ -5,16 +5,15 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { AbsolutePath } from "../../schemas/paths";
 
-import { FolderAttachment } from "../../schemas/folder-attachment";
-import { AbsolutePathSchema, TaskDirSchema } from "../../schemas/paths";
+import { MountedFolder } from "../../schemas/mounted-folder";
+import { ChatDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { createBashEnv } from "../create-bash-env";
 import { virtualizeHostPaths } from "../filter-shell-output";
-import { taskDir } from "../task-dir-utils";
+import { chatDir } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { ChatIdSchema } from "../../schemas/chat-id";
@@ -25,25 +24,23 @@ const sessionId = StoreId.newSessionId();
 let tmpDir: string;
 let taskRoot: string;
 let attachedDir: string;
-let taskId: ReturnType<typeof TaskIdSchema.parse>;
+let chatId: ReturnType<typeof ChatIdSchema.parse>;
 
 async function run(command: string, attach: boolean | string = false) {
   const mountName = typeof attach === "string" ? attach : "Docs";
   const bash = await createBashEnv({
-    attachedFolders: attach
+    folders: attach
       ? {
           [mountName]: {
             access: "read-only",
-            createdAt: Date.now(),
-            id: FolderAttachment.IdSchema.parse("docs-id"),
+            id: MountedFolder.IdSchema.parse("docs-id"),
             mountName,
-            path: TaskDirSchema.parse(attachedDir),
-            source: "user",
+            path: ChatDirSchema.parse(attachedDir),
           },
         }
       : undefined,
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
 }
@@ -66,7 +63,7 @@ beforeEach(async () => {
   );
   await fs.writeFile(path.join(attachedDir, "note.md"), "NEEDLE attached\n");
 
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
 });
 
 afterEach(async () => {
@@ -91,9 +88,9 @@ describe("rg command", () => {
     await fs.writeFile(path.join(appDir, "app.ts"), "const NEEDLE = 2;\n");
     try {
       const bash = await createBashEnv({
-        chat: { childMounts: [], id: ChatIdSchema.parse(taskId) },
+        chat: { id: ChatIdSchema.parse(chatId) },
         sessionId,
-        taskId,
+        chatId,
       });
       const result = await bash.exec("rg -l NEEDLE /apps/rg-weather", {
         signal: AbortSignal.timeout(30_000),
@@ -320,7 +317,7 @@ describe("rg command", () => {
     expect(result.stdout).toContain("work/a.ts");
   });
 
-  it("searches an attached folder and reports its mount path, not the host path", async () => {
+  it("searches a folder mount and reports its mount path, not the host path", async () => {
     const result = await run("rg NEEDLE /mnt/Docs", true);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("/mnt/Docs/note.md");
@@ -352,21 +349,21 @@ describe("rg command", () => {
   });
 });
 
-// A chat's folder mounts at /task with its `tasks/` dir masked, since the
-// chat reaches each of its tasks only through the read-only `/tasks/<id>`.
+// A chat's folder mounts at /task with its `tasks/` dir masked: what an
+// earlier version left there is nothing of the chat's.
 describe("rg command in a chat", () => {
-  const childId = TaskIdSchema.parse(`01k${"rgchild".padEnd(23, "0")}`);
-  let chatDir: string;
+  const childId = ChatIdSchema.parse(`01k${"rgchild".padEnd(23, "0")}`);
+  let chatFolder: string;
   let childDir: string;
 
   async function runInChat(command: string) {
-    const chatId = chatFor();
-    chatDir = taskDir(chatId);
-    childDir = path.join(chatDir, "tasks", childId);
-    await fs.mkdir(path.join(chatDir, "work"), { recursive: true });
+    const made = chatFor();
+    chatFolder = chatDir(made);
+    childDir = path.join(chatFolder, "tasks", childId);
+    await fs.mkdir(path.join(chatFolder, "work"), { recursive: true });
     await fs.mkdir(path.join(childDir, ".instrument"), { recursive: true });
     await fs.mkdir(path.join(childDir, "output"), { recursive: true });
-    await fs.writeFile(path.join(chatDir, "work", "a.ts"), "NEEDLE chat\n");
+    await fs.writeFile(path.join(chatFolder, "work", "a.ts"), "NEEDLE chat\n");
     await fs.writeFile(
       path.join(childDir, ".instrument", "settings.json"),
       "NEEDLE sentinel\n",
@@ -377,24 +374,16 @@ describe("rg command in a chat", () => {
     );
     const bash = await createBashEnv({
       chat: {
-        childMounts: [
-          {
-            hostRoot: AbsolutePathSchema.parse(childDir),
-            maskedEntries: [".instrument"],
-            mountPoint: `/tasks/${childId}`,
-            readOnly: true,
-          },
-        ],
-        id: chatId,
+        id: made,
       },
       sessionId: StoreId.newSessionId(),
-      taskId: chatId,
+      chatId: made,
     });
     return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
   }
 
   afterEach(async () => {
-    await fs.rm(chatDir, { force: true, recursive: true });
+    await fs.rm(chatFolder, { force: true, recursive: true });
   });
 
   it.each([
@@ -411,15 +400,6 @@ describe("rg command in a chat", () => {
     expect(result.stdout).toContain("a.ts");
     expect(result.stdout).not.toMatch(/sentinel|report|settings\.json/);
   });
-
-  it("keeps a task's private dir out of a search over its mount", async () => {
-    const result = await runInChat(
-      `cd work && rg -uu NEEDLE /tasks/${childId}`,
-    );
-
-    expect(result.stdout).toContain("report");
-    expect(result.stdout).not.toMatch(/sentinel|settings\.json/);
-  });
 });
 
 describe("virtualizeHostPaths on what rg prints", () => {
@@ -427,19 +407,17 @@ describe("virtualizeHostPaths on what rg prints", () => {
   // POSIX spelling whatever the layout stores.
   function layoutFor(hostRoot: string) {
     return buildWorkspaceFsLayout({
-      attachedFolders: {
+      folders: {
         docs: {
           access: "read-only",
-          createdAt: 0,
-          id: FolderAttachment.IdSchema.parse("docs-id"),
+          id: MountedFolder.IdSchema.parse("docs-id"),
           mountName: "Docs",
           // Cast: AbsolutePathSchema rejects win32 absolute paths when the test
           // runs on a posix host, but a Windows build stores exactly this shape.
           path: hostRoot as AbsolutePath,
-          source: "user",
         },
       },
-      taskHostRoot: TaskDirSchema.parse("/workspace/tasks/test"),
+      taskHostRoot: ChatDirSchema.parse("/workspace/tasks/test"),
     });
   }
 

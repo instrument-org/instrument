@@ -3,15 +3,17 @@ import { isExpectedNetworkError } from "@instrument-org/shared";
 import { call, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
-import { agentNameForTask } from "../../lib/agent-name-for-task";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
+import { isWorking } from "../../lib/chat/activity";
+import { childTask, listChildTasks } from "../../lib/chat/children";
+import { expectStop } from "../../lib/chat/wake";
+import { resolveChat } from "../../lib/record-folders";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
-import { cancelHold } from "../../lib/task-hold";
-import { recordTaskActivity } from "../../lib/task-settings";
+import { recordChatActivity } from "../../lib/chat-settings";
 import { Session } from "../../schemas/session";
 import { StoreId } from "../../schemas/store-id";
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { type ToolOutputByName, TOOLS_BY_NAME } from "../../tools/all";
 import { ToolNameSchema } from "../../tools/name";
 import { base, toORPCError } from "../base";
@@ -19,17 +21,17 @@ import { base, toORPCError } from "../base";
 const byIdWithMessagesAndParts = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       sessionId: StoreId.SessionSchema,
     }),
   )
   .output(Session.WithMessagesAndPartsSchema)
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
     const session = await Store.getSessionWithMessagesAndParts(
       sessionId,
-      taskId,
+      chatId,
     );
 
     if (session.isErr()) {
@@ -42,15 +44,15 @@ const byIdWithMessagesAndParts = base
 const list = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       includeChildSessions: z.boolean().default(false),
     }),
   )
   .output(z.array(Session.Schema))
   .handler(async ({ errors, input }) => {
     const { id, includeChildSessions } = input;
-    const taskId = id;
-    const sessions = await Store.getSessions(taskId, {
+    const chatId = id;
+    const sessions = await Store.getSessions(chatId, {
       includeChildSessions,
     });
     if (sessions.isErr()) {
@@ -70,7 +72,7 @@ const list = base
 const run = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       modelURI: AIGatewayModelURI.Schema,
       sessionId: StoreId.SessionSchema,
     }),
@@ -78,7 +80,7 @@ const run = base
   .output(z.void())
   .handler(async ({ context, errors, input }) => {
     const { id, modelURI, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
 
     const modelResult = await fetchModel({
       captureException: context.workspaceConfig.captureException,
@@ -97,7 +99,6 @@ const run = base
     context.workspaceRef.send({
       type: "runTurn",
       value: {
-        agentName: agentNameForTask(taskId),
         id,
         model: modelResult.value,
         sessionId,
@@ -105,44 +106,68 @@ const run = base
     });
 
     // A settings write, which the record change feed reports: what moves the task in the list.
-    await recordTaskActivity(taskId);
-
-    context.workspaceConfig.captureEvent("session.run");
+    await recordChatActivity(chatId);
   });
 
+/**
+ * Stops a record's agents: a chat's, which is its own conversation and every
+ * task it started, since Stop means all of the user's work wherever it is
+ * running; or with `sessionId`, that one session alone, a task's say.
+ */
 const stop = base
-  .input(z.object({ id: TaskIdSchema }))
-  .handler(({ context, input }) => {
-    // A task held from starting has no session to stop; stopping it cancels
-    // the start instead.
-    cancelHold(input.id);
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      sessionId: StoreId.SessionSchema.optional(),
+    }),
+  )
+  .handler(async ({ context, input }) => {
+    const chatId = resolveChat(input.id);
+    if (chatId) {
+      // The user's stop, which the task's page ends on. One task stopped
+      // while the chat carries on is news to wake the chat with; the
+      // chat's own Stop ends the chat's turn too, and wakes nothing.
+      const stopped =
+        input.sessionId === undefined
+          ? await listChildTasks(chatId, (id) => isWorking(chatId, id))
+          : isWorking(chatId, input.sessionId)
+            ? [await childTask(chatId, input.sessionId)]
+            : [];
+      for (const task of stopped) {
+        if (task) {
+          expectStop(task.id, {
+            by: "user",
+            wakesChat: input.sessionId !== undefined,
+          });
+        }
+      }
+    }
     context.workspaceRef.send({
       type: "stopSessions",
       value: {
         id: input.id,
+        ...(input.sessionId ? { sessionId: input.sessionId } : {}),
       },
     });
-
-    context.workspaceConfig.captureEvent("session.stopped");
   });
 
 const toMarkdown = base
   .input(
     z.object({
       frontMatter: z.record(z.string(), z.unknown()).optional(),
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       sessionId: StoreId.SessionSchema,
     }),
   )
   .output(z.object({ markdown: z.string() }))
   .handler(async ({ input }) => {
     const { frontMatter, id, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
 
     const markdown = await getSessionMarkdown({
       frontMatter,
       sessionId,
-      taskId,
+      chatId,
     });
     return { markdown };
   });
@@ -150,16 +175,16 @@ const toMarkdown = base
 const contextTokens = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       sessionId: StoreId.SessionSchema,
     }),
   )
   .output(z.object({ inputTokens: z.number() }))
   .handler(async ({ errors, input }) => {
     const { id, sessionId } = input;
-    const taskId = id;
+    const chatId = id;
 
-    const messages = await Store.getMessages({ sessionId, taskId });
+    const messages = await Store.getMessages({ sessionId, chatId });
     if (messages.isErr()) {
       throw toORPCError(messages.error, errors);
     }
@@ -183,7 +208,7 @@ const live = {
   contextTokens: base
     .input(
       z.object({
-        id: TaskIdSchema,
+        id: ChatIdSchema,
         sessionId: StoreId.SessionSchema,
       }),
     )
@@ -212,7 +237,7 @@ const live = {
 const answerToolCall = base
   .input(
     z.object({
-      id: TaskIdSchema,
+      id: ChatIdSchema,
       output: z.unknown(),
       toolCallId: z.string(),
       toolName: ToolNameSchema,
@@ -235,7 +260,7 @@ const answerToolCall = base
     const sessions =
       context.workspaceRef
         .getSnapshot()
-        .context.sessionRefsByTaskId.get(input.id) ?? [];
+        .context.sessionRefsByChatId.get(input.id) ?? [];
     if (sessions.length === 0) {
       throw new ORPCError("CONFLICT", {
         message: "That request ended before the answer reached it.",

@@ -13,6 +13,7 @@ import {
   webUrl,
 } from "@/client/lib/link-target";
 import { cn } from "@/client/lib/utils";
+import { settingsPathOf } from "@/client/components/settings/settings-index";
 import {
   type InstrumentLink,
   instrumentLinkOf,
@@ -21,8 +22,10 @@ import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
+import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
-import { type ReactNode } from "react";
+import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
+import { Children, type ReactNode } from "react";
 
 import { EmailLink } from "./email-link";
 import { ExternalLink } from "./external-link";
@@ -41,27 +44,28 @@ import { InstrumentGlyph } from "./wordmark";
  * because a box around one says only that it is a link, which the underline
  * and the site's own icon already said.
  *
- * Centered on the text rather than sitting on its baseline, so a run of them
- * across one line reads along the same middle as the words between them.
+ * Inline like the words around it, so a label too long for what is left of
+ * a line breaks across it the way the sentence does, each piece in its own
+ * frame, rather than the whole chip jumping to the next line and leaving a
+ * ragged gap behind. That is also why a clickable chip is a span acting as a
+ * button ({@link ChipButton}) rather than a button: a button is always one
+ * box and never breaks.
  *
- * Twenty pixels tall, which is what the rest of it is in service of: a line box
- * around `text-sm` is twenty pixels, and a chip taller than that grows every
- * line it lands in, leaving a paragraph that mentions a file visibly looser
- * than the one under it. A table cell is where that binds hardest, since its
- * text is the small one and its line box is exactly twenty.
- *
- * Inside that budget the icon sits in an even four-pixel inset, the same on the
- * left as above and below, which is what leaves the border reading as a frame
- * around the icon rather than a box the icon is jammed against. Above and below
- * that inset is the border, a pixel of padding, and the two pixels the line box
- * has spare around a twelve-pixel icon; on the left it is the border and three
- * pixels of padding. The line box is what may not be traded away for it: a chip
- * clips what overflows it, so a line box shorter than the text's own takes the
- * bottom off every descender in the label. Only the right side is wider, where
+ * Its padding and border are drawn around the text without adding to the
+ * line, which is what keeps a paragraph that mentions a file as tight as the
+ * one under it; a table cell, whose line box is exactly twenty pixels, is
+ * where that binds hardest. Only the right side is wider than the left, where
  * the label ends rather than an icon.
  */
 export const INLINE_CHIP_CLASS_NAME =
-  "inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/50 py-px pr-1.5 pl-[3px] align-middle text-sm/4 font-medium text-foreground no-underline! hover:bg-muted";
+  "inline rounded-md border border-border bg-muted/50 py-px pr-1.5 pl-[3px] box-decoration-clone text-sm/4 font-medium text-foreground no-underline! hover:bg-muted";
+
+/**
+ * The box a chip's icon sits in, ahead of its label. Joined to the label's
+ * first word by {@link ChipBody}, so a line never ends on a chip's icon alone.
+ */
+const INLINE_CHIP_ICON_SLOT_CLASS_NAME =
+  "mr-1 inline-flex size-3 items-center justify-center align-[-1px]";
 
 /** The icon that leads a chip, sized to what the chip's height leaves it. */
 export const INLINE_CHIP_ICON_CLASS_NAME =
@@ -99,6 +103,86 @@ const INLINE_LINK_CLASS_NAME = "font-normal! no-underline!";
  * through.
  */
 const INLINE_LINK_UNDERLINE_CLASS_NAME = "underline";
+
+/**
+ * A chip's insides: its icon, then its label. The icon is held to the label's
+ * first word when the label is text, so a line never ends on an icon alone.
+ */
+export function ChipBody({
+  children,
+  icon,
+}: {
+  children: ReactNode;
+  icon: ReactNode;
+}) {
+  const slot = <span className={INLINE_CHIP_ICON_SLOT_CLASS_NAME}>{icon}</span>;
+  const [first, rest] = splitFirstWord(children);
+  if (first === undefined) {
+    return (
+      <>
+        {slot}
+        {children}
+      </>
+    );
+  }
+  return (
+    <>
+      <span className="whitespace-nowrap">
+        {slot}
+        {first}
+      </span>
+      {rest}
+    </>
+  );
+}
+
+/**
+ * A label's first word and what follows it, for a label that starts with
+ * text (a string, or a list of children whose first is one, the way Markdown
+ * hands a link's label over). Nothing to split for any other label.
+ */
+function splitFirstWord(
+  children: ReactNode,
+): [string, ReactNode] | [undefined, undefined] {
+  // Keyed by React, so the pieces after the first word render as a list
+  // without asking each for a key.
+  const [head, ...tail] = Children.toArray(children);
+  if (typeof head !== "string") {
+    return [undefined, undefined];
+  }
+  const at = head.search(/\s/);
+  return at === -1
+    ? [head, tail]
+    : [head.slice(0, at), [head.slice(at), ...tail]];
+}
+
+/**
+ * A chip that opens what it names, from a click or from Enter or Space while
+ * focused, the way a button would.
+ */
+export function ChipButton({
+  className,
+  onActivate,
+  ...props
+}: Omit<React.ComponentProps<"span">, "onClick" | "onKeyDown" | "role"> & {
+  onActivate: (event: { ctrlKey: boolean; metaKey: boolean }) => void;
+}) {
+  return (
+    <span
+      {...props}
+      className={cn(INLINE_CHIP_CLASS_NAME, className)}
+      onClick={onActivate}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onActivate(event);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+    />
+  );
+}
 
 /**
  * One link, drawn as whatever its destination makes it.
@@ -191,29 +275,39 @@ function AppLink({
 }) {
   const gestures = useOpenGestures({ href: link.href, kind: "screen" });
   const open = gestures.destinations.find((entry) => entry.id === "open");
-  const icon = <AppLinkIcon link={link} />;
+  const body = (
+    <ChipBody icon={<AppLinkIcon link={link} />}>{children}</ChipBody>
+  );
 
   if (!open) {
     return (
       <span
         className={cn(INLINE_CHIP_CLASS_NAME, "hover:bg-muted/50", className)}
       >
-        {icon}
-        <span className="truncate">{children}</span>
+        {body}
       </span>
     );
   }
-  return (
-    <button
-      className={cn(INLINE_CHIP_CLASS_NAME, className)}
+  const chip = (
+    <ChipButton
+      className={className}
+      onActivate={open.run}
       onAuxClick={gestures.onAuxClick}
-      onClick={open.run}
       onContextMenu={gestures.onContextMenu}
-      type="button"
     >
-      {icon}
-      <span className="truncate">{children}</span>
-    </button>
+      {body}
+    </ChipButton>
+  );
+  // A setting's chip says where in Settings it goes, since its label is the
+  // setting's name and could as well be a memory's or a chat's.
+  if (link.kind !== "settings") {
+    return chip;
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{chip}</TooltipTrigger>
+      <TooltipContent>{settingsPathOf(link.name)}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -228,6 +322,16 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
     }
     case "memory": {
       return <FingerprintIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
+    case "screen": {
+      return link.name === "shortcuts" ? (
+        <KeyboardIcon className={INLINE_CHIP_ICON_CLASS_NAME} />
+      ) : (
+        <AppWindowIcon className={INLINE_CHIP_ICON_CLASS_NAME} />
+      );
+    }
+    case "settings": {
+      return <FadersHorizontalIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
     }
     case "skill": {
       return <CubeIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
@@ -294,8 +398,11 @@ function MailLink({
       email={address}
       title={address}
     >
-      <EnvelopeSimpleIcon className={INLINE_CHIP_ICON_CLASS_NAME} />
-      <span className="truncate">{children}</span>
+      <ChipBody
+        icon={<EnvelopeSimpleIcon className={INLINE_CHIP_ICON_CLASS_NAME} />}
+      >
+        {children}
+      </ChipBody>
     </EmailLink>
   );
 }

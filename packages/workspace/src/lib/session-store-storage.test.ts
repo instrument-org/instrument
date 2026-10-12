@@ -5,35 +5,35 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { publisher } from "../rpc/publisher";
-import { type TaskId, TaskIdSchema } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
   disposeSessionsStoreStorage,
   getSessionsStoreStorage,
   markStorageAsDisposing,
   unmarkStorageAsDisposing,
 } from "./session-store-storage";
-import { taskDir } from "./task-dir-utils";
+import { chatDir } from "./record-folders";
 
-const id = TaskIdSchema.parse("session-store-storage-test");
+const id = ChatIdSchema.parse("session-store-storage-test");
 
-let taskId: TaskId;
+let chatId: ChatId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "session-store-storage-"));
-  taskId = createMockTaskConfigForDir(path.join(root, TASKS_DIR_NAME, id));
-  await fs.mkdir(taskDir(taskId), { recursive: true });
+  chatId = createMockChatConfigForDir(path.join(root, TASKS_DIR_NAME, id));
+  await fs.mkdir(chatDir(chatId), { recursive: true });
 });
 
 afterEach(async () => {
-  unmarkStorageAsDisposing(taskId);
-  await disposeSessionsStoreStorage(taskId);
+  unmarkStorageAsDisposing(chatId);
+  await disposeSessionsStoreStorage(chatId);
   await fs.rm(root, { force: true, recursive: true });
 });
 
 async function storage() {
-  return (await getSessionsStoreStorage(taskId))._unsafeUnwrap();
+  return (await getSessionsStoreStorage(chatId))._unsafeUnwrap();
 }
 
 describe("session store storage", () => {
@@ -41,7 +41,7 @@ describe("session store storage", () => {
     const heard: string[] = [];
     const handle = await storage();
     const stop = publisher.subscribe("record.changed", (change) => {
-      if (change.id === taskId) {
+      if (change.id === chatId) {
         heard.push(change.kind);
       }
     });
@@ -65,7 +65,7 @@ describe("session store storage", () => {
   it("reads back what it wrote, across a dispose", async () => {
     const handle = await storage();
     expect((await handle.setItemRaw("key", "value")).isOk()).toBe(true);
-    await disposeSessionsStoreStorage(taskId);
+    await disposeSessionsStoreStorage(chatId);
 
     const reopened = await storage();
     expect((await reopened.getItemRaw("key"))._unsafeUnwrap()).toBe("value");
@@ -74,7 +74,7 @@ describe("session store storage", () => {
   it("lets a write already under way finish before the database closes", async () => {
     const handle = await storage();
     const write = handle.setItemRaw("key", "value");
-    const disposed = disposeSessionsStoreStorage(taskId);
+    const disposed = disposeSessionsStoreStorage(chatId);
 
     expect((await write).isOk()).toBe(true);
     expect((await disposed).isOk()).toBe(true);
@@ -84,7 +84,7 @@ describe("session store storage", () => {
 
   it("refuses an operation that starts while the database is being closed", async () => {
     const handle = await storage();
-    const disposed = disposeSessionsStoreStorage(taskId);
+    const disposed = disposeSessionsStoreStorage(chatId);
     const late = await handle.getItemRaw("key");
     await disposed;
 
@@ -93,10 +93,10 @@ describe("session store storage", () => {
 
   it("does not let a store opened during a dispose outlive it", async () => {
     const handle = await storage();
-    await disposeSessionsStoreStorage(taskId);
+    await disposeSessionsStoreStorage(chatId);
     // Nothing open now. A dispose and a reopen through the held handle start
     // together, as a cleanup and a late reader can.
-    const disposed = disposeSessionsStoreStorage(taskId);
+    const disposed = disposeSessionsStoreStorage(chatId);
     const late = handle.getItemRaw("key");
     await disposed;
 
@@ -105,18 +105,18 @@ describe("session store storage", () => {
 
   it("refuses to open a store marked for deletion, and opens it again once unmarked", async () => {
     await storage();
-    markStorageAsDisposing(taskId);
-    await disposeSessionsStoreStorage(taskId);
+    markStorageAsDisposing(chatId);
+    await disposeSessionsStoreStorage(chatId);
 
-    expect((await getSessionsStoreStorage(taskId)).isErr()).toBe(true);
-    unmarkStorageAsDisposing(taskId);
-    expect((await getSessionsStoreStorage(taskId)).isOk()).toBe(true);
+    expect((await getSessionsStoreStorage(chatId)).isErr()).toBe(true);
+    unmarkStorageAsDisposing(chatId);
+    expect((await getSessionsStoreStorage(chatId)).isOk()).toBe(true);
   });
 
   it("reopens through a handle held across a dispose", async () => {
     const handle = await storage();
     await handle.setItemRaw("key", "value");
-    await disposeSessionsStoreStorage(taskId);
+    await disposeSessionsStoreStorage(chatId);
 
     expect((await handle.getItemRaw("key"))._unsafeUnwrap()).toBe("value");
   });

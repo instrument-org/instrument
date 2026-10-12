@@ -3,7 +3,7 @@ import { alphabetical } from "radashi";
 
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { createSession } from "../create-session";
 import { type TypedError } from "../errors";
 import { Store } from "../store";
@@ -21,15 +21,22 @@ export function cutForNote(text: string, maxLength: number): string {
     : text;
 }
 
-/** What a task's agent last wrote in a session, whole. */
+/**
+ * What an agent last wrote in a session, whole: in a task's, only what the
+ * task wrote, never the chat's words it carries on from.
+ */
 export async function lastAssistantText({
   sessionId,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  chatId: ChatId;
 }): Promise<string | undefined> {
-  const messages = await Store.getMessagesWithParts({ sessionId, taskId });
+  const messages = await Store.getMessagesWithParts({
+    inherited: false,
+    sessionId,
+    chatId,
+  });
   if (messages.isErr()) {
     return undefined;
   }
@@ -49,14 +56,14 @@ export function lastAssistantTextIn(
 }
 
 /**
- * The session a task's next message goes into, created when the task has
+ * The session a chat's next message goes into, created when the chat has
  * never had one: what a wake, a `task send`, and the window's first open all
  * need before they can write.
  */
 export async function latestOrNewSessionId(
-  taskId: TaskId,
+  chatId: ChatId,
 ): Promise<Result<StoreId.Session, TypedError.Type>> {
-  const newest = await latestSessionId(taskId);
+  const newest = await latestSessionId(chatId);
   if (newest.isErr()) {
     return err(newest.error);
   }
@@ -65,18 +72,18 @@ export async function latestOrNewSessionId(
   }
   const created = await createSession({
     sessionId: StoreId.newSessionId(),
-    taskId,
+    chatId,
   });
   return created.map((session) => session.id);
 }
 
 /**
- * The session a task's next message goes into: its newest top-level one, or
- * none for a task that has never had a session. Session ids are ulids, so
+ * The session a chat's next message goes into: its newest top-level one, or
+ * none for a chat that has never had a session. Session ids are ulids, so
  * alphabetical order is creation order.
  */
-export function latestSessionId(taskId: TaskId) {
-  return Store.getSessions(taskId).map(
+export function latestSessionId(chatId: ChatId) {
+  return Store.getSessions(chatId).map(
     (sessions) => alphabetical(sessions, (session) => session.id).at(-1)?.id,
   );
 }

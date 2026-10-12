@@ -4,7 +4,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * Signs in with ChatGPT, the way Settings > Providers does: the browser opens
@@ -67,9 +67,7 @@ export function ChatGPTLoginButton({
       }
       case "failed": {
         setWaiting(false);
-        toast.error("Couldn't sign in with ChatGPT", {
-          description: result.error,
-        });
+        toast.error("Couldn't sign in with ChatGPT", { cause: result.error });
         return;
       }
       case "canceled":

@@ -9,7 +9,7 @@ import { Progress } from "@/client/components/ui/progress";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME, SUPPORT_URL } from "@instrument-org/shared";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { useLiveSubscriptionStatus } from "../hooks/use-live-subscription-status";
 
@@ -34,10 +34,10 @@ export function SubscriptionCard() {
       if (url) {
         await openExternalLink({ url });
       } else {
-        toast.error("Failed to create portal session");
+        toast.error("Couldn't open your billing page");
       }
-    } catch {
-      toast.error("Failed to create portal session");
+    } catch (caught) {
+      toast.error("Couldn't open your billing page", { cause: caught });
     }
   };
 

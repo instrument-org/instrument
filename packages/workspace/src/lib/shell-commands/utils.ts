@@ -4,13 +4,13 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
+import { CHAT_FOLDER_NAMES } from "../../constants";
 import { MOUNT } from "../../mount-points";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { gitSubprocessEnv } from "../git";
 import { normalizePath } from "../normalize-path";
 import { relativeWithin } from "../path-containment";
-import { getTaskTmpDir, taskDir } from "../task-dir-utils";
+import { getChatTmpDir } from "../chat-dir-utils";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
@@ -18,6 +18,7 @@ import {
   resolveHostDevicePath,
   resolveNativeHostPath,
 } from "../workspace-fs-layout";
+import { workDir } from "../work-dir";
 
 /**
  * How to reach a `/mnt/...` path a native process cannot: the sandboxed
@@ -26,7 +27,7 @@ import {
  */
 export interface MountAlternative {
   /**
-   * One sentence naming the sandboxed command that reads attached folders in
+   * One sentence naming the sandboxed command that reads folder mounts in
    * place, when the invocation could have used it. Absent for a command with
    * no sandboxed twin (ffmpeg, pip) and for a skill script, which runs
    * natively on purpose.
@@ -39,7 +40,7 @@ export interface MountAlternative {
  * source's code, the copy command names the first file it quotes, so the fix
  * is one the agent can run as written rather than a template to fill in.
  */
-export function attachedMountLiteralError(
+export function mountLiteralError(
   subject: string,
   { alternative }: MountAlternative = {},
   source?: string,
@@ -47,11 +48,11 @@ export function attachedMountLiteralError(
   const file = source === undefined ? undefined : copyableMountFile(source);
   const copy = file
     ? `(cp '${file}' attachments/) and open the copy as attachments/${path.posix.basename(file)}.`
-    : `(cp '${MOUNT.attachedFolders}/<folder>/<file>' attachments/) and ` +
+    : `(cp '${MOUNT.folders}/<folder>/<file>' attachments/) and ` +
       `reference the copy with a task-relative path (attachments/<file>).`;
   return (
-    `${subject} references a ${MOUNT.attachedFolders}/... path. ` +
-    `Attached-folder mounts are visible to the sandbox shell, the file tools, ` +
+    `${subject} references a ${MOUNT.folders}/... path. ` +
+    `Folder mounts are visible to the sandbox shell, the file tools, ` +
     `and the sandboxed script runtimes, never to a real interpreter process. ` +
     (alternative ? `${alternative} Otherwise copy` : `Copy`) +
     ` the file into the task first ${copy}`
@@ -66,10 +67,7 @@ export function attachedMountLiteralError(
  * copy command built from it would be wrong.
  */
 function copyableMountFile(source: string): string | undefined {
-  const escaped = MOUNT.attachedFolders.replaceAll(
-    /[.*+?^${}()|[\]\\]/g,
-    "\\$&",
-  );
+  const escaped = MOUNT.folders.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const literal = new RegExp(`(['"\`])(${escaped}/[^'"\`\\n]+)\\1`).exec(
     source,
   )?.[2];
@@ -91,7 +89,7 @@ function copyableMountFile(source: string): string | undefined {
  */
 export function bridgeFlagValuePath(
   flag: string,
-  taskId: TaskId,
+  chatId: ChatId,
   taskCwd: string,
   resolvePath: (p: string) => string,
 ): string {
@@ -100,7 +98,7 @@ export function bridgeFlagValuePath(
   if (!value.startsWith("/")) {
     return flag;
   }
-  const bridged = virtualToRealRelative(value, taskId, taskCwd, resolvePath);
+  const bridged = virtualToRealRelative(value, chatId, taskCwd, resolvePath);
   return `${flag.slice(0, eqIndex)}=${bridged}`;
 }
 
@@ -118,18 +116,18 @@ export function bridgeFlagValuePath(
  */
 export function bridgeInlineCodePaths(
   code: string,
-  taskId: TaskId,
+  chatId: ChatId,
   taskCwd: string,
   alternative: MountAlternative = {},
 ): { code: string } | { error: string } {
-  if (quotedMountPattern(MOUNT.attachedFolders).test(code)) {
+  if (quotedMountPattern(MOUNT.folders).test(code)) {
     return {
-      error: attachedMountLiteralError("Inline script code", alternative, code),
+      error: mountLiteralError("Inline script code", alternative, code),
     };
   }
 
   // The private dir is masked from the shell and file tools; block inline-code
-  // literals too so a real interpreter can't be steered into task.db/state.json
+  // literals too so a real interpreter can't be steered into chat.db/state.json
   // via a quoted `/task/.instrument/...` string. Best-effort, like the /mnt
   // guard above.
   if (quotedMountPattern(privateMountPoint(MOUNT.task)).test(code)) {
@@ -137,7 +135,7 @@ export function bridgeInlineCodePaths(
   }
 
   const relativeTaskRoot =
-    path.relative(taskCwd, taskDir(taskId)).replaceAll("\\", "/") || ".";
+    path.relative(taskCwd, workDir(chatId)).replaceAll("\\", "/") || ".";
   return {
     code: code.replaceAll(
       quotedMountPattern(MOUNT.task),
@@ -154,13 +152,13 @@ export function bridgeInlineCodePaths(
  */
 export function bridgeAppleScriptPaths(
   code: string,
-  taskId: TaskId,
+  chatId: ChatId,
 ): { code: string } | { error: string } {
-  const checked = bridgeInlineCodePaths(code, taskId, taskDir(taskId));
+  const checked = bridgeInlineCodePaths(code, chatId, workDir(chatId));
   if ("error" in checked) {
     return checked;
   }
-  const taskRoot = taskDir(taskId);
+  const taskRoot = workDir(chatId);
   return {
     code: code.replaceAll(
       quotedMountPattern(MOUNT.task),
@@ -178,7 +176,7 @@ export function bridgeAppleScriptPaths(
 export function extractFileAndScriptArgs(
   positionals: string[],
   args: string[],
-  taskId: TaskId,
+  chatId: ChatId,
   taskCwd: string,
   resolvePath: (path: string) => string,
 ): undefined | { filePath: string; scriptArgs: string[] } {
@@ -189,7 +187,7 @@ export function extractFileAndScriptArgs(
 
   const filePath = virtualToRealRelative(
     rawFilePath,
-    taskId,
+    chatId,
     taskCwd,
     resolvePath,
   );
@@ -197,7 +195,7 @@ export function extractFileAndScriptArgs(
   const rawScriptArgs = args.slice(filePathIndex + 1);
   const scriptArgs = rawScriptArgs.map((arg) =>
     looksLikePath(arg)
-      ? virtualToRealRelative(arg, taskId, taskCwd, resolvePath)
+      ? virtualToRealRelative(arg, chatId, taskCwd, resolvePath)
       : arg,
   );
 
@@ -264,28 +262,28 @@ export function parseScriptRunnerArgs<
 /** Guidance for a private-dir reference; subject names the source. */
 export function privateDirLiteralError(subject: string): string {
   return (
-    `${subject} references the private ${TASK_FOLDER_NAMES.private} directory. ` +
-    `It holds task internals (task.db, state.json, settings) and is not readable ` +
+    `${subject} references the private ${CHAT_FOLDER_NAMES.private} directory. ` +
+    `It holds chat internals (chat.db, state.json, settings) and is not readable ` +
     `by real interpreter processes.`
   );
 }
 
 /** Resolve the effective cwd and env for a shell command. */
 export function resolveCommandContext(
-  taskId: TaskId,
+  chatId: ChatId,
   ctx: {
     cwd: string;
     env: Map<string, string>;
     fs: { resolvePath(cwd: string, path: string): string };
   },
 ) {
-  const uvEnv = uvSubprocessEnv({ taskId });
+  const uvEnv = uvSubprocessEnv({ chatId });
   const shellEnv = { ...Object.fromEntries(ctx.env), ...uvEnv };
   // A task-local temp dir keeps tempfile, os.tmpdir(), and mktemp inside the
   // sandbox instead of the host temp dir; created here if absent (recursive
   // mkdir is a no-op when it exists) because interpreters fail if TMPDIR points
   // at a missing dir.
-  const tmpDir = getTaskTmpDir(taskDir(taskId));
+  const tmpDir = getChatTmpDir(workDir(chatId));
   mkdirSync(tmpDir, { recursive: true });
   return {
     // Overlay the uv/python env so the real-binary escape hatches (tsx, node,
@@ -304,7 +302,7 @@ export function resolveCommandContext(
       TMPDIR: tmpDir,
     },
     taskCwd: resolveNativeHostPath(
-      taskDir(taskId),
+      workDir(chatId),
       ctx.fs.resolvePath(ctx.cwd, "."),
     ),
   };
@@ -320,7 +318,7 @@ export function resolveCommandContext(
  */
 export function resolvePathArgs(
   args: string[],
-  taskId: TaskId,
+  chatId: ChatId,
   ctx: {
     cwd: string;
     fs: { resolvePath(cwd: string, path: string): string };
@@ -333,7 +331,7 @@ export function resolvePathArgs(
     const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
     return (
       resolveHostDevicePath(virtualPath) ??
-      resolveNativeHostPath(taskDir(taskId), virtualPath)
+      resolveNativeHostPath(workDir(chatId), virtualPath)
     );
   });
 }
@@ -374,8 +372,8 @@ export function scriptFileVirtualPathError(
   source: string,
   alternative: MountAlternative = {},
 ): string | undefined {
-  if (quotedMountPattern(MOUNT.attachedFolders).test(source)) {
-    return attachedMountLiteralError("This script file", alternative, source);
+  if (quotedMountPattern(MOUNT.folders).test(source)) {
+    return mountLiteralError("This script file", alternative, source);
   }
   if (quotedMountPattern(privateMountPoint(MOUNT.task)).test(source)) {
     return privateDirLiteralError("This script file");
@@ -431,11 +429,11 @@ export function unreachablePathArgError(
   virtualCwd: string,
   { alternative }: MountAlternative = {},
 ): string | undefined {
-  const mount = attachedMountReference(args, virtualCwd);
+  const mount = folderMountReference(args, virtualCwd);
   if (mount !== undefined) {
     return (
-      `${commandName}: ${mount} is inside an attached folder, which ` +
-      `${commandName} cannot read. Attached-folder mounts are visible to the ` +
+      `${commandName}: ${mount} is inside a folder mount, which ` +
+      `${commandName} cannot read. Folder mounts are visible to the ` +
       `sandbox shell, the file tools, and the sandboxed script runtimes, never ` +
       `to a real subprocess. ` +
       (alternative ? `${alternative} Otherwise copy` : `Copy`) +
@@ -464,7 +462,7 @@ export function unreachablePathArgError(
 }
 
 /**
- * The first attached-folder path a shim was pointed at, whether through an
+ * The first folder-mount path a shim was pointed at, whether through an
  * argument or through the working directory it inherited, or undefined.
  *
  * `resolveNativeHostPath` quarantines a `/mnt/...` path to a non-existent
@@ -474,18 +472,18 @@ export function unreachablePathArgError(
  * rather than the boundary it is. Callers use this to answer with the mount
  * the agent asked for before spawning anything.
  */
-function attachedMountReference(
+function folderMountReference(
   args: string[],
   virtualCwd: string,
 ): string | undefined {
-  if (isUnderAttachedMount(normalizePath(virtualCwd))) {
+  if (isUnderFolderMount(normalizePath(virtualCwd))) {
     return normalizePath(virtualCwd);
   }
   // Slicing past an `=` covers `--git-dir=/mnt/x` and leaves a bare `/mnt/x`
   // whole, since indexOf returns -1 when there is no `=`.
   return args
     .map((arg) => normalizePath(arg.slice(arg.indexOf("=") + 1)))
-    .find((value) => isUnderAttachedMount(value));
+    .find((value) => isUnderFolderMount(value));
 }
 
 function isOptionToken(token: { kind: string }): token is {
@@ -497,11 +495,8 @@ function isOptionToken(token: { kind: string }): token is {
   return token.kind === "option";
 }
 
-function isUnderAttachedMount(value: string): boolean {
-  return (
-    value === MOUNT.attachedFolders ||
-    value.startsWith(`${MOUNT.attachedFolders}/`)
-  );
+function isUnderFolderMount(value: string): boolean {
+  return value === MOUNT.folders || value.startsWith(`${MOUNT.folders}/`);
 }
 
 /**
@@ -537,7 +532,7 @@ function quotedMountPattern(mountPoint: string): RegExp {
  */
 function virtualToRealRelative(
   virtualPath: string,
-  taskId: TaskId,
+  chatId: ChatId,
   taskCwd: string,
   resolvePath: (p: string) => string,
 ): string {
@@ -547,6 +542,6 @@ function virtualToRealRelative(
   if (device !== undefined) {
     return device;
   }
-  const realAbs = resolveNativeHostPath(taskDir(taskId), resolved);
+  const realAbs = resolveNativeHostPath(workDir(chatId), resolved);
   return path.relative(taskCwd, realAbs);
 }

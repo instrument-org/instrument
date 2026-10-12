@@ -3,11 +3,11 @@ import { APP_NAME } from "@instrument-org/shared";
 import {
   MOUNT,
   type SessionMessagePart,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { Button } from "../ui/button";
 import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";
@@ -30,26 +30,22 @@ type RequestFolderPart = Extract<
  */
 export function ToolRequestFolder({
   part,
-  taskId,
+  chatId,
 }: {
   part: RequestFolderPart;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
   const answer = useMutation(
     rpcClient.workspace.session.answerToolCall.mutationOptions({
       onError: (error) => {
-        toast.error("Could not answer the request", {
-          description: error.message,
-        });
+        toast.error("Couldn't send your answer", { cause: error });
       },
     }),
   );
-  const attach = useMutation(
-    rpcClient.workspace.task.state.attachFolder.mutationOptions({
+  const grant = useMutation(
+    rpcClient.workspace.chats.folders.grant.mutationOptions({
       onError: (error) => {
-        toast.error("Could not attach the folder", {
-          description: error.message,
-        });
+        toast.error("Couldn't allow the folder", { cause: error });
       },
     }),
   );
@@ -65,7 +61,7 @@ export function ToolRequestFolder({
 
   const choose = async () => {
     const refused = refusedFolder
-      ? await refusedHostPath(taskId, refusedFolder)
+      ? await refusedHostPath(chatId, refusedFolder)
       : undefined;
     const picked = await rpcClient.utils.showFolderPicker.call({
       buttonLabel: "Allow",
@@ -80,12 +76,12 @@ export function ToolRequestFolder({
     const mountPoint =
       refused && refusedFolder && picked.path === refused
         ? refusedFolder
-        : `${MOUNT.attachedFolders}/${
-            (await attach.mutateAsync({ id: taskId, path: picked.path }))
+        : `${MOUNT.folders}/${
+            (await grant.mutateAsync({ id: chatId, path: picked.path }))
               .mountName
           }`;
     answer.mutate({
-      id: taskId,
+      id: chatId,
       output: { mountPoint, status: "granted" },
       toolCallId: part.toolCallId,
       toolName: "request_folder",
@@ -94,7 +90,7 @@ export function ToolRequestFolder({
 
   const decline = () => {
     answer.mutate({
-      id: taskId,
+      id: chatId,
       output: { status: "declined" },
       toolCallId: part.toolCallId,
       toolName: "request_folder",
@@ -111,7 +107,7 @@ export function ToolRequestFolder({
         {isPending ? (
           <div className="mt-3 flex gap-2">
             <Button
-              disabled={attach.isPending || answer.isPending}
+              disabled={grant.isPending || answer.isPending}
               onClick={() => {
                 void choose();
               }}
@@ -120,7 +116,7 @@ export function ToolRequestFolder({
               Choose folder…
             </Button>
             <Button
-              disabled={attach.isPending || answer.isPending}
+              disabled={grant.isPending || answer.isPending}
               onClick={decline}
               size="sm"
               variant="secondary"
@@ -137,7 +133,7 @@ export function ToolRequestFolder({
         ) : part.state === "output-available" ? (
           <p className="mt-2 text-xs text-muted-foreground">
             {part.output.status === "granted"
-              ? `You attached "${part.output.mountPoint.slice(MOUNT.attachedFolders.length + 1)}".`
+              ? `You attached "${part.output.mountPoint.slice(MOUNT.folders.length + 1)}".`
               : "You declined."}
           </p>
         ) : null}
@@ -151,18 +147,18 @@ export function ToolRequestFolder({
  * mounted at: the mount it sits in, and the rest of the path inside that.
  */
 async function refusedHostPath(
-  taskId: TaskId,
+  chatId: ChatId,
   mountPath: string,
 ): Promise<string | undefined> {
-  const prefix = `${MOUNT.attachedFolders}/`;
+  const prefix = `${MOUNT.folders}/`;
   if (!mountPath.startsWith(prefix)) {
     return undefined;
   }
   const inside = mountPath.slice(prefix.length).replace(/\/+$/, "");
-  const { attachedFolders } = await rpcClient.workspace.task.state.get.call({
-    id: taskId,
+  const folders = await rpcClient.workspace.chats.folders.get.call({
+    id: chatId,
   });
-  const mount = Object.values(attachedFolders ?? {})
+  const mount = Object.values(folders)
     .filter(
       ({ mountName }) =>
         inside === mountName || inside.startsWith(`${mountName}/`),

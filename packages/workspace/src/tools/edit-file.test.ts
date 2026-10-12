@@ -3,17 +3,17 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
-  createMockTaskConfig,
+  createMockChatConfig,
   MOCK_WORKSPACE_DIRS,
-} from "../test/helpers/mock-task-config";
+} from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
 
 const model = createMockAIGatewayModel();
-const taskId = createMockTaskConfig(TaskIdSchema.parse("test"), {
+const chatId = createMockChatConfig(ChatIdSchema.parse("test"), {
   model,
 });
 
@@ -52,19 +52,17 @@ function makeExecuteArgs(
   input: Parameters<typeof TOOLS.EditFile.execute>[0]["input"],
 ) {
   return {
-    agentName: "main" as const,
     input,
     model,
     signal: AbortSignal.timeout(10_000),
-    taskId,
-    taskState: { browserTabs: [] },
+    chatId,
   };
 }
 
 function setupMockFs(files: NonNullable<Parameters<typeof mockFs>[0]> = {}) {
   mockFs({
-    [MOCK_WORKSPACE_DIRS.tasks]: {
-      [taskId]: {
+    [MOCK_WORKSPACE_DIRS.chats]: {
+      [chatId]: {
         "grep-test.txt": GREP_FILE_CONTENT,
         ...files,
       },
@@ -247,7 +245,7 @@ describe("EditFile", () => {
       `);
       await expect(
         fs.readFile(
-          path.join(MOCK_WORKSPACE_DIRS.tasks, taskId, "index.ts"),
+          path.join(MOCK_WORKSPACE_DIRS.chats, chatId, "index.ts"),
           "utf8",
         ),
       ).resolves.toBe(original);

@@ -1,7 +1,6 @@
-import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
+import { fetchModel } from "@instrument-org/ai-gateway";
 
-import { taskDir } from "../../task-dir-utils";
-import { getTaskState } from "../../task-record";
+import { chatModelURI } from "../../chat-settings";
 import { getWorkspaceConfig } from "../../workspace-config";
 import { type TaskCommandContext } from "./context";
 
@@ -12,13 +11,12 @@ import { type TaskCommandContext } from "./context";
  * with the picker at the next message it is sent.
  */
 export async function chatModel(command: string, context: TaskCommandContext) {
-  const state = await getTaskState(taskDir(context.chatId));
-  if (!state.selectedModelURI) {
+  const modelURI = await chatModelURI(context.chatId);
+  if (!modelURI) {
     throw new Error(
       `${command}: this conversation has not chosen a model yet, so there is none to run a task on.`,
     );
   }
-  const modelURI = AIGatewayModelURI.Schema.parse(state.selectedModelURI);
   const workspaceConfig = getWorkspaceConfig();
   const result = await fetchModel({
     captureException: workspaceConfig.captureException,

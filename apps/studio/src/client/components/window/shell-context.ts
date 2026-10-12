@@ -1,8 +1,8 @@
-import { type Draft } from "@/client/atoms/window";
+import { type AppPlace, type Draft } from "@/client/atoms/window";
 import {
   type ChatId,
   type SessionMessageDataPart,
-  type TaskId,
+  type StoreId,
 } from "@instrument-org/workspace/client";
 import { atom } from "jotai";
 import { createContext, useContext } from "react";
@@ -38,12 +38,14 @@ export interface WindowShell {
   chats: Chat[] | undefined;
   chatTitles: Map<ChatId, string>;
   /** Each task's title, for a tab standing on one. */
-  childTitles: Map<TaskId, string>;
+  childTitles: Map<StoreId.Session, string>;
   compose: ReturnType<typeof useCompose>;
   /** Throws a draft away, with a moment to take it back. */
   discardDraft: (id: string) => void;
   /** The drafts worth coming back to, for the inbox. */
   drafts: Draft[];
+  /** Takes the tab up to one of the rail's places, as a press on the rail does. */
+  goToPlace: (place: AppPlace) => void;
   /** Opens a new draft, as the rail's New does. */
   newDraft: () => void;
   /** The inbox's rows as it lists them, for stepping through them by chord. */

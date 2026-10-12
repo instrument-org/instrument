@@ -1,4 +1,4 @@
-import type { TaskId } from "@instrument-org/workspace/electron";
+import type { ChatId } from "@instrument-org/workspace/electron";
 
 import { app, type Session, type WebContents, webFrameMain } from "electron";
 
@@ -61,6 +61,12 @@ export interface GuestRecord {
   readonly frames: Map<string, FrameId & { url: string }>;
   readonly id: number;
   readonly role: GuestRole;
+  /**
+   * When a person last clicked, tapped or pressed a key in this contents, by
+   * `Date.now()`, or 0 if never. Input an agent's CDP command dispatches is
+   * not counted; see `noteUserInput` in `external-app-links.ts`.
+   */
+  userInputAt: number;
 }
 
 const keyOf = ({ processId, routingId }: FrameId) =>
@@ -85,7 +91,7 @@ export function createGuestRegistry() {
       roleOf: (contents: WebContents) => GuestRole;
     }
   >();
-  const unblockedTasks = new Set<TaskId>();
+  const unblockedTasks = new Set<ChatId>();
   let listening = false;
 
   function track(contents: WebContents, role: GuestRole): GuestRecord {
@@ -97,6 +103,7 @@ export function createGuestRegistry() {
       frames: new Map(),
       id,
       role,
+      userInputAt: 0,
     };
     records.set(id, record);
     contents.on(
@@ -155,7 +162,7 @@ export function createGuestRegistry() {
      * Turns ad blocking off (`false`) or on (`true`) for a task's own tabs,
      * or with `undefined` only asks; answers whether it blocks for them.
      */
-    setAdBlocking(task: TaskId, blocking: boolean | undefined): boolean {
+    setAdBlocking(task: ChatId, blocking: boolean | undefined): boolean {
       if (blocking === false) {
         unblockedTasks.add(task);
       } else if (blocking === true) {

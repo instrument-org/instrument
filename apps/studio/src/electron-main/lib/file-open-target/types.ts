@@ -23,6 +23,9 @@ export interface FileOpenTarget {
   // The app to launch in place of the system's choice, set only when that
   // choice is Instrument itself. Null means the system default is launched.
   launchAppPath: null | string;
+  // The system opens it with a helper not worth naming, so `appName` is null
+  // and the file is still offered a plain Open.
+  opensUnnamed: boolean;
 }
 
 // What a platform resolver reports about the app the system would use. Distinct

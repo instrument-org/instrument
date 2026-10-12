@@ -4,7 +4,7 @@ import {
   type AbsolutePath,
   type BrowserTargetId,
   type StoreId,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/electron";
 import { noop } from "radashi";
 
@@ -85,7 +85,7 @@ export interface BrowserEntry {
   // Listeners notified once when the entry is removed from the manager (for
   // any reason: explicit close, detach, renderer crash). Drained as part of
   // the disposer chain so they never fire more than once. Used to surface
-  // "view destroyed" to higher layers (e.g. the taskBrowser machine).
+  // "view destroyed" to higher layers (e.g. the chatBrowser machine).
   destructionListeners: Set<() => void>;
   detachListeners: Set<() => void>;
   // Disposers run once when the entry is torn down (either via explicit close
@@ -99,7 +99,7 @@ export interface BrowserEntry {
   // (even when the two events coalesce into one stream snapshot) and remount a
   // fresh guest instead of stranding the destroyed one.
   generation: number;
-  id: TaskId;
+  id: ChatId;
   // Whether a main-frame navigation to a real URL has started on this guest.
   // False for the whole life of a target that only ever held `about:blank` --
   // agent-browser mints a page for any command that needs one, including
@@ -146,7 +146,7 @@ export function createEntry({
   sessionId,
   targetId,
 }: {
-  id: TaskId;
+  id: ChatId;
   partitionDir: AbsolutePath;
   sessionId: StoreId.Session;
   targetId: BrowserTargetId;

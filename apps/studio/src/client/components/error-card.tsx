@@ -7,6 +7,7 @@ import {
 
 import { ErrorCardShell } from "./error-card-shell";
 import { InternalLink } from "./internal-link";
+import { ReportErrorButton } from "./report-error-button";
 import { Button } from "./ui/button";
 
 export function ErrorCard({
@@ -57,6 +58,7 @@ export function ErrorCard({
           >
             Try again
           </Button>
+          <ReportErrorButton error={error} surface="route-error" />
         </div>
       }
       description={description}

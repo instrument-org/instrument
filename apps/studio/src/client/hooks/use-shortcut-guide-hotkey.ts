@@ -1,5 +1,5 @@
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
-import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
+import { windowHoldsAtom } from "@/client/atoms/tab-navigation-block";
 import { isTypingInto } from "@/client/lib/is-typing-into";
 import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { useStore } from "jotai";
@@ -34,7 +34,7 @@ export function useShortcutGuideHotkey() {
       if (isTypingInto(event.target)) {
         return;
       }
-      if (store.get(blockingModalCountAtom) > 0) {
+      if (store.get(windowHoldsAtom).length > 0) {
         return;
       }
       event.preventDefault();

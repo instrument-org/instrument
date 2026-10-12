@@ -85,7 +85,7 @@ Just `pnpm --silent script:run-bash` with no arguments when stdin is a TTY.
 Stderr example:
 
 ```plaintext
-task dir: /tmp/instrument-bash-repl/tasks/01kv...
+task dir: /tmp/instrument-bash-repl/chats/01kv...
 task: 01kv...  session: ses_01KV...
 
 [exit 0 · 23ms]
@@ -100,7 +100,7 @@ Same environment as the real agent:
 - **Built-in commands**: standard unix builtins (`ls`, `grep`, `find`, `curl`, etc.)
 - **Sandboxed script runtimes**: `python`/`python3` (CPython on WebAssembly, standard library only, reads `/mnt` directly) and `js-exec` (QuickJS, built-ins only); both are just-bash's, wrapped by our shims
 - **Custom shims**: `node` (also runs TypeScript), `pnpm`, `pnx`/`pnpx`/`npx`, `uv`, `python-native`, `pip`/`pip3`, `ffmpeg`, `ffprobe`, `git`, `rg`, `osascript`, `app`, `jobs`/`fg`/`kill`
-- **Not here**: the chat agent's commands (`task`, `chat`, `tab`, `memory`); this runner builds a task agent's shell
+- **Not here**: the commands only a chat's shell has (`task`, `chat`, `tab`, `memory`) and its `/apps` mount; this runner builds a task's shell
 - **Stub**: `npm` -> error (use `pnpm`)
 - **Managed command**: `agent-browser` resolves to the wrapped CLI; use this runner for command availability/help checks, not real browser-session testing
 
@@ -120,4 +120,4 @@ TASK_DIR=$(pnpm --silent script:run-bash -- "echo hi" 2>&1 \
   | grep 'task dir:' | awk '{print $3}')
 ```
 
-Alternatively pass `--task <id>` to a known task dir under `$TMPDIR/instrument-bash-repl/tasks/<id>/` (`--tasks-dir <dir>` uses another tasks root).
+Alternatively pass `--task <id>` to a known folder under `$TMPDIR/instrument-bash-repl/chats/<id>/` (`--chats-dir <dir>` uses another root).

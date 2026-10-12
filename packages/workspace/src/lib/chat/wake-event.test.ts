@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
+import { StoreId } from "../../schemas/store-id";
 import { replacesPendingEvent } from "./wake-event";
 
-const taskId = TaskIdSchema.parse("task");
+const sessionId = StoreId.newSessionId();
 const event = (status: "done" | "error" | "overdue") => ({
   status,
-  taskId,
+  sessionId,
   title: "Task",
 });
 

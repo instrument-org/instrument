@@ -34,7 +34,7 @@ import { formatBytes } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * The dev panel's workspaces: switch between them, make a new one, and clear
@@ -69,10 +69,12 @@ export function ManageWorkspacesDialog({
   const { mutate: remove } = useMutation(
     rpcClient.workspaces.remove.mutationOptions({
       onError: (error) => {
-        toast.error(error.message);
+        toast.dev("Couldn't move the workspace to the Trash", {
+          description: error.message,
+        });
       },
       onSuccess: () => {
-        toast("Moved to the Trash");
+        toast.dev("Moved the workspace to the Trash");
         void refresh();
       },
     }),
@@ -80,7 +82,7 @@ export function ManageWorkspacesDialog({
   const { mutate: register } = useMutation(
     rpcClient.workspaces.register.mutationOptions({
       onError: (error) => {
-        toast.error(error.message);
+        toast.dev("Couldn't add the workspace", { description: error.message });
       },
       onSuccess: () => {
         void refresh();
@@ -184,7 +186,9 @@ export function NewWorkspaceDialog({
   const { isPending, mutate: create } = useMutation(
     rpcClient.workspaces.create.mutationOptions({
       onError: (error) => {
-        toast.error(error.message);
+        toast.dev("Couldn't make the workspace", {
+          description: error.message,
+        });
       },
     }),
   );
@@ -472,16 +476,18 @@ function useSwitchWorkspace() {
       {
         ...options,
         onError: (error, ...more) => {
-          toast.error(error.message);
+          toast.dev("Couldn't switch workspaces", {
+            description: error.message,
+          });
           options?.onError?.(error, ...more);
         },
         onSuccess: (result, ...more) => {
           if (result.outcome === "canceled") {
-            toast("Switch canceled");
+            toast.dev("Switch canceled");
           } else if (result.outcome === "unsupported") {
-            toast(
-              `${name} opens the next time the app starts: this run cannot restart itself`,
-            );
+            toast.dev(`${name} opens the next time the app starts`, {
+              description: "This run can't restart itself.",
+            });
           }
           options?.onSuccess?.(result, ...more);
         },

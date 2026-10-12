@@ -11,7 +11,7 @@ import {
   encodeBrowserTargetId,
   lastBrowserAgentActivity,
   type StoreId,
-  type TaskId,
+  type ChatId,
   WINDOW_ID,
 } from "@instrument-org/workspace/electron";
 import {
@@ -44,6 +44,7 @@ import {
 } from "./focus-guard";
 import { isBlocking } from "./content-blocking";
 import { attachGuestInteractions } from "./guest-interactions";
+import { noteUserInput } from "./external-app-links";
 import { guests } from "./guest-registry";
 import { configureGuestSession } from "./guest-session";
 import {
@@ -89,9 +90,6 @@ export interface BrowserViewManager {
   // guests meant for it.
   bindHost: (host: WebContents) => void;
   browser: BrowserConfig;
-  // Debug-only handles, consumed by `./debug-snapshot.ts`. Read-only by
-  // convention; do not mutate the returned map from outside the manager.
-  getDebugEntries: () => ReadonlyMap<BrowserTargetId, BrowserEntry>;
   // Every recorded target and whether its guest has attached yet. The renderer
   // pool mounts a guest for every id; the UI treats only attached ones as live.
   getTargets: () => BrowserGuestTarget[];
@@ -382,6 +380,13 @@ export function createBrowserViewManager(): BrowserViewManager {
     guest.on("focus", () => {
       focusGuard.onGuestFocus(targetId);
     });
+    guest.on("input-event", (_event, input) => {
+      noteUserInput(
+        guests.get(guest.id),
+        input.type,
+        focusGuard.isGuarded(targetId),
+      );
+    });
 
     guest.on(
       "did-fail-load",
@@ -535,7 +540,7 @@ export function createBrowserViewManager(): BrowserViewManager {
   }
 
   function createTarget(
-    id: TaskId,
+    id: ChatId,
     sessionId: StoreId.Session,
     partitionDir: AbsolutePath,
   ): Promise<{ targetId: BrowserTargetId }> {
@@ -591,7 +596,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     return Promise.race([entry.attach.promise, timeout]);
   }
 
-  function listTargets(id: TaskId): Promise<BrowserTarget[]> {
+  function listTargets(id: ChatId): Promise<BrowserTarget[]> {
     const targets: BrowserTarget[] = [];
 
     for (const [targetId, entry] of entries) {
@@ -757,7 +762,6 @@ export function createBrowserViewManager(): BrowserViewManager {
   managerInstance = {
     bindHost,
     browser,
-    getDebugEntries: () => entries,
     getTargets: () =>
       [...entries.values()].map((entry) => ({
         attached: hasGuest(entry),

@@ -83,14 +83,9 @@ else
 fi
 
 echo ""
-step "Updating submodules..." "git submodule update --init --recursive"
-git submodule update --init --recursive --quiet
-ok "Submodules are up to date."
-
-echo ""
-step "Installing dependencies..." "pnpm install"
-pnpm install --silent
-ok "Dependencies are installed."
+step "Preparing the checkout..." "node scripts/prepare.ts"
+node scripts/prepare.ts
+ok "Ready to run."
 
 echo ""
 done_msg "You're up to date with $BRANCH."

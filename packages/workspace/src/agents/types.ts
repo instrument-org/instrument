@@ -5,16 +5,16 @@ import type { AnyAgentTool } from "../tools/types";
 
 import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 
 export interface Agent<T extends AgentTools> {
   agentTools: T;
   getMessages: ({
     sessionId,
-    taskId,
+    chatId,
   }: {
     sessionId: StoreId.Session;
-    taskId: TaskId;
+    chatId: ChatId;
   }) =>
     | Promise<SessionMessage.ContextWithParts[]>
     | SessionMessage.ContextWithParts[];
@@ -25,12 +25,12 @@ export interface Agent<T extends AgentTools> {
     parentMessageId: StoreId.Message;
     sessionId: StoreId.Session;
     signal: AbortSignal;
-    taskId: TaskId;
+    chatId: ChatId;
   }) => Promise<void>;
   onStart: (options: {
     sessionId: StoreId.Session;
     signal: AbortSignal;
-    taskId: TaskId;
+    chatId: ChatId;
   }) => Promise<void>;
   shouldContinue: (options: {
     messages: SessionMessage.WithParts[];
@@ -43,9 +43,13 @@ export interface Agent<T extends AgentTools> {
   systemPrompt: () => string;
 }
 
-const AGENT_NAMES = ["main", "instrument"] as const;
-
-export type AgentName = (typeof AGENT_NAMES)[number];
+/**
+ * The agent's name, as written on a session's baseline. A session stored
+ * under an earlier name (`main`, `instrument-one`) is read and continued by
+ * this agent all the same: its baseline's system prompt differs from
+ * `systemPrompt()`, so it is rebuilt on the next turn.
+ */
+export type AgentName = "instrument";
 export type AgentTools = Partial<Record<InternalToolName, AnyAgentTool>>;
 
 export type AnyAgent = Agent<AgentTools>;

@@ -75,9 +75,9 @@ export const CONTACT_EMAIL = `hello@${APP_DOMAIN}`;
 // repository's history never attributes agent work to the user.
 export const GIT_AGENT_EMAIL = `agent@${APP_DOMAIN}`;
 export const GIT_AGENT_NAME = `${APP_NAME} Agent`;
-export const TASK_SETTINGS_FILE_NAME = `settings.json`;
+export const SETTINGS_FILE_NAME = `settings.json`;
 export const RELEASES_BUCKET_URL = `https://releases.${APP_DOMAIN}`;
-export const TASK_PRIVATE_FOLDER_NAME = `.instrument`;
+export const PRIVATE_FOLDER_NAME = `.instrument`;
 
 // 47xxx-48xxx range: above WSL2/Hyper-V exclusion bands (~4k-10k) and below
 // the OS ephemeral range (49152+). Env suffixes (prod/dev/test) allow all

@@ -4,8 +4,8 @@ import { WebSocket } from "ws";
 import { cdpMethodsHandled } from "../../../lib/cdp-methods";
 import { publisher } from "../../../rpc/publisher";
 import { StoreId } from "../../../schemas/store-id";
-import { TaskIdSchema } from "../../../schemas/task-id";
-import { type HeldTab } from "../../../schemas/task-state";
+import { ChatIdSchema } from "../../../schemas/chat-id";
+import { type HeldTab } from "../../../schemas/chat-state";
 import { WINDOW_ID } from "../../../schemas/window-id";
 import { type WindowTabAction } from "../../../schemas/window-tab";
 import {
@@ -16,30 +16,38 @@ import {
 import { type WorkspaceServerParentRef } from "../types";
 import { handleTaskCdpClient, TASK_TAB_CAP } from "./cdp-task-bridge";
 
-const TASK_ID = TaskIdSchema.parse("read-the-pages");
+const TASK_ID = ChatIdSchema.parse("read-the-pages");
 
-// The task's record, in memory: which tabs it holds.
+const SESSION_ID = StoreId.SessionSchema.parse(
+  "ses_01M3AX9RF3C2E9RTATMB602W0C",
+);
+
+// The tabs the task's session holds, in memory.
 const record: { browserTabs?: HeldTab[] } = {};
-vi.mock("../../../lib/task-record", () => ({
-  getTaskState: () => Promise.resolve({ ...record }),
-  setTaskState: (_dir: unknown, patch: { browserTabs?: HeldTab[] }) => {
-    Object.assign(record, patch);
+vi.mock("../../../lib/held-tabs", () => ({
+  heldTabs: () => Promise.resolve([...(record.browserTabs ?? [])]),
+  updateHeldTabs: (
+    _chatId: unknown,
+    _sessionId: unknown,
+    change: (tabs: HeldTab[]) => HeldTab[],
+  ) => {
+    record.browserTabs = change(record.browserTabs ?? []);
     return Promise.resolve();
   },
 }));
-vi.mock("../../../lib/task-dir-utils", () => ({
+vi.mock("../../../lib/chat-dir-utils", () => ({
   getBrowserSessionDir: () => "/tmp/profile",
-  taskDir: (id: string) => `/tmp/tasks/${id}`,
+  chatDir: (id: string) => `/tmp/tasks/${id}`,
 }));
 vi.mock("../../../lib/resolve-workspace-file-path", async () => {
   const { buildWorkspaceFsLayout } =
     await import("../../../lib/workspace-fs-layout");
-  const { TaskDirSchema } = await import("../../../schemas/paths");
+  const { ChatDirSchema } = await import("../../../schemas/paths");
   return {
     taskFsLayout: () =>
       Promise.resolve(
         buildWorkspaceFsLayout({
-          taskHostRoot: TaskDirSchema.parse("/tmp/tasks/read-the-pages"),
+          taskHostRoot: ChatDirSchema.parse("/tmp/tasks/read-the-pages"),
         }),
       ),
   };
@@ -126,9 +134,12 @@ function connect() {
     },
     captureException: vi.fn(),
   } as unknown as WorkspaceConfig;
-  handleTaskCdpClient(ws as unknown as WebSocket, TASK_ID, config, {
-    send: vi.fn(),
-  } as unknown as WorkspaceServerParentRef);
+  handleTaskCdpClient(
+    ws as unknown as WebSocket,
+    { sessionId: SESSION_ID, chatId: TASK_ID },
+    config,
+    { send: vi.fn() } as unknown as WorkspaceServerParentRef,
+  );
 
   let nextId = 0;
   const command = async (

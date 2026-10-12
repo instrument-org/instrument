@@ -152,15 +152,10 @@ function RouteComponent() {
         </Specimen>
 
         <Specimen
-          note="The same document without prose-session, which is what a rendered file gets: serif, larger, editorial."
+          note="The same document without prose-session, the way a skill's instructions are set: serif headings, larger and editorial, over sans body text."
           title="Headings, editorial"
         >
-          <div
-            className={cn(
-              "prose prose-custom w-full font-serif dark:prose-invert",
-              TRANSCRIPT_PROSE,
-            )}
-          >
+          <div className="prose prose-custom w-full text-sm/relaxed wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
             <Markdown markdown={HEADINGS} />
           </div>
         </Specimen>

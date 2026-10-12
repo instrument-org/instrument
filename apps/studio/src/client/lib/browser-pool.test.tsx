@@ -1,7 +1,7 @@
 import {
   encodeBrowserTargetId,
   StoreId,
-  TaskIdSchema,
+  ChatIdSchema,
 } from "@instrument-org/workspace/client";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
@@ -14,7 +14,7 @@ import {
 } from "./browser-pool";
 
 const target = encodeBrowserTargetId(
-  TaskIdSchema.parse("instrument"),
+  ChatIdSchema.parse("instrument"),
   StoreId.newSessionId(),
 );
 
@@ -28,7 +28,9 @@ async function* quiet(signal?: AbortSignal) {
 }
 
 vi.mock("@/client/lib/browser-host", () => ({ WINDOW_BROWSER_HOST: "main" }));
-vi.mock("@/client/lib/telemetry", () => ({ captureException: vi.fn() }));
+vi.mock("@/client/lib/capture-exception", () => ({
+  captureException: vi.fn(),
+}));
 vi.mock("@/client/rpc/client", () => {
   const stream = {
     call: (_input: unknown, options?: { signal?: AbortSignal }) =>

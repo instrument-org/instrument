@@ -1,6 +1,6 @@
 import { defineCommand } from "just-bash";
 
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
@@ -25,7 +25,7 @@ const SHORTCUTS_PATH = "/usr/bin/shortcuts";
 const PATH_FLAGS = new Set(["-i", "--input-path", "-o", "--output-path"]);
 
 export function createShortcutsCommand(
-  taskId: TaskId,
+  chatId: ChatId,
   layout: WorkspaceFsLayout,
 ) {
   return defineCommand(SHORTCUTS_COMMAND.name, async (args, ctx) => {
@@ -51,9 +51,9 @@ export function createShortcutsCommand(
       return { exitCode: 1, stderr: unreachable, stdout: "" };
     }
     const bridgedArgs = args.flatMap((arg, index) =>
-      isPath[index] ? resolvePathArgs([arg], taskId, ctx) : [arg],
+      isPath[index] ? resolvePathArgs([arg], chatId, ctx) : [arg],
     );
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const result = await execShim(SHORTCUTS_PATH, bridgedArgs, {
       cancelSignal: ctx.signal,
       cwd: taskCwd,

@@ -29,9 +29,9 @@ import { RelativePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { TOOLS } from "../tools/all";
 import { llmRequestLogic } from "./llm-request";
 
@@ -157,7 +157,7 @@ describe("llmRequestLogic", () => {
         provider === "anthropic" ? "anthropic" : OUR_PROVIDER_CONFIG.type,
     });
 
-    const taskConfig = createMockTaskConfig(TaskIdSchema.parse(`mock`), {
+    const taskConfig = createMockChatConfig(ChatIdSchema.parse(`mock`), {
       aiSDKModel: mockLanguageModel,
       catalog,
       model,
@@ -196,14 +196,11 @@ describe("llmRequestLogic", () => {
                 agentTools: {},
                 getMessages,
                 getTools: () => Promise.resolve(Object.values(TOOLS)),
-                name: "main",
+                name: "instrument",
                 onFinish: () => Promise.resolve(),
                 onStart: () => Promise.resolve(),
                 shouldContinue: () => Promise.resolve(true),
                 systemPrompt: () => "You are a helpful assistant.",
-              },
-              captureEvent: () => {
-                // no-op
               },
               emitDeltas: true,
               model,
@@ -212,7 +209,7 @@ describe("llmRequestLogic", () => {
               } as unknown as AnyActorRef,
               sessionId,
               stepCount: 1,
-              taskId: taskConfig,
+              chatId: taskConfig,
             }),
             onDone: "Done",
             onError: {
@@ -227,22 +224,22 @@ describe("llmRequestLogic", () => {
       },
     });
 
-    return { machine, mockLanguageModel, taskId: taskConfig };
+    return { machine, mockLanguageModel, chatId: taskConfig };
   }
 
   async function runTestMachine({
     machine,
-    taskId,
+    chatId,
   }: Pick<
     Awaited<ReturnType<typeof createTestMachine>>,
-    "machine" | "taskId"
+    "machine" | "chatId"
   >) {
     const actor = createActor(machine);
     actor.start();
     await waitFor(actor, (state) => state.status === "done");
     const sessionResult = await Store.getSessionWithMessagesAndParts(
       sessionId,
-      taskId,
+      chatId,
     );
     return sessionResult._unsafeUnwrap();
   }
@@ -1409,7 +1406,7 @@ describe("llmRequestLogic", () => {
       await waitFor(actor, (state) => state.status === "done");
       const sessionResult = await Store.getSessionWithMessagesAndParts(
         sessionId,
-        testMachine.taskId,
+        testMachine.chatId,
       );
       const messages = sessionResult._unsafeUnwrap().messages;
       expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
@@ -1615,7 +1612,7 @@ describe("llmRequestLogic", () => {
           },
           role: "user",
         },
-        testMachine.taskId,
+        testMachine.chatId,
       );
       await Store.saveParts(
         [
@@ -1631,7 +1628,7 @@ describe("llmRequestLogic", () => {
             type: "text",
           },
         ],
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       await Store.saveMessage(
@@ -1640,7 +1637,7 @@ describe("llmRequestLogic", () => {
           metadata: mockAssistantMessageMetadata,
           role: "assistant",
         },
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       return testMachine;
@@ -1685,12 +1682,12 @@ describe("llmRequestLogic", () => {
       const testMachine = await setupPromptMessagesTest();
       await Store.savePart(
         SessionMessagePart.coerce(readFilePart),
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       await runTestMachine({
         machine: testMachine.machine,
-        taskId: testMachine.taskId,
+        chatId: testMachine.chatId,
       });
       expect(prompts).toMatchInlineSnapshot(`
         [
@@ -1785,7 +1782,7 @@ describe("llmRequestLogic", () => {
             type: "tool-write_file",
           },
         ],
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       await runTestMachine(testMachine);
@@ -1902,7 +1899,7 @@ describe("llmRequestLogic", () => {
             type: "tool-write_file",
           },
         ],
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       await runTestMachine(testMachine);
@@ -1989,7 +1986,7 @@ describe("llmRequestLogic", () => {
             type: "tool-read_file",
           },
         ],
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       await runTestMachine(testMachine);
@@ -2070,7 +2067,7 @@ describe("llmRequestLogic", () => {
           },
           role: "user",
         },
-        testMachine.taskId,
+        testMachine.chatId,
       );
       await Store.saveParts(
         [
@@ -2086,7 +2083,7 @@ describe("llmRequestLogic", () => {
             type: "text",
           },
         ],
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       await Store.saveMessage(
@@ -2095,7 +2092,7 @@ describe("llmRequestLogic", () => {
           metadata: mockAssistantMessageMetadata,
           role: "assistant",
         },
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       const secondMessageId = StoreId.newMessageId();
@@ -2105,7 +2102,7 @@ describe("llmRequestLogic", () => {
           metadata: mockAssistantMessageMetadata,
           role: "assistant",
         },
-        testMachine.taskId,
+        testMachine.chatId,
       );
       await Store.saveParts(
         [
@@ -2121,7 +2118,7 @@ describe("llmRequestLogic", () => {
             type: "text",
           },
         ],
-        testMachine.taskId,
+        testMachine.chatId,
       );
       const thirdMessageId = StoreId.newMessageId();
       await Store.saveMessage(
@@ -2130,7 +2127,7 @@ describe("llmRequestLogic", () => {
           metadata: mockAssistantMessageMetadata,
           role: "assistant",
         },
-        testMachine.taskId,
+        testMachine.chatId,
       );
       await Store.saveParts(
         [
@@ -2146,7 +2143,7 @@ describe("llmRequestLogic", () => {
             type: "text",
           },
         ],
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       await runTestMachine(testMachine);
@@ -2248,6 +2245,19 @@ describe("llmRequestLogic", () => {
               },
               "role": "assistant",
             },
+            {
+              "content": [
+                {
+                  "text": "
+        <instrument-system-note>
+        Your last reply said you would start work but called no tool. Do it now, without saying the line again.
+        </instrument-system-note>",
+                  "type": "text",
+                },
+              ],
+              "providerOptions": undefined,
+              "role": "user",
+            },
           ],
         ]
       `);
@@ -2294,7 +2304,7 @@ describe("llmRequestLogic", () => {
           ],
           role: "session-context",
         },
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       const { messages } = await runTestMachine(testMachine);
@@ -2925,7 +2935,7 @@ describe("llmRequestLogic", () => {
       const savePart = Store.savePart;
       let rejectedWrite = false;
       vi.spyOn(Store, "savePart").mockImplementation(
-        (part, taskId, options) => {
+        (part, chatId, options) => {
           if (
             !rejectedWrite &&
             part.type === "text" &&
@@ -2934,7 +2944,7 @@ describe("llmRequestLogic", () => {
             rejectedWrite = true;
             return errAsync(new TypedError.Storage("Write failed"));
           }
-          return savePart(part, taskId, options);
+          return savePart(part, chatId, options);
         },
       );
 
@@ -2967,7 +2977,7 @@ describe("llmRequestLogic", () => {
       const savePart = Store.savePart;
       const savePartSpy = vi
         .spyOn(Store, "savePart")
-        .mockImplementation((part, taskId, options) =>
+        .mockImplementation((part, chatId, options) =>
           part.type === "text"
             ? errAsync(
                 new TypedError.Storage("unable to open database file", {
@@ -2977,7 +2987,7 @@ describe("llmRequestLogic", () => {
                   ),
                 }),
               )
-            : savePart(part, taskId, options),
+            : savePart(part, chatId, options),
         );
       const testMachine = await createTestMachine({
         chunks: [
@@ -3049,7 +3059,7 @@ describe("llmRequestLogic", () => {
       await vi.waitFor(async () => {
         const sessionResult = await Store.getSessionWithMessagesAndParts(
           sessionId,
-          testMachine.taskId,
+          testMachine.chatId,
         );
         const assistant = sessionResult
           ._unsafeUnwrap()

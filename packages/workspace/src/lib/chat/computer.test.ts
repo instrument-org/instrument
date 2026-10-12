@@ -3,18 +3,23 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { accessIn, type AttachedRoot, listComputerFolder } from "./computer";
+import {
+  accessIn,
+  describeComputerFiles,
+  type FolderRoot,
+  listComputerFolder,
+} from "./computer";
 
 // Host paths in the running platform's own separators, which is what the
 // listing and the grants both carry: a Windows grant is `C:\Users\casey\Documents`
 // and its children are spelled the same way.
 const home = path.resolve(path.sep, "Users", "casey");
 const documents = path.join(home, "Documents");
-const roots: AttachedRoot[] = [
+const roots: FolderRoot[] = [
   { grant: "read-only", mountPoint: "/mnt/Home", root: home },
   { grant: "read-only", mountPoint: "/mnt/Documents", root: documents },
 ];
@@ -67,7 +72,7 @@ describe("accessIn", () => {
 });
 
 describe("listComputerFolder", () => {
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("computer-listing"));
+  const chatId = createMockChatConfig(ChatIdSchema.parse("computer-listing"));
   let folder: string | undefined;
 
   afterEach(async () => {
@@ -88,7 +93,7 @@ describe("listComputerFolder", () => {
       ),
     );
 
-    const listing = await listComputerFolder({ path: folder, taskId });
+    const listing = await listComputerFolder({ path: folder, chatId });
     if (listing.kind !== "listing") {
       throw new Error(`refused: ${listing.reason}`);
     }
@@ -106,7 +111,7 @@ describe("listComputerFolder", () => {
     await fs.mkdir(shut, { mode: 0o000 });
 
     try {
-      expect(await listComputerFolder({ path: shut, taskId })).toMatchObject({
+      expect(await listComputerFolder({ path: shut, chatId })).toMatchObject({
         kind: "refused",
         path: shut,
         reason: "account",
@@ -140,10 +145,10 @@ describe("listComputerFolder", () => {
       });
 
       try {
-        const top = await listComputerFolder({ path: drive, taskId });
+        const top = await listComputerFolder({ path: drive, chatId });
         const inside = await listComputerFolder({
           path: path.join(drive, "Obsidian"),
-          taskId,
+          chatId,
         });
         if (top.kind !== "listing" || inside.kind !== "listing") {
           throw new Error("refused");
@@ -191,7 +196,7 @@ describe("listComputerFolder", () => {
       });
 
       try {
-        expect(await listComputerFolder({ path: drive, taskId })).toMatchObject(
+        expect(await listComputerFolder({ path: drive, chatId })).toMatchObject(
           {
             appFoldersLocked: true,
             entries: [{ name: "Books" }],
@@ -203,4 +208,39 @@ describe("listComputerFolder", () => {
       }
     },
   );
+});
+
+describe("describeComputerFiles", () => {
+  const chatId = createMockChatConfig(ChatIdSchema.parse("computer-describe"));
+  let folder: string | undefined;
+
+  afterEach(async () => {
+    if (folder) {
+      await fs.rm(folder, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps the order asked and leaves out what is gone or is a folder", async () => {
+    folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-describe-"));
+    const later = path.join(folder, "later.txt");
+    const earlier = path.join(folder, "earlier.md");
+    await fs.writeFile(later, "a");
+    await fs.writeFile(earlier, "b");
+    await fs.mkdir(path.join(folder, "sub"));
+
+    const files = await describeComputerFiles({
+      paths: [
+        later,
+        path.join(folder, "gone.txt"),
+        path.join(folder, "sub"),
+        earlier,
+      ],
+      chatId,
+    });
+
+    expect(files.map((file) => [file.name, file.kind])).toEqual([
+      ["later.txt", "file"],
+      ["earlier.md", "file"],
+    ]);
+  });
 });

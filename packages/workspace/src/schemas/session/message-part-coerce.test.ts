@@ -25,21 +25,6 @@ function storedPart(type: string, data: unknown) {
 }
 
 describe("coercing a stored data part", () => {
-  it("fills in a field added since the part was written", () => {
-    // accessChanged shipped with writable folders, months after this shape was
-    // the whole of the part. Reading it used to hand every consumer a payload
-    // whose type promised three lists and whose value had two.
-    const part = SessionMessagePart.coerce(
-      storedPart("data-attachedFolderChanges", {
-        removed: [{ name: "Photos", path: "/base/Photos" }],
-        renamed: [],
-      }),
-    );
-
-    expect(part.type).toBe("data-attachedFolderChanges");
-    expect(part).toHaveProperty("data.accessChanged", []);
-  });
-
   it("fills in an attachment's modifiedAt, added after the part was written", () => {
     // modifiedAt shipped as a cache-buster for asset URLs. Without a default,
     // every attachment a pre-2026-06-18 build stored fails its schema, the part

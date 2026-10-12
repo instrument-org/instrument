@@ -9,26 +9,14 @@ import {
 } from "ai";
 import { alphabetical } from "radashi";
 
-import { type FolderAttachment } from "../schemas/folder-attachment";
 import { type Session } from "../schemas/session";
 import { SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { TOOLS_FOR_MODEL_OUTPUT } from "../tools/all";
-import { attachedFolderMountPoint } from "./attached-folder-mounts";
-import { buildAttachedFoldersText } from "./build-attached-folders-text";
-import {
-  buildProjectContextText,
-  projectFoldersIntro,
-} from "./build-project-context-text";
-import { getEffectiveProjectContext } from "./effective-project-context";
-import { isUntitledChatSessionTitle } from "./generate-session-title";
 import { isToolPart } from "./is-tool-part";
-import { normalizeProjectInstructions } from "./project-instructions";
 import { Store } from "./store";
-import { taskDir } from "./task-dir-utils";
-import { getTaskSettings } from "./task-settings";
 import { getUsageSummaryFromMessages } from "./usage-summary-compute";
 
 interface MessageRenderInfo {
@@ -127,23 +115,20 @@ export async function getSessionMarkdown({
   frontMatter,
   includeContextMessages = true,
   sessionId,
-  taskId,
+  chatId,
 }: {
   frontMatter?: Record<string, unknown>;
   includeContextMessages?: boolean;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  chatId: ChatId;
 }): Promise<string> {
-  const result = await Store.getSessionWithMessagesAndParts(sessionId, taskId);
+  const result = await Store.getSessionWithMessagesAndParts(sessionId, chatId);
   if (result.isErr()) {
     throw new Error(`Session ${sessionId} not found`);
   }
-  const settings = await getTaskSettings(taskDir(taskId));
-
   return sessionToMarkdown(result.value, {
     frontMatter,
     includeContextMessages,
-    taskName: settings?.name,
   });
 }
 
@@ -282,18 +267,9 @@ export async function sessionToMarkdown(
   {
     frontMatter,
     includeContextMessages = true,
-    taskName,
   }: {
     frontMatter?: Record<string, unknown>;
     includeContextMessages?: boolean;
-    /**
-     * What the transcript is headed with when the session has no name of its
-     * own. A session's title names it among the task's other sessions (a
-     * chat's title, a later chat's), and a session that is the task's only
-     * one keeps the placeholder it was created with, so the task's name is
-     * the one a reader knows it by.
-     */
-    taskName?: string;
   } = {},
 ): Promise<string> {
   const contextMessages = rootSession.messages.filter(
@@ -310,24 +286,13 @@ export async function sessionToMarkdown(
     ...alphabetical(nonContextMessages, (m) => m.id),
   ];
 
-  // The session's baseline names the agent it was written for, which is the
-  // agent every note in the transcript was phrased for.
-  const agentName = rootSession.messages.find(
-    (m): m is SessionMessage.ContextWithParts => m.role === "session-context",
-  )?.metadata.agentName;
   // Mapped as one list, because the notes a user turn carries depend on the
   // turns before it, then converted one message at a time below.
-  const uiMessages = SessionMessage.toUIMessages(orderedMessages, {
-    agentName,
-  });
+  const uiMessages = SessionMessage.toUIMessages(orderedMessages);
 
   const toolTimestamps = buildToolCallTimestampMap(rootSession);
 
-  const heading =
-    isUntitledChatSessionTitle(rootSession.title) && taskName
-      ? taskName
-      : rootSession.title;
-  const parts: string[] = [`# ${heading}`, ""];
+  const parts: string[] = [`# ${rootSession.title}`, ""];
 
   if (includeContextMessages && contextMessages.length > 0) {
     parts.push(
@@ -336,14 +301,6 @@ export async function sessionToMarkdown(
       "> These are the latest context messages retained for this session. Context can be refreshed during long sessions, so this snapshot may differ from context used by earlier responses. Turn-level injected context is reconstructed by the currently running app version.",
       "",
     );
-  }
-
-  const projectContextLines = renderProjectContext(
-    rootSession,
-    includeContextMessages,
-  );
-  if (projectContextLines.length > 0) {
-    parts.push(...projectContextLines, "");
   }
 
   let userTurn = 0;
@@ -985,118 +942,6 @@ function renderPersistedAssistantParts(
   }
 
   return lines;
-}
-
-// Reproduces, verbatim, the standing project-context blocks the agent receives
-// for a task started from a project (instructions + folder-handling guidance),
-// using the same builders as the agent so the transcript stays truthful. Sourced
-// from the raw session parts because data parts are stripped from the model
-// messages the rest of the transcript renders from. Skipped when full context
-// messages are included, since the real blocks are already rendered there.
-function renderProjectContext(
-  session: Session.WithMessagesAndParts,
-  includeContextMessages: boolean,
-): string[] {
-  if (includeContextMessages) {
-    return [];
-  }
-
-  const allParts = session.messages.flatMap((message) => message.parts);
-
-  const projectPart = allParts.find(
-    (part) => part.type === "data-projectContext",
-  );
-  if (!projectPart) {
-    return [];
-  }
-
-  // Fold project-folder names from the creation snapshot with later
-  // `data-projectChanges` additions/removals and `data-attachedFolderChanges`
-  // renames so the list matches what the agent currently sees, keyed by path
-  // so removals/renames touch the right entry.
-  const projectFoldersByPath = new Map<
-    string,
-    { access: FolderAttachment.Access; name: string }
-  >();
-  for (const part of allParts) {
-    switch (part.type) {
-      case "data-attachedFolderChanges": {
-        for (const folder of part.data.renamed) {
-          const current = projectFoldersByPath.get(folder.path);
-          if (current) {
-            projectFoldersByPath.set(folder.path, {
-              ...current,
-              name: folder.newName,
-            });
-          }
-        }
-        break;
-      }
-      case "data-attachments": {
-        for (const folder of part.data.folders ?? []) {
-          if (folder.source === "project") {
-            projectFoldersByPath.set(folder.path, {
-              access: folder.access,
-              name: folder.mountName,
-            });
-          }
-        }
-        break;
-      }
-      case "data-projectChanges": {
-        for (const folder of part.data.foldersRemoved) {
-          projectFoldersByPath.delete(folder.path);
-        }
-        for (const folder of part.data.foldersAdded) {
-          projectFoldersByPath.set(folder.path, {
-            access: folder.access,
-            name: folder.name,
-          });
-        }
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  }
-  const projectFolders = [...projectFoldersByPath.entries()].map(
-    ([path, folder]) => ({ ...folder, path }),
-  );
-
-  const blocks: string[] = [];
-
-  const effective = getEffectiveProjectContext(allParts);
-  // Capped the same way the session context is, so the transcript reproduces
-  // what the agent was given rather than the whole file behind it.
-  const instructions = normalizeProjectInstructions(
-    effective?.instructions ?? "",
-  );
-  blocks.push(
-    buildProjectContextText({
-      instructions,
-      name: projectPart.data.projectName,
-    }),
-  );
-
-  if (projectFolders.length > 0) {
-    blocks.push(
-      buildAttachedFoldersText({
-        folders: projectFolders.map(({ access, name, path }) => ({
-          access,
-          mountPoint: attachedFolderMountPoint(name),
-          path,
-        })),
-        intro: projectFoldersIntro(projectPart.data.projectName),
-      }),
-    );
-  }
-
-  if (blocks.length === 0) {
-    return [];
-  }
-
-  return ["## Project Context", "", fenceText(blocks.join("\n\n"), "xml")];
 }
 
 function renderSystemMessage(

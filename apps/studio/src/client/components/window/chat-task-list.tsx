@@ -6,12 +6,13 @@ import { useNow } from "@/client/components/window/use-now";
 import { openClickGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
 
 /** One task as the list needs it. */
 export interface TaskListItem {
-  id: TaskId;
+  /** The task's session in its chat's store. */
+  id: StoreId.Session;
   line: string;
   /** Where it stands, as the list draws it. */
   standing: "done" | "failed" | "running" | "waiting";
@@ -33,14 +34,17 @@ export interface TaskListItem {
  * one of them; both cancel a held task's start as well.
  */
 export function ChatTaskList({
+  chat,
   items,
   onOpen,
   onOpenInNewTab,
 }: {
+  /** The chat whose tasks these are. */
+  chat: ChatId;
   items: TaskListItem[];
-  onOpen: (id: TaskId) => void;
+  onOpen: (id: StoreId.Session) => void;
   /** A Cmd-click or a middle click on a row: the task in a tab of its own, behind; left out where there is none to open. */
-  onOpenInNewTab?: (id: TaskId) => void;
+  onOpenInNewTab?: (id: StoreId.Session) => void;
 }) {
   // One clock for the whole render, so every row's "20m" is measured from
   // the same moment.
@@ -69,7 +73,7 @@ export function ChatTaskList({
               disabled={stop.isPending}
               onClick={() => {
                 for (const item of stoppable) {
-                  stop.mutate({ id: item.id });
+                  stop.mutate({ id: chat, sessionId: item.id });
                 }
               }}
               size="xs"
@@ -146,7 +150,7 @@ export function ChatTaskList({
                   disabled={stop.isPending}
                   label="Stop this task"
                   onClick={() => {
-                    stop.mutate({ id: item.id });
+                    stop.mutate({ id: chat, sessionId: item.id });
                   }}
                 />
               )}

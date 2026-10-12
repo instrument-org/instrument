@@ -1,6 +1,6 @@
 import { defineCommand } from "just-bash";
 
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { FFPROBE_PATH } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
@@ -19,7 +19,7 @@ export const FFPROBE_COMMAND = {
 } as const;
 
 export function createFfprobeCommand(
-  taskId: TaskId,
+  chatId: ChatId,
   layout: WorkspaceFsLayout,
 ) {
   return defineCommand(FFPROBE_COMMAND.name, async (args, ctx) => {
@@ -32,13 +32,13 @@ export function createFfprobeCommand(
       return { exitCode: 1, stderr: unreachable, stdout: "" };
     }
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const stdin = subprocessStdin(ctx.stdin);
 
     const result = await execShim(
       FFPROBE_PATH,
       // Same build-configuration block ffmpeg prints; `-version` still shows it.
-      ["-hide_banner", ...resolvePathArgs(args, taskId, ctx)],
+      ["-hide_banner", ...resolvePathArgs(args, chatId, ctx)],
       {
         cancelSignal: ctx.signal,
         cwd: taskCwd,

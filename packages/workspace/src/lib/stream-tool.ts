@@ -24,7 +24,7 @@ export async function* streamTool({
   // yield.
   const inTurn = <T>(callback: () => T) =>
     withTurnContext(
-      { id: options.taskId, sessionId: options.sessionId },
+      { id: options.chatId, sessionId: options.sessionId },
       callback,
     );
   const result = inTurn(() => execute(options));

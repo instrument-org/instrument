@@ -1,9 +1,9 @@
 import { type AbsolutePath } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { ensureTaskVenvForTask } from "./ensure-task-venv";
 import { runUvCommand } from "./run-uv";
-import { taskDir } from "./task-dir-utils";
 import { taskVenvPython } from "./uv";
+import { workDir } from "./work-dir";
 
 type PythonSkillInstallResult =
   | { exitCode: number; output: string; state: "failure" }
@@ -12,18 +12,18 @@ type PythonSkillInstallResult =
 export async function installPythonSkill({
   signal,
   skillDir,
-  taskId,
+  chatId,
 }: {
   signal: AbortSignal;
   skillDir: AbsolutePath;
-  taskId: TaskId;
+  chatId: ChatId;
 }): Promise<PythonSkillInstallResult> {
   // The task root, so uv discovers the venv where it now lives rather than
   // relying on VIRTUAL_ENV alone.
-  const workDir = taskDir(taskId);
-  const python = taskVenvPython(taskId);
+  const dir = workDir(chatId);
+  const python = taskVenvPython(chatId);
 
-  const venvError = await ensureTaskVenvForTask({ signal, taskId });
+  const venvError = await ensureTaskVenvForTask({ signal, chatId });
   if (venvError !== undefined) {
     return { ...venvError, state: "failure" };
   }
@@ -38,9 +38,9 @@ export async function installPythonSkill({
       "--project",
       skillDir,
     ],
-    cwd: workDir,
+    cwd: dir,
     signal,
-    taskId,
+    chatId,
   });
   if (exportResult.exitCode !== 0) {
     return {
@@ -56,10 +56,10 @@ export async function installPythonSkill({
 
   const installResult = await runUvCommand({
     args: ["pip", "install", "--python", python, "--requirement", "-"],
-    cwd: workDir,
+    cwd: dir,
     signal,
     stdin: exportResult.stdout,
-    taskId,
+    chatId,
   });
   return installResult.exitCode === 0
     ? { state: "success" }

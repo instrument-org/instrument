@@ -9,7 +9,6 @@ import { RPCHandler } from "@orpc/server/message-port";
 import { ipcMain } from "electron";
 import { EventEmitter } from "node:events";
 
-import { type BrowserViewManager } from "../browser-view/manager";
 import { captureServerException } from "../lib/capture-server-exception";
 import { type AppUpdaterHandle } from "../lib/create-app-updater";
 import { type InitialRPCContext } from "./context";
@@ -50,7 +49,7 @@ function isHandledInvalidUrl(error: unknown): boolean {
 
 // NOT_FOUND is a defined error code that every consumer is expected to handle as
 // control flow (e.g. a task or file deleted on disk while the window still
-// shows it). Capturing it floods telemetry with non-actionable noise, so we
+// shows it). Capturing it floods the exception log with non-actionable noise, so we
 // still rethrow it to the client but skip the exception capture.
 function isHandledNotFound(error: unknown): boolean {
   return error instanceof ORPCError && error.code === "NOT_FOUND";
@@ -64,9 +63,7 @@ function isHandledOpenError(error: unknown): boolean {
 }
 
 // UNAUTHORIZED means signed out, developer mode off, or a provider refusing the
-// key or URL the person typed in. The UI shows it, and a rejected provider key
-// is already counted as a `provider.verification_failed` event; rethrow, skip
-// the capture.
+// key or URL the person typed in. The UI shows it; rethrow, skip the capture.
 function isHandledUnauthorized(error: unknown): boolean {
   return error instanceof ORPCError && error.code === "UNAUTHORIZED";
 }
@@ -86,7 +83,7 @@ function isPlatformApiServerError(error: unknown): boolean {
 // Offline / unreachable-server failures (fetch failed, connection timeouts, DNS
 // errors) reflect the user's network rather than an app bug. Like NOT_FOUND we
 // still rethrow them to the client so the UI can show a retry, but skip the
-// exception capture so telemetry isn't flooded with non-actionable noise.
+// exception capture so the exception log isn't flooded with non-actionable noise.
 function shouldSkipCapture(error: unknown): boolean {
   return (
     isHandledNotFound(error) ||
@@ -132,12 +129,10 @@ const handler = new RPCHandler<InitialRPCContext>(router, {
 
 export function initializeRPC({
   appUpdater,
-  browserViewManager,
   workspaceConfig,
   workspaceRef,
 }: {
   appUpdater: AppUpdaterHandle;
-  browserViewManager: BrowserViewManager;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }) {
@@ -164,7 +159,6 @@ export function initializeRPC({
     handler.upgrade(serverPort, {
       context: {
         appUpdater,
-        browserViewManager,
         webContentsId,
         workspaceConfig,
         workspaceRef,

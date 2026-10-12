@@ -1,11 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { MOUNT } from "../mount-points";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { truncateWithoutSplitting } from "./sanitize-model-text";
-import { taskDir } from "./task-dir-utils";
+import { workDir } from "./work-dir";
 
 /**
  * Where a task's handoff notes live, named once for both halves of the handoff.
@@ -20,7 +20,7 @@ import { taskDir } from "./task-dir-utils";
  * Under `work/`: these are the agent's own working
  * record, not a deliverable the user asked for.
  */
-const HANDOFF_NOTES_RELATIVE_PATH = `${TASK_FOLDER_NAMES.work}/handoff-notes.md`;
+const HANDOFF_NOTES_RELATIVE_PATH = `${CHAT_FOLDER_NAMES.work}/handoff-notes.md`;
 
 /** The path as the agent sees it, for prompts and notices. */
 export const HANDOFF_NOTES_PATH = `${MOUNT.task}/${HANDOFF_NOTES_RELATIVE_PATH}`;
@@ -85,11 +85,11 @@ export function contextRolloverNotice(notes: string | undefined): string {
  * fail because a note the agent may never have written is not there.
  */
 export async function readHandoffNotes(
-  taskId: TaskId,
+  chatId: ChatId,
 ): Promise<string | undefined> {
   try {
     const contents = await fs.readFile(
-      path.join(taskDir(taskId), HANDOFF_NOTES_RELATIVE_PATH),
+      path.join(workDir(chatId), HANDOFF_NOTES_RELATIVE_PATH),
       "utf8",
     );
     const trimmed = contents.trim();

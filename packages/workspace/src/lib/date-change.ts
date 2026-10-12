@@ -3,7 +3,7 @@ import { alphabetical } from "radashi";
 
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { contextDateKey } from "./context-date";
 import { getCurrentDate } from "./get-current-date";
 import { Store } from "./store";
@@ -26,17 +26,17 @@ export function detectDateChange({
   messageId,
   sessionId,
   signal,
-  taskId,
+  chatId,
 }: {
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
   return safeTry<SessionMessagePart.Type | undefined, Error>(
     async function* () {
       const messages = yield* Store.getMessagesWithParts(
-        { sessionId, taskId },
+        { sessionId, chatId },
         { signal },
       );
 

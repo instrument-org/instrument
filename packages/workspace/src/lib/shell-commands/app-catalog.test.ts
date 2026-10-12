@@ -1,17 +1,17 @@
 import { createCommandContext, EMPTY_BYTES, InMemoryFs } from "just-bash";
 import { describe, expect, it } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { getAppCatalog, searchAppCatalog } from "../apps/catalog";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { truncateMiddle } from "../truncate-buffer";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
 
-const taskId = TaskIdSchema.parse("app-catalog-task");
+const chatId = ChatIdSchema.parse("app-catalog-task");
 
 async function catalog(...words: string[]) {
-  const result = await createAppCommand({ taskId }).execute(
+  const result = await createAppCommand({ chatId }).execute(
     ["catalog", ...words],
     createCommandContext({
       cwd: "/task",
@@ -28,11 +28,8 @@ describe("app catalog", () => {
   // minutes; the helper answers in a query, so where the build carries it
   // the set-up line names it.
   it.each([
-    [undefined, "brief a task to do it with osascript on this Mac"],
-    [
-      "/app/bin/instrument-mac",
-      "brief a task to do it with the `calendar` command",
-    ],
+    [undefined, "do it with osascript on this Mac"],
+    ["/app/bin/instrument-mac", "do it with the `calendar` command"],
   ])("sends Reminders through the helper when it is %s", async (bin, line) => {
     const config = getWorkspaceConfig();
     const { macHelperBinPath: _absent, ...without } = config;

@@ -1,5 +1,5 @@
 import { shortcutGuideModalAtom } from "@/client/atoms/shortcut-guide-modal";
-import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
+import { windowHoldsAtom } from "@/client/atoms/tab-navigation-block";
 import { PromptEditor } from "@/client/components/prompt-editor";
 import { getDefaultStore } from "jotai";
 import { type ComponentProps } from "react";
@@ -53,7 +53,7 @@ describe("useShortcutGuideHotkey in a browser", () => {
   // The modal slot is cleared after each test by the browser setup; the
   // blocking count is this test's own doing, so it resets that itself.
   beforeEach(() => {
-    store.set(blockingModalCountAtom, 0);
+    store.set(windowHoldsAtom, []);
   });
 
   it("types ? into the prompt editor instead of opening the guide", async () => {

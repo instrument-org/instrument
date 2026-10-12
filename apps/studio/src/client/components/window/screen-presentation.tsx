@@ -6,7 +6,7 @@ import { expandHomePath, isHomeDir } from "@instrument-org/shared";
 import {
   type ChatId,
   ChatIdSchema,
-  type TaskId,
+  type StoreId,
 } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
@@ -37,7 +37,12 @@ import { parseHref } from "./window-href";
 export interface ScreenNames {
   appsBySlug: Map<
     string,
-    { icon?: string | undefined; name: string; site: string | undefined }
+    {
+      icon?: string | undefined;
+      name: string;
+      site: string | undefined;
+      title?: string;
+    }
   >;
   /** Each chat's title by its id, for a tab standing on one; a chat not in it is a "Chat". */
   chatTitles?: Map<ChatId, string>;
@@ -47,7 +52,7 @@ export interface ScreenNames {
    */
   homeLabel?: string;
   /** Each task's title by its id, for a tab standing on one; a task not in it is a "Task". */
-  taskTitles?: Map<TaskId, string>;
+  taskTitles?: Map<StoreId.Session, string>;
   /** The disks the sidebar lists, which name a folder tab at the top of one. */
   volumes?: Volume[];
 }
@@ -78,7 +83,7 @@ export function screenLocation(
     return {
       kind: "app",
       ...(app?.icon ? { icon: app.icon } : {}),
-      name: app?.name ?? slug,
+      name: app?.title ?? app?.name ?? slug,
       ...(app?.site ? { site: app.site } : {}),
     };
   }
@@ -155,7 +160,7 @@ export function screenPresentation(
       ) : (
         <AppWindowIcon className="size-3.5" />
       ),
-      title: app?.name ?? slug,
+      title: app?.title ?? app?.name ?? slug,
     };
   }
   if (pathname === "/apps") {

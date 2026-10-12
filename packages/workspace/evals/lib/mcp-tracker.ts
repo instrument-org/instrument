@@ -178,11 +178,19 @@ function summary(issue: TrackerIssue) {
   };
 }
 
+/**
+ * Where a created issue opens. Carries a token no model would guess, so a
+ * reply holding it took the address from the tool's answer.
+ */
+export function createdIssueUrl(id: string): string {
+  return `https://beacon.example/acme/issue/${id}/q7vk2m`;
+}
+
 function text(value: unknown) {
   return [{ text: JSON.stringify(value, null, 2), type: "text" as const }];
 }
 
-function buildServer(): McpServer {
+function buildServer(created: { count: number }): McpServer {
   const mcp = new McpServer({ name: "beacon", version: "1.0.0" });
   mcp.registerTool(
     "list_issues",
@@ -272,6 +280,24 @@ function buildServer(): McpServer {
     },
   );
   mcp.registerTool(
+    "create_issue",
+    {
+      description:
+        "Create an issue. Returns its id and the address it can be opened at.",
+      inputSchema: {
+        assigneeId: z.string().optional(),
+        description: z.string().optional(),
+        labels: z.array(z.string()).optional(),
+        title: z.string(),
+      },
+    },
+    ({ title }) => {
+      created.count += 1;
+      const id = `BCN-${TRACKER.issues.length + created.count}`;
+      return { content: text({ id, title, url: createdIssueUrl(id) }) };
+    },
+  );
+  mcp.registerTool(
     "list_users",
     {
       annotations: { readOnlyHint: true },
@@ -287,9 +313,12 @@ export async function startMcpTracker(): Promise<{
   close: () => Promise<void>;
   url: string;
 }> {
+  // Per server, since each request gets a fresh MCP server: the issues a case
+  // files are numbered on from the seeded ones.
+  const created = { count: 0 };
   const server = http.createServer((request, response) => {
     void (async () => {
-      const mcp = buildServer();
+      const mcp = buildServer(created);
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
       });

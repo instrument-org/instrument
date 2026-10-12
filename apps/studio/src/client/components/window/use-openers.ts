@@ -1,18 +1,24 @@
 import { openSettings } from "@/client/atoms/settings-modal";
+import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { CHATS_HREF } from "@/client/atoms/window";
+import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
+import { isScreenName, SCREENS } from "@/shared/instrument-screens";
 import {
   type ChatId,
+  encodeBrowserTargetId,
   isFolderPath,
+  StoreId,
   WINDOW_ID,
   type WindowTabAnswer,
   type WindowTabRequest,
 } from "@instrument-org/workspace/client";
+import { APP_NAME } from "@instrument-org/shared";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { newSiteGroup, pageHrefOf, type useAppTabs } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
@@ -27,9 +33,10 @@ import {
   tasksPlacementOf,
 } from "./placement";
 import { visitInTab } from "./tab-history";
-import { taskRecordOptions } from "./child-tasks-query";
 import {
   memoryOfHref,
+  screenOfHref,
+  settingOfHref,
   skillOfHref,
   taskHref,
   tasksHref,
@@ -127,10 +134,17 @@ export function useOpeners({
       }
       case "new-page": {
         revealPane();
-        return browser?.open(
-          url,
-          placement.replacesUp && active ? { replacing: active } : undefined,
-        );
+        const replacing =
+          placement.replacesUp && active ? { replacing: active } : undefined;
+        const id = browser?.open(url, replacing);
+        // A page taking the place of what the person was in takes the
+        // keyboard with it; one an agent asked for a tab of its own does not.
+        if (replacing && !options.ownTab && id !== undefined) {
+          takeKeyboardOnArrival(
+            encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(id)),
+          );
+        }
+        return id;
       }
       case "own-tab": {
         revealPane();
@@ -143,6 +157,11 @@ export function useOpeners({
         const group = newSiteGroup();
         const id = browser?.open(url, { group });
         appTabs.navigate(pageHrefOf(group), { replace: placement.replace });
+        if (!options.ownTab && id !== undefined) {
+          takeKeyboardOnArrival(
+            encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(id)),
+          );
+        }
         return id;
       }
       case "window-tab": {
@@ -153,12 +172,7 @@ export function useOpeners({
       }
     }
   };
-  const openScreen = (
-    href: string,
-    options: OpenOptions = {},
-    /** Whether a task's chat has already been looked for, found or not. */
-    resolved = false,
-  ): void => {
+  const openScreen = (href: string, options: OpenOptions = {}): void => {
     const { behind = false, group: into, newTab = false } = options;
     // A chat named by its session, as an older reply's link or a memory
     // saved then names it, opens at the chat that session is.
@@ -218,27 +232,33 @@ export function useOpeners({
       openSettings({ skill, tab: "Skills" });
       return;
     }
+    // A setting likewise, in Settings, on its page and lit; a name Settings
+    // has no row or page for is searched for there instead.
+    const setting = settingOfHref(href);
+    if (setting) {
+      openSettings({ setting });
+      return;
+    }
+    // A screen a reply named opens where it lives: a place at its own
+    // address, or a dialog over the window.
+    const screen = screenOfHref(href);
+    if (screen !== undefined) {
+      if (!isScreenName(screen)) {
+        sayNoScreen();
+        return;
+      }
+      if (screen === "shortcuts") {
+        openShortcutGuide();
+      } else {
+        openScreen(SCREENS[screen].href, options);
+      }
+      return;
+    }
     // A chat's tasks, or one task, are a tab in the chat's group, a task in
     // the chat it was filed from, with the chat on screen and its pane open.
     // A tasks tab already up in that chat walks there in place, the way its
     // crumbs do; anything else gets the tab at that address, or a new one.
     const tasks = tasksOfHref(href);
-    if (tasks?.task !== undefined && tasks.chat === undefined && !resolved) {
-      // A task's address that names no chat is opened once its record says
-      // which chat it was filed in, a read kept for as long as the window
-      // is open.
-      const task = tasks.task;
-      void queryClient
-        .fetchQuery(taskRecordOptions(task))
-        .then(
-          (record) => (record.isChat ? undefined : record.chatId),
-          () => undefined,
-        )
-        .then((filedIn) => {
-          openScreen(taskHref(task, filedIn), options, true);
-        });
-      return;
-    }
     const owner = tasks
       ? chatOfGroup(tasks.chat ?? into ?? windowTabs.groupOnScreen)
       : undefined;
@@ -328,9 +348,9 @@ export function useOpeners({
     const isFolder = isFolderPath(path);
     const filePath = isFolder ? path.slice(0, -1) : path;
     const [error, hostPaths] = await safe(
-      rpcClient.workspace.task.files.hostPaths.call({
+      rpcClient.workspace.chats.files.hostPaths.call({
         filePaths: [filePath],
-        taskId: chatOfGroup(group ?? windowTabs.groupOnScreen) ?? WINDOW_ID,
+        chatId: chatOfGroup(group ?? windowTabs.groupOnScreen) ?? WINDOW_ID,
       }),
     );
     const hostPath = hostPaths?.[filePath];
@@ -580,6 +600,10 @@ export function useOpeners({
 }
 
 /** Says a chat's address named none of the chats here. */
+function sayNoScreen() {
+  toast(`This version of ${APP_NAME} doesn't have that screen`);
+}
+
 function sayNoChat() {
   toast("No chat at that address", {
     description: "It may have been deleted, or the link is not for this chat.",

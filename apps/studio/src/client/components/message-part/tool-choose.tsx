@@ -1,13 +1,13 @@
 import { rpcClient } from "@/client/rpc/client";
 import {
   type SessionMessagePart,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -250,17 +250,15 @@ export function QuestionCard({
 
 export function ToolChoose({
   part,
-  taskId,
+  chatId,
 }: {
   part: ChoosePart;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
   const answer = useMutation(
     rpcClient.workspace.session.answerToolCall.mutationOptions({
       onError: (error) => {
-        toast.error("Could not send the answer", {
-          description: error.message,
-        });
+        toast.error("Couldn't send your answer", { cause: error });
       },
     }),
   );
@@ -289,7 +287,7 @@ export function ToolChoose({
         setSending(output);
         answer.mutate(
           {
-            id: taskId,
+            id: chatId,
             output,
             toolCallId: part.toolCallId,
             toolName: "choose",

@@ -1,7 +1,7 @@
 import {
   type SessionTag,
   type StoreId,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { skipToken } from "@tanstack/react-query";
 
@@ -12,7 +12,7 @@ export function useAgentSessionStatus({
   id,
   sessionId,
 }: {
-  id: TaskId;
+  id: ChatId;
   sessionId: StoreId.Session | typeof skipToken | undefined;
 }) {
   const { data: taskActivity } = useTaskActivity({ id });

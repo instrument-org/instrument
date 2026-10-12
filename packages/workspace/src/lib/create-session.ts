@@ -1,21 +1,20 @@
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { generateSessionTitle } from "./generate-session-title";
 import { Store } from "./store";
-import { getWorkspaceConfig } from "./workspace-config";
 
 export async function createSession({
   sessionId,
   signal,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
   const title = await generateSessionTitle({
     signal,
-    taskId,
+    chatId,
   });
   const now = new Date();
   const result = await Store.saveSession(
@@ -25,13 +24,9 @@ export async function createSession({
       title,
       updatedAt: now,
     },
-    taskId,
+    chatId,
     { signal },
   );
-
-  if (result.isOk()) {
-    getWorkspaceConfig().captureEvent("session.created");
-  }
 
   return result;
 }

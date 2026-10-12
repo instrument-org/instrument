@@ -55,7 +55,7 @@ import { useRouter, useRouterState } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import ms from "ms";
 import { unique } from "radashi";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 import {
   type ReactNode,
   use,
@@ -839,7 +839,9 @@ function useRows({
             id: `task:${task.id}`,
             name: task.title,
             run: () => {
-              open.visit(taskHref(task.id, chat));
+              if (chat) {
+                open.visit(taskHref(task.id, chat));
+              }
             },
           }),
         );

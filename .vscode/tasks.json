@@ -1,17 +1,14 @@
 {
   "tasks": [
     {
-      "command": "pnpm exec turbo run build --filter=@instrument-org/shim-client",
-      "detail": "Build the shim client bundle (cached via Turbo)",
-      "label": "Build Shim Client",
-      "options": {
-        "cwd": "${workspaceRoot}"
-      },
+      "command": "node scripts/prepare.ts",
+      "detail": "Get the checkout ready to run: dependencies, registry/, the Mac bridge (what pnpm studio runs first)",
+      "label": "Prepare",
       "presentation": {
         "clear": true,
-        "echo": false,
+        "echo": true,
         "focus": false,
-        "panel": "dedicated",
+        "panel": "shared",
         "reveal": "silent",
         "showReuseMessage": false
       },
@@ -19,8 +16,8 @@
       "type": "shell"
     },
     {
-      "command": "bash scripts/sync.sh",
-      "detail": "Pull latest main, update submodules, and install dependencies with scripts/sync.sh script",
+      "command": "pnpm sync",
+      "detail": "Pull latest main and get the checkout ready to run (pnpm sync)",
       "label": "Sync with main",
       "presentation": {
         "clear": true,
@@ -46,21 +43,6 @@
         "showReuseMessage": true
       },
       "problemMatcher": ["$tsc"],
-      "type": "shell"
-    },
-    {
-      "command": "bash scripts/setup.sh",
-      "detail": "First time setup of the project with scripts/setup.sh script",
-      "label": "Setup the project",
-      "presentation": {
-        "clear": true,
-        "echo": true,
-        "focus": true,
-        "panel": "shared",
-        "reveal": "always",
-        "showReuseMessage": false
-      },
-      "problemMatcher": [],
       "type": "shell"
     }
   ],

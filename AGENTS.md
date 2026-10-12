@@ -1,6 +1,6 @@
 # Instrument Monorepo
 
-pnpm monorepo for the Instrument desktop app platform.
+pnpm monorepo for the Instrument desktop app platform. The public website is https://tryinstrument.com; the app talks to its API at `api.tryinstrument.com` (`staging.api.` for staging) and fetches updates from `releases.tryinstrument.com`. Neither the website nor the API lives in this repo.
 
 - `apps/studio`: Electron desktop app (main product)
 - `packages/workspace`: Core AI agents, workflow logic, and workspace management

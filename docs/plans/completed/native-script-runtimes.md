@@ -1,6 +1,6 @@
 # Plan: one Python and one JavaScript, both native
 
-Status: in progress. Scope confirmed 2026-10-12.
+Status: completed. Python and Node run native, the mount-era names are swept, and Windows has its drives place and notice. Windows confinement waits on MXC (see docs/architecture/windows-sandbox.md).
 
 ## Summary
 

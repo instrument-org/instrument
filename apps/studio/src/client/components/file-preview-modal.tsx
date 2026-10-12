@@ -2,6 +2,7 @@ import {
   closeFilePreviewAtom,
   filePreviewAtom,
 } from "@/client/atoms/file-preview";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { getFileType } from "@/client/lib/get-file-type";
 import { formatBytes } from "@instrument-org/workspace/client";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -38,6 +39,10 @@ export function FilePreviewModal() {
       unsubscribe();
     };
   }, [router, state.isOpen, closePreview]);
+
+  // Drawn over the whole window rather than through `DialogContent`, so it
+  // holds the tab chords itself: Cmd+W closes the preview, not the tab behind.
+  useHoldWindow(state.isOpen, { onClose: closePreview });
 
   if (!file?.url) {
     return null;

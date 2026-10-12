@@ -447,6 +447,19 @@ describe("listChats", () => {
     const [settled] = await listChats();
     expect(settled).toMatchObject({ unread: true, unreadByUser: false });
   });
+  it("leaves a chat read when its turn ends with a task's wake on its way", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    pendingWakes.value.add(chatFor(sessionId));
+    startChatUnreadOnSettle();
+
+    publisher.publish("session.done", { id: chatFor(sessionId), sessionId });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    pendingWakes.value.clear();
+    const [waking] = await listChats();
+    expect(waking?.unread).toBe(false);
+  });
 
   it("keeps a mark the user set theirs when the chat settles under it", async () => {
     const chatId = await freshChat();

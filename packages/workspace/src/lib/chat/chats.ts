@@ -24,6 +24,7 @@ import { latestStepIn } from "./step-label";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
 import { hasPendingWake } from "./wake";
+import { chatStateOf } from "./chat-state";
 import { createWriteQueue } from "../create-write-queue";
 
 /** How much of the agent's last reply a chat's row shows. */
@@ -151,16 +152,20 @@ export async function chatById(chatId: ChatId): Promise<Chat | undefined> {
 }
 
 /**
- * Whether anything of the chat's is still moving: its own agent, or a task
- * filed from it that is not stopped on an ask. A chat that is not has
- * settled, and the next move is the user's.
+ * Whether anything of the chat's is still moving, by the rule its row
+ * follows. A chat that is not has settled, and the next move is the user's.
  */
 export async function chatIsWorking(chatId: ChatId): Promise<boolean> {
-  if (chatIsAlive(chatId)) {
-    return true;
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
+    return false;
+  }
+  const digest = await chatDigest(chatId, sessionId);
+  if (!digest) {
+    return false;
   }
   const { running } = await chatActivity(chatId);
-  return running.some((task) => !task.waiting);
+  return stateOf(chatId, digest, running).state === "working";
 }
 
 /**
@@ -460,24 +465,8 @@ async function chatFor(
     ...(task.waiting ? { waiting: task.waiting } : {}),
   }));
 
-  // A task stopped on an ask is running to the machine and stalled to the
-  // user, so it does not make the chat work; it makes it wait, unless
-  // something else in the chat is moving. The chat's own agent stopped
-  // on an ask of its own is the same: alive to the machine, waiting to the
-  // user.
-  const ownWorking =
-    (chatIsAlive(chatId) && digest.ownAsk === undefined) ||
-    turnIsStarting(digest);
-  const working =
-    ownWorking || filed.some((task) => !task.waiting) || hasPendingWake(chatId);
-  const ask = working ? undefined : askOf(digest, filed);
-  const state = working
-    ? "working"
-    : ask
-      ? "waiting"
-      : digest.failed
-        ? "failed"
-        : "idle";
+  const { ask: anyAsk, ownWorking, state } = stateOf(chatId, digest, filed);
+  const ask = state === "working" ? undefined : anyAsk;
 
   const lead = runningTasks.find((task) => !task.waiting);
   const latest = latestFor({
@@ -906,7 +895,30 @@ function webHostOf(url: string): string {
   }
 }
 
-/** Whether the chat's own agent is at work this moment. */
+/**
+ * Where a chat stands by `chatStateOf`, read from its digest and the tasks
+ * running in it, with what it waits on the user for.
+ */
+function stateOf(
+  chatId: ChatId,
+  digest: ChatDigest,
+  running: ChatActivity["running"],
+) {
+  const ask = askOf(digest, running);
+  return {
+    ask,
+    ...chatStateOf({
+      failed: digest.failed,
+      hasAsk: ask !== undefined,
+      ownAlive: chatIsAlive(chatId),
+      ownAsking: digest.ownAsk !== undefined,
+      pendingWake: hasPendingWake(chatId),
+      tasks: running,
+      turnStarting: turnIsStarting(digest),
+    }),
+  };
+}
+
 /**
  * How long a message with no reply yet counts as its turn starting. A message
  * is written before the agent it starts is running, so a list read between the
@@ -915,6 +927,7 @@ function webHostOf(url: string): string {
  */
 const TURN_START_GRACE_MS = 30_000;
 
+/** Whether the chat's own agent is at work this moment. */
 function chatIsAlive(chatId: ChatId): boolean {
   const sessionId = sessionOfChat(chatId);
   return sessionId !== undefined && isWorking(chatId, sessionId);

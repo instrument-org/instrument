@@ -43,7 +43,6 @@ export type SessionMachineParentEvent = {
     actorId: string;
     error?: unknown;
     chatId: ChatId;
-    usedNonReadOnlyTools: boolean;
   };
 };
 
@@ -89,8 +88,6 @@ export const sessionMachine = setup({
     }),
 
     forceStopAgent: stopChild(({ context }) => context.agentRef ?? "agent"),
-
-    markUsedNonReadOnlyTools: assign({ usedNonReadOnlyTools: true }),
 
     spawnAgentMachine: assign({
       agentRef: (
@@ -231,7 +228,6 @@ export const sessionMachine = setup({
       stoppedBeforeStart: boolean;
       subscription?: { unsubscribe: () => void };
       chatId: ChatId;
-      usedNonReadOnlyTools: boolean;
     },
     events: {} as SessionMachineEvent,
     input: {} as {
@@ -279,7 +275,6 @@ export const sessionMachine = setup({
       stoppedBeforeStart: false,
       subscription,
       chatId: input.chatId,
-      usedNonReadOnlyTools: false,
     };
   },
   id: "session",
@@ -394,7 +389,7 @@ export const sessionMachine = setup({
   },
   states: {
     Agent: {
-      initial: "UsingReadOnlyTools",
+      initial: "Running",
 
       on: {
         "agent.done": {
@@ -447,56 +442,12 @@ export const sessionMachine = setup({
           },
         },
 
-        UsingNonReadOnlyTools: {
-          initial: "Running",
-          on: {
-            "agent.paused": ".Paused",
-            "agent.resumed": ".Running",
-            "agent.usingTool": {
-              // No-op because we've already moved to this state
-            },
-          },
-          states: {
-            Paused: {
-              tags: ["agent.paused"],
-            },
-            Running: {
-              tags: ["agent.running"],
-            },
-          },
-          tags: ["agent.using-non-read-only-tools"],
+        Paused: {
+          on: { "agent.resumed": "Running" },
         },
-        UsingReadOnlyTools: {
-          initial: "Running",
-          on: {
-            "agent.paused": ".Paused",
-            "agent.resumed": ".Running",
-            "agent.usingTool": {
-              // No-op because we've already moved to this state
-            },
-          },
-          states: {
-            Paused: {
-              on: {
-                "agent.usingTool": {
-                  actions: "markUsedNonReadOnlyTools",
-                  guard: ({ event }) => !event.value.readOnly,
-                  target: "#session.Agent.UsingNonReadOnlyTools.Paused",
-                },
-              },
-              tags: ["agent.paused"],
-            },
-            Running: {
-              on: {
-                "agent.usingTool": {
-                  actions: "markUsedNonReadOnlyTools",
-                  guard: ({ event }) => !event.value.readOnly,
-                  target: "#session.Agent.UsingNonReadOnlyTools.Running",
-                },
-              },
-              tags: ["agent.running"],
-            },
-          },
+        Running: {
+          on: { "agent.paused": "Paused" },
+          tags: ["agent.running"],
         },
       },
       tags: ["agent.alive"],
@@ -521,7 +472,6 @@ export const sessionMachine = setup({
             actorId: self.id,
             error: context.error,
             chatId: context.chatId,
-            usedNonReadOnlyTools: context.usedNonReadOnlyTools,
           },
         });
       },

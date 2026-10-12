@@ -3,13 +3,7 @@ import { z } from "zod";
 import { StoreId } from "./store-id";
 import { ChatIdSchema } from "./chat-id";
 
-const SessionTagSchema = z.enum([
-  "agent.alive",
-  "agent.done",
-  "agent.paused",
-  "agent.running",
-  "agent.using-non-read-only-tools",
-]);
+const SessionTagSchema = z.enum(["agent.alive", "agent.done", "agent.running"]);
 
 export type SessionTag = z.output<typeof SessionTagSchema>;
 

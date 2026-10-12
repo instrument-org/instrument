@@ -31,7 +31,6 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { getToolByType, type ToolOutputByName } from "../tools/all";
-import { type AnyAgentTool } from "../tools/types";
 import {
   executeToolCallMachine,
   saveStoppedToolCallPart,
@@ -53,11 +52,7 @@ export type AgentParentEvent =
       value: { error?: unknown };
     }
   | { type: "agent.paused" }
-  | { type: "agent.resumed" }
-  | {
-      type: "agent.usingTool";
-      value: AnyAgentTool;
-    };
+  | { type: "agent.resumed" };
 
 export type ToolCallUpdate =
   | { errorText: string; toolCallId: string; type: "error" }
@@ -510,10 +505,6 @@ export const agentMachine = setup({
       entry: enqueueActions(({ context, enqueue }) => {
         const batch = nextToolCallBatch(context.toolCallQueue);
         for (const part of batch) {
-          const tool = getToolByType(part.type);
-          enqueue(() => {
-            context.parentRef.send({ type: "agent.usingTool", value: tool });
-          });
           enqueue.spawnChild("executeToolCallMachine", {
             id: toolCallActorId(part),
             input: {

@@ -161,7 +161,6 @@ describe("workspaceMachine session ref lifecycle", () => {
       value: {
         actorId: sessionRef?.id ?? "",
         chatId,
-        usedNonReadOnlyTools: false,
       },
     });
 
@@ -192,7 +191,6 @@ describe("workspaceMachine session ref lifecycle", () => {
       value: {
         actorId: first?.id ?? "",
         chatId,
-        usedNonReadOnlyTools: false,
       },
     });
 

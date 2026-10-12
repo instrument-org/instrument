@@ -157,10 +157,7 @@ const actor = createActor(workspaceMachine, {
             process.stdout.write(".");
             return;
           }
-          if (
-            event.event.type === "agent.usingTool" ||
-            event.event.type.toLowerCase().includes("heartbeat")
-          ) {
+          if (event.event.type.toLowerCase().includes("heartbeat")) {
             // Too verbose to log
             return;
           }

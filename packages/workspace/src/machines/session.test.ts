@@ -1081,9 +1081,7 @@ describe("sessionMachine", () => {
       chunkSets: [finishChunks],
     });
     result.actor.start();
-    await waitFor(result.actor, (state) =>
-      state.matches({ Agent: "UsingReadOnlyTools" }),
-    );
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Running" }));
     result.actor.send({ type: "stop" });
     await waitFor(result.actor, (state) => state.status === "done");
 
@@ -1152,9 +1150,7 @@ describe("sessionMachine", () => {
     });
     result.actor.start();
 
-    await waitFor(result.actor, (state) =>
-      state.matches({ Agent: "UsingReadOnlyTools" }),
-    );
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Running" }));
     const agentRef = result.actor.getSnapshot().context.agentRef;
     if (!agentRef) {
       throw new Error("Expected agent ref");
@@ -1190,9 +1186,7 @@ describe("sessionMachine", () => {
     result.actor.start();
 
     // Wait for the agent to reach the WaitingForPendingToolCalls state
-    await waitFor(result.actor, (state) =>
-      state.matches({ Agent: { UsingReadOnlyTools: "Paused" } }),
-    );
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Paused" }));
 
     // Send the tool call update to simulate user selection
     result.actor.send({
@@ -1272,11 +1266,9 @@ describe("sessionMachine", () => {
         signal: abort.signal,
       })) {
         if (part.type === "tool-choose" && part.state === "input-available") {
-          expect(
-            result.actor
-              .getSnapshot()
-              .matches({ Agent: { UsingReadOnlyTools: "Paused" } }),
-          ).toBe(false);
+          expect(result.actor.getSnapshot().matches({ Agent: "Paused" })).toBe(
+            false,
+          );
           result.actor.send({
             type: "updateInteractiveToolCall",
             value: {
@@ -1324,9 +1316,7 @@ describe("sessionMachine", () => {
     const captureException = vi.spyOn(getWorkspaceConfig(), "captureException");
 
     result.actor.start();
-    await waitFor(result.actor, (state) =>
-      state.matches({ Agent: { UsingReadOnlyTools: "Paused" } }),
-    );
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Paused" }));
     result.actor.send({ type: "stop" });
     await waitFor(result.actor, (state) => state.status === "done");
 
@@ -1578,7 +1568,7 @@ describe("sessionMachine", () => {
       await waitFor(
         result.actor,
         (state) =>
-          state.matches({ Agent: "UsingReadOnlyTools" }) &&
+          state.matches({ Agent: "Running" }) &&
           state.context.agentRef?.getSnapshot().context.agent.name ===
             "instrument",
       ).then(async () => {
@@ -1626,7 +1616,7 @@ describe("sessionMachine", () => {
       await waitFor(
         result.actor,
         (state) =>
-          state.matches({ Agent: "UsingReadOnlyTools" }) &&
+          state.matches({ Agent: "Running" }) &&
           state.context.agentRef?.getSnapshot().context.agent.name ===
             "instrument",
       ).then(async () => {

@@ -261,3 +261,106 @@ it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
     expect(infos.filter((line) => line.includes("resumed"))).toHaveLength(1);
   },
 );
+
+// A task's first request is its chat's step that started it, then its
+// assignment; the chat's process is still waiting on that step's tool call.
+it.skipIf(process.env.CLAUDE_ACCOUNT_LIVE !== "1")(
+  "forks a task from its chat's transcript where it branched off",
+  { timeout: 300_000 },
+  async () => {
+    const warnings: string[] = [];
+    const infos: string[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation((line) => {
+      warnings.push(String(line));
+    });
+    const info = vi.spyOn(console, "info").mockImplementation((line) => {
+      infos.push(String(line));
+    });
+    const model = createClaudeAccountLanguageModel({
+      configDir: undefined,
+      executablePath: `${homedir()}/.local/bin/claude`,
+    })("claude-haiku-4-5");
+    const tools: LanguageModelV4FunctionTool[] = [
+      {
+        description: "Start a background task with an assignment",
+        inputSchema: {
+          properties: { assignment: { type: "string" } },
+          required: ["assignment"],
+          type: "object",
+        },
+        name: "start_task",
+        type: "function",
+      },
+    ];
+    const chatKey = `live-chat-${randomUUID()}`;
+    async function step(
+      prompt: LanguageModelV4Message[],
+      claudeAccount: Record<string, string>,
+    ) {
+      const { stream } = await model.doStream({
+        prompt,
+        providerOptions: { "claude-account": claudeAccount },
+        tools,
+      });
+      let text = "";
+      const calls: string[] = [];
+      for await (const part of stream) {
+        if (part.type === "error") {
+          throw part.error;
+        }
+        if (part.type === "text-delta") {
+          text += part.delta;
+        }
+        if (part.type === "tool-call") {
+          calls.push(part.toolName);
+        }
+      }
+      return { calls, text };
+    }
+
+    const chat: LanguageModelV4Message[] = [
+      {
+        content:
+          "You are Pebble. Hand any research to a background task with start_task.",
+        role: "system",
+      },
+      {
+        content: [
+          {
+            text: "The secret word is marmalade. Start a task to look into jam history.",
+            type: "text",
+          },
+        ],
+        role: "user",
+      },
+    ];
+    const handOff = await step(chat, { sessionId: chatKey });
+    expect(handOff.calls).toContain("start_task");
+
+    const task = await step(
+      [
+        ...chat,
+        {
+          content: [
+            {
+              text: "Actually, skip the task. Just tell me the secret word from my first message, without calling any tool.",
+              type: "text",
+            },
+          ],
+          role: "user",
+        },
+      ],
+      { parentSessionId: chatKey, sessionId: `live-task-${randomUUID()}` },
+    );
+    process.stderr.write(
+      `FORKED ${JSON.stringify({ infos, task, warnings })}\n`,
+    );
+    warn.mockRestore();
+    info.mockRestore();
+    closeClaudeAccountSessions();
+
+    expect(task.text.toLowerCase()).toContain("marmalade");
+    expect(warnings.filter((line) => line.includes("replay"))).toEqual([]);
+    expect(infos.filter((line) => line.includes("forked"))).toHaveLength(1);
+  },
+);

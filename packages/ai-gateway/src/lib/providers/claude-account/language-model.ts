@@ -32,6 +32,7 @@ import {
 } from "./resume-record";
 import {
   ClaudeCodeSession,
+  type TranscriptStart,
   type SessionShape,
   sessionShapeKey,
   TOOL_PREFIX,
@@ -216,6 +217,33 @@ export function continuationOf(
     : restart(`no tool results awaited, the reply is followed by ${roles}`);
 }
 
+/**
+ * The new messages a branch of a session starts with, when it carries on
+ * from exactly the input of the session's last step, as a task's first
+ * request carries on from the chat step that started it: everything the
+ * session saw, unchanged, then only user or system messages.
+ */
+export function branchOf(
+  parent: { seen: string[] },
+  kept: LanguageModelV4Message[],
+  keptPrints: string[],
+  transient: LanguageModelV4Message[],
+): LanguageModelV4Message[] | undefined {
+  const { seen } = parent;
+  if (seen.length === 0 || kept.length <= seen.length) {
+    return undefined;
+  }
+  if (seen.some((print, index) => keptPrints[index] !== print)) {
+    return undefined;
+  }
+  const added = kept.slice(seen.length);
+  return added.every(
+    (message) => message.role === "user" || message.role === "system",
+  )
+    ? [...added, ...transient]
+    : undefined;
+}
+
 function streamStep({
   configDir,
   executablePath,
@@ -228,6 +256,7 @@ function streamStep({
   options: LanguageModelV4CallOptions;
 }) {
   const key = sessionKeyOf(options);
+  const parentKey = parentKeyOf(options);
   const { rest, systemPrompt } = splitSystemPrompt(options.prompt);
   const shape: SessionShape = {
     builtInTools: builtInToolsOf(options),
@@ -253,10 +282,11 @@ function streamStep({
       // A request with no tools is a one-off (a title, a summary), and so is
       // one that arrives while its session's process is mid-step. Each gets
       // a process of its own that ends with it.
+      const shapeHash = createHash("sha256").update(shapeKey).digest("hex");
       const slot =
         key === undefined || shape.tools.length === 0
           ? undefined
-          : `${key}:${createHash("sha256").update(shapeKey).digest("hex")}`;
+          : `${key}:${shapeHash}`;
       const existing = slot === undefined ? undefined : sessions.get(slot);
       const ephemeral = slot === undefined || existing?.busy === true;
       const { kept, keptPrints, transient } = splitPrompt(options.prompt);
@@ -267,7 +297,7 @@ function streamStep({
 
       let session: ClaudeCodeSession | undefined;
       try {
-        const start = (claudeSessionId: string, resume: boolean) => {
+        const start = (claudeSessionId: string, begin: TranscriptStart) => {
           const created = new ClaudeCodeSession(
             slot ?? randomUUID(),
             shape,
@@ -276,7 +306,7 @@ function streamStep({
                 sessions.delete(created.key);
               }
             },
-            ephemeral ? undefined : { claudeSessionId, resume },
+            ephemeral ? undefined : { claudeSessionId, start: begin },
           );
           if (!ephemeral) {
             sessions.set(created.key, created);
@@ -285,9 +315,12 @@ function streamStep({
         };
 
         // A live process for this slot, or else the transcript its last one
-        // left, resumed where it stopped.
+        // left, resumed where it stopped, or else for a task's first step,
+        // its chat's transcript forked where the task branched off.
         let continuation: Continuation | Restart | undefined;
-        let resumable: string | undefined;
+        let resumable:
+          | { claudeSessionId: string; start: TranscriptStart }
+          | undefined;
         if (!ephemeral && existing) {
           session = existing;
           continuation = continuationOf(existing, kept, keptPrints, transient);
@@ -303,7 +336,28 @@ function streamStep({
                 reason: "its process ended while waiting on tool results",
               };
             }
-            resumable = record.claudeSessionId;
+            resumable = {
+              claudeSessionId: record.claudeSessionId,
+              start: { kind: "resume" },
+            };
+          } else if (parentKey !== undefined) {
+            const parent = await readResumeRecord(
+              configDir,
+              `${parentKey}:${shapeHash}`,
+            );
+            const branch =
+              parent && branchOf(parent, kept, keptPrints, transient);
+            if (parent?.forkPoint !== undefined && branch !== undefined) {
+              continuation = { kind: "turn", messages: branch };
+              resumable = {
+                claudeSessionId: randomUUID(),
+                start: {
+                  at: parent.forkPoint,
+                  from: parent.claudeSessionId,
+                  kind: "fork",
+                },
+              };
+            }
           }
         }
         if (slot !== undefined && !ephemeral) {
@@ -322,16 +376,18 @@ function streamStep({
           if (key !== undefined && !ephemeral) {
             closeOtherIdleSlots(key, slot);
           }
-          session = start(randomUUID(), false);
+          session = start(randomUUID(), { kind: "new" });
           session.send(coldStartContent(rest));
         } else {
           if (session === undefined) {
             if (resumable === undefined) {
               throw new Error("A continuation needs a session to continue.");
             }
-            session = start(resumable, true);
+            session = start(resumable.claudeSessionId, resumable.start);
             console.info(
-              `[claude-account] session ${session.key} resumed its Claude Code transcript`,
+              resumable.start.kind === "fork"
+                ? `[claude-account] session ${session.key} forked its parent's Claude Code transcript`
+                : `[claude-account] session ${session.key} resumed its Claude Code transcript`,
             );
           }
           // Before the step starts, so it runs on the model now asked for.
@@ -339,6 +395,7 @@ function streamStep({
             await session.setModel(modelId);
             session.modelId = modelId;
           }
+          session.forkPoint = undefined;
           if (continuation.kind === "tool-results") {
             if (continuation.followedBy.length > 0) {
               session.send(turnContent(continuation.followedBy), "next");
@@ -372,6 +429,7 @@ function streamStep({
           await writeResumeRecord(configDir, slot, {
             awaitingToolCallIds: stepSession.awaitingToolCallIds,
             claudeSessionId: stepSession.transcript.claudeSessionId,
+            forkPoint: stepSession.forkPoint,
             seen: stepSession.seen,
           });
         }
@@ -407,7 +465,12 @@ function closeOtherIdleSlots(key: string, keep: string | undefined) {
 /** What one step reads from and leaves on the process it runs in. */
 export type StepSession = Pick<
   ClaudeCodeSession,
-  "awaitingToolCallIds" | "builtInTools" | "messages" | "rateLimit" | "stderr"
+  | "awaitingToolCallIds"
+  | "builtInTools"
+  | "forkPoint"
+  | "messages"
+  | "rateLimit"
+  | "stderr"
 >;
 
 /** Read the CLI's output for one step, ending where it calls our tools or its turn ends. */
@@ -433,6 +496,9 @@ export async function pumpStep(
   let stepUsage: AnthropicUsage = {};
   let messageUsage: AnthropicUsage = {};
   let rateLimit = session.rateLimit;
+  // Until the reply starts, each user-side entry Claude Code reports (a tool
+  // result we answered, a message we sent) is the step's input so far.
+  let replying = false;
 
   const finish = (finishReason: LanguageModelV4FinishReason) => {
     controller.enqueue({
@@ -463,6 +529,7 @@ export async function pumpStep(
     const message = next.value;
     switch (message.type) {
       case "assistant": {
+        replying = true;
         if (message.error && message.error !== "max_output_tokens") {
           throw planError(
             message.error,
@@ -473,6 +540,9 @@ export async function pumpStep(
         break;
       }
       case "user": {
+        if (!replying && message.uuid) {
+          session.forkPoint = message.uuid;
+        }
         for (const source of webSearchSources(message.tool_use_result)) {
           controller.enqueue({
             id: randomUUID(),
@@ -503,6 +573,7 @@ export async function pumpStep(
         return;
       }
       case "stream_event": {
+        replying = true;
         // Output from a subagent the CLI ran itself, which ours never ask for.
         if (message.parent_tool_use_id !== null) {
           break;
@@ -779,6 +850,16 @@ function sessionKeyOf(options: LanguageModelV4CallOptions) {
   return typeof asked === "string"
     ? asked
     : options.headers?.[CLIENT_SESSION_ID_HEADER];
+}
+
+/**
+ * The session a task branched from, `{ "claude-account": { parentSessionId } }`,
+ * whose transcript its first step can fork rather than replay.
+ */
+function parentKeyOf(options: LanguageModelV4CallOptions) {
+  const asked =
+    options.providerOptions?.[CLAUDE_ACCOUNT_PROVIDER_ID]?.parentSessionId;
+  return typeof asked === "string" ? asked : undefined;
 }
 
 function effortOf(options: LanguageModelV4CallOptions) {

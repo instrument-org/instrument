@@ -1,7 +1,7 @@
 import { type LanguageModelV4Message } from "@ai-sdk/provider";
 import { describe, expect, it } from "vitest";
 
-import { continuationOf, splitPrompt } from "./language-model";
+import { branchOf, continuationOf, splitPrompt } from "./language-model";
 
 const system: LanguageModelV4Message = {
   content: "You are Pebble.",
@@ -183,5 +183,41 @@ describe("continuationOf", () => {
       kind: "restart",
       reason: "message 2 is user, not the reply",
     });
+  });
+});
+
+describe("branchOf", () => {
+  const branch = (
+    parent: ReturnType<typeof after>,
+    prompt: LanguageModelV4Message[],
+  ) => {
+    const { kept, keptPrints, transient } = splitPrompt(prompt);
+    return branchOf(parent, kept, keptPrints, transient);
+  };
+
+  // A task's history is its chat's up to the step that started it, then its
+  // assignment: what that step was sent, without the reply it gave.
+  it("branches with the new messages after everything the parent saw", () => {
+    const chat = [system, user("one")];
+    expect(
+      branch(after(chat, ["t1"]), [...chat, user("the assignment")]),
+    ).toEqual([user("the assignment")]);
+  });
+
+  it("does not branch from a parent whose messages changed", () => {
+    expect(
+      branch(after([system, user("one")]), [
+        system,
+        user("edited"),
+        user("the assignment"),
+      ]),
+    ).toBeUndefined();
+  });
+
+  it("does not branch past a reply the parent never saw", () => {
+    const chat = [system, user("one")];
+    expect(
+      branch(after(chat), [...chat, reply("a"), user("the assignment")]),
+    ).toBeUndefined();
   });
 });

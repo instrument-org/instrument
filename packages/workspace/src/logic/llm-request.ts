@@ -358,6 +358,10 @@ export const llmRequestLogic = fromPromise<
     // in front of the same WebSearch. What it finds arrives as sources.
     const searchesNatively =
       aiSDKModel.provider === CLAUDE_ACCOUNT_PROVIDER_CONFIG.type;
+    const cacheSession = cacheSessionFor({
+      sessionId: input.sessionId,
+      chatId: input.chatId,
+    });
     const providerOptions = providerOptionsForModel(aiSDKModel, {
       effort: taskSettings?.reasoningEffort ?? catalogEffort(input.model),
       reasoning: input.model.reasoning,
@@ -367,8 +371,12 @@ export const llmRequestLogic = fromPromise<
         ...providerOptions[CLAUDE_ACCOUNT_PROVIDER_CONFIG.type],
         builtInTools: ["WebSearch"],
         // Its own session even for a task, so a task and its chat each keep
-        // a Claude Code session of their own.
+        // a Claude Code session of their own, a task's forked from its
+        // chat's where it branched off.
         sessionId: input.sessionId,
+        ...(cacheSession !== input.sessionId && {
+          parentSessionId: cacheSession,
+        }),
       };
     }
 
@@ -400,10 +408,7 @@ export const llmRequestLogic = fromPromise<
       // session's earlier requests warmed. A task names its chat's session,
       // whose cache holds the conversation it carries on from.
       headers: {
-        [CLIENT_SESSION_ID_HEADER]: cacheSessionFor({
-          sessionId: input.sessionId,
-          chatId: input.chatId,
-        }),
+        [CLIENT_SESSION_ID_HEADER]: cacheSession,
       },
       maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       maxRetries: 0, // Handled outside this function

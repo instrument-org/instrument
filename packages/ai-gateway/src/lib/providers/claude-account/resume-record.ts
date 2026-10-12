@@ -12,6 +12,11 @@ import { z } from "zod";
 const ResumeRecordSchema = z.object({
   awaitingToolCallIds: z.array(z.string()),
   claudeSessionId: z.string(),
+  /**
+   * The transcript entry that ends the last step's input, just before its
+   * reply: where a task forked from this session at that step branches off.
+   */
+  forkPoint: z.string().optional(),
   seen: z.array(z.string()),
 });
 

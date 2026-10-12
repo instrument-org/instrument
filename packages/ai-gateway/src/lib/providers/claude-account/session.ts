@@ -9,6 +9,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { type ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { randomUUID } from "node:crypto";
 import {
   CallToolRequestSchema,
   type CallToolResult,
@@ -76,15 +77,25 @@ export class ClaudeCodeSession {
   private readonly stderrTail: string[] = [];
 
   /**
+   * The transcript entry that ends this step's input, before the reply: the
+   * message we sent, or the last tool result Claude Code reported taking.
+   */
+  forkPoint: string | undefined;
+
+  /**
    * @param transcript The Claude Code session this process writes, under
-   * its own id, and whether to resume it rather than start it. None for a
+   * its own id, and how it begins: new, resumed where it stopped, or forked
+   * from another session's transcript at one of its entries. None for a
    * one-off, which nothing continues and so keeps no transcript.
    */
   constructor(
     readonly key: string,
     shape: SessionShape,
     private readonly onClose: () => void,
-    readonly transcript?: { claudeSessionId: string; resume: boolean },
+    readonly transcript?: {
+      claudeSessionId: string;
+      start: TranscriptStart;
+    },
   ) {
     this.builtInTools = new Set(shape.builtInTools);
     this.modelId = shape.modelId;
@@ -109,11 +120,7 @@ export class ClaudeCodeSession {
         // config folder Instrument signs it in through, is what lets a later
         // request resume this session with its tool calls and images intact
         // instead of replaying ours into a new one as text.
-        ...(transcript === undefined
-          ? { persistSession: false }
-          : transcript.resume
-            ? { resume: transcript.claudeSessionId }
-            : { sessionId: transcript.claudeSessionId }),
+        ...transcriptOptions(transcript),
         settingSources: [],
         settings: { disableClaudeAiConnectors: true },
         stderr: (data) => {
@@ -171,12 +178,15 @@ export class ClaudeCodeSession {
    * turn, rather than as a turn of its own after this one ends.
    */
   send(content: ContentBlockParam[], priority?: "next") {
+    const uuid = randomUUID();
     this.input.push({
       message: { content, role: "user" },
       parent_tool_use_id: null,
       ...(priority && { priority }),
       type: "user",
+      uuid,
     });
+    this.forkPoint = uuid;
   }
 
   /**
@@ -254,6 +264,31 @@ export class ClaudeCodeSession {
       return result;
     });
     return server;
+  }
+}
+
+export type TranscriptStart =
+  | { kind: "fork"; at: string; from: string }
+  | { kind: "new" }
+  | { kind: "resume" };
+
+function transcriptOptions(transcript: ClaudeCodeSession["transcript"]) {
+  if (transcript === undefined) {
+    return { persistSession: false };
+  }
+  const { claudeSessionId, start } = transcript;
+  switch (start.kind) {
+    case "new":
+      return { sessionId: claudeSessionId };
+    case "resume":
+      return { resume: claudeSessionId };
+    case "fork":
+      return {
+        forkSession: true,
+        resume: start.from,
+        resumeSessionAt: start.at,
+        sessionId: claudeSessionId,
+      };
   }
 }
 

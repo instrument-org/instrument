@@ -1,23 +1,9 @@
 import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppCommand } from "@/shared/app-command";
-import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { type BrowserTargetId } from "@instrument-org/workspace/electron";
 import { EventPublisher } from "@orpc/server";
 
 interface PublisherEvents {
-  // How the Google sign-in to Instrument that came back through the browser
-  // ended, for the sign-in waiting on it in the window.
-  "auth.sign-in-outcome":
-    | {
-        error: {
-          code?: string | undefined;
-          message?: string | undefined;
-          status: number;
-          statusText: string;
-        };
-        outcome: Extract<SignInOutcome, "failed">;
-      }
-    | { outcome: Extract<SignInOutcome, "declined" | "signed-in"> };
   // The notices from us changed: a fetch brought new ones, or one was seen,
   // dismissed or toasted.
   "notices.updated": null;

@@ -1,4 +1,4 @@
-import { exchangeDesktopSignIn, store } from "@/electron-main/auth/client";
+import { receiveInstrumentCallback } from "@/electron-main/auth/client";
 import {
   GOOGLE_MARK,
   newAuthReference,
@@ -19,10 +19,6 @@ import { captureServerException } from "@/electron-main/lib/capture-server-excep
 import { directoryIconDataUri } from "@/electron-main/lib/directory-icons";
 import { receiveChatGPTCallback } from "@/electron-main/lib/chatgpt-account";
 import { receiveOpenRouterCallback } from "@/electron-main/lib/openrouter-connect";
-import { setDefaultModel } from "@/electron-main/lib/set-default-model";
-import { publisher } from "@/electron-main/rpc/publisher";
-import { getSessionStore } from "@/electron-main/stores/workspace/session";
-import { getWorkspaceState } from "@/electron-main/stores/workspace/state";
 import { focusAppWindow } from "@/electron-main/windows/foreground";
 import { serve } from "@hono/node-server";
 import { listenWithPortFallback, PORTS } from "@instrument-org/shared";
@@ -175,12 +171,8 @@ export function createAuthCallbackApp() {
   // The API's Google sign-in lands here with a single-use token, or with the
   // error that ended it.
   get(AUTH_CALLBACK_PATHS.instrument, async (c) => {
-    const token = c.req.query("token");
-    const state = c.req.query("state");
-    const ended = c.req.query("error");
-    const { codeVerifier } = store;
-
-    if (state === undefined || state !== store.state || codeVerifier === null) {
+    const finished = receiveInstrumentCallback(new URL(c.req.url).searchParams);
+    if (!finished) {
       captureServerException(
         new Error("Sign-in callback received with invalid state"),
         { scopes: ["auth"] },
@@ -188,55 +180,43 @@ export function createAuthCallbackApp() {
       focusAppWindow();
       return c.html(renderAuthPage({ kind: "expired" }), 400);
     }
-    // One callback per sign-in started.
-    store.state = null;
-    store.codeVerifier = null;
-
-    if (ended === "access_denied") {
-      publisher.publish("auth.sign-in-outcome", { outcome: "declined" });
-      focusAppWindow();
-      return c.html(
-        renderAuthPage({
-          kind: "declined",
-          service: googleService,
-          signIn: true,
-        }),
-      );
-    }
-
-    let email: string;
+    let result: Awaited<typeof finished>;
     try {
-      if (token === undefined) {
-        throw new Error(`Sign-in ended with ${ended ?? "no token"}`);
-      }
-      const result = await exchangeDesktopSignIn({ codeVerifier, token });
-      getSessionStore().set("apiBearerToken", result.token);
-      getWorkspaceState().set("hasCompletedProviderSetup", true);
-      email = result.user.email;
+      result = await finished;
     } catch (error) {
       const page = failed(new Error("Error signing in", { cause: error }));
-      // The button in the app holds until it hears how the sign-in went.
-      publisher.publish("auth.sign-in-outcome", {
-        error: {
-          message: error instanceof Error ? error.message : undefined,
-          status: 500,
-          statusText: "Error signing in",
-        },
-        outcome: "failed",
-      });
       focusAppWindow();
       return c.html(page, 400);
     }
-
-    void setDefaultModel();
-    publisher.publish("auth.sign-in-outcome", { outcome: "signed-in" });
-    // Delay focus so the renderer has time to navigate to the success screen
-    // before the window comes to front -- keeps the entrance animation visible.
-    setTimeout(focusAppWindow, 400);
-
-    return c.html(
-      renderAuthPage({ email, kind: "signed-in", service: googleService }),
-    );
+    switch (result.outcome) {
+      case "canceled": {
+        focusAppWindow();
+        return c.html(renderAuthPage({ kind: "expired" }), 400);
+      }
+      case "declined": {
+        focusAppWindow();
+        return c.html(
+          renderAuthPage({
+            kind: "declined",
+            service: googleService,
+            signIn: true,
+          }),
+        );
+      }
+      case "signed-in": {
+        // Delay focus so the renderer has time to navigate to the success
+        // screen before the window comes to front -- keeps the entrance
+        // animation visible.
+        setTimeout(focusAppWindow, 400);
+        return c.html(
+          renderAuthPage({
+            email: result.email,
+            kind: "signed-in",
+            service: googleService,
+          }),
+        );
+      }
+    }
   });
 
   // An app's sign-in lands here after the user approves. Finish the parked

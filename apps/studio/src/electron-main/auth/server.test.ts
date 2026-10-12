@@ -3,16 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   chatgpt: vi.fn(),
   openrouter: vi.fn(),
-  exchange: vi.fn(),
-  publish: vi.fn(),
+  instrument: vi.fn(),
   capture: vi.fn(),
   completeApp: vi.fn(),
-  store: { state: null as string | null, codeVerifier: null as string | null },
 }));
 
 vi.mock("./client", () => ({
-  store: mocks.store,
-  exchangeDesktopSignIn: mocks.exchange,
+  receiveInstrumentCallback: mocks.instrument,
 }));
 vi.mock("./page", () => ({
   GOOGLE_MARK: "google",
@@ -38,14 +35,6 @@ vi.mock("../lib/capture-server-exception", () => ({
   captureServerException: mocks.capture,
 }));
 vi.mock("../lib/directory-icons", () => ({ directoryIconDataUri: vi.fn() }));
-vi.mock("../lib/set-default-model", () => ({ setDefaultModel: vi.fn() }));
-vi.mock("../rpc/publisher", () => ({ publisher: { publish: mocks.publish } }));
-vi.mock("../stores/workspace/session", () => ({
-  getSessionStore: () => ({ set: vi.fn() }),
-}));
-vi.mock("../stores/workspace/state", () => ({
-  getWorkspaceState: () => ({ set: vi.fn() }),
-}));
 vi.mock("../windows/foreground", () => ({ focusAppWindow: vi.fn() }));
 vi.mock("../browser-view/history-intents", () => ({ settleSignIn: vi.fn() }));
 vi.mock("@instrument-org/workspace/electron", () => ({
@@ -61,8 +50,11 @@ import { AUTH_CALLBACK_PATHS } from "./routes";
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.store.state = "instrument-state";
-  mocks.store.codeVerifier = "verifier";
+  mocks.instrument.mockImplementation((params: URLSearchParams) =>
+    params.get("state") === "instrument-state"
+      ? Promise.resolve({ outcome: "declined" })
+      : undefined,
+  );
   mocks.chatgpt.mockImplementation((params: URLSearchParams) =>
     params.get("state") === "chatgpt-state"
       ? Promise.resolve({ outcome: "declined" })
@@ -78,9 +70,8 @@ describe("the assembled auth callback server", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("declined");
     expect(mocks.chatgpt).toHaveBeenCalledOnce();
-    expect(mocks.publish).not.toHaveBeenCalled();
+    expect(mocks.instrument).not.toHaveBeenCalled();
     expect(mocks.capture).not.toHaveBeenCalled();
-    expect(mocks.store.state).toBe("instrument-state");
   });
 
   it("finishes an Instrument sign-in at its own path", async () => {
@@ -88,11 +79,8 @@ describe("the assembled auth callback server", () => {
       `${AUTH_CALLBACK_PATHS.instrument}?state=instrument-state&error=access_denied`,
     );
     expect(response.status).toBe(200);
-    expect(mocks.publish).toHaveBeenCalledWith("auth.sign-in-outcome", {
-      outcome: "declined",
-    });
+    expect(await response.text()).toBe("declined");
     expect(mocks.chatgpt).not.toHaveBeenCalled();
-    expect(mocks.store.state).toBeNull();
   });
 
   it("hands ChatGPT a callback carrying the Instrument state", async () => {
@@ -100,20 +88,18 @@ describe("the assembled auth callback server", () => {
       `${AUTH_CALLBACK_PATHS.chatgpt}?state=instrument-state&token=token`,
     );
     expect(response.status).toBe(400);
-    expect(mocks.exchange).not.toHaveBeenCalled();
-    expect(mocks.store.state).toBe("instrument-state");
+    expect(mocks.instrument).not.toHaveBeenCalled();
   });
 
   it.each(["stale-state", ""])(
-    "leaves pending sign-ins intact for unknown state %s",
+    "turns away an Instrument callback with unknown state %s",
     async (state) => {
       const response = await createAuthCallbackApp().request(
-        `/auth/callback?state=${state}`,
+        `${AUTH_CALLBACK_PATHS.instrument}?state=${state}`,
       );
       expect(response.status).toBe(400);
       expect(await response.text()).toBe("expired");
-      expect(mocks.publish).not.toHaveBeenCalled();
-      expect(mocks.store.state).toBe("instrument-state");
+      expect(mocks.capture).toHaveBeenCalledOnce();
     },
   );
 
@@ -140,22 +126,26 @@ describe("the assembled auth callback server", () => {
     expect(mocks.chatgpt).not.toHaveBeenCalled();
   });
 
-  it("reports an Instrument exchange failure and consumes its callback", async () => {
-    mocks.exchange.mockRejectedValue(new Error("Expired handoff"));
-    const app = createAuthCallbackApp();
-    const response = await app.request(
+  it("reports an Instrument sign-in that failed after the browser came back", async () => {
+    mocks.instrument.mockRejectedValue(new Error("Expired handoff"));
+    const response = await createAuthCallbackApp().request(
       `${AUTH_CALLBACK_PATHS.instrument}?state=instrument-state&token=token`,
     );
     expect(response.status).toBe(400);
-    expect(mocks.publish).toHaveBeenCalledWith(
-      "auth.sign-in-outcome",
-      expect.objectContaining({ outcome: "failed" }),
-    );
-    expect(mocks.store.state).toBeNull();
-    await app.request(
+    expect(await response.text()).toBe("failed");
+    expect(mocks.capture).toHaveBeenCalledOnce();
+  });
+
+  it("renders a completed Instrument sign-in", async () => {
+    mocks.instrument.mockResolvedValue({
+      email: "test@example.com",
+      outcome: "signed-in",
+    });
+    const response = await createAuthCallbackApp().request(
       `${AUTH_CALLBACK_PATHS.instrument}?state=instrument-state&token=token`,
     );
-    expect(mocks.exchange).toHaveBeenCalledOnce();
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("signed-in");
   });
 
   it("renders a completed ChatGPT sign-in", async () => {
@@ -168,7 +158,7 @@ describe("the assembled auth callback server", () => {
     );
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("connected");
-    expect(mocks.exchange).not.toHaveBeenCalled();
+    expect(mocks.instrument).not.toHaveBeenCalled();
   });
 
   it("registers each GET path once", () => {

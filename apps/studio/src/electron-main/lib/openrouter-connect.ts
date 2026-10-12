@@ -1,3 +1,4 @@
+import { createLoopbackSignIn } from "@/electron-main/auth/loopback-sign-in";
 import { AUTH_CALLBACK_PATHS } from "@/electron-main/auth/routes";
 import { APP_NAME } from "@instrument-org/shared";
 import { shell } from "electron";
@@ -21,16 +22,16 @@ export interface OpenRouterConnectResult {
   outcome: "canceled" | "connected" | "declined";
 }
 
-interface PendingConnect {
-  deliver: (params: URLSearchParams) => void;
-  promise: Promise<OpenRouterConnectResult>;
-  // The `state` the authorize URL carried; a redirect without it is not this
-  // connect's.
-  state: string;
-  supersede: () => void;
-}
-
-let pendingConnect: null | PendingConnect = null;
+const connects = createLoopbackSignIn<OpenRouterConnectResult>({
+  // OpenRouter leaves `state` off a denial, so a redirect carrying an error
+  // and no code ends whatever connect is waiting as declined. The worst a
+  // page that forges one can do is end a connect the person can start again.
+  accepts: (params, state) =>
+    (!params.has("code") && params.has("error")) ||
+    params.get("state") === state,
+  timedOut: () => new Error("Connecting OpenRouter timed out"),
+  timeoutMs: CONNECT_TIMEOUT_MS,
+});
 
 const ExchangeResponseSchema = z.object({ key: z.string().min(1) });
 
@@ -38,23 +39,11 @@ const ExchangeResponseSchema = z.object({ key: z.string().min(1) });
  * Hand OpenRouter's redirect to the connect waiting for it. Resolves once the
  * key is saved, so the page the browser lands on can say how it went;
  * undefined when nothing is waiting or the redirect is another connect's.
- *
- * OpenRouter leaves `state` off a denial, so a redirect carrying an error and
- * no code ends whatever connect is waiting as declined. The worst a page that
- * forges one can do is end a connect the person can start again.
  */
 export function receiveOpenRouterCallback(
   params: URLSearchParams,
 ): Promise<OpenRouterConnectResult> | undefined {
-  if (!pendingConnect) {
-    return undefined;
-  }
-  const denied = !params.has("code") && params.has("error");
-  if (!denied && params.get("state") !== pendingConnect.state) {
-    return undefined;
-  }
-  pendingConnect.deliver(params);
-  return pendingConnect.promise;
+  return connects.receive(params);
 }
 
 /**
@@ -73,56 +62,27 @@ export function connectOpenRouter({
   keyLabel?: string;
   save: (key: string) => Promise<void>;
 }): Promise<OpenRouterConnectResult> {
-  pendingConnect?.supersede();
-  const controls: {
-    deliver: (params: URLSearchParams) => void;
-    supersede: () => void;
-  } = { deliver: noop, supersede: noop };
-  // Null when a newer connect took this one's place or it was canceled.
-  const received = new Promise<null | URLSearchParams>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error("Connecting OpenRouter timed out"));
-    }, CONNECT_TIMEOUT_MS);
-    controls.deliver = (params) => {
-      clearTimeout(timeout);
-      resolve(params);
-    };
-    controls.supersede = () => {
-      clearTimeout(timeout);
-      resolve(null);
-    };
+  const verifier = randomBytes(32).toString("base64url");
+  return connects.start(({ received, state }) => {
+    const url = new URL(AUTHORIZE_URL);
+    url.searchParams.set(
+      "callback_url",
+      `http://127.0.0.1:${String(callbackPort)}${AUTH_CALLBACK_PATHS.openrouter}`,
+    );
+    url.searchParams.set(
+      "code_challenge",
+      createHash("sha256").update(verifier).digest("base64url"),
+    );
+    url.searchParams.set("code_challenge_method", "S256");
+    url.searchParams.set(
+      "key_label",
+      keyLabel ? `${APP_NAME} (${keyLabel})` : APP_NAME,
+    );
+    url.searchParams.set("state", state);
+    void shell.openExternal(url.toString());
+
+    return runConnect({ received, save, verifier });
   });
-  const state = base64url(randomBytes(32));
-  const verifier = base64url(randomBytes(32));
-  const entry: PendingConnect = {
-    ...controls,
-    promise: runConnect({ received, save, verifier }).finally(() => {
-      if (pendingConnect === entry) {
-        pendingConnect = null;
-      }
-    }),
-    state,
-  };
-  pendingConnect = entry;
-
-  const url = new URL(AUTHORIZE_URL);
-  url.searchParams.set(
-    "callback_url",
-    `http://127.0.0.1:${String(callbackPort)}${AUTH_CALLBACK_PATHS.openrouter}`,
-  );
-  url.searchParams.set(
-    "code_challenge",
-    base64url(createHash("sha256").update(verifier).digest()),
-  );
-  url.searchParams.set("code_challenge_method", "S256");
-  url.searchParams.set(
-    "key_label",
-    keyLabel ? `${APP_NAME} (${keyLabel})` : APP_NAME,
-  );
-  url.searchParams.set("state", state);
-  void shell.openExternal(url.toString());
-
-  return entry.promise;
 }
 
 /**
@@ -130,7 +90,7 @@ export function connectOpenRouter({
  * as canceled, and the browser's redirect, should it still come, is refused.
  */
 export function cancelOpenRouterConnect() {
-  pendingConnect?.supersede();
+  connects.supersede();
 }
 
 async function runConnect({
@@ -167,12 +127,4 @@ async function runConnect({
   const { key } = ExchangeResponseSchema.parse(await response.json());
   await save(key);
   return { outcome: "connected" };
-}
-
-function base64url(buffer: Buffer) {
-  return buffer.toString("base64url");
-}
-
-function noop() {
-  // Stands in until the connect promise hands over its own.
 }

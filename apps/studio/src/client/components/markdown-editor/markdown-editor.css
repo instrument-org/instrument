@@ -1074,8 +1074,20 @@ textarea.md-input {
 
 /* ------------------------------------------------ block handle and menu */
 
+/* The handle is beside the block the pointer is on, at once: it moves from
+   block to block with no transition. Crepe glides it (`transition: all`),
+   which reads as the handle trailing the pointer. Each time it lands it comes
+   up in a quick fade, drawn by block-handle.ts, and it fades as it goes, which
+   it does only when typing starts. As tall as a line of the text, so beside a
+   paragraph it stands centered on the first line rather than at the top of
+   the block. */
 .md-editor .milkdown .milkdown-block-handle {
   gap: 2px;
+  height: calc(var(--md-size) * var(--md-leading));
+  transition: none;
+}
+.md-editor .milkdown .milkdown-block-handle[data-show="false"] {
+  transition: opacity 100ms ease-out;
 }
 .md-editor .milkdown .milkdown-block-handle .operation-item {
   width: 22px;

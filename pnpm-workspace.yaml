@@ -130,6 +130,7 @@ overrides:
   defu: ^6.1.7
 
 patchedDependencies:
+  "@milkdown/plugin-block@7.22.2": patches/@milkdown__plugin-block@7.22.2.patch
   "@parcel/watcher@2.6.0": patches/@parcel__watcher@2.6.0.patch
   conf@14.0.0: patches/conf@14.0.0.patch
   just-bash@3.6.0: patches/just-bash@3.6.0.patch

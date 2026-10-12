@@ -115,12 +115,12 @@ export function taskEventModelNote(
           ? "The user stopped a task you created:"
           : "The user stopped tasks you created:"
         : waiting
-        ? data.events.length === 1
-          ? "A task you created is waiting on you:"
-          : "Tasks you created are waiting on you:"
-        : data.events.length === 1
-          ? "A task you created has finished:"
-          : "Tasks you created have finished:"
+          ? data.events.length === 1
+            ? "A task you created is waiting on you:"
+            : "Tasks you created are waiting on you:"
+          : data.events.length === 1
+            ? "A task you created has finished:"
+            : "Tasks you created have finished:"
     }
     ${lines.join("\n")}
     Nobody typed anything; this note is why you are awake.

@@ -115,7 +115,8 @@ export default async (app, args) => {
 
   // branch on what you found, which a shell chain cannot do
   const tasks = await app.rpc("workspace.chats.tasks", { id: args.chat });
-  if (tasks.length > 0) await app.goto(`/tasks/${tasks[0].id}?chat=${args.chat}`);
+  if (tasks.length > 0)
+    await app.goto(`/tasks/${tasks[0].id}?chat=${args.chat}`);
 
   return { taskCount: tasks.length };
 };

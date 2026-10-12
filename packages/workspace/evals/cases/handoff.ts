@@ -127,7 +127,11 @@ export function runStartedAt(sessions: Session.WithMessagesAndParts[]): number {
  * task's `attachments`, which hold what the user sent rather than anything
  * the run made.
  */
-export function recentFilesUnder(dir: string, since: number, depth = 6): string[] {
+export function recentFilesUnder(
+  dir: string,
+  since: number,
+  depth = 6,
+): string[] {
   const found: string[] = [];
   const walk = (at: string, level: number) => {
     if (level > depth) {

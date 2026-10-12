@@ -208,7 +208,9 @@ function afterTheStop(sessions: Session.WithMessagesAndParts[]) {
     reply: after
       .filter((message) => message.role === "assistant")
       .flatMap((message) =>
-        message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])),
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : [],
+        ),
       )
       .join("\n"),
   };
@@ -221,7 +223,10 @@ const toldOfTheStop: Assertion = {
     const after = afterTheStop(ctx.sessions);
     const [task] = await listChildTasks(ctx.chatId);
     if (!after) {
-      return fail(text, `no stop note; t1 stopped by ${task?.stoppedBy ?? "nobody"}`);
+      return fail(
+        text,
+        `no stop note; t1 stopped by ${task?.stoppedBy ?? "nobody"}`,
+      );
     }
     const said = /\bstop/i.test(after.reply);
     return (said && task?.stoppedBy === "user" ? pass : fail)(

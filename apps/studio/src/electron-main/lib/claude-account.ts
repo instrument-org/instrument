@@ -4,13 +4,13 @@ import {
   installedCopy,
   wantedRelease,
 } from "@/electron-main/lib/claude-code-download";
+import { claudeSignInMachine } from "@/electron-main/lib/claude-sign-in";
 import { createScopedLogger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { focusAppWindow } from "@/electron-main/windows/foreground";
 import {
   type AIGatewayProviderConfig,
   claudeCodeEnvironment,
-  type ClaudeCodeSignIn,
   fetchClaudeAccountUsage,
   startClaudeCodeSignIn,
   UnusableCodeError,
@@ -25,6 +25,7 @@ import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { app, shell } from "electron";
+import { createActor, fromPromise, waitFor } from "xstate";
 import { z } from "zod";
 
 const log = createScopedLogger("claude-account");
@@ -33,8 +34,8 @@ const run = promisify(execFile);
 /** Re-checked at most this often, however often a window takes focus. */
 const REFRESH_INTERVAL_MS = 5000;
 
-/** How long a sign-in waits on the browser before its process is let go. */
-const SIGN_IN_TIMEOUT_MS = 15 * 60 * 1000;
+/** How long a refused code waits for the sign-in replacing it to start. */
+const REPLACE_WAIT_MS = 30_000;
 
 /** What `claude auth status` prints, read without touching any credential. */
 const AuthStatusSchema = z.object({
@@ -52,17 +53,10 @@ type ClaudeCodeInstall =
   | { failed: string; state: "failed" }
   | { received: number; state: "downloading"; total: number };
 
-export type ClaudeAccountStatus = {
+/** What our copy of Claude Code said at the last status read. */
+type ClaudeCodeReading = {
   /** Whether this platform has a Claude Code build we can install. */
   canInstall: boolean;
-  install: ClaudeCodeInstall | undefined;
-  /**
-   * Anthropic's sign-in page for another device, while a sign-in waits: it
-   * ends on a code the person pastes back here.
-   */
-  signInLink: string | undefined;
-  /** A sign-in is open in the browser, waiting on the person. */
-  signingIn: boolean;
 } & (
   | { kind: "not-installed" }
   | {
@@ -81,17 +75,77 @@ export type ClaudeAccountStatus = {
     }
 );
 
-let status: ClaudeAccountStatus = {
-  canInstall: false,
-  install: undefined,
-  kind: "not-installed",
-  signInLink: undefined,
-  signingIn: false,
+export type ClaudeAccountStatus = ClaudeCodeReading & {
+  install: ClaudeCodeInstall | undefined;
+  /**
+   * Anthropic's sign-in page for another device, while a sign-in waits: it
+   * ends on a code the person pastes back here.
+   */
+  signInLink: string | undefined;
+  /** A sign-in is open in the browser, waiting on the person. */
+  signingIn: boolean;
 };
+
+let reading: ClaudeCodeReading = { canInstall: false, kind: "not-installed" };
 let install: ClaudeCodeInstall | undefined;
-let pendingSignIn: ClaudeCodeSignIn | undefined;
 let lastRefresh = 0;
 let refreshing: Promise<ClaudeAccountStatus> | undefined;
+
+const signIn = createActor(
+  claudeSignInMachine.provide({
+    actions: {
+      cancelSignIn: (_, { signIn: running }) => {
+        running?.cancel();
+      },
+      ended: () => {
+        void refreshClaudeAccountStatus({ force: true }).then((after) => {
+          if (after.kind === "signed-in") {
+            focusAppWindow();
+          }
+        });
+      },
+      // Forward at once, while the status is still being read back from
+      // Claude Code: that read takes seconds, and the person who just pressed
+      // Authorize is looking at the browser until the app comes back.
+      landed: () => {
+        focusAppWindow();
+      },
+    },
+    actors: {
+      completion: fromPromise(({ input }) =>
+        input.signIn.completion.catch((error: unknown) => {
+          log.info("Claude sign-in ended without finishing", error);
+          throw error;
+        }),
+      ),
+      restart: fromPromise(async ({ input, signal }) => {
+        const replacement = await startClaudeCodeSignIn({
+          configDir: accountDir(),
+          executablePath: input.executablePath,
+        }).catch((error: unknown) => {
+          log.warn("Couldn't restart Claude sign-in", error);
+          throw error;
+        });
+        // Canceled while it started: nothing is waiting on it.
+        if (signal.aborted) {
+          replacement.cancel();
+        }
+        return replacement;
+      }),
+    },
+  }),
+);
+signIn.start();
+/** The status as last announced, to announce only a change. */
+let announced = JSON.stringify(claudeAccountStatus());
+signIn.subscribe({
+  error: (error: unknown) => {
+    log.warn("Claude sign-in stopped", error);
+  },
+  next: () => {
+    announce();
+  },
+});
 
 /**
  * Where our copy of Claude Code keeps its Claude sign-in, as its config
@@ -103,8 +157,15 @@ function accountDir() {
   return path.join(app.getPath("userData"), "claude-account");
 }
 
-export function claudeAccountStatus() {
-  return status;
+/** The CLI's last reading, with the install and sign-in under way now. */
+export function claudeAccountStatus(): ClaudeAccountStatus {
+  const snapshot = signIn.getSnapshot();
+  return {
+    ...reading,
+    install,
+    signInLink: snapshot.context.signIn?.linkForAnotherDevice,
+    signingIn: !snapshot.matches("idle"),
+  };
 }
 
 /**
@@ -113,7 +174,7 @@ export function claudeAccountStatus() {
  * and we only drive it.
  */
 export function claudeAccountProviderConfigs(): AIGatewayProviderConfig.Type[] {
-  if (status.kind !== "signed-in") {
+  if (reading.kind !== "signed-in") {
     return [];
   }
   return [
@@ -121,7 +182,7 @@ export function claudeAccountProviderConfigs(): AIGatewayProviderConfig.Type[] {
       ...CLAUDE_ACCOUNT_PROVIDER_CONFIG,
       apiKey: AI_GATEWAY_API_KEY_NOT_NEEDED,
       configDir: accountDir(),
-      executablePath: status.executablePath,
+      executablePath: reading.executablePath,
       id: AIProviderConfigIdSchema.parse(CLAUDE_ACCOUNT_PROVIDER_CONFIG.id),
     },
   ];
@@ -139,19 +200,20 @@ export function refreshClaudeAccountStatus({
       : refreshing;
   }
   if (!force && Date.now() - lastRefresh < REFRESH_INTERVAL_MS) {
-    return Promise.resolve(status);
+    return Promise.resolve(claudeAccountStatus());
   }
   refreshing = readStatus()
     .catch((error: unknown) => {
       // A status Claude Code could not give (it timed out, or would not
       // start) says nothing about the sign-in, so the last one stands.
       log.warn("Couldn't read Claude Code's status", error);
-      return status;
+      return reading;
     })
     .then((next) => {
       lastRefresh = Date.now();
-      setStatus(next);
-      return next;
+      reading = next;
+      announce();
+      return claudeAccountStatus();
     })
     .finally(() => {
       refreshing = undefined;
@@ -168,10 +230,11 @@ export function claudeAccountStatusKnown(): Promise<unknown> {
   return lastRefresh > 0 ? Promise.resolve() : refreshClaudeAccountStatus();
 }
 
-function setStatus(next: ClaudeAccountStatus) {
-  const changed = JSON.stringify(next) !== JSON.stringify(status);
-  status = next;
-  if (changed) {
+/** Tell the windows and the model list the status changed, if it did. */
+function announce() {
+  const next = JSON.stringify(claudeAccountStatus());
+  if (next !== announced) {
+    announced = next;
     publisher.publish("claude-account.updated", null);
     publisher.publish("provider-config.updated", null);
   }
@@ -179,25 +242,22 @@ function setStatus(next: ClaudeAccountStatus) {
 
 /** How much of the subscription is used, or nothing while none is signed in. */
 export async function claudeAccountUsage() {
-  if (status.kind !== "signed-in") {
+  if (reading.kind !== "signed-in") {
     return null;
   }
   return fetchClaudeAccountUsage({
     configDir: accountDir(),
-    executablePath: status.executablePath,
+    executablePath: reading.executablePath,
   });
 }
 
-async function readStatus(): Promise<ClaudeAccountStatus> {
+async function readStatus(): Promise<ClaudeCodeReading> {
   const executablePath = await installedCopy();
   return {
     ...(executablePath
       ? await readSignIn(executablePath)
       : { kind: "not-installed" as const }),
     canInstall: wantedRelease() !== undefined,
-    install,
-    signInLink: pendingSignIn?.linkForAnotherDevice,
-    signingIn: pendingSignIn !== undefined,
   };
 }
 
@@ -270,7 +330,7 @@ export async function openClaudeSignIn(): Promise<{
   let current = await refreshClaudeAccountStatus({ force: true });
   if (current.kind === "not-installed" && current.canInstall) {
     await installClaudeCode();
-    current = status;
+    current = claudeAccountStatus();
   }
   if (current.kind === "not-installed") {
     // The card already says why an install failed.
@@ -282,10 +342,14 @@ export async function openClaudeSignIn(): Promise<{
   }
   const { executablePath } = current;
   try {
-    cancelSignIn(pendingSignIn);
+    signIn.send({ type: "cancel" });
     await mkdir(accountDir(), { recursive: true });
-    const signIn = await beginSignIn(executablePath);
-    await shell.openExternal(signIn.url);
+    const started = await startClaudeCodeSignIn({
+      configDir: accountDir(),
+      executablePath,
+    });
+    signIn.send({ executablePath, signIn: started, type: "started" });
+    await shell.openExternal(started.url);
     return { error: undefined };
   } catch (error) {
     log.warn("Couldn't start Claude sign-in", error);
@@ -296,78 +360,6 @@ export async function openClaudeSignIn(): Promise<{
   }
 }
 
-/** Sign-ins a code was pasted into, which a refused code ends. */
-const codePasted = new WeakSet<ClaudeCodeSignIn>();
-
-/** Ends a sign-in on purpose, which no new one replaces. */
-function cancelSignIn(signIn: ClaudeCodeSignIn | undefined) {
-  if (signIn) {
-    codePasted.delete(signIn);
-    signIn.cancel();
-  }
-}
-
-/** The sign-in replacing one a refused code ended, while it starts. */
-let replacing: Promise<unknown> | undefined;
-
-/**
- * Start Claude Code's sign-in and wait on it in the background, keeping the
- * status's link current. A pasted code Anthropic refuses ends Claude Code's
- * sign-in, and only the process that made a link can redeem its codes, so
- * that one is replaced at once by a new sign-in with a new link, and the
- * person stays on the code field rather than starting over.
- */
-async function beginSignIn(executablePath: string) {
-  const signIn = await startClaudeCodeSignIn({
-    configDir: accountDir(),
-    executablePath,
-  });
-  pendingSignIn = signIn;
-  setStatus({
-    ...status,
-    signInLink: signIn.linkForAnotherDevice,
-    signingIn: true,
-  });
-  const timer = setTimeout(() => {
-    cancelSignIn(signIn);
-  }, SIGN_IN_TIMEOUT_MS);
-  const finish = () => {
-    clearTimeout(timer);
-    if (pendingSignIn === signIn) {
-      pendingSignIn = undefined;
-    }
-    void refreshClaudeAccountStatus({ force: true }).then((after) => {
-      if (after.kind === "signed-in") {
-        focusAppWindow();
-      }
-    });
-  };
-  void signIn.completion.then(
-    () => {
-      // Forward at once, while the status is still being read back from
-      // Claude Code: that read takes seconds, and the person who just pressed
-      // Authorize is looking at the browser until the app comes back.
-      focusAppWindow();
-      finish();
-    },
-    (error: unknown) => {
-      log.info("Claude sign-in ended without finishing", error);
-      if (codePasted.has(signIn) && pendingSignIn === signIn) {
-        clearTimeout(timer);
-        replacing = beginSignIn(executablePath).catch(
-          (restartError: unknown) => {
-            log.warn("Couldn't restart Claude sign-in", restartError);
-            finish();
-          },
-        );
-        return;
-      }
-      finish();
-    },
-  );
-  return signIn;
-}
-
 /**
  * Hand the waiting sign-in the code Anthropic's page showed on another
  * device. The code goes straight to Claude Code, which alone can exchange it,
@@ -376,21 +368,30 @@ async function beginSignIn(executablePath: string) {
 export async function submitClaudeSignInCode(
   pasted: string,
 ): Promise<{ error: string | undefined }> {
-  const signIn = pendingSignIn;
-  if (!signIn) {
+  const snapshot = signIn.getSnapshot();
+  const waiting = snapshot.matches("waiting")
+    ? snapshot.context.signIn
+    : undefined;
+  if (!waiting) {
     return {
       error: "No sign-in is waiting. Press Continue with Claude again.",
     };
   }
   try {
-    codePasted.add(signIn);
-    await signIn.submitCode(pasted);
+    signIn.send({ type: "codePasted" });
+    await waiting.submitCode(pasted);
     return { error: undefined };
   } catch (error) {
     if (error instanceof UnusableCodeError) {
       return { error: error.message };
     }
-    await replacing;
+    // A refused code ends the process; answer once its replacement, and the
+    // new link, are in.
+    await waitFor(
+      signIn,
+      (next) => !next.matches("replacing") && next.context.signIn !== waiting,
+      { timeout: REPLACE_WAIT_MS },
+    ).catch(() => undefined);
     return {
       error:
         "Claude didn't accept that code. Copy the sign-in link again for a new one, then paste the code it gives you.",
@@ -418,9 +419,7 @@ export async function signOutOfClaude() {
 
 /** Give up on a sign-in still waiting on the browser. */
 export function cancelClaudeSignIn() {
-  cancelSignIn(pendingSignIn);
-  pendingSignIn = undefined;
-  setStatus({ ...status, signInLink: undefined, signingIn: false });
+  signIn.send({ type: "cancel" });
 }
 
 /**
@@ -454,7 +453,8 @@ export async function keepClaudeCodeCurrent() {
 async function runInstall() {
   const publish = (next: ClaudeCodeInstall | undefined) => {
     install = next;
-    status = { ...status, install };
+    // Progress is the windows' alone; the model list has nothing new in it.
+    announced = JSON.stringify(claudeAccountStatus());
     publisher.publish("claude-account.updated", null);
   };
   publish({ received: 0, state: "downloading", total: 0 });

@@ -46,12 +46,12 @@ export async function runPnpmCommand({
         // Keep a native (node-gyp) build from launching the macOS Command Line
         // Tools installer dialog and hanging the tool call.
         ...commandLineToolsEnv(),
-        // just-bash sets HOME=/ when a cwd is given. pnpm uses os.homedir() to
-        // locate its store and cache, so HOME=/ causes it to write to /Library/...
-        // on the host filesystem and record that wrong store path in .modules.yaml.
-        // Subsequent pnpm runs then see a store mismatch and try to purge
-        // node_modules, which fails without a TTY (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY).
-        // Must come after ...env so ctx.env (which contains HOME=/) cannot override it.
+        // pnpm uses os.homedir() to locate its store and cache, so a HOME the
+        // agent exported would record a wrong store path in .modules.yaml, and
+        // the next run would see a store mismatch and try to purge
+        // node_modules, which fails without a TTY
+        // (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY). After ...env so the
+        // shell's HOME cannot override it.
         ...(process.env.HOME && { HOME: process.env.HOME }),
         // The app's own store, caches and config, never the person's.
         ...nodeToolsEnv(),

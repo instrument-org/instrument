@@ -237,7 +237,7 @@ export interface WorkspaceConfig {
   // may read it whatever the rules say about the folder it sits in.
   toolBinDir?: AbsolutePath;
   // Base dir for uv's isolated cache/python-install/tool dirs. Lives under the
-  // app's userData so a sandboxed `HOME=/` never sends uv writing to the host.
+  // app's userData so uv never writes into the person's home.
   uvDataDir: AbsolutePath;
   webSearch: WebSearchClient;
 }

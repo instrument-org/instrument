@@ -760,7 +760,7 @@ export function createAgentBrowserCommand({
     }
     const resolvedArgs = bridgedArgs.args;
 
-    // just-bash sets HOME=/ which is read-only. Most agent-browser writes are
+    // The home folder is read-only to native commands. Most agent-browser writes are
     // already redirected via dedicated env vars (socket dir, screenshot dir,
     // download path); this is a per-task sink for anything that falls back
     // to $HOME, and holds the managed config and provider plugin script.

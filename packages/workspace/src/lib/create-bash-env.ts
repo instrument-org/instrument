@@ -1,3 +1,4 @@
+import os from "node:os";
 import {
   Bash,
   type Command,
@@ -46,7 +47,7 @@ import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
 import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import { withNativeReach } from "./native-sandbox";
-import { SHELL_PATH } from "./workspace-fs-layout";
+import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
 import { asksWritten } from "./permissions/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
 import { type Rules } from "./permissions/rules";
@@ -824,9 +825,13 @@ export async function createLocalBashEnv({
     // (`resolveExternalCommand`), and the native commands get it from
     // resolveCommandContext and the shims themselves.
     env: {
+      // The home the rules hold, so `~` in the shell is the folder its
+      // native commands call home, rather than just-bash's default of `/`.
+      HOME: shellPath(rules.home),
       NO_COLOR: "1",
       PATH: SHELL_PATH,
       TZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      USER: os.userInfo().username,
     },
     fs,
     // A name no builtin or command of ours answers runs the program by that

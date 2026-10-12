@@ -17,6 +17,7 @@ import {
   HOUSE_FLOOR,
   runEvals,
 } from "./harness";
+import { removePreparedSkills, sweepOldRuns } from "./lib/sweep-old-runs";
 import { generateReport } from "./report";
 import {
   c,
@@ -533,6 +534,7 @@ switch (subcommand) {
       write("\n");
     }
 
+    sweepOldRuns();
     const { runs, workspaceRootDir } = await runEvals(filteredEvals, {
       concurrency,
       dryRun,
@@ -557,6 +559,7 @@ switch (subcommand) {
         runs,
         workspaceRootDir,
       });
+      removePreparedSkills(workspaceRootDir);
 
       printSummary({ outputDir, rollup, workspaceRootDir });
       printTranscripts({ outputDir, rollup });

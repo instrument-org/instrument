@@ -93,7 +93,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [radashi to es-toolkit migration](active/radashi-to-es-toolkit-migration.md) | planned, not started |
 | [Radix upgrade, and whether to move to Base UI](active/radix-upgrade-and-base-ui-migration.md) | proposal, not started |
 | [React Compiler blind spots](active/react-compiler-blind-spots.md) | proposal, not started |
-| [Structure after the chat rework](active/structure-after-the-chat-rework.md): implicit state machines, parallel maps and task-era leftovers the reworks left | items 1-6, 11, 12 done |
+| [Structure after the chat rework](active/structure-after-the-chat-rework.md): implicit state machines, parallel maps and task-era leftovers the reworks left | items 1-7, 11, 12 done; 8, 10, 13 folded into other work |
 
 ## Completed
 

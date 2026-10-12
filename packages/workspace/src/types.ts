@@ -14,21 +14,17 @@ import { type StoredAppCredential } from "./lib/apps/origin-bound";
 import { type FinderEntry } from "./lib/chat/finder-entries";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
-import { type ChatId, ChatIdSchema } from "./schemas/chat-id";
 import { type WebSearchClient } from "./schemas/web-search";
 
 export interface BrowserConfig {
   closeTarget: (targetId: BrowserTargetId) => Promise<void>;
   createTarget: (
-    id: ChatId,
-    sessionId: StoreId.Session,
+    targetId: BrowserTargetId,
     partitionDir: AbsolutePath,
-  ) => Promise<{ targetId: BrowserTargetId }>;
-  getTargetMeta: (targetId: BrowserTargetId) => null | {
-    id: ChatId;
-    partitionDir: AbsolutePath;
-    sessionId: StoreId.Session;
-  };
+  ) => Promise<void>;
+  getTargetMeta: (
+    targetId: BrowserTargetId,
+  ) => null | { partitionDir: AbsolutePath };
   /**
    * The address of the document in the guest's main frame, as the main process
    * saw it arrive; undefined for a target with no live guest. What the CDP
@@ -47,7 +43,7 @@ export interface BrowserConfig {
    * error it can do nothing about (docs/findings/a-task-cannot-look-at-what-it-drew.md).
    */
   hasNoWindow: boolean;
-  listTargets: (id: ChatId) => Promise<BrowserTarget[]>;
+  listTargets: () => Promise<BrowserTarget[]>;
   /**
    * Told just before a blank guest is navigated back to the page its tab was
    * last on (`restoreLastPage`), so the browser's history can tell reopening
@@ -55,13 +51,13 @@ export interface BrowserConfig {
    */
   noteRestore?: (targetId: BrowserTargetId, url: string) => void;
   /**
-   * Whether ads and trackers are blocked in this task's tabs: off when the
-   * person turned blocking off for the workspace, or when the task set
-   * `blocking: false` for itself. The task's setting lasts until the app quits
-   * and never touches the person's.
+   * Whether ads and trackers are blocked in the tabs an agent drives: off
+   * when the person turned blocking off for the workspace, or when the agent
+   * set `blocking: false` for those tabs. The agent's setting lasts until the
+   * app quits and never touches the person's.
    */
   contentBlocking: (
-    id: ChatId,
+    targets: readonly BrowserTargetId[],
     blocking?: boolean,
   ) => { task: boolean; workspace: boolean };
   onTargetDestroyed: (
@@ -104,48 +100,11 @@ export interface BrowserTarget {
   url: string;
 }
 
-// The bridge routing key for a single browser view: a (id, sessionId)
-// tuple encoded as `${id}/${sessionId}`. The schema delegates to the
-// existing ChatId and StoreId.Session validators so a parse failure
-// pinpoints the offending half. Use `encodeBrowserTargetId` /
-// `decodeBrowserTargetId` to construct or parse one; never build by hand.
-export const BrowserTargetIdSchema = z
-  .custom<`${ChatId}/${StoreId.Session}`>()
-  .superRefine((val, ctx) => {
-    if (typeof val !== "string") {
-      ctx.addIssue({
-        code: "custom",
-        fatal: true,
-        input: val,
-        message: "BrowserTargetId must be a string",
-      });
-      return;
-    }
-    const slash = val.indexOf("/");
-    if (slash <= 0 || slash === val.length - 1) {
-      ctx.addIssue({
-        code: "custom",
-        fatal: true,
-        input: val,
-        message:
-          "BrowserTargetId must be `${id}/${sessionId}` with both halves non-empty",
-      });
-      return;
-    }
-    const chatIdResult = ChatIdSchema.safeParse(val.slice(0, slash));
-    if (!chatIdResult.success) {
-      for (const issue of chatIdResult.error.issues) {
-        ctx.addIssue({ ...issue, path: ["id", ...issue.path] });
-      }
-    }
-    const sessionResult = StoreId.SessionSchema.safeParse(val.slice(slash + 1));
-    if (!sessionResult.success) {
-      for (const issue of sessionResult.error.issues) {
-        ctx.addIssue({ ...issue, path: ["sessionId", ...issue.path] });
-      }
-    }
-  })
-  .brand("BrowserTargetId");
+// The bridge routing key for one browser view: the id of the window tab it
+// is drawn in, which is a session id. Branded apart from a session id so a
+// chat's or task's session is never taken for a tab.
+export const BrowserTargetIdSchema =
+  StoreId.SessionSchema.brand("BrowserTargetId");
 
 export type BrowserTargetId = z.output<typeof BrowserTargetIdSchema>;
 
@@ -289,23 +248,13 @@ type CdpSendArgs<M extends CdpMethod> =
         ? [params?: P]
         : never;
 
-export function decodeBrowserTargetId(
-  targetId: string,
-): null | { id: ChatId; sessionId: StoreId.Session } {
-  const result = BrowserTargetIdSchema.safeParse(targetId);
-  if (!result.success) {
-    return null;
-  }
-  const slash = result.data.indexOf("/");
-  return {
-    id: result.data.slice(0, slash) as ChatId,
-    sessionId: result.data.slice(slash + 1) as StoreId.Session,
-  };
+/** The browser view drawn in the window tab with this id. */
+export function browserTargetOf(tabId: StoreId.Session): BrowserTargetId {
+  return BrowserTargetIdSchema.parse(tabId);
 }
 
-export function encodeBrowserTargetId(
-  id: ChatId,
-  sessionId: StoreId.Session,
-): BrowserTargetId {
-  return BrowserTargetIdSchema.parse(`${id}/${sessionId}`);
+/** A browser view's id from a string that may not be one, or null. */
+export function parseBrowserTargetId(value: string): BrowserTargetId | null {
+  const result = BrowserTargetIdSchema.safeParse(value);
+  return result.success ? result.data : null;
 }

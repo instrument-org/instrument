@@ -9,6 +9,7 @@ import {
   isLocalAddress,
 } from "../../../lib/local-page-address";
 import { taskFsLayout } from "../../../lib/resolve-workspace-file-path";
+import { WINDOW_ID } from "../../../schemas/window-id";
 import {
   nonTaskMounts,
   type WorkspaceFsLayout,
@@ -385,17 +386,14 @@ export function openTargetSession({
 }): TargetSession {
   let unsubscribe: (() => void) | null = null;
 
-  // Surface this page's connection to the chatBrowser machine so it can fan
+  // Surface this page's connection to the browser machine so it can fan
   // out `agent-browser close --session <id>` at reap time. Lookup is cheap
   // and missing meta means the target was already destroyed; skip.
-  const initialMeta = workspaceConfig.browser.getTargetMeta(targetId);
-  if (initialMeta) {
+  const hasTarget = workspaceConfig.browser.getTargetMeta(targetId) !== null;
+  if (hasTarget) {
     workspaceRef.send({
       type: "workspaceServer.attachAgentSession",
-      value: {
-        id: initialMeta.id,
-        sessionId: initialMeta.sessionId,
-      },
+      value: { targetId },
     });
   }
 
@@ -425,7 +423,7 @@ export function openTargetSession({
         );
       }
     },
-    readLayout: initialMeta ? () => taskFsLayout(initialMeta.id) : undefined,
+    readLayout: hasTarget ? () => taskFsLayout(WINDOW_ID) : undefined,
   });
   let queue = fileGate.load().catch(workspaceConfig.captureException);
 
@@ -538,22 +536,17 @@ export function openTargetSession({
     }
 
     // Real inbound command from agent-browser: count it as agent activity and
-    // forward target meta into the chatBrowser machine. The agent is the only
+    // forward target meta into the browser machine. The agent is the only
     // writer on this page so this matches real agent command rate without
     // throttling.
     const meta = workspaceConfig.browser.getTargetMeta(targetId);
     if (meta) {
       workspaceRef.send({
         type: "workspaceServer.updateCdpHeartbeat",
-        value: {
-          id: meta.id,
-          partitionDir: meta.partitionDir,
-          sessionId: meta.sessionId,
-          targetId,
-        },
+        value: { partitionDir: meta.partitionDir, targetId },
       });
       if (!SILENT_COMMANDS.has(method)) {
-        noteBrowserAgentActivity(meta.id, targetId);
+        noteBrowserAgentActivity(targetId);
       }
     }
 

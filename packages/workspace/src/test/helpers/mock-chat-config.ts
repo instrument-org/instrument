@@ -31,11 +31,7 @@ import {
   unavailableWebSearchClient,
   type WebSearchClient,
 } from "../../schemas/web-search";
-import {
-  type BrowserConfig,
-  encodeBrowserTargetId,
-  type WorkspaceConfig,
-} from "../../types";
+import { type BrowserConfig, type WorkspaceConfig } from "../../types";
 import { createMockAIGatewayModel } from "./mock-ai-gateway-model";
 import { forgetChat, placeChat } from "../../lib/record-folders";
 import { StoreId } from "../../schemas/store-id";
@@ -201,10 +197,7 @@ export function createMockChatConfigForDir(
 export function createStubBrowserConfig(): BrowserConfig {
   return {
     closeTarget: () => Promise.resolve(),
-    createTarget: (id, sessionId) =>
-      Promise.resolve({
-        targetId: encodeBrowserTargetId(id, sessionId),
-      }),
+    createTarget: () => Promise.resolve(),
     contentBlocking: () => ({ task: true, workspace: true }),
     getTargetMeta: () => null,
     hasNoWindow: false,

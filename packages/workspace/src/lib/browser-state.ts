@@ -154,12 +154,10 @@ export function recordVisitedHosts({
 export function restoreLastPage({
   fallbackUrl,
   targetId,
-  chatId,
 }: {
   /** Where the tab goes. */
   fallbackUrl?: string;
   targetId: BrowserTargetId;
-  chatId: ChatId;
 }) {
   return new ResultAsync(
     (async (): Promise<Result<undefined, Error>> => {
@@ -170,7 +168,7 @@ export function restoreLastPage({
       // unreachable guest would otherwise take the whole open with it.
       try {
         const { browser } = getWorkspaceConfig();
-        const targets = await browser.listTargets(chatId);
+        const targets = await browser.listTargets();
         const target = targets.find(({ id }) => id === targetId);
         if (!target || target.url !== BLANK_PAGE_URL) {
           return ok(undefined);

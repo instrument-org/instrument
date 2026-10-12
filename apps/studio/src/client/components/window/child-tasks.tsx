@@ -17,7 +17,6 @@ import { fileHref, folderHref } from "@/shared/computer-href";
 import { catalogEffort } from "@instrument-org/ai-gateway/client";
 import {
   type ChatId,
-  decodeBrowserTargetId,
   isFolderPath,
   type StoreId,
   type ChatInfo,
@@ -245,10 +244,9 @@ function TaskBrief({
     (folder) => !isOutputFolder(folder.path),
   );
   // The chat's tabs this task drives.
-  const heldTabs = (state.data?.browserTabs ?? []).flatMap((held) => {
-    const decoded = decodeBrowserTargetId(held.id);
-    return decoded && held.driver === taskSession ? [decoded.sessionId] : [];
-  });
+  const heldTabs = (state.data?.browserTabs ?? []).flatMap((held) =>
+    held.driver === taskSession ? [held.id] : [],
+  );
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-4 py-2 text-xs">
       <span

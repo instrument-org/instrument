@@ -4,7 +4,6 @@ import { WebSocket } from "ws";
 
 import { isLocalAddress } from "../../../lib/local-page-address";
 import { resolveChat } from "../../../lib/record-folders";
-import { WINDOW_ID } from "../../../schemas/window-id";
 import { askWindow, requestWindowTab } from "../../../lib/chat/window-tab";
 import { taskFsLayout } from "../../../lib/resolve-workspace-file-path";
 import { heldTabs, updateHeldTabs } from "../../../lib/held-tabs";
@@ -15,7 +14,7 @@ import { type ChatId } from "../../../schemas/chat-id";
 import { type HeldTab } from "../../../schemas/chat-state";
 import {
   type BrowserTargetId,
-  decodeBrowserTargetId,
+  browserTargetOf,
   type WorkspaceConfig,
 } from "../../../types";
 import { type WorkspaceServerParentRef } from "../types";
@@ -101,23 +100,16 @@ export function handleTaskCdpClient(
 
   /** The tabs the task holds that are open, in the order it came by them. */
   const held = async (): Promise<Held[]> => {
-    return (await heldTabs(chatId, sessionId)).flatMap((tab) => {
-      const decoded = decodeBrowserTargetId(tab.id);
-      return decoded && browser.getTargetMeta(tab.id)
-        ? [
-            {
-              openedBy: tab.openedBy,
-              tabId: decoded.sessionId,
-              targetId: tab.id,
-            },
-          ]
-        : [];
-    });
+    return (await heldTabs(chatId, sessionId)).flatMap((tab) =>
+      browser.getTargetMeta(tab.id)
+        ? [{ openedBy: tab.openedBy, tabId: tab.id, targetId: tab.id }]
+        : [],
+    );
   };
 
   /** The window's titles for its tabs, which only the main process knows. */
   const titles = async (): Promise<Map<BrowserTargetId, string>> => {
-    const targets = await browser.listTargets(WINDOW_ID);
+    const targets = await browser.listTargets();
     return new Map(targets.map((target) => [target.id, target.title]));
   };
 
@@ -283,11 +275,8 @@ export function handleTaskCdpClient(
     }
     // The window opens the guest too; asking here as well waits for it to
     // attach, and asking twice for one tab makes one guest.
-    const { targetId } = await browser.createTarget(
-      WINDOW_ID,
-      tabId,
-      getBrowserSessionDir(),
-    );
+    const targetId = browserTargetOf(tabId);
+    await browser.createTarget(targetId, getBrowserSessionDir());
     // Whichever of the two asks made the guest, it is sent to the page here,
     // and the answer waits for the page's load, the way a navigation's does on
     // any tab: `tab new <url>` then reads the page it asked for.

@@ -1,7 +1,6 @@
 import ms from "ms";
 import { err, ok, ResultAsync } from "neverthrow";
 import fs from "node:fs/promises";
-import { setTimeout as setTimeoutPromise } from "node:timers/promises";
 
 import { type WorkspaceActorRef } from "../machines/workspace";
 import { type ChatId } from "../schemas/chat-id";
@@ -22,8 +21,7 @@ import {
  * Puts a chat in the trash with every task it started, which are sessions in
  * its store. Every agent of the chat's, its tasks' included, is stopped and
  * refused new messages, so nothing it does meanwhile starts a task that would
- * be missed; its browser is reaped, what any of them left running is killed,
- * its store let go; then its folder goes to the trash in one piece. The index
+ * be missed; what any of them left running is killed, its store let go; then its folder goes to the trash in one piece. The index
  * forgets it only once the folder is gone.
  */
 export async function trashChat({
@@ -37,15 +35,7 @@ export async function trashChat({
 }) {
   return ResultAsync.fromPromise(
     (async () => {
-      // Block until the chat's browser has fully reaped
-      // its WebContentsView and agent-browser daemon sessions, so the
-      // Chromium profile is no longer locked when we delete the app dir.
-      const browserReaped = new Promise<void>((resolve) => {
-        workspaceRef.send({
-          type: "prepareToTrashChat",
-          value: { id, onBrowserReaped: resolve },
-        });
-      });
+      workspaceRef.send({ type: "prepareToTrashChat", value: { id } });
 
       // Background processes outlive the turn that started them, so the chat
       // going away is what ends them. Wait for that here: their logs live inside
@@ -56,12 +46,9 @@ export async function trashChat({
       // Awaited rather than raced, because it is already bounded and its logs are
       // about to be deleted. A process that will not confirm it stopped is still
       // recorded rather than thrown, so it cannot make the chat undeletable.
-      // Browser teardown remains best-effort for the same reason: a stuck
-      // WebContents must not wedge chat deletion forever.
       await backgroundCleanedUp.catch((error: unknown) => {
         workspaceConfig.captureException(error);
       });
-      await Promise.race([browserReaped, setTimeoutPromise(2000)]);
 
       // Mark storage as disposing to prevent recreation during deletion
       markStorageAsDisposing(id);

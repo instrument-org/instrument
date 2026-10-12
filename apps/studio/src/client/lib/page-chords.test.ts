@@ -1,8 +1,7 @@
 import {
   type BrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  ChatIdSchema,
 } from "@instrument-org/workspace/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,9 +24,8 @@ vi.mock("@/client/lib/foreground-browser-registry", () => ({
   foregroundBrowser,
 }));
 
-const TASK = ChatIdSchema.parse("page-chords");
-const TYPED_IN = encodeBrowserTargetId(TASK, StoreId.newSessionId());
-const LOOKED_AT = encodeBrowserTargetId(TASK, StoreId.newSessionId());
+const TYPED_IN = browserTargetOf(StoreId.newSessionId());
+const LOOKED_AT = browserTargetOf(StoreId.newSessionId());
 
 function where({
   keyboard,

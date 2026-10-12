@@ -7,7 +7,6 @@ import {
   type WindowTabAction,
   type WindowTabAnswer,
 } from "../../schemas/window-tab";
-import { decodeBrowserTargetId } from "../../types";
 import { resolveChat, chatDir } from "../record-folders";
 import { getBrowserSessionDir } from "../chat-dir-utils";
 import { getChatState } from "../chat-record";
@@ -87,12 +86,8 @@ export async function liveHeldTabs(
       live.push(held);
       continue;
     }
-    const decoded = decodeBrowserTargetId(held.id);
-    if (!decoded) {
-      continue;
-    }
     const answer = await askWindow({
-      action: { kind: "restore", tabId: decoded.sessionId },
+      action: { kind: "restore", tabId: held.id },
       askedBy: chatId,
       group: resolveChat(chatId),
     });
@@ -101,11 +96,7 @@ export async function liveHeldTabs(
     }
     // The window opens the guest; asking here as well waits for it to
     // attach, and asking twice for one tab makes one guest.
-    await browser.createTarget(
-      decoded.id,
-      decoded.sessionId,
-      getBrowserSessionDir(),
-    );
+    await browser.createTarget(held.id, getBrowserSessionDir());
     live.push(held);
   }
   return live;
@@ -162,10 +153,9 @@ export async function tabHolders(
   const { browserTabs } = await getChatState(chatDir(chatId));
   for (const task of working) {
     for (const held of browserTabs) {
-      const decoded = decodeBrowserTargetId(held.id);
-      if (decoded && held.driver === task.id) {
+      if (held.driver === task.id) {
         // By its handle, which is what the conversation steers it by.
-        holders.set(decoded.sessionId, { id: task.handle, title: task.title });
+        holders.set(held.id, { id: task.handle, title: task.title });
       }
     }
   }

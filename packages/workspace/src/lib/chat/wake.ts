@@ -22,7 +22,6 @@ import { Store } from "../store";
 import { chatModelURI, recordChatActivity } from "../chat-settings";
 import { getUsageSummary } from "../usage-summary";
 import { getWorkspaceConfig } from "../workspace-config";
-import { decodeBrowserTargetId } from "../../types";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
 import { currentChatApps, setChatAppsBaseline } from "../chat-app-changes";
 import { listChatIds } from "./chat-records";
@@ -353,13 +352,12 @@ async function openTabsOf({
   const { browser } = getWorkspaceConfig();
   const tabs: NonNullable<TaskEvent["tabs"]> = [];
   for (const tab of await heldTabs(chatId, sessionId)) {
-    const decoded = decodeBrowserTargetId(tab.id);
-    if (!decoded || !browser.getTargetMeta(tab.id)) {
+    if (!browser.getTargetMeta(tab.id)) {
       continue;
     }
     const url = browser.getTargetUrl(tab.id);
     tabs.push({
-      id: decoded.sessionId,
+      id: tab.id,
       openedBy: tab.openedBy,
       ...(url === undefined
         ? {}

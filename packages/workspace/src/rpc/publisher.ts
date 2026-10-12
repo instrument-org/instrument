@@ -45,14 +45,13 @@ export const publisher = new EventPublisher<{
     id: ChatId;
   };
   /**
-   * The agent sent a command to this chat's browser. One per command rather
-   * than a start/stop pair: the agent's browser work arrives as separate tool
-   * calls seconds apart, so where one stretch of it ends is a question for
-   * whoever is displaying it, not one this can answer.
+   * An agent sent a command to a guest. One per command rather than a
+   * start/stop pair: the agent's browser work arrives as separate tool calls
+   * seconds apart, so where one stretch of it ends is a question for whoever
+   * is displaying it, not one this can answer.
    */
   "browser.agentActivity": {
-    id: ChatId;
-    /** The guest the command went to: a task's own, or a tab of the window's it was handed. */
+    /** The guest the command went to: a window tab a chat or one of its tasks holds. */
     targetId: BrowserTargetId;
   };
   /**

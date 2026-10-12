@@ -222,14 +222,15 @@ function skills(
 
 /**
  * `agent-browser adblock [on|off]`: the task's own say over the ad and tracker
- * blocking in its tabs, for a page the block lists broke. Answered here rather
- * than by the CLI, since the blocking lives in the app, not in the browser.
+ * blocking in the tabs it drives, for a page the block lists broke. Answered
+ * here rather than by the CLI, since the blocking lives in the app, not in
+ * the browser.
  */
-function adblock(
+async function adblock(
   browser: BrowserConfig,
-  id: ChatId,
+  { chatId, sessionId }: { chatId: ChatId; sessionId: StoreId.Session },
   mode: string | undefined,
-): { exitCode: number; stderr: string; stdout: string } {
+): Promise<{ exitCode: number; stderr: string; stdout: string }> {
   if (mode !== undefined && mode !== "on" && mode !== "off") {
     return {
       exitCode: 1,
@@ -237,8 +238,17 @@ function adblock(
       stdout: "",
     };
   }
+  const targets = (await heldTabs(chatId, sessionId)).map((tab) => tab.id);
+  if (targets.length === 0) {
+    return {
+      exitCode: 1,
+      stderr:
+        "agent-browser: adblock applies to the tabs you have open, and you have none yet. Open the page first.\n",
+      stdout: "",
+    };
+  }
   const { task, workspace } = browser.contentBlocking(
-    id,
+    targets,
     mode === undefined ? undefined : mode === "on",
   );
   const state = !workspace
@@ -663,7 +673,11 @@ export function createAgentBrowserCommand({
 
     const { subArgs, subcommand } = parseAgentBrowserArgs(args);
     if (subcommand === ADBLOCK_SUBCOMMAND) {
-      return adblock(workspaceConfig.browser, id, subArgs[1]?.value);
+      return adblock(
+        workspaceConfig.browser,
+        { chatId: id, sessionId },
+        subArgs[1]?.value,
+      );
     }
     if (subcommand === SKILLS_SUBCOMMAND) {
       return skills(

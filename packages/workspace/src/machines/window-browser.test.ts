@@ -14,19 +14,18 @@ import {
 } from "../lib/workspace-config";
 import { type AbsolutePath } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { ChatIdSchema } from "../schemas/chat-id";
 import {
   type BrowserConfig,
   type BrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
 } from "../types";
 import {
   AGENT_IDLE_TIMEOUT_MS,
   RETAINED_TIMEOUT_MS,
-  chatBrowserMachine,
-  type ChatBrowserParentEvent,
   USER_PRESENCE_TIMEOUT_MS,
-} from "./chat-browser";
+  windowBrowserMachine,
+  type WindowBrowserParentEvent,
+} from "./window-browser";
 
 function asyncNoop(): Promise<void> {
   return Promise.resolve();
@@ -56,15 +55,12 @@ vi.mock(import("../lib/agent-browser-cleanup"), () => ({
 const { closeAgentBrowserSessionsForSessions } =
   await import("../lib/agent-browser-cleanup");
 
-const createTargetMock: BrowserConfig["createTarget"] = (id, sessionId) =>
-  Promise.resolve({ targetId: encodeBrowserTargetId(id, sessionId) });
-
 function makeBrowser(): BrowserConfig {
   return {
     closeTarget: vi.fn(asyncNoop),
     hasNoWindow: false,
     contentBlocking: vi.fn(() => ({ task: true, workspace: true })),
-    createTarget: vi.fn(createTargetMock),
+    createTarget: vi.fn(asyncNoop),
     getTargetMeta: vi.fn(() => null),
     getTargetUrl: vi.fn<() => string | undefined>(),
     listTargets: vi.fn(emptyTargets),
@@ -76,38 +72,37 @@ function makeBrowser(): BrowserConfig {
   };
 }
 
-const id = ChatIdSchema.parse("test-chat");
 const partitionDir = "/tmp/partition" as AbsolutePath;
 
 interface Harness {
-  actor: ActorRefFrom<typeof chatBrowserMachine>;
+  actor: ActorRefFrom<typeof windowBrowserMachine>;
   browser: BrowserConfig;
-  parentEvents: ChatBrowserParentEvent[];
+  parentEvents: WindowBrowserParentEvent[];
   parentRef: AnyActorRef;
 }
 
 function spawnHarness(): Harness {
   const browser = makeBrowser();
-  const parentEvents: ChatBrowserParentEvent[] = [];
+  const parentEvents: WindowBrowserParentEvent[] = [];
 
   const parentMachine = setup({
-    actors: { chatBrowserMachine },
+    actors: { windowBrowserMachine },
     types: {
       context: {} as {
-        childRef: ActorRefFrom<typeof chatBrowserMachine> | null;
+        childRef: ActorRefFrom<typeof windowBrowserMachine> | null;
       },
-      events: {} as ChatBrowserParentEvent,
+      events: {} as WindowBrowserParentEvent,
     },
   }).createMachine({
     context: ({ spawn }) => ({
-      childRef: spawn("chatBrowserMachine", {
+      childRef: spawn("windowBrowserMachine", {
         id: "child",
-        input: { browser, id },
+        input: { browser },
       }),
     }),
     id: "harnessParent",
     on: {
-      "chatBrowser.stopped": {
+      "windowBrowser.stopped": {
         actions: ({ event }) => {
           parentEvents.push(event);
         },
@@ -125,11 +120,11 @@ function spawnHarness(): Harness {
 }
 
 const SESSION_A = StoreId.newSessionId();
-const TARGET_A: BrowserTargetId = encodeBrowserTargetId(id, SESSION_A);
+const TARGET_A: BrowserTargetId = browserTargetOf(SESSION_A);
 
 const captureException = vi.fn();
 
-describe("chatBrowserMachine", () => {
+describe("windowBrowserMachine", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.mocked(closeAgentBrowserSessionsForSessions).mockClear();
@@ -304,9 +299,7 @@ describe("chatBrowserMachine", () => {
     expect(closeAgentBrowserSessionsForSessions).toHaveBeenCalledWith([
       SESSION_A,
     ]);
-    expect(parentEvents).toEqual([
-      { type: "chatBrowser.stopped", value: { id } },
-    ]);
+    expect(parentEvents).toEqual([{ type: "windowBrowser.stopped" }]);
   });
 
   it("targetDestroyedExternally skips closeTarget but still runs daemon cleanup", async () => {
@@ -405,7 +398,7 @@ describe("chatBrowserMachine", () => {
   it("keeps the other pages when one of several closes on its own", async () => {
     const { actor, browser } = spawnHarness();
     const sessionB = StoreId.newSessionId();
-    const targetB: BrowserTargetId = encodeBrowserTargetId(id, sessionB);
+    const targetB: BrowserTargetId = browserTargetOf(sessionB);
 
     actor.send({
       type: "registerTarget",
@@ -437,7 +430,7 @@ describe("chatBrowserMachine", () => {
   it("closes one view per session for multi-session chats", async () => {
     const { actor, browser } = spawnHarness();
     const sessionB = StoreId.newSessionId();
-    const targetB: BrowserTargetId = encodeBrowserTargetId(id, sessionB);
+    const targetB: BrowserTargetId = browserTargetOf(sessionB);
 
     actor.send({
       type: "updateCdpHeartbeat",

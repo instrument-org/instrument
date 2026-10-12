@@ -1,7 +1,4 @@
-import {
-  type ChatId,
-  decodeBrowserTargetId,
-} from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 
 import { type OpenOptions } from "./context";
 import { isGroupScreenHref } from "./group-screen";
@@ -192,6 +189,5 @@ export function chatOfAskingPage(
   targetId: string,
   tabs: readonly { group?: string; id: string }[],
 ): ChatId | undefined {
-  const asker = decodeBrowserTargetId(targetId)?.sessionId;
-  return chatOfGroup(tabs.find((tab) => tab.id === asker)?.group);
+  return chatOfGroup(tabs.find((tab) => tab.id === targetId)?.group);
 }

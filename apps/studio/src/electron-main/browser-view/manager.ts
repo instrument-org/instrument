@@ -8,11 +8,7 @@ import {
   type BrowserConfig,
   type BrowserTarget,
   type BrowserTargetId,
-  encodeBrowserTargetId,
   lastBrowserAgentActivity,
-  type StoreId,
-  type ChatId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/electron";
 import {
   BrowserWindow,
@@ -540,28 +536,20 @@ export function createBrowserViewManager(): BrowserViewManager {
   }
 
   function createTarget(
-    id: ChatId,
-    sessionId: StoreId.Session,
+    targetId: BrowserTargetId,
     partitionDir: AbsolutePath,
-  ): Promise<{ targetId: BrowserTargetId }> {
-    const targetId = encodeBrowserTargetId(id, sessionId);
-
+  ): Promise<void> {
     const existing = entries.get(targetId);
     if (existing) {
-      // Idempotent: a single (id, sessionId) pair owns at most one guest.
-      // Already bound -> reuse it; mount still in flight -> wait on it.
+      // Idempotent: a tab owns at most one guest. Already bound -> reuse it;
+      // mount still in flight -> wait on it.
       if (hasGuest(existing)) {
-        return Promise.resolve({ targetId });
+        return Promise.resolve();
       }
-      return waitForAttach(existing).then(() => ({ targetId }));
+      return waitForAttach(existing);
     }
 
-    const entry = createEntry({
-      id,
-      partitionDir,
-      sessionId,
-      targetId,
-    });
+    const entry = createEntry({ partitionDir, targetId });
     entries.set(targetId, entry);
     // Publishing the new desired set makes the renderer pool mount a guest
     // `<webview>` for this target; it attaches via will/did-attach-webview,
@@ -570,7 +558,7 @@ export function createBrowserViewManager(): BrowserViewManager {
     // the guest -- no explicit unmount needed.
     notifyEntriesChanged();
 
-    return waitForAttach(entry).then(() => ({ targetId }));
+    return waitForAttach(entry);
   }
 
   // Resolve when the guest attaches (entry.attach), reject if the entry is
@@ -596,14 +584,10 @@ export function createBrowserViewManager(): BrowserViewManager {
     return Promise.race([entry.attach.promise, timeout]);
   }
 
-  function listTargets(id: ChatId): Promise<BrowserTarget[]> {
+  function listTargets(): Promise<BrowserTarget[]> {
     const targets: BrowserTarget[] = [];
 
     for (const [targetId, entry] of entries) {
-      if (entry.id !== id) {
-        continue;
-      }
-
       const wc = entry.webContents;
       // electron/electron#50249: webContents is undefined after destruction in Electron 41+
       if (!wc || wc.isDestroyed()) {
@@ -655,11 +639,7 @@ export function createBrowserViewManager(): BrowserViewManager {
       if (!entry) {
         return null;
       }
-      return {
-        id: entry.id,
-        partitionDir: entry.partitionDir,
-        sessionId: entry.sessionId,
-      };
+      return { partitionDir: entry.partitionDir };
     },
     getTargetUrl: (targetId) => {
       const entry = entries.get(targetId);
@@ -668,8 +648,8 @@ export function createBrowserViewManager(): BrowserViewManager {
         ? guests.documentOf(guest.id, guest.mainFrame)
         : undefined;
     },
-    contentBlocking: (id, blocking) => ({
-      task: guests.setAdBlocking(id, blocking),
+    contentBlocking: (targets, blocking) => ({
+      task: guests.setAdBlocking(targets, blocking),
       workspace: isBlocking(),
     }),
     listTargets,
@@ -791,9 +771,8 @@ export function getBrowserViewManager(): BrowserViewManager | undefined {
  * navigation event handler throwing, so a store that cannot be written
  * (a full disk, a locked file) is logged once and recording goes quiet.
  *
- * A window tab's navigation is the person's unless an agent's command for
- * that tab came shortly before it started; a task's own browser is only ever
- * driven by its agent.
+ * A tab's navigation is the person's unless an agent's command for that tab
+ * came shortly before it started.
  */
 function recordHistory(entry: BrowserEntry, guest: WebContents): TabRecorder {
   const { targetId } = entry;
@@ -806,9 +785,8 @@ function recordHistory(entry: BrowserEntry, guest: WebContents): TabRecorder {
     try {
       recorder ??= createTabRecorder({
         actorSince: (startedAt) =>
-          entry.id !== WINDOW_ID ||
           (lastBrowserAgentActivity(targetId) ?? Number.NEGATIVE_INFINITY) >=
-            startedAt - AGENT_NAVIGATION_TAIL_MS
+          startedAt - AGENT_NAVIGATION_TAIL_MS
             ? "agent"
             : "user",
         now: Date.now,

@@ -13,7 +13,6 @@ import { z } from "zod";
 import { closeAgentBrowserSessionsForSessions } from "../lib/agent-browser-cleanup";
 import { type AbsolutePath } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
-import { type ChatId } from "../schemas/chat-id";
 import { type BrowserConfig, type BrowserTargetId } from "../types";
 
 export const AGENT_IDLE_TIMEOUT_MS = ms("1 hour");
@@ -21,54 +20,50 @@ export const RETAINED_TIMEOUT_MS = ms("8 hours");
 export const USER_PRESENCE_TIMEOUT_MS = ms("5 minutes");
 
 /**
- * The two claims a viewer can hold on a chat's browser.
+ * The two claims a viewer can hold on the window's browser.
  *
- * `visible` is the page the user is looking at. `retained` is a page that is
- * mounted but off screen, which is the ordinary state of a chat the user has
+ * `visible` is a page the user is looking at. `retained` is a page that is
+ * mounted but off screen, which is the ordinary state of a tab the user has
  * open and will come back to. Keeping them apart is what lets a browser outlive
- * a glance at another chat without outliving the chat page itself: the client
- * holds `retained` for as long as it keeps the page alive and `visible` only
- * while showing it, so whatever decides that -- a background tab today, a
- * router's retained route tomorrow -- never has to be named here.
+ * a glance elsewhere without outliving the page itself: the client holds
+ * `retained` for as long as it keeps the page alive and `visible` only while
+ * showing it, so whatever decides that never has to be named here.
  */
 export const BrowserPresenceLevelSchema = z.enum(["retained", "visible"]);
 
 export type BrowserPresenceLevel = z.output<typeof BrowserPresenceLevelSchema>;
 
-export interface ChatBrowserParentEvent {
-  type: "chatBrowser.stopped";
-  value: { id: ChatId };
+export interface WindowBrowserParentEvent {
+  type: "windowBrowser.stopped";
 }
 
 interface DestroyAndCloseInput {
   browser: BrowserConfig;
   destroyedExternallyTargets: Set<BrowserTargetId>;
   knownTargets: Map<StoreId.Session, BrowserTargetId | undefined>;
-  chatId: ChatId;
 }
 
-interface ChatBrowserContext {
+interface WindowBrowserContext {
   browser: BrowserConfig;
   // Set when an entry was destroyed by the host (renderer crash, window
   // close) so the reap path skips closeTarget but still cleans daemons.
   destroyedExternallyTargets: Set<BrowserTargetId>;
-  id: ChatId;
-  // Per-chat map of (sessionId -> live target id). Value is undefined
+  // Map of (sessionId -> live target id). Value is undefined
   // for sessions seeded by `attachAgentSession` before any updateCdpHeartbeat
   // observed a real target id; the next updateCdpHeartbeat fills it in. We still
   // record the session so daemon cleanup runs even if no CDP traffic was
   // ever observed before reap.
   knownTargets: Map<StoreId.Session, BrowserTargetId | undefined>;
   partitionDir: AbsolutePath | null;
-  // One count per lease level, because a chat page can be mounted more than
-  // once (the same chat in two tabs) and each mount holds its own.
+  // One count per lease level, because more than one viewer can hold the same
+  // level and each holds its own.
   presence: Record<BrowserPresenceLevel, number>;
   // Targets we've already spawned a destruction watcher for. Used to gate
   // duplicate spawns on subsequent updateCdpHeartbeats for the same target.
   watchedTargets: Set<BrowserTargetId>;
 }
 
-type ChatBrowserEvent =
+type WindowBrowserEvent =
   | { type: "acquirePresence"; value: { level: BrowserPresenceLevel } }
   | { type: "attachAgentSession"; value: { sessionId: StoreId.Session } }
   | { type: "forceReap" }
@@ -98,7 +93,7 @@ type ChatBrowserEvent =
 // machine event. Spawned per target on first observation; unsubscribes when
 // the parent state stops (i.e. when we transition to Stopping/Stopped).
 const watchTargetDestructionLogic = fromCallback<
-  ChatBrowserEvent,
+  WindowBrowserEvent,
   { browser: BrowserConfig; targetId: BrowserTargetId }
 >(({ input, sendBack }) =>
   input.browser.onTargetDestroyed(input.targetId, () => {
@@ -129,7 +124,7 @@ const destroyAndCloseLogic = fromPromise<undefined, DestroyAndCloseInput>(
   },
 );
 
-export const chatBrowserMachine = setup({
+export const windowBrowserMachine = setup({
   actions: {
     acquirePresence: assign({
       presence: ({ context }, { level }: { level: BrowserPresenceLevel }) => ({
@@ -180,10 +175,7 @@ export const chatBrowserMachine = setup({
       ) => new Set(context.destroyedExternallyTargets).add(targetId),
     }),
 
-    notifyParentStopped: sendParent(({ context }) => ({
-      type: "chatBrowser.stopped" as const,
-      value: { id: context.id },
-    })),
+    notifyParentStopped: sendParent({ type: "windowBrowser.stopped" }),
 
     releasePresence: assign({
       presence: ({ context }, { level }: { level: BrowserPresenceLevel }) => ({
@@ -247,21 +239,20 @@ export const chatBrowserMachine = setup({
   },
 
   types: {
-    context: {} as ChatBrowserContext,
-    events: {} as ChatBrowserEvent,
-    input: {} as { browser: BrowserConfig; id: ChatId },
+    context: {} as WindowBrowserContext,
+    events: {} as WindowBrowserEvent,
+    input: {} as { browser: BrowserConfig },
   },
 }).createMachine({
   context: ({ input }) => ({
     browser: input.browser,
     destroyedExternallyTargets: new Set<BrowserTargetId>(),
-    id: input.id,
     knownTargets: new Map<StoreId.Session, BrowserTargetId | undefined>(),
     partitionDir: null,
     presence: { retained: 0, visible: 0 },
     watchedTargets: new Set<BrowserTargetId>(),
   }),
-  id: "chatBrowser",
+  id: "windowBrowser",
   initial: "Unobserved",
   on: {
     // Leases only move counts. Which state that leaves the browser in is decided
@@ -286,10 +277,10 @@ export const chatBrowserMachine = setup({
         type: "releasePresence",
       },
     },
-    // One of the chat's pages closed on its own (its tab closed, its window
-    // went): the browser stops only once it was the last. A chat holds a page
-    // per tab, and the window holds every page the person has open,
-    // so stopping on the first would close all the others with it.
+    // One of the pages closed on its own (its tab closed, its window went):
+    // the browser stops only once it was the last. The window holds every
+    // page the person has open, so stopping on the first would close all the
+    // others with it.
     targetDestroyedExternally: [
       {
         actions: {
@@ -311,8 +302,8 @@ export const chatBrowserMachine = setup({
     ],
   },
   states: {
-    // Nobody has the chat page open any more: it was closed, or a router
-    // dropped it from whatever it keeps mounted. The page state a user could
+    // Nobody has the window's pages open any more: the window closed, or
+    // its renderer went. The page state a user could
     // return to went with it, so this is the short clock.
     GracePeriod: {
       after: {
@@ -342,9 +333,7 @@ export const chatBrowserMachine = setup({
         },
       },
     },
-    // The user is looking at this chat's page (visible presence is scoped to
-    // whatever is on screen, so at most one browser is Observed at a time).
-    // While they are, the browser stays alive regardless of agent idleness --
+    // The user is looking at a page. While they are, the browser stays alive regardless of agent idleness --
     // reaping only happens once the page goes off screen (Retained), is closed
     // outright (GracePeriod), or nobody is watching at all (Unobserved idle
     // timer). Whoever is attending the browser, user or agent, keeps it warm.
@@ -370,12 +359,12 @@ export const chatBrowserMachine = setup({
         },
       },
     },
-    // The chat page is still open, just not on screen. A user who turns to
-    // another chat for a few minutes has not abandoned this one, and the page
-    // they left behind is theirs to come back to, so this clock is long enough
-    // to cover a working day's worth of switching away and back. It is also the
-    // clock that ends an app session left running overnight, since a guest is a
-    // painted renderer and holding every chat's forever is not free.
+    // The pages are still open, just not on screen. A user who turns to
+    // something else for a while has not abandoned them, and the page they
+    // left behind is theirs to come back to, so this clock is long enough to
+    // cover a working day's worth of switching away and back. It is also the
+    // clock that ends an app session left running overnight, since a guest is
+    // a painted renderer and holding every one forever is not free.
     Retained: {
       after: {
         RETAINED_TIMEOUT_MS: { target: "Stopping" },
@@ -411,7 +400,6 @@ export const chatBrowserMachine = setup({
           browser: context.browser,
           destroyedExternallyTargets: context.destroyedExternallyTargets,
           knownTargets: context.knownTargets,
-          chatId: context.id,
         }),
         onDone: { target: "Stopped" },
         onError: { target: "Stopped" },
@@ -446,4 +434,4 @@ export const chatBrowserMachine = setup({
   },
 });
 
-export type ChatBrowserActorRef = ActorRefFrom<typeof chatBrowserMachine>;
+export type WindowBrowserActorRef = ActorRefFrom<typeof windowBrowserMachine>;

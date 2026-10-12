@@ -52,9 +52,8 @@ import { rpcClient } from "@/client/rpc/client";
 import { outputFolderHref } from "@/shared/computer-href";
 import {
   type ChatId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import {
   createFileRoute,
@@ -208,9 +207,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
         setPaneOpen(chat, true);
       }}
       tabs={tabs}
-      targetOf={(tab) =>
-        encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(tab.id))
-      }
+      targetOf={(tab) => browserTargetOf(StoreId.SessionSchema.parse(tab.id))}
       taskTitles={shell.childTitles}
     />
   );

@@ -1,9 +1,7 @@
 import {
   type BrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  ChatIdSchema,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
@@ -16,14 +14,8 @@ import {
 const open = StoreId.SessionSchema.parse("ses_01M3G55N35541T2M6SWPS72GMF");
 const closed = StoreId.SessionSchema.parse("ses_01M3G55N35541T2M6SWPS72GMG");
 const visited = StoreId.SessionSchema.parse("ses_01M3G55N35541T2M6SWPS72GMH");
-const other = StoreId.SessionSchema.parse("ses_01M3G55N35541T2M6SWPS72GMJ");
 
-const windowGuest = (session: StoreId.Session) =>
-  encodeBrowserTargetId(WINDOW_ID, session);
-const notTheWindows = encodeBrowserTargetId(
-  ChatIdSchema.parse("some-task"),
-  other,
-);
+const windowGuest = (session: StoreId.Session) => browserTargetOf(session);
 
 function reconcile(
   attached: BrowserTargetId[],
@@ -36,19 +28,14 @@ function reconcile(
 }
 
 describe("reconcileGuests", () => {
-  it("closes the window's guests no tab or visit holds, and leaves any other alone", () => {
+  it("closes the guests no tab or visit holds", () => {
     const result = reconcile(
-      [
-        windowGuest(open),
-        windowGuest(closed),
-        windowGuest(visited),
-        notTheWindows,
-      ],
+      [windowGuest(open), windowGuest(closed), windowGuest(visited)],
       { heldIds: new Set([open, "screen-1", visited]) },
     );
     expect(result.close).toMatchInlineSnapshot(`
       [
-        "window/ses_01M3G55N35541T2M6SWPS72GMG",
+        "ses_01M3G55N35541T2M6SWPS72GMG",
       ]
     `);
   });

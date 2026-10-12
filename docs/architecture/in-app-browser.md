@@ -140,7 +140,7 @@ Every rule comes from a navigation signal rather than from the address. Electron
 
 ## Lifetime
 
-[`chat-browser.ts`](../../packages/workspace/src/machines/chat-browser.ts) supervises the window's guests, under `WINDOW_ID`, as an XState machine with `Observed` / `Retained` / `Unobserved` / `GracePeriod` / `Stopping` / `Stopped` states. Which state it sits in is decided by the leases viewers hold, not by any event: `acquirePresence` / `releasePresence` only move counts, and eventless transitions on each live state route from there.
+[`window-browser.ts`](../../packages/workspace/src/machines/window-browser.ts) supervises the window's guests, each named by the id of the tab it is drawn in, as an XState machine with `Observed` / `Retained` / `Unobserved` / `GracePeriod` / `Stopping` / `Stopped` states. Which state it sits in is decided by the leases viewers hold, not by any event: `acquirePresence` / `releasePresence` only move counts, and eventless transitions on each live state route from there.
 
 The renderer takes those leases through `browser.live.presence` in the workspace RPC, where subscribing *is* the hold and aborting releases it. There are two levels, and the difference between them is the whole design:
 

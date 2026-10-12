@@ -21,11 +21,7 @@ import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import {
-  encodeBrowserTargetId,
-  StoreId,
-  WINDOW_ID,
-} from "@instrument-org/workspace/client";
+import { browserTargetOf, StoreId } from "@instrument-org/workspace/client";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
@@ -249,10 +245,7 @@ export function FilesScreen({
   useHostedPageNavigation(
     hostedTabId === undefined
       ? undefined
-      : encodeBrowserTargetId(
-          WINDOW_ID,
-          StoreId.SessionSchema.parse(hostedTabId),
-        ),
+      : browserTargetOf(StoreId.SessionSchema.parse(hostedTabId)),
     hostedFile === undefined ? undefined : fileUrlOf(hostedFile),
     (step) => {
       if (step.kind === "back") {

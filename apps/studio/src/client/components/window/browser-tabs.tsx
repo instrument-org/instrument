@@ -18,11 +18,8 @@ import { fileHref } from "@/shared/computer-href";
 import { isPageEditAddress } from "@instrument-org/shared";
 import {
   type BrowserTargetId,
-  decodeBrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  type ChatId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -246,17 +243,17 @@ export function BrowserTabs({
   // task page holds its browser: subscribing is the hold.
   useQuery(
     rpcClient.workspace.browser.live.presence.experimental_liveOptions({
-      input: { id: WINDOW_ID, level: "retained" },
+      input: { level: "retained" },
     }),
   );
   useQuery(
     rpcClient.workspace.browser.live.presence.experimental_liveOptions({
-      input: { id: WINDOW_ID, level: "visible" },
+      input: { level: "visible" },
     }),
   );
 
   const targetOf = (tab: BrowserTab): BrowserTargetId =>
-    encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(tab.id));
+    browserTargetOf(StoreId.SessionSchema.parse(tab.id));
   // The page the group on screen has up, when what it has up is a page.
   const up = windowTabs.active;
   const active = up?.kind === "page" ? up : undefined;
@@ -291,14 +288,10 @@ export function BrowserTabs({
     });
     guestMemo.current = memo;
     for (const target of close) {
-      const decoded = decodeBrowserTargetId(target);
-      if (!decoded) {
-        continue;
-      }
       // The guest stays attached until the close lands; one that fails is
       // asked for again on the next run.
       void rpcClient.workspace.browser.close
-        .call({ id: decoded.id, sessionId: decoded.sessionId })
+        .call({ targetId: target })
         .catch(() => {
           const closing = new Set(guestMemo.current.closing);
           closing.delete(target);
@@ -323,10 +316,7 @@ export function BrowserTabs({
       if (!id) {
         return;
       }
-      const target = encodeBrowserTargetId(
-        WINDOW_ID,
-        StoreId.SessionSchema.parse(id),
-      );
+      const target = browserTargetOf(StoreId.SessionSchema.parse(id));
       if (!attached.has(target)) {
         return;
       }
@@ -467,8 +457,7 @@ export function BrowserTabs({
       }),
     );
     void rpcClient.workspace.browser.open.call({
-      id: WINDOW_ID,
-      sessionId: StoreId.SessionSchema.parse(id),
+      targetId: browserTargetOf(StoreId.SessionSchema.parse(id)),
       ...(url ? { url } : {}),
     });
     return id;
@@ -499,8 +488,7 @@ export function BrowserTabs({
           return;
         }
         void rpcClient.workspace.browser.open.call({
-          id: WINDOW_ID,
-          sessionId: StoreId.SessionSchema.parse(tab.id),
+          targetId: browserTargetOf(StoreId.SessionSchema.parse(tab.id)),
           url,
         });
       },
@@ -518,8 +506,7 @@ export function BrowserTabs({
           ]),
         );
         void rpcClient.workspace.browser.open.call({
-          id: WINDOW_ID,
-          sessionId: id,
+          targetId: browserTargetOf(id),
           ...(url ? { url } : {}),
         });
         return id;
@@ -568,8 +555,7 @@ export function BrowserTabs({
         });
         change((current) => replaceTab(current, tab.id, page));
         void rpcClient.workspace.browser.open.call({
-          id: WINDOW_ID,
-          sessionId: id,
+          targetId: browserTargetOf(id),
           url,
         });
         return id;
@@ -654,8 +640,7 @@ export function BrowserTabs({
           return false;
         }
         void rpcClient.workspace.browser.open.call({
-          id: WINDOW_ID,
-          sessionId: StoreId.SessionSchema.parse(tab.id),
+          targetId: browserTargetOf(StoreId.SessionSchema.parse(tab.id)),
           ...(tab.url && tab.url !== "about:blank"
             ? { restoreUrl: tab.url }
             : {}),
@@ -774,7 +759,6 @@ export function BrowserTabs({
               })}
           restoreUrl={active.url}
           sessionId={StoreId.SessionSchema.parse(active.id)}
-          chatId={WINDOW_ID}
         />
       ) : null}
       {/* A page's file keeps its asks at its foot while viewed; in Edit the
@@ -797,7 +781,6 @@ export function BrowserTabs({
             key={group}
             place={host.place ?? `${group}:${rowWidth}`}
             tab={hostUp}
-            chatId={WINDOW_ID}
           />
         ) : null;
       })}
@@ -839,13 +822,11 @@ function ComposePagePanel({
   host,
   place,
   tab,
-  chatId,
 }: {
   attached: boolean;
   host: PageHost;
   place: string;
   tab: BrowserTab;
-  chatId: ChatId;
 }) {
   return createPortal(
     <ActiveTabProvider isActive={host.isActive}>
@@ -862,7 +843,6 @@ function ComposePagePanel({
         relayoutKey={place}
         restoreUrl={tab.url}
         sessionId={StoreId.SessionSchema.parse(tab.id)}
-        chatId={chatId}
       />
     </ActiveTabProvider>,
     host.into,

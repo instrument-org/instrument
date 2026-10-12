@@ -5,10 +5,9 @@ import { cn } from "@/client/lib/utils";
 import { outputFolderHref } from "@/shared/computer-href";
 import {
   type ChatId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   type SessionMessageDataPart,
   StoreId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
@@ -375,9 +374,7 @@ export function ChatWindow({
           }
         }}
         tabs={tabs}
-        targetOf={(tab) =>
-          encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(tab.id))
-        }
+        targetOf={(tab) => browserTargetOf(StoreId.SessionSchema.parse(tab.id))}
         taskTitles={taskTitles}
       />
     </div>

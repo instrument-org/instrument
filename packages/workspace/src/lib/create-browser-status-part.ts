@@ -1,10 +1,8 @@
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { decodeBrowserTargetId } from "../types";
 import { BLANK_PAGE_URL } from "./browser-state";
 import { agentSpellingOfFileUrls } from "./local-page-address";
-import { WINDOW_ID } from "../schemas/window-id";
 import { taskFsLayout } from "./resolve-workspace-file-path";
 import { heldTabs } from "./held-tabs";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -84,20 +82,19 @@ async function heldTabsStatus(
   if (held.length === 0 || browser.hasNoWindow) {
     return null;
   }
-  const windowTargets = await browser.listTargets(WINDOW_ID);
+  const windowTargets = await browser.listTargets();
   const titles = new Map(
     windowTargets.map((target) => [target.id, target.title]),
   );
   return held.flatMap((tab) => {
-    const decoded = decodeBrowserTargetId(tab.id);
     const url = browser.getTargetUrl(tab.id);
-    if (!decoded || !browser.getTargetMeta(tab.id)) {
+    if (!browser.getTargetMeta(tab.id)) {
       return [];
     }
     const title = titles.get(tab.id);
     return [
       {
-        id: decoded.sessionId,
+        id: tab.id,
         openedBy: tab.openedBy,
         ...(title ? { title } : {}),
         url: spell(url ?? BLANK_PAGE_URL),

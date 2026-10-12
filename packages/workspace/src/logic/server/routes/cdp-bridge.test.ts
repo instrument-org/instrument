@@ -226,7 +226,7 @@ describe("openTargetSession on a local page", () => {
   const own = `file://${TASK}/output/confine.html`;
   const secret = "file:///Users/me/other/secret.txt";
   const targetId = BrowserTargetIdSchema.parse(
-    "t1/ses_00000000018888888888888888",
+    "ses_00000000018888888888888888",
   );
 
   function connect(target = targetId) {
@@ -488,7 +488,7 @@ describe("openTargetSession on a local page", () => {
 
   it("hands the main process no folders for a connection that closed before its layout arrived", async () => {
     const target = BrowserTargetIdSchema.parse(
-      "t1/ses_0000000001888888888888888A",
+      "ses_0000000001888888888888888A",
     );
     const early = connect(target);
     early.close();
@@ -652,7 +652,7 @@ describe("openTargetSession on a local page", () => {
 
   it("releases interception and forgets the agent's folders when its last connection closes", async () => {
     const target = BrowserTargetIdSchema.parse(
-      "t1/ses_00000000018888888888888889",
+      "ses_00000000018888888888888889",
     );
     const first = connect(target);
     const second = connect(target);

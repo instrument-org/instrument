@@ -6,11 +6,10 @@ import { publisher } from "../../../rpc/publisher";
 import { StoreId } from "../../../schemas/store-id";
 import { ChatIdSchema } from "../../../schemas/chat-id";
 import { type HeldTab } from "../../../schemas/chat-state";
-import { WINDOW_ID } from "../../../schemas/window-id";
 import { type WindowTabAction } from "../../../schemas/window-tab";
 import {
   type BrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   type WorkspaceConfig,
 } from "../../../types";
 import { type WorkspaceServerParentRef } from "../types";
@@ -97,15 +96,12 @@ function connect() {
   const sendCommand = vi.fn(() => Promise.resolve({ ok: true }));
   const config = {
     browser: {
-      createTarget: (id: string, sessionId: string) => {
-        const targetId = `${id}/${sessionId}` as BrowserTargetId;
+      createTarget: (targetId: BrowserTargetId) => {
         live.add(targetId);
-        return Promise.resolve({ targetId });
+        return Promise.resolve();
       },
       getTargetMeta: (targetId: BrowserTargetId) =>
-        live.has(targetId)
-          ? { id: WINDOW_ID, partitionDir: "/tmp/profile", sessionId: "s" }
-          : null,
+        live.has(targetId) ? { partitionDir: "/tmp/profile" } : null,
       getTargetUrl: (targetId: BrowserTargetId) =>
         pages.get(targetId)?.url ?? "https://example.com/",
       listTargets: () =>
@@ -209,7 +205,7 @@ function tab(openedBy: HeldTab["openedBy"] = "handed") {
   const tabId = StoreId.newSessionId();
   return {
     held: {
-      id: encodeBrowserTargetId(WINDOW_ID, tabId),
+      id: browserTargetOf(tabId),
       openedBy,
     } satisfies HeldTab,
     tabId,
@@ -300,7 +296,7 @@ describe("a task's browser", () => {
     ]);
     const tabId = created.result?.targetId;
     expect(record.browserTabs.at(-1)).toEqual({
-      id: `${WINDOW_ID}/${String(tabId)}`,
+      id: tabId,
       openedBy: "task",
     });
     expect(

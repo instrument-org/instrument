@@ -3,8 +3,6 @@ import type { WebContents } from "electron";
 import {
   type AbsolutePath,
   type BrowserTargetId,
-  type StoreId,
-  type ChatId,
 } from "@instrument-org/workspace/electron";
 import { noop } from "radashi";
 
@@ -85,7 +83,7 @@ export interface BrowserEntry {
   // Listeners notified once when the entry is removed from the manager (for
   // any reason: explicit close, detach, renderer crash). Drained as part of
   // the disposer chain so they never fire more than once. Used to surface
-  // "view destroyed" to higher layers (e.g. the chatBrowser machine).
+  // "view destroyed" to higher layers (e.g. the window browser machine).
   destructionListeners: Set<() => void>;
   detachListeners: Set<() => void>;
   // Disposers run once when the entry is torn down (either via explicit close
@@ -95,11 +93,10 @@ export interface BrowserEntry {
   eventListeners: Set<(method: string, params: unknown) => void>;
   // Monotonic per-entry id, bumped on every createEntry. The renderer pool keys
   // its `<webview>` by targetId, which is stable across a destroy+recreate of
-  // the same (task, session); the generation lets the pool notice that recreate
+  // the same tab; the generation lets the pool notice that recreate
   // (even when the two events coalesce into one stream snapshot) and remount a
   // fresh guest instead of stranding the destroyed one.
   generation: number;
-  id: ChatId;
   // Whether a main-frame navigation to a real URL has started on this guest.
   // False for the whole life of a target that only ever held `about:blank` --
   // agent-browser mints a page for any command that needs one, including
@@ -115,8 +112,7 @@ export interface BrowserEntry {
   pendingDownloadGuids: Map<string, string>;
   screencastInterval: null | ReturnType<typeof setInterval>;
   screencastSessionId: number;
-  sessionId: StoreId.Session;
-  // Stable, externally-meaningful target id: `${id}/${sessionId}`.
+  // Stable, externally-meaningful target id: the id of the tab it is drawn in.
   // Used as the manager Map key, the CDP URL path component, and the wire
   // identifier in BrowserConfig. Independent of webContents.id (which becomes
   // undefined after destruction in Electron 41+, electron/electron#50249).
@@ -141,14 +137,10 @@ interface AttachSignal {
 }
 
 export function createEntry({
-  id,
   partitionDir,
-  sessionId,
   targetId,
 }: {
-  id: ChatId;
   partitionDir: AbsolutePath;
-  sessionId: StoreId.Session;
   targetId: BrowserTargetId;
 }): BrowserEntry {
   return {
@@ -160,14 +152,12 @@ export function createEntry({
     disposers: new Set(),
     eventListeners: new Set(),
     generation: ++generationCounter,
-    id,
     navigated: false,
     partitionDir,
     pendingDownloadGuids: new Map(),
     phase: "pending",
     screencastInterval: null,
     screencastSessionId: 0,
-    sessionId,
     targetId,
     webContents: null,
   };

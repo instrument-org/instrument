@@ -50,18 +50,18 @@ import {
 } from "../session";
 import {
   type BrowserPresenceLevel,
-  chatBrowserMachine,
-  type ChatBrowserParentEvent,
-} from "../chat-browser";
+  windowBrowserMachine,
+  type WindowBrowserParentEvent,
+} from "../window-browser";
 import { type WorkspaceContext } from "./types";
 
 export type WorkspaceEvent =
   | SessionMachineParentEvent
-  | ChatBrowserParentEvent
+  | WindowBrowserParentEvent
   | WorkspaceServerParentEvent
   | {
       type: "acquireBrowserPresence";
-      value: { id: ChatId; level: BrowserPresenceLevel };
+      value: { level: BrowserPresenceLevel };
     }
   | {
       type: "addMessage";
@@ -100,20 +100,15 @@ export type WorkspaceEvent =
     }
   | {
       type: "prepareToTrashChat";
-      value: { id: ChatId; onBrowserReaped?: () => void };
+      value: { id: ChatId };
     }
   | {
       type: "registerBrowserTarget";
-      value: {
-        id: ChatId;
-        partitionDir: AbsolutePath;
-        sessionId: StoreId.Session;
-        targetId: BrowserTargetId;
-      };
+      value: { partitionDir: AbsolutePath; targetId: BrowserTargetId };
     }
   | {
       type: "releaseBrowserPresence";
-      value: { id: ChatId; level: BrowserPresenceLevel };
+      value: { level: BrowserPresenceLevel };
     }
   | { type: "removeChatBeingTrashed"; value: { id: ChatId } }
   | {
@@ -167,27 +162,15 @@ export function chatSessionRef(context: WorkspaceContext, id: ChatId) {
 export const workspaceMachine = setup({
   actions: {
     acquireBrowserPresence: enqueueActions(
-      (
-        { enqueue },
-        { id, level }: { id: ChatId; level: BrowserPresenceLevel },
-      ) => {
+      ({ enqueue }, { level }: { level: BrowserPresenceLevel }) => {
         enqueue.assign(({ context, spawn }) => {
-          const existing = context.chatBrowserRefs.get(id);
           const ref =
-            existing ??
-            spawn("chatBrowserMachine", {
-              input: {
-                browser: context.config.browser,
-                id,
-              },
+            context.windowBrowserRef ??
+            spawn("windowBrowserMachine", {
+              input: { browser: context.config.browser },
             });
           ref.send({ type: "acquirePresence", value: { level } });
-          if (existing) {
-            return {};
-          }
-          return {
-            chatBrowserRefs: new Map(context.chatBrowserRefs).set(id, ref),
-          };
+          return { windowBrowserRef: ref };
         });
       },
     ),
@@ -216,84 +199,52 @@ export const workspaceMachine = setup({
     }),
 
     forwardAttachAgentSession: enqueueActions(
-      (
-        { context },
-        { id, sessionId }: { id: ChatId; sessionId: StoreId.Session },
-      ) => {
-        const ref = context.chatBrowserRefs.get(id);
-        ref?.send({
+      ({ context }, { sessionId }: { sessionId: StoreId.Session }) => {
+        context.windowBrowserRef?.send({
           type: "attachAgentSession",
           value: { sessionId },
         });
       },
     ),
 
-    // Get-or-spawn the chat's browser machine and forward a target event to it.
+    // Get-or-spawn the window's browser machine and forward a target event to it.
     // The user-open (`registerTarget`) and agent CDP (`updateCdpHeartbeat`) paths
     // carry the same payload and differ only in which event the ref receives;
     // the ref decides how each affects its liveness state.
-    forwardToChatBrowser: enqueueActions(
+    forwardToWindowBrowser: enqueueActions(
       (
         { enqueue },
         {
           event,
-          id,
           partitionDir,
-          sessionId,
           targetId,
         }: {
           event: "registerTarget" | "updateCdpHeartbeat";
-          id: ChatId;
           partitionDir: AbsolutePath;
-          sessionId: StoreId.Session;
           targetId: BrowserTargetId;
         },
       ) => {
         enqueue.assign(({ context, spawn }) => {
-          const existing = context.chatBrowserRefs.get(id);
           const ref =
-            existing ??
-            spawn("chatBrowserMachine", {
-              input: {
-                browser: context.config.browser,
-                id,
-              },
+            context.windowBrowserRef ??
+            spawn("windowBrowserMachine", {
+              input: { browser: context.config.browser },
             });
           ref.send({
             type: event,
-            value: { partitionDir, sessionId, targetId },
+            value: { partitionDir, sessionId: targetId, targetId },
           });
-          if (existing) {
-            return {};
-          }
-          return {
-            chatBrowserRefs: new Map(context.chatBrowserRefs).set(id, ref),
-          };
+          return { windowBrowserRef: ref };
         });
       },
     ),
 
-    handleChatBrowserStopped: enqueueActions(
-      ({ context, enqueue }, { id }: { id: ChatId }) => {
-        const ref = context.chatBrowserRefs.get(id);
-        if (ref) {
-          enqueue.stopChild(ref);
-        }
-        const nextRefs = new Map(context.chatBrowserRefs);
-        nextRefs.delete(id);
-        enqueue.assign({ chatBrowserRefs: nextRefs });
-
-        const resolvers = context.pendingBrowserReapResolvers.get(id);
-        if (resolvers && resolvers.length > 0) {
-          for (const resolve of resolvers) {
-            resolve();
-          }
-          const nextResolvers = new Map(context.pendingBrowserReapResolvers);
-          nextResolvers.delete(id);
-          enqueue.assign({ pendingBrowserReapResolvers: nextResolvers });
-        }
-      },
-    ),
+    handleWindowBrowserStopped: enqueueActions(({ context, enqueue }) => {
+      if (context.windowBrowserRef) {
+        enqueue.stopChild(context.windowBrowserRef);
+      }
+      enqueue.assign({ windowBrowserRef: null });
+    }),
 
     dropSessionRef: assign(
       ({ context }, { actorId, id }: { actorId: string; id: ChatId }) => {
@@ -320,13 +271,11 @@ export const workspaceMachine = setup({
     ),
 
     releaseBrowserPresence: enqueueActions(
-      (
-        { context },
-        { id, level }: { id: ChatId; level: BrowserPresenceLevel },
-      ) => {
-        context.chatBrowserRefs
-          .get(id)
-          ?.send({ type: "releasePresence", value: { level } });
+      ({ context }, { level }: { level: BrowserPresenceLevel }) => {
+        context.windowBrowserRef?.send({
+          type: "releasePresence",
+          value: { level },
+        });
       },
     ),
 
@@ -361,7 +310,7 @@ export const workspaceMachine = setup({
   actors: {
     sessionMachine,
 
-    chatBrowserMachine,
+    windowBrowserMachine,
 
     workspaceServerLogic,
   },
@@ -454,9 +403,8 @@ export const workspaceMachine = setup({
     registerAIUsageTelemetry();
     return {
       config: workspaceConfig,
-      pendingBrowserReapResolvers: new Map(),
       sessionRefsByChatId: new Map(),
-      chatBrowserRefs: new Map(),
+      windowBrowserRef: null,
       chatsBeingTrashed: [],
       workspaceServerRef: spawn("workspaceServerLogic", {
         input: {
@@ -574,23 +522,6 @@ export const workspaceMachine = setup({
           chatsBeingTrashed: [...context.chatsBeingTrashed, event.value.id],
         });
 
-        // Reap the trashed chat's chatBrowser, if one exists, and let
-        // trashChat go on once it has stopped, or at once with none.
-        const { id, onBrowserReaped } = event.value;
-        const browserRef = context.chatBrowserRefs.get(id);
-        browserRef?.send({ type: "forceReap" });
-        if (onBrowserReaped && !browserRef) {
-          onBrowserReaped();
-        } else if (onBrowserReaped) {
-          enqueue.assign({
-            pendingBrowserReapResolvers: () =>
-              new Map(context.pendingBrowserReapResolvers).set(id, [
-                ...(context.pendingBrowserReapResolvers.get(id) ?? []),
-                onBrowserReaped,
-              ]),
-          });
-        }
-
         enqueue.raise({
           type: "stopSessions",
           value: { id: event.value.id },
@@ -600,7 +531,7 @@ export const workspaceMachine = setup({
     registerBrowserTarget: {
       actions: {
         params: ({ event }) => ({ event: "registerTarget", ...event.value }),
-        type: "forwardToChatBrowser",
+        type: "forwardToWindowBrowser",
       },
     },
     releaseBrowserPresence: {
@@ -672,11 +603,8 @@ export const workspaceMachine = setup({
       },
     },
 
-    "chatBrowser.stopped": {
-      actions: {
-        params: ({ event }) => ({ id: event.value.id }),
-        type: "handleChatBrowserStopped",
-      },
+    "windowBrowser.stopped": {
+      actions: "handleWindowBrowserStopped",
     },
 
     // Only the chat's own conversation asks the user anything, so the
@@ -701,10 +629,7 @@ export const workspaceMachine = setup({
 
     "workspaceServer.attachAgentSession": {
       actions: {
-        params: ({ event }) => ({
-          id: event.value.id,
-          sessionId: event.value.sessionId,
-        }),
+        params: ({ event }) => ({ sessionId: event.value.targetId }),
         type: "forwardAttachAgentSession",
       },
     },
@@ -727,12 +652,10 @@ export const workspaceMachine = setup({
       actions: {
         params: ({ event }) => ({
           event: "updateCdpHeartbeat",
-          id: event.value.id,
           partitionDir: event.value.partitionDir,
-          sessionId: event.value.sessionId,
           targetId: event.value.targetId,
         }),
-        type: "forwardToChatBrowser",
+        type: "forwardToWindowBrowser",
       },
     },
   },

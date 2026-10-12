@@ -42,9 +42,8 @@ import { fileHref } from "@/shared/computer-href";
 import { type Tab, type TabId } from "@/shared/tabs";
 import {
   type ChatId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
@@ -692,9 +691,7 @@ function WindowShell({
       return;
     }
     return () => {
-      getGuest(
-        encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(page.id)),
-      )?.reload();
+      getGuest(browserTargetOf(StoreId.SessionSchema.parse(page.id)))?.reload();
     };
   };
 

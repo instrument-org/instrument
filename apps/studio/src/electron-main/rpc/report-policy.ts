@@ -37,6 +37,8 @@ export const RPC_ERROR_CODES = {
   FETCH_ERROR: "fault",
   FETCH_FAILED: "fault",
   FILE_NOT_FOUND: "expected",
+  // macOS keeping the app out of a folder, which the permissions UI explains.
+  FORBIDDEN: "expected",
   INVALID_URL: "expected",
   NAME_INVALID: "expected",
   NAME_IN_USE: "expected",

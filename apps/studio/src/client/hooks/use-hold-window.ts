@@ -17,33 +17,61 @@ import { useEffect, useRef } from "react";
  */
 export function useHoldWindow(
   active = true,
-  { onClose }: { onClose?: () => void } = {},
+  {
+    ancestors,
+    back = true,
+    key,
+    onClose,
+  }: {
+    ancestors?: readonly object[];
+    back?: boolean;
+    key?: object;
+    onClose?: () => boolean | void;
+  } = {},
 ) {
   const store = useStore();
   const latest = useRef(onClose);
+  const latestAncestors = useRef(ancestors);
   useEffect(() => {
     latest.current = onClose;
+    latestAncestors.current = ancestors;
   });
   const canClose = onClose !== undefined;
   useEffect(() => {
     if (!active) {
       return;
     }
-    const hold = canClose
-      ? {
-          close: () => {
-            latest.current?.();
-          },
-        }
-      : {};
-    store.set(windowHoldsAtom, (holds) => [...holds, hold]);
+    const hold = {
+      key,
+      ancestors: latestAncestors.current,
+      ...(canClose
+        ? {
+            close: () => {
+              return latest.current?.();
+            },
+          }
+        : {}),
+    };
+    store.set(windowHoldsAtom, (holds) => {
+      // A nested dialog can mount before its parent effect registers.
+      const child =
+        key === undefined
+          ? -1
+          : holds.findIndex((other) => other.ancestors?.includes(key));
+      return child === -1
+        ? [...holds, hold]
+        : [...holds.slice(0, child), hold, ...holds.slice(child)];
+    });
     return () => {
       store.set(windowHoldsAtom, (holds) =>
         holds.filter((other) => other !== hold),
       );
     };
-  }, [active, canClose, store]);
-  useModalBack(() => {
-    latest.current?.();
-  }, active && canClose);
+  }, [active, canClose, key, store]);
+  useModalBack(
+    () => {
+      latest.current?.();
+    },
+    active && canClose && back,
+  );
 }

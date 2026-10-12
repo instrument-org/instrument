@@ -34,7 +34,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/client/components/ui/sidebar";
-import { useHoldWindow } from "@/client/hooks/use-hold-window";
+import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useFindTarget } from "@/client/hooks/use-find-target";
@@ -89,11 +89,9 @@ export function SettingsModal() {
   // the instant the dialog starts closing.
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
-  useHoldWindow(isOpen, {
-    onClose: () => {
-      setState(null);
-    },
-  });
+  useModalBack(() => {
+    setState(null);
+  }, isOpen);
 
   return (
     <Dialog

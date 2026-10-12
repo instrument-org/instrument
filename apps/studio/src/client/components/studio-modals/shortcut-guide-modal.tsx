@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Input } from "@/client/components/ui/input";
-import { useHoldWindow } from "@/client/hooks/use-hold-window";
+import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useShortcutGuideHotkey } from "@/client/hooks/use-shortcut-guide-hotkey";
@@ -39,11 +39,9 @@ export function ShortcutGuideModal() {
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
   useShortcutGuideHotkey();
-  useHoldWindow(isOpen, {
-    onClose: () => {
-      setState(null);
-    },
-  });
+  useModalBack(() => {
+    setState(null);
+  }, isOpen);
 
   return (
     <Dialog

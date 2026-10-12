@@ -205,15 +205,21 @@ export function useWindowCommands(
             // away and opens the window's new tab, as it would with none up.
             // A hold that cannot be left (a delete under way) keeps both.
             if (command === "closeTab") {
-              holds.findLast((hold) => hold.close)?.close?.();
+              holds.at(-1)?.close?.();
             } else if (
               command === "newTab" &&
               holds.every((hold) => hold.close)
             ) {
+              let dismissed = true;
               for (const hold of holds.toReversed()) {
-                hold.close?.();
+                if (hold.close?.() === false) {
+                  dismissed = false;
+                  break;
+                }
               }
-              latest.current.newTab();
+              if (dismissed) {
+                latest.current.newTab();
+              }
             }
             continue;
           }

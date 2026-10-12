@@ -31,7 +31,7 @@ import { byActivity, type Chat } from "@/client/components/window/chats";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
-import { useHoldWindow } from "@/client/hooks/use-hold-window";
+import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
@@ -658,7 +658,7 @@ export function CommandMenu({
       setSearch("");
     }, 200);
   };
-  useHoldWindow(open, { onClose: close });
+  useModalBack(close, open);
 
   const { isBang, rows, words } = useCommandMenuRows({
     active: open,

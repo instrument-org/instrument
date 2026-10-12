@@ -33,7 +33,7 @@ import { GlyphButton } from "@/client/components/window/glyph-button";
 import { useOnScreen } from "@/client/components/window/on-screen";
 import { PageSection } from "@/client/components/window/page-section";
 import { VisitedPageRows } from "@/client/components/window/visited-page-rows";
-import { useHoldWindow } from "@/client/hooks/use-hold-window";
+import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -114,11 +114,9 @@ export function AppFront({
   const [isInspecting, setIsInspecting] = useState(false);
   // The action the list opens on, when a card opened it.
   const [inspectingAction, setInspectingAction] = useState<string>();
-  useHoldWindow(isInspecting, {
-    onClose: () => {
-      setIsInspecting(false);
-    },
-  });
+  useModalBack(() => {
+    setIsInspecting(false);
+  }, isInspecting);
   const isBrowsable =
     isConnected && (app.type === "mcp" || app.type === "mcp-local");
   const runsHere =

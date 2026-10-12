@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/client/components/ui/select";
-import { useHoldWindow } from "@/client/hooks/use-hold-window";
+import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import {
   allTimeNote,
@@ -44,11 +44,9 @@ export function ClearBrowsingDataModal() {
   const isOpen = state !== null;
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
-  useHoldWindow(isOpen, {
-    onClose: () => {
-      setState(null);
-    },
-  });
+  useModalBack(() => {
+    setState(null);
+  }, isOpen);
 
   return (
     <Dialog

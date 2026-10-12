@@ -14,7 +14,7 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/client/components/ui/dialog";
-import { useHoldWindow } from "@/client/hooks/use-hold-window";
+import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useLoginSocial } from "@/client/hooks/use-login-social";
 import { SHARED } from "@/client/lib/styles";
@@ -40,11 +40,9 @@ export function LoginModal() {
   // the instant the dialog starts closing.
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
-  useHoldWindow(isOpen, {
-    onClose: () => {
-      setState(null);
-    },
-  });
+  useModalBack(() => {
+    setState(null);
+  }, isOpen);
 
   const complete = () => {
     state?.onCompleted?.();

@@ -13,7 +13,7 @@ import {
 } from "@/client/components/ui/dialog";
 import { Textarea } from "@/client/components/ui/textarea";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
-import { useHoldWindow } from "@/client/hooks/use-hold-window";
+import { useModalBack } from "@/client/hooks/use-modal-back";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
@@ -57,7 +57,7 @@ export function StandaloneReportDialog({
   const isOpen = request !== null;
   const { content, onExitComplete, openKey } = useDeferredModalState(request);
 
-  useHoldWindow(isOpen, { onClose });
+  useModalBack(onClose, isOpen);
 
   return (
     <Dialog

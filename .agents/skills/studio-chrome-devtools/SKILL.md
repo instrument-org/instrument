@@ -177,6 +177,8 @@ node $DRIVE wait --idle --chat <chat-id>
 node $DRIVE rpc workspace.message.list "{\"id\":\"<chat-id>\",\"sessionId\":\"$SES\"}"
 ```
 
+`scripts/chat-turn.mjs` does all of that in one `run`, and returns the turn as one short line per step (text, tool call, refusal) rather than the full `message.list`, stopping early when a card is waiting: `node $DRIVE run .agents/skills/studio-chrome-devtools/scripts/chat-turn.mjs --quiet --args '{"prompt":"…"}'`, then `{"chat":"<id>","prompt":"…"}` to follow up.
+
 `message.create` with `sessionId` instead of `newSessionId` sends a follow-up into the same session. Tasks the chat starts show up in `chats.tasks`; read one's transcript with `message.list` and its session. A seeded fixture workspace holds no credentials, so a live turn needs a plain `boot` against the dev workspace.
 
 ### Waiting for a turn
@@ -195,7 +197,7 @@ Two things about that status are worth knowing before trusting a wait built on i
 
 ## Page model
 
-The app window is one web contents: its chrome and every open tab mount in the same page, each tab a router of its own across the bar. Agent-browser tabs are renderer `<webview>` guests inside it, not separate DevTools targets. The onboarding window, on a first run, is a second page under `/renderer/`; commands drive the app window's.
+The app window is one web contents: its chrome and every open tab mount in the same page, each tab a router of its own across the bar. Agent-browser tabs are renderer `<webview>` guests inside it, not separate DevTools targets. The onboarding window, on a first run, is a second page under `/renderer/`; commands drive the app window's unless given `--page onboarding`. A first launch of a packaged build opens there, so that is how its sign-in and welcome steps are driven.
 
 The renderer keeps the current route out of the window URL, and the window restores its persisted tabs on load. So `location.hash` is not the route, and navigating the web contents to a route URL does not open it. Use `state` to read where you are and `goto` to move: `goto` sends the tab up to the route, or a new tab with `--new-tab`, and `state` reports the tab up's `path`, the `tabs`, and `dialog`. A chat's own tabs (its browsers and files down its rail) are not routes; read them with `snapshot` or `eval`.
 

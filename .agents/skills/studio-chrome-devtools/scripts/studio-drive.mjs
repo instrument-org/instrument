@@ -682,7 +682,9 @@ async function cmdRun(file, rawArgs) {
     writeFileSync(source, stdin);
   }
 
-  let args;
+  // An empty object rather than undefined, so a script reading args.x without
+  // --args gets undefined for the field instead of a TypeError.
+  let args = {};
   if (rawArgs !== undefined) {
     try {
       args = JSON.parse(rawArgs);
@@ -699,8 +701,13 @@ async function cmdRun(file, rawArgs) {
     );
   }
 
+  // --quiet drops the per-step trace from a run that succeeds, for a script
+  // whose own return value already says what happened: each step records the
+  // value it returned, and a few RPC reads make that hundreds of kilobytes.
+  const quiet = process.argv.includes("--quiet");
   const app = await connect({
     allowReload: process.argv.includes("--allow-reload"),
+    page: flag(process.argv, "--page"),
     port: flag(process.argv, "--port"),
     workspace: INSTANCE,
   });
@@ -710,7 +717,7 @@ async function cmdRun(file, rawArgs) {
     return {
       ok: true,
       steps: app.trace.length,
-      trace: app.trace,
+      ...(!quiet && { trace: app.trace }),
       ...(value !== undefined && { value }),
     };
   } catch (error) {
@@ -722,7 +729,11 @@ async function cmdRun(file, rawArgs) {
       ok: false,
       steps: app.trace.length,
       stoppedAt: app.trace.at(-1)?.label,
-      trace: app.trace,
+      // A failure keeps the trace even when quiet, without the values each
+      // step returned, which are what makes it long.
+      trace: quiet
+        ? app.trace.map(({ value: _value, ...entry }) => entry)
+        : app.trace,
     };
   } finally {
     app.close();
@@ -954,6 +965,7 @@ async function runAgainstInstance() {
   // lost. `run` takes the stricter default, because a sequence cannot.
   const app = await connect({
     allowReload: true,
+    page: flag(argv, "--page"),
     port: flag(argv, "--port"),
     workspace: INSTANCE,
   });
@@ -984,7 +996,10 @@ async function dispatch(app) {
       return app.goto(positional[0], { newTab: argv.includes("--new-tab") });
     }
     case "modal": {
-      return cmdModal(app, argv[0]);
+      return cmdModal(
+        app,
+        argv.includes("--close") ? "--close" : positional[0],
+      );
     }
     case "press": {
       return app.press(positional[0]);

@@ -28,7 +28,8 @@ node "$DESK" <host> list_windows
 
 - `window=<text>` picks the first window whose title or app name contains the text (case-insensitive) and fills in `pid` and `window_id`. Pass them yourself when two windows match.
 - `el=<n>` is element `[n]` from the most recent `get_window_state` on that host. Any newer tree read replaces it, so act right after the read you mean.
-- `query=<text>` cuts a tree to matching rows and their ancestors; `max_elements` and `max_depth` bound a large one. A browser window's full tree runs to thousands of rows, so query it.
+- `query=<text>` cuts a tree to rows whose name matches, and their ancestors; `max_elements` and `max_depth` bound a large one. A browser window's full tree runs to thousands of rows, so query it.
+- `grep=<text>` keeps only the printed lines containing the text, role included, so `grep=button` lists a dialog's buttons whatever they are called. A folder picker's confirm button is "Select Folder" from one opener and "Add" from another, and `query` finds neither without its name.
 - Values are parsed: numbers, `true`/`false`, and JSON arrays or objects (`keys='["ctrl","l"]'`). Anything else is a string. `--json` takes a whole argument object.
 
 `node "$DESK" <host> tools` lists every tool in one line each; `describe <tool>` lists its arguments. Read those instead of guessing an argument name.

@@ -1,0 +1,166 @@
+// A `studio-drive run` sequence that sends one prompt and reports the turn as
+// one line per step, so a check of what the agent did costs a few hundred
+// tokens rather than a full `message.list`.
+//
+//   node studio-drive.mjs run chat-turn.mjs --quiet --args '{"prompt":"…"}'
+//   node studio-drive.mjs run chat-turn.mjs --quiet --args '{"chat":"<id>","session":"ses_…","prompt":"…"}'
+//
+// Without `chat` it starts a new chat and opens it. `model` is a model URI
+// (`gateway.models.list`); without one it takes the first the app lists.
+// It returns when the chat has gone idle or is waiting on a card, whichever
+// comes first, with `waitingOn` naming the card.
+
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const TEXT_LIMIT = 600;
+const FIELD_LIMIT = 400;
+
+const newSessionId = () =>
+  `ses_0${Array.from({ length: 25 }, () => CROCKFORD[Math.floor(Math.random() * 32)]).join("")}`;
+
+export default async (app, args) => {
+  if (!args.prompt && !args.chat) {
+    throw new Error(
+      'Pass --args \'{"prompt":"…"}\', with chat and session to follow up.',
+    );
+  }
+  let { chat, session } = args;
+  const modelURI = args.model ?? (await firstModel(app));
+  if (!chat) {
+    session = newSessionId();
+    ({ id: chat } = await app.rpc("workspace.chats.ensure", {
+      firstWords: args.prompt.slice(0, 40),
+      sessionId: session,
+    }));
+    await app.rpc("workspace.message.create", {
+      id: chat,
+      modelURI,
+      newSessionId: session,
+      prompt: args.prompt,
+    });
+    await app.goto(`/chats/${chat}`);
+  } else if (args.prompt) {
+    session ??= (await app.rpc("workspace.chats.session", { id: chat }))
+      .sessionId;
+    await app.rpc("workspace.message.create", {
+      id: chat,
+      modelURI,
+      prompt: args.prompt,
+      sessionId: session,
+    });
+  }
+
+  const waited = await waitForTurn(app, chat, args.timeoutMs ?? 240_000);
+  const list = await app.rpc("workspace.message.list", {
+    id: chat,
+    sessionId: session,
+  });
+  const messages = Array.isArray(list) ? list : (list.messages ?? []);
+  const fromIndex = args.allMessages ? 0 : lastUserIndex(messages);
+  return {
+    chat,
+    session,
+    ...waited,
+    steps: messages.slice(fromIndex).flatMap(stepsOf),
+  };
+};
+
+async function firstModel(app) {
+  const models = await app.rpc("gateway.models.list", {});
+  const all = Array.isArray(models) ? models : (models.models ?? []);
+  // Instrument's own Auto is what a new chat gets, so it is the default here.
+  const first =
+    all.find((model) => model.uri?.startsWith("instrument/auto")) ?? all[0];
+  if (!first?.uri) {
+    throw new Error(
+      "No model to send with. Pass model, a URI from gateway.models.list.",
+    );
+  }
+  return first.uri;
+}
+
+/**
+ * Idle has to hold for two seconds once the chat has been seen working, and
+ * eight when it never was, since a chat reads idle before its turn starts. A
+ * card ends the wait at once: the turn is parked until someone answers it.
+ */
+async function waitForTurn(app, chat, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let sawBusy = false;
+  let idleSince = 0;
+  while (Date.now() < deadline) {
+    const info = await app.rpc("workspace.chats.byId", { id: chat });
+    const card = await app.eval(
+      // A card is the one place a turn offers "Not now"; its first line is
+      // the question it asks.
+      `(() => {
+        const button = Array.from(document.querySelectorAll("button")).find((b) => b.innerText.trim() === "Not now" && b.getClientRects().length > 0);
+        let card = button;
+        while (card && card.parentElement && card.innerText.split("\\n").length < 3) card = card.parentElement;
+        return card ? card.innerText.split("\\n")[0] : null;
+      })()`,
+    );
+    if (card) return { sawBusy, waitingOn: card };
+    if (info?.state === "working") {
+      sawBusy = true;
+      idleSince = 0;
+    } else {
+      idleSince ||= Date.now();
+      if (Date.now() - idleSince > (sawBusy ? 2000 : 8000)) return { sawBusy };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  return { sawBusy, timedOut: true };
+}
+
+function lastUserIndex(messages) {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (messages[index].role === "user") return index;
+  }
+  return 0;
+}
+
+function stepsOf(message) {
+  // The session's own context (the system prompt, the computer's details) is
+  // stored as messages too; it is the same every turn.
+  if (message.role !== "user" && message.role !== "assistant") return [];
+  return (message.parts ?? []).flatMap((part) => {
+    if (part.type === "text") {
+      return [{ [message.role]: clip(part.text, TEXT_LIMIT) }];
+    }
+    if (!part.type?.startsWith("tool-")) return [];
+    const input = part.input ?? {};
+    const output = part.output ?? {};
+    return [
+      {
+        tool: part.type.slice(5),
+        state: part.state,
+        in: clip(
+          input.command ??
+            input.filePath ??
+            input.path ??
+            JSON.stringify(input),
+          FIELD_LIMIT,
+        ),
+        ...(part.errorText
+          ? { error: clip(part.errorText, FIELD_LIMIT) }
+          : {
+              out: clip(
+                typeof output === "string"
+                  ? output
+                  : (output.output ??
+                      output.error ??
+                      output.message ??
+                      JSON.stringify(output)),
+                FIELD_LIMIT,
+              ),
+            }),
+        ...(output.exitCode !== undefined && { exit: output.exitCode }),
+      },
+    ];
+  });
+}
+
+function clip(value, limit) {
+  const text = String(value ?? "");
+  return text.length > limit ? `${text.slice(0, limit)}…` : text;
+}

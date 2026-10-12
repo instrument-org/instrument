@@ -85,8 +85,9 @@ async function main(argv) {
   }
   const call = (name, args) =>
     requestBroker(host, "tools/call", { name, arguments: args });
-  const args = await resolveArguments(call, host, tool, parseArguments(rest));
-  printResult(host, tool, await call(tool, args));
+  const { grep, ...parsed } = parseArguments(rest);
+  const args = await resolveArguments(call, host, tool, parsed);
+  printResult(host, tool, await call(tool, args), { grep });
 }
 
 function fail(message) {
@@ -376,7 +377,12 @@ function writeState(host, state) {
   writeFileSync(path.join(STATE_DIR, `${host}.json`), JSON.stringify(state));
 }
 
-function printResult(host, tool, result) {
+/**
+ * `grep=<text>` keeps only the tree lines containing <text>, matched against
+ * the whole line, so it finds a control by role as well as by name
+ * (`grep=button`), which the driver's own `query` does not.
+ */
+function printResult(host, tool, result, { grep } = {}) {
   const structured = result.structuredContent;
   if (tool === "get_window_state" && structured?.snapshot_id) {
     writeState(host, { snapshot: structured.snapshot_id });
@@ -385,7 +391,15 @@ function printResult(host, tool, result) {
       `${app_name ?? "?"} "${window_title ?? ""}" pid=${pid} window_id=${window_id} snapshot=${snapshot_id} elements=${structured.returned_element_count ?? structured.element_count}/${structured.total_element_count ?? "?"}${structured.truncated ? " (truncated)" : ""}`,
     );
     if (structured.tree_markdown) {
-      console.log(structured.tree_markdown.trimEnd());
+      const lines = structured.tree_markdown.trimEnd().split("\n");
+      const needle =
+        grep === undefined ? undefined : String(grep).toLowerCase();
+      console.log(
+        (needle === undefined
+          ? lines
+          : lines.filter((line) => line.toLowerCase().includes(needle))
+        ).join("\n"),
+      );
     }
   } else {
     for (const part of result.content ?? []) {

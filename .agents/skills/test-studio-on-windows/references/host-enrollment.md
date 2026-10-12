@@ -24,9 +24,15 @@ Create `%USERPROFILE%\.instrument\studio-host.json` on Windows with host-local v
     "taskName": "Instrument Studio Installed Test",
     "cdpPort": 48161,
     "executable": "C:\\path\\to\\Instrument.exe"
+  },
+  "preview": {
+    "taskName": "Instrument Studio Preview",
+    "cdpPort": 48163
   }
 }
 ```
+
+`preview` is optional. Its task is not created at enrollment: each preview build installs under its own name, so `start --target preview` registers the task again with that build's executable.
 
 Keep this file off Git. It is the only place the helper should learn machine-specific checkout, runtime, executable, task, and port values. Each target needs its own CDP port and its own task name; the helper refuses a profile that shares either.
 

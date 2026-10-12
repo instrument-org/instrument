@@ -442,17 +442,23 @@ function LiveDocument({
       <div
         // The left gutter holds each block's + and drag handle, which sit
         // outside the text; any narrower and they spill over whatever is
-        // beside the document, such as a file tree.
+        // beside the document, such as a file tree. A pane with the room
+        // gives the right side the same, so the page stands in its middle.
         className={cn(
-          "pt-8 pr-8 pb-24 pl-14",
-          isMessage && "mx-auto w-full max-w-2xl",
+          "pr-8 pb-24 pl-14",
+          isMessage
+            ? "mx-auto w-full max-w-2xl pt-8"
+            : "pt-10 @xl/markdown:pr-14 @3xl/markdown:pt-16",
         )}
       >
         <div
-          className={cn(
-            isMessage &&
-              "rounded-xl border border-border bg-card text-card-foreground shadow-xs",
-          )}
+          // A document keeps to a measure, a line of about 85 characters in
+          // its type however wide the pane is; a message is a card.
+          className={
+            isMessage
+              ? "rounded-xl border border-border bg-card text-card-foreground shadow-xs"
+              : "mx-auto max-w-2xl"
+          }
         >
           {message ? (
             <MessageHead

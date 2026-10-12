@@ -1,8 +1,8 @@
-/* The Markdown editor (Milkdown's Crepe) drawn in Studio's tokens and in the
-   type of Studio's static Markdown renderer (`prose prose-custom
-   prose-session text-sm/relaxed`), so switching between editing and the
-   static preview barely moves a line. Scoped under `.md-editor`; menus and
-   popovers the editor appends to the body carry their own `md-` classes. */
+/* The Markdown editor (Milkdown's Crepe) drawn in Studio's tokens and set as a
+   page to read and write on: a size above the interface's, open leading, and
+   a measure its host caps (markdown-editor.tsx). Scoped under `.md-editor`;
+   menus and popovers the editor appends to the body carry their own `md-`
+   classes. */
 
 .md-editor,
 .md-popover,
@@ -66,8 +66,18 @@
 }
 
 .md-editor {
+  /* The document's type. Everything below is in em of this size, so the one
+     pair of numbers moves the whole page: the headings' scale, the rhythm
+     between blocks, the list's indent. */
+  --md-size: 16px;
+  --md-leading: 1.7;
   color: var(--prose-body);
-  font: 14px/1.625 var(--font-sans);
+  font: var(--md-size) / var(--md-leading) var(--font-sans);
+}
+/* A message is a card in the conversation's type, not a page. */
+.md-editor.md-message-body {
+  --md-size: 14px;
+  --md-leading: 1.625;
 }
 
 /* Images: the file's own pictures, the column's width at most. */
@@ -422,7 +432,7 @@ textarea.md-input {
 
 .md-editor .milkdown .ProseMirror {
   padding: 0 0 80px;
-  font: 14px/1.625 var(--font-sans);
+  font: var(--md-size) / var(--md-leading) var(--font-sans);
   color: var(--prose-body);
   caret-color: var(--foreground);
 }
@@ -444,32 +454,43 @@ textarea.md-input {
   background: transparent;
 }
 
-/* Vertical rhythm, Typography's `prose` at 14px: 1.25em between paragraphs,
-   more around figures, tables and code, and headings that sit on the block
-   they introduce. Every top-level block gets its own margins; Crepe's
-   defaults (a few px, or none) are what made tables and quotes collide. */
+/* Vertical rhythm. Every top-level block gets its space from here rather
+   than from Crepe's defaults (a few px, or none), which are what made tables
+   and quotes collide. The margins are all written at one specificity, three
+   classes, so the order below is the order of precedence: paragraphs, then
+   figures, then headings, each overriding what came before it for the pair
+   of blocks it names. The divider, further down, names its tag as well and so
+   wins over all of them. */
+.md-editor .milkdown .ProseMirror :where(p) {
+  padding: 0;
+  /* The leading of whatever it is in: the page's, or a table's. */
+  line-height: inherit;
+}
+.md-editor .milkdown .ProseMirror :where(li, blockquote, td, th, dd) :where(p),
+.md-editor
+  .milkdown
+  .ProseMirror
+  :where(.milkdown-table-block, .milkdown-code-block) {
+  margin-block: 0;
+}
 .md-editor .milkdown .ProseMirror > * {
   margin-top: 0;
   margin-bottom: 0;
 }
+/* Between paragraphs, most of a line: clearly more than the leading, so a
+   paragraph reads as one thing, and less than a blank line, so the page does
+   not come apart into strips. */
 .md-editor .milkdown .ProseMirror > * + * {
-  margin-top: 1.1em;
+  margin-top: 1.25em;
 }
-.md-editor .milkdown .ProseMirror :where(p) {
-  padding: 0;
-  line-height: 1.625;
-}
-.md-editor .milkdown .ProseMirror :where(li, blockquote, td, th, dd) :where(p) {
-  margin-block: 0;
-}
+/* Around a figure (a table, code, a quote), a little more. */
 .md-editor
   .milkdown
   .ProseMirror
-  > :is(
+  > :where(
     .milkdown-table-block,
     .milkdown-code-block,
     blockquote,
-    hr,
     .md-html-block-p
   )
   + *,
@@ -477,63 +498,90 @@ textarea.md-input {
   .milkdown
   .ProseMirror
   > *
-  + :is(.milkdown-table-block, .milkdown-code-block, blockquote, hr) {
-  margin-top: 1.6em;
+  + :where(.milkdown-table-block, .milkdown-code-block, blockquote) {
+  margin-top: 1.75em;
 }
 
-.md-editor .milkdown .ProseMirror :is(h1, h2, h3, h4, h5, h6) {
+/* Headings: a scale steep enough that the level reads from the size alone
+   (1.75, 1.375, 1.125 of the text), tightened as it grows the way Inter asks
+   to be, with far more room above than below so each one belongs to the
+   section it opens. */
+.md-editor .milkdown .ProseMirror :where(h1, h2, h3, h4, h5, h6) {
   font-family: var(--font-sans);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--prose-headings);
-  line-height: 1.375;
-  letter-spacing: -0.005em;
   margin: 0;
   padding: 0;
 }
-.md-editor .milkdown .ProseMirror > :is(h1, h2, h3, h4, h5, h6) {
+.md-editor .milkdown .ProseMirror h1 {
+  font-size: 1.75em;
+  line-height: 1.2;
+  letter-spacing: -0.021em;
+}
+.md-editor .milkdown .ProseMirror h2 {
+  font-size: 1.375em;
+  line-height: 1.3;
+  letter-spacing: -0.018em;
+}
+.md-editor .milkdown .ProseMirror h3 {
+  font-size: 1.125em;
+  line-height: 1.4;
+  letter-spacing: -0.014em;
+}
+.md-editor .milkdown .ProseMirror h4 {
+  font-size: 1em;
+  line-height: 1.5;
+  letter-spacing: -0.011em;
+}
+.md-editor .milkdown .ProseMirror :is(h5, h6) {
+  font-size: 0.875em;
+  line-height: 1.5;
+}
+.md-editor .milkdown .ProseMirror h6 {
+  color: var(--muted-foreground);
+}
+/* Above: in em of the heading, which comes to about two and a half lines of
+   text over a section and two over a subsection. */
+.md-editor .milkdown .ProseMirror > :where(h1) {
+  margin-top: 1.7em;
+}
+.md-editor .milkdown .ProseMirror > :where(h2) {
+  margin-top: 1.9em;
+}
+.md-editor .milkdown .ProseMirror > :where(h3, h4) {
+  margin-top: 1.8em;
+}
+.md-editor .milkdown .ProseMirror > :where(h5, h6) {
   margin-top: 2em;
+}
+/* Below: in em of the block that follows. */
+.md-editor .milkdown .ProseMirror > :where(h1) + * {
+  margin-top: 1.25em;
+}
+.md-editor .milkdown .ProseMirror > :where(h2) + * {
+  margin-top: 1em;
+}
+.md-editor .milkdown .ProseMirror > :where(h3, h4, h5, h6) + * {
+  margin-top: 0.625em;
+}
+.md-editor
+  .milkdown
+  .ProseMirror
+  > :where(h1, h2, h3, h4, h5, h6)
+  + :where(h1, h2, h3, h4, h5, h6) {
+  margin-top: 0.9em;
 }
 /* A widget at the start of the document is not content: Crepe's virtual
    cursor stands there while the selection is a caret and is gone while it is a
    range, so counting it would move the whole page by a heading's margin each
    time a selection is made or cleared. */
-.md-editor .milkdown .ProseMirror > :is(h1, h2, h3, h4, h5, h6):first-child,
+.md-editor .milkdown .ProseMirror > :where(h1, h2, h3, h4, h5, h6):first-child,
 .md-editor
   .milkdown
   .ProseMirror
-  > :is(.prosemirror-virtual-cursor, .ProseMirror-widget):first-child
-  + :is(h1, h2, h3, h4, h5, h6) {
+  > :where(.prosemirror-virtual-cursor, .ProseMirror-widget):first-child
+  + :where(h1, h2, h3, h4, h5, h6) {
   margin-top: 0;
-}
-.md-editor .milkdown .ProseMirror > :is(h1, h2, h3, h4, h5, h6) + * {
-  margin-top: 0.5em;
-}
-.md-editor
-  .milkdown
-  .ProseMirror
-  > :is(h1, h2, h3, h4, h5, h6)
-  + :is(h1, h2, h3, h4, h5, h6) {
-  margin-top: 1em;
-}
-/* The document's title-level heading carries a little more weight than
-   prose-session's 20px chat heading, which is too small as a page title. */
-.md-editor .milkdown .ProseMirror h1 {
-  font-size: 1.25rem;
-}
-.md-editor .milkdown .ProseMirror h2 {
-  font-size: 1.125rem;
-}
-.md-editor .milkdown .ProseMirror h3 {
-  font-size: 1rem;
-}
-.md-editor .milkdown .ProseMirror h4 {
-  font-size: 0.875rem;
-}
-.md-editor .milkdown .ProseMirror :is(h5, h6) {
-  font-size: 0.75rem;
-}
-.md-editor .milkdown .ProseMirror h6 {
-  color: var(--muted-foreground);
 }
 
 .md-editor .milkdown .ProseMirror :is(strong, b) {
@@ -570,35 +618,87 @@ textarea.md-input {
   white-space: pre;
 }
 
-/* Lists */
+/* Lists: the marker in a column an em and a half wide and the text two em
+   in, so a wrapped line hangs under the first word of its item. */
 .md-editor .milkdown .ProseMirror :where(ul, ol) {
   padding: 0;
 }
 .md-editor .milkdown .ProseMirror :where(li) :where(ul, ol) {
   margin-block: 0;
 }
-.md-editor .milkdown .ProseMirror li {
-  gap: 6px;
-}
 .md-editor .milkdown .ProseMirror .milkdown-list-item-block > .list-item {
-  gap: 6px;
+  gap: 0.5em;
 }
-.md-editor .milkdown .ProseMirror .milkdown-list-item-block li + li,
-.md-editor .milkdown .ProseMirror li > :is(ul, ol) {
-  margin-top: 0.5em;
+/* Items written one to a line stay close, a hair more than the leading so an
+   item that wraps still reads as one, and so does what an item holds after
+   its first line: a second paragraph, a list a level down. */
+.md-editor
+  .milkdown
+  .ProseMirror
+  .milkdown-list-item-block
+  + .milkdown-list-item-block,
+.md-editor
+  .milkdown
+  .ProseMirror
+  .milkdown-list-item-block
+  .content-dom
+  > *
+  + * {
+  margin-top: 0.25em;
 }
+/* Items written with a blank line between them (`data-spread`) keep most of
+   it, between them and inside them, and a figure inside any item keeps as
+   clear of the item's text. */
+.md-editor
+  .milkdown
+  .ProseMirror
+  [data-spread="true"]
+  > .milkdown-list-item-block
+  + .milkdown-list-item-block,
+.md-editor
+  .milkdown
+  .ProseMirror
+  [data-spread="true"]
+  > .milkdown-list-item-block
+  > .list-item
+  > .children
+  > .content-dom
+  > *
+  + *,
+.md-editor
+  .milkdown
+  .ProseMirror
+  .milkdown-list-item-block
+  .content-dom
+  > :where(.milkdown-table-block, .milkdown-code-block, blockquote)
+  + *,
+.md-editor
+  .milkdown
+  .ProseMirror
+  .milkdown-list-item-block
+  .content-dom
+  > *
+  + :where(.milkdown-table-block, .milkdown-code-block, blockquote) {
+  margin-top: 0.75em;
+}
+/* The marker stands on the item's first line, whatever the leading is. */
 .md-editor .milkdown .milkdown-list-item-block .label-wrapper {
   color: var(--muted-foreground);
-  height: 22.75px;
+  width: 1.5em;
+  height: 1lh;
 }
 .md-editor .milkdown .milkdown-list-item-block .label-wrapper .label {
-  font-size: 14px;
+  width: 100%;
+  height: 1lh;
+  padding: 0;
+  font-size: 1em;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Quotes: Typography's, less italic (a quoted table note reads better upright). */
 .md-editor .milkdown .ProseMirror blockquote {
   border-left: 3px solid var(--border);
-  padding: 0 0 0 1em;
+  padding: 0 0 0 1.25em;
   color: var(--prose-quotes);
   font-weight: 450;
   margin-left: 0;
@@ -607,25 +707,23 @@ textarea.md-input {
   display: none;
 }
 .md-editor .milkdown .ProseMirror blockquote > * + * {
-  margin-top: 0.6em;
+  margin-top: 0.75em;
 }
 
-/* Divider */
+/* Divider: a break between parts, with the same room on both sides whatever
+   stands there, a heading included. */
 .md-editor .milkdown .ProseMirror > hr {
   border: 0;
   padding: 0;
   height: 1px;
   background: var(--border);
-  margin-block: 2em;
+  margin-block: 2.5em;
 }
 .md-editor .milkdown .ProseMirror > hr + * {
   margin-top: 0;
 }
 
 /* Tables, bordered the way Studio's are: a rule under the head and between rows. */
-.md-editor .milkdown .milkdown-table-block {
-  margin: 0;
-}
 /* A table too wide for the column scrolls inside its block rather than
    breaking words, as the static renderer's markdown tables do. */
 .md-editor .milkdown .milkdown-table-block .table-wrapper {
@@ -636,8 +734,8 @@ textarea.md-input {
    the table fills the column and wraps between words, and past that it
    overflows into the wrapper's scroll. */
 .md-editor .milkdown .milkdown-table-block table {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 0.875em;
+  line-height: 1.55;
   border-collapse: collapse;
   table-layout: auto;
   width: 100%;
@@ -723,7 +821,6 @@ textarea.md-input {
 
 .md-editor .milkdown .milkdown-code-block {
   position: relative;
-  margin: 0;
   padding: 0;
   background: var(--muted);
   border-radius: calc(var(--radius) - 2px);
@@ -1418,7 +1515,7 @@ textarea.md-input {
 .md-editor .milkdown dl[data-type="footnote_definition"] {
   display: flex;
   gap: 8px;
-  font-size: 13px;
+  font-size: 0.875em;
   color: var(--muted-foreground);
   border-top: 1px solid var(--border);
   padding-top: 12px;
@@ -1465,7 +1562,7 @@ textarea.md-input {
    milliseconds. `auto` remembers each block's size once it has been drawn. */
 .md-editor .ProseMirror > :not(.milkdown-code-block) {
   content-visibility: auto;
-  contain-intrinsic-size: auto 1.6em;
+  contain-intrinsic-size: auto calc(var(--md-leading) * 1em);
 }
 /* Except around the caret: typing into a block the browser may skip lays the
    first character out after the caret has moved on (a new paragraph's first

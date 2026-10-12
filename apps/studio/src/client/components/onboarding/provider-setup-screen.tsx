@@ -44,6 +44,9 @@ export function ProviderSetupScreen({
   const { data: providerConfigs } = useQuery(
     rpcClient.providerConfig.live.list.experimental_liveOptions(),
   );
+  const { data: claudeStatus } = useQuery(
+    rpcClient.claudeAccount.live.status.experimental_liveOptions(),
+  );
 
   if (page === "add-provider") {
     return (
@@ -144,11 +147,13 @@ export function ProviderSetupScreen({
                 onSuccess={onLoginSuccess}
               />
 
-              <ClaudeLoginButton
-                caption="Pay for Claude Pro or Max? Use it here."
-                className="w-full justify-center"
-                onSuccess={onLoginSuccess}
-              />
+              {(!signedIn || claudeStatus?.kind !== "signed-in") && (
+                <ClaudeLoginButton
+                  caption="Pay for Claude Pro or Max? Use it here."
+                  className="w-full justify-center"
+                  onSuccess={onLoginSuccess}
+                />
+              )}
             </>
           )}
 

@@ -78,7 +78,6 @@ export async function startRun(
       await addChildTask(chatId, {
         createdAt: now,
         id: StoreId.newSessionId(),
-        status: "running",
         title: name,
         updatedAt: now,
       })

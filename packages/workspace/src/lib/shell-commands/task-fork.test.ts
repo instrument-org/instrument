@@ -318,7 +318,6 @@ describe("task new", () => {
     expect(session).toMatchObject({
       forkedAtMessageId: chatMessages[2]?.id,
       parentId: chatSessionId,
-      status: "running",
       title: "Rename photos",
     });
     // Not one of the chat's own sessions, and no record or folder of its own.

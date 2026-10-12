@@ -212,9 +212,6 @@ describe("task send", () => {
       })
     )._unsafeUnwrap();
     expect(own).toHaveLength(1);
-    expect(
-      (await Store.getSession(CHILD_ID, CHAT_ID))._unsafeUnwrap().status,
-    ).toBe("running");
   });
 
   it("starts an idle task either way", async () => {

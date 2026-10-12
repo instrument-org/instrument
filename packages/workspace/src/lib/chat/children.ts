@@ -17,7 +17,6 @@ export const ChatTaskSchema = z.object({
   /** Its short name in the chat, `t1`, `t2`, …, which the `task` command takes. */
   handle: z.string(),
   id: StoreId.SessionSchema,
-  status: z.enum(["done", "failed", "running", "waiting"]).optional(),
   /** Who stopped its last turn, when a stop ended it. */
   stoppedBy: z.enum(["chat", "user"]).optional(),
   title: z.string(),
@@ -116,14 +115,14 @@ export function sessionRole(
 }
 
 /**
- * Writes what the task list reads onto a task's session: where it stands,
- * and that something happened in it now. Queued per task, so two landing
- * together each build on the other.
+ * Writes what the task list reads onto a task's session: who stopped its
+ * last turn, and that something happened in it now. Queued per task, so two
+ * landing together each build on the other.
  */
 export function touchTask(
   chatId: ChatId,
   sessionId: StoreId.Session,
-  changes: Pick<Session.Type, "status" | "stoppedBy"> = {},
+  changes: Pick<Session.Type, "stoppedBy"> = {},
 ): Promise<void> {
   return taskWrites(sessionId, async () => {
     const session = await Store.getSession(sessionId, chatId);
@@ -146,7 +145,6 @@ function taskOf(chatId: ChatId, session: Session.Type): ChatTask {
     createdAt: session.createdAt,
     handle: session.handle ?? session.id,
     id: session.id,
-    ...(session.status ? { status: session.status } : {}),
     ...(session.stoppedBy ? { stoppedBy: session.stoppedBy } : {}),
     title: session.title,
     updatedAt: session.updatedAt ?? session.createdAt,

@@ -69,6 +69,6 @@ export async function deliver({
       sessionId,
     },
   });
-  await touchTask(task.chatId, sessionId, { status: "running" });
+  await touchTask(task.chatId, sessionId);
   return { message: message.value, running };
 }

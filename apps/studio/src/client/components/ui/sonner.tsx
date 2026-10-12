@@ -12,9 +12,10 @@ import { setToastDeveloperMode } from "@/client/lib/toast";
 import { useTheme } from "../theme-provider";
 import { Spinner } from "./spinner";
 
-// Toasts sit low in the window's bottom-left corner, over the rail's foot, where
-// the pointer rarely is. A toast with only a title is a one-line pill as wide as
-// its words; one with a description is a card at the stack's full width. Sonner
+// Toasts sit low in the window's bottom-left corner, where the pointer rarely
+// is; a window with a rail moves them in past it (`window/window-frame.tsx`).
+// A toast with only a title is a one-line pill as wide as its words; one with
+// a description is a card at the stack's full width. Sonner
 // keeps the stacking and swiping; `unstyled` hands every surface to these
 // classes. How long each one stays is decided in `client/lib/toast.tsx`.
 const Toaster = ({ ...props }: ToasterProps) => {

@@ -6,7 +6,12 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { useAtomValue } from "jotai";
 import { lazy, type ReactNode, type Ref, Suspense } from "react";
 
+import { APP_RAIL_WIDTH } from "./app-rail";
 import { LinkSurface } from "./link-surface";
+
+// The toasts' corner, 12px in from the card's own: the rail on its left, and
+// the card's `mb-2` foot below it.
+const CARD_CORNER = { bottom: 8 + 12, left: APP_RAIL_WIDTH + 12 };
 
 // A pasted file opened from a composer, at its full size: loaded the first
 // time one is opened, since most windows never open one.
@@ -88,9 +93,12 @@ export function WindowFrame({
             <LazyFilePreviewModal />
           </Suspense>
         )}
-        {/* Bottom left, over the rail's foot: clear of the drafts and the
-          floating chat, which dock at the bottom right. */}
-        <Toaster />
+        {/* Bottom left, inside the card's corner past the rail, so the rail
+          stays in reach: clear of the drafts and the floating chat, which dock
+          at the bottom right. */}
+        <Toaster
+          {...(rail ? { mobileOffset: CARD_CORNER, offset: CARD_CORNER } : {})}
+        />
       </div>
     </ChromeInsetProvider>
   );

@@ -27,6 +27,9 @@ export const PLACES: { id: AppPlace; label: string }[] = [
   { id: "apps", label: "Apps" },
 ];
 
+/** The rail's width in px, `w-19`, for what is laid over the window clear of it. */
+export const APP_RAIL_WIDTH = 76;
+
 /**
  * The rail down the window's left edge: New at its top, then one entry per
  * place, each a mark with its word close under it, and the user at its foot

@@ -11,11 +11,11 @@ describe("taskEventModelNote", () => {
       events: [
         {
           activeMs: 203_590,
-          files: ["/mnt/Instrument/report.md"],
+          files: ["/Users/sam/Instrument/report.md"],
           running: [
             {
               command:
-                "rg -l --hidden --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/Library/Caches/**' -i 'obsidian|appId|vault' /mnt/Home 2>/dev/null | head -200",
+                "rg -l --hidden --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/Library/Caches/**' -i 'obsidian|appId|vault' /Users/sam 2>/dev/null | head -200",
               id: "bg_1",
               runningForMs: 431_000,
             },
@@ -27,7 +27,7 @@ describe("taskEventModelNote", () => {
           ],
           status: "done",
           summary:
-            "Located the note and wrote the report beside it.\n\n```files\n/mnt/Instrument/report.md\n```",
+            "Located the note and wrote the report beside it.\n\n```files\n/Users/sam/Instrument/report.md\n```",
           sessionId: TASK_ID,
           title: "Find project status note",
           tokens: 424_546,
@@ -42,7 +42,7 @@ describe("taskEventModelNote", () => {
             Located the note and wrote the report beside it.
 
             \`\`\`files
-            /mnt/Instrument/report.md
+            /Users/sam/Instrument/report.md
             \`\`\`
         It left running in the background: bg_1 \`rg -l --hidden --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/Li…\` (7 minutes), bg_2 \`node work/server.js\` (1 minute). Stop what the user does not need with \`task stop ses_01K4M7V0A7T2B9S6QH4Z3X1C5D <bg id>\`, or all of it with \`task stop ses_01K4M7V0A7T2B9S6QH4Z3X1C5D --all\`; a server they are using stays.
       Nobody typed anything; this note is why you are awake.

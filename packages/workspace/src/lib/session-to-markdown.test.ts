@@ -488,14 +488,14 @@ describe("renderToolInput", () => {
   it("highlights file text as the file's own language", () => {
     expect(
       renderToolInput({
-        filePath: "/mnt/Instrument/page.html",
+        filePath: "/Users/sam/Instrument/page.html",
         newString: '<footer class="source-footer">\n<strong>Sources.</strong>',
         oldString: "<footer>\n<strong>Sources.</strong>",
         replaceAll: false,
       }),
     ).toMatchInlineSnapshot(`
       [
-        "- **filePath:** \`/mnt/Instrument/page.html\`",
+        "- **filePath:** \`/Users/sam/Instrument/page.html\`",
         "- **replaceAll:** \`false\`",
         "",
         "**newString**",

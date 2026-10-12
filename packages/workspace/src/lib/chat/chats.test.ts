@@ -718,7 +718,7 @@ describe("listChats", () => {
     await agentSays(
       chatId,
       sessionId,
-      "```files\n/mnt/Instrument/quotes/compared.html\n```",
+      "```files\n/Users/sam/Instrument/quotes/compared.html\n```",
       { minute: 2 },
     );
 
@@ -732,7 +732,7 @@ describe("listChats", () => {
     await agentSays(
       chatId,
       sessionId,
-      "```files\n/mnt/Instrument/quotes/a.md\n/mnt/Instrument/quotes/b.png\n/mnt/Instrument/quotes/c.html\n```",
+      "```files\n/Users/sam/Instrument/quotes/a.md\n/Users/sam/Instrument/quotes/b.png\n/Users/sam/Instrument/quotes/c.html\n```",
       { minute: 3 },
     );
     const [updated] = await listChats();
@@ -746,7 +746,7 @@ describe("listChats", () => {
     await agentSays(
       chatId,
       sessionId,
-      "Here it is.\n\n```files\n/mnt/Instrument/groceries/list.md\n```",
+      "Here it is.\n\n```files\n/Users/sam/Instrument/groceries/list.md\n```",
       {
         commands: [
           'app call notion search \'{"query":"groceries"}\'',
@@ -758,7 +758,7 @@ describe("listChats", () => {
     await agentSays(
       chatId,
       sessionId,
-      "Updated.\n\n```files\n/mnt/Instrument/groceries/list.md\n/mnt/Instrument/groceries/prices.csv\n```",
+      "Updated.\n\n```files\n/Users/sam/Instrument/groceries/list.md\n/Users/sam/Instrument/groceries/prices.csv\n```",
       { minute: 3 },
     );
 
@@ -767,8 +767,8 @@ describe("listChats", () => {
     expect(chat?.holds).toEqual({
       apps: ["notion"],
       files: [
-        "/mnt/Instrument/groceries/list.md",
-        "/mnt/Instrument/groceries/prices.csv",
+        "/Users/sam/Instrument/groceries/list.md",
+        "/Users/sam/Instrument/groceries/prices.csv",
       ],
       sites: ["www.instacart.com"],
     });
@@ -781,7 +781,7 @@ describe("listChats", () => {
       viewing: {
         folder: {
           display: "~/Recipes",
-          mount: "/mnt/Home/Recipes",
+          mount: "/Users/sam/Recipes",
           selected: ["soup.md", "Old/"],
         },
         screen: "computer",
@@ -792,8 +792,8 @@ describe("listChats", () => {
     const [chat] = await listChats();
 
     expect(chat?.holds.files).toEqual([
-      "/mnt/Home/Recipes/soup.md",
-      "/mnt/Home/Recipes/Old/",
+      "/Users/sam/Recipes/soup.md",
+      "/Users/sam/Recipes/Old/",
     ]);
   });
 
@@ -806,7 +806,7 @@ describe("listChats", () => {
         chosen: [
           {
             kind: "folder",
-            mount: "/mnt/Home/Recipes",
+            mount: "/Users/sam/Recipes",
             name: "Recipes",
             path: "/Users/someone/Recipes",
           },
@@ -832,7 +832,7 @@ describe("listChats", () => {
     await agentSays(
       chatId,
       sessionId,
-      "Priced.\n\n```files\n/mnt/Instrument/groceries/prices.csv\n```",
+      "Priced.\n\n```files\n/Users/sam/Instrument/groceries/prices.csv\n```",
       { commands: ["tab open https://www.costco.com/"], minute: 2 },
     );
     await userSays(
@@ -843,7 +843,7 @@ describe("listChats", () => {
       {
         viewing: {
           file: {
-            mount: "/mnt/Instrument/groceries/prices.csv",
+            mount: "/Users/sam/Instrument/groceries/prices.csv",
             name: "prices.csv",
             path: "/Users/someone/Documents/Instrument/groceries/prices.csv",
           },
@@ -858,9 +858,9 @@ describe("listChats", () => {
     expect(chat?.holds).toEqual({
       apps: ["linear"],
       files: [
-        "/mnt/Home/Recipes/",
+        "/Users/sam/Recipes/",
         "attachments/receipt.png",
-        "/mnt/Instrument/groceries/prices.csv",
+        "/Users/sam/Instrument/groceries/prices.csv",
       ],
       sites: ["www.instacart.com", "www.costco.com"],
     });

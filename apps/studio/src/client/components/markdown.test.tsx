@@ -139,11 +139,11 @@ function withFileDragBridge() {
 describe("Markdown links", () => {
   it("opens a file: link to a shared folder, which the task file index never holds", () => {
     renderMarkdown(
-      "Created [`August.md`](file:///mnt/Documents-Test%202/August.md) in Test 2.",
+      "Created [`August.md`](file:///Users/sam/Documents-Test%202/August.md) in Test 2.",
     );
 
     expect(screen.getByRole("button", { name: "August.md" }).title).toBe(
-      "/mnt/Documents-Test 2/August.md",
+      "/Users/sam/Documents-Test 2/August.md",
     );
   });
 
@@ -151,11 +151,11 @@ describe("Markdown links", () => {
   // same way, and the path in it is the file it meant.
   it("opens an app link to a file as that file", () => {
     renderMarkdown(
-      "Added them to [2026-09-23.md](instrument://file//mnt/Journal/2026-09-23.md).",
+      "Added them to [2026-09-23.md](instrument://file//Users/sam/Journal/2026-09-23.md).",
     );
 
     expect(screen.getByRole("button", { name: "2026-09-23.md" }).title).toBe(
-      "/mnt/Journal/2026-09-23.md",
+      "/Users/sam/Journal/2026-09-23.md",
     );
   });
 
@@ -675,11 +675,11 @@ describe("Markdown raw HTML", () => {
   // allow-list a browser would apply does not know as a scheme.
   it("still opens a file: link in a document that holds HTML", async () => {
     await renderDrawn(
-      "<p>Note.</p>\n\nWrote [`notes.md`](file:///mnt/Shared/notes.md).",
+      "<p>Note.</p>\n\nWrote [`notes.md`](file:///Users/sam/Shared/notes.md).",
     );
 
     expect(screen.getByRole("button", { name: "notes.md" }).title).toBe(
-      "/mnt/Shared/notes.md",
+      "/Users/sam/Shared/notes.md",
     );
   });
 

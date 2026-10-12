@@ -14,7 +14,7 @@ import {
 vi.mock("execa");
 
 const ctx = createCommandContext({
-  cwd: "/task",
+  cwd: "/Users/sam/chat",
   env: new Map<string, string>(),
   fs: new InMemoryFs(),
   stdin: EMPTY_BYTES,

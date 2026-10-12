@@ -231,9 +231,9 @@ describe("browserFreeReadEnv", () => {
   it("drops launch configuration the CLI would answer with its own browser", () => {
     const result = browserFreeReadEnv({
       AGENT_BROWSER_ARGS: "--single-process",
-      AGENT_BROWSER_DOWNLOAD_PATH: "/task/work/downloads",
+      AGENT_BROWSER_DOWNLOAD_PATH: "/Users/sam/chat/work/downloads",
       AGENT_BROWSER_HEADED: "1",
-      HOME: "/task/.instrument/agent-browser-home",
+      HOME: "/Users/sam/chat/.instrument/agent-browser-home",
       HTTPS_PROXY: "http://127.0.0.1:8080",
       PATH: "/usr/bin",
     });
@@ -242,7 +242,7 @@ describe("browserFreeReadEnv", () => {
       {
         "AGENT_BROWSER_IDLE_TIMEOUT_MS": "300000",
         "AGENT_BROWSER_SOCKET_DIR": "/tmp/.instrument-browser",
-        "HOME": "/task/.instrument/agent-browser-home",
+        "HOME": "/Users/sam/chat/.instrument/agent-browser-home",
         "PATH": "/usr/bin",
       }
     `);
@@ -254,11 +254,11 @@ describe("resolveAgentBrowserPathArgs", () => {
 
   beforeEach(async () => {
     fs = new InMemoryFs();
-    await fs.mkdir("/task/attachments", { recursive: true });
-    await fs.mkdir("/task/work", { recursive: true });
-    await fs.writeFile("/task/attachments/back.png", "back");
-    await fs.writeFile("/task/work/front.png", "front");
-    await fs.writeFile("/task/work/image.png", "image");
+    await fs.mkdir("/Users/sam/chat/attachments", { recursive: true });
+    await fs.mkdir("/Users/sam/chat/work", { recursive: true });
+    await fs.writeFile("/Users/sam/chat/attachments/back.png", "back");
+    await fs.writeFile("/Users/sam/chat/work/front.png", "front");
+    await fs.writeFile("/Users/sam/chat/work/image.png", "image");
   });
 
   it("hands upload files to the daemon absolute, against the shell's cwd", async () => {
@@ -270,9 +270,9 @@ describe("resolveAgentBrowserPathArgs", () => {
         "front.png",
         "--quiet",
         "../attachments/back.png",
-        "/task/work/image.png",
+        "/Users/sam/chat/work/image.png",
       ],
-      { cwd: "/task/work", fs },
+      { cwd: "/Users/sam/chat/work", fs },
     );
 
     expect(result).toEqual({
@@ -280,20 +280,20 @@ describe("resolveAgentBrowserPathArgs", () => {
         "--json",
         "upload",
         "@e1",
-        "/task/work/front.png",
+        "/Users/sam/chat/work/front.png",
         "--quiet",
-        "/task/attachments/back.png",
-        "/task/work/image.png",
+        "/Users/sam/chat/attachments/back.png",
+        "/Users/sam/chat/work/image.png",
       ],
     });
   });
 
   it.each([
     { name: "missing task file", path: "attachments/missing.png" },
-    { name: "file URL", path: "file:///task/output/x.png" },
+    { name: "file URL", path: "file:///Users/sam/chat/output/x.png" },
   ])("refuses an upload of a $name", async ({ path }) => {
     const result = await resolveAgentBrowserPathArgs(["upload", "@e1", path], {
-      cwd: "/task",
+      cwd: "/Users/sam/chat",
       fs,
     });
 
@@ -303,7 +303,7 @@ describe("resolveAgentBrowserPathArgs", () => {
   it("leaves non-upload relative arguments unchanged", async () => {
     const result = await resolveAgentBrowserPathArgs(
       ["fill", "@e1", "attachments/image.png"],
-      { cwd: "/task", fs },
+      { cwd: "/Users/sam/chat", fs },
     );
 
     expect(result).toEqual({
@@ -323,7 +323,7 @@ describe("resolveAgentBrowserPathArgs", () => {
     },
   ])("passes $name through as typed", async ({ args }) => {
     const result = await resolveAgentBrowserPathArgs(args, {
-      cwd: "/task",
+      cwd: "/Users/sam/chat",
       fs,
     });
 
@@ -332,25 +332,27 @@ describe("resolveAgentBrowserPathArgs", () => {
 
   it("passes a screenshot path through as written", async () => {
     const result = await resolveAgentBrowserPathArgs(
-      ["screenshot", "/task/work/page.png"],
-      { cwd: "/task", fs },
+      ["screenshot", "/Users/sam/chat/work/page.png"],
+      { cwd: "/Users/sam/chat", fs },
     );
 
-    expect(result).toEqual({ args: ["screenshot", "/task/work/page.png"] });
+    expect(result).toEqual({
+      args: ["screenshot", "/Users/sam/chat/work/page.png"],
+    });
   });
 
   it.each([
     [
       ["screenshot", "shot.png"],
-      ["screenshot", "/task/work/shot.png"],
+      ["screenshot", "/Users/sam/chat/work/shot.png"],
     ],
     [
       ["screenshot", ".hero", "a.png"],
-      ["screenshot", ".hero", "/task/work/a.png"],
+      ["screenshot", ".hero", "/Users/sam/chat/work/a.png"],
     ],
     [
       ["record", "start", "out.webm"],
-      ["record", "start", "/task/work/out.webm"],
+      ["record", "start", "/Users/sam/chat/work/out.webm"],
     ],
     [
       ["screenshot", "@e2"],
@@ -358,7 +360,7 @@ describe("resolveAgentBrowserPathArgs", () => {
     ],
   ])("resolves %j's file operands only", async (args, expected) => {
     const result = await resolveAgentBrowserPathArgs(args, {
-      cwd: "/task/work",
+      cwd: "/Users/sam/chat/work",
       fs,
     });
     expect(result).toEqual({ args: expected });
@@ -377,9 +379,9 @@ describe("agent-browser routing", () => {
   beforeEach(async () => {
     createMockChatConfig(chatId, { externalBrowser: true });
     const fs = new InMemoryFs();
-    await fs.mkdir("/task/attachments", { recursive: true });
-    await fs.writeFile("/task/attachments/image.png", "image");
-    commandCtx = { ...mockCtx, cwd: "/task", fs };
+    await fs.mkdir("/Users/sam/chat/attachments", { recursive: true });
+    await fs.writeFile("/Users/sam/chat/attachments/image.png", "image");
+    commandCtx = { ...mockCtx, cwd: "/Users/sam/chat", fs };
   });
 
   afterEach(() => {
@@ -450,7 +452,7 @@ describe("agent-browser routing", () => {
       "attachments/image.png",
     ]);
 
-    expect(args).toContain("/task/attachments/image.png");
+    expect(args).toContain("/Users/sam/chat/attachments/image.png");
   });
 
   it("fails before spawning when an upload file is missing", async () => {
@@ -634,7 +636,10 @@ describe("agent-browser routing", () => {
 
   it.each([
     { name: "a relative directory", value: "work/browser-profile" },
-    { name: "a task-absolute directory", value: "/task/work/profile" },
+    {
+      name: "a task-absolute directory",
+      value: "/Users/sam/chat/work/profile",
+    },
     { name: "a home-relative directory", value: "~/chrome-profile" },
   ])("refuses a --profile naming $name", async ({ value }) => {
     // Chrome takes the value as its data directory verbatim: relative, it
@@ -654,7 +659,10 @@ describe("agent-browser routing", () => {
 
   it.each([
     { name: "a task-relative program", value: "work/chrome.sh" },
-    { name: "a task-absolute program", value: "/task/work/chrome.sh" },
+    {
+      name: "a task-absolute program",
+      value: "/Users/sam/chat/work/chrome.sh",
+    },
     { name: "a host browser build", value: "/Applications/Chromium.app" },
   ])("refuses an --executable-path naming $name", async ({ value }) => {
     // An external invocation runs with the host environment, so honoring this
@@ -708,7 +716,7 @@ describe("agent-browser routing", () => {
         ["AGENT_BROWSER_PLUGINS", '[{"name":"evil","command":"/bin/sh"}]'],
         ["AGENT_BROWSER_PROVIDER", "evil"],
         ["AGENT_BROWSER_SESSION", "hijacked"],
-        ["AGENT_BROWSER_CONFIG", "/task/agent-browser.json"],
+        ["AGENT_BROWSER_CONFIG", "/Users/sam/chat/agent-browser.json"],
       ],
     );
 

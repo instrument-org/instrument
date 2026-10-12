@@ -43,7 +43,7 @@ function wordyChat(): Filterable {
   return chat({
     holds: {
       apps: ["gmail"],
-      files: ["/task/out/Protein-Report.md"],
+      files: ["/Users/sam/chat/out/Protein-Report.md"],
       sites: ["amazon.com"],
     },
     latest: { text: "Ready to drink, chocolate first." },
@@ -438,9 +438,9 @@ describe("the ask", () => {
   });
 
   it("names a file by its last segment", () => {
-    expect(basename("/task/output/report.md")).toBe("report.md");
+    expect(basename("/Users/sam/chat/output/report.md")).toBe("report.md");
     expect(basename("report.md")).toBe("report.md");
-    expect(basename("/mnt/home/notes/")).toBe("notes");
+    expect(basename("/Users/sam/home/notes/")).toBe("notes");
   });
 });
 

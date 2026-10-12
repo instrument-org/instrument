@@ -9,7 +9,12 @@ createMockChatConfig(ChatIdSchema.parse("test"));
 
 describe("hostPathArgs", () => {
   it("passes arguments through unchanged off Windows", () => {
-    const args = ["/mnt/x", "/dev/null", "--env-file=/tmp/.env", "work/a.txt"];
+    const args = [
+      "/Users/sam/x",
+      "/dev/null",
+      "--env-file=/tmp/.env",
+      "work/a.txt",
+    ];
     expect(hostPathArgs(args)).toEqual(args);
   });
 });

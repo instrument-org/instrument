@@ -29,7 +29,7 @@ const bash =
   ) =>
   (ids: PartIds): Part => {
     const base = {
-      input: { command: "rg pnpm /mnt/Home", yieldMs: 30_000 },
+      input: { command: "rg pnpm /Users/sam", yieldMs: 30_000 },
       toolCallId: `call_${createdAt.getTime()}`,
       type: "tool-bash" as const,
     };

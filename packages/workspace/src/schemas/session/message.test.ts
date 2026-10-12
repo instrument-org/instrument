@@ -760,7 +760,7 @@ describe("SessionMessage.toModelMessages", () => {
 
     const text = JSON.stringify(result);
     expect(text).not.toContain("attached_folders");
-    expect(text).not.toContain("/mnt/");
+    expect(text).not.toContain("/Users/sam/Downloads");
   });
 
   it("lists a sent file at the path the agent reads it by", async () => {

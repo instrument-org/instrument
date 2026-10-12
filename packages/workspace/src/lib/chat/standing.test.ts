@@ -106,7 +106,7 @@ describe("taskStanding", () => {
       assistant(sessionId, [
         (ids) => ({
           metadata: partMetadata(ids),
-          text: "```files\n/mnt/Instrument/quotes/compared.html\n```",
+          text: "```files\n/Users/sam/Instrument/quotes/compared.html\n```",
           type: "text",
         }),
       ]),
@@ -130,7 +130,7 @@ describe("taskStanding", () => {
       assistant(sessionId, [
         (ids) => ({
           metadata: partMetadata(ids),
-          text: `\`\`\`files\n/mnt/Instrument/quotes/compared.html\n\`\`\`\n\n${words}`,
+          text: `\`\`\`files\n/Users/sam/Instrument/quotes/compared.html\n\`\`\`\n\n${words}`,
           type: "text",
         }),
       ]),

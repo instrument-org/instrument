@@ -42,7 +42,7 @@ describe("parseAgentBrowserArgs", () => {
       "--headers",
       "{}",
       "open",
-      "/task/output/report.html",
+      "/Users/sam/chat/output/report.html",
     ]);
 
     expect(result.subArgs).toMatchInlineSnapshot(`
@@ -53,7 +53,7 @@ describe("parseAgentBrowserArgs", () => {
         },
         {
           "index": 3,
-          "value": "/task/output/report.html",
+          "value": "/Users/sam/chat/output/report.html",
         },
       ]
     `);

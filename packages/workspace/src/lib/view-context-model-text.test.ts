@@ -9,7 +9,7 @@ describe("viewContextModelNote", () => {
         chosen: [
           {
             kind: "file",
-            mount: "/mnt/Home/Notes/plan.md",
+            mount: "/Users/casey/Notes/plan.md",
             name: "plan.md",
             path: "/Users/casey/Notes/plan.md",
           },
@@ -23,7 +23,7 @@ describe("viewContextModelNote", () => {
       When the user sent this, the window showed a new tab: the box that opens any screen or asks you. Nothing in particular is in view.
       </instrument-system-note>
       <instrument-system-note>
-      They chose to send these with the message: the file \`/Users/casey/Notes/plan.md\` (you reach it at \`/mnt/Home/Notes/plan.md\`); the folder \`/Volumes/Backup\` (no folder you can reach covers it yet: reading it asks the person first). "This", "these" and "it" refer to them first, then to what was on screen.
+      They chose to send these with the message: the file \`/Users/casey/Notes/plan.md\` (you reach it at \`/Users/casey/Notes/plan.md\`); the folder \`/Volumes/Backup\` (no folder you can reach covers it yet: reading it asks the person first). "This", "these" and "it" refer to them first, then to what was on screen.
       </instrument-system-note>"
     `);
   });

@@ -475,7 +475,7 @@ describe("task new", () => {
   it("refuses the flags that would hand a fork what it already has", async () => {
     for (const flag of [
       ["--fresh"],
-      ["--folder", "/mnt/x"],
+      ["--folder", "/Users/sam/x"],
       ["--file", "a"],
       ["--app", "linear"],
     ]) {

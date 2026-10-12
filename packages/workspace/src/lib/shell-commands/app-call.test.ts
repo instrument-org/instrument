@@ -121,14 +121,14 @@ afterAll(async () => {
 beforeEach(async () => {
   knowChat(chatId);
   fs = new InMemoryFs();
-  await fs.mkdir("/task", { recursive: true });
+  await fs.mkdir("/Users/sam/chat", { recursive: true });
 });
 
 async function app(...args: string[]) {
   return createAppCommand({ chatId }).execute(
     args,
     createCommandContext({
-      cwd: "/task",
+      cwd: "/Users/sam/chat",
       env: new Map<string, string>(),
       fs,
       stdin: EMPTY_BYTES,
@@ -145,7 +145,9 @@ describe("app call --out", () => {
       "Wrote issues.json: the tool's structured result, an object with keys "issues", "total", 56 bytes.
       "
     `);
-    expect(JSON.parse(await fs.readFile("/task/issues.json"))).toEqual({
+    expect(
+      JSON.parse(await fs.readFile("/Users/sam/chat/issues.json")),
+    ).toEqual({
       issues: ["one", "two"],
       total: 2,
     });
@@ -165,7 +167,7 @@ describe("app call --out", () => {
     const result = await app("call", slug, "broken", "--out", "out.json");
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("project is required");
-    expect(await fs.exists("/task/out.json")).toBe(false);
+    expect(await fs.exists("/Users/sam/chat/out.json")).toBe(false);
   });
 
   it("prints the result as the service sent it without --out", async () => {

@@ -14,7 +14,7 @@ async function catalog(...words: string[]) {
   const result = await createAppCommand({ chatId }).execute(
     ["catalog", ...words],
     createCommandContext({
-      cwd: "/task",
+      cwd: "/Users/sam/chat",
       env: new Map<string, string>(),
       fs: new InMemoryFs(),
       stdin: EMPTY_BYTES,

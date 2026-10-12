@@ -114,7 +114,7 @@ async function seed() {
       call(
         {
           activity: "Inspecting runtime changes and history",
-          command: "git -C /mnt/repo log",
+          command: "git -C /Users/sam/repo log",
           explanation: "Reading history",
         },
         at(4),
@@ -123,7 +123,7 @@ async function seed() {
       call(
         {
           activity: "Inspecting runtime changes and history",
-          command: "rg --files /mnt/repo | head",
+          command: "rg --files /Users/sam/repo | head",
         },
         at(5),
         {
@@ -137,7 +137,7 @@ async function seed() {
       call(
         {
           activity: "Pinning the review range",
-          command: "cp -R /mnt/repo work/",
+          command: "cp -R /Users/sam/repo work/",
           explanation: "Copying",
         },
         at(45),
@@ -194,7 +194,7 @@ describe("sessionSteps", () => {
       "user: Inspect the repository and write an audit.",
       "activity: Inspecting runtime changes and history",
       "call: bash: Reading history (exit 1)",
-      "call: bash: rg --files /mnt/repo | head",
+      "call: bash: rg --files /Users/sam/repo | head",
       "user: Change of plan: phase one only.",
       "activity: Pinning the review range",
       "call: bash: Copying (still running as bg_1)",

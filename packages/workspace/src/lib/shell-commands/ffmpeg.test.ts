@@ -14,7 +14,7 @@ import { taskLayout } from "../../test/helpers/task-layout";
 vi.mock("execa");
 
 const mockCtx = createCommandContext({
-  cwd: "/task",
+  cwd: "/Users/sam/chat",
   env: new Map<string, string>(),
   fs: new InMemoryFs(),
   stdin: EMPTY_BYTES,

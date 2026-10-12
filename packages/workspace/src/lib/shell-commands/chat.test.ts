@@ -116,7 +116,7 @@ function run(...args: string[]) {
   return createChatCommand().execute(
     args,
     createCommandContext({
-      cwd: "/task",
+      cwd: "/Users/sam/chat",
       env: new Map<string, string>(),
       fs: new InMemoryFs(),
       stdin: EMPTY_BYTES,

@@ -10,7 +10,7 @@ describe("asksModelNote", () => {
           {
             excerpt: "## Budget\nWe spent too much.",
             file: {
-              mount: "/mnt/docs/plan.md",
+              mount: "/Users/me/docs/plan.md",
               name: "plan.md",
               path: "/Users/me/docs/plan.md",
             },
@@ -36,7 +36,7 @@ describe("asksModelNote", () => {
       <instrument-system-note>
       The user marked 3 places in their files, each with what they want there: usually a change to make in the file, sometimes a question about it. "This", "here" and "it" in the message refer to these.
       </instrument-system-note>
-      1. \`plan.md\`, lines 12-13 (\`/Users/me/docs/plan.md\`; you reach it at \`/mnt/docs/plan.md\`)
+      1. \`plan.md\`, lines 12-13 (\`/Users/me/docs/plan.md\`; you reach it at \`/Users/me/docs/plan.md\`)
          > ## Budget
          > We spent too much.
          Asked: Make this a table

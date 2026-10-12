@@ -18,7 +18,7 @@ it("refuses what the rules close, reports it, and leaves the rest alone", async 
       rules: [{ level: "ask", path: "/Users/sam/Documents", source: "place" }],
       withoutAsking: false,
     },
-    spell: (hostPath) => hostPath.replace("/Users/sam", "/mnt/sam"),
+    spell: (hostPath) => hostPath.replace("/Users/sam", "/c/Users/sam"),
   });
 
   expect(await fs.readFile("/notes.md")).toBe("n");
@@ -27,8 +27,8 @@ it("refuses what the rules close, reports it, and leaves the rest alone", async 
   await expect(fs.writeFile("/new.md", "x")).rejects.toThrow(/EACCES/);
   expect(refusals).toMatchInlineSnapshot(`
     [
-      "/mnt/sam/Documents/a.txt needs the person's yes first.",
-      "/mnt/sam/new.md needs the person's yes first.",
+      "/c/Users/sam/Documents/a.txt needs the person's yes first.",
+      "/c/Users/sam/new.md needs the person's yes first.",
     ]
   `);
 });

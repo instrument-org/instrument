@@ -127,8 +127,8 @@ describe("shouldContinueAfterHandingOff", () => {
           assistant(
             text("Making it now."),
             bash(
-              "task new --name 'cat.md' --folder /mnt/Home/Desktop <<'EOF'\nWrite cat.md.\nEOF",
-              'Created cat-md ("cat.md"). macOS is asking the user whether Instrument may use "/mnt/Home/Desktop", and the task starts once they answer: tell them to answer the system\'s dialog.\n',
+              "task new --name 'cat.md' --folder /Users/sam/Desktop <<'EOF'\nWrite cat.md.\nEOF",
+              'Created cat-md ("cat.md"). macOS is asking the user whether Instrument may use "/Users/sam/Desktop", and the task starts once they answer: tell them to answer the system\'s dialog.\n',
             ),
           ),
         ],
@@ -205,7 +205,7 @@ describe("shouldContinueAfterHandingOff", () => {
       shouldContinueAfterHandingOff({
         messages: [
           user(text("what is in my downloads?")),
-          assistant(bash("ls /mnt/Home/Downloads", "a.pdf\nb.pdf\n")),
+          assistant(bash("ls /Users/sam/Downloads", "a.pdf\nb.pdf\n")),
         ],
       }),
     ).resolves.toBe(true);
@@ -213,7 +213,7 @@ describe("shouldContinueAfterHandingOff", () => {
       shouldContinueAfterHandingOff({
         messages: [
           user(text("what is in my downloads?")),
-          assistant(bash("ls /mnt/Home/Downloads", "a.pdf\nb.pdf\n")),
+          assistant(bash("ls /Users/sam/Downloads", "a.pdf\nb.pdf\n")),
           assistant(text("Two PDFs.")),
         ],
       }),

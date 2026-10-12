@@ -4,11 +4,11 @@ import { filesNamedIn, parseFilesBlock } from "./parse-files-block";
 
 describe("parseFilesBlock", () => {
   it("reads one path per line", () => {
-    expect(parseFilesBlock("output/report.pdf\n/mnt/Photos/cat.png\n"))
+    expect(parseFilesBlock("output/report.pdf\n/Users/sam/Photos/cat.png\n"))
       .toMatchInlineSnapshot(`
       [
         "output/report.pdf",
-        "/mnt/Photos/cat.png",
+        "/Users/sam/Photos/cat.png",
       ]
     `);
   });
@@ -49,10 +49,10 @@ describe("parseFilesBlock", () => {
   // The slash is the whole of what says folder, so it survives the wrappers
   // and markers a path picks up on its way through Markdown.
   it("keeps the trailing slash that names a folder", () => {
-    expect(parseFilesBlock("- `/mnt/Photos/holiday/`\noutput/a.png"))
+    expect(parseFilesBlock("- `/Users/sam/Photos/holiday/`\noutput/a.png"))
       .toMatchInlineSnapshot(`
         [
-          "/mnt/Photos/holiday/",
+          "/Users/sam/Photos/holiday/",
           "output/a.png",
         ]
       `);
@@ -74,19 +74,19 @@ describe("filesNamedIn", () => {
     const text = [
       "Done.",
       "```files",
-      "/mnt/Instrument/report.md",
+      "/Users/sam/Instrument/report.md",
       "work/build.mjs",
       "```",
       "And the chart:",
       "```files",
-      "/mnt/Instrument/report.md",
-      "/mnt/Instrument/chart.png",
+      "/Users/sam/Instrument/report.md",
+      "/Users/sam/Instrument/chart.png",
       "```",
     ].join("\n");
     expect(filesNamedIn(text)).toEqual([
-      "/mnt/Instrument/report.md",
+      "/Users/sam/Instrument/report.md",
       "work/build.mjs",
-      "/mnt/Instrument/chart.png",
+      "/Users/sam/Instrument/chart.png",
     ]);
   });
 

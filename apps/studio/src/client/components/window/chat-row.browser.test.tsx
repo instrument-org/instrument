@@ -388,7 +388,11 @@ describe("ChatRow", () => {
   it("stacks: the title with the pill at its end on one line, the latest under it, the files and the time under that", async () => {
     const { row } = await renderRow(
       chat({
-        holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
+        holds: {
+          apps: [],
+          files: ["/Users/sam/chat/out/report.md"],
+          sites: [],
+        },
         topics: ["house"],
       }),
     );
@@ -424,7 +428,13 @@ describe("ChatRow", () => {
 
   it("keeps one row height whether a chat holds anything or has said anything", async () => {
     const { rows } = await renderRows([
-      chat({ holds: { apps: [], files: ["/task/out/report.md"], sites: [] } }),
+      chat({
+        holds: {
+          apps: [],
+          files: ["/Users/sam/chat/out/report.md"],
+          sites: [],
+        },
+      }),
       chat(),
       chat({ lastReplyAt: undefined, latest: undefined }),
       chat({ state: "working" }),
@@ -636,7 +646,11 @@ describe("ChatRow", () => {
   it("tints the full width on hover and swaps the pills for the corner's controls", async () => {
     const { row } = await renderRow(
       chat({
-        holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
+        holds: {
+          apps: [],
+          files: ["/Users/sam/chat/out/report.md"],
+          sites: [],
+        },
         topics: ["house"],
       }),
     );
@@ -680,7 +694,7 @@ describe("ChatRow", () => {
   it("carries what it holds as chips named for the files and bare marks for the rest, behind a count past a few", async () => {
     const holds = {
       apps: ["github"],
-      files: ["/task/out/report.md", "/task/out/data.csv"],
+      files: ["/Users/sam/chat/out/report.md", "/Users/sam/chat/out/data.csv"],
       sites: ["wakatime.com", "example.com", "example.org", "example.net"],
     };
     const { rows } = await renderRows([chat({ holds })]);
@@ -707,7 +721,7 @@ describe("ChatRow", () => {
               mark.textContent === "" && Object.hasOwn(mark.dataset, "inert"),
           ),
       ).toBe(true);
-      expect(row.textContent).not.toContain("/task");
+      expect(row.textContent).not.toContain("/Users/sam/chat");
       expect(row.textContent).not.toContain("wakatime.com");
     }
   });
@@ -756,7 +770,7 @@ describe("ChatRow", () => {
   it("keeps what it holds to one line, the files first, clipped at the row's edge rather than wrapped", async () => {
     const files = Array.from(
       { length: 4 },
-      (_, index) => `/task/out/a-report-with-a-long-name-${index}.md`,
+      (_, index) => `/Users/sam/chat/out/a-report-with-a-long-name-${index}.md`,
     );
     const holds = { apps: ["github"], files, sites: ["wakatime.com"] };
     const { rows } = await renderRows([
@@ -892,7 +906,7 @@ describe("ChatRow", () => {
   it("lists every hold by name behind the count, never a slug or a path", async () => {
     const files = Array.from(
       { length: 6 },
-      (_, index) => `/task/out/report-${index}.md`,
+      (_, index) => `/Users/sam/chat/out/report-${index}.md`,
     );
     const { row } = await renderRow(
       chat({ holds: { apps: ["paper"], files, sites: [] } }),
@@ -921,17 +935,24 @@ describe("ChatRow", () => {
   it("opens a file it holds inside its chat, as a tab of the chat's group, shown, without opening the row; an app or a site it used opens nothing", async () => {
     const { onOpen, openScreen, row, window } = await renderRow(
       chat({
-        holds: { apps: ["github"], files: ["/task/out/report.md"], sites: [] },
+        holds: {
+          apps: ["github"],
+          files: ["/Users/sam/chat/out/report.md"],
+          sites: [],
+        },
       }),
     );
     const [file, app] = marksOf(row);
     file?.click();
     expect(onOpen).not.toHaveBeenCalled();
-    expect(window.openPath).toHaveBeenCalledWith("/task/out/report.md", {
-      group: CHAT_ID,
-      ownTab: true,
-      show: true,
-    });
+    expect(window.openPath).toHaveBeenCalledWith(
+      "/Users/sam/chat/out/report.md",
+      {
+        group: CHAT_ID,
+        ownTab: true,
+        show: true,
+      },
+    );
     file?.dispatchEvent(
       new MouseEvent("auxclick", { bubbles: true, button: 1 }),
     );

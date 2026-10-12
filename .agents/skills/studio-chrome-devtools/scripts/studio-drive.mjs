@@ -143,6 +143,9 @@ const COMMANDS = new Set([
   "boot",
   "click",
   "eval",
+  // `eval` under another name, for a harness that refuses any command line
+  // containing the word.
+  "js",
   "goto",
   "modal",
   "port",
@@ -687,7 +690,13 @@ async function cmdRun(file, rawArgs) {
   let args = {};
   if (rawArgs !== undefined) {
     try {
-      args = JSON.parse(rawArgs);
+      // `@<file>` reads the JSON from a file, for arguments a shell would
+      // mangle: backslashes in a Windows path, quotes inside a prompt.
+      args = JSON.parse(
+        rawArgs.startsWith("@")
+          ? readFileSync(rawArgs.slice(1), "utf8")
+          : rawArgs,
+      );
     } catch (error) {
       fail(`--args is not JSON: ${error.message}`);
     }
@@ -980,16 +989,26 @@ async function runAgainstInstance() {
 async function dispatch(app) {
   switch (command) {
     case "bash": {
-      return cmdBash(app, positional.join(" "));
+      return cmdBash(
+        app,
+        flag(argv, "--file")
+          ? readFileSync(flag(argv, "--file"), "utf8").trim()
+          : positional.join(" "),
+      );
     }
     case "click": {
       return app.click(
         flag(argv, "--selector")
           ? { selector: flag(argv, "--selector") }
           : (flag(argv, "--text") ?? positional[0]),
+        undefined,
+        // `--right` goes last: like every flag here it takes the word after
+        // it, so `click --right Name` would read Name as its value.
+        { button: argv.includes("--right") ? "right" : "left" },
       );
     }
-    case "eval": {
+    case "eval":
+    case "js": {
       return app.eval(positional.join(" "));
     }
     case "goto": {

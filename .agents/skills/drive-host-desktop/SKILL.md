@@ -48,6 +48,8 @@ Actions go to the window in the background by default, without raising it, so th
 - **A sleeping display returns stale pixels on Windows.** A capture taken after the monitor slept showed the taskbar clock hours behind, with no error. If a screenshot's clock or content looks old, wake the display (move the mouse or press a key through the driver) and capture again.
 - **Modern Windows apps** (Settings, the new Notepad) can return an empty tree, and refuse background key presses. Cua's docs list classic dialogs, browsers and Electron as covered; Explorer's desktop has been checked here, the rest not yet.
 - **`kill_app` and invoking items act on the person's real desktop.** Invoking a file's icon opens it. Prefer the app under test's own windows, and never close something you did not open.
+- **Studio's own window reads as an empty tree** (Electron exposes no accessibility tree to the driver by default). Drive it with `studio-drive` over CDP; use this skill only for what lies outside it.
+- **A native file picker can ignore background keys.** Enter sent in the background to Windows' folder picker did nothing, with no error; `delivery_mode=foreground` worked. Prefer `set_value` on the folder field and a `click` on the confirm button found with `grep=button`.
 - **UAC prompts** sit on a secure desktop that no driver can reach. The Windows driver runs elevated (see enrollment), so it can drive apps run as administrator, which also means it can do anything an administrator can.
 
 ## Host enrollment

@@ -112,9 +112,22 @@ async function waitForTurn(app, chat, timeoutMs) {
   return { sawBusy, timedOut: true };
 }
 
+// Parts that make a user-role message the harness's rather than the person's:
+// a task finishing, an app changing, the chat writing to a task. The same test
+// as isTypedByUser in packages/workspace/src/lib/typed-by-user.ts.
+const HARNESS_PARTS = new Set([
+  "data-taskEvent",
+  "data-appEvent",
+  "data-fromChat",
+]);
+
+const typedByUser = (message) =>
+  message.role === "user" &&
+  !(message.parts ?? []).some((part) => HARNESS_PARTS.has(part.type));
+
 function lastUserIndex(messages) {
   for (let index = messages.length - 1; index >= 0; index--) {
-    if (messages[index].role === "user") return index;
+    if (typedByUser(messages[index])) return index;
   }
   return 0;
 }
@@ -124,7 +137,14 @@ function stepsOf(message) {
   // stored as messages too; it is the same every turn.
   if (message.role !== "user" && message.role !== "assistant") return [];
   return (message.parts ?? []).flatMap((part) => {
+    if (HARNESS_PARTS.has(part.type)) {
+      return [
+        { [part.type.slice(5)]: clip(JSON.stringify(part.data), FIELD_LIMIT) },
+      ];
+    }
     if (part.type === "text") {
+      // A harness note's text repeats what its data part already says.
+      if (!typedByUser(message) && message.role === "user") return [];
       return [{ [message.role]: clip(part.text, TEXT_LIMIT) }];
     }
     if (!part.type?.startsWith("tool-")) return [];

@@ -283,9 +283,29 @@ export async function openCdp(origin, { page } = {}) {
     }
   });
 
+  // A page that goes away mid-call (the onboarding window closing as it
+  // finishes, a window reloading) never answers. Fail what is waiting rather
+  // than leave it unsettled, which ends the process with no result at all.
+  let closed = false;
+  socket.addEventListener("close", () => {
+    closed = true;
+    for (const entry of pending.values()) {
+      entry.reject(
+        new Error(
+          "The page closed while a command was waiting on it. If it was the onboarding window, onboarding has finished: drive the app window.",
+        ),
+      );
+    }
+    pending.clear();
+  });
+
   const send = (method, parameters = {}) => {
     const id = ++nextId;
     return new Promise((resolve, reject) => {
+      if (closed) {
+        reject(new Error("The page is closed."));
+        return;
+      }
       pending.set(id, { reject, resolve });
       socket.send(JSON.stringify({ id, method, params: parameters }));
     });
@@ -631,7 +651,7 @@ export async function connect({
      * button but not a handler mounted on an ancestor -- and returns as if it
      * worked.
      */
-    click: async (target, label) => {
+    click: async (target, label, { button = "left" } = {}) => {
       const { kind, needle } = targetOf(target);
       return step(label ?? `click ${needle}`, async () => {
         const rect = await rectFor(cdp, kind, needle);
@@ -646,7 +666,7 @@ export async function connect({
         });
         for (const type of ["mousePressed", "mouseReleased"]) {
           await cdp.send("Input.dispatchMouseEvent", {
-            button: "left",
+            button,
             clickCount: 1,
             type,
             x,

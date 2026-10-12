@@ -917,6 +917,14 @@ $result = [ordered]@{
     version = if (Test-Path -LiteralPath $profile.installed.executable) { (Get-Item -LiteralPath $profile.installed.executable).VersionInfo.ProductVersion } else { $null }
   }
   nodeHome = $profile.nodeHome
+  previews = @(Get-ChildItem -LiteralPath (Join-Path $env:LOCALAPPDATA 'Programs') -Directory -Filter 'instrument-preview-*' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | ForEach-Object {
+    $previewExecutable = Get-ChildItem -LiteralPath $_.FullName -Filter 'Instrument Preview (*).exe' | Select-Object -First 1
+    [ordered]@{
+      installed = $_.LastWriteTime.ToString('o')
+      name = $_.Name.Substring('instrument-preview-'.Length)
+      running = [bool] ($previewExecutable -and (Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $previewExecutable.FullName }))
+    }
+  })
   profilePath = $profilePath
   repo = $profile.repo
   schemaVersion = $profile.schemaVersion

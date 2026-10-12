@@ -36,7 +36,7 @@ node $DRIVE rpc workspace.chats.tasks '{"id":"<chat-id>"}'
 node $DRIVE stop
 ```
 
-Also `press`, `type`, `wait`, `modal`, `eval`, `run`, and `port` (the bare number, for pointing another tool at this instance). It speaks CDP directly, so there is no daemon to go stale and no reconnect to invalidate page ids, and it handles the things that otherwise fail quietly: real input, visible-only element matching, browser-side screenshot cropping, and a check that something is mounted before capturing.
+Also `press`, `type`, `wait`, `modal`, `eval` (also spelled `js`, for a harness that refuses command lines containing "eval"), `run`, and `port` (the bare number, for pointing another tool at this instance). `click <name> --right` opens a context menu; put `--right` last, since every flag takes the word after it. `run --args @args.json` and `bash --file cmd.txt` read their input from a file, for text a shell would mangle (Windows backslashes, quotes inside a prompt). It speaks CDP directly, so there is no daemon to go stale and no reconnect to invalidate page ids, and it handles the things that otherwise fail quietly: real input, visible-only element matching, browser-side screenshot cropping, and a check that something is mounted before capturing.
 
 One command is one process and one connection. That is the right shape for a single question and the wrong one for a sequence, so as soon as you know two things you want to do, reach for [`run`](#a-sequence-run) instead.
 

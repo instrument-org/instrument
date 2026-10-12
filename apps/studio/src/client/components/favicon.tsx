@@ -1,4 +1,8 @@
+import { FileTypeIcon } from "@/client/components/extend/file-system";
+import { segmentsOf } from "@/client/components/window/host-path";
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
+import { getComputerFileUrl } from "@/client/lib/computer-file-url";
+import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import {
   getFaviconUrl,
   markIconlessThisSession,
@@ -139,7 +143,9 @@ export function FaviconFallback({
  * may draw it (embedded bytes; a remote icon is refused by the page's
  * `img-src`), else its site's icon from the app's store, else the site's
  * initial. The one way every surface draws a site: tabs, rows, chips,
- * menus. A page with no web address (a fresh tab) has the globe.
+ * menus. A page of a file on the computer has the icon it names on the
+ * computer, else its file's type. A page with no web address (a fresh tab)
+ * has the globe.
  */
 export function PageFavicon({
   className,
@@ -171,6 +177,33 @@ export function PageFavicon({
   }
   if (url && /^https?:/i.test(url)) {
     return <Favicon className={className} hasTooltip={hasTooltip} url={url} />;
+  }
+  const filePath = hostPathOfFileUrl(url);
+  if (filePath !== undefined) {
+    // The icon a local page names is a file beside it, which the renderer
+    // reads through the computer's file channel rather than at its address.
+    const iconPath = hostPathOfFileUrl(favicon);
+    const iconSrc =
+      iconPath === undefined ? "" : getComputerFileUrl({ hostPath: iconPath });
+    if (iconSrc && failed !== iconSrc) {
+      return (
+        <img
+          alt=""
+          className={cn("size-4 shrink-0 rounded-sm", className)}
+          draggable={false}
+          onError={() => {
+            setFailed(iconSrc);
+          }}
+          src={iconSrc}
+        />
+      );
+    }
+    return (
+      <FileTypeIcon
+        className={cn("size-4 shrink-0", className)}
+        fileName={segmentsOf(filePath).at(-1) ?? filePath}
+      />
+    );
   }
   return (
     <GlobeIcon

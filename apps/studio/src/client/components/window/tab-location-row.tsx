@@ -26,6 +26,7 @@ import {
 } from "@/client/hooks/use-open-in-app";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
+import { fileUrlOf } from "@/client/lib/file-url";
 import { pageConnection } from "@/client/lib/page-connection";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -638,9 +639,15 @@ function locationText(location: TabLocation) {
     case "chat": {
       return location.title;
     }
+    // A page of a file is at its `file://` address, the one a browser opens
+    // it at, so it carries over to one as it stands.
+    case "file": {
+      return location.asPage
+        ? fileUrlOf(location.path)
+        : expandHomePath(location.path, window.api.homeDir);
+    }
     // Written out in full, since a path from the home folder's name is not
     // one the field can open.
-    case "file":
     case "folder": {
       return expandHomePath(location.path, window.api.homeDir);
     }

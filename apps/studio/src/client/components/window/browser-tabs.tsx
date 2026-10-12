@@ -3,7 +3,6 @@ import {
   originOf,
   type WindowTab,
 } from "@/client/atoms/window";
-import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { UpdatedNote, useUpdatedNote } from "@/client/components/updated-note";
 import { PageFavicon } from "@/client/components/favicon";
 import { BrowserPanel } from "@/client/components/window/browser-panel";
@@ -780,17 +779,6 @@ export function TabIcon({
   favicon: string | undefined;
   url: string | undefined;
 }) {
-  // A page of a file on the computer wears the file's type, the way the
-  // file does everywhere else; anything else is a page of the web.
-  const filePath = hostPathOfFileUrl(url);
-  if (filePath !== undefined) {
-    return (
-      <FileTypeIcon
-        className="size-3.5"
-        fileName={segmentsOf(filePath).at(-1) ?? filePath}
-      />
-    );
-  }
   return <PageFavicon className="size-3.5" favicon={favicon} url={url} />;
 }
 

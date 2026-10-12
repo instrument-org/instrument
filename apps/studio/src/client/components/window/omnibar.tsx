@@ -26,12 +26,14 @@ import {
   initialOmnibarField,
   omnibarField,
 } from "@/client/components/window/omnibar-field";
+import { segmentsOf } from "@/client/components/window/host-path";
 import { ShellContext } from "@/client/components/window/shell-context";
 import { chatHref, matchScreen } from "@/client/components/window/window-href";
 import {
   type TabLocation,
   taskHref,
 } from "@/client/components/window/tab-location";
+import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import {
   locateTypedPath,
@@ -96,7 +98,11 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
     case "chat": {
       return "chats";
     }
-    case "file":
+    // A file shown as a page is a page: its field takes an address the way a
+    // browser's does, and a path still opens the file's own view.
+    case "file": {
+      return location.asPage ? "web" : "files";
+    }
     case "folder": {
       return "files";
     }
@@ -759,6 +765,31 @@ function useRows({
   }
 
   if (mode === "files") {
+    // A `file://` address is a page, the way a browser opens it, where the
+    // path it names opens the file's own view.
+    const filePage = siteFromWords(words);
+    const filePagePath = hostPathOfFileUrl(filePage?.url);
+    if (filePage && filePagePath !== undefined) {
+      return {
+        completion: "",
+        rows: [
+          {
+            fill: words,
+            icon: (
+              <FileTypeIcon
+                className="size-4"
+                fileName={segmentsOf(filePagePath).at(-1) ?? filePagePath}
+              />
+            ),
+            id: "site",
+            name: words,
+            run: () => {
+              open.openSite(filePage.url);
+            },
+          },
+        ],
+      };
+    }
     // Only what is there: the folder's own entries, and the folder itself
     // once the words end in it. Nothing is offered at a path with nothing at
     // it, and words that are not a path find names in the folder on screen.

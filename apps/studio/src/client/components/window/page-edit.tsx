@@ -12,7 +12,7 @@ import {
   type GuestHandle,
 } from "@/client/lib/browser-pool";
 import { registerFileFlush } from "@/client/lib/file-flush";
-import { formatAccelerator } from "@/client/lib/format-accelerator";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { createDiskQueue, usePullOnDiskChange } from "@/client/lib/live-file";
 import { rpcClient } from "@/client/rpc/client";
 import { PAGE_EDITOR_CHANNEL } from "@/shared/page-editor-channels";
@@ -258,9 +258,7 @@ const PAGE_MODES = [
 export function PageEditToggle({ tabId }: { tabId: string }) {
   const { isEditing, setEditing } = usePageEdit(tabId);
   const current = PAGE_MODES[isEditing ? 1 : 0];
-  const chord = formatAccelerator(WINDOW_SHORTCUTS.editPage.accelerator).join(
-    "",
-  );
+  const chord = formatAcceleratorText(WINDOW_SHORTCUTS.editPage.accelerator);
   return (
     // Non-modal, so a press on the page's guest (its own web contents) is not
     // swallowed by a modal menu's overlay and closes it instead.

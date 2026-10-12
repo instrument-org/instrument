@@ -27,7 +27,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { formatAccelerator } from "@/client/lib/format-accelerator";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
@@ -623,7 +623,7 @@ function ThemeToggle() {
       <TooltipContent side="bottom">
         Switch to {next}{" "}
         <span className="opacity-60">
-          {formatAccelerator(SHORTCUTS.themeSystem.accelerator).join(" ")} for
+          {formatAcceleratorText(SHORTCUTS.themeSystem.accelerator)} for
           system
         </span>
       </TooltipContent>

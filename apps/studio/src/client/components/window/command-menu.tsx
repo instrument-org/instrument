@@ -33,7 +33,7 @@ import { useShell } from "@/client/components/window/shell-context";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
 import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { formatAccelerator } from "@/client/lib/format-accelerator";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
@@ -770,7 +770,7 @@ function ResultRows({ rows }: { rows: Row[] }) {
                     </CommandShortcut>
                   ) : (
                     <CommandShortcut>
-                      {formatAccelerator(row.chord).join("")}
+                      {formatAcceleratorText(row.chord)}
                     </CommandShortcut>
                   )}
                 </CommandItem>

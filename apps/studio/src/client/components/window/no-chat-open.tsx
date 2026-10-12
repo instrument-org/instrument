@@ -1,6 +1,6 @@
 import { Button } from "@/client/components/ui/button";
 import { Kbd } from "@/client/components/ui/kbd";
-import { formatAccelerator } from "@/client/lib/format-accelerator";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
@@ -45,7 +45,7 @@ export function NoChatOpen({ onNew }: { onNew: () => void }) {
             right padding is the gap above and below it (32px less its 20),
             so the key sits evenly in the pill's end. */}
         <Kbd className="ml-0.5 rounded-full bg-black/5 px-1.5 text-[11px] ring-1 ring-black/8 dark:bg-white/10 dark:ring-white/10">
-          {formatAccelerator(WINDOW_SHORTCUTS.newChat.accelerator).join("")}
+          {formatAcceleratorText(WINDOW_SHORTCUTS.newChat.accelerator)}
         </Kbd>
       </Button>
     </main>

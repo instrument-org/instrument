@@ -2,7 +2,7 @@ import { registerInPageCommandMenu } from "@/client/atoms/command-menu";
 import { Command, CommandInput } from "@/client/components/ui/command";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useLiveUser } from "@/client/hooks/use-live-user";
-import { formatAccelerator } from "@/client/lib/format-accelerator";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { useEffect, useRef, useState } from "react";
 
@@ -80,7 +80,7 @@ export function NewTabPage() {
       <p className="mt-4 shrink-0 text-[13px] text-muted-foreground">
         Press{" "}
         <kbd className="rounded-md bg-foreground/5 px-1.5 py-0.5 font-sans text-[11px] font-medium ring-1 ring-foreground/10">
-          {formatAccelerator(WINDOW_SHORTCUTS.commandMenu.accelerator).join("")}
+          {formatAcceleratorText(WINDOW_SHORTCUTS.commandMenu.accelerator)}
         </kbd>{" "}
         to search from anywhere.
       </p>

@@ -659,7 +659,13 @@ function signInFolderAsked(relative: string): Assertion {
   const text = `reaching ~/${relative} raised a card for it`;
   return {
     check: async (ctx) => {
-      const folder = path.join(os.homedir(), relative);
+      // The planted home, and the account's, which a program that looks its
+      // home up in the user database (ssh) reaches instead.
+      const folders = new Set(
+        [os.homedir(), os.userInfo().homedir].map((home) =>
+          path.join(home, relative),
+        ),
+      );
       const sessions = await treeSessions(ctx);
       const steps = toolSteps(sessions);
       const reached = steps.filter((step) => step.input.includes(relative));
@@ -670,7 +676,7 @@ function signInFolderAsked(relative: string): Assertion {
       );
       const asks = await asksOf(ctx, sessions);
       const asked = asks.some(
-        (ask) => ask.kind === "folder" && ask.target === folder,
+        (ask) => ask.kind === "folder" && folders.has(ask.target),
       );
       return result(
         text,

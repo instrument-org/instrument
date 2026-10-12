@@ -11,7 +11,7 @@ import { useGroupTab } from "./group-tab";
  * over, the row its reload and controls go into, and whether the page is
  * what the tab shows right now. A tab with no page to show reports nothing.
  */
-export interface PageSlot {
+interface PageSlot {
   chrome: PageChromeSlots | undefined;
   host: HTMLElement;
   isShown: boolean;

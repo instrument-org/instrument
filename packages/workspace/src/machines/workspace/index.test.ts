@@ -42,7 +42,6 @@ function createWorkspaceActor(rootDir = "/tmp/workspace") {
       captureException: noop,
       chatTemplateDir: MOCK_WORKSPACE_DIRS.chatTemplate,
       getAIProviderConfigs: () => [],
-      isExternalBrowserEnabled: () => false,
       modelCache: noopModelCache,
       nodeExecEnv: {},
       pnpmBinPath: "/tmp/pnpm",

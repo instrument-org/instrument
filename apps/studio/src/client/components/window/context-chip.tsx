@@ -11,20 +11,27 @@ import {
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import {
+  type ChatId,
+  ChatIdSchema,
   isFolderPath,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { XIcon } from "@phosphor-icons/react/X";
+import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useContext } from "react";
 
 import { type AppsBySlug, useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
 import { useComputerVolumes } from "./computer-volumes";
 import { type OpenOptions, WindowContext } from "./context";
+import { type ContextItem } from "./context-items";
 import { pageTabTitle } from "./file-tabs";
 import { segmentsOf } from "./host-path";
 import { screenPresentation, type ScreenNames } from "./screen-presentation";
+import { chatHref } from "./window-href";
 
 type SentChip = SessionMessageDataPart.SentChip;
 
@@ -112,6 +119,78 @@ export function IncludedChip({
   );
 }
 
+/**
+ * A composer's chips, one per item it carries (see `ContextItem`), in their
+ * order, each with an x that leaves its item out. The one way a composer
+ * shows what goes with its words, so a chip is never missing for something
+ * that goes.
+ */
+export function ContextChips({
+  items,
+  onLeaveOut,
+}: {
+  items: ContextItem[];
+  onLeaveOut: (item: ContextItem) => void;
+}) {
+  const appsBySlug = useAppsBySlug();
+  return items.map((item) => {
+    const leaveOut = () => {
+      onLeaveOut(item);
+    };
+    switch (item.kind) {
+      case "chat": {
+        return (
+          <ChatChip chatId={item.chat} key={item.key} onLeaveOut={leaveOut} />
+        );
+      }
+      case "chosen": {
+        return (
+          <ChosenChip item={item.item} key={item.key} onLeaveOut={leaveOut} />
+        );
+      }
+      case "tab": {
+        return (
+          <IncludedChip
+            appsBySlug={appsBySlug}
+            items={item.items}
+            key={item.key}
+            onLeaveOut={leaveOut}
+            tab={item.tab}
+          />
+        );
+      }
+    }
+  });
+}
+
+/**
+ * Another chat the person had open, named and nothing more: what is in it
+ * is that chat's, so the conversation is told which chat and not what it
+ * shows.
+ */
+function ChatChip({
+  chatId,
+  onLeaveOut,
+}: {
+  chatId: ChatId;
+  onLeaveOut: () => void;
+}) {
+  const info = useQuery(
+    rpcClient.workspace.chats.live.info.experimental_liveOptions({
+      input: { id: chatId },
+    }),
+  );
+  return (
+    <ContextChip
+      label={<ChipLabel paths={[]} said={SENT_WITH_MESSAGE} />}
+      mark={<ChatCircleIcon />}
+      name={info.data?.title ?? "Chat"}
+      onLeaveOut={onLeaveOut}
+      slot="chat-chip"
+    />
+  );
+}
+
 /** A file or folder the draft was opened on by name, held for the chat until it is left out. */
 export function ChosenChip({
   item,
@@ -160,6 +239,11 @@ export function SentChips({ chips }: { chips: SentChip[] }) {
     if (!appWindow) {
       return undefined;
     }
+    if (chip.kind === "chat") {
+      return (options: OpenOptions) => {
+        appWindow.openScreen(chatHref(ChatIdSchema.parse(chip.id)), options);
+      };
+    }
     return chip.kind === "page"
       ? (options: OpenOptions) => {
           appWindow.openPage(chip.url, options);
@@ -189,7 +273,9 @@ export function SentChips({ chips }: { chips: SentChip[] }) {
             />
           }
           mark={
-            chip.kind === "page" ? (
+            chip.kind === "chat" ? (
+              <ChatCircleIcon />
+            ) : chip.kind === "page" ? (
               <TabIcon favicon={undefined} url={chip.url} />
             ) : chip.kind === "screen" ? (
               screenPresentation(chip.url, { appsBySlug }).icon
@@ -339,9 +425,17 @@ function nameOfChip(chip: SentChip) {
 
 /** What tells a sent chip from the others over its message. */
 function keyOfChip(chip: SentChip) {
-  return chip.kind === "paths"
-    ? chip.items.map((item) => item.path).join("\n")
-    : `${chip.kind}:${chip.url}`;
+  switch (chip.kind) {
+    case "chat": {
+      return `chat:${chip.id}`;
+    }
+    case "paths": {
+      return chip.items.map((item) => item.path).join("\n");
+    }
+    default: {
+      return `${chip.kind}:${chip.url}`;
+    }
+  }
 }
 
 /** The last name in a path, which is what a chip calls the thing. */

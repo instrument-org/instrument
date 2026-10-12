@@ -134,7 +134,6 @@ setWorkspaceConfig({
     path.join(rootDir, "chat-template"),
   ),
   getAIProviderConfigs: () => [],
-  isExternalBrowserEnabled: () => true,
   modelCache: noopModelCache,
   nodeExecEnv: {},
   nativeSandbox: true,

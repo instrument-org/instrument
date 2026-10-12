@@ -59,7 +59,6 @@ setWorkspaceConfig({
     path.join(rootDir, "chat-template"),
   ),
   getAIProviderConfigs: () => [],
-  isExternalBrowserEnabled: () => false,
   modelCache: noopModelCache,
   nodeExecEnv: {},
   pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),

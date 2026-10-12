@@ -6,7 +6,6 @@ import { atom } from "jotai";
 
 const defaultFeatures: Features = {
   context_ring: false,
-  external_browser: false,
 };
 
 async function listen(

@@ -65,7 +65,6 @@ export function createMockChatConfig(
      * outcome those paths all have to survive anyway.
      */
     catalog?: AIGatewayModel.Type[];
-    externalBrowser?: boolean;
     imageModel?: ImageModelV4;
     model?: AIGatewayModel.Type;
     /**
@@ -121,9 +120,6 @@ export function createMockChatConfig(
     },
     chatTemplateDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chatTemplate),
     getAIProviderConfigs: () => [...mockProviderConfigs.values()],
-    // Off by default, as it ships: a test that wants the external-browser path
-    // opts into it the same way a user does.
-    isExternalBrowserEnabled: () => options.externalBrowser ?? false,
     modelCache: options.catalog
       ? { ...noopModelCache, read: () => options.catalog }
       : noopModelCache,

@@ -41,21 +41,32 @@ jobs:
       INSTRUMENT_PREVIEW_NAME: ${{ inputs.name || github.ref_name }}
       PREVIEW_OS: ${{ inputs.os || 'mac' }}
     steps:
-      # The same reduction APP_FLAVOR applies, to fail early on a name that
-      # reduces to nothing, then the run number, cut so the whole stays within
-      # APP_FLAVOR's 40 characters. Linux builds both
+      # The name the build is made under comes from the module that turns it
+      # into the app's flavor, so the two cannot disagree; it imports nothing,
+      # so it runs straight from a checkout of that one file.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          sparse-checkout: packages/shared/src/constants.ts
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "24"
+      # Fails early on a name that reduces to nothing. Linux builds both
       # architectures, since a Linux test machine is as likely to be an ARM
       # virtual machine as a PC.
       - name: Resolve name and platforms
         id: plan
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
-          slug=$(printf '%s' "$INSTRUMENT_PREVIEW_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-40)
+          slug=$(node --input-type=module -e '
+            const { previewBuildNameOf } = await import("./packages/shared/src/constants.ts");
+            console.log(previewBuildNameOf(process.env.INSTRUMENT_PREVIEW_NAME, Number(process.env.RUN_NUMBER)));
+          ')
           if [ -z "$slug" ]; then
             echo "::error::The preview name has no letters or digits in it."
             exit 1
           fi
-          number="${{ github.run_number }}"
-          slug="$(printf '%s' "$slug" | cut -c1-$((39 - ${#number})) | sed -E 's/-+$//')-$number"
           echo "slug=$slug" >> "$GITHUB_OUTPUT"
           mac='{"os":"mac","arch":"arm64","runner":"macos-26"}'
           windows='{"os":"windows","arch":"x64","runner":"windows-latest"}'

@@ -85,12 +85,12 @@ export namespace StorageKey {
   ):
     | { id: StoreId.Message; ownRow: boolean; sessionId: StoreId.Session }
     | undefined {
-    const [kind, session, message] = key.split(SEPARATOR);
+    const [kind, rawSession, rawMessage] = key.split(SEPARATOR);
     if (kind !== MESSAGES_KEY && kind !== "parts") {
       return undefined;
     }
-    const sessionId = StoreId.SessionSchema.safeParse(session);
-    const id = StoreId.MessageSchema.safeParse(message);
+    const sessionId = StoreId.SessionSchema.safeParse(rawSession);
+    const id = StoreId.MessageSchema.safeParse(rawMessage);
     return sessionId.success && id.success
       ? {
           id: id.data,

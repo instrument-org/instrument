@@ -81,11 +81,11 @@ export interface Draft {
    * copy or a tab of the draft's own, so the draft says what the screen
    * already gives it and the chat is told about it as it starts. A folder,
    * file, or app's front on one of the window's own tabs is that tab, by its
-   * id. Cleared when the person leaves it out.
+   * id.
    */
   included?: { appTabId: TabId } | { group: string; tabId: string };
-  /** Tabs the window had up behind the draft that the person left out of it, by id. */
-  leftBehind?: string[];
+  /** The chips the person left out of the draft, by their keys (see `ContextItem`). */
+  leftOut?: string[];
   topicId?: string;
   /**
    * Who settled the topic: the person, by picking or clearing one, or the

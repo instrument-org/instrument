@@ -96,4 +96,4 @@ Tabs make the empty-page problem more common, not less: both `discover_and_attac
 
 - Substrate for [browser-popups-as-agent-drivable-tabs.md](./browser-popups-as-agent-drivable-tabs.md).
 - Touches the bridge and target model described in [in-app-browser.md](../../architecture/in-app-browser.md); that doc needs updating as each phase lands.
-- Part 1 removes most of what [external-browser-behind-a-flag.md](../active/external-browser-behind-a-flag.md) added around read routing, but not the external-session split itself, which is about connection identity rather than page creation.
+- Part 1 removes most of what [external-browser-behind-a-flag.md](external-browser-behind-a-flag.md) added around read routing, but not the external-session split itself, which is about connection identity rather than page creation.

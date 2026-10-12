@@ -29,6 +29,12 @@ styl = "styl"
 licence = "licence"
 # A chat title cut at its length cap in a migration test's snapshot.
 sprin = "sprin"
+# A stem an eval regex matches so "excluded" and "excluding" both count.
+exclud = "exclud"
+# A preview build name cut at its length cap in a test.
+wel = "wel"
+# The `b a` branch in a sed one-liner, written `$!ba`.
+ba = "ba"
 
 [default.extend-words]
 # AsyncLocalStorage, as the comments that compare against it write it.

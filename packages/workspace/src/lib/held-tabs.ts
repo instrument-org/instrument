@@ -4,6 +4,7 @@ import { type HeldTab } from "../schemas/chat-state";
 import { sessionRole } from "./chat/children";
 import { chatDir } from "./record-folders";
 import { getChatState, updateChatState } from "./chat-record";
+import { getWorkspaceConfig } from "./workspace-config";
 
 /**
  * The tabs a session of a chat drives, first one first: the chat's
@@ -61,6 +62,27 @@ export async function returnTabsToChat(
       driver === sessionId ? tab : { ...tab, ...(driver ? { driver } : {}) },
     ),
   }));
+}
+
+/**
+ * Closes the pages a session asked for and never sent anywhere, as its turn
+ * ends: they have no tab in the chat, so nothing of them is left behind.
+ */
+export async function closePagesWithNoTab(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<void> {
+  const pending = (await heldTabs(chatId, sessionId)).filter(
+    (tab) => !tab.inWindow,
+  );
+  if (pending.length === 0) {
+    return;
+  }
+  const { browser } = getWorkspaceConfig();
+  await Promise.all(pending.map((tab) => browser.closeTarget(tab.id)));
+  await updateHeldTabs(chatId, sessionId, (tabs) =>
+    tabs.filter((tab) => tab.inWindow),
+  );
 }
 
 /** The session a tab names as its driver: a task's own, none for the chat's. */

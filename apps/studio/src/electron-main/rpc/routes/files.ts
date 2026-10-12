@@ -7,6 +7,7 @@ import {
   undoEntry,
   UndoRefusedError,
 } from "@/electron-main/lib/file-journal";
+import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { resolveAlias } from "@/electron-main/lib/mac-native";
 import { utf8Text } from "@/electron-main/lib/utf8-text";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
@@ -275,6 +276,12 @@ const undo = base
         ));
       return { isFolder, kind: entry.kind, path: restored };
     } catch (error) {
+      // A refusal is the undo's answer (the file changed since, say); any
+      // other failure is a fault worth seeing, though the person is told
+      // the same thing either way.
+      if (!(error instanceof UndoRefusedError)) {
+        captureServerException(error, { scopes: ["studio"] });
+      }
       throw errors.CANNOT_UNDO({
         message: error instanceof UndoRefusedError ? error.message : undefined,
       });

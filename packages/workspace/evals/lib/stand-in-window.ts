@@ -54,6 +54,23 @@ export function createStandInWindow() {
     if (action.kind === "open") {
       return { tabId: add(action.target).id };
     }
+    if (action.kind === "list") {
+      return {
+        tabs: [...tabs.values()].map((tab) =>
+          tab.kind === "page"
+            ? { id: tab.id, kind: "page" as const, url: tab.at }
+            : { id: tab.id, kind: "screen" as const },
+        ),
+      };
+    }
+    if (action.kind === "adopt") {
+      tabs.set(action.tabId, {
+        at: action.url,
+        id: action.tabId,
+        kind: "page",
+      });
+      return { tabId: action.tabId };
+    }
     const tab = tabs.get(action.tabId);
     if (!tab) {
       return { error: `no tab ${action.tabId} is open in this chat.` };

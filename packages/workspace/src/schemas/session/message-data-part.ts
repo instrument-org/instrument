@@ -578,10 +578,11 @@ export namespace SessionMessageDataPart {
   /**
    * One chip the composer showed over the words as they were sent, which the
    * transcript draws again over the message: a page, a screen of the app's
-   * (an app's front, a folder by its route), or files and folders by path.
-   * What a chat had up beside it is not one; that tab is the chat's own.
+   * (an app's front, a folder by its route), files and folders by path, or
+   * another chat the user had open.
    */
   const SentChipSchema = z.discriminatedUnion("kind", [
+    z.object({ id: z.string(), kind: z.literal("chat"), title: z.string() }),
     z.object({ kind: z.literal("page"), title: z.string(), url: z.string() }),
     z.object({
       kind: z.literal("screen"),
@@ -607,6 +608,11 @@ export namespace SessionMessageDataPart {
   export const ViewContextDataPartSchema = z.object({
     /** The chips over the words as they were sent, in their order; for the transcript, not the agent. */
     attached: z.array(SentChipSchema).optional(),
+    /**
+     * Another chat the user had open, by its id and title: named and nothing
+     * more, since its pages and tabs are that chat's own.
+     */
+    chat: z.object({ id: z.string(), title: z.string() }).optional(),
     /** The app whose page is up on the Apps screen, and where it stands. */
     app: z
       .object({
@@ -681,6 +687,8 @@ export namespace SessionMessageDataPart {
     screen: z.enum([
       "apps",
       "browser",
+      // Another chat, which `chat` names.
+      "chat",
       "computer",
       "file",
       "home",

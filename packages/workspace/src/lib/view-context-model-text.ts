@@ -16,7 +16,22 @@ const TABS_NAMED_MAX = 8;
  * screen is named; a folder the user left a screen ago is not.
  */
 export function viewContextModelNote(data: ViewContext) {
-  return `${screenNote(data)}${chosenNote(data)}${tabsNote(data)}`;
+  return `${screenNote(data)}${otherChatNote(data)}${chosenNote(data)}${tabsNote(data)}`;
+}
+
+/** Another chat named beside what was on screen; on its own, the screen note says it. */
+function otherChatNote(data: ViewContext) {
+  if (!data.chat || data.screen === "chat") {
+    return "";
+  }
+  return systemNote`
+    They also had another chat open, ${chatNamed(data.chat)}.
+  `;
+}
+
+/** Another chat, named and linked, and why nothing in it is the agent's to use. */
+function chatNamed(chat: NonNullable<ViewContext["chat"]>) {
+  return `"${chat.title}" ([${chat.title}](instrument://chat/${chat.id})): its pages and tabs are that chat's, not yours to read or hand to a task`;
 }
 
 /** What the person picked to send with the message, which "this" and "these" take in alongside the screen. */
@@ -151,6 +166,15 @@ function screenNote(data: ViewContext) {
     }
     case "browser": {
       return pageNote(data);
+    }
+    case "chat": {
+      return data.chat
+        ? systemNote`
+            When the user sent this, the window showed another chat, ${chatNamed(data.chat)}. "That chat" refers to it.
+          `
+        : systemNote`
+            When the user sent this, the window showed another chat.
+          `;
     }
     case "computer": {
       return systemNote`

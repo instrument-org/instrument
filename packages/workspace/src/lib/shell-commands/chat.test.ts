@@ -169,12 +169,12 @@ describe("chat read", () => {
 
   it("reads a long message whole, so a path at its end arrives", async () => {
     await freshChat();
-    const path = "/Users/sam/Documents/Leases/2026/signed-lease.pdf";
-    await chat("Lease pickup", `${"Some background. ".repeat(30)}${path}`);
+    const leasePath = "/Users/sam/Documents/Leases/2026/signed-lease.pdf";
+    await chat("Lease pickup", `${"Some background. ".repeat(30)}${leasePath}`);
 
     const result = await run("read", "lease");
 
-    expect(result.stdout).toContain(path);
+    expect(result.stdout).toContain(leasePath);
   });
 
   it("lists the matches when the words fit more than one chat", async () => {

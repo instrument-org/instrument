@@ -28,6 +28,21 @@ describe("viewContextModelNote", () => {
     `);
   });
 
+  it("names another chat the user had open, and nothing in it", () => {
+    expect(
+      viewContextModelNote({
+        chat: { id: "2026-10-02-porto", title: "Porto trip" },
+        screen: "chat",
+        tabs: [],
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      When the user sent this, the window showed another chat, "Porto trip" ([Porto trip](instrument://chat/2026-10-02-porto)): its pages and tabs are that chat's, not yours to read or hand to a task. "That chat" refers to it.
+      </instrument-system-note>"
+    `);
+  });
+
   it("names every tab by its id, and the task at work in one", () => {
     expect(
       viewContextModelNote({

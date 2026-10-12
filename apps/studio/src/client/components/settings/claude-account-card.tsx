@@ -157,6 +157,9 @@ function describe(status: Status) {
     const percent = total > 0 ? Math.round((received / total) * 100) : 0;
     return `Getting Claude Code ready, ${percent}% done.`;
   }
+  if (status.finishing) {
+    return "Connecting your Claude account.";
+  }
   if (status.signingIn) {
     return "Finish signing in to Claude in your browser.";
   }

@@ -1,5 +1,4 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
-import { isExpectedNetworkError } from "@instrument-org/shared";
 import { call, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
@@ -87,9 +86,6 @@ const run = base
     });
 
     if (!modelResult.ok) {
-      if (!isExpectedNetworkError(modelResult.error)) {
-        context.workspaceConfig.captureException(modelResult.error);
-      }
       throw toORPCError(modelResult.error, errors);
     }
 

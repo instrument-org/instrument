@@ -9,6 +9,6 @@ describe("a chat's held tabs", () => {
       StoredChatStateSchema.parse({
         browserTabs: [{ id: `window/${tab}`, openedBy: "handed" }],
       }).browserTabs,
-    ).toEqual([{ id: tab, openedBy: "handed" }]);
+    ).toEqual([{ id: tab, inWindow: true, openedBy: "handed" }]);
   });
 });

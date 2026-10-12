@@ -76,7 +76,9 @@ async function runFork(
   }
   const jobs = handedJobs(input.all("job"), chatSessionId);
   const { model, modelURI } = await chatModel("new", context);
-  const handedTabs = await resolveTabs(input.all("tab"));
+  const handedTabs = await resolveTabs(input.all("tab"), {
+    chatId: context.chatId,
+  });
   await refuseTabsDrivenElsewhere(handedTabs, context.chatId);
   const name = input.value("name")?.trim() || defaultTaskName(directive);
 
@@ -220,7 +222,11 @@ async function startFork({
   if (handedTabs.length > 0) {
     await updateHeldTabs(chatId, sessionId, (held) => [
       ...held,
-      ...handedTabs.map((id) => ({ id, openedBy: "handed" as const })),
+      ...handedTabs.map((id) => ({
+        id,
+        inWindow: true,
+        openedBy: "handed" as const,
+      })),
     ]);
   }
 

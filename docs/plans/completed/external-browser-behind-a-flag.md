@@ -1,6 +1,6 @@
 # Plan: external browsers behind a feature flag
 
-Status: landed, feature off. The capability is built and tested; the `external_browser` flag ships off, and this plan is the checklist for turning it back on.
+Status: abandoned. The flag and the code behind it were removed: `agent-browser` reaches a Chrome only by launching a copy of a profile or through a debugging port, and the Chrome a person is using exposes neither, so it never reached their live sessions. Reaching those would take a different design (a browser extension, or computer use), not this one.
 
 ## Why it is off
 

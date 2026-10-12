@@ -15,21 +15,15 @@ import { chatOfGroup, matchScreen } from "./window-href";
 
 /**
  * What stands behind a draft now, when it is something other than what the
- * draft was opened over and the person has not left it out: what the window
- * has in view. It goes with the message as well, so a draft written while
- * looking at something else carries both.
+ * draft was opened over: what the window has in view. It goes with the
+ * message as well, so a draft written while looking at something else
+ * carries both.
  */
 export function behindTabOf(
   draft: Draft,
   inView: undefined | WindowTab,
 ): undefined | WindowTab {
-  if (!inView || !isIncludable(inView)) {
-    return;
-  }
-  if (
-    includedIdOf(draft) === inView.id ||
-    draft.leftBehind?.includes(inView.id)
-  ) {
+  if (!inView || includedIdOf(draft) === inView.id) {
     return;
   }
   return inView;

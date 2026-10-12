@@ -80,6 +80,7 @@ export function ComposeLayer({
   sendContext: (options: {
     isViewOpen: boolean;
     chatId: ChatId;
+    leftOut: readonly string[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** What each chat being started from a draft sent, by the chat: its window shows the words until its transcript has them. */
   sentWords: ReadonlyMap<ChatId, string>;

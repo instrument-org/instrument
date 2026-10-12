@@ -92,6 +92,19 @@ describe("refusedPathIn", () => {
     expect(refusedPathIn(output, reach)?.reach.level).toBe(level);
   });
 
+  it.each([
+    ["cat: ../Documents/Acme/a.txt: Operation not permitted", "ask"],
+    [
+      "fatal: cannot change to '../.ssh/keys': Operation not permitted",
+      "never",
+    ],
+    ["cat: notes/a.txt: No such file or directory", undefined],
+  ])("reads %s against the cwd", (output, level) => {
+    expect(
+      refusedPathIn(output, reach, "/Users/someone/Projects")?.reach.level,
+    ).toBe(level);
+  });
+
   it("asks for the folder one level into the place", () => {
     const refused = refusedPathIn(
       "Operation not permitted: '/Users/someone/Documents/Acme/a.csv'",

@@ -492,6 +492,8 @@ const REFUSALS = [
 export function refusedPathIn(
   output: string,
   reach: NativeReach,
+  /** The command's working folder, which a relative path is read against. */
+  cwd?: string,
 ): undefined | { hostPath: string; reach: Reach; rules: Rules } {
   for (const line of output.split("\n")) {
     // Seatbelt refuses with "Operation not permitted"; bubblewrap leaves a
@@ -501,9 +503,16 @@ export function refusedPathIn(
       continue;
     }
     // The path refused is the last one a line names: a shell names itself
-    // first (`/bin/sh: 1: cannot create <path>`).
-    for (const match of [...line.matchAll(/\/[^\s:'"`]+/g)].toReversed()) {
-      const hostPath = match[0];
+    // first (`/bin/sh: 1: cannot create <path>`). A program names a path
+    // the way it was given, so `closed/a.txt` is read against the cwd.
+    for (const match of [
+      ...line.matchAll(/(?<=^|[\s:'"`(=[])[^\s:'"`]*\/[^\s:'"`]*/g),
+    ].toReversed()) {
+      const named = match[0];
+      if (!path.isAbsolute(named) && cwd === undefined) {
+        continue;
+      }
+      const hostPath = path.resolve(cwd ?? "/", named);
       // A missing file can only be a closed read; anything else may have
       // been a change.
       const decided = reachOf(

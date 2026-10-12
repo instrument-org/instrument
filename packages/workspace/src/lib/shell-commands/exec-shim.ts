@@ -143,7 +143,13 @@ export async function execShim(
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
   const refused =
     spawned.reach && !walks && result.exitCode !== 0
-      ? refusedPathIn(`${stderr}\n${stdout}`, spawned.reach)
+      ? refusedPathIn(
+          `${stderr}\n${stdout}`,
+          spawned.reach,
+          typeof subprocessOptions.cwd === "string"
+            ? subprocessOptions.cwd
+            : undefined,
+        )
       : undefined;
   return {
     exitCode: result.exitCode,

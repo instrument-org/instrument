@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { publisher } from "../rpc/publisher";
-import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import {
@@ -27,20 +26,13 @@ function ids(set: Set<StoreId.Message>) {
   return [...set].sort();
 }
 
+/** A write to one of a message's parts, as the store's write layer says it. */
 function partUpdated(messageId: StoreId.Message, session = sessionId) {
-  // Only metadata.messageId/sessionId are read by the subscription.
-  const part = {
-    metadata: {
-      createdAt: new Date("2024-01-01T00:00:00Z"),
-      id: StoreId.newPartId(),
-      messageId,
-      sessionId: session,
-    },
-    state: "done",
-    text: "",
-    type: "text",
-  } satisfies SessionMessagePart.Type;
-  publisher.publish("part.updated", { id: chatId, part });
+  publisher.publish("record.changed", {
+    id: chatId,
+    kind: "messages",
+    message: { id: messageId, removed: false, sessionId: session },
+  });
 }
 
 function start(signal: AbortSignal) {
@@ -141,10 +133,10 @@ describe("changedMessageBatches", () => {
     const a = StoreId.newMessageId();
 
     partUpdated(a);
-    publisher.publish("message.removed", {
+    publisher.publish("record.changed", {
       id: chatId,
-      messageId: a,
-      sessionId,
+      kind: "messages",
+      message: { id: a, removed: true, sessionId },
     });
 
     const firstBatch = await awaitBatch(first);

@@ -9,7 +9,7 @@ import dbDriver from "unstorage/drivers/db0";
 import { type ChatId } from "../schemas/chat-id";
 import { TypedError } from "./errors";
 import { sweepInterruptedToolCalls } from "./interrupted-tool-calls";
-import { recordChanged, storeKeyChange } from "./record-changes";
+import { recordStoreWrite } from "./record-changes";
 import { bumpStoreGeneration } from "./store-generation";
 import { runStoreMigrations } from "./store-migrations";
 import { sessionStorePath } from "./chat-dir-utils";
@@ -212,12 +212,12 @@ function handleFor(chatId: ChatId): WrappedStorage {
     return known;
   }
   const use = <T>(
-    /** The keys a write is to, or none for a read. */
-    written: readonly string[],
+    /** The keys a write is to, each with whether it removes it; none for a read. */
+    written: readonly { key: string; removed: boolean }[],
     operation: (open: OpenStore) => ResultAsync<T, TypedError.Storage>,
   ): ResultAsync<T, TypedError.Storage> => {
     const bump = () => {
-      for (const key of written) {
+      for (const { key } of written) {
         bumpStoreGeneration(chatId, key);
       }
     };
@@ -237,8 +237,8 @@ function handleFor(chatId: ChatId): WrappedStorage {
         .andTee(() => {
           settle();
           // Once the write has landed, so whoever re-reads on it reads it.
-          for (const key of written) {
-            recordChanged(chatId, storeKeyChange(key));
+          for (const { key, removed } of written) {
+            recordStoreWrite(chatId, key, { removed });
           }
         })
         .orTee(settle);
@@ -260,7 +260,7 @@ function handleFor(chatId: ChatId): WrappedStorage {
   const handle: WrappedStorage = {
     batch: (writes) =>
       use(
-        writes.map((write) => write.key),
+        writes.map((write) => ({ key: write.key, removed: "remove" in write })),
         (open) =>
           ResultAsync.fromPromise(
             (async () => {
@@ -283,9 +283,13 @@ function handleFor(chatId: ChatId): WrappedStorage {
     getKeys: (base, options) =>
       use([], (open) => open.storage.getKeys(base, options)),
     removeItem: (key, options) =>
-      use([key], (open) => open.storage.removeItem(key, options)),
+      use([{ key, removed: true }], (open) =>
+        open.storage.removeItem(key, options),
+      ),
     setItemRaw: (key, value, options) =>
-      use([key], (open) => open.storage.setItemRaw(key, value, options)),
+      use([{ key, removed: false }], (open) =>
+        open.storage.setItemRaw(key, value, options),
+      ),
   };
   HANDLES.set(chatId, handle);
   return handle;

@@ -60,16 +60,6 @@ export const publisher = new EventPublisher<{
    * every listener re-reads the folder.
    */
   "memory.changed": null;
-  "message.removed": {
-    id: ChatId;
-    messageId: StoreId.Message;
-    sessionId: StoreId.Session;
-  };
-  "message.updated": {
-    id: ChatId;
-    messageId: StoreId.Message;
-    sessionId: StoreId.Session;
-  };
   "part.updated": {
     id: ChatId;
     part: SessionMessagePart.Type;

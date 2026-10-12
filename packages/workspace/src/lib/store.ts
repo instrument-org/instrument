@@ -403,11 +403,6 @@ export namespace Store {
         ],
         { signal },
       );
-      publisher.publish("message.removed", {
-        id: chatId,
-        messageId,
-        sessionId,
-      });
       return ok(undefined);
     });
   }
@@ -427,12 +422,6 @@ export namespace Store {
         storage,
         { signal },
       );
-
-      publisher.publish("message.updated", {
-        id: chatId,
-        messageId: savedMessage.id,
-        sessionId: savedMessage.metadata.sessionId,
-      });
 
       return ok(savedMessage);
     });
@@ -526,11 +515,6 @@ export namespace Store {
         rows.map(({ write }) => write),
         { signal },
       );
-      publisher.publish("message.updated", {
-        id: chatId,
-        messageId: rest.id,
-        sessionId: rest.metadata.sessionId,
-      });
       for (const part of parts) {
         publisher.publish("part.updated", {
           id: chatId,

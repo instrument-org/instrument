@@ -1,3 +1,4 @@
+import { AUTH_CALLBACK_PATHS } from "../auth/routes";
 import { getAuthServerPort } from "@/electron-main/auth/state";
 import {
   directoryIconDataUri,
@@ -22,7 +23,7 @@ import {
 } from "@instrument-org/workspace/electron";
 
 /** The loopback route the provider sends the browser back to after a sign-in. */
-export const APP_OAUTH_CALLBACK_PATH = "/auth/callback/app";
+export const APP_OAUTH_CALLBACK_PATH = AUTH_CALLBACK_PATHS.app;
 
 // The workspace's apps directory, kept here once the workspace boots: the
 // sign-in callback names an app by its manifest and runs outside any RPC

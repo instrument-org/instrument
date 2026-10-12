@@ -1,3 +1,4 @@
+import { AUTH_CALLBACK_PATHS } from "./routes";
 import { exchangeDesktopSignIn, store } from "@/electron-main/auth/client";
 import {
   GOOGLE_MARK,
@@ -17,10 +18,7 @@ import {
 } from "@/electron-main/lib/apps";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { directoryIconDataUri } from "@/electron-main/lib/directory-icons";
-import {
-  CHATGPT_CALLBACK_PATH,
-  receiveChatGPTCallback,
-} from "@/electron-main/lib/chatgpt-account";
+import { receiveChatGPTCallback } from "@/electron-main/lib/chatgpt-account";
 import {
   OPENROUTER_CALLBACK_PATH,
   receiveOpenRouterCallback,
@@ -39,7 +37,7 @@ import {
   pendingMcpOAuthSlug,
   recordConnection,
 } from "@instrument-org/workspace/electron";
-import { type Context, Hono } from "hono";
+import { type Context, type Handler, Hono } from "hono";
 import fs from "node:fs/promises";
 import { settleSignIn } from "../browser-view/history-intents";
 
@@ -79,15 +77,9 @@ export function startAuthCallbackServer() {
 }
 
 async function start() {
-  const app = new Hono();
+  const app = createAuthCallbackApp();
 
-  // Bound before the routes are registered, so they close over the port the
-  // bind actually took. Nothing can reach the server in between: registration
-  // runs in the same tick.
-  //
-  // IPv4 loopback only, so the OAuth callback and the auth preview pages aren't
-  // exposed to the local network; the system browser reaches the callback via
-  // localhost/127.0.0.1.
+  // IPv4 loopback keeps callbacks and preview pages off the local network.
   const bound = await listenWithPortFallback({
     basePort: DEFAULT_PORT,
     listen: (port) => serve({ fetch: app.fetch, hostname: "127.0.0.1", port }),
@@ -118,21 +110,35 @@ async function start() {
     );
   });
 
-  app.get("/icon.png", (c) =>
+  return { port };
+}
+
+export function createAuthCallbackApp() {
+  const app = new Hono();
+  const paths = new Set<string>();
+  const get = (path: string, handler: Handler) => {
+    if (paths.has(path)) {
+      throw new Error(`Duplicate auth callback route: GET ${path}`);
+    }
+    paths.add(path);
+    app.get(path, handler);
+  };
+
+  get("/icon.png", (c) =>
     serveAsset(
       c,
       () => import("../../../resources/icon.png?asset"),
       "image/png",
     ),
   );
-  app.get("/app-icon-stylized.png", (c) =>
+  get("/app-icon-stylized.png", (c) =>
     serveAsset(
       c,
       () => import("../../client/assets/app-icon-stylized.png?asset"),
       "image/png",
     ),
   );
-  app.get("/favicon.ico", (c) =>
+  get("/favicon.ico", (c) =>
     serveAsset(
       c,
       () => import("../../../resources/favicon.ico?asset"),
@@ -143,7 +149,7 @@ async function start() {
   );
   // The app's own Roboto Serif, so the pages set their headings in the
   // face the window uses even where the browser can't reach Google Fonts.
-  app.get("/fonts/roboto-serif-400.woff2", (c) =>
+  get("/fonts/roboto-serif-400.woff2", (c) =>
     serveAsset(
       c,
       () =>
@@ -151,7 +157,7 @@ async function start() {
       "font/woff2",
     ),
   );
-  app.get("/tailwind.js", (c) =>
+  get("/tailwind.js", (c) =>
     serveAsset(
       c,
       () => import("../../../resources/tailwind-browser.js?asset"),
@@ -172,7 +178,7 @@ async function start() {
 
   // The API's Google sign-in lands here with a single-use token, or with the
   // error that ended it.
-  app.get("/auth/callback", async (c) => {
+  const instrumentCallback = async (c: Context) => {
     const token = c.req.query("token");
     const state = c.req.query("state");
     const ended = c.req.query("error");
@@ -235,13 +241,14 @@ async function start() {
     return c.html(
       renderAuthPage({ email, kind: "signed-in", service: googleService }),
     );
-  });
+  };
+  get(AUTH_CALLBACK_PATHS.instrument, instrumentCallback);
 
   // An app's sign-in lands here after the user approves. Finish the parked
   // flow (the code becomes tokens, the app becomes connected), then tell the
   // window and the chat. The page opened in the window's own browser,
   // so this renders where the user is looking rather than pulling focus.
-  app.get(APP_OAUTH_CALLBACK_PATH, async (c) => {
+  get(APP_OAUTH_CALLBACK_PATH, async (c) => {
     const code = c.req.query("code");
     const state = c.req.query("state");
     const oauthError = c.req.query("error");
@@ -330,7 +337,7 @@ async function start() {
   // Sign in with ChatGPT lands here. The sign-in is finished before the page
   // renders, so it says whether the plan is ready, and the window comes back
   // to the front because the browser it ran in is the user's own.
-  app.get(CHATGPT_CALLBACK_PATH, async (c) => {
+  const chatGPTCallback = async (c: Context) => {
     const params = new URL(c.req.url).searchParams;
     const finished = receiveChatGPTCallback(params);
     if (!finished) {
@@ -377,9 +384,17 @@ async function start() {
         );
       }
     }
+  };
+  // Older APIs return Instrument sign-ins to ChatGPT's canonical path.
+  // Only the pending transaction's state establishes ownership.
+  get(AUTH_CALLBACK_PATHS.chatgpt, (c) => {
+    const state = c.req.query("state");
+    return state !== undefined && state === store.state
+      ? instrumentCallback(c)
+      : chatGPTCallback(c);
   });
 
-  app.get(OPENROUTER_CALLBACK_PATH, async (c) => {
+  get(OPENROUTER_CALLBACK_PATH, async (c) => {
     const finished = receiveOpenRouterCallback(new URL(c.req.url).searchParams);
     if (!finished) {
       return c.html(renderAuthPage({ kind: "expired" }), 400);
@@ -414,7 +429,7 @@ async function start() {
     }
   });
 
-  app.get("/test", (c) =>
+  get("/test", (c) =>
     c.html(
       renderAuthPage({
         index: previewOutcomes().map(({ label }, i) => ({
@@ -424,11 +439,11 @@ async function start() {
       }),
     ),
   );
-  app.get("/test/:index", async (c) => {
+  get("/test/:index", async (c) => {
     const previews = previewOutcomes(await directoryIconDataUri("linear"));
     const preview = previews[Number(c.req.param("index"))];
     return preview ? c.html(renderAuthPage(preview.outcome)) : c.notFound();
   });
 
-  return { port };
+  return app;
 }

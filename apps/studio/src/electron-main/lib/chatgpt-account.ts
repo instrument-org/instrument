@@ -1,3 +1,4 @@
+import { AUTH_CALLBACK_PATHS } from "../auth/routes";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -406,7 +407,7 @@ function saveUnlessReplaced(
  * Where the auth callback server takes ChatGPT's redirect. OpenAI fixes the
  * scheme, host and path of the redirect; only the port may vary.
  */
-export const CHATGPT_CALLBACK_PATH = "/auth/callback";
+export const CHATGPT_CALLBACK_PATH = AUTH_CALLBACK_PATHS.chatgpt;
 
 class TokenError extends Error {
   readonly code: string | undefined;

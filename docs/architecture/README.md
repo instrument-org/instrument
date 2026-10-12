@@ -8,6 +8,7 @@ Nothing here carries a status or a date. If a statement stops being true, correc
 
 - [system-overview.md](system-overview.md) — the top-level map: packages and layering, chats, tasks, and the app window, main-vs-renderer topology, on-disk layout, and how an agent turn flows end to end. **Start here.**
 - [ai-gateway.md](ai-gateway.md) — model access: the mounted provider-proxy Hono app, plus the model discovery and identity library that workspace and studio consume.
+- [auth-callback-server.md](auth-callback-server.md) — loopback callback ownership, canonical paths, Instrument API compatibility, and assembled-router tests.
 - [agent-sandbox.md](agent-sandbox.md) — how agent tools are contained: path-scoped file I/O, the just-bash virtual filesystem, the agent-browser allowlist, and the real-binary escape hatches. Userland, not OS-level isolation.
 - [bash-sandbox-mounts-and-native-binaries.md](bash-sandbox-mounts-and-native-binaries.md) — the `/task` + `/skills` + `/mnt` mount layout, the virtual-to-host path bridge, and the quirks that follow from it.
 - [just-bash-upstream.md](just-bash-upstream.md) — which build we consume, every patch and agent-facing workaround we carry because of an upstream gap, and the removal trigger for each. Read before adding a prompt line that steers the agent around sandbox behavior.

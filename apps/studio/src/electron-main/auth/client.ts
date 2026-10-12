@@ -83,6 +83,7 @@ export async function signInSocial(): Promise<
   const url = new URL(
     `${import.meta.env.MAIN_VITE_APP_API_BASE_URL}/auth-desktop/start`,
   );
+  url.searchParams.set("callback_version", "2");
   url.searchParams.set("port", String(authServerPort));
   url.searchParams.set("state", state);
   url.searchParams.set(

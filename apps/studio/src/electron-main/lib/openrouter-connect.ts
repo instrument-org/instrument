@@ -1,3 +1,4 @@
+import { AUTH_CALLBACK_PATHS } from "../auth/routes";
 import { APP_NAME } from "@instrument-org/shared";
 import { shell } from "electron";
 import { createHash, randomBytes } from "node:crypto";
@@ -16,7 +17,7 @@ const AUTHORIZE_URL = "https://openrouter.ai/auth";
 const EXCHANGE_URL = "https://openrouter.ai/api/v1/auth/keys";
 
 /** Where the auth callback server takes OpenRouter's redirect. */
-export const OPENROUTER_CALLBACK_PATH = "/auth/callback/openrouter";
+export const OPENROUTER_CALLBACK_PATH = AUTH_CALLBACK_PATHS.openrouter;
 
 /** How a connect ended; one that went wrong rejects with what went wrong. */
 export interface OpenRouterConnectResult {

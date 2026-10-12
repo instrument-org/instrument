@@ -15,11 +15,14 @@ export function ClaudeLoginButton({
   caption,
   className,
   onSuccess,
+  onWaitingChange,
 }: {
   /** Under the button; replaced by what is happening while it holds. */
   caption: string;
   className?: string;
   onSuccess: () => void;
+  /** Told when the button starts and stops holding. */
+  onWaitingChange?: (waiting: boolean) => void;
 }) {
   const { data: status } = useQuery(
     rpcClient.claudeAccount.live.status.experimental_liveOptions(),
@@ -86,6 +89,10 @@ export function ClaudeLoginButton({
       status?.signingIn === true ||
       status?.kind === "signed-in" ||
       !status);
+
+  useEffect(() => {
+    onWaitingChange?.(waiting);
+  }, [onWaitingChange, waiting]);
 
   return (
     <div className="flex w-full flex-col items-center gap-y-2">

@@ -34,7 +34,7 @@ import { getCurrentDate } from "../lib/get-current-date";
 import { isStorageFullError } from "../lib/is-storage-full-error";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
-import { prepareModelMessages } from "../lib/prepare-model-messages";
+import { prepareModelMessages, TRANSIENT } from "../lib/prepare-model-messages";
 import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call";
 import { cacheSessionFor } from "../lib/fork-cache-session";
 import { Store } from "../lib/store";
@@ -261,8 +261,13 @@ export const llmRequestLogic = fromPromise<
   });
   if (turnNote !== undefined) {
     // After the cache breakpoints, like the budget notice: for this request
-    // alone, and never stored.
-    messagesResult.value.push({ content: turnNote, role: "user" });
+    // alone, and never stored, so a model keeping its own copy of the
+    // conversation must not count it as seen.
+    messagesResult.value.push({
+      content: turnNote,
+      providerOptions: TRANSIENT,
+      role: "user",
+    });
   }
 
   if (signal.aborted) {

@@ -21,6 +21,7 @@ import {
 } from "xstate";
 
 import { TypedError } from "../lib/errors";
+import { turnNoteFor } from "../lib/turn-note";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { SESSION_CONTEXT_VERSION } from "../lib/prepare-model-messages";
 import { Store } from "../lib/store";
@@ -40,6 +41,10 @@ vi.mock(import("ulid"));
 vi.mock(import("../lib/session-store-storage"));
 
 vi.mock(import("../lib/get-current-date"));
+vi.mock(import("../lib/turn-note"), async (importOriginal) => {
+  const original = await importOriginal();
+  return { ...original, turnNoteFor: vi.fn(original.turnNoteFor) };
+});
 
 describe("llmRequestLogic", () => {
   const sessionId = StoreId.newSessionId();
@@ -2245,7 +2250,11 @@ describe("llmRequestLogic", () => {
                   "type": "text",
                 },
               ],
-              "providerOptions": undefined,
+              "providerOptions": {
+                "instrument": {
+                  "transient": true,
+                },
+              },
               "role": "user",
             },
           ],
@@ -3093,6 +3102,59 @@ describe("llmRequestLogic", () => {
           "type": "tool-bash",
         },
       ]
+    `);
+  });
+
+  // Last in the file: it takes ids from the mocked ulid, and every snapshot
+  // after it would shift. A Claude account's process compares each request
+  // with the last one it saw, and the note is gone by the next step; counted
+  // as seen, it reads as an edited message and restarts the process from a
+  // replay.
+  it("sends the turn note as transient", async () => {
+    const testMachine = await createTestMachine({ chunks: [] });
+    const messageId = StoreId.newMessageId();
+    await Store.saveMessage(
+      { id: messageId, metadata: { createdAt: mockDate, sessionId }, role: "user" },
+      testMachine.chatId,
+    );
+    await Store.saveParts(
+      [
+        {
+          metadata: {
+            createdAt: mockDate,
+            id: StoreId.newPartId(),
+            messageId,
+            sessionId,
+          },
+          state: "done",
+          text: "Do something",
+          type: "text",
+        },
+      ],
+      testMachine.chatId,
+    );
+    vi.mocked(turnNoteFor).mockResolvedValueOnce("Say what you are doing.");
+
+    await runTestMachine({
+      machine: testMachine.machine,
+      chatId: testMachine.chatId,
+    });
+
+    expect(prompts[0]?.at(-1)).toMatchInlineSnapshot(`
+      {
+        "content": [
+          {
+            "text": "Say what you are doing.",
+            "type": "text",
+          },
+        ],
+        "providerOptions": {
+          "instrument": {
+            "transient": true,
+          },
+        },
+        "role": "user",
+      }
     `);
   });
 });

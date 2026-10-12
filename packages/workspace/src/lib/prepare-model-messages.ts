@@ -39,7 +39,7 @@ import { Store } from "./store";
  * sends it with the turn but does not count it as part of what it has seen,
  * since the next request leaves it out or says it differently.
  */
-const TRANSIENT = { instrument: { transient: true } };
+export const TRANSIENT = { instrument: { transient: true } };
 
 /**
  * The shape of the session baseline this build writes.

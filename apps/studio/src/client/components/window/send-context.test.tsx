@@ -450,8 +450,6 @@ describe("draftContext", () => {
   const FOLDER = folderHref("/Users/casey/Documents");
   const FILE = fileHref("/Users/casey/Downloads/receipt.pdf");
   const APP = "/apps/notion";
-  /** The band's face as the chat is told it, ahead of the thing included. */
-  const NEW_TAB = { at: NEW_TAB_HREF, id: "home", title: "New tab" };
 
   it.each<[string, WindowTab, SessionMessageDataPart.ViewContextDataPart]>([
     [
@@ -464,7 +462,7 @@ describe("draftContext", () => {
           selected: [],
         },
         screen: "computer",
-        tabs: [NEW_TAB],
+        tabs: [],
         url: FOLDER,
       },
     ],
@@ -478,7 +476,7 @@ describe("draftContext", () => {
           path: "/Users/casey/Downloads/receipt.pdf",
         },
         screen: "file",
-        tabs: [NEW_TAB],
+        tabs: [],
         url: FILE,
       },
     ],
@@ -493,7 +491,7 @@ describe("draftContext", () => {
           standing: "unknown",
         },
         screen: "apps",
-        tabs: [NEW_TAB],
+        tabs: [],
         url: APP,
       },
     ],
@@ -514,7 +512,7 @@ describe("draftContext", () => {
           url: "https://example.com/",
         },
         screen: "browser",
-        tabs: [NEW_TAB],
+        tabs: [],
         url: "https://example.com/",
       },
     ],
@@ -630,25 +628,16 @@ describe("draftContext", () => {
     });
   });
 
-  it("sends the band's own screen when nothing was included", async () => {
+  it("sends nothing for a band that shows only a new tab", async () => {
     const { draftContext } = contextReaders(
       windowOf({
         drafts: [DRAFT],
         windowTabs: tabsOf([HOME_TAB]),
       }),
     );
-    await expect(draftContext(DRAFT.id)).resolves.toMatchInlineSnapshot(`
-      {
-        "screen": "home",
-        "tabs": [
-          {
-            "at": "/new-tab",
-            "id": "home",
-            "title": "New tab",
-          },
-        ],
-      }
-    `);
+    await expect(draftContext(DRAFT.id)).resolves.toMatchInlineSnapshot(
+      `undefined`,
+    );
   });
 
   it("sends what the draft was opened on by name, reached through its grant", async () => {

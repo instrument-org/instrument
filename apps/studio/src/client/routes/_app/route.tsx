@@ -413,8 +413,8 @@ function ChatScreenInPlace({
     <ChatScreen
       chatId={chatId}
       composerLead={
-        context.items.length > 0 ? (
-          <ContextChips items={context.items} onLeaveOut={context.leaveOut} />
+        context.chips.length > 0 ? (
+          <ContextChips items={context.chips} onLeaveOut={context.leaveOut} />
         ) : undefined
       }
       isUp={isUp}

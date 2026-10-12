@@ -7,35 +7,37 @@ import { resolveTabs } from "./tab-choice";
 
 const CHAT = ChatIdSchema.parse("2026-10-01-lisbon");
 const OWN = browserTargetOf(StoreId.newSessionId());
+const FILE = browserTargetOf(StoreId.newSessionId());
 const THEIRS = browserTargetOf(StoreId.newSessionId());
 
-// The window: the chat's tabs, and every guest live, another chat's too.
+// The window: the chat's tabs, whichever have a guest up.
 vi.mock(import("../../chat/window-tab"), async (importOriginal) => ({
   ...(await importOriginal()),
-  askWindow: () => Promise.resolve({ requestId: "r", tabIds: [OWN] }),
+  askWindow: () =>
+    Promise.resolve({
+      requestId: "r",
+      tabs: [
+        { id: OWN, kind: "page", url: "https://example.com/" },
+        { id: FILE, kind: "page", url: "file:///Users/casey/notes.html" },
+        { id: "screen-1", kind: "screen" },
+      ],
+    }),
 }));
 vi.mock(import("../../record-folders"), async (importOriginal) => ({
   ...(await importOriginal()),
   resolveChat: (id: string) => ChatIdSchema.parse(id),
 }));
-vi.mock(import("../../workspace-config"), () => ({
-  getWorkspaceConfig: () =>
-    ({
-      browser: {
-        getTargetMeta: () => ({ partitionDir: "/tmp/profile" }),
-        listTargets: () => Promise.resolve([]),
-      },
-    }) as never,
-}));
 
 describe("resolveTabs", () => {
-  it("hands over a tab of the chat's own", async () => {
+  it("hands over a page of the chat's own, whether or not its guest is up", async () => {
     await expect(resolveTabs([OWN], { chatId: CHAT })).resolves.toEqual([OWN]);
   });
 
-  it("refuses a live tab that is not the chat's, whatever id it was given", async () => {
-    await expect(resolveTabs([THEIRS], { chatId: CHAT })).rejects.toThrow(
-      "is not one of this chat's tabs",
-    );
+  it.each([
+    [THEIRS, "is not one of this chat's tabs"],
+    ["screen-1", "not a page"],
+    [FILE, "shows a file on this computer"],
+  ])("refuses %s", async (tab, why) => {
+    await expect(resolveTabs([tab], { chatId: CHAT })).rejects.toThrow(why);
   });
 });

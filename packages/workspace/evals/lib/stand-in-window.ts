@@ -55,7 +55,13 @@ export function createStandInWindow() {
       return { tabId: add(action.target).id };
     }
     if (action.kind === "list") {
-      return { tabIds: [...tabs.keys()] };
+      return {
+        tabs: [...tabs.values()].map((tab) =>
+          tab.kind === "page"
+            ? { id: tab.id, kind: "page" as const, url: tab.at }
+            : { id: tab.id, kind: "screen" as const },
+        ),
+      };
     }
     if (action.kind === "adopt") {
       tabs.set(action.tabId, {

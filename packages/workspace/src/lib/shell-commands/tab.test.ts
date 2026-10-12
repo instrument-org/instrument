@@ -50,7 +50,9 @@ function answeringWindow() {
       action.kind === "open"
         ? { tabId: `made-${asked.length}` }
         : action.kind === "list"
-          ? { tabIds: [...known] }
+          ? {
+              tabs: [...known].map((id) => ({ id, kind: "screen" as const })),
+            }
           : known.has(action.tabId)
             ? {
                 tabId: action.tabId,

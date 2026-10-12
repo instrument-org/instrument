@@ -27,6 +27,7 @@ import { computerTabOf, mountOfHostPath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { type Volume } from "./tab-location";
+import { isFreshTab, isHomeTab } from "./tab-model";
 import { type TabSurface } from "./tab-surface";
 import { matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
@@ -274,7 +275,10 @@ export function contextReaders({
     if (!state) {
       return;
     }
-    const own = windowTabs.allTabs.filter((tab) => tab.group === group);
+    // A new tab's face has nothing on it to name or hand over.
+    const own = windowTabs.allTabs.filter(
+      (tab) => tab.group === group && !isFreshTab(tab) && !isHomeTab(tab),
+    );
     const isReply = !group.startsWith("draft:");
     let shown: SessionMessageDataPart.ViewContextDataPart | undefined;
     let chat: SessionMessageDataPart.ViewContextDataPart["chat"];

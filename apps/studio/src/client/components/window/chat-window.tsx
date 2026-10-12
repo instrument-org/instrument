@@ -501,9 +501,9 @@ export function ChatWindow({
                 <ActiveTabProvider isActive>
                   <ChatScreen
                     composerLead={
-                      context.items.length > 0 ? (
+                      context.chips.length > 0 ? (
                         <ContextChips
-                          items={context.items}
+                          items={context.chips}
                           onLeaveOut={context.leaveOut}
                         />
                       ) : undefined

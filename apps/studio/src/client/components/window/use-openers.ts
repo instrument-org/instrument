@@ -436,9 +436,17 @@ export function useOpeners({
       return group === undefined
         ? { error: "only a chat has tabs to list." }
         : {
-            tabIds: windowTabs.allTabs
+            tabs: windowTabs.allTabs
               .filter((entry) => entry.group === group)
-              .map((entry) => entry.id),
+              .map((entry) =>
+                entry.kind === "page"
+                  ? {
+                      id: entry.id,
+                      kind: "page" as const,
+                      url: entry.url ?? "about:blank",
+                    }
+                  : { id: entry.id, kind: "screen" as const },
+              ),
           };
     }
     const tab = windowTabs.allTabs.find(

@@ -8,10 +8,14 @@ import { useTabInView } from "./use-tab-in-view";
 import { useWindowTabs } from "./window-tabs";
 
 /**
- * What a chat's composer carries besides its words, as the chips it draws
- * (see chatContextItems), and the keys of the ones the person left out, which
- * the send reads the same list with. A chip left out stays out until what it
- * named is no longer there, since a new thing comes with a new key.
+ * What a chat's composer carries besides its words (see chatContextItems),
+ * the chips it draws for them, and the keys of the ones the person left out,
+ * which the send reads the same list with. The chat's own tab goes without a
+ * chip: it is on screen beside the conversation, often the page the agent
+ * was just working in, so a chip would only say again what is in view. What
+ * stands behind a chat popped out over another screen gets one, since that
+ * is something else. A chip left out stays out until what it named is no
+ * longer there, since a new thing comes with a new key.
  */
 export function useChatContext({
   chatId,
@@ -21,7 +25,7 @@ export function useChatContext({
   /** Whether the chat's view of its tab up is open where the message is written. */
   isViewOpen: boolean;
 }): {
-  items: ContextItem[];
+  chips: ContextItem[];
   leaveOut: (item: ContextItem) => void;
   leftOut: readonly string[];
 } {
@@ -37,7 +41,7 @@ export function useChatContext({
     up: isViewOpen ? windowTabs.selectedTabIn(chatId) : undefined,
   });
   return {
-    items,
+    chips: items.filter((item) => !(item.kind === "tab" && item.owned)),
     leaveOut: (item) => {
       setLeftOut((current) => [...current, item.key]);
     },

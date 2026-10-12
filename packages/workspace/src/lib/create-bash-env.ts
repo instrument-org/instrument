@@ -630,7 +630,7 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
  * reaches, the skills, and for the chat its apps, held to the chat's rules.
  * rg, du, and the output a promoted command streams all take it from here.
  */
-export function shellLayout({
+function shellLayout({
   folders,
   chat,
   chatId,

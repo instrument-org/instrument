@@ -34,7 +34,7 @@ const TOOL_REPLY = "instrument:tool-reply";
  * channel is referenced only while a call is waiting, so a script that never
  * calls a tool exits when its own work is done.
  */
-export const NODE_TOOLS_PRELOAD = `
+const NODE_TOOLS_PRELOAD = `
 if (globalThis.tools === undefined && typeof process.send === "function") {
   const pending = new Map();
   let nextId = 0;

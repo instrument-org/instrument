@@ -76,6 +76,17 @@
       "pulls": [
         { "number": 555, "commit": "500413a98d771fbea4592c4dbb5ae2505f6ed0b3" }
       ]
+    },
+    {
+      "name": "command limits",
+      "pulls": [
+        { "number": 572, "commit": "cdd8f4e27aa20912dd95c0b06178fd3c8ca0e1fd" }
+      ]
+    },
+    {
+      "name": "stdin bytes",
+      "diff": "stdin-bytes-3.6.0.diff",
+      "ports": [573]
     }
   ]
 }

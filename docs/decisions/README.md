@@ -10,6 +10,7 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-12 | [Carry the just-bash command-limit and stdin-bytes fixes as a local patch until they are released](2026-10-12-carry-the-limit-and-stdin-bytes-patch.md) |
 | 2026-10-10 | [One chat, one database: a task is a child session, not a record](2026-10-10-one-chat-one-database.md) |
 | 2026-10-10 | [The workspace server guards itself, so the agent's HTTP tools refuse no address](2026-10-10-the-workspace-server-guards-itself.md) |
 | 2026-10-09 | [Outside content arrives last and unmarked](2026-10-09-outside-content-arrives-last-and-unmarked.md) |

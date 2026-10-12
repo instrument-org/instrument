@@ -1444,7 +1444,6 @@ async function openChatUnderTopics(
       folders: folders.length > 0 ? folders : undefined,
       id,
       modelURI: uri,
-      newSessionId,
       prompt: evalCase.prompt,
       topics: topicIds,
       viewing: evalCase.viewing,

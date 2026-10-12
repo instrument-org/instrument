@@ -1,11 +1,6 @@
-import { err, ok, type Result } from "neverthrow";
-import { alphabetical } from "radashi";
-
 import { type SessionMessage } from "../../schemas/session/message";
-import { StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
-import { createSession } from "../create-session";
-import { type TypedError } from "../errors";
+import { type StoreId } from "../../schemas/store-id";
 import { Store } from "../store";
 
 /**
@@ -53,37 +48,4 @@ export function lastAssistantTextIn(
     .join("\n")
     .trim();
   return text || undefined;
-}
-
-/**
- * The session a chat's next message goes into, created when the chat has
- * never had one: what a wake, a `task send`, and the window's first open all
- * need before they can write.
- */
-export async function latestOrNewSessionId(
-  chatId: ChatId,
-): Promise<Result<StoreId.Session, TypedError.Type>> {
-  const newest = await latestSessionId(chatId);
-  if (newest.isErr()) {
-    return err(newest.error);
-  }
-  if (newest.value) {
-    return ok(newest.value);
-  }
-  const created = await createSession({
-    sessionId: StoreId.newSessionId(),
-    chatId,
-  });
-  return created.map((session) => session.id);
-}
-
-/**
- * The session a chat's next message goes into: its newest top-level one, or
- * none for a chat that has never had a session. Session ids are ulids, so
- * alphabetical order is creation order.
- */
-export function latestSessionId(chatId: ChatId) {
-  return Store.getSessions(chatId).map(
-    (sessions) => alphabetical(sessions, (session) => session.id).at(-1)?.id,
-  );
 }

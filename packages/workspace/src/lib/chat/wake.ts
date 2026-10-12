@@ -27,11 +27,7 @@ import { currentChatApps, setChatAppsBaseline } from "../chat-app-changes";
 import { listChatIds } from "./chat-records";
 import { childTask, listChildTasks, touchTask } from "./children";
 import { stepInFlight } from "./in-flight";
-import {
-  cutForNote,
-  lastAssistantText,
-  latestOrNewSessionId,
-} from "./latest-session";
+import { cutForNote, lastAssistantText } from "./latest-session";
 import { endedWithoutWords } from "./standing";
 import { trajectorySince } from "./steps";
 import { replacesPendingEvent } from "./wake-event";
@@ -180,7 +176,7 @@ export async function wakeChatForApp(
     return;
   }
   const sessionId = sessionOfChat(asked);
-  await wakeWith(asked, part, workspaceRef, sessionId);
+  await wakeWith(asked, part, workspaceRef);
   if (sessionId !== undefined) {
     const baseline = await setChatAppsBaseline(
       asked,
@@ -246,7 +242,6 @@ async function deliver(
     chatId,
     { data: { events }, type: "data-taskEvent" },
     workspaceRef,
-    sessionOfChat(chatId),
   );
 }
 
@@ -453,8 +448,6 @@ async function wakeWith(
   chatId: ChatId,
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
-  /** The chat to wake in; the newest one when a caller has no chat. */
-  chatSessionId?: StoreId.Session,
 ) {
   const modelURI = await chatModelURI(chatId);
   if (!modelURI) {
@@ -462,11 +455,10 @@ async function wakeWith(
       `Chat ${chatId} has no model to wake with; it has never been messaged.`,
     );
   }
-  const session = await latestOrNewSessionId(chatId);
-  if (session.isErr()) {
-    throw session.error;
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
+    throw new Error(`${chatId} is not a chat.`);
   }
-  const sessionId = chatSessionId ?? session.value;
 
   const createdAt = new Date();
   const messageId = StoreId.newMessageId();

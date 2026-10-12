@@ -16,7 +16,6 @@ import {
 import { type AnyAgent } from "../agents/types";
 import { createAssignEventError } from "../lib/assign-event-error";
 import { callsItOff, MID_TURN_NOTE } from "../lib/chat/mid-turn";
-import { createSession } from "../lib/create-session";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
 import { chatConversation } from "../lib/chat/children";
 import { recordChanged } from "../lib/record-changes";
@@ -175,24 +174,12 @@ export const sessionMachine = setup({
       const existingSession = await Store.getSession(sessionId, chatId, {
         signal,
       });
+      // Every session is written before its first message: a chat's with
+      // the chat, a task's when the chat starts it.
       if (existingSession.isErr()) {
-        if (existingSession.error.type === "workspace-not-found-error") {
-          const result = await createSession({
-            sessionId,
-            signal,
-            chatId,
-          });
-          if (result.isErr()) {
-            throw new Error(
-              `Failed to create session: ${result.error.message}`,
-            );
-          }
-          return;
-        } else {
-          throw new Error(
-            `Failed to get session: ${existingSession.error.message}`,
-          );
-        }
+        throw new Error(
+          `Failed to get session: ${existingSession.error.message}`,
+        );
       } else {
         const result = await Store.saveSession(
           {

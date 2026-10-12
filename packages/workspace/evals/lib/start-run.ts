@@ -3,7 +3,6 @@ import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { type WorkspaceActorRef } from "../../src/machines/workspace";
 import { ensureChat } from "../../src/lib/chat/chat-records";
 import { addChildTask } from "../../src/lib/chat/children";
-import { createSession } from "../../src/lib/create-session";
 import { newMessage } from "../../src/lib/new-message";
 import { Store } from "../../src/lib/store";
 import { updateChatSettings } from "../../src/lib/chat-settings";
@@ -65,7 +64,6 @@ export async function startRun(
   const chatSession = StoreId.newSessionId();
   const chatId: ChatId = await ensureChat(chatSession, prompt);
   let sessionId = chatSession;
-  (await createSession({ sessionId: chatSession, chatId }))._unsafeUnwrap();
   if (kind === "task") {
     // The chat's model and apps are the task's, so the case's are the chat's,
     // as the composer's send would have made them.

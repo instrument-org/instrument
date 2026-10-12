@@ -4,14 +4,13 @@ import { sleep } from "radashi";
 import { z } from "zod";
 
 import { changedMessageBatches } from "../../lib/changed-message-batches";
-import { createSession } from "../../lib/create-session";
+import { ensureChatSession } from "../../lib/create-session";
 import { createWriteQueue } from "../../lib/create-write-queue";
 import { generateTitleFromUserMessage } from "../../lib/generate-title-from-user-message";
 import { LiveMessagesSnapshot } from "../../lib/live-messages-snapshot";
 import { newMessage } from "../../lib/new-message";
 import { setChatTopics } from "../../lib/chat/chats";
 
-import { resolveChat, sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
 import { recordChatActivity } from "../../lib/chat-settings";
 import { updateSessionTitle } from "../../lib/update-session-title";
@@ -62,13 +61,6 @@ const create = base
       folders: z.array(z.object({ path: z.string() })).optional(),
       id: ChatIdSchema,
       modelURI: AIGatewayModelURI.Schema,
-      /**
-       * The id for the session this message opens, when the caller chose
-       * it: a window that shows the new chat from the press, before this
-       * call has answered, has to know which chat it is showing. Ignored
-       * alongside `sessionId`, which names a session that already exists.
-       */
-      newSessionId: StoreId.SessionSchema.optional(),
       prompt: z.string(),
       /** The earlier message this one answers. */
       replyTo: SessionMessageDataPart.ReplyDataPartSchema.optional(),
@@ -89,7 +81,6 @@ const create = base
         folders,
         id,
         modelURI,
-        newSessionId,
         prompt,
         replyTo,
         sessionId,
@@ -115,26 +106,17 @@ const create = base
 
         const model = modelResult.value;
 
-        // A chat's record holds one session, the one its settings name.
-        const isChat = resolveChat(chatId) !== undefined;
-        const chatSession = isChat ? sessionOfChat(chatId) : undefined;
-
-        let finalSessionId: StoreId.Session;
-        if (sessionId) {
-          finalSessionId = sessionId;
-        } else {
-          const sessionResult = await createSession({
-            sessionId: chatSession ?? newSessionId ?? StoreId.newSessionId(),
-            chatId,
-          });
-          if (sessionResult.isErr()) {
-            context.workspaceConfig.captureException(sessionResult.error);
-            throw toORPCError(sessionResult.error, errors);
-          }
-          finalSessionId = sessionResult.value.id;
-          if (chatId && topics && topics.length > 0) {
-            await setChatTopics(chatId, topics);
-          }
+        // The chat's own session is written with the chat; a chat from
+        // before that gets it here, whichever of its sessions is named.
+        const chatSession = await ensureChatSession(chatId);
+        if (chatSession.isErr()) {
+          context.workspaceConfig.captureException(chatSession.error);
+          throw toORPCError(chatSession.error, errors);
+        }
+        // Without a session named, the message goes to the chat's own.
+        const finalSessionId = sessionId ?? chatSession.value.id;
+        if (!sessionId && topics && topics.length > 0) {
+          await setChatTopics(chatId, topics);
         }
 
         const messageIdsBeforeResult = await Store.getMessageIds(

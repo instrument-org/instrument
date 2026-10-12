@@ -1,6 +1,10 @@
+import { err } from "neverthrow";
+
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
+import { TypedError } from "./errors";
 import { generateSessionTitle } from "./generate-session-title";
+import { sessionOfChat } from "./record-folders";
 import { Store } from "./store";
 
 export async function createSession({
@@ -29,4 +33,20 @@ export async function createSession({
   );
 
   return result;
+}
+
+/**
+ * A chat's own session, the one its settings name. Made with the chat, so
+ * this only writes it for a chat made before that, on its first send.
+ */
+export async function ensureChatSession(chatId: ChatId) {
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
+    return err(new TypedError.NotFound(`${chatId} is not a chat.`));
+  }
+  const existing = await Store.getSession(sessionId, chatId);
+  if (existing.isOk() || existing.error.type !== "workspace-not-found-error") {
+    return existing;
+  }
+  return createSession({ chatId, sessionId });
 }

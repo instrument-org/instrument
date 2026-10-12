@@ -18,7 +18,6 @@ import path from "node:path";
 import { z } from "zod";
 
 import { ensureChat } from "../../src/lib/chat/chat-records";
-import { createSession } from "../../src/lib/create-session";
 import { chatDir } from "../../src/lib/record-folders";
 import { Store } from "../../src/lib/store";
 import { MOUNT } from "../../src/mount-points";
@@ -371,7 +370,6 @@ async function seedLease() {
   const ask =
     "Can you summarize my new apartment lease? It's lease.md in the Lease folder in my workspace. Do it section by section, start with the money stuff.";
   const chatId = await ensureChat(sessionId, ask);
-  (await createSession({ chatId, sessionId }))._unsafeUnwrap();
   await saveSeeded(chatId, sessionId, "user", ask, new Date(yesterday));
   await saveSeeded(
     chatId,

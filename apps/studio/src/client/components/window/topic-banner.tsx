@@ -1,4 +1,5 @@
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
+import { XIcon } from "@phosphor-icons/react/X";
 
 import { type Topic } from "./chats";
 import { topicColor } from "./topic-colors";
@@ -10,13 +11,17 @@ import { topicTint } from "./topic-tint";
  * topic's tint with its mark and name, Edit for its details, and the start
  * of the instructions every chat under it follows, so what Instrument knows
  * about the topic is in view without opening it. A topic with no
- * instructions is the one line, with Add instructions in Edit's place.
+ * instructions is the one line, with Add instructions in Edit's place. The
+ * X ahead of the mark is the way out of the topic, back to the chats.
  */
 export function TopicBanner({
   onDetails,
+  onLeave,
   topic,
 }: {
   onDetails: (topic: Topic) => void;
+  /** Takes the list out of the topic. */
+  onLeave: () => void;
   topic: Topic;
 }) {
   const instructions = stripMarkdown(topic.instructions ?? "").trim();
@@ -26,6 +31,15 @@ export function TopicBanner({
       style={topicTint(topicColor(topic))}
     >
       <div className="flex items-center gap-1.5 font-medium">
+        <button
+          aria-label="Back to Chats"
+          className="-ml-1 grid size-4 shrink-0 place-items-center rounded-sm text-(--topic-tint-ink) hover:bg-(--topic-tint-edge)"
+          onClick={onLeave}
+          title="Back to Chats"
+          type="button"
+        >
+          <XIcon className="size-3" weight="bold" />
+        </button>
         {topic.emoji ? (
           <span className="leading-none">{topic.emoji}</span>
         ) : (

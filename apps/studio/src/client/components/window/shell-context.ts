@@ -52,6 +52,8 @@ export interface WindowShell {
   onListed: (listed: ChatId[]) => void;
   /** A topic asked for from a chat's head, with what was typed. */
   onNewTopic: (name: string | undefined) => void;
+  /** Takes the tab up to Chat with the inbox standing in a topic, by its id. */
+  openTopic: (topicId: string) => void;
   /** What each chat being started from a draft sent, by the chat, shown until its transcript has it. */
   sentWords: ReadonlyMap<ChatId, string>;
   /** Closes one of a chat's tabs, asking first while a task is working in it. */

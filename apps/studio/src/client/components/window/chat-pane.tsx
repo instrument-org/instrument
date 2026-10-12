@@ -16,6 +16,7 @@ import {
   draftTitle,
   hasWords,
   matchesFilters,
+  NO_FILTERS,
   outsideFilters,
   type Topic,
   widenToSearch,
@@ -98,13 +99,11 @@ export function ChatPane({
   const setChatTopics = useSetChatTopics();
 
   const [filters, setFilters] = useAtom(chatFiltersAtom);
-  const [scrollSignal, setScrollSignal] = useState(0);
   // A change of filter is a change of subject, and the newest of the new
   // subject is what matters, so the list is taken back to its top with it.
-  const changeFilters = (next: ChatFilters) => {
-    setFilters(next);
-    setScrollSignal((signal) => signal + 1);
-  };
+  // Read off the filters rather than counted here, because the pane is not
+  // the only thing that changes them: the command menu stands it in a topic.
+  const scrollSignal = JSON.stringify(filters);
   const topicNames = new Map(topics.map((topic) => [topic.id, topic.name]));
   const matched = chats.filter((chat) =>
     matchesFilters(chat, filters, topicNames),
@@ -178,7 +177,7 @@ export function ChatPane({
         chats={chats}
         drafts={drafts.length}
         filters={filters}
-        onFiltersChange={changeFilters}
+        onFiltersChange={setFilters}
         onNewTopic={() => {
           setNewTopic({});
         }}
@@ -191,6 +190,11 @@ export function ChatPane({
         <TopicBanner
           onDetails={(topic) => {
             setEditingId(topic.id);
+          }}
+          // Back to the chats, as picking Chats in the head is: the search
+          // is its own thing and stays as it was.
+          onLeave={() => {
+            setFilters({ ...NO_FILTERS, search: filters.search });
           }}
           topic={chosenTopic}
         />
@@ -228,7 +232,7 @@ export function ChatPane({
           setChatTopics(chat.id, next);
         }}
         onWiden={() => {
-          changeFilters(widenToSearch(filters));
+          setFilters(widenToSearch(filters));
         }}
         openId={openChatId}
         outIds={outIds}
@@ -278,7 +282,6 @@ export function ChatPane({
                 apps: [],
                 topics: [created.id],
               }));
-              setScrollSignal((signal) => signal + 1);
             },
           });
         }}
@@ -303,7 +306,7 @@ export function ChatPane({
           onDelete={() => {
             retireTopic.mutate({ topicId: editingTopic.id });
             if (filters.topics.includes(editingTopic.id)) {
-              changeFilters({ ...filters, topics: [] });
+              setFilters({ ...filters, topics: [] });
             }
           }}
           onOpenChange={(open) => {

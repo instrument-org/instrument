@@ -1,5 +1,6 @@
 import {
   type AppPlace,
+  chatFiltersAtom,
   chatGroupAtom,
   type Draft,
   draftGroupOf,
@@ -87,6 +88,7 @@ import {
 } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
+import { NO_FILTERS } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
 import { useSignInLanding } from "./use-sign-in-landing";
@@ -268,6 +270,7 @@ function WindowShell({
     useDefaultModelURI();
   const [drafts, setDrafts] = useAtom(draftsAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
+  const setChatFilters = useSetAtom(chatFiltersAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
   const setInboxLandsAtOnce = useSetAtom(inboxLandsAtOnceAtom);
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
@@ -770,6 +773,13 @@ function WindowShell({
     },
     onNewTopic: (name) => {
       setNewTopic(name ? { name } : {});
+    },
+    // A topic is a view of the inbox, so going to one is the inbox standing
+    // in it and nothing else: a search or a place left over from before
+    // would hide the chats it was asked for.
+    openTopic: (topicId) => {
+      setChatFilters({ ...NO_FILTERS, topics: [topicId] });
+      choosePlace("chat");
     },
     requestClose,
     rowWidth,

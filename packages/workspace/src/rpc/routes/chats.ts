@@ -260,7 +260,6 @@ const trashChatRoute = base
       workspaceRef: context.workspaceRef,
     });
     if (result.isErr()) {
-      context.workspaceConfig.captureException(result.error);
       throw toORPCError(result.error, errors);
     }
   });

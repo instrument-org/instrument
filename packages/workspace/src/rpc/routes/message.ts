@@ -98,9 +98,7 @@ const create = base
         });
 
         if (!modelResult.ok) {
-          const error = modelResult.error;
-          context.workspaceConfig.captureException(error);
-          throw toORPCError(error, errors);
+          throw toORPCError(modelResult.error, errors);
         }
 
         const model = modelResult.value;
@@ -109,7 +107,6 @@ const create = base
         // before that gets it here, whichever of its sessions is named.
         const chatSession = await ensureChatSession(chatId);
         if (chatSession.isErr()) {
-          context.workspaceConfig.captureException(chatSession.error);
           throw toORPCError(chatSession.error, errors);
         }
         // Without a session named, the message goes to the chat's own.
@@ -123,9 +120,6 @@ const create = base
           chatId,
         );
         if (messageIdsBeforeResult.isErr()) {
-          context.workspaceConfig.captureException(
-            messageIdsBeforeResult.error,
-          );
           throw toORPCError(messageIdsBeforeResult.error, errors);
         }
         const isFirstMessageInSession =
@@ -144,7 +138,6 @@ const create = base
         });
 
         if (messageResult.isErr()) {
-          context.workspaceConfig.captureException(messageResult.error);
           throw toORPCError(messageResult.error, errors);
         }
 

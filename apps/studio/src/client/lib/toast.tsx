@@ -8,10 +8,16 @@ import { logger } from "./logger";
 // Every toast in the app goes through here, so how a toast behaves is decided
 // in one place rather than by each call site.
 //
-// How long it stays comes from what it carries. An error stays until it is
-// closed, because it may need reading twice or acting on. Anything else stays
-// long enough to read: longer with a second line, longer still with an action
-// to reach for. A caller that passes its own `duration` keeps it.
+// How long it stays comes from what it carries: long enough to read, longer
+// with a second line, longer still with an action to reach for. An error stays
+// as long as one with an action, since it may need reading twice; a problem
+// that lasts belongs beside the work it affects, not in a toast. A caller that
+// passes its own `duration` keeps it. Sonner holds the clock while the pointer
+// is over the stack or the window is hidden.
+//
+// An error with a plain-text title and no `id` of its own takes the title as
+// its id, so the same failure again replaces the one showing rather than
+// stacking a copy.
 //
 // What an error says is for the person reading it. The title says what didn't
 // happen, as "Couldn't …"; a second line is there only when it tells them
@@ -59,9 +65,8 @@ function withDuration(
   if (data?.duration !== undefined) {
     return data;
   }
-  const duration = isError
-    ? Infinity
-    : data?.action
+  const duration =
+    isError || data?.action
       ? ACTIONABLE_MS
       : data?.description
         ? DESCRIBED_MS
@@ -111,7 +116,11 @@ function showError(message: Message, data?: ErrorToast) {
   return sonnerToast.error(
     message,
     withDuration(
-      { ...rest, description: errorDescription(rest.description, cause) },
+      {
+        ...(typeof message === "string" && { id: message }),
+        ...rest,
+        description: errorDescription(rest.description, cause),
+      },
       { isError: true },
     ),
   );

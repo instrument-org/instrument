@@ -54,8 +54,8 @@ it("picks how long a toast stays from what it carries", () => {
       "title only: success 4000",
       "description: message 6000",
       "action: success 8000",
-      "error: error Infinity",
-      "error with action: error Infinity",
+      "error: error 8000",
+      "error with action: error 8000",
       "plain call: toast 4000",
       "caller's own duration: error 3000",
     ]
@@ -66,6 +66,17 @@ beforeEach(() => {
   calls.length = 0;
   logged.length = 0;
   setToastDeveloperMode(false);
+});
+
+it("replaces an error showing with the same title rather than stacking it", () => {
+  toast.error("Couldn't save your changes");
+  toast.error("Couldn't save your changes");
+  toast.error("Couldn't save the log", { id: "log" });
+  expect(calls.map((c) => c.data?.id)).toEqual([
+    "Couldn't save your changes",
+    "Couldn't save your changes",
+    "log",
+  ]);
 });
 
 it("keeps an error's cause off the toast and in the log", () => {

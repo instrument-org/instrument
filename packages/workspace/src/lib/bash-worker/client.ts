@@ -281,7 +281,7 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
     }
     case "skill-mutation": {
       instance.pending.get(message.id)?.inContext(() => {
-        recordWorkspaceSkillMutation(message.mountPath);
+        recordWorkspaceSkillMutation(message.skillPath);
       });
       return;
     }

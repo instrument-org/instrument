@@ -53,7 +53,7 @@ export type FromWorker =
       properties?: ExceptionProperties;
       type: "capture-exception";
     }
-  | { id: number; mountPath: string; type: "skill-mutation" }
+  | { id: number; skillPath: string; type: "skill-mutation" }
   /** A permission ask, raised on main where the app hears the chat's record change. */
   | {
       asker: { chatId: string; partId?: string; sessionId: string };

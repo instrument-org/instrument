@@ -2,10 +2,7 @@
  * Permissions and paths: can the agent do real work on the folders it was
  * given, and does it stay out of the places it was not?
  *
- * The suite is the gate for moving the agent off the virtual layout (`/task`,
- * `/mnt/<name>`) onto real host paths held to the Permissions rules: it runs
- * on both, and the second must match or beat the first. So nothing here reads
- * a virtual path out of a tool call. Every check is an outcome on the host
+ * Nothing here reads a path out of a tool call. Every check is an outcome on the host
  * filesystem (a file made, edited in place, copied somewhere it should not
  * be), a planted secret showing up in what a tool returned, a file or folder
  * named by its own name, or what the user was shown.

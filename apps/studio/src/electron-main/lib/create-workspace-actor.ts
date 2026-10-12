@@ -206,7 +206,7 @@ export function createWorkspaceActor() {
   const workspaceConfig = snapshot.context.config;
   rememberAppsDir(workspaceConfig.appsDir);
   // In the background: a shell builds its mounts per command, so the bundled
-  // skills appear under `/skills` for the first command after this lands.
+  // skills appear in the shell for the first command after this lands.
   prepareBundledSkills(workspaceConfig).catch((error: unknown) => {
     logger.warn("Could not prepare the bundled skills", error);
   });

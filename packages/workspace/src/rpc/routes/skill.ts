@@ -36,7 +36,7 @@ const SkillSummarySchema = z.object({
    * True when the skill lives in the one workspace directory the agent can
    * write to, so the UI can offer an edit action that actually lands. The
    * other workspace source (`.agents/skills`) is listed but sits outside the
-   * writable `/skills` mount, so pointing an edit agent at it would fork a
+   * writable skills directory, so pointing an edit agent at it would fork a
    * duplicate rather than revise it in place.
    */
   editable: z.boolean(),

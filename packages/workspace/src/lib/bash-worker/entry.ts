@@ -70,10 +70,10 @@ process.on("unhandledRejection", (reason) => {
 setAskForwarder(({ asker, kind, target }) => {
   post({ asker, kind, target, type: "ask" });
 });
-setSkillMutationForwarder((mountPath) => {
+setSkillMutationForwarder((skillPath) => {
   const id = currentExec.getStore();
   if (id !== undefined) {
-    post({ id, mountPath, type: "skill-mutation" });
+    post({ id, skillPath, type: "skill-mutation" });
   }
 });
 setSubprocessTreeObserver({

@@ -173,7 +173,8 @@ function containsMathSyntax(markdown: string) {
  *
  * Four departures from the default. `file:` is how a model spells a link to a
  * file it just wrote, which `markdownUrlTransform` reduces to a path and
- * `TaskFileLink` then judges against the task and its mounts. The app's own
+ * `TaskFileLink` then judges against the chat's folder and the folders it
+ * reaches. The app's own
  * scheme is how a reply links a thing inside the app, a task or a memory,
  * which `InlineLink` draws as a chip and opens in the window rather than
  * handing to the OS.

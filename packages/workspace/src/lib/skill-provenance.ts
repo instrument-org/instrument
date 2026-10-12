@@ -43,7 +43,7 @@ export function getSkillProvenance(
   };
 }
 
-/** Canonical path of the workspace skills directory mounted at `/skills`. */
+/** Canonical path of the workspace skills directory. */
 export async function getWritableSkillsRoot(rootDir: WorkspaceDir) {
   const root = absolutePathJoin(rootDir, REGISTRY_FOLDER_NAMES.skills);
   return fs.realpath(root).catch(() => root);

@@ -1,7 +1,6 @@
 import {
   type Draft,
   draftGroupOf,
-  type FinderShown,
   type ScreenView,
   type WindowTab,
 } from "@/client/atoms/window";
@@ -27,6 +26,7 @@ import {
 import { computerTabOf, mountOfHostPath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenLocation, screenPresentation } from "./screen-presentation";
+import { type TabSurface } from "./tab-surface";
 import { type useCompose } from "./use-compose";
 import { matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
@@ -48,8 +48,6 @@ export interface SendContextWindow {
   browser: null | Pick<BrowserTabsHandle, "readPage">;
   chatTitles: Map<ChatId, string>;
   drafts: Draft[];
-  /** What each of the window's own Files tabs has in its Finder, by the tab's id. */
-  finders: Readonly<Record<string, FinderShown>>;
   /** The router's address, which is the screen's own. */
   href: string;
   /** Where one of the window's own tabs stands now. */
@@ -60,6 +58,8 @@ export interface SendContextWindow {
   screenView: null | ScreenView;
   /** The folders the window reaches, which say how the conversation reaches a file; undefined until the window is open. */
   state: RPCOutput["workspace"]["window"]["ensure"] | undefined;
+  /** What each tab's screen says about itself, by the tab's id: each Files tab's Finder. */
+  surfaces: Readonly<Record<string, TabSurface>>;
   /** What each draft window's band has up, by the draft's group. */
   viewsById: ReturnType<typeof useCompose>["viewsById"];
   windowTabs: Pick<
@@ -80,12 +80,12 @@ export function contextReaders({
   browser,
   chatTitles,
   drafts,
-  finders,
   href,
   hrefOfAppTab,
   paneOpenByGroup,
   screenView,
   state,
+  surfaces,
   viewsById,
   windowTabs,
 }: SendContextWindow) {
@@ -103,7 +103,7 @@ export function contextReaders({
           groupTab: active,
           isGroupTabShown: isActiveShown,
         });
-  const finderFor = (tab: WindowTab) => finders[tab.id] ?? null;
+  const finderFor = (tab: WindowTab) => surfaces[tab.id]?.finder ?? null;
   const includedOf = (draft: Draft) =>
     includedTabOf(draft, windowTabs.allTabs, hrefOfAppTab);
   /** A group's tabs as the conversation is told them, in the strip's order, each by the id `tab` and "--tab" name it by. */

@@ -57,6 +57,17 @@ describe("sameSurface", () => {
     ).toBe(same);
   });
 
+  it("tells a Finder by what it holds, however freshly built", () => {
+    const finder = () => ({
+      folder: "/Users/casey",
+      selected: [{ kind: "file" as const, path: "/Users/casey/a.md" }],
+    });
+    expect(sameSurface("finder", finder(), finder())).toBe(true);
+    expect(sameSurface("finder", finder(), { ...finder(), selected: [] })).toBe(
+      false,
+    );
+  });
+
   it("tells nothing said from something said", () => {
     const slot = { chrome: undefined, host: hostA, isShown: true };
     expect(sameSurface("slot", null, slot)).toBe(false);

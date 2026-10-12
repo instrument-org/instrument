@@ -7,7 +7,6 @@ import {
   type DraftAttachment,
   draftGroupOf,
   draftSnapshotsAtom,
-  findersByTabAtom,
   NEW_TAB_HREF,
   type ScreenView,
   screenViewsAtom,
@@ -77,6 +76,7 @@ import { behindTabOf, includedItemsOf, includedTabOf } from "./draft-context";
 import { computerTabOf } from "./file-tabs";
 import { GroupItem } from "./group-item";
 import { usePageHost } from "./page-hosts";
+import { tabSurfaceAtom } from "./tab-surface";
 import { segmentsOf } from "./host-path";
 import { LinkSurface } from "./link-surface";
 import { useComposerAsks, useStagedAskActions } from "./staged-asks";
@@ -302,10 +302,11 @@ export function ComposeWindow({
   // What the thing the draft was opened over points at on this computer,
   // with what the draft already holds by name left out, so each is said
   // once, with what each of the window's own Files tabs has in its Finder.
-  const finders = useAtomValue(findersByTabAtom);
+  const surfaces = useAtomValue(tabSurfaceAtom);
+  const finderOf = (id: string) => surfaces[id]?.finder ?? null;
   const chosen = draft.chosen ?? [];
   const includedItems = included
-    ? includedItemsOf(included, finders[included.id] ?? null, chosen)
+    ? includedItemsOf(included, finderOf(included.id), chosen)
     : undefined;
   const showsIncluded =
     included !== undefined &&
@@ -316,7 +317,7 @@ export function ComposeWindow({
   // leave out, so the draft says everything the chat will be told.
   const behind = behindTabOf(draft, inView);
   const behindItems = behind
-    ? includedItemsOf(behind, finders[behind.id] ?? null, [
+    ? includedItemsOf(behind, finderOf(behind.id), [
         ...chosen,
         ...(includedItems ?? []),
       ])

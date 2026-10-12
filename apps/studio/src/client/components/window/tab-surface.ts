@@ -1,3 +1,4 @@
+import { type FinderShown } from "@/client/atoms/window";
 import { useTabId } from "@/client/hooks/use-active-tab";
 import { atom, useSetAtom } from "jotai";
 import { useEffect, useState } from "react";
@@ -23,6 +24,13 @@ export interface PageSlot {
  * `useTabSurface`, and goes when that screen changes it or leaves.
  */
 export interface TabSurface {
+  /**
+   * What the tab's Finder has in it, by host path, so a draft opened over
+   * the tab, or with it up behind, names them as the chat will be told them,
+   * whichever tab is up by the time it is sent. The window's own Files tabs
+   * alone: a draft's band has a Finder of its own.
+   */
+  finder?: FinderShown;
   /** Where the window's page is drawn while this tab is up; one of the window's own tabs alone. */
   slot?: PageSlot;
 }
@@ -31,13 +39,15 @@ export interface TabSurface {
 export const tabSurfaceAtom = atom<Readonly<Record<string, TabSurface>>>({});
 
 type Surfaces = Readonly<Record<string, TabSurface>>;
+/** Each fact as said, for a screen saying it. */
+type Facts = Required<TabSurface>;
 
 /** The surfaces with one tab's fact set, or the same surfaces when it already is that value. */
 export function putSurface<K extends keyof TabSurface>(
   surfaces: Surfaces,
   key: string,
   field: K,
-  value: NonNullable<TabSurface[K]>,
+  value: Facts[K],
 ): Surfaces {
   const was = surfaces[key];
   if (was?.[field] === value) {
@@ -55,7 +65,7 @@ export function dropSurface<K extends keyof TabSurface>(
   surfaces: Surfaces,
   key: string,
   field: K,
-  value: NonNullable<TabSurface[K]>,
+  value: Facts[K],
 ): Surfaces {
   const was = surfaces[key];
   if (was?.[field] !== value) {
@@ -72,31 +82,33 @@ export function dropSurface<K extends keyof TabSurface>(
 /**
  * How two values of each fact are told apart, since screens build a fresh
  * object for one on each render. A slot is its elements, compared by
- * identity.
+ * identity; every other fact is plain data, compared by value.
  */
-const sameFact: {
-  [K in keyof TabSurface]-?: (
-    a: NonNullable<TabSurface[K]>,
-    b: NonNullable<TabSurface[K]>,
-  ) => boolean;
-} = {
-  slot: (a, b) =>
-    a.host === b.host && a.isShown === b.isShown && a.chrome === b.chrome,
+type SameFact = {
+  [K in keyof Facts]: (a: Facts[K] | null, b: Facts[K] | null) => boolean;
 };
+const sameFact: SameFact = {
+  finder: sameData,
+  slot: (a, b) =>
+    a !== null &&
+    b !== null &&
+    a.host === b.host &&
+    a.isShown === b.isShown &&
+    a.chrome === b.chrome,
+};
+
+function sameData(a: unknown, b: unknown) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
 
 /** Whether two values of a fact say the same thing, null being nothing said. */
 export function sameSurface<K extends keyof TabSurface>(
   field: K,
-  a: NonNullable<TabSurface[K]> | null,
-  b: NonNullable<TabSurface[K]> | null,
+  a: Facts[K] | null,
+  b: Facts[K] | null,
 ): boolean {
-  if (a === b) {
-    return true;
-  }
-  if (a === null || b === null) {
-    return false;
-  }
-  return sameFact[field](a, b);
+  const same: SameFact[K] = sameFact[field];
+  return a === b || same(a, b);
 }
 
 /**
@@ -107,7 +119,7 @@ export function sameSurface<K extends keyof TabSurface>(
  */
 export function useTabSurface<K extends keyof TabSurface>(
   field: K,
-  value: NonNullable<TabSurface[K]> | null,
+  value: Facts[K] | null,
 ) {
   const setSurfaces = useSetAtom(tabSurfaceAtom);
   const groupTabId = useGroupTab()?.id;

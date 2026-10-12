@@ -78,12 +78,12 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
     },
     chatTitles: new Map([[CHAT, "Lisbon"]]),
     drafts: [],
-    finders: {},
     href: "/browser",
     hrefOfAppTab: vi.fn(),
     paneOpenByGroup: {},
     screenView: null,
     state: { folders: { home: HOME } },
+    surfaces: {},
     viewsById: {},
     windowTabs: tabsOf([]),
     ...over,
@@ -526,10 +526,12 @@ describe("draftContext", () => {
           { included: { appTabId: FILES_TAB } },
           {
             appTabId: FILES_TAB,
-            finders: {
+            surfaces: {
               [FILES_TAB]: {
-                folder: "/Users/casey/Documents",
-                selected: [{ kind: "file", path: NOTES }],
+                finder: {
+                  folder: "/Users/casey/Documents",
+                  selected: [{ kind: "file", path: NOTES }],
+                },
               },
             },
             href: FOLDER,
@@ -553,10 +555,12 @@ describe("draftContext", () => {
         { included: { appTabId: APPS_TAB } },
         {
           appTabId: FILES_TAB,
-          finders: {
+          surfaces: {
             [FILES_TAB]: {
-              folder: "/Users/casey/Documents",
-              selected: [{ kind: "file", path: NOTES }],
+              finder: {
+                folder: "/Users/casey/Documents",
+                selected: [{ kind: "file", path: NOTES }],
+              },
             },
           },
           href: FOLDER,

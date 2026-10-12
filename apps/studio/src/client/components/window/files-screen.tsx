@@ -2,7 +2,6 @@ import {
   type FileTab,
   fileTreeOpenAtom,
   fileTreeWidthAtom,
-  findersByTabAtom,
 } from "@/client/atoms/window";
 import type { FileSystemView } from "@/client/components/extend/file-system";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -30,7 +29,7 @@ import {
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "@/client/lib/toast";
@@ -51,6 +50,7 @@ import { PageEditToggle } from "./page-edit";
 import { usePageHost } from "./page-hosts";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { useQuickLook } from "./quick-look";
+import { useTabSurface } from "./tab-surface";
 import { useWindowTabs } from "./window-tabs";
 
 /** A viewer that is the whole of its tab: no card of its own inside the pane's. */
@@ -375,31 +375,16 @@ export function FilesScreen({
           // is never a screen or a folder the user has left.
           { screen: "computer" },
   );
-  // The same folder and selection by host path, for a draft's chip, under
-  // this tab's id. The folder is only replaced when it changes, so it
-  // stands for its own value.
-  const setFinders = useSetAtom(findersByTabAtom);
-  // Only for the window's own tabs: a draft's band has a Finder of its own.
+  // The same folder and selection by host path, for a draft's chip. Only
+  // for the window's own tabs: a draft's band has a Finder of its own.
   const finderFolder = activeFile || groupTab ? null : folder;
-  useEffect(() => {
-    if (finderFolder === null) {
-      return;
-    }
-    const shown = {
+  useTabSurface(
+    "finder",
+    finderFolder && {
       folder: finderFolder.hostPath,
       selected: finderFolder.selectedItems,
-    };
-    setFinders((current) => ({ ...current, [appTabId]: shown }));
-    return () => {
-      setFinders((current) => {
-        if (current[appTabId] !== shown) {
-          return current;
-        }
-        const { [appTabId]: _gone, ...rest } = current;
-        return rest;
-      });
-    };
-  }, [appTabId, finderFolder, setFinders]);
+    },
+  );
 
   // A missing file returns to the preceding visit, or closes its dedicated tab.
   useEffect(() => {

@@ -5,7 +5,6 @@ import {
   type Draft,
   draftGroupOf,
   draftsAtom,
-  findersByTabAtom,
   inboxOpenAtom,
   paneOpenByGroupAtom,
   screenViewsAtom,
@@ -410,8 +409,8 @@ function WindowShell({
   // Where the tab up wants the window's page drawn. The browser's own face
   // lives in one element for the window's whole life, handed from tab to tab,
   // so a page and its edit session never remount as tabs are switched.
-  const pageSlot =
-    useAtomValue(tabSurfaceAtom)[appTabs.model.selectedId ?? ""]?.slot ?? null;
+  const surfaces = useAtomValue(tabSurfaceAtom);
+  const pageSlot = surfaces[appTabs.model.selectedId ?? ""]?.slot ?? null;
   const [stage] = useState(() => {
     const element = document.createElement("div");
     element.className = "relative h-full min-h-0";
@@ -510,14 +509,12 @@ function WindowShell({
         ? (screenViews[groupUp.id] ?? null)
         : null;
   // What goes with a message, read at the moment of sending.
-  const finders = useAtomValue(findersByTabAtom);
   const { draftContext, sendContext } = contextReaders({
     appsBySlug,
     appTabId: appTabs.model.selectedId,
     browser,
     chatTitles,
     drafts,
-    finders,
     href: activeHref,
     hrefOfAppTab: (id) =>
       id === appTabs.model.selectedId
@@ -526,6 +523,7 @@ function WindowShell({
     paneOpenByGroup,
     screenView,
     state: opened,
+    surfaces,
     viewsById: compose.viewsById,
     windowTabs,
   });

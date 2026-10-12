@@ -66,13 +66,6 @@ export interface FinderShown {
 }
 
 /**
- * What each of the window's own Files tabs has in its Finder, by the tab's
- * id, so a draft opened over one, or with one up behind it, names them as
- * the chat will be told them, whichever tab is up by the time it is sent.
- */
-export const findersByTabAtom = atom<Readonly<Record<string, FinderShown>>>({});
-
-/**
  * A file or folder given to a draft's composer, by its path on disk: what of
  * the composer outlasts the app. Bytes pasted in with no file behind them
  * are written to the draft's own folder first, and kept by that path.

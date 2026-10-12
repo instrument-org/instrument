@@ -21,6 +21,7 @@ import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
 import {
   classifyHostPath,
   resolveHostPath,
+  shellPath,
   type WorkspaceFsLayout,
 } from "./workspace-fs-layout";
 
@@ -143,7 +144,9 @@ export function resolveAgentPath(options: {
     return executeError("Path is required but was not provided");
   }
 
-  const trimmedPath = inputPath.trim();
+  // A Windows path (`C:\Users\sam`) in the shell's spelling (`/c/Users/sam`),
+  // which the layout resolves.
+  const trimmedPath = shellPath(inputPath.trim());
   if (path.isAbsolute(trimmedPath)) {
     return heldToRules(
       layout,
@@ -226,7 +229,7 @@ export function resolveWritableToolPath(options: {
   layout: WorkspaceFsLayout;
 }) {
   const { inputPath, layout } = options;
-  const trimmedPath = inputPath.trim();
+  const trimmedPath = shellPath(inputPath.trim());
 
   if (!path.isAbsolute(trimmedPath)) {
     return resolveToolPath(layout, trimmedPath).map((resolved) => ({

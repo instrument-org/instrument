@@ -135,6 +135,46 @@ export function rulesFor({
   home?: string;
   settings: PermissionSettings;
 }): Rules {
+  const rules: Rule[] = [];
+  // A program that looks its home up in the user database (ssh does) finds
+  // the account's, which is not `home` when HOME points elsewhere, as it
+  // does in a test run. That home gets the same places, and is read-only.
+  const accountHome = os.userInfo().homedir;
+  const homes =
+    accountHome && accountHome !== home ? [home, accountHome] : [home];
+  if (homes.length > 1) {
+    rules.push({ level: "readOnly", path: accountHome, source: "system" });
+  }
+  for (const each of homes) {
+    rules.push(...placeRules(each, settings));
+  }
+  for (const folder of settings.folders) {
+    rules.push({ level: folder.level, path: folder.path, source: "folder" });
+  }
+  for (const allowed of [
+    ...grants.map((grant) => grant.path),
+    ...extraAllows,
+  ]) {
+    rules.push({ level: "allow", path: allowed, source: "grant" });
+  }
+  // An Always allow for the folder or one holding it, given in Settings or
+  // from any chat's card, outranks a chat's earlier "Not now".
+  const alwaysAllowed = settings.folders
+    .filter((folder) => folder.level === "allow")
+    .map((folder) => folder.path);
+  for (const denied of denials) {
+    if (
+      alwaysAllowed.some((allowed) => hostPathWithin(allowed, denied) !== null)
+    ) {
+      continue;
+    }
+    rules.push({ denied: true, level: "never", path: denied, source: "grant" });
+  }
+  return { home, rules, withoutAsking: settings.withoutAsking };
+}
+
+/** The startup places and built-in places in one home folder. */
+function placeRules(home: string, settings: PermissionSettings): Rule[] {
   const rules: Rule[] = startupPaths(home).map((startup) => ({
     level: "never",
     path: startup,
@@ -166,29 +206,7 @@ export function rulesFor({
       });
     }
   }
-  for (const folder of settings.folders) {
-    rules.push({ level: folder.level, path: folder.path, source: "folder" });
-  }
-  for (const allowed of [
-    ...grants.map((grant) => grant.path),
-    ...extraAllows,
-  ]) {
-    rules.push({ level: "allow", path: allowed, source: "grant" });
-  }
-  // An Always allow for the folder or one holding it, given in Settings or
-  // from any chat's card, outranks a chat's earlier "Not now".
-  const alwaysAllowed = settings.folders
-    .filter((folder) => folder.level === "allow")
-    .map((folder) => folder.path);
-  for (const denied of denials) {
-    if (
-      alwaysAllowed.some((allowed) => hostPathWithin(allowed, denied) !== null)
-    ) {
-      continue;
-    }
-    rules.push({ denied: true, level: "never", path: denied, source: "grant" });
-  }
-  return { home, rules, withoutAsking: settings.withoutAsking };
+  return rules;
 }
 
 /** What the rules make of one path. */

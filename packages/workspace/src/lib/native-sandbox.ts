@@ -1,5 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -434,12 +441,40 @@ export function bwrapArgs(reach: NativeReach): string[] {
     } else if (entry.access === "read") {
       args.push("--ro-bind", real, real);
     } else if (statSync(real).isDirectory()) {
-      args.push("--tmpfs", real);
+      // An empty folder that refuses to be listed or read, so a program
+      // meets "permission denied" there rather than an empty or missing
+      // folder it would take at face value. A folder opened inside it keeps
+      // search permission, which reaching that folder needs.
+      const opensInside = ordered.some(
+        (other) =>
+          other.access !== "none" &&
+          other.depth > entry.depth &&
+          other.path.startsWith(`${entry.path}${path.sep}`),
+      );
+      args.push("--perms", opensInside ? "0111" : "0000", "--tmpfs", real);
     } else {
-      args.push("--ro-bind", "/dev/null", real);
+      // A file nobody may open, in place of the closed one, so reading it
+      // is refused rather than empty.
+      args.push("--ro-bind", unreadableFile(), real);
     }
   }
   return args;
+}
+
+/**
+ * An empty file with no permissions, bound over a closed file. Made once in
+ * the system's temp folder, which every sandboxed command already reaches.
+ */
+function unreadableFile(): string {
+  const file = path.join(
+    os.tmpdir(),
+    `instrument-closed-${process.getuid?.() ?? 0}`,
+  );
+  if (!existsSync(file)) {
+    writeFileSync(file, "", { mode: 0o000 });
+  }
+  chmodSync(file, 0o000);
+  return file;
 }
 
 function dotEntriesIn(folder: string): string[] {

@@ -3,6 +3,7 @@ import {
   mkdirSync,
   mkdtempSync,
   realpathSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import os from "node:os";
@@ -15,6 +16,7 @@ import {
   type NativeReach,
   refusalNote,
   refusedPathIn,
+  bwrapArgs,
   bwrapAvailable,
   seatbeltAvailable,
   seatbeltProfile,
@@ -260,5 +262,38 @@ describe.runIf(bwrapAvailable())("a wrapped command on this Linux", () => {
     const spawned = wrapNativeCommand("/bin/sh", ["-c", script], reach);
     const result = await execa(spawned.file, spawned.args, { reject: false });
     expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
+  });
+});
+
+describe("bwrapArgs", () => {
+  it("refuses a closed folder or file rather than showing it empty", () => {
+    const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
+    for (const folder of ["Documents/Acme", "Secrets"]) {
+      mkdirSync(path.join(home, folder), { recursive: true });
+    }
+    writeFileSync(path.join(home, "secret.txt"), "x");
+    const args = bwrapArgs(
+      reachOver(home, [
+        { level: "ask", path: path.join(home, "Documents"), source: "place" },
+        {
+          level: "allow",
+          path: path.join(home, "Documents/Acme"),
+          source: "grant",
+        },
+        { level: "never", path: path.join(home, "Secrets"), source: "place" },
+        {
+          level: "never",
+          path: path.join(home, "secret.txt"),
+          source: "place",
+        },
+      ]),
+    ).join(" ");
+    expect(args).toContain(`--perms 0111 --tmpfs ${home}/Documents`);
+    expect(args).toContain(`--bind ${home}/Documents/Acme`);
+    expect(args).toContain(`--perms 0000 --tmpfs ${home}/Secrets`);
+    expect(args).toMatch(
+      new RegExp(`--ro-bind \\S*instrument-closed-\\d+ ${home}/secret.txt`),
+    );
+    rmSync(home, { force: true, recursive: true });
   });
 });

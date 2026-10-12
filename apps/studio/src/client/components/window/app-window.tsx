@@ -93,12 +93,9 @@ import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
 import { NewTopicDialog } from "./new-topic-dialog";
 import { contextReaders } from "./send-context";
-import {
-  pageSlotByTabAtom,
-  type WindowShell as Shell,
-  ShellContext,
-} from "./shell-context";
+import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
+import { tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { useCompose } from "./use-compose";
 import { useDrafts } from "./use-drafts";
@@ -414,7 +411,7 @@ function WindowShell({
   // lives in one element for the window's whole life, handed from tab to tab,
   // so a page and its edit session never remount as tabs are switched.
   const pageSlot =
-    useAtomValue(pageSlotByTabAtom)[appTabs.model.selectedId ?? ""] ?? null;
+    useAtomValue(tabSurfaceAtom)[appTabs.model.selectedId ?? ""]?.slot ?? null;
   const [stage] = useState(() => {
     const element = document.createElement("div");
     element.className = "relative h-full min-h-0";

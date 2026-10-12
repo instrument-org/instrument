@@ -40,11 +40,9 @@ import { InboxToggle } from "@/client/components/window/inbox-toggle";
 import { NoChatOpen } from "@/client/components/window/no-chat-open";
 import { RightPane } from "@/client/components/window/right-pane";
 import { screenLocation } from "@/client/components/window/screen-presentation";
-import {
-  pageSlotByTabAtom,
-  useShell,
-} from "@/client/components/window/shell-context";
+import { useShell } from "@/client/components/window/shell-context";
 import { taskHref, tasksHref } from "@/client/components/window/tab-location";
+import { useTabSurface } from "@/client/components/window/tab-surface";
 import { TabLocationRow } from "@/client/components/window/tab-location-row";
 import { chatHref, matchScreen } from "@/client/components/window/window-href";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
@@ -631,22 +629,5 @@ function usePageSlot(
   chrome: PageChromeSlots | undefined,
   isShown: boolean,
 ) {
-  const setSlots = useSetAtom(pageSlotByTabAtom);
-  const tabId = useTabId();
-  useEffect(() => {
-    if (!host) {
-      return;
-    }
-    const slot = { chrome, host, isShown };
-    setSlots((current) => ({ ...current, [tabId]: slot }));
-    return () => {
-      setSlots((current) => {
-        if (current[tabId] !== slot) {
-          return current;
-        }
-        const { [tabId]: _gone, ...rest } = current;
-        return rest;
-      });
-    };
-  }, [chrome, host, isShown, setSlots, tabId]);
+  useTabSurface("slot", host ? { chrome, host, isShown } : null);
 }

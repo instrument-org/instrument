@@ -181,8 +181,7 @@ export function resolveExistingFilePath(options: {
 /**
  * Resolve a raw agent-provided path to a validated absolute path within the
  * task directory, plus the normalized display path. Rewrites sloppy input
- * ("work/x", "/work/x") into task-relative form and rejects traversal out of
- * the task, including Windows-style "./subdir\\..\\.." on all platforms.
+ * ("work/x") into task-relative form and rejects traversal out of the task, including Windows-style "./subdir\\..\\.." on all platforms.
  *
  * This is the relative-only resolver: absolute paths never reach it from
  * resolveAgentPath/resolveWritableToolPath, which pre-handle them against the

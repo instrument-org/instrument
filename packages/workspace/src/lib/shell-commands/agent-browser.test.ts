@@ -261,7 +261,7 @@ describe("resolveAgentBrowserPathArgs", () => {
     await fs.writeFile("/task/work/image.png", "image");
   });
 
-  it("passes upload files through as written", async () => {
+  it("hands upload files to the daemon absolute, against the shell's cwd", async () => {
     const result = await resolveAgentBrowserPathArgs(
       [
         "--json",
@@ -280,9 +280,9 @@ describe("resolveAgentBrowserPathArgs", () => {
         "--json",
         "upload",
         "@e1",
-        "front.png",
+        "/task/work/front.png",
         "--quiet",
-        "../attachments/back.png",
+        "/task/attachments/back.png",
         "/task/work/image.png",
       ],
     });
@@ -337,6 +337,31 @@ describe("resolveAgentBrowserPathArgs", () => {
     );
 
     expect(result).toEqual({ args: ["screenshot", "/task/work/page.png"] });
+  });
+
+  it.each([
+    [
+      ["screenshot", "shot.png"],
+      ["screenshot", "/task/work/shot.png"],
+    ],
+    [
+      ["screenshot", ".hero", "a.png"],
+      ["screenshot", ".hero", "/task/work/a.png"],
+    ],
+    [
+      ["record", "start", "out.webm"],
+      ["record", "start", "/task/work/out.webm"],
+    ],
+    [
+      ["screenshot", "@e2"],
+      ["screenshot", "@e2"],
+    ],
+  ])("resolves %j's file operands only", async (args, expected) => {
+    const result = await resolveAgentBrowserPathArgs(args, {
+      cwd: "/task/work",
+      fs,
+    });
+    expect(result).toEqual({ args: expected });
   });
 });
 
@@ -418,14 +443,14 @@ describe("agent-browser routing", () => {
     expect(env.HOME).not.toBe(os.homedir());
   });
 
-  it("passes upload files to the browser as written", async () => {
+  it("passes upload files to the browser absolute", async () => {
     const { args } = await spawnedWith([
       "upload",
       "@e1",
       "attachments/image.png",
     ]);
 
-    expect(args).toContain("attachments/image.png");
+    expect(args).toContain("/task/attachments/image.png");
   });
 
   it("fails before spawning when an upload file is missing", async () => {

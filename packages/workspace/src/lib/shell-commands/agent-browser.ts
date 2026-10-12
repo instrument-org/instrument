@@ -52,6 +52,7 @@ import {
   FOLLOW_UP_SNAPSHOT_ARGS,
   FOLLOW_UP_WAIT_ARGS,
 } from "./agent-browser-follow-up";
+import { hostPathOf } from "../workspace-fs-layout";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 import { workDir } from "../work-dir";
 
@@ -418,6 +419,24 @@ export function isDaemonConfigRace(output: string): boolean {
  * typed (an `eval` script, a `fill` value, a `wait --fn` body), where a
  * leading `/` is a comment, a regex or a slash command, never a path.
  */
+/**
+ * Whether a file subcommand's operand names a file rather than a selector,
+ * a ref, a URL or a word like `start`: a path spelled as one, or a name
+ * ending in an extension these subcommands write or read.
+ */
+function looksLikeFilePath(value: string): boolean {
+  if (value.includes("://") || /^[@#[-]/.test(value)) {
+    return false;
+  }
+  return (
+    /^(?:\/|\.{1,2}\/)/.test(value) ||
+    (!value.startsWith(".") && value.includes("/")) ||
+    /\.(?:png|jpe?g|webp|pdf|webm|mp4|har|json|zip|cpuprofile|txt|html?)$/i.test(
+      value,
+    )
+  );
+}
+
 const FILE_OPERAND_SUBCOMMANDS = new Set([
   "diff",
   "download",
@@ -452,8 +471,23 @@ export async function resolveAgentBrowserPathArgs(
       ? subArgs.slice(1).map(({ index }) => index)
       : [],
   );
+  const fileOperands = new Set(
+    subcommand !== undefined && FILE_OPERAND_SUBCOMMANDS.has(subcommand)
+      ? subArgs
+          .slice(1)
+          .filter(({ value }) => looksLikeFilePath(value))
+          .map(({ index }) => index)
+      : [],
+  );
+  // The daemon outlives the shell's `cd` and resolves a relative path
+  // against the folder it was launched in, so a file operand goes to it
+  // absolute.
   const resolved = args.map((arg, index) =>
-    textOperands.has(index) ? arg : (hostPathArgs([arg])[0] ?? arg),
+    textOperands.has(index)
+      ? arg
+      : fileOperands.has(index)
+        ? hostPathOf(ctx.fs.resolvePath(ctx.cwd, arg))
+        : (hostPathArgs([arg])[0] ?? arg),
   );
   if (subcommand !== "upload") {
     return { args: resolved };
@@ -817,10 +851,6 @@ export function createAgentBrowserCommand({
       ? undefined
       : getDownloadsDir(workDir(chatId));
     const agentBrowserStateDir = screenshotDir;
-    // Relative so agent-browser outputs screenshot paths the agent sees as
-    // relative to its cwd (e.g. "work/screenshots/shot.png"), not host
-    // absolute.
-    const screenshotDirRelative = path.relative(taskCwd, screenshotDir);
 
     // An external invocation drives the host's browser stack, so it runs with
     // the host's environment; only the in-app browser gets the sandbox's.
@@ -860,7 +890,9 @@ export function createAgentBrowserCommand({
       AGENT_BROWSER_RESTORE_CHECK_TEXT: undefined,
       AGENT_BROWSER_RESTORE_CHECK_URL: undefined,
       AGENT_BROWSER_RESTORE_SAVE: undefined,
-      AGENT_BROWSER_SCREENSHOT_DIR: screenshotDirRelative,
+      // Absolute: the daemon resolves a relative one against the folder it
+      // was launched in, which a later `cd` does not move.
+      AGENT_BROWSER_SCREENSHOT_DIR: screenshotDir,
       AGENT_BROWSER_SESSION: undefined,
       AGENT_BROWSER_SESSION_NAME: undefined,
       AGENT_BROWSER_SOCKET_DIR,

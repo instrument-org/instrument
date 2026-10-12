@@ -222,7 +222,11 @@ async function startFork({
   if (handedTabs.length > 0) {
     await updateHeldTabs(chatId, sessionId, (held) => [
       ...held,
-      ...handedTabs.map((id) => ({ id, openedBy: "handed" as const })),
+      ...handedTabs.map((id) => ({
+        id,
+        inWindow: true,
+        openedBy: "handed" as const,
+      })),
     ]);
   }
 

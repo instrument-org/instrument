@@ -14,6 +14,7 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
   agentBrowserCommandDescription,
   browserFreeReadEnv,
+  classifyInvocation,
   createAgentBrowserCommand,
   isBrowserFreeRead,
   isDaemonConfigRace,
@@ -158,7 +159,7 @@ describe("createAgentBrowserCommand", () => {
         },
       });
       await updateHeldTabs(chatId, sessionId, () => [
-        { id: driven, openedBy: "task" },
+        { id: driven, inWindow: true, openedBy: "task" },
       ]);
     });
 
@@ -204,6 +205,31 @@ describe("createAgentBrowserCommand", () => {
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("adblock [on|off]");
     });
+  });
+});
+
+describe("classifyInvocation", () => {
+  const managed = { externalEnabled: false, hasNoWindow: false };
+  it.each([
+    [["--help"], managed, "help"],
+    [["--session", "x", "open", "a.com"], managed, "refuse"],
+    [["adblock", "off"], managed, "adblock"],
+    [["skills", "get", "core"], managed, "skills"],
+    [["dashboard"], managed, "refuse"],
+    [["--version"], managed, "info"],
+    [["--profile", "Default", "open", "a.com"], managed, "refuse"],
+    [
+      ["--profile", "Default", "open", "a.com"],
+      { ...managed, externalEnabled: true },
+      "external",
+    ],
+    [["--executable-path", "/x", "open", "a.com"], managed, "refuse"],
+    [["read", "https://example.com"], managed, "read"],
+    [["open", "a.com"], { ...managed, hasNoWindow: true }, "headless"],
+    [["open", "a.com"], managed, "tabs"],
+    [["tab"], managed, "tabs"],
+  ])("%j is %s", (args, config, kind) => {
+    expect(classifyInvocation(args, config).kind).toBe(kind);
   });
 });
 

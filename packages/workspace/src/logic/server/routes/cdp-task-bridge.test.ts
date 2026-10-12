@@ -62,7 +62,10 @@ const asked: WindowTabAction[] = [];
 vi.mock("../../../lib/chat/window-tab", () => ({
   askWindow: ({ action }: { action: WindowTabAction }) => {
     asked.push(action);
-    return Promise.resolve({ requestId: "r" });
+    return Promise.resolve({
+      requestId: "r",
+      ...(action.kind === "adopt" ? { tabId: action.tabId } : {}),
+    });
   },
   chatSessionOfTask: () =>
     StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B"),
@@ -212,6 +215,7 @@ function tab(openedBy: HeldTab["openedBy"] = "handed") {
   return {
     held: {
       id: browserTargetOf(tabId),
+      inWindow: true,
       openedBy,
     } satisfies HeldTab,
     tabId,
@@ -321,8 +325,9 @@ describe("a task's browser", () => {
       },
     ]);
     const tabId = created.result?.targetId;
-    expect(record.browserTabs.at(-1)).toEqual({
+    expect(record.browserTabs?.at(-1)).toEqual({
       id: tabId,
+      inWindow: true,
       openedBy: "task",
     });
     expect(
@@ -332,6 +337,36 @@ describe("a task's browser", () => {
             .targetId === tabId,
       ),
     ).toBe(true);
+  });
+
+  it("makes a page asked for with no address without a tab, and gives it one as it goes somewhere", async () => {
+    record.browserTabs = [];
+    const { command, navigates } = connect();
+
+    const created = await command("Target.createTarget", {
+      url: "about:blank",
+    });
+    const targetId = browserTargetOf(
+      StoreId.SessionSchema.parse(created.result?.targetId),
+    );
+
+    expect(asked).toEqual([]);
+    expect(record.browserTabs).toEqual([
+      { id: targetId, inWindow: false, openedBy: "task" },
+    ]);
+
+    await command("Target.attachToTarget", { flatten: true, targetId });
+    await navigates(targetId, {
+      title: "Example",
+      url: "https://example.org/",
+    });
+
+    expect(asked).toEqual([
+      { kind: "adopt", tabId: targetId, url: "https://example.org/" },
+    ]);
+    expect(record.browserTabs).toEqual([
+      { id: targetId, inWindow: true, openedBy: "task" },
+    ]);
   });
 
   it("stops opening tabs at the cap", async () => {

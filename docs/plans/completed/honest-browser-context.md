@@ -1,6 +1,6 @@
 # Plan: honest browser context and an honest agent-browser proxy
 
-Status: steps 1 and 2 landed; step 3 not started.
+Status: landed, all three steps.
 
 ## Why
 
@@ -32,8 +32,8 @@ The window holds every tab and the group it is in, so the workspace asks it (`li
 
 Keep the CDP endpoint (the agent drives the app's guests through upstream `agent-browser`, with the guide true and every command working), and make what it does match what the agent asked:
 
-- **Tabs appear when a page does.** `Target.createTarget` makes a pending target, a guest that is not in the chat's strip; it joins the strip on its first navigation to a real address. A pending target the task never navigates is closed when its turn ends.
-- **Commands that need no page start none.** `tab` and `tab list` are answered from the chat's tabs, the way `adblock` and `skills` are.
+- **Tabs appear when a page does.** `Target.createTarget` with no address makes a guest with no tab (`inWindow: false` on the held tab), which the window leaves alone; it joins the chat's tabs (`adopt`) on its first navigation to a real address. One the session never navigates is closed when its turn ends.
+- Answering `tab` and `tab list` here was dropped: the tab ids they print (`t1`) are the daemon's, and a page asked for to list tabs no longer shows anywhere, which was the harm.
 - **One invocation classifier.** The 370-line closure in `shell-commands/agent-browser.ts` becomes a pure `classifyInvocation(args, config)` with a plan per kind (info, external, read, headless, tabs), table-tested, and the cruft from when a task had one browser of its own goes.
 - **One rule per tab**, from step 2's list: the file gate, the cap, and what `Target.*` answers.
 

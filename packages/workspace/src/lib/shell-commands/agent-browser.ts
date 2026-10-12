@@ -30,7 +30,6 @@ import {
 import { agentBrowserGuide } from "../agent-browser-guide";
 import { recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
-import { isChatId } from "../is-chat-id";
 import { virtualizeHostPaths } from "../filter-shell-output";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import { liveHeldTabs } from "../chat/window-tab";
@@ -618,6 +617,101 @@ function workspaceHelp() {
     : WORKSPACE_HELP_MANAGED;
 }
 
+/**
+ * What one `agent-browser` invocation is, decided from its arguments alone,
+ * before anything runs:
+ *
+ * - `refuse`: a flag, subcommand or target the app does not allow, with why.
+ * - `help`, `adblock`, `skills`: answered here, with no CLI at all.
+ * - `info`: `--version` and the like, which print and touch no browser.
+ * - `external`: the user's own browser, behind the flag that allows it.
+ * - `read`: a fetch with no page, on a daemon session of its own.
+ * - `headless`: no window to drive (the eval harness), so the CLI starts a
+ *   browser of its own.
+ * - `tabs`: the chat's tabs in the window, through the CDP endpoint.
+ */
+export type Invocation =
+  | { kind: "adblock"; mode: string | undefined }
+  | { kind: "external" }
+  | { kind: "headless" }
+  | { kind: "help" }
+  | { kind: "info" }
+  | { kind: "read" }
+  | { kind: "refuse"; stderr: string }
+  | { full: boolean; kind: "skills"; words: string[] }
+  | { kind: "tabs" };
+
+export function classifyInvocation(
+  args: string[],
+  {
+    externalEnabled,
+    hasNoWindow,
+  }: { externalEnabled: boolean; hasNoWindow: boolean },
+): Invocation {
+  if (args.some((a) => a === "--help" || a === "-h")) {
+    return { kind: "help" };
+  }
+  // Matches --flag, --flag=value, and short aliases (-p for --provider).
+  const blockedArg = args.find((a) =>
+    BLOCKED_FLAGS.has(agentBrowserFlagName(a)),
+  );
+  if (blockedArg) {
+    return {
+      kind: "refuse",
+      stderr: `agent-browser: flag ${blockedArg} is not allowed. The browser session is managed automatically.\n`,
+    };
+  }
+  const { subArgs, subcommand } = parseAgentBrowserArgs(args);
+  if (subcommand === ADBLOCK_SUBCOMMAND) {
+    return { kind: "adblock", mode: subArgs[1]?.value };
+  }
+  if (subcommand === SKILLS_SUBCOMMAND) {
+    return {
+      full: args.includes("--full"),
+      kind: "skills",
+      words: subArgs.slice(1).map((arg) => arg.value),
+    };
+  }
+  if (subcommand && BLOCKED_SUBCOMMANDS.has(subcommand)) {
+    return {
+      kind: "refuse",
+      stderr: `agent-browser: subcommand '${subcommand}' is not available in this environment.\n`,
+    };
+  }
+  const isInfoOnly = args.some((a) => {
+    const flagName = a.includes("=") ? a.slice(0, a.indexOf("=")) : a;
+    return INFO_ONLY_FLAGS.has(flagName);
+  });
+  if (isInfoOnly) {
+    return { kind: "info" };
+  }
+  // `profiles` inspects the host's Chrome install, so it is external even
+  // without a targeting flag.
+  const wantsExternal =
+    isExternalBrowserInvocation(args) || subcommand === "profiles";
+  // Refused rather than ignored. Dropping the targeting flag and running the
+  // command anyway would answer it on the managed browser, and the agent
+  // would report acting as the user's signed-in identity while holding a
+  // session that was never theirs.
+  if (wantsExternal && !externalEnabled) {
+    return { kind: "refuse", stderr: externalBrowserUnavailableMessage() };
+  }
+  const profileDir = profileDirValue(args);
+  if (profileDir !== undefined) {
+    return { kind: "refuse", stderr: profileDirMessage(profileDir) };
+  }
+  if (hasExecutablePathFlag(args)) {
+    return { kind: "refuse", stderr: executablePathMessage() };
+  }
+  if (wantsExternal) {
+    return { kind: "external" };
+  }
+  if (isBrowserFreeRead(args)) {
+    return { kind: "read" };
+  }
+  return hasNoWindow ? { kind: "headless" } : { kind: "tabs" };
+}
+
 const DAEMON_RACE_RETRY_DELAY_MS = 250;
 
 interface SpawnAgentBrowserOptions {
@@ -641,97 +735,35 @@ export function createAgentBrowserCommand({
     const workspaceConfig = getWorkspaceConfig();
     const serverPort = getWorkspaceServerPort();
 
-    if (!isChatId(chatId)) {
-      return {
-        exitCode: 1,
-        stderr: "agent-browser: browser is only available in task contexts.\n",
-        stdout: "",
-      };
-    }
-
     const id = chatId;
-
-    const isWorkspaceHelp = args.some((a) => a === "--help" || a === "-h");
-    if (isWorkspaceHelp) {
-      return {
-        exitCode: 0,
-        stderr: "",
-        stdout: workspaceHelp(),
-      };
-    }
-
-    // Matches --flag, --flag=value, and short aliases (-p for --provider).
-    const blockedArg = args.find((a) =>
-      BLOCKED_FLAGS.has(agentBrowserFlagName(a)),
-    );
-    if (blockedArg) {
-      return {
-        exitCode: 1,
-        stderr: `agent-browser: flag ${blockedArg} is not allowed. The browser session is managed automatically.\n`,
-        stdout: "",
-      };
-    }
-
-    const { subArgs, subcommand } = parseAgentBrowserArgs(args);
-    if (subcommand === ADBLOCK_SUBCOMMAND) {
-      return adblock(
-        workspaceConfig.browser,
-        { chatId: id, sessionId },
-        subArgs[1]?.value,
-      );
-    }
-    if (subcommand === SKILLS_SUBCOMMAND) {
-      return skills(
-        subArgs.slice(1).map((arg) => arg.value),
-        args.includes("--full"),
-      );
-    }
-    if (subcommand && BLOCKED_SUBCOMMANDS.has(subcommand)) {
-      return {
-        exitCode: 1,
-        stderr: `agent-browser: subcommand '${subcommand}' is not available in this environment.\n`,
-        stdout: "",
-      };
-    }
-
-    const isInfoOnly = args.some((a) => {
-      const flagName = a.includes("=") ? a.slice(0, a.indexOf("=")) : a;
-      return INFO_ONLY_FLAGS.has(flagName);
+    const invocation = classifyInvocation(args, {
+      externalEnabled: workspaceConfig.isExternalBrowserEnabled(),
+      hasNoWindow: workspaceConfig.browser.hasNoWindow,
     });
-
-    const externalBrowserEnabled = workspaceConfig.isExternalBrowserEnabled();
-    // Refused rather than ignored. Dropping the targeting flag and running the
-    // command anyway would answer it on the managed browser, and the agent
-    // would report acting as the user's signed-in identity while holding a
-    // session that was never theirs.
-    if (
-      !externalBrowserEnabled &&
-      !isInfoOnly &&
-      (isExternalBrowserInvocation(args) || subcommand === "profiles")
-    ) {
-      return {
-        exitCode: 1,
-        stderr: externalBrowserUnavailableMessage(),
-        stdout: "",
-      };
+    switch (invocation.kind) {
+      case "adblock": {
+        return adblock(
+          workspaceConfig.browser,
+          { chatId: id, sessionId },
+          invocation.mode,
+        );
+      }
+      case "help": {
+        return { exitCode: 0, stderr: "", stdout: workspaceHelp() };
+      }
+      case "refuse": {
+        return { exitCode: 1, stderr: invocation.stderr, stdout: "" };
+      }
+      case "skills": {
+        return skills(invocation.words, invocation.full);
+      }
+      default: {
+        break;
+      }
     }
-
-    const profileDir = isInfoOnly ? undefined : profileDirValue(args);
-    if (profileDir !== undefined) {
-      return {
-        exitCode: 1,
-        stderr: profileDirMessage(profileDir),
-        stdout: "",
-      };
-    }
-
-    if (!isInfoOnly && hasExecutablePathFlag(args)) {
-      return {
-        exitCode: 1,
-        stderr: executablePathMessage(),
-        stdout: "",
-      };
-    }
+    const isInfoOnly = invocation.kind === "info";
+    const isExternal = invocation.kind === "external";
+    const browserFreeRead = invocation.kind === "read";
 
     const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
@@ -773,19 +805,10 @@ export function createAgentBrowserCommand({
     );
     const configPath = path.join(homeDir, "config.json");
 
-    const browserFreeRead = isBrowserFreeRead(resolvedArgs);
-
     const commandArgs: string[] = [];
-    // A chat's task, which drives the tabs it holds rather than one page.
-    let drivesHeldTabs = false;
+    // A chat's session, which drives the tabs it holds rather than one page.
+    const drivesHeldTabs = invocation.kind === "tabs";
     let pluginRegistry: string | undefined;
-    // `profiles` inspects the host's Chrome install (real HOME, no browser
-    // needed), so it always routes external even without a targeting flag.
-    // Unreachable when the feature is off: those invocations are refused above.
-    const isExternal =
-      externalBrowserEnabled &&
-      !isInfoOnly &&
-      (isExternalBrowserInvocation(resolvedArgs) || subcommand === "profiles");
 
     if (isInfoOnly) {
       // Info-only invocations (--help, --version) print and exit without ever
@@ -819,7 +842,7 @@ export function createAgentBrowserCommand({
         readSessionName(sessionId),
         ...resolvedArgs,
       );
-    } else if (workspaceConfig.browser.hasNoWindow) {
+    } else if (invocation.kind === "headless") {
       // No window to drive, so leave the provider unregistered and let the CLI
       // start a browser of its own. It does that correctly, and it is the
       // difference between a task that can open the page it just wrote and one
@@ -841,7 +864,6 @@ export function createAgentBrowserCommand({
       if (refused !== undefined) {
         return { exitCode: 1, stderr: refused, stdout: "" };
       }
-      drivesHeldTabs = true;
 
       const cdpUrl = cdpBridgeUrl(serverPort, id, sessionId);
       const pluginPath = await writeInstrumentProviderPlugin(homeDir);

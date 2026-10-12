@@ -85,6 +85,11 @@ export interface BrowserTabsHandle {
    */
   openBehind: (url: string | undefined, group: string) => StoreId.Session;
   /**
+   * Gives a page an agent made with no tab a tab in a chat's group, behind
+   * whatever is up, under the page's own id, as the page goes somewhere.
+   */
+  adopt: (id: StoreId.Session, url: string, group: string) => void;
+  /**
    * Opens a page in the group on screen or the group given, or shows the tab
    * already on it when the address is a file's. Given a tab to replace, a
    * page opened takes that tab's place in the strip rather than arriving
@@ -479,6 +484,16 @@ export function BrowserTabs({
           targetId: browserTargetOf(StoreId.SessionSchema.parse(tab.id)),
           url,
         });
+      },
+      adopt: (id, url, into) => {
+        if (latest.current.tabs.some((tab) => tab.id === id)) {
+          return;
+        }
+        change((current) =>
+          addPages(current, [
+            { group: into, id, openedAt: Date.now(), openedUrl: url, url },
+          ]),
+        );
       },
       open: (url, options) => openTab(url, options),
       openBehind: (url, into) => {

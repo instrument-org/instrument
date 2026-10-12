@@ -21,6 +21,13 @@ const HeldTabSchema = z.object({
     .string()
     .transform((id) => id.replace(/^window\//, ""))
     .pipe(BrowserTargetIdSchema),
+  /**
+   * Whether the tab is in the chat's tabs in the window. A page an agent asks
+   * for with no address is made with no tab, and gets one as it first goes
+   * somewhere; one that never does is closed when its session's turn ends,
+   * so looking around the browser leaves no blank tab behind.
+   */
+  inWindow: z.boolean().default(true),
   openedBy: z.enum(["handed", "task"]),
 });
 

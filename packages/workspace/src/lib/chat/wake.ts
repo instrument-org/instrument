@@ -8,7 +8,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type StopNotice } from "../../schemas/stop-notice";
 import { StoreId } from "../../schemas/store-id";
-import { heldTabs, returnTabsToChat } from "../held-tabs";
+import { closePagesWithNoTab, heldTabs, returnTabsToChat } from "../held-tabs";
 import {
   agentPathOfFileUrl,
   agentSpellingOfFileUrls,
@@ -244,6 +244,10 @@ async function onSessionDone(
 ) {
   // Only a chat is woken, by a task of its own.
   const chatId = resolveChat(id);
+  // Any session's pages that never went anywhere go with its turn.
+  if (chatId) {
+    await closePagesWithNoTab(chatId, sessionId);
+  }
   const task = chatId ? await childTask(chatId, sessionId) : undefined;
   if (!chatId || !task) {
     return;

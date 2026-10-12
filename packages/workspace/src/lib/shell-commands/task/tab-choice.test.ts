@@ -16,7 +16,7 @@ vi.mock(import("../../chat/window-tab"), async (importOriginal) => ({
 }));
 vi.mock(import("../../record-folders"), async (importOriginal) => ({
   ...(await importOriginal()),
-  resolveChat: (id) => id,
+  resolveChat: (id: string) => ChatIdSchema.parse(id),
 }));
 vi.mock(import("../../workspace-config"), () => ({
   getWorkspaceConfig: () =>

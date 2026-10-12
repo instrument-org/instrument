@@ -424,6 +424,14 @@ export function useOpeners({
       }
       return { tabId };
     }
+    if (action.kind === "adopt") {
+      const id = StoreId.SessionSchema.safeParse(action.tabId);
+      if (group === undefined || !id.success) {
+        return { error: "only a chat's page can be given a tab." };
+      }
+      browser?.adopt(id.data, action.url, group);
+      return { tabId: id.data };
+    }
     if (action.kind === "list") {
       return group === undefined
         ? { error: "only a chat has tabs to list." }

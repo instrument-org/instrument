@@ -94,7 +94,11 @@ async function run(
 
 /** Tabs the task drives, on the chat's record. */
 async function holdTabs(
-  tabs: { id: BrowserTargetId; openedBy: "handed" | "task" }[],
+  tabs: {
+    id: BrowserTargetId;
+    inWindow: boolean;
+    openedBy: "handed" | "task";
+  }[],
 ) {
   await setChatState(chatDir(CHAT_ID), {
     browserTabs: tabs.map((tab) => ({ ...tab, driver: TASK_SESSION })),
@@ -172,7 +176,7 @@ describe("a task's tab", () => {
   it("connects a task to the tabs it holds", async () => {
     const own = browserTargetOf(StoreId.newSessionId());
     live.add(own);
-    await holdTabs([{ id: own, openedBy: "task" }]);
+    await holdTabs([{ id: own, inWindow: true, openedBy: "task" }]);
 
     const result = await run(["snapshot", "-i"]);
 
@@ -187,13 +191,17 @@ describe("a task's tab", () => {
     await holdTabs([
       {
         id: browserTargetOf(StoreId.newSessionId()),
+        inWindow: true,
         openedBy: "task",
       },
     ]);
     // A tab the chat's own conversation holds is none of the task's.
     const held = await getChatState(chatDir(CHAT_ID));
     await setChatState(chatDir(CHAT_ID), {
-      browserTabs: [...held.browserTabs, { id: chats, openedBy: "task" }],
+      browserTabs: [
+        ...held.browserTabs,
+        { id: chats, inWindow: true, openedBy: "task" },
+      ],
     });
 
     const told = await run(["snapshot", "-i"]);
@@ -203,13 +211,16 @@ describe("a task's tab", () => {
     expect(told.stderr).toContain("the tab this task opened was closed");
     expect(next.exitCode).toBe(0);
     const state = await getChatState(chatDir(CHAT_ID));
-    expect(state.browserTabs).toEqual([{ id: chats, openedBy: "task" }]);
+    expect(state.browserTabs).toEqual([
+      { id: chats, inWindow: true, openedBy: "task" },
+    ]);
   });
 
   it("is never replaced when it was handed over and the user closed it", async () => {
     await holdTabs([
       {
         id: browserTargetOf(StoreId.newSessionId()),
+        inWindow: true,
         openedBy: "handed",
       },
     ]);

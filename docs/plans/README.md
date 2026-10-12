@@ -92,7 +92,6 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [radashi to es-toolkit migration](active/radashi-to-es-toolkit-migration.md) | planned, not started |
 | [Radix upgrade, and whether to move to Base UI](active/radix-upgrade-and-base-ui-migration.md) | proposal, not started |
 | [React Compiler blind spots](active/react-compiler-blind-spots.md) | proposal, not started |
-| [Honest browser context](active/honest-browser-context.md): chips are the context, the workspace knows each chat's tabs, and an agent-browser proxy that opens tabs only for pages | steps 1 and 2 landed |
 | [Structure after the chat rework](active/structure-after-the-chat-rework.md): implicit state machines, parallel maps and task-era leftovers the reworks left | items 1-7, 11, 12 done; 8, 10, 13 folded into other work |
 
 ## Completed
@@ -100,6 +99,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | Plan | Outcome |
 | --- | --- |
 | [Agent browser ad blocking](completed/agent-browser-ad-blocking.md) | landed |
+| [Honest browser context](completed/honest-browser-context.md): chips are the whole context, a chat names only its own tabs, and an agent-browser proxy that opens tabs only for pages | landed |
 | [One window browser](completed/single-window-browser.md): one browser, a guest named by its tab, and a lifetime per tab on Chromium's discard rules | landed |
 | [Chat status line and loading states](completed/chat-status-line-and-loading-states.md): dots only while a reply is written, one activity line under the title | landed |
 | [The Instrument 2.0 orchestrator spike](completed/instrument-2-0-prototype.md) | became the 2.0 app |

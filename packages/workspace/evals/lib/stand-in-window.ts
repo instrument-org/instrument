@@ -57,6 +57,14 @@ export function createStandInWindow() {
     if (action.kind === "list") {
       return { tabIds: [...tabs.keys()] };
     }
+    if (action.kind === "adopt") {
+      tabs.set(action.tabId, {
+        at: action.url,
+        id: action.tabId,
+        kind: "page",
+      });
+      return { tabId: action.tabId };
+    }
     const tab = tabs.get(action.tabId);
     if (!tab) {
       return { error: `no tab ${action.tabId} is open in this chat.` };

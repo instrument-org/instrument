@@ -26,14 +26,18 @@ const URL_USERINFO_PATTERN =
 const CREDENTIAL_FIELD_PATTERN = /^(password|username)=.*$/gim;
 
 /**
- * `rewriteSeparators` turns every backslash in the output into a forward slash,
- * so paths printed by a Windows-native tool stay usable as tool path inputs. It
- * cannot tell a separator from any other backslash, so it also rewrites escape
- * sequences, regex literals, and matched file contents: JSON printed by a
- * script comes back with every `\n` spelled `/n`, which reads as corrupted
- * data and sends an agent hunting for the corruption. So it defaults on only
- * where those paths exist. On a posix host every backslash in output is
- * content, and callers there whose output is already POSIX pass false anyway.
+ * A drive-absolute Windows path a native tool printed (`C:\Users\sam\a.txt`,
+ * `D:/data`), up to the first character a path segment here cannot hold.
+ */
+const DRIVE_PATH_PATTERN = /(?<![\w/\\])([A-Za-z]):([\\/][^\s"'<>|*?:]*)/g;
+
+/**
+ * `rewriteSeparators` respells the drive-absolute paths a Windows-native tool
+ * prints the way the shell spells them (`/c/Users/sam/a.txt`), so they stay
+ * usable as the agent's next command's arguments. Only those: any other
+ * backslash is content (an escape sequence, a regex, JSON a script printed)
+ * and arrives as it was written. On by default only where those paths exist;
+ * callers whose output is already POSIX pass false.
  */
 export function filterShellOutput(
   output: string,
@@ -54,8 +58,15 @@ export function filterShellOutput(
   }
   filtered = filtered.replaceAll(CREDENTIAL_FIELD_PATTERN, "$1=***");
 
-  if (rewriteSeparators) {
-    filtered = filtered.replaceAll("\\", "/");
+  if (rewriteSeparators && /[A-Za-z]:[\\/]/.test(filtered)) {
+    filtered = filtered.replaceAll(
+      DRIVE_PATH_PATTERN,
+      (_, drive: string, rest: string) =>
+        `/${drive.toLowerCase()}${rest.replaceAll("\\", "/")}`.replace(
+          /(.)\/$/,
+          "$1",
+        ),
+    );
   }
 
   if (

@@ -6,16 +6,16 @@ import {
 } from "./filter-shell-output";
 
 describe("filterShellOutput", () => {
-  it("normalizes backslash paths in output", () => {
-    const output = String.raw`Converted -> output\smiley.png
-C:\work\output\rainbow.pdf`;
+  it("respells drive paths and leaves every other backslash", () => {
+    const output = String.raw`Converted -> C:\work\output\rainbow.pdf
+saved D:/photos/a.png and E:\
+a\b\c regex \d+\s {"x":"line\nline"} output\smiley.png`;
 
     const result = filterShellOutput(output, { rewriteSeparators: true });
 
-    expect(result).toMatchInlineSnapshot(`
-      "Converted -> output/smiley.png
-      C:/work/output/rainbow.pdf"
-    `);
+    expect(result).toBe(String.raw`Converted -> /c/work/output/rainbow.pdf
+saved /d/photos/a.png and /e
+a\b\c regex \d+\s {"x":"line\nline"} output\smiley.png`);
   });
 
   it("leaves a script's own escape sequences alone on a posix host", () => {

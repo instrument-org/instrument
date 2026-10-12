@@ -26,6 +26,9 @@ export function ClaudeLoginButton({
   );
   const [pressed, setPressed] = useState(false);
   const [hint, setHint] = useState<string>();
+  // Between Claude Code being ready and its sign-in starting, so the button
+  // holds through the handoff rather than coming back for a moment.
+  const [starting, setStarting] = useState(false);
   const connecting = useRef(false);
 
   const connect = async () => {
@@ -64,7 +67,10 @@ export function ClaudeLoginButton({
       await connect();
       return;
     }
-    const result = await rpcClient.claudeAccount.signIn.call({});
+    setStarting(true);
+    const result = await rpcClient.claudeAccount.signIn.call({}).finally(() => {
+      setStarting(false);
+    });
     if (result.error) {
       setPressed(false);
       setHint(result.error);
@@ -72,8 +78,14 @@ export function ClaudeLoginButton({
   };
 
   const installing = status?.install?.state === "downloading";
+  // Signed in while pressed is the connect still settling.
   const waiting =
-    pressed && (installing || status?.signingIn === true || !status);
+    pressed &&
+    (starting ||
+      installing ||
+      status?.signingIn === true ||
+      status?.kind === "signed-in" ||
+      !status);
 
   return (
     <div className="flex w-full flex-col items-center gap-y-2">
@@ -101,7 +113,10 @@ export function ClaudeLoginButton({
               : caption)}
       </p>
       {pressed && status?.signingIn && status.signInLink && (
-        <ClaudeSignInCode className="w-full" link={status.signInLink} />
+        <ClaudeSignInCode
+          className="w-full text-center"
+          link={status.signInLink}
+        />
       )}
     </div>
   );

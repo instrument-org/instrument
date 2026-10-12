@@ -339,11 +339,12 @@ export function ChatWindow({
     }
   };
   // A new tab each time: the person asked for another, even of a kind the
-  // chat already has open.
-  const openHere = (href: string) => {
+  // chat already has open. One a link opened closes on back from its start;
+  // one the person added from the tiles stays.
+  const openHere = (href: string, { isOpened }: { isOpened: boolean }) => {
     windowTabs.openScreen(href, {
       group: chatId,
-      isOpened: true,
+      isOpened,
       select: true,
     });
     showUp();
@@ -372,10 +373,10 @@ export function ChatWindow({
         chosenId={isExpanded ? (showsItem ? up.id : undefined) : peekTab?.id}
         isChatWorking={isWorking}
         onAddComputer={() => {
-          openHere(outputFolderHref());
+          openHere(outputFolderHref(), { isOpened: false });
         }}
         onAddWeb={() => {
-          openHere(BROWSER_HREF);
+          openHere(BROWSER_HREF, { isOpened: false });
         }}
         onClose={closeTab}
         onReorder={(keys) => {
@@ -530,7 +531,7 @@ export function ChatWindow({
                   return;
                 }
                 if (options?.show && computerTabOf(href)) {
-                  openHere(href);
+                  openHere(href, { isOpened: true });
                   return;
                 }
                 const tasks = tasksOfHref(href);

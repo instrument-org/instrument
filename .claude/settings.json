@@ -1,4 +1,7 @@
 {
+  "worktree": {
+    "baseRef": "head"
+  },
   "enabledPlugins": {
     "figma@claude-plugins-official": true
   },

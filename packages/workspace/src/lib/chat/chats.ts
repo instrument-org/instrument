@@ -588,14 +588,17 @@ function digestOf(
       !isQuitNote(message),
   );
   const lastUser = messages.findLast((message) => message.role === "user");
-  // A wake note is written as a user message but carries only task or app
-  // news; everything else the user sent, asks on a file alone included.
+  // A wake note is written as a user message but carries only task, app,
+  // or background-process news; everything else the user sent, asks on a
+  // file alone included.
   const lastUserMessage = messages.findLast(
     (message) =>
       message.role === "user" &&
       !message.parts.every(
         (part) =>
-          part.type === "data-taskEvent" || part.type === "data-appEvent",
+          part.type === "data-taskEvent" ||
+          part.type === "data-appEvent" ||
+          part.type === "data-jobEvent",
       ),
   );
   const spoken = messages.findLast(

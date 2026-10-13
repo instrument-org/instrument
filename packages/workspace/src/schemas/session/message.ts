@@ -27,6 +27,7 @@ import { dateChangeModelNote } from "../../lib/date-change-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { fromChatModelText } from "../../lib/from-chat-model-text";
 import { isToolPart } from "../../lib/is-tool-part";
+import { jobEventModelNote } from "../../lib/job-event-model-text";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
 import { memoryModelNote } from "../../lib/memory-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
@@ -519,6 +520,20 @@ export namespace SessionMessage {
         if (taskEventPart) {
           injectedParts.push({
             text: taskEventModelNote(taskEventPart.data),
+            type: "text",
+          });
+        }
+
+        const jobEventPart = message.parts.find(
+          (
+            part,
+          ): part is SessionMessagePart.DataPart & {
+            type: "data-jobEvent";
+          } => part.type === "data-jobEvent",
+        );
+        if (jobEventPart) {
+          injectedParts.push({
+            text: jobEventModelNote(jobEventPart.data),
             type: "text",
           });
         }

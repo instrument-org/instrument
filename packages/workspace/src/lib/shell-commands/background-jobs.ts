@@ -6,6 +6,7 @@ import {
   type BackgroundProcessInfo,
   killBackgroundProcess,
   listBackgroundProcesses,
+  markBackgroundProcessesReported,
   readBackgroundProcess,
 } from "../background-processes";
 import { interruptibleWait } from "../wait-interrupts";
@@ -270,6 +271,13 @@ function formatRead(read: {
 
 function listJobs(args: string[], sessionId: StoreId.Session) {
   const processes = listBackgroundProcesses(sessionId);
+  // The listing says how each one ended, so none of them wakes the session.
+  markBackgroundProcessesReported(
+    sessionId,
+    processes
+      .filter((process) => process.status !== "running")
+      .map((process) => process.id),
+  );
 
   if (args.includes("--json")) {
     return ok(`${JSON.stringify(processes.map(toJson), null, 2)}\n`);

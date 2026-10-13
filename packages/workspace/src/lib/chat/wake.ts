@@ -57,6 +57,7 @@ export type WakePart =
       data: SessionMessageDataPart.PermissionAnswerDataPart;
       type: "data-permissionAnswer";
     }
+  | { data: SessionMessageDataPart.JobEventDataPart; type: "data-jobEvent" }
   | { data: SessionMessageDataPart.TaskEventDataPart; type: "data-taskEvent" };
 
 type TaskEvent = SessionMessageDataPart.TaskEventDataPart["events"][number];
@@ -208,6 +209,19 @@ export async function wakeSessionForPermission(
   if (!resolveChat(chatId) || !(await chatModelURI(chatId))) {
     return;
   }
+  await wakeWith(chatId, part, workspaceRef, sessionId);
+}
+
+/**
+ * Wakes a session, a task's or the chat's own, with the background processes
+ * it left running that have since ended on their own (`job-wake.ts`).
+ */
+export async function wakeSessionForJobs(
+  part: Extract<WakePart, { type: "data-jobEvent" }>,
+  workspaceRef: WorkspaceActorRef,
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<void> {
   await wakeWith(chatId, part, workspaceRef, sessionId);
 }
 

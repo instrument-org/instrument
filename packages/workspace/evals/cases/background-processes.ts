@@ -341,6 +341,81 @@ const assertNothingWentToTheBackground: Assertion = {
   text: "Left a short command in the foreground",
 };
 
+/**
+ * The messages after the first note of one of these kinds that woke the
+ * session, or undefined when none did.
+ */
+function afterTheWake(
+  sessions: Sessions,
+  kinds: SessionMessagePart.Type["type"][],
+) {
+  const messages = sessions.flatMap((session) => session.messages);
+  const woke = messages.findIndex((message) =>
+    message.parts.some((part) => kinds.includes(part.type)),
+  );
+  return woke === -1 ? undefined : messages.slice(woke + 1);
+}
+
+/**
+ * The turn ended while the command was still running, and its ending woke
+ * the session. A model that held the call open until the command finished
+ * never needed waking, and one that handed the process to a task with
+ * `task new --job` was woken by the task instead, which the reply below
+ * still credits.
+ */
+const assertWokenWhenItEnded: Assertion = {
+  check: ({ sessions }) => {
+    const after = afterTheWake(sessions, ["data-jobEvent"]);
+    const handedOff = bashCalls(sessions).find((call) =>
+      /\btask\s+new\b[^\n]*--job\b/.test(call.command),
+    );
+    return {
+      evidence:
+        after !== undefined
+          ? `Woken, with ${after.length} message(s) after the note`
+          : handedOff
+            ? `Handed the process to a task instead: \`${handedOff.command.replace(/\n[\s\S]*/, "")}\``
+            : "No wake note: the command finished inside a turn, or never did",
+      passed: after !== undefined,
+      text: "Was woken when the command ended after its turn",
+    };
+  },
+  text: "Was woken when the command ended after its turn",
+};
+
+/**
+ * What the conversation said once woken, by the process ending or by a task
+ * it handed the process to, names the code the command printed, which only
+ * the command's output holds: the note says how it ended, not what it wrote.
+ */
+const assertReportedTheCodeOnWaking: Assertion = {
+  check: async ({ childSessions, sessions }) => {
+    const children = (await childSessions()).flatMap((child) => child.sessions);
+    const code = /code (\d{6})\b/.exec(
+      toolResultText([...sessions, ...children]),
+    )?.[1];
+    const after =
+      afterTheWake(sessions, ["data-jobEvent", "data-taskEvent"]) ?? [];
+    const said = after
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) => message.parts)
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .join("\n\n");
+    const passed = code !== undefined && said.includes(code);
+    return {
+      evidence:
+        code === undefined
+          ? `No tool result held the printed code (after waking: ${said.slice(0, 200) || "(nothing said)"})`
+          : passed
+            ? `Said ${code} after waking`
+            : `Never said ${code} after waking: ${said.slice(0, 240) || "(nothing said)"}`,
+      passed,
+      text: "Told the user the code the command printed, after waking",
+    };
+  },
+  text: "Told the user the code the command printed, after waking",
+};
+
 export const BACKGROUND_PROCESS_EVALS = [
   /**
    * Discovery, with nothing in the prompt naming the mechanism. A server never
@@ -425,6 +500,26 @@ export const BACKGROUND_PROCESS_EVALS = [
     name: "background-find-an-error-in-noisy-output",
     prompt:
       "Run a node script that prints 2000 lines of 'worker ok' but prints 'E_DISK_FULL: out of space' as line 900, then keeps printing 'worker ok' every second forever. Once it is running, tell me whether it logged any errors and what they were.",
+  }),
+
+  /**
+   * The ending after the turn. The agent is asked not to wait, so its turn
+   * ends with the command still running, the way it does when a command sits
+   * behind a privacy prompt nobody has answered yet; the command ending then
+   * wakes the conversation, and nobody types again. Run as a chat because a
+   * wake needs a conversation someone has written in.
+   */
+  defineEval({
+    assertions: [
+      assertPromotedAProcess,
+      assertWokenWhenItEnded,
+      assertReportedTheCodeOnWaking,
+    ],
+    kind: "chat",
+    name: "background-wakes-when-it-ends",
+    outlivesTurn: true,
+    prompt:
+      "Start this and don't wait around for it, it takes a while: node -e \"setTimeout(() => console.log('code ' + Math.floor(100000 + Math.random() * 900000)), 45000)\". Once it is running, tell me it has started and stop there. When it finishes, tell me the code it printed.",
   }),
 
   /** The control: an ordinary command must not change behavior. */

@@ -28,6 +28,7 @@ import { type WorkspaceActorRef } from "../src/machines/workspace";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { isToolPart } from "../src/lib/is-tool-part";
+import { listChatBackgroundProcesses } from "../src/lib/background-processes";
 import { isWorking } from "../src/lib/chat/activity";
 import { isTypedByUser } from "../src/lib/typed-by-user";
 import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
@@ -407,6 +408,13 @@ export interface EvalCase {
    */
   marks?: { after?: string; match: RegExp; name: string }[];
   name: string;
+  /**
+   * The run is not over while a command the agent left running in the
+   * background is still going: for a case scored on what the agent does
+   * when one ends after its turn and wakes it. A process that never exits
+   * holds the run to its time cap.
+   */
+  outlivesTurn?: boolean;
   /** Read after `setup`, so a getter can name something setup made. */
   prompt: string;
   /**
@@ -1125,9 +1133,15 @@ export async function runEvals(
       // run. Everything above this line has only watched the conversation.
       // A message sent mid-turn that the turn ended before hearing runs as a
       // turn of its own, so a timed follow-up waits the same way.
-      if ((evalCase.kind === "chat" || followUps.some(isTimed)) && !stoppedBy) {
+      if (
+        (evalCase.kind === "chat" ||
+          followUps.some(isTimed) ||
+          evalCase.outlivesTurn) &&
+        !stoppedBy
+      ) {
         const settled = await waitForTreeQuiet(id, {
           timeoutMs: remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000,
+          untilBackgroundEnds: evalCase.outlivesTurn,
         });
         if (settled.status === "timeout") {
           stoppedBy = "timeout";
@@ -1705,12 +1719,24 @@ async function waitForSessionDone(
  */
 async function waitForTreeQuiet(
   rootChatId: ChatId,
-  { timeoutMs }: { timeoutMs: number },
+  {
+    timeoutMs,
+    untilBackgroundEnds = false,
+  }: {
+    timeoutMs: number;
+    /** Count a background process still running as work under way. */
+    untilBackgroundEnds?: boolean;
+  },
 ): Promise<{ quietSince: number; status: "quiet" } | { status: "timeout" }> {
   const deadline = Date.now() + timeoutMs;
   let quietSince: number | undefined;
   while (Date.now() < deadline) {
-    const working = isWorking(rootChatId);
+    const working =
+      isWorking(rootChatId) ||
+      (untilBackgroundEnds &&
+        listChatBackgroundProcesses(rootChatId).some(
+          (process) => process.status === "running",
+        ));
     if (working) {
       quietSince = undefined;
     } else {

@@ -3,6 +3,7 @@ import {
   browserStatusModelNote,
   dateChangeModelNote,
   isAddressableTaskFilePath,
+  jobEventModelNote,
   maxStepsModelNote,
   messageGapModelNote,
   type SessionMessagePart,
@@ -66,6 +67,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // are the reason for everything that follows.
   "data-fromChat": "always",
   "data-intent": "dev",
+  // The reason a session woke when a command it left running ended. Like a
+  // task's finish in the chat, the reply that follows says what came of it,
+  // so the note itself is a developer's peek.
+  "data-jobEvent": "dev",
   "data-maxSteps": "dev",
   // What the agent is told it remembers about the user. Context for the
   // model; the user's copy is the Memory section of Settings.
@@ -335,6 +340,16 @@ export function renderDataPart({
           className="mt-3"
           data={part.data}
           key={part.metadata.id}
+        />
+      );
+    }
+    case "data-jobEvent": {
+      return (
+        <ModelContextDebugCard
+          className={noteClassName}
+          compact={compact}
+          key={part.metadata.id}
+          text={jobEventModelNote(part.data)}
         />
       );
     }

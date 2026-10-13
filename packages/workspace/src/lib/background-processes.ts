@@ -154,6 +154,14 @@ interface BackgroundProcessRecord {
   logFilePath: RelativePath;
   logWriter: BoundedLogWriter;
   prePromotionOmittedBytes: number;
+  /**
+   * Whether the agent has been told how this process ended: by `fg`, `jobs`,
+   * `kill`, or the note that woke its session for it. Only an ending nobody
+   * asked for is news to report, so a requested stop never needs this.
+   */
+  reported: boolean;
+  /** The session that owns it, which a handover moves. */
+  sessionId: StoreId.Session;
   startedAt: Date;
   status: BackgroundProcessStatus;
   stoppedBy?: StoppedBy;
@@ -249,6 +257,7 @@ export async function killBackgroundProcess({
   }
   // This result points the agent at the log file, so it has to be complete.
   await record.logClosed;
+  record.reported = true;
   return {
     info: toInfo(record),
     stoppedByThisCall,
@@ -354,6 +363,7 @@ export function handOverBackgroundProcesses({
     source.delete(id);
     changed.add(record.chatId);
     record.chatId = toChatId;
+    record.sessionId = to;
     target.set(id, record);
   }
   for (const chatId of changed) {
@@ -391,6 +401,41 @@ export function listChatBackgroundProcesses(
         .map((record) => ({ ...toInfo(record), sessionId })),
     )
     .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+}
+
+/**
+ * The processes of one session that ended without anyone asking them to and
+ * whose ending the agent has not been told: what wakes a session that is no
+ * longer working (`lib/chat/job-wake.ts`). A stop the agent, the user, or the
+ * conversation asked for is never here, and neither is the quit's, which
+ * stops everything as the user's; the age cap is, since nobody asked for it.
+ */
+export function unreportedBackgroundProcesses(
+  sessionId: StoreId.Session,
+): BackgroundProcessInfo[] {
+  return [...(recordsBySession.get(sessionId)?.values() ?? [])]
+    .filter(
+      (record) =>
+        record.status !== "running" &&
+        record.stopReason !== "requested" &&
+        !record.reported,
+    )
+    .map((record) => toInfo(record))
+    .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+}
+
+/** Records that the agent has been told how these processes ended. */
+export function markBackgroundProcessesReported(
+  sessionId: StoreId.Session,
+  ids: string[],
+): void {
+  const records = recordsBySession.get(sessionId);
+  for (const id of ids) {
+    const record = records?.get(id);
+    if (record && record.status !== "running") {
+      record.reported = true;
+    }
+  }
 }
 
 /**
@@ -480,6 +525,8 @@ export function promoteBackgroundProcess({
     logFilePath,
     logWriter,
     prePromotionOmittedBytes: handle.buffer.omittedBytesSoFar(),
+    reported: false,
+    sessionId,
     startedAt: handle.startedAt,
     status: "running",
     chatId,
@@ -577,6 +624,7 @@ export async function readBackgroundProcess({
   if (record.status !== "running") {
     // The read reports the log path as the complete record; make sure it is one.
     await record.logClosed;
+    record.reported = true;
   }
 
   return {
@@ -840,6 +888,7 @@ function finish({
     record.status = status;
     notify(record);
     publishChanged(record.chatId);
+    publishSettled(record);
     return;
   }
   record.endedAt = getCurrentDate();
@@ -859,6 +908,7 @@ function finish({
   record.logWriter.close();
   notify(record);
   publishChanged(record.chatId);
+  publishSettled(record);
 }
 
 function notify(record: BackgroundProcessRecord) {
@@ -904,6 +954,21 @@ function openLogFile({ id, chatId }: { id: string; chatId: ChatId }):
  */
 function publishChanged(chatId: ChatId) {
   publisher.publish("backgroundProcesses.changed", { id: chatId });
+}
+
+/**
+ * Tells the session's wake that one of its processes ended on its own, the
+ * news an agent that is no longer working would otherwise never hear. A stop
+ * somebody asked for is not news, and one already reported is not again.
+ */
+function publishSettled(record: BackgroundProcessRecord) {
+  if (record.stopReason === "requested" || record.reported) {
+    return;
+  }
+  publisher.publish("backgroundProcess.settled", {
+    id: record.chatId,
+    sessionId: record.sessionId,
+  });
 }
 
 /** Drops stale finished records. */

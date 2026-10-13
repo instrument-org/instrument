@@ -91,7 +91,7 @@ Ownership moves in one case: when the chat hands work to a task partway, `task n
 | Chat trashed | every process of the chat and its tasks | `killChatBackgroundProcesses` in [`lib/trash-chat.ts`](../../packages/workspace/src/lib/trash-chat.ts) |
 | App quits | everything | [`create-workspace-actor.ts:349`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts#L349) |
 | 2 hours old | that process | `ageTimer` in `promoteBackgroundProcess` |
-| **Turn ends** | **nothing — deliberate** | — |
+| **Turn ends** | **nothing — deliberate** (one that ends afterward wakes the session, below) | — |
 
 **The gaps this leaves**, in plain terms:
 
@@ -114,6 +114,19 @@ Ownership moves in one case: when the chat hands work to a task partway, `task n
 
 A stop carries who asked for it (`stoppedBy`: the agent's own `kill`, the user's, or the conversation's `task stop`), and `fg` and `jobs` say so rather than printing the interpreter's abort code. A stop the agent did not make is a decision it must not undo, and the text tells it not to start the process again unless asked; "finished with exit code 124" read as the command failing on its own.
 
+## When one ends after the turn
+
+A turn that leaves a command running can end with the agent saying it is waiting on it, as when `ls ~/Documents` sits behind the macOS privacy prompt until the person answers it. When that command ends on its own, the session that owns it is woken, the way a task finishing wakes its chat ([`lib/chat/job-wake.ts`](../../packages/workspace/src/lib/chat/job-wake.ts)):
+
+- The registry publishes `backgroundProcess.settled` when a process ends without anyone asking: an exit, a failure, or the 2-hour cap. A stop somebody asked for publishes nothing: the agent's own `kill`, the user's stop, the conversation's `task stop`, and the app's quit, which stops everything as the user's.
+- Each record carries whether the agent has been told how it ended (`reported`). `fg`, `jobs`, `kill` and the wake itself set it, and the wake sets it before the note is sent, so a process is reported once and the turn its wake starts cannot wake the session again.
+- The wake waits 1.5 s, so processes ending together arrive as one note, then wakes the session only if it has no turn running. A session with a turn running hears of it through `fg` and `jobs`; whatever that turn never read wakes the session once its `session.done` arrives.
+- A session whose last turn the user (or, for a task, the chat) stopped is not woken: the endings are marked told, and the next turn's `data-backgroundProcesses` note says they are gone.
+- The note is a `data-jobEvent` part on a text-less user message in the owning session, written through `wakeSessionForJobs` in [`wake.ts`](../../packages/workspace/src/lib/chat/wake.ts): the chat's own session, or a task's, whose finish then wakes the chat as usual. The model reads it as [`jobEventModelNote`](../../packages/workspace/src/lib/job-event-model-text.ts): the id, the command, how it ended and after how long, `fg bg_N` and the log path to read its output, and to finish what the user was waiting on.
+- The person does not see the note outside developer mode, where it is a context card: the reply that follows says what came of the command, the same reason a task's finish is hidden in the chat.
+
+A server that never exits wakes nothing until the age cap stops it.
+
 ## Two Unix metaphors we sit on
 
 - **`kill`** normally takes a pid. Ours takes `bg_1` or `%1` and **refuses a bare number**, so there is no route from the sandbox to the host's own processes.
@@ -125,7 +138,7 @@ A task page's header carries a pill beside the task's title and menu ("2 running
 
 One other renderer change: a promoted command has no exit code yet, and treating a missing code as non-zero painted every still-running command as a failure — fixed in [`bash-exit-status.ts`](../../apps/studio/src/client/components/message-part/bash-exit-status.ts).
 
-**What is still missing:** nothing warns the user when the two-hour cap fires, so a server stopping on its own reads as a bug. And nothing outside a task's own page counts them, so a task you are not looking at can hold a running process invisibly.
+**What is still missing:** the app itself shows nothing when the two-hour cap fires; the word comes only from the agent its ending wakes. And nothing outside a task's own page counts them, so a task you are not looking at can hold a running process invisibly.
 
 ## Does ordinary `bash` behave worse?
 

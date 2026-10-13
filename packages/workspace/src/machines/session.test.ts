@@ -1128,6 +1128,35 @@ describe("sessionMachine", () => {
     ]);
   });
 
+  it("keeps the user's stop when the chat's own stop lands after it", async () => {
+    const result = await createActorAndTask({
+      chunkSets: [finishChunks],
+    });
+    const done: unknown[] = [];
+    const unsubscribe = publisher.subscribe("session.done", (payload) => {
+      done.push(payload);
+    });
+    result.actor.start();
+    result.actor.send({
+      notice: { by: "user", wakesChat: true },
+      type: "stop",
+    });
+    result.actor.send({
+      notice: { by: "chat", wakesChat: false },
+      type: "stop",
+    });
+
+    await runTestMachine(result);
+    unsubscribe();
+    expect(done).toEqual([
+      {
+        id: result.chatId,
+        notice: { by: "user", wakesChat: true },
+        sessionId: result.sessionId,
+      },
+    ]);
+  });
+
   it("should force stop agents before the stopping failsafe completes", async () => {
     let finishOnFinish: (() => void) | undefined;
     const onFinishPromise = new Promise<void>((resolve) => {

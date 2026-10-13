@@ -1,8 +1,10 @@
 import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
+import { CODE_EDITOR_FOCUS_CHANNEL } from "@/shared/constants";
 import { resolveAccelerator } from "@/shared/shortcuts";
 import {
+  CODE_EDITOR_SHORTCUTS,
   WINDOW_MENU_SHORTCUTS,
   WINDOW_SHORTCUT_ALIASES,
   WINDOW_SHORTCUTS,
@@ -33,6 +35,8 @@ const IS_MAC = process.platform === "darwin";
  */
 interface WindowChord {
   accelerator: string;
+  /** The shared table's row, for a chord that has one. */
+  id?: WindowShortcutId;
   label: string;
   run: () => void;
   /** Drawn in the menu, or an accelerator alone behind a row already there. */
@@ -52,6 +56,7 @@ function chord(
   const { accelerator, label } = WINDOW_SHORTCUTS[id];
   return {
     accelerator: resolveAccelerator(accelerator, { isMac: IS_MAC }),
+    id,
     label,
     run,
   };
@@ -181,9 +186,21 @@ const WINDOW_CHORDS = [
  * accelerator is offered only the
  * keys web content left unhandled, and the composer's editor has the keyboard
  * almost all of the time. The menu keeps the same chords for display, and
- * for a focused browser guest, whose keys never pass through here.
+ * for a focused browser guest, whose keys never pass through here. A code
+ * editor holding the keyboard is given the chords that are its keys too
+ * (`CODE_EDITOR_SHORTCUTS`) the same way: they go on to the page, and the
+ * menu answers whatever the editor leaves alone.
  */
 export function bindAppWindowChords(webContents: WebContents) {
+  // The renderer's last word on whether a code editor has the keyboard. A
+  // page loaded afresh has none.
+  let codeEditorFocused = false;
+  webContents.ipc.on(CODE_EDITOR_FOCUS_CHANNEL, (_event, focused: unknown) => {
+    codeEditorFocused = focused === true;
+  });
+  webContents.on("did-navigate", () => {
+    codeEditorFocused = false;
+  });
   webContents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown") {
       return;
@@ -191,7 +208,12 @@ export function bindAppWindowChords(webContents: WebContents) {
     const pressed = WINDOW_CHORDS.find(({ accelerator }) =>
       matchesAccelerator(input, accelerator, { isMac: IS_MAC }),
     );
-    if (!pressed) {
+    if (
+      !pressed ||
+      (codeEditorFocused &&
+        pressed.id !== undefined &&
+        CODE_EDITOR_SHORTCUTS.has(pressed.id))
+    ) {
       return;
     }
     event.preventDefault();

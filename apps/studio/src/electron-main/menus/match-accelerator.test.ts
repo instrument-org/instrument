@@ -1,8 +1,18 @@
+import { CODE_EDITOR_KEYS } from "@/client/components/code-editor/keymap";
 import { resolveAccelerator, SHORTCUT_ENTRIES } from "@/shared/shortcuts";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
+import {
+  CODE_EDITOR_SHORTCUTS,
+  WINDOW_SHORTCUT_ALIASES,
+  WINDOW_SHORTCUTS,
+  type WindowShortcutId,
+} from "@/shared/window-shortcuts";
 import { describe, expect, it } from "vitest";
 
-import { matchesAccelerator, parseAccelerator } from "./match-accelerator";
+import {
+  type Chord,
+  matchesAccelerator,
+  parseAccelerator,
+} from "./match-accelerator";
 
 type Modifier = "alt" | "control" | "meta" | "shift";
 
@@ -342,4 +352,78 @@ describe("the shortcut table", () => {
       ).not.toBeNull();
     }
   });
+});
+
+/** Whether one press would fire both chords. */
+function overlaps(a: Chord, b: Chord) {
+  return (
+    a.alt === b.alt &&
+    a.control === b.control &&
+    a.meta === b.meta &&
+    a.on === b.on &&
+    a.value === b.value &&
+    (a.shift === b.shift || !a.comparesShift || !b.comparesShift)
+  );
+}
+
+/** The window's own chords on one side, each by its table row. */
+function windowChords(isMac: boolean) {
+  return [
+    ...Object.entries(WINDOW_SHORTCUTS).map(([id, { accelerator }]) => ({
+      accelerator: resolveAccelerator(accelerator, { isMac }),
+      // `Object.entries` widens the keys to `string`; they are the table's ids.
+      id: id as WindowShortcutId,
+    })),
+    ...WINDOW_SHORTCUT_ALIASES.flatMap(({ accelerator, id }) => {
+      const own = isMac ? accelerator.darwin : accelerator.default;
+      return own ? [{ accelerator: own, id }] : [];
+    }),
+  ];
+}
+
+/** A CodeMirror key name as an Electron accelerator: `Mod-Alt-ArrowUp` is `CmdOrCtrl+Alt+Up`. */
+function acceleratorOf(name: string) {
+  const parts = name.split("-");
+  const key = parts.pop() ?? "";
+  const modifiers = parts.map(
+    (part) =>
+      ({ Cmd: "Command", Ctrl: "Ctrl", Meta: "Command", Mod: "CmdOrCtrl" })[
+        part
+      ] ?? part,
+  );
+  // CodeMirror writes a shifted letter as its capital.
+  const shift = /^[A-Z]$/.test(key) ? ["Shift"] : [];
+  return [...modifiers, ...shift, key.replace(/^Arrow/, "")].join("+");
+}
+
+describe("CODE_EDITOR_SHORTCUTS", () => {
+  it.each([
+    { isMac: true, platform: "mac" },
+    { isMac: false, platform: "win" },
+    { isMac: false, platform: "linux" },
+  ] as const)(
+    "is every window chord the code editor's keys take on $platform",
+    ({ isMac, platform }) => {
+      const editorChords = CODE_EDITOR_KEYS.flatMap((binding) => {
+        const name = binding[platform] ?? binding.key;
+        if (!name) {
+          return [];
+        }
+        return [name, ...(binding.shift ? [`Shift-${name}`] : [])].flatMap(
+          (each) => parseAccelerator(acceleratorOf(each), { isMac }) ?? [],
+        );
+      });
+      const taken = windowChords(isMac).flatMap(({ accelerator, id }) => {
+        const chord = parseAccelerator(accelerator, { isMac });
+        return chord && editorChords.some((key) => overlaps(chord, key))
+          ? [id]
+          : [];
+      });
+      // Find is the editor's own search either way: the window hands the
+      // press to the find target holding the keyboard.
+      expect(new Set(taken.filter((id) => id !== "findInPage"))).toEqual(
+        CODE_EDITOR_SHORTCUTS,
+      );
+    },
+  );
 });

@@ -72,6 +72,22 @@ export const WINDOW_SHORTCUTS = {
 export type WindowShortcutId = keyof typeof WINDOW_SHORTCUTS;
 
 /**
+ * The window's chords that are a code editor's own keys too, on every
+ * system: Back and Forward are its indent and outdent on a Mac and its step
+ * over a syntax node elsewhere, and Next and Previous Chat add a cursor above
+ * or below on a Mac and copy the line elsewhere. While a code editor holds
+ * the keyboard these reach it first, and the menu answers only a press it
+ * leaves alone. Find is its too, and the window already hands that to the
+ * editor's own search.
+ */
+export const CODE_EDITOR_SHORTCUTS: ReadonlySet<WindowShortcutId> = new Set([
+  "back",
+  "forward",
+  "nextChat",
+  "previousChat",
+]);
+
+/**
  * Second chords for a few of the window's commands, answered and left out of
  * the menu and the guide: each system's other way to the same thing, the
  * Mac's Safari tab chords, and the Ctrl+PageDown, F5 and Ctrl+F4 that

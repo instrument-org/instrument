@@ -176,12 +176,9 @@ export function GroupItem({
         }}
         {...(up.kind === "page"
           ? {
-              fieldEnd: (
-                <div
-                  className="flex shrink-0 items-center empty:hidden"
-                  ref={setFieldSlot}
-                />
-              ),
+              // No box of its own, so the page's load line inside it is
+              // drawn against the field.
+              fieldEnd: <div className="contents" ref={setFieldSlot} />,
               reload: (
                 <div
                   className="flex shrink-0 items-center empty:hidden"

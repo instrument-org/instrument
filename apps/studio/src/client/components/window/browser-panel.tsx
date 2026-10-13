@@ -27,6 +27,7 @@ import {
 import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
 import { WindowContext } from "@/client/components/window/context";
+import { LoadProgress } from "@/client/components/window/load-progress";
 import { TabRowControl } from "@/client/components/window/tab-location-row";
 import {
   ZoomLevelMenu,
@@ -89,6 +90,7 @@ import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
@@ -744,7 +746,16 @@ export function BrowserPanel({
             </DropdownMenuContent>
           </DropdownMenu>
         );
-        const rowReload = (
+        // Reload becomes Stop for as long as the page loads, which is also
+        // how a reload that changes nothing on the page still shows it ran.
+        const rowReload = nav.isLoading ? (
+          <TabRowControl
+            disabled={!active}
+            icon={<XIcon className="size-4" />}
+            label="Stop"
+            onClick={() => guestNow()?.stop()}
+          />
+        ) : (
           <TabRowControl
             chord="reloadPage"
             disabled={!active}
@@ -755,16 +766,29 @@ export function BrowserPanel({
         );
         const bar = (
           <>
-            <ToolbarTooltip chord="reloadPage">
-              <Button
-                disabled={!active}
-                onClick={() => guestNow()?.reload()}
-                size="icon-sm"
-                variant="ghost"
-              >
-                <ArrowClockwiseIcon className="size-4" />
-              </Button>
-            </ToolbarTooltip>
+            {nav.isLoading ? (
+              <ToolbarTooltip label="Stop">
+                <Button
+                  disabled={!active}
+                  onClick={() => guestNow()?.stop()}
+                  size="icon-sm"
+                  variant="ghost"
+                >
+                  <XIcon className="size-4" />
+                </Button>
+              </ToolbarTooltip>
+            ) : (
+              <ToolbarTooltip chord="reloadPage">
+                <Button
+                  disabled={!active}
+                  onClick={() => guestNow()?.reload()}
+                  size="icon-sm"
+                  variant="ghost"
+                >
+                  <ArrowClockwiseIcon className="size-4" />
+                </Button>
+              </ToolbarTooltip>
+            )}
             <form
               className="min-w-0 flex-1"
               onSubmit={(event) => {
@@ -803,6 +827,7 @@ export function BrowserPanel({
                   spellCheck={false}
                   value={draftUrl}
                 />
+                <LoadProgress isLoading={nav.isLoading} />
                 <InputGroupAddon
                   align="inline-end"
                   className="hidden group-focus-within/input-group:flex group-hover/input-group:flex"
@@ -832,7 +857,14 @@ export function BrowserPanel({
             <>
               {chrome.reloadInto && createPortal(rowReload, chrome.reloadInto)}
               {chrome.into && createPortal(controls, chrome.into)}
-              {chrome.fieldInto && createPortal(fieldZoom, chrome.fieldInto)}
+              {chrome.fieldInto &&
+                createPortal(
+                  <>
+                    {fieldZoom}
+                    <LoadProgress isLoading={nav.isLoading} />
+                  </>,
+                  chrome.fieldInto,
+                )}
             </>
           );
         }

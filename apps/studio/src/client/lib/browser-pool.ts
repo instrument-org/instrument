@@ -116,6 +116,8 @@ export interface GuestHandle {
   /** Forgets every entry but the one the guest is at. */
   clearHistory(): void;
   find(text: string, options?: { findNext?: boolean; forward?: boolean }): void;
+  /** Whether the page, or a frame in it, is still loading. */
+  isLoading(): boolean;
   /** Loads `url`, settling once it has, and rejecting for a load that failed. */
   load(url: string): Promise<void>;
   on<K extends keyof GuestEventMap>(
@@ -130,6 +132,8 @@ export interface GuestHandle {
   setZoom(factor: number): void;
   /** A step through the page's own history; false when it has none that way. */
   step(direction: "back" | "forward"): boolean;
+  /** Stops what the page is loading, leaving whatever it has drawn. */
+  stop(): void;
   stopFind(
     action: "activateSelection" | "clearSelection" | "keepSelection",
   ): void;
@@ -169,6 +173,7 @@ interface WebviewElement extends HTMLElement {
   /** A message to the guest's preload, on a channel it listens on. */
   send(channel: string, ...args: unknown[]): void;
   setZoomFactor(factor: number): void;
+  stop(): void;
   stopFindInPage(
     action: "activateSelection" | "clearSelection" | "keepSelection",
   ): void;
@@ -878,6 +883,7 @@ function guestHandle(
     find: (text, options) => {
       guard(() => webview.findInPage(text, options), 0);
     },
+    isLoading: () => guard(() => webview.isLoading(), false),
     load: (url) => webview.loadURL(url),
     on: (event, listener) => {
       // Electron fires these as DOM events carrying its own fields, which
@@ -923,6 +929,11 @@ function guestHandle(
         }
         return false;
       }, false),
+    stop: () => {
+      guard(() => {
+        webview.stop();
+      }, undefined);
+    },
     stopFind: (action) => {
       guard(() => {
         webview.stopFindInPage(action);

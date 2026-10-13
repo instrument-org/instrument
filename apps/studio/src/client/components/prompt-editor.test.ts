@@ -2,6 +2,7 @@ import { EditorState, TextSelection } from "prosemirror-state";
 import { describe, expect, it } from "vitest";
 
 import {
+  appendDictatedParagraph,
   deleteTokenBackward,
   promptDocFromText,
   promptSchema,
@@ -74,5 +75,55 @@ describe("app mentions", () => {
     });
     expect(handled).toBe(true);
     expect(next && promptTextFromDoc(next.doc)).toBe("Check ");
+  });
+});
+
+describe("appendDictatedParagraph", () => {
+  it.each([
+    [
+      "an empty box takes the words in its only line",
+      "",
+      "Hello there.",
+      "Hello there.",
+    ],
+    [
+      "written text gets them on a line of their own",
+      "Draft this",
+      "Then send it.",
+      "Draft this\nThen send it.",
+    ],
+    [
+      "a box ending on a fresh line is written on",
+      "Draft this\n",
+      "Then send it.",
+      "Draft this\nThen send it.",
+    ],
+    [
+      "several dictated lines stay several",
+      "Draft",
+      "One\nTwo",
+      "Draft\nOne\nTwo",
+    ],
+    [
+      "a skill already in the box is left as its token",
+      "Use [$release](skill:release)",
+      "now",
+      "Use [$release](skill:release)\nnow",
+    ],
+  ])("%s", (_case, existing, dictated, expected) => {
+    const state = stateWithCaretAtEnd(existing);
+    const next = state.apply(appendDictatedParagraph(state, dictated));
+    expect(promptTextFromDoc(next.doc)).toBe(expected);
+  });
+
+  it("keeps the caret where it was typing", () => {
+    const doc = promptDocFromText("Draft this");
+    const state = EditorState.create({
+      doc,
+      schema: promptSchema,
+      selection: TextSelection.create(doc, 3),
+    });
+    const next = state.apply(appendDictatedParagraph(state, "More."));
+    expect(next.selection.from).toBe(3);
   });
 });

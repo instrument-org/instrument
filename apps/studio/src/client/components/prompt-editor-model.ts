@@ -16,7 +16,12 @@ import {
   type Node as ProseMirrorNode,
   Schema,
 } from "prosemirror-model";
-import { type Command, type TextSelection } from "prosemirror-state";
+import {
+  type Command,
+  type EditorState,
+  type TextSelection,
+  type Transaction,
+} from "prosemirror-state";
 
 export const promptSchema = new Schema({
   nodes: {
@@ -158,6 +163,33 @@ export function promptDocFromText(value: string) {
     return promptSchema.nodes.paragraph.create(null, Fragment.from(nodes));
   });
   return promptSchema.nodes.doc.create(null, paragraphs);
+}
+
+/**
+ * Puts dictated words at the end of the document, as a paragraph of their
+ * own when the last one has something in it, and into it when it is empty
+ * (an empty box, or one that already ends on a fresh line). The words are
+ * plain text; nothing already written is touched, and the step undoes as one.
+ */
+export function appendDictatedParagraph(
+  state: EditorState,
+  text: string,
+): Transaction {
+  const paragraphs = text
+    .trim()
+    .split("\n")
+    .map((line) =>
+      promptSchema.nodes.paragraph.create(
+        null,
+        Fragment.from(line ? textNodes(line) : []),
+      ),
+    );
+  const { doc } = state;
+  const last = doc.lastChild;
+  const end = doc.content.size;
+  return last && last.content.size === 0
+    ? state.tr.replaceWith(end - last.nodeSize, end, paragraphs)
+    : state.tr.insert(end, paragraphs);
 }
 
 export function promptTextFromDoc(doc: ProseMirrorNode) {

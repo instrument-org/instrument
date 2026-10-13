@@ -51,6 +51,7 @@ import { createPortal } from "react-dom";
 
 import {
   appOfNode,
+  appendDictatedParagraph,
   deleteTokenBackward,
   deleteTokenForward,
   promptDocFromPastedText,
@@ -104,6 +105,8 @@ const editorPlugins = () => [
  * mirroring the text stays accurate without a round trip back through props.
  */
 export interface PromptEditorRef {
+  /** Put dictated words at the end, on a line of their own when the box has text. */
+  appendDictation: (text: string) => void;
   clear: () => void;
   focus: () => void;
   getValue: () => string;
@@ -571,6 +574,19 @@ export function PromptEditor({
   };
 
   useImperativeHandle(ref, () => ({
+    appendDictation: (text) => {
+      const view = viewRef.current;
+      if (!view) {
+        return;
+      }
+      const tr = appendDictatedParagraph(view.state, text);
+      // Someone typing while the words were transcribed keeps their caret;
+      // otherwise it goes after the words, ready to carry on from them.
+      if (!view.hasFocus()) {
+        tr.setSelection(TextSelection.atEnd(tr.doc)).scrollIntoView();
+      }
+      view.dispatch(tr);
+    },
     clear: () => {
       replaceDocument("");
     },

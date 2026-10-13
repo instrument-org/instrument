@@ -20,6 +20,7 @@ export type ProviderSetupPage = "add-provider" | "welcome";
 
 export function ProviderSetupScreen({
   error,
+  heading,
   instrumentOnly,
   onAddProvider,
   onBack,
@@ -31,6 +32,8 @@ export function ProviderSetupScreen({
   signedIn,
 }: {
   error?: Error | null;
+  /** In place of the sign-in page's own title and line under it, for a sign-in a feature asked for. */
+  heading?: { subtitle: string; title: string };
   instrumentOnly?: boolean;
   onAddProvider?: () => void;
   onBack?: () => void;
@@ -107,14 +110,17 @@ export function ProviderSetupScreen({
 
           <div className="flex flex-col items-center gap-2 text-center">
             <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground">
-              {signedIn ? "Add an AI provider" : `Log in to ${APP_NAME}`}
+              {signedIn
+                ? "Add an AI provider"
+                : (heading?.title ?? `Log in to ${APP_NAME}`)}
             </h1>
             <p className="text-sm text-foreground/80">
               {signedIn
                 ? offersClaude
                   ? "Use the ChatGPT or Claude plan you already pay for."
                   : "Use the ChatGPT plan you already pay for."
-                : "A guided AI workspace for ambitious work"}
+                : (heading?.subtitle ??
+                  "A guided AI workspace for ambitious work")}
             </p>
           </div>
         </div>

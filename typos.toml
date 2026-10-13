@@ -35,6 +35,9 @@ exclud = "exclud"
 wel = "wel"
 # The `b a` branch in a sed one-liner, written `$!ba`.
 ba = "ba"
+# Web Audio's own names, which the platform spells the British way.
+AnalyserNode = "AnalyserNode"
+createAnalyser = "createAnalyser"
 
 [default.extend-words]
 # AsyncLocalStorage, as the comments that compare against it write it.

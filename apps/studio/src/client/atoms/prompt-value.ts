@@ -1,6 +1,7 @@
 import { type PromptEditorRef } from "@/client/components/prompt-editor";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { draftWordsAtom } from "@/client/atoms/window";
+import { appendDictatedText } from "@/client/lib/dictation-text";
 import { atom } from "jotai";
 import { atomFamily } from "jotai/utils";
 
@@ -97,5 +98,24 @@ export const appendToPromptAtom = atom(
     }
     editor.focus();
     editor.insertText(text);
+  },
+);
+
+/**
+ * Dictated words for a draft: at the end, on a line of their own when the
+ * draft has text, whether or not its composer is still up. A composer that
+ * went away while the words were being transcribed gets them in its stored
+ * value, which is what it is built from when it comes back.
+ */
+export const appendDictationToPromptAtom = atom(
+  null,
+  (get, set, { key, text }: { key: PromptDraftKey; text: string }) => {
+    const editor = get(promptDraftRefAtom(key));
+    if (editor) {
+      editor.appendDictation(text);
+      return;
+    }
+    const valueAtom = promptDraftAtom(key);
+    set(valueAtom, appendDictatedText(get(valueAtom), text));
   },
 );

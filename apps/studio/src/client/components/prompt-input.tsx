@@ -12,12 +12,18 @@ import {
   type ComposerPlaces,
 } from "@/client/components/composer-add-menu";
 import { ComposerFrame } from "@/client/components/composer-frame";
+import {
+  DictationButton,
+  DictationCancel,
+  DictationMeter,
+} from "@/client/components/dictation-controls";
 import { MacFolderIcon } from "@/client/components/icons/mac-folder";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { ModelNoticeRow } from "@/client/components/model-notice";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import { isDictating, useDictation } from "@/client/hooks/use-dictation";
 import {
   type DroppedFolder,
   useFileDropRegion,
@@ -67,6 +73,7 @@ import { ulid } from "ulid";
 
 import { featuresAtom } from "../atoms/features";
 import {
+  appendDictationToPromptAtom,
   draftKeyString,
   promptDraftAtom,
   type PromptDraftKey,
@@ -235,6 +242,17 @@ export const PromptInput = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useAtom(promptDraftAtom(draftKey));
   const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
+  const appendDictation = useSetAtom(appendDictationToPromptAtom);
+  // Finished even if the composer goes away mid-recording: the words land in
+  // the draft it was recording for, which keeps them until it comes back.
+  const dictation = useDictation({
+    finishOnUnmount: true,
+    onText: (text) => {
+      appendDictation({ key: draftKey, text });
+    },
+    surface: "composer",
+  });
+  const dictating = isDictating(dictation.phase);
 
   const {
     data: modelsData,
@@ -720,6 +738,39 @@ export const PromptInput = ({
     });
   };
 
+  // Send pressed while recording waits for the words, then sends them with
+  // whatever else is in the box. It goes on the render that has them, since
+  // the send reads the draft as rendered.
+  const sendWhenLanded = useRef(false);
+  const submitLanded = useEffectEvent(() => {
+    handleSubmit();
+  });
+  useEffect(() => {
+    if (sendWhenLanded.current) {
+      sendWhenLanded.current = false;
+      submitLanded();
+    }
+  }, [value]);
+  const canSendWhileRecording =
+    dictation.phase.kind === "recording" &&
+    !disabled &&
+    !isLoading &&
+    Boolean(modelURI && selectedModel);
+  const sendPressed =
+    dictation.phase.kind === "transcribing" &&
+    dictation.phase.pressed === "send";
+  const send = () => {
+    if (dictation.phase.kind === "recording") {
+      dictation.stop({
+        onLanded: () => {
+          sendWhenLanded.current = true;
+        },
+      });
+      return;
+    }
+    handleSubmit();
+  };
+
   // A long paste made an attachment goes back to being words in the
   // message, at the caret, the way the paste would have put it.
   const putInMessage = (item: AttachedItem) => {
@@ -804,79 +855,102 @@ export const PromptInput = ({
       <ComposerFrame
         actions={
           <>
-            <div className="flex min-w-0 shrink-0 items-center gap-1">
-              {addMenu && (
-                <ComposerAddMenu
-                  actions={actions}
-                  bounds={composerBounds}
-                  disabled={disabled || isLoading}
-                  onReturnFocus={() => {
-                    promptEditorRef.current?.focus();
-                  }}
-                  onSelectSkill={(skill) => {
-                    promptEditorRef.current?.insertText(
-                      skillMentionToken(skill.id),
-                    );
-                  }}
-                  onViewChange={setMenuView}
-                  places={composerPlaces}
-                  skills={userInvocableSkills}
-                  view={menuView}
-                />
+            <div
+              className={cn(
+                "flex min-w-0 items-center gap-1",
+                !dictating && "shrink-0",
+              )}
+            >
+              {dictating ? (
+                <>
+                  <DictationCancel className="-ml-1" dictation={dictation} />
+                  <DictationMeter className="ml-1" dictation={dictation} />
+                </>
+              ) : (
+                addMenu && (
+                  <ComposerAddMenu
+                    actions={actions}
+                    bounds={composerBounds}
+                    disabled={disabled || isLoading}
+                    onReturnFocus={() => {
+                      promptEditorRef.current?.focus();
+                    }}
+                    onSelectSkill={(skill) => {
+                      promptEditorRef.current?.insertText(
+                        skillMentionToken(skill.id),
+                      );
+                    }}
+                    onViewChange={setMenuView}
+                    places={composerPlaces}
+                    skills={userInvocableSkills}
+                    view={menuView}
+                  />
+                )
               )}
             </div>
 
             <div className="flex min-w-0 flex-1 items-center justify-end gap-4">
-              {features.context_ring && id && selectedSessionId && (
-                <SessionContextRing
-                  id={id}
-                  model={selectedModel}
-                  selectedSessionId={selectedSessionId}
+              {!dictating &&
+                features.context_ring &&
+                id &&
+                selectedSessionId && (
+                  <SessionContextRing
+                    id={id}
+                    model={selectedModel}
+                    selectedSessionId={selectedSessionId}
+                  />
+                )}
+
+              {!dictating && (
+                <ModelPicker
+                  align="end"
+                  className="min-w-0"
+                  disabled={disabled || isLoading}
+                  errors={modelsErrors}
+                  isError={modelsIsError}
+                  isLoading={modelsIsLoading}
+                  models={models}
+                  modelURI={modelURI}
+                  notice={modelNotice}
+                  onAction={handleModelAction}
+                  onAddProvider={addProvider}
+                  onClose={() => {
+                    setPickerOpen(false);
+                    if (modelURI) {
+                      promptEditorRef.current?.focus();
+                    }
+                  }}
+                  onOpenChange={(open) => {
+                    setPickerOpen(open);
+                    if (open && modelsErrors && modelsErrors.length > 0) {
+                      void modelsRefetch();
+                    }
+                  }}
+                  onValueChange={onModelChange}
+                  open={pickerOpen}
+                  selectedModel={selectedModel}
                 />
               )}
 
-              <ModelPicker
-                align="end"
-                className="min-w-0"
-                disabled={disabled || isLoading}
-                errors={modelsErrors}
-                isError={modelsIsError}
-                isLoading={modelsIsLoading}
-                models={models}
-                modelURI={modelURI}
-                notice={modelNotice}
-                onAction={handleModelAction}
-                onAddProvider={addProvider}
-                onClose={() => {
-                  setPickerOpen(false);
-                  if (modelURI) {
-                    promptEditorRef.current?.focus();
-                  }
-                }}
-                onOpenChange={(open) => {
-                  setPickerOpen(open);
-                  if (open && modelsErrors && modelsErrors.length > 0) {
-                    void modelsRefetch();
-                  }
-                }}
-                onValueChange={onModelChange}
-                open={pickerOpen}
-                selectedModel={selectedModel}
-              />
-
-              <Button
-                aria-label="Send"
-                className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
-                disabled={!canSubmit}
-                onClick={handleSubmit}
-                variant="brand"
-              >
-                {isLoading ? (
-                  <Spinner className="size-5" delay={0} />
-                ) : (
-                  <ArrowUpIcon className="size-5" />
-                )}
-              </Button>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <DictationButton
+                  dictation={dictation}
+                  disabled={disabled || isLoading}
+                />
+                <Button
+                  aria-label="Send"
+                  className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
+                  disabled={dictating ? !canSendWhileRecording : !canSubmit}
+                  onClick={send}
+                  variant="brand"
+                >
+                  {isLoading || sendPressed ? (
+                    <Spinner className="size-5" delay={0} />
+                  ) : (
+                    <ArrowUpIcon className="size-5" />
+                  )}
+                </Button>
+              </div>
             </div>
           </>
         }
@@ -944,7 +1018,9 @@ export const PromptInput = ({
         // a block or a draft always has room over its words.
         notice={variant === "pill" && !pillOpen ? undefined : noticeRow}
         leading={
-          variant === "pill" ? (
+          variant === "pill" && dictating ? (
+            <DictationCancel dictation={dictation} />
+          ) : variant === "pill" ? (
             // The picker has no button of its own here: it hangs off an empty
             // box over the plus, so its panel opens from the plus when the menu
             // or the notice asks for it.
@@ -1024,21 +1100,32 @@ export const PromptInput = ({
         trailing={
           variant === "pill" ? (
             <>
-              {features.context_ring && id && selectedSessionId && (
-                <SessionContextRing
-                  id={id}
-                  model={selectedModel}
-                  selectedSessionId={selectedSessionId}
-                />
+              {dictating ? (
+                <DictationMeter className="mr-1" dictation={dictation} />
+              ) : (
+                features.context_ring &&
+                id &&
+                selectedSessionId && (
+                  <SessionContextRing
+                    id={id}
+                    model={selectedModel}
+                    selectedSessionId={selectedSessionId}
+                  />
+                )
               )}
+              <DictationButton
+                dictation={dictation}
+                disabled={disabled || isLoading}
+                size="sm"
+              />
               <Button
                 aria-label="Send"
                 className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"
-                disabled={!canSubmit}
-                onClick={handleSubmit}
+                disabled={dictating ? !canSendWhileRecording : !canSubmit}
+                onClick={send}
                 variant="brand"
               >
-                {isLoading ? (
+                {isLoading || sendPressed ? (
                   <Spinner className="size-4" delay={0} />
                 ) : (
                   <ArrowUpIcon className="size-4" />

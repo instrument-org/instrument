@@ -195,6 +195,7 @@ function PermissionAskCard({
 }) {
   const { isBusy, send } = useAnswer(chatId, ask);
   const name = permissionTargetName(ask.kind, ask.target);
+  const shown = quotedTarget(ask.kind, ask.target);
   const holds = ask.kind === "folder" ? signInLine(ask.target) : undefined;
   const reach = useQuery({
     ...rpcClient.workspace.permissions.appReach.queryOptions({
@@ -218,7 +219,7 @@ function PermissionAskCard({
         <div className="flex items-center justify-between gap-3 px-3 py-2">
           <div className="min-w-0">
             <p className="truncate text-sm">
-              {`Let Instrument use “${name}”?`}
+              {`Let Instrument use ${shown}?`}
             </p>
             {explanation ? (
               <p className="truncate text-xs text-muted-foreground">
@@ -256,9 +257,7 @@ function PermissionAskCard({
     <ToolCard>
       <ToolCardSection collapsedHeight={256}>
         <p className="text-sm">
-          {ask.kind === "folder"
-            ? `Let Instrument use “${name}”?`
-            : `Let Instrument use ${name}?`}
+          {`Let Instrument use ${shown}?`}
         </p>
         {explanation ? (
           <p className="mt-1 text-sm text-muted-foreground">{explanation}</p>
@@ -321,22 +320,31 @@ function PermissionAskCard({
   );
 }
 
+/**
+ * A folder's name in curly quotes, as a name the person chose; an app's
+ * name as the app calls itself.
+ */
+function quotedTarget(kind: "app" | "folder", target: string): string {
+  const name = permissionTargetName(kind, target);
+  return kind === "folder" ? `“${name}”` : name;
+}
+
 /** The line that marks why the chat woke: what the user answered to an ask. */
 export function PermissionAnswerNote({
   data,
 }: {
   data: SessionMessageDataPart.PermissionAnswerDataPart;
 }) {
-  const name = permissionTargetName(data.kind, data.target);
+  const shown = quotedTarget(data.kind, data.target);
   return (
     <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
       <InstrumentGlyph className="size-3.5 shrink-0" />
       <span>
         {data.answer === "allowed"
-          ? `You allowed “${name}” in this chat.`
+          ? `You allowed ${shown} in this chat.`
           : data.answer === "always"
-            ? `You allowed “${name}” for every chat.`
-            : `You said not now to “${name}”.`}
+            ? `You allowed ${shown} for every chat.`
+            : `You said not now to ${shown}.`}
       </span>
     </p>
   );

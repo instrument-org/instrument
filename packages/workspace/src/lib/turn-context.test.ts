@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import {
   beginTurn,
   endTurn,
@@ -10,10 +10,10 @@ import {
   withTurnContext,
 } from "./turn-context";
 
-const taskId = TaskIdSchema.parse("turn-context");
+const chatId = ChatIdSchema.parse("turn-context");
 
 function newTurn(): TurnKey {
-  return { id: taskId, sessionId: StoreId.newSessionId() };
+  return { id: chatId, sessionId: StoreId.newSessionId() };
 }
 
 describe("withTurnContext", () => {

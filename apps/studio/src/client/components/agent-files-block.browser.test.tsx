@@ -1,6 +1,6 @@
 import { ariaSnapshot } from "@/tests/aria-snapshot";
 import { renderInBrowser } from "@/tests/render-browser";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { AgentFilesBlock } from "./agent-files-block";
@@ -10,7 +10,7 @@ import { MarkdownTaskContext } from "./markdown-task-context";
 // Where the task's files are, answered without a task: every path under one
 // folder, so the fence has somewhere to read a file from.
 vi.mock("@/client/hooks/use-host-paths", () => ({
-  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+  useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
     Object.fromEntries(
       filePaths.map((filePath) => [
         filePath,
@@ -60,7 +60,7 @@ function drawFence(
       <MarkdownTaskContext
         value={{
           isStreaming,
-          taskId: TaskIdSchema.parse("quarterly-numbers"),
+          chatId: ChatIdSchema.parse("quarterly-numbers"),
         }}
       >
         <FilesLayoutContext.Provider value={layout}>
@@ -120,6 +120,11 @@ test("names every file it draws, in the tree and not just on screen", async () =
     "output/revenue.png\noutput/notes.md\noutput/clip.mp4",
   );
 
+  // The thumbnail's host never resolves, so the image is in the tree until its
+  // load fails and the tile falls back to the icon. Snapshot after that.
+  await expect
+    .poll(() => locator.element().querySelector("img"), { timeout: 10_000 })
+    .toBeNull();
   await expect(ariaSnapshot(locator)).resolves.toMatchInlineSnapshot(`
     "- button "Open revenue.png"
     - button "Open clip.mp4"
@@ -155,7 +160,7 @@ test("draws a folder as a folder, in the place the fence gave it", async () => {
   // slash it ends in leaves the last segment empty.
   originAnswering(404);
   const { getByRole, getByText } = await drawFence(
-    "/mnt/Instrument/notes.md\n/mnt/Instrument/backups/",
+    "/Users/casey/Instrument/notes.md\n/Users/casey/Instrument/backups/",
     { layout: "list" },
   );
 

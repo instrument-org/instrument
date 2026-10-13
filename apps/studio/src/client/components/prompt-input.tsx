@@ -32,7 +32,7 @@ import { ITEM_IN } from "@/client/lib/motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
-import { captureException } from "@/client/lib/telemetry";
+import { captureException } from "@/client/lib/capture-exception";
 import { splitTransferItems } from "@/client/lib/transfer-items";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -41,7 +41,7 @@ import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import {
   type FileUpload,
   type StoreId,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
@@ -56,12 +56,13 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   Fragment,
   useEffect,
+  useEffectEvent,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 import { ulid } from "ulid";
 
 import { featuresAtom } from "../atoms/features";
@@ -76,12 +77,14 @@ import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
 
-type AttachedItem =
+export type AttachedItem =
   | {
       content: string;
       id: string;
       mimeType: string;
       name: string;
+      /** The words, for a long paste made an attachment, so it can be put back in the message. */
+      pastedText?: string;
       size: number;
       type: "file";
       url?: string;
@@ -141,14 +144,14 @@ interface PromptInputProps {
   /** What goes with the words besides files, drawn first in the row attached files land in: places marked in a file, say. */
   attachmentsLead?: React.ReactNode;
   autoFocus?: boolean;
-  /** Where the box stops growing and the draft starts scrolling. Defaults by variant. */
-  autoResizeMaxHeight?: number;
+  /** Where the box stops growing and the draft starts scrolling. Defaults by variant; null leaves the cap to the host's layout. */
+  autoResizeMaxHeight?: null | number;
   className?: string;
   disabled?: boolean;
   draftKey: PromptDraftKey;
   /** Whether `attachmentsLead` holds anything, which is enough to send with no words. */
   hasAttachmentsLead?: boolean;
-  id?: TaskId;
+  id?: ChatId;
   isLoading: boolean;
   /** A chip at the head of the box, before any attached file: what goes with the prompt besides its words. */
   lead?: React.ReactNode;
@@ -160,6 +163,8 @@ interface PromptInputProps {
    * comes first and the host's note shows when there is none.
    */
   note?: { node: React.ReactNode; urgent: boolean };
+  /** What the box holds besides the words, each time that changes after it first draws. */
+  onItemsChange?: (items: AttachedItem[]) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   onSubmit: (value: {
     files?: FileUpload.Input[];
@@ -195,6 +200,7 @@ export const PromptInput = ({
   lead,
   modelURI,
   note,
+  onItemsChange,
   onModelChange,
   onSubmit,
   placeholder,
@@ -206,6 +212,18 @@ export const PromptInput = ({
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
   const [attachedItems, setAttachedItems] = useState<AttachedItem[]>([]);
+  // Told only of changes: the empty box it starts as is not news, and would
+  // read as everything taken out before a host's restore lands.
+  const onItemsChangeEvent = useEffectEvent((items: AttachedItem[]) => {
+    onItemsChange?.(items);
+  });
+  const reportedItems = useRef(attachedItems);
+  useEffect(() => {
+    if (reportedItems.current !== attachedItems) {
+      reportedItems.current = attachedItems;
+      onItemsChangeEvent(attachedItems);
+    }
+  }, [attachedItems]);
   const [menuView, setMenuView] = useState<ComposerMenuView | null>(null);
   // A pill is one row until it is written in, then opens a row for the rest.
   const [pillFocused, setPillFocused] = useState(false);
@@ -274,6 +292,8 @@ export const PromptInput = ({
     ),
   });
   const modelNotice = noticeFor(modelStatus);
+  // Counts the sends the notice refused, for the row to flash at each one.
+  const [noticeNudge, setNoticeNudge] = useState(0);
   const addProvider = () => {
     openLogin(hasToken ? { reason: "provider-required" } : undefined);
   };
@@ -306,6 +326,7 @@ export const PromptInput = ({
   const modelNoticeRow = modelNotice && (
     <ModelNoticeRow
       notice={modelNotice}
+      nudge={noticeNudge}
       onAction={handleModelAction}
       onDismiss={dismissOffer}
     />
@@ -481,7 +502,7 @@ export const PromptInput = ({
       rpcClient.utils.showFolderPicker.call({}),
     );
     if (error) {
-      toast.error("Failed to open folder picker");
+      toast.error("Couldn't open the folder picker", { cause: error });
       return;
     }
     if (!result) {
@@ -651,31 +672,25 @@ export const PromptInput = ({
   // A pill stands beside the work in a column it shares with the conversation
   // it is part of, so it gives way to that conversation sooner than a block on
   // a page of its own does: a handful of lines, then the draft scrolls.
-  const maxHeight = autoResizeMaxHeight ?? (variant === "pill" ? 200 : 400);
+  const maxHeight =
+    autoResizeMaxHeight === undefined
+      ? variant === "pill"
+        ? 200
+        : 400
+      : autoResizeMaxHeight;
 
   const validateSubmission = () => {
     if (modelStatus.kind === "loading") {
       toast.info("Models are still loading", {
         description: "Try sending again in a moment.",
+        id: "models-loading",
       });
       return false;
     }
-    // The same sentence and the same fix the notice row shows, so a send that
-    // refuses says nothing the composer was not already saying.
+    // The notice row already says what is wrong and holds the fix, so a send
+    // it refuses draws the eye there rather than saying it again.
     if (modelNotice?.tone === "problem") {
-      const { action, detail, text } = modelNotice;
-      toast.error(text, {
-        ...(action && {
-          action: {
-            label: action.label,
-            onClick: () => {
-              handleModelAction(action);
-            },
-          },
-        }),
-        ...(detail && { description: detail }),
-        duration: 7000,
-      });
+      setNoticeNudge((n) => n + 1);
       return false;
     }
     return Boolean(canSubmit);
@@ -715,6 +730,20 @@ export const PromptInput = ({
       modelURI,
       prompt,
     });
+  };
+
+  // A long paste made an attachment goes back to being words in the
+  // message, at the caret, the way the paste would have put it.
+  const putInMessage = (item: AttachedItem) => {
+    const pastedText = "pastedText" in item ? item.pastedText : undefined;
+    if (pastedText === undefined) {
+      return undefined;
+    }
+    return () => {
+      removeAttachedItem(item.id);
+      promptEditorRef.current?.focus();
+      promptEditorRef.current?.pasteText(pastedText);
+    };
   };
 
   const handlePaste = (e: ClipboardEvent) => {
@@ -766,6 +795,7 @@ export const PromptInput = ({
             id: ulid(),
             mimeType: "text/plain",
             name: filename,
+            pastedText: text,
             size: blob.size,
             type: "file",
           },
@@ -907,6 +937,7 @@ export const PromptInput = ({
                           });
                         }
                       }}
+                      onPutInMessage={putInMessage(item)}
                       onRemove={() => {
                         removeAttachedItem(item.id);
                       }}
@@ -950,6 +981,7 @@ export const PromptInput = ({
               />
               <ModelPicker
                 anchorOnly
+                bounds={composerBounds}
                 className="pointer-events-none absolute inset-0"
                 disabled={disabled || isLoading}
                 errors={modelsErrors}

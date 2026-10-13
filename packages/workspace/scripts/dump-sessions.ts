@@ -3,7 +3,7 @@ import path from "node:path";
 import readline from "node:readline/promises";
 
 import { TASKS_DIR_NAME } from "../src/constants";
-import { getTasks } from "../src/lib/get-tasks";
+import { getChatInfos } from "../src/lib/chat-info";
 import { Store } from "../src/lib/store";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
@@ -23,7 +23,7 @@ setWorkspaceConfig(
   }),
 );
 
-const { tasks } = await getTasks({
+const { chats: tasks } = await getChatInfos({
   direction: "desc",
   sortBy: "updatedAt",
 });
@@ -69,9 +69,9 @@ if (!selectedTask) {
 
 process.stdout.write(`\nLoading sessions for ${selectedTask.title}...\n`);
 
-const taskId = selectedTask.id;
+const chatId = selectedTask.id;
 
-const sessionIdsResult = await Store.getStoreId(taskId);
+const sessionIdsResult = await Store.getStoreId(chatId);
 
 if (sessionIdsResult.isErr()) {
   throw new Error(
@@ -88,7 +88,7 @@ const sessions = [];
 for (const sessionId of sessionIds) {
   const sessionResult = await Store.getSessionWithMessagesAndParts(
     sessionId,
-    taskId,
+    chatId,
   );
 
   if (sessionResult.isErr()) {

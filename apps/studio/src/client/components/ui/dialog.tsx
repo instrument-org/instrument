@@ -1,6 +1,11 @@
 import { keepOpenForToasts } from "@/client/components/ui/dialog-dismiss";
 import { handleContentExitAnimation } from "@/client/components/ui/dialog-exit";
-import { useAppZoomStyle, zoomMaxSize } from "@/client/hooks/use-app-zoom";
+import {
+  DialogWindowContext,
+  useDialogWindowHold,
+  useDialogWindowState,
+} from "@/client/components/ui/dialog-window-hold";
+import { dialogMaxSize, useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { useCoversGuests } from "@/client/hooks/use-covers-guests";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
@@ -8,10 +13,22 @@ import { XIcon } from "@phosphor-icons/react/X";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import * as React from "react";
 
-function Dialog({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+function Dialog(props: React.ComponentProps<typeof DialogPrimitive.Root>) {
+  const state = useDialogWindowState({
+    defaultOpen: props.defaultOpen,
+    open: props.open,
+    onOpenChange: (open) => props.onOpenChange?.(open),
+  });
+  return (
+    <DialogWindowContext value={state}>
+      <DialogPrimitive.Root
+        data-slot="dialog"
+        {...props}
+        open={state.open}
+        onOpenChange={state.onOpenChange}
+      />
+    </DialogWindowContext>
+  );
 }
 
 function DialogClose({
@@ -27,6 +44,7 @@ function DialogContent({
   maxWidth = "32rem",
   onAnimationEnd,
   onExitComplete,
+  onEscapeKeyDown,
   onInteractOutside,
   overlayClassName,
   showCloseButton = true,
@@ -45,6 +63,7 @@ function DialogContent({
   overlayClassName?: string;
   showCloseButton?: boolean;
 }) {
+  useDialogWindowHold(onEscapeKeyDown);
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay className={overlayClassName} />
@@ -54,6 +73,7 @@ function DialogContent({
           className,
         )}
         data-slot="dialog-content"
+        onEscapeKeyDown={onEscapeKeyDown}
         onAnimationEnd={handleContentExitAnimation(
           onAnimationEnd,
           onExitComplete,
@@ -64,8 +84,8 @@ function DialogContent({
         }}
         style={useAppZoomStyle({
           ...style,
-          maxHeight: zoomMaxSize("height", maxHeight),
-          maxWidth: zoomMaxSize("width", maxWidth),
+          maxHeight: dialogMaxSize("height", maxHeight),
+          maxWidth: dialogMaxSize("width", maxWidth),
         })}
         {...props}
       >

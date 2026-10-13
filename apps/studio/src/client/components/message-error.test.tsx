@@ -17,7 +17,7 @@ vi.mock("@/client/rpc/client", () => ({
       live: {
         hasToken: {
           experimental_liveOptions: () => ({
-            queryFn: () => Promise.resolve(false),
+            queryFn: () => Promise.resolve(true),
             queryKey: ["auth", "hasToken"],
           }),
         },
@@ -28,7 +28,16 @@ vi.mock("@/client/rpc/client", () => ({
         live: {
           list: {
             experimental_liveOptions: () => ({
-              queryFn: () => Promise.resolve({ models: [] }),
+              queryFn: () =>
+                Promise.resolve({
+                  models: [
+                    {
+                      uri: "auto?provider=instrument",
+                      providerId: OUR_MODELS.text.id,
+                      name: "Auto",
+                    },
+                  ],
+                }),
               queryKey: ["gateway", "models"],
             }),
           },
@@ -86,12 +95,14 @@ function renderError({
   isDeveloperMode = false,
   isLastMessage = true,
   provider = OUR_MODELS.providerType,
+  onModelChange = vi.fn(),
 }: {
   error?: MessageErrorData;
   isAgentRunning?: boolean;
   isDeveloperMode?: boolean;
   isLastMessage?: boolean;
   provider?: null | string;
+  onModelChange?: (uri: string) => void;
 }) {
   return renderWithProviders(
     <TooltipProvider>
@@ -100,7 +111,7 @@ function renderError({
         isDeveloperMode={isDeveloperMode}
         isLastMessage={isLastMessage}
         message={messageWithError(error, provider)}
-        onModelChange={vi.fn()}
+        onModelChange={onModelChange}
         onRunAgain={vi.fn()}
       />
     </TooltipProvider>,

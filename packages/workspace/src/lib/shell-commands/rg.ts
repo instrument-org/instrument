@@ -1,27 +1,26 @@
 import { defineCommand } from "just-bash";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import nodePath from "node:path";
 
-import { TASK_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
-import { MOUNT } from "../../mount-points";
-import { type TaskId } from "../../schemas/task-id";
+import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../../constants";
+import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { hostPathWithin } from "../host-path";
 import { normalizePath } from "../normalize-path";
 import { isAtOrUnder } from "../path-containment";
+import { ruleRefusal } from "../permissions/rules-fs";
 import { RG_DISK_PATH } from "../ripgrep";
 import {
-  nonTaskMounts,
-  classifyVirtualPath,
+  otherFolders,
+  classifyShellPath,
+  outsideFolderRefusal,
+  resolveHostPath,
   resolveReadOnlyHostPath,
+  shellPath,
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
-import {
-  privateDirLiteralError,
-  resolveCommandContext,
-  subprocessStdin,
-} from "./utils";
+import { resolveCommandContext, subprocessStdin } from "./utils";
 
 export const RG_COMMAND = {
   description:
@@ -85,11 +84,11 @@ const GLOB_METACHARACTERS = /[*?[{}\\]/g;
 
 export function createRgCommand({
   layout,
-  taskId,
+  chatId,
 }: {
-  /** The shell's own layout, so rg reaches exactly the mounts the shell has. */
+  /** The shell's own layout, so rg reaches exactly the folders the shell has. */
   layout: WorkspaceFsLayout;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
   return defineCommand(RG_COMMAND.name, async (args, ctx) => {
     const denied = args.map((arg) => deniedFlag(arg)).find(Boolean);
@@ -108,7 +107,7 @@ export function createRgCommand({
       return { exitCode: 2, stderr: `${bridged.error}\n`, stdout: "" };
     }
 
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const masked = maskSearchRoots(bridged.args, layout, taskCwd);
     if ("error" in masked) {
       return { exitCode: 2, stderr: `${masked.error}\n`, stdout: "" };
@@ -127,6 +126,9 @@ export function createRgCommand({
         cwd: taskCwd,
         env,
         maxBuffer: { stdout: RG_MAX_STDOUT },
+        // What it named was checked above; a folder its walk is refused is
+        // skipped without asking, the way the shell's own walks skip one.
+        walks: true,
         // ripgrep picks between reading stdin and walking the working directory
         // by stat'ing fd 0, so the piped bytes have to reach it as a real pipe.
         // Handing it an ignored stdin instead makes `cmd | rg PATTERN` search
@@ -157,7 +159,6 @@ export function createRgCommand({
     const streams = mapStreams(shimOutput(result, RG_COMMAND.name), (text) =>
       filterShellOutput(
         text,
-        layout,
         // `--path-separator=/` already makes ripgrep print POSIX paths, so the
         // separator rewrite has nothing to fix here and would only corrupt
         // backslashes inside matched lines and `--json` escapes.
@@ -172,17 +173,19 @@ export function createRgCommand({
 }
 
 /**
- * Rewrite the sandbox's virtual paths to the host paths ripgrep has to receive,
- * and refuse the ones that name the private dir.
+ * Resolve the shell's spelling of a path to the host path ripgrep has to
+ * receive (the same path on macOS and Linux, drive-lettered on Windows), and
+ * refuse the ones that name the private dir.
  *
- * Only arguments that name a mount are rewritten. Anything else starting with
- * `/` is left alone: it is far more likely to be a regex (`rg '/task/'`) than a
- * path, and a real absolute path is no wider a capability than the `python` and
- * `node` hatches already documented in the agent sandbox. A path that resolves
- * into the private dir, or out of its mount through a symlink, is refused.
+ * Only arguments that name a folder the chat reaches are resolved. Anything
+ * else starting with `/` is left alone: it is far more likely to be a regex
+ * (`rg '/api/'`) than a path, and a real absolute path is no wider a
+ * capability than the `python` and `node` hatches already documented in the
+ * agent sandbox. A path that resolves
+ * into the private dir, or out of its folder through a symlink, is refused.
  *
  * The private-dir question is asked of every argument that is not a flag, not
- * only of the ones naming a mount, because ripgrep applies no glob filter to a
+ * only of the ones naming a folder, because ripgrep applies no glob filter to a
  * file named on the command line: the deny glob covers the walk, and
  * `rg NEEDLE .instrument/state.json` goes straight past it. Which positional is
  * the pattern and which is a path would take parsing every flag this wrapper
@@ -193,32 +196,25 @@ export function createRgCommand({
 function bridgePathArgs(
   args: string[],
   layout: WorkspaceFsLayout,
-  resolveVirtual: (arg: string) => string,
+  resolvePath: (arg: string) => string,
 ): { args: string[] } | { error: string } {
-  const mountPoints = [layout.task, ...nonTaskMounts(layout)].map(
-    (mount) => mount.mountPoint,
+  const roots = [layout.task, ...otherFolders(layout)].map(
+    (folder) => folder.shellRoot,
   );
 
   const bridged: string[] = [];
   let operandsOnly = false;
   for (const arg of args) {
-    const owner = mountPoints.find((mountPoint) =>
-      isAtOrUnder(mountPoint, arg),
-    );
-    const below = owner === undefined ? mountsBelow(layout, arg) : [];
-    if (below.length > 0) {
-      bridged.push(...below);
-      continue;
-    }
+    const owner = roots.find((root) => isAtOrUnder(root, arg));
     if (!owner) {
       const isOperand = operandsOnly || !arg.startsWith("-");
       operandsOnly ||= arg === "--";
       const masked = isOperand
-        ? classifyVirtualPath(layout, resolveVirtual(arg))?.masked
+        ? classifyShellPath(layout, resolvePath(arg))?.masked
         : undefined;
-      if (masked === TASK_FOLDER_NAMES.private) {
+      if (masked === CHAT_FOLDER_NAMES.private) {
         return {
-          error: privateDirLiteralError(`${RG_COMMAND.name}: "${arg}"`),
+          error: `${RG_COMMAND.name}: "${arg}" references the private ${CHAT_FOLDER_NAMES.private} directory, which holds chat internals.`,
         };
       }
       // The dir itself is left to the deny globs: a bare `tasks` argument is
@@ -226,14 +222,35 @@ function bridgePathArgs(
       // would cost more than it guards.
       if (
         masked === TASKS_DIR_NAME &&
-        !isMaskedDirItself(resolveVirtual(arg), TASKS_DIR_NAME)
+        !isMaskedDirItself(layout, resolvePath(arg), TASKS_DIR_NAME)
       ) {
         return {
-          error: `${RG_COMMAND.name}: ${arg}: path is not accessible; each task's folder is at ${MOUNT.tasks}/<id>`,
+          error: `${RG_COMMAND.name}: ${arg}: path is not accessible`,
+        };
+      }
+      // A path outside every folder the chat reaches is refused here the
+      // way the shell's own commands refuse it, and asked for the same way,
+      // rather than read by the real binary the rules hold to less.
+      const resolved = isOperand ? resolvePath(arg) : undefined;
+      const refusal =
+        resolved === undefined
+          ? undefined
+          : roots.some((root) => isAtOrUnder(root, resolved))
+            ? operandRefusal(layout, resolved)
+            : outsideFolderRefusal(layout, resolved, "read");
+      if (refusal) {
+        return {
+          error: `${RG_COMMAND.name}: ${arg}: Permission denied\n${refusal}`,
         };
       }
       bridged.push(arg);
       continue;
+    }
+    const refusal = operandRefusal(layout, arg);
+    if (refusal) {
+      return {
+        error: `${RG_COMMAND.name}: ${arg}: Permission denied\n${refusal}`,
+      };
     }
     const hostPath = resolveReadOnlyHostPath(layout, arg);
     if (hostPath === null) {
@@ -247,22 +264,23 @@ function bridgePathArgs(
 }
 
 /**
- * The host roots of the mounts under a directory that is no mount itself but
- * holds some: `/mnt`, or `/mnt/Home` in a task handed `/mnt/Home/Downloads`
- * and `/mnt/Home/Desktop` alone. The sandbox shows such a directory as the
- * mounts under it, so a search of it is a search of them. Only under the
- * attached-folder root, so neither `/` nor a pattern elsewhere is read as one.
+ * What the agent reads about a path it named that the rules keep from it,
+ * with a card raised where the folder asks first. A path the walk passes is
+ * left to the native sandbox, which skips it without asking.
  */
-function mountsBelow(layout: WorkspaceFsLayout, arg: string): string[] {
-  if (!isAtOrUnder(MOUNT.attachedFolders, arg)) {
-    return [];
+function operandRefusal(
+  layout: WorkspaceFsLayout,
+  path: string,
+): string | undefined {
+  const resolved = resolveHostPath(layout, path);
+  if (resolved === null || !existsSync(resolved.hostPath)) {
+    return undefined;
   }
-  return nonTaskMounts(layout).flatMap((mount) => {
-    if (mount.mountPoint === arg || !isAtOrUnder(arg, mount.mountPoint)) {
-      return [];
-    }
-    const hostPath = resolveReadOnlyHostPath(layout, mount.mountPoint);
-    return hostPath === null ? [] : [hostPath];
+  return ruleRefusal({
+    hostPath: resolved.hostPath,
+    op: "read",
+    rules: layout.rules,
+    spell: shellPath,
   });
 }
 
@@ -325,15 +343,14 @@ function joinPrinted(parent: string, child: string): string {
  * private dir, and a chat's `tasks/` dir) of every mount the search reaches,
  * with the arguments respelled where a glob could not otherwise name them.
  *
- * ripgrep walks the real directories, so the virtual-filesystem mask does not
- * apply, and no glob applies to a file named on the command line either --
+ * ripgrep walks the real directories, so the shell's mask does not apply, and no glob applies to a file named on the command line either --
  * that half is `bridgePathArgs`'s.
  *
  * A glob cannot simply be anchored at the mount root. ripgrep anchors every
  * glob at its working directory and matches it against each path as printed,
  * after dropping one leading `./` and, from an absolute path, the working
  * directory's own canonical spelling. So a root reached as `..`, `../work/..`
- * or `/Users/.../task` prints as that spelling followed by what is under it,
+ * or an absolute path to the folder prints as that spelling followed by what is under it,
  * and each of those needs a glob of its own: one per masked entry, per
  * operand whose real location holds a masked mount root, plus one for the
  * walk from the working directory itself. Any argument could be the operand
@@ -356,7 +373,7 @@ function maskSearchRoots(
   layout: WorkspaceFsLayout,
   taskCwd: string,
 ): { args: string[]; globs: string[] } | { error: string } {
-  const maskedRoots = [layout.task, ...nonTaskMounts(layout)]
+  const maskedRoots = [layout.task, ...otherFolders(layout)]
     .filter((mount) => mount.maskedEntries.length > 0)
     .map((mount) => ({
       entries: mount.maskedEntries,
@@ -428,13 +445,17 @@ function maskSearchRoots(
 }
 
 /**
- * Whether a virtual path names a task folder's masked entry itself rather than
+ * Whether a shell path names a task folder's masked entry itself rather than
  * something inside it.
  */
-function isMaskedDirItself(virtualPath: string, entry: string): boolean {
+function isMaskedDirItself(
+  layout: WorkspaceFsLayout,
+  path: string,
+  entry: string,
+): boolean {
   return (
-    normalizePath(virtualPath).toLowerCase() ===
-    `${MOUNT.task}/${entry}`.toLowerCase()
+    normalizePath(path).toLowerCase() ===
+    `${layout.task.shellRoot}/${entry}`.toLowerCase()
   );
 }
 

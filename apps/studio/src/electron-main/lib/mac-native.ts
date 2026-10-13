@@ -1,7 +1,12 @@
+import {
+  type FinderEntry,
+  FinderEntrySchema,
+} from "@instrument-org/workspace/electron";
 import { app } from "electron";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
@@ -13,6 +18,8 @@ import { z } from "zod";
  *   macOS keys to the app itself: notification permission belongs to the
  *   bundle that shows the notification, so a separate process would be asked
  *   about the wrong app.
+ *   It also answers what the file browser asks of every folder it lists,
+ *   which comes too often to start a process for.
  * - The helper (`instrument-mac`), run as a child, answers about data:
  *   Calendar, Reminders, Contacts. macOS asks on the app's behalf, so a
  *   grant covers both the agent's `calendar`/`contacts` commands and the
@@ -41,12 +48,22 @@ function bridgeFile(name: string): string | undefined {
   return existsSync(file) ? file : undefined;
 }
 
-/** The helper behind the agent's `calendar` and `contacts` commands, when this build carries it. */
+/**
+ * The helper behind the agent's `calendar` and `contacts` commands, when this
+ * build carries it and this Mac can run it: it is built for macOS 14 (Darwin
+ * 23), and an older loader refuses it outright.
+ */
 export function macHelperBinPath(): string | undefined {
+  if (Number.parseInt(os.release(), 10) < 23) {
+    return undefined;
+  }
   return bridgeFile("instrument-mac");
 }
 
 interface MacModule {
+  fileIcon: (path: string, pixels: string) => Promise<string>;
+  finderEntries: (folder: string) => Promise<string>;
+  resolveAlias: (path: string) => Promise<string>;
   notificationStatus: () => Promise<string>;
   requestNotifications: () => Promise<string>;
 }
@@ -156,4 +173,63 @@ export async function dataAccess(
     { timeout: 5 * 60_000 },
   );
   return DataAccessSchema.parse(JSON.parse(stdout));
+}
+
+/**
+ * What the Finder knows about a folder's entries beyond what `stat` says:
+ * packages, hidden extensions, hidden entries and aliases. Nothing off macOS
+ * or in a build without the module, which leaves the listing as `stat` has it.
+ */
+export async function finderEntries(folder: string): Promise<FinderEntry[]> {
+  const native = loadModule();
+  if (!native) {
+    return [];
+  }
+  const answer = z
+    .union([
+      z.object({ entries: FinderEntrySchema.array() }),
+      z.object({ error: z.string() }),
+    ])
+    .parse(JSON.parse(await native.finderEntries(folder)));
+  if ("error" in answer) {
+    throw new Error(answer.error);
+  }
+  return answer.entries;
+}
+
+/**
+ * The icon the Finder draws for a path, as a PNG `pixels` wide: an app's own
+ * icon, a document's by its type. Null off macOS, in a build without the
+ * module, or when nothing is at the path.
+ */
+export async function fileIcon(
+  filePath: string,
+  pixels: number,
+): Promise<Buffer | null> {
+  const native = loadModule();
+  if (!native) {
+    return null;
+  }
+  const answer = z
+    .union([z.object({ png: z.string() }), z.object({ error: z.string() })])
+    .parse(JSON.parse(await native.fileIcon(filePath, String(pixels))));
+  return "error" in answer ? null : Buffer.from(answer.png, "base64");
+}
+
+/**
+ * Where a Finder alias leads, without signing in to a server or mounting a
+ * volume to find out. Undefined for a path that is not an alias, an alias
+ * that leads nowhere, and off macOS.
+ */
+export async function resolveAlias(
+  filePath: string,
+): Promise<string | undefined> {
+  const native = loadModule();
+  if (!native) {
+    return undefined;
+  }
+  const answer = z
+    .union([z.object({ path: z.string() }), z.object({ error: z.string() })])
+    .parse(JSON.parse(await native.resolveAlias(filePath)));
+  return "error" in answer ? undefined : answer.path;
 }

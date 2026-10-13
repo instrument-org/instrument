@@ -1,14 +1,13 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { assign, fromPromise, log, setup } from "xstate";
 
-import { type AgentName } from "../agents/types";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
 import { runToolCall } from "../lib/run-tool-call";
 import { Store } from "../lib/store";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { getToolByType } from "../tools/all";
 
 /**
@@ -42,7 +41,7 @@ export async function saveStoppedToolCallPart(
   input: {
     part: SessionMessagePart.ToolPart;
     reason: CancellationReason;
-    taskId: TaskId;
+    chatId: ChatId;
   },
   { signal }: { signal?: AbortSignal } = {},
 ) {
@@ -73,7 +72,7 @@ export async function saveStoppedToolCallPart(
         state: "output-error",
       } as SessionMessagePart.Type;
     },
-    input.taskId,
+    input.chatId,
     { signal },
   );
 }
@@ -81,20 +80,18 @@ export async function saveStoppedToolCallPart(
 const executeToolLogic = fromPromise<
   { preliminarySaved: boolean },
   {
-    agentName: AgentName;
     model: AIGatewayModel.Type;
     part: SessionMessagePart.ToolPartInputAvailable;
     sessionId: StoreId.Session;
-    taskId: TaskId;
+    chatId: ChatId;
   }
->(async ({ input: { agentName, model, part, sessionId, taskId }, signal }) => {
+>(async ({ input: { model, part, sessionId, chatId }, signal }) => {
   return runToolCall({
-    agentName,
     model,
     part,
     sessionId,
     signal,
-    taskId,
+    chatId,
   });
 });
 
@@ -105,7 +102,7 @@ export const executeToolCallMachine = setup({
       {
         part: SessionMessagePart.ToolPartInputAvailable;
         reason: CancellationReason;
-        taskId: TaskId;
+        chatId: ChatId;
       }
     >(async ({ input, signal }) => {
       await saveStoppedToolCallPart(input, { signal });
@@ -120,7 +117,7 @@ export const executeToolCallMachine = setup({
       return typeof tool.timeoutMs === "function"
         ? tool.timeoutMs({
             input: context.part.input as never,
-            taskId: context.taskId,
+            chatId: context.chatId,
           })
         : tool.timeoutMs;
     },
@@ -128,30 +125,27 @@ export const executeToolCallMachine = setup({
 
   types: {
     context: {} as {
-      agentName: AgentName;
       cancellationReason: CancellationReason;
       model: AIGatewayModel.Type;
       part: SessionMessagePart.ToolPartInputAvailable;
       sessionId: StoreId.Session;
-      taskId: TaskId;
+      chatId: ChatId;
     },
     events: {} as { reason?: StopReason; type: "stop" },
     input: {} as {
-      agentName: AgentName;
       model: AIGatewayModel.Type;
       part: SessionMessagePart.ToolPartInputAvailable;
       sessionId: StoreId.Session;
-      taskId: TaskId;
+      chatId: ChatId;
     },
   },
 }).createMachine({
   context: ({ input }) => ({
-    agentName: input.agentName,
     cancellationReason: "unknown",
     model: input.model,
     part: input.part,
     sessionId: input.sessionId,
-    taskId: input.taskId,
+    chatId: input.chatId,
   }),
   id: "executeToolCall",
   initial: "Executing",
@@ -161,7 +155,7 @@ export const executeToolCallMachine = setup({
         input: ({ context }) => ({
           part: context.part,
           reason: context.cancellationReason,
-          taskId: context.taskId,
+          chatId: context.chatId,
         }),
         onDone: "Done",
         onError: { actions: log(({ event }) => event.error), target: "Done" },
@@ -180,11 +174,10 @@ export const executeToolCallMachine = setup({
       },
       invoke: {
         input: ({ context }) => ({
-          agentName: context.agentName,
           model: context.model,
           part: context.part,
           sessionId: context.sessionId,
-          taskId: context.taskId,
+          chatId: context.chatId,
         }),
         onDone: [
           {

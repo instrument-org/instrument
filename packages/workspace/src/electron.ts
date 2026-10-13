@@ -1,3 +1,5 @@
+export { AIUsageFilterSchema } from "./lib/ai-usage/schema";
+export { aiUsageCsv } from "./lib/ai-usage/store";
 export {
   closeAllAgentBrowserSessions,
   pruneExternalBrowserTmp,
@@ -7,7 +9,9 @@ export {
   catalogEntryMacApp,
   catalogEntryMcpEndpoint,
   catalogEntrySupportsApiKey,
+  catalogEntryForApp,
   catalogKeyHelp,
+  applyServedAppCatalog,
   findCatalogEntry,
   getAppCatalog,
   searchAppCatalogByMeaning,
@@ -68,6 +72,7 @@ export {
   loadApp,
   readAppGuide,
   setAppAccount,
+  setWebAppAccount,
 } from "./lib/apps/store";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
 export {
@@ -97,11 +102,16 @@ export {
   defaultOutputFolderPath,
   outputFolderPath,
 } from "./lib/chat/output-folder";
+export { prepareBundledSkills } from "./lib/prepare-bundled-skills";
+export { lastBrowserAgentActivity } from "./lib/browser-agent-activity";
+export { WINDOW_ID } from "./schemas/window-id";
 export { appListChanges, sessionEnds } from "./lib/host-events";
 export { FILES_FENCE } from "./lib/parse-files-block";
 
-export { taskDir } from "./lib/task-dir-utils";
-export { getTaskSettings } from "./lib/task-settings";
+export { getBrowserSessionDir } from "./lib/chat-dir-utils";
+export { chatDir } from "./lib/record-folders";
+export { chatTitle } from "./lib/chat-info";
+export { getChatSettings } from "./lib/chat-settings";
 export { stopWorkspaceSkillWatcher } from "./lib/workspace-skill-watcher";
 export { serveStaticFile } from "./logic/server/serve-static";
 export {
@@ -121,8 +131,12 @@ export { SessionMessage } from "./schemas/session/message";
 export { StoreId } from "./schemas/store-id";
 export { type SubdomainPart } from "./schemas/subdomain-part";
 export { SubdomainPartSchema } from "./schemas/subdomain-part";
+export {
+  type FinderEntry,
+  FinderEntrySchema,
+  resolveThroughAliases,
+} from "./lib/chat/finder-entries";
 export { type ChatId, ChatIdSchema } from "./schemas/chat-id";
-export { type TaskId, TaskIdSchema } from "./schemas/task-id";
 export {
   type WebSearchClient,
   type WebSearchClientResult,
@@ -134,8 +148,8 @@ export {
   type BrowserTarget,
   type BrowserTargetId,
   BrowserTargetIdSchema,
-  decodeBrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
+  parseBrowserTargetId,
   type WorkspaceConfig,
 } from "./types";
 export {

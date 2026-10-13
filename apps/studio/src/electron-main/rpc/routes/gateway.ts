@@ -1,5 +1,6 @@
 import { liveRead } from "@instrument-org/workspace/electron";
 import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
+import { claudeAccountStatusKnown } from "@/electron-main/lib/claude-account";
 import { base } from "@/electron-main/rpc/base";
 import {
   AIGatewayModel,
@@ -34,7 +35,7 @@ const list = base
   })
   .output(ListSchema)
   .handler(async ({ context }) => {
-    await refreshExpiredTokens();
+    await Promise.all([refreshExpiredTokens(), claudeAccountStatusKnown()]);
     const providers = context.workspaceConfig.getAIProviderConfigs();
     const modelsForProviders = await fetchModelResultsForProviders(providers, {
       captureException: context.workspaceConfig.captureException,
@@ -70,7 +71,11 @@ const live = {
       publisher.subscribe("session.apiBearerToken.updated", { signal }),
     ];
 
-    // Serve stale cached models immediately while the fresh fetch runs.
+    // Claude's provider config depends on the CLI's first sign-in check.
+    // Until it finishes, even a warm cache would omit the account's models.
+    await claudeAccountStatusKnown();
+
+    // Serve stale cached models while the fresh fetch runs.
     const providers = context.workspaceConfig.getAIProviderConfigs();
     const cachedModels = providers.flatMap(
       (config) =>

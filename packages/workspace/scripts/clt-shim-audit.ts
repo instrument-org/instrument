@@ -42,7 +42,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ulid } from "ulid";
 
-import { TASK_FOLDER_NAMES } from "../src/constants";
+import { CHAT_FOLDER_NAMES } from "../src/constants";
 import {
   commandLineToolsEnv,
   MISSING_DEVELOPER_DIR,
@@ -51,16 +51,15 @@ import { copySkill } from "../src/lib/copy-skill";
 import { installPythonSkill } from "../src/lib/install-python-skill";
 import { runPnpmCommand } from "../src/lib/run-pnpm";
 import { getSkillRuntime } from "../src/lib/skill-runtime";
-import { placeTaskAt } from "../src/lib/record-folders";
-import { taskVenvPython } from "../src/lib/uv";
-import { buildWorkspaceFsLayout } from "../src/lib/workspace-fs-layout";
+import { placeChat } from "../src/lib/record-folders";
+import { chatVenvPython } from "../src/lib/uv";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
 } from "../src/lib/workspace-config";
+import { AbsolutePathSchema } from "../src/schemas/paths";
+import { StoreId } from "../src/schemas/store-id";
 import { ChatIdSchema } from "../src/schemas/chat-id";
-import { AbsolutePathSchema, TaskDirSchema } from "../src/schemas/paths";
-import { TaskIdSchema } from "../src/schemas/task-id";
 import {
   CLT_SHIM_NAMES,
   findUnlistedHostShims,
@@ -123,23 +122,20 @@ async function installSkill({
     throw new Error(runtime.error);
   }
 
-  const taskId = TaskIdSchema.parse(ulid().toLowerCase());
-  // Recorded at a folder of its own, so every later lookup of the id finds it.
-  const dir = TaskDirSchema.parse(
-    path.join(getWorkspaceConfig().tasksDir, taskId),
-  );
-  placeTaskAt(taskId, ChatIdSchema.parse("clt-shim-audit"), dir);
+  const chatId = ChatIdSchema.parse(ulid().toLowerCase());
+  // Put in the chat index, so every later lookup of the id finds its folder.
+  const dir = placeChat(chatId, StoreId.newSessionId());
   await fs.mkdir(dir, { recursive: true });
   // The scaffold initializeTask lays down. `work/` has to arrive from the
   // template: its package.json and pnpm-workspace.yaml are what make the
   // skill's own `pnpm install` a nested workspace install rather than an error.
-  await fs.cp(getWorkspaceConfig().defaultTaskTemplateDir, dir, {
+  await fs.cp(getWorkspaceConfig().chatTemplateDir, dir, {
     force: false,
     recursive: true,
   });
   for (const folder of [
-    TASK_FOLDER_NAMES.attachments,
-    TASK_FOLDER_NAMES.work,
+    CHAT_FOLDER_NAMES.attachments,
+    CHAT_FOLDER_NAMES.work,
   ]) {
     await fs.mkdir(path.join(dir, folder), { recursive: true });
   }
@@ -159,9 +155,8 @@ async function installSkill({
     const { exitCode, stderr, stdout } = await runPnpmCommand({
       args: ["install"],
       cwd: dir,
-      layout: buildWorkspaceFsLayout({ taskHostRoot: dir }),
       signal,
-      taskId,
+      chatId,
     });
     result.node = { exitCode, output: stdout + stderr };
   }
@@ -170,7 +165,7 @@ async function installSkill({
     const installed = await installPythonSkill({
       signal,
       skillDir: destDir,
-      taskId,
+      chatId,
     });
     result.python =
       installed.state === "success"
@@ -185,7 +180,7 @@ async function installSkill({
       // install_name_tool, which is one of the stubs. Running the interpreter is
       // what proves the install survives that step being unavailable.
       const probe = await execa(
-        taskVenvPython(taskId),
+        chatVenvPython(chatId),
         ["-c", "import sys; print(sys.version.split()[0])"],
         { all: true, reject: false },
       );
@@ -436,7 +431,7 @@ for (const mode of args.modes) {
 
   setWorkspaceConfig({
     ...createStubWorkspaceConfig({ tasksDir: path.join(root, "tasks") }),
-    defaultTaskTemplateDir: AbsolutePathSchema.parse(
+    chatTemplateDir: AbsolutePathSchema.parse(
       path.join(repoRoot, "packages/workspace/templates/default"),
     ),
     pnpmBinPath,

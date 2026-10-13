@@ -1,42 +1,40 @@
 import { type ChatId } from "../../../schemas/chat-id";
-import { StoreId } from "../../../schemas/store-id";
-import { type TaskId } from "../../../schemas/task-id";
-import { type HeldTab } from "../../../schemas/task-state";
-import { WINDOW_ID } from "../../../schemas/window-id";
-import {
-  type BrowserTargetId,
-  decodeBrowserTargetId,
-  encodeBrowserTargetId,
-} from "../../../types";
-import { tabHolders } from "../../chat/window-tab";
+import { type WindowTabAnswer } from "../../../schemas/window-tab";
+import { type BrowserTargetId, parseBrowserTargetId } from "../../../types";
+import { askWindow, tabHolders } from "../../chat/window-tab";
+import { resolveChat } from "../../record-folders";
+import { TASK_COMMAND } from "../task-command";
 import { isLocalAddress } from "../../local-page-address";
-import { getWorkspaceConfig } from "../../workspace-config";
+
+type ChatTab = NonNullable<WindowTabAnswer["tabs"]>[number];
 
 /**
- * A tab id from the note on the user's message is the session half of one of
- * the chat's own browser targets; the target has to exist, since the
- * task connects to it rather than creating anything. A tab showing a file on
- * the computer is not handed over: its address is a path only the window
- * opens, and a task reaches a file through its folders, never through a
- * browser standing on one.
+ * A tab id from the note on the user's message names one of the chat's own
+ * tabs, as the window holds them at this moment: a tab in no chat or in
+ * another is never the chat's to hand over, whatever id it was given. Only a
+ * page goes to a task, and one whose page was let go goes as well, since the
+ * task brings it back before it works in it. A tab showing a file on the
+ * computer is not handed over: its address is a path only the window opens,
+ * and a task reaches a file through its folders, never through a browser
+ * standing on one.
  */
-async function resolveTab(tab: string): Promise<BrowserTargetId> {
-  // The window's tabs are the window's, whichever chat names one.
-  const windowId = WINDOW_ID;
-  const sessionId = StoreId.SessionSchema.safeParse(tab);
-  if (!sessionId.success) {
+function resolveTab(
+  tab: string,
+  chatTabs: readonly ChatTab[],
+): BrowserTargetId {
+  const listed = chatTabs.find((entry) => entry.id === tab);
+  if (!listed) {
     throw new Error(
-      `"${tab}" is not a tab id; the note on the user's message lists them.`,
+      `Tab ${tab} is not one of this chat's tabs; the note on the user's message lists the ones it has.`,
     );
   }
-  const targetId = encodeBrowserTargetId(windowId, sessionId.data);
-  const { browser } = getWorkspaceConfig();
-  if (!browser.getTargetMeta(targetId)) {
-    throw new Error(`Tab ${tab} is not open any more.`);
+  const targetId = parseBrowserTargetId(tab);
+  if (listed.kind !== "page" || targetId === null) {
+    throw new Error(
+      `Tab ${tab} shows a screen of the app, not a page; only a page goes to a task.`,
+    );
   }
-  const targets = await browser.listTargets(windowId);
-  const target = targets.find((candidate) => candidate.id === targetId);
-  if (target && isLocalAddress(target.url)) {
+  if (isLocalAddress(listed.url)) {
     throw new Error(
       `Tab ${tab} shows a file on this computer, which a task is not handed; give the task the folder the file is in instead.`,
     );
@@ -47,11 +45,15 @@ async function resolveTab(tab: string): Promise<BrowserTargetId> {
 /** Several tab ids, each resolved, without repeats; `closedIsFine` for ids only being let go of. */
 export async function resolveTabs(
   tabs: string[],
-  { closedIsFine = false }: { closedIsFine?: boolean } = {},
+  { chatId, closedIsFine = false }: { chatId: ChatId; closedIsFine?: boolean },
 ): Promise<BrowserTargetId[]> {
+  const chatTabs =
+    closedIsFine || tabs.length === 0 ? [] : await tabsOfChat(chatId);
   const resolved: BrowserTargetId[] = [];
   for (const tab of tabs) {
-    const id = closedIsFine ? await tabTargetOf(tab) : await resolveTab(tab);
+    const id = closedIsFine
+      ? await tabTargetOf(tab)
+      : resolveTab(tab, chatTabs);
     if (!resolved.includes(id)) {
       resolved.push(id);
     }
@@ -59,71 +61,52 @@ export async function resolveTabs(
   return resolved;
 }
 
+/** The chat's tabs, as the window holds them now; none when no window answers. */
+async function tabsOfChat(chatId: ChatId): Promise<ChatTab[]> {
+  const answer = await askWindow({
+    action: { kind: "list" },
+    askedBy: chatId,
+    group: resolveChat(chatId),
+  });
+  return answer?.tabs ?? [];
+}
+
 /** A tab id in the window's terms, open or not. */
 async function tabTargetOf(tab: string): Promise<BrowserTargetId> {
-  const sessionId = StoreId.SessionSchema.safeParse(tab);
-  if (!sessionId.success) {
+  const targetId = parseBrowserTargetId(tab);
+  if (targetId === null) {
     throw new Error(
       `"${tab}" is not a tab id; the note on the user's message lists them.`,
     );
   }
-  return encodeBrowserTargetId(WINDOW_ID, sessionId.data);
-}
-
-/** The id a tab goes by in the note and on `--tab`. */
-export function tabIdOf(targetId: BrowserTargetId): string {
-  return decodeBrowserTargetId(targetId)?.sessionId ?? targetId;
+  return targetId;
 }
 
 /**
- * A line for each tab just handed over that another working task holds too:
- * both will act on the same page, which is sometimes the point and otherwise
- * a mistake worth seeing.
+ * Refuses tabs another working task drives: one driver per tab, so two
+ * agents never act in one page at once. A tab the chat drives, or one a
+ * finished task left, is the new task's to take.
  */
-export async function tabsHeldElsewhere(
+export async function refuseTabsDrivenElsewhere(
   tabs: BrowserTargetId[],
   chatId: ChatId,
-  except?: TaskId,
-): Promise<string> {
+): Promise<void> {
   if (tabs.length === 0) {
-    return "";
+    return;
   }
   const holders = await tabHolders(chatId);
-  return tabs
-    .flatMap((id) => {
-      const holder = holders.get(tabIdOf(id));
-      return holder && holder.id !== except
-        ? [
-            `Tab ${tabIdOf(id)} is also held by ${holder.id} ("${holder.title}"), which is working in it now; both will act on the same page.\n`,
-          ]
-        : [];
-    })
-    .join("");
-}
-
-/**
- * The tab a task was handed, by the id the conversation knows it as, and
- * whether it is still open: a tab the user has since closed leaves the task
- * with nothing to act on, which is worth seeing before steering it at one.
- */
-export function describeHeldTabs(tabs: HeldTab[]): string {
-  if (tabs.length === 0) {
-    return "none; it opens one of its own when it needs a page";
+  const driven = tabs.flatMap((id) => {
+    const holder = holders.get(id);
+    return holder ? [`${id} (${holder.id}, "${holder.title}")`] : [];
+  });
+  if (driven.length > 0) {
+    throw new Error(
+      `--tab ${driven.join(", ")}: another task is working in ${driven.length === 1 ? "that tab" : "those tabs"}, and a tab has one driver at a time. Ask that task with \`${TASK_COMMAND.name} send\` instead, or wait for it to finish: its tabs come back to you then.`,
+    );
   }
-  return tabs
-    .map((held) => {
-      const own = held.openedBy === "task" ? ", which it opened" : "";
-      const closed = getWorkspaceConfig().browser.getTargetMeta(held.id)
-        ? ""
-        : " (closed since)";
-      return `${tabIdOf(held.id)}${own}${closed}`;
-    })
-    .join("; ");
 }
 
 /** What a hand-over prints about the tabs it made, or nothing. */
 export function handedTabsLine(tabs: BrowserTargetId[]): string {
-  return tabs.length > 0
-    ? `Its tabs: ${tabs.map((id) => tabIdOf(id)).join(", ")}.\n`
-    : "";
+  return tabs.length > 0 ? `Its tabs: ${tabs.join(", ")}.\n` : "";
 }

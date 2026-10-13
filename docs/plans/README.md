@@ -49,7 +49,6 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | Plan | Status |
 | --- | --- |
 | [Conversation storage](active/conversation-storage.md) — conversation data the agent can read across | index and search landed, storage not started |
-| [Agent-requested folder access](active/agent-requested-folder-access.md) | phase 1 landed, reduced phase 2 |
 | [Legacy data migration](active/legacy-data-migration.md): bringing 1.x tasks and projects into chats | built, backfill and eval left |
 | [Skills mount instead of copy](active/skills-mount-instead-of-copy.md) | step 3 copy removal left |
 | [Skills from attached folders](active/skills-from-attached-folders.md) | proposed, waits on skills mount |
@@ -66,8 +65,6 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 
 | Plan | Status |
 | --- | --- |
-| [One window browser](active/single-window-browser.md) — collapse the browser-per-id model, with tab lifetimes by where the tab is | not started; after the chat/task rework |
-| [External browsers behind a flag](active/external-browser-behind-a-flag.md) — built; the checklist for turning it on | landed, flag off |
 | [Chrome extensions, starting with 1Password](active/browser-extensions-and-1password.md) | on hold, spike done |
 
 ### Platform and product
@@ -93,12 +90,17 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [radashi to es-toolkit migration](active/radashi-to-es-toolkit-migration.md) | planned, not started |
 | [Radix upgrade, and whether to move to Base UI](active/radix-upgrade-and-base-ui-migration.md) | proposal, not started |
 | [React Compiler blind spots](active/react-compiler-blind-spots.md) | proposal, not started |
+| [Structure after the chat rework](active/structure-after-the-chat-rework.md): implicit state machines, parallel maps and task-era leftovers the reworks left | items 1-7, 11, 12 done; 8, 10, 13 folded into other work |
 
 ## Completed
 
 | Plan | Outcome |
 | --- | --- |
 | [Agent browser ad blocking](completed/agent-browser-ad-blocking.md) | landed |
+| [External browsers behind a flag](completed/external-browser-behind-a-flag.md) | abandoned, removed |
+| [Honest browser context](completed/honest-browser-context.md): chips are the whole context, a chat names only its own tabs, and an agent-browser proxy that opens tabs only for pages | landed |
+| [One window browser](completed/single-window-browser.md): one browser, a guest named by its tab, and a lifetime per tab on Chromium's discard rules | landed |
+| [Chat status line and loading states](completed/chat-status-line-and-loading-states.md): dots only while a reply is written, one activity line under the title | landed |
 | [The Instrument 2.0 orchestrator spike](completed/instrument-2-0-prototype.md) | became the 2.0 app |
 | [Apps in the 2.0 prototype](completed/instrument-2-0-apps.md) | landed |
 | [Threads, topics, and activity](completed/orchestrator-threads.md) | landed, then overtaken |
@@ -106,6 +108,7 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [Split the orchestrator route component](completed/orchestrator-route-split.md) | landed |
 | [Rename threads to chats](completed/threads-to-chats-rename.md) | landed |
 | [Chats as folders that own their tasks](completed/chat-folders.md) | landed |
+| [One chat, one database](completed/one-chat-one-database.md): a chat is the only record; its database holds sessions as a tree, and a task is a child session that reads its history from the parent | landed |
 | [Chat list index](completed/chat-list-index.md): a workspace index the chat list reads from | stage A landed |
 | [Find chats and tasks from the omnibar](completed/chat-search-in-the-omnibar.md) | not built, superseded |
 | [App-level tabs](completed/app-level-tabs.md) | landed |
@@ -120,7 +123,10 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [Lazy browser targets, and multiple tabs](completed/lazy-browser-targets-and-multiple-tabs.md) | superseded |
 | [Browser popups as agent-drivable tabs](completed/browser-popups-as-agent-drivable-tabs.md) | not built; the starting point for popups |
 | [One owner for each fact about a browser guest](completed/guest-plumbing.md): guest registry, guest handle, captureFrame, CDP table, page chords, ChatGPT grant machine | done |
-| [Sandboxed script runtimes as the default](completed/sandboxed-script-runtimes.md) — `python` reads attached folders in place, `python-native` is the escape hatch, `js-exec` beside `node` | landed |
+| [Real host paths, held to the Permissions rules](completed/real-host-paths.md) | landed on macOS and Linux; Windows unconfined |
+| [One Python and one JavaScript, both native](completed/native-script-runtimes.md) | landed |
+| [Agent-requested folder access](completed/agent-requested-folder-access.md) | superseded by real paths |
+| [Sandboxed script runtimes as the default](completed/sandboxed-script-runtimes.md): `python` reads attached folders in place, `python-native` is the escape hatch, `js-exec` beside `node` | landed, then superseded by native runtimes |
 | [Pane tabs and the `show` command](completed/pane-tabs-and-the-show-command.md) | landed |
 | [File references without a watcher](completed/file-references-without-a-watcher.md) | landed |
 | [Anchor the submitted turn](completed/anchor-the-submitted-turn.md) | landed |

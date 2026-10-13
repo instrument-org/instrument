@@ -1,31 +1,25 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 
-import { type AgentName } from "../agents/types";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { getToolByType } from "../tools/all";
 import { getCurrentDate } from "./get-current-date";
 import { Store } from "./store";
 import { streamTool } from "./stream-tool";
-import { taskDir } from "./task-dir-utils";
-import { getTaskState } from "./task-record";
-import { getWorkspaceConfig } from "./workspace-config";
 
 export async function runToolCall({
-  agentName,
   model,
   part,
   sessionId,
   signal,
-  taskId,
+  chatId,
 }: {
-  agentName: AgentName;
   model: AIGatewayModel.Type;
   part: SessionMessagePart.ToolPartInputAvailable;
   sessionId: StoreId.Session;
   signal: AbortSignal;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
   const tool = getToolByType(part.type);
   let preliminarySaved = false;
@@ -45,24 +39,20 @@ export async function runToolCall({
           ...current,
           metadata: { ...current.metadata, startedAt: getCurrentDate() },
         }) as SessionMessagePart.Type,
-      taskId,
+      chatId,
       { signal },
     );
-
-    const taskState = await getTaskState(taskDir(taskId));
 
     for await (const { output, type } of streamTool({
       execute: tool.execute,
       options: {
-        agentName,
         input: part.input as never,
         messageId: part.metadata.messageId,
         model,
         partId: part.metadata.id,
         sessionId,
         signal,
-        taskId,
-        taskState,
+        chatId,
       },
     })) {
       if (signal.aborted) {
@@ -87,7 +77,7 @@ export async function runToolCall({
                 preliminary: true,
                 state: "output-available",
               }) as SessionMessagePart.Type,
-            taskId,
+            chatId,
             { signal },
           );
           preliminarySaved = true;
@@ -107,7 +97,7 @@ export async function runToolCall({
                   preliminary: false,
                   state: "output-available",
                 }) as SessionMessagePart.Type,
-              taskId,
+              chatId,
               { signal },
             )
           : Store.updatePart(
@@ -122,15 +112,9 @@ export async function runToolCall({
                   },
                   state: "output-error",
                 }) as SessionMessagePart.Type,
-              taskId,
+              chatId,
               { signal },
             ));
-        getWorkspaceConfig().captureEvent("llm.tool_executed", {
-          modelId: model.canonicalId,
-          providerId: model.params.provider,
-          success: output.isOk(),
-          tool_name: part.type,
-        });
       }
     }
   } catch (error) {
@@ -153,7 +137,7 @@ export async function runToolCall({
           },
           state: "output-error",
         }) as SessionMessagePart.Type,
-      taskId,
+      chatId,
       { signal },
     );
   }

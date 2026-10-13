@@ -1,6 +1,6 @@
 # Agent prompt surface: what we measured, and what is still open
 
-**Status:** open items, measured once. Re-checked 2026-10-02 against the code: items 2, 3, 6, 7, 8 and 9 under "Open work" stand as written (no `edits[]`, read-before-edit is still an unenforced imperative, both `main.ts` sections and the `region` paragraph are still there, `getMessages` still takes no model); item 5 is settled, since `npx` is a listed compatibility command (`shell-commands/pnpm.ts`); items 1 and 4 were not re-audited. The "Open work" section is the live part; "Already correct -- do not regress in a cleanup" is the part to read before editing prompt text. Prompt copy moves faster than this document, so re-read the surface it names before acting.
+**Status:** open items, measured once. Re-checked 2026-10-02 against the code: items 2, 3, 6, 7, 8 and 9 under "Open work" stand as written (no `edits[]`, read-before-edit is still an unenforced imperative, both `main.ts` sections and the `region` paragraph are still there, `getMessages` still takes no model); item 5 is settled, since `npx` is a listed compatibility command (`shell-commands/pnpm.ts`); items 1 and 4 were not re-audited. The "Open work" section is the live part; "Already correct -- do not regress in a cleanup" is the part to read before editing prompt text. Prompt copy moves faster than this document, so re-read the surface it names before acting. `agents/main.ts` no longer exists: one agent (`agents/instrument.ts`) runs chats and tasks, so an item naming a `main.ts` section has to be re-found there or dropped.
 
 A review of the text our agent actually reads -- the main system prompt (`packages/workspace/src/agents/main.ts`) and the tool descriptions (`packages/workspace/src/tools/`, plus `lib/create-bash-env.ts`) -- against [Anthropic's "new rules of context engineering for Claude 5 generation models"](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models), our own recorded sessions, and the equivalent surfaces in other agent harnesses.
 
@@ -191,5 +191,5 @@ Absent that work, system-prompt cuts must be safe for the weakest model we ship 
 
 - The `browserTargetingGuidance` split between durable policy (session context) and volatile availability (per-request description).
 - Forced-required `explanation`.
-- The nonce-bounded untrusted-content preambles on `web_search`, `load_skill`, and `agent_browser` page output. These read as repetition but are a security boundary, not guidance -- see [the decision record](../decisions/2026-07-27-nonce-bounded-untrusted-content.md).
+- The lead line on `web_search`, `web_fetch`, and `load_skill` output saying what follows, with our own notes before the outside content and the content last -- see [the decision record](../decisions/2026-10-09-outside-content-arrives-last-and-unmarked.md).
 - `write_file`'s "do not re-emit content, use `cp`" rule.

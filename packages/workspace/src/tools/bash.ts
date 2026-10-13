@@ -4,17 +4,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import {
   promoteBackgroundProcess,
   startBackgroundRun,
 } from "../lib/background-processes";
-import {
-  createBashDescription,
-  createBashEnv,
-  shellLayout,
-} from "../lib/create-bash-env";
+import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import {
   BrowserSkillSchema,
   browserSkillToDeliver,
@@ -22,7 +18,7 @@ import {
 } from "../lib/browser-skill-delivery";
 import { executeError } from "../lib/execute-error";
 import { ignoredBuildsNote } from "../lib/ignored-builds-note";
-import { childTaskMounts } from "../lib/chat/children";
+import { sessionRole } from "../lib/chat/children";
 import { folderReach } from "../lib/chat/folder-reach";
 import {
   FG_COMMAND,
@@ -42,7 +38,6 @@ import {
   withHandOffs,
 } from "../lib/shell-commands/task-hand-off";
 import { systemNote } from "../lib/system-note";
-import { taskDir } from "../lib/task-dir-utils";
 import {
   TRUNCATE_HEAD_BYTES,
   TRUNCATE_TAIL_BYTES,
@@ -51,9 +46,8 @@ import {
 import { RelativePathSchema } from "../schemas/paths";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
-import { boundedSkillBody } from "./load-skill";
-import { chatRefusal } from "./chat-shell-policy";
-import { resolveChat } from "../lib/record-folders";
+import { skillInstructions } from "./load-skill";
+import { workDir } from "../lib/work-dir";
 
 const DEFAULT_YIELD_MS = ms("30 seconds");
 const MIN_YIELD_MS = 250;
@@ -165,36 +159,25 @@ export const BashTool = setupTool({
 }).create({
   // Built per call: the command list it renders describes capabilities that a
   // feature flag can turn on and off while the app is running.
-  description: ({ agentName }) =>
-    createBashDescription({ chat: agentName === "instrument" }),
-  async execute({ agentName, input, partId, sessionId, signal, taskId }) {
-    if (agentName === "instrument") {
-      const refused = chatRefusal(input.command);
-      if (refused) {
-        return executeError(refused);
-      }
-    }
-    const attachedFolders = await folderReach(taskId);
+  description: () => createBashDescription(),
+  async execute({ input, partId, sessionId, signal, chatId }) {
+    const folders = await folderReach(chatId);
     const yieldMs = clampYieldMs(input.yieldMs);
     const startedAt = performance.now();
-    const chatId = agentName === "instrument" ? resolveChat(taskId) : undefined;
-    const chat = chatId
-      ? { childMounts: await childTaskMounts(chatId), id: chatId }
-      : undefined;
+    // The chat's own commands are its conversation's: a task of the chat's
+    // runs in the same folder with a task's shell.
+    const role = sessionRole(chatId, sessionId) ?? "task";
     const bash = await createBashEnv({
-      attachedFolders,
-      chat,
+      folders,
+      callPartId: partId,
+      role,
       // `fg` waits inside this call, so what is left of the window is its
       // ceiling. Measured from here rather than from the race below, which only
       // makes it return sooner than it strictly has to.
       remainingYieldMs: () => yieldMs - (performance.now() - startedAt),
       sessionId,
-      taskId,
+      chatId,
     });
-    // The layout the native shims write their own output's host paths back
-    // against, so the live copy a promoted command streams names them the way
-    // the foreground copy does.
-    const layout = shellLayout({ attachedFolders, chat, taskId });
     // Interpreter metadata, only available once the run finishes. A promoted
     // command reports none, which is what the empty default stands for.
     let commands: string[] = [];
@@ -235,15 +218,13 @@ export const BashTool = setupTool({
           };
         }
       },
-      layout,
-      taskId,
     });
 
     const outcome = await raceYield(handle.completion, yieldMs);
     const durationMs = Math.round(performance.now() - startedAt);
 
     if (outcome === "still-running") {
-      const promoted = promoteBackgroundProcess({ handle, sessionId, taskId });
+      const promoted = promoteBackgroundProcess({ handle, sessionId, chatId });
       if ("error" in promoted) {
         handle.abort();
         return executeError(promoted.error);
@@ -275,9 +256,9 @@ export const BashTool = setupTool({
     let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
     if (truncated) {
       spillFilePath = RelativePathSchema.parse(
-        path.posix.join(TASK_FOLDER_NAMES.toolOutput, `${partId}.log`),
+        path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${partId}.log`),
       );
-      const absPath = absolutePathJoin(taskDir(taskId), spillFilePath);
+      const absPath = absolutePathJoin(workDir(chatId), spillFilePath);
       await fs.mkdir(path.dirname(absPath), { recursive: true });
       await fs.writeFile(absPath, outcome.output, {
         encoding: "utf8",
@@ -286,12 +267,9 @@ export const BashTool = setupTool({
     }
 
     const pageAfter = await browserFollowUp.take(signal);
-    // The chat's shell refuses the command, so only a task can have run it.
-    const browserSkill =
-      agentName !== "instrument" &&
-      commands.includes(AGENT_BROWSER_COMMAND.name)
-        ? await browserSkillToDeliver({ sessionId, signal, taskId })
-        : undefined;
+    const browserSkill = commands.includes(AGENT_BROWSER_COMMAND.name)
+      ? await browserSkillToDeliver({ sessionId, signal, chatId })
+      : undefined;
 
     return ok({
       ...(browserSkill ? { browserSkill } : {}),
@@ -308,7 +286,7 @@ export const BashTool = setupTool({
   },
   readOnly: false,
   timeoutMs: ({ input }) => bashToolCallTimeoutMs(input.yieldMs),
-  toModelOutput: ({ output, toolCallId }) => {
+  toModelOutput: ({ output }) => {
     const { content, omittedLines, totalBytes, totalLines, truncated } =
       truncateMiddle(output.output);
 
@@ -371,7 +349,7 @@ export const BashTool = setupTool({
       ? ["", pageAfterText(output.pageAfter)]
       : [];
     const browserSkillSection = output.browserSkill
-      ? ["", browserSkillText(output.browserSkill, toolCallId)]
+      ? ["", browserSkillText(output.browserSkill)]
       : [];
 
     // Say that the command printed nothing rather than leaving a gap where the
@@ -425,21 +403,19 @@ export const BashTool = setupTool({
  * saying why they are here, so the model reads them as the skill it would
  * otherwise have loaded rather than as something the command printed.
  */
-function browserSkillText(skill: BrowserSkill, toolCallId: string) {
+function browserSkillText(skill: BrowserSkill) {
   const truncation = skill.contentTruncated
-    ? `\n\nOnly the beginning of the guide fits here. Run \`${AGENT_BROWSER_COMMAND.name} skills get core\` for the rest before relying on it.`
+    ? ` Only the beginning of the guide fits here. Run \`${AGENT_BROWSER_COMMAND.name} skills get core\` for the rest before relying on it.`
     : "";
   const references = `\`${AGENT_BROWSER_COMMAND.name} skills get core --full\` prints the references it links to.`;
   return [
     systemNote`
-      This is your first \`${AGENT_BROWSER_COMMAND.name}\` command in this session, so its guide comes with the output below. Follow it for the rest of your browser work; there is no need to load it. ${references}
+      This is your first \`${AGENT_BROWSER_COMMAND.name}\` command in this session, so its guide comes with the output below. Follow it for the rest of your browser work; there is no need to load it. ${references}${truncation}
     `.trim(),
     "",
-    boundedSkillBody({
+    skillInstructions({
       content: skill.content,
       name: skill.name,
-      origin: skill.origin,
-      toolCallId,
-    }) + truncation,
+    }),
   ].join("\n");
 }

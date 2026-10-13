@@ -75,15 +75,19 @@ export function hasPaymentFailed(status: Status | undefined) {
 }
 
 /**
- * A subscription that is paid up yet entitles nothing: the API revoked access
- * after a dispute or a fraud warning, and only support can restore it.
+ * Access the API revoked after a dispute or a fraud warning, which only
+ * support can restore. With a subscription, it is one paid up that entitles
+ * nothing. Without one, it is being refused Checkout: the API says
+ * `canSubscribe: false` only while a subscription can still charge or while
+ * access is revoked.
  */
 export function isAccessRevoked(status: Status | undefined) {
-  return (
-    status?.subscription !== undefined &&
-    status.plan === "none" &&
-    !hasPaymentFailed(status)
-  );
+  if (status?.plan !== "none") {
+    return false;
+  }
+  return status.subscription === undefined
+    ? !status.canSubscribe
+    : !hasPaymentFailed(status);
 }
 
 /** A live subscription to one of the offered plans, whatever its payment state. */

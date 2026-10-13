@@ -6,37 +6,40 @@ import {
   InMemoryFs,
 } from "just-bash";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync } from "node:fs";
 import fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../../schemas/folder-attachment";
-import { TaskDirSchema } from "../../schemas/paths";
+import { MountedFolder } from "../../schemas/mounted-folder";
+import { ChatDirSchema } from "../../schemas/paths";
 import {
-  createMockTaskConfigForDir,
+  createMockChatConfigForDir,
   MOCK_WORKSPACE_DIRS,
-} from "../../test/helpers/mock-task-config";
+} from "../../test/helpers/mock-chat-config";
 import { gitBinaryPath, gitSubprocessEnv } from "../git";
 import { collapseProgress } from "./exec-shim";
 import { createGitCommand } from "./git";
 import { taskLayout } from "../../test/helpers/task-layout";
 
-const mockCtx = createCommandContext({
-  cwd: "/task",
-  env: new Map<string, string>(),
-  fs: new InMemoryFs(),
-  stdin: EMPTY_BYTES,
-});
+const ctxIn = (cwd: string) =>
+  createCommandContext({
+    cwd,
+    env: new Map<string, string>(),
+    fs: new InMemoryFs(),
+    stdin: EMPTY_BYTES,
+  });
 
 describe("createGitCommand arg policy", () => {
-  const taskDir = `${MOCK_WORKSPACE_DIRS.tasks}/git-policy`;
-  const taskId = createMockTaskConfigForDir(taskDir);
-  const command = createGitCommand({ layout: taskLayout(taskId), taskId });
+  const chatDir = `${MOCK_WORKSPACE_DIRS.chats}/git-policy`;
+  const chatId = createMockChatConfigForDir(chatDir);
+  const layout = taskLayout(chatId);
+  const command = createGitCommand({ layout, chatId });
+  const mockCtx = ctxIn(layout.task.shellRoot);
   // The later blocks point the workspace elsewhere as they are collected.
   beforeAll(() => {
-    createMockTaskConfigForDir(taskDir);
+    createMockChatConfigForDir(chatDir);
   });
 
   it.each([
@@ -136,7 +139,7 @@ describe("createGitCommand arg policy", () => {
     const result = await command.execute(args, mockCtx);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("points outside the task directory");
+    expect(result.stderr).toContain("points outside this conversation's folder");
   });
 });
 
@@ -148,13 +151,15 @@ describe("createGitCommand", () => {
     "git-smoke",
   );
   mkdirSync(dir, { recursive: true });
-  const smokeTaskId = createMockTaskConfigForDir(dir);
+  const smokeChatId = createMockChatConfigForDir(dir);
+  const smokeLayout = taskLayout(smokeChatId);
   const command = createGitCommand({
-    layout: taskLayout(smokeTaskId),
-    taskId: smokeTaskId,
+    layout: smokeLayout,
+    chatId: smokeChatId,
   });
+  const mockCtx = ctxIn(smokeLayout.task.shellRoot);
   beforeAll(() => {
-    createMockTaskConfigForDir(dir);
+    createMockChatConfigForDir(dir);
   });
 
   it("commits as the agent, ignoring the user's git identity", async () => {
@@ -276,10 +281,10 @@ describe("createGitCommand", () => {
   });
 });
 
-// A repository in an attached folder is reached by its mount path, which git
-// is handed as the folder's real location. What the folder's access level
-// decides is what git may do there, not whether it may look.
-describe("createGitCommand over attached folders", () => {
+// A repository in a granted folder is reached by its real path. Whether git
+// may write there is the permission rules' to say, so the cases here cover
+// where git can reach and what it prints.
+describe("createGitCommand over folder mounts", () => {
   const root = mkdtempSync(path.join(tmpdir(), "instrument-git-mounts-"));
   const taskRoot = path.join(root, "task");
   const repoDir = path.join(root, "Repo");
@@ -287,43 +292,29 @@ describe("createGitCommand over attached folders", () => {
   mkdirSync(taskRoot, { recursive: true });
   mkdirSync(repoDir, { recursive: true });
   mkdirSync(workDir, { recursive: true });
-  const inMount = (cwd: string) =>
-    createCommandContext({
-      cwd,
-      env: new Map<string, string>(),
-      fs: new InMemoryFs(),
-      stdin: EMPTY_BYTES,
-    });
   // Built when the tests run rather than when the file loads: the mock task
   // config sets one tasks directory for the whole process, and the describe
   // above resolves its own task through it until its tests have finished.
   let command: ReturnType<typeof createGitCommand>;
+  let inTask: ReturnType<typeof ctxIn>;
 
   beforeAll(async () => {
-    const mountedTaskId = createMockTaskConfigForDir(taskRoot);
-    command = createGitCommand({
-      layout: taskLayout(mountedTaskId, {
-        repo: {
-          access: "read-only",
-          createdAt: Date.now(),
-          id: FolderAttachment.IdSchema.parse("repo-id"),
-          mountName: "Repo",
-          path: TaskDirSchema.parse(repoDir),
-          source: "user",
-        },
-        work: {
-          access: "read-write",
-          createdAt: Date.now(),
-          id: FolderAttachment.IdSchema.parse("work-id"),
-          mountName: "Work",
-          path: TaskDirSchema.parse(workDir),
-          source: "user",
-        },
-      }),
-      taskId: mountedTaskId,
+    const mountedChatId = createMockChatConfigForDir(taskRoot);
+    const layout = taskLayout(mountedChatId, {
+      repo: {
+        access: "read-only",
+        id: MountedFolder.IdSchema.parse("repo-id"),
+        path: ChatDirSchema.parse(repoDir),
+      },
+      work: {
+        access: "read-write",
+        id: MountedFolder.IdSchema.parse("work-id"),
+        path: ChatDirSchema.parse(workDir),
+      },
     });
-    // Seeded with the real binary directly: the command under test may not
-    // write into the read-only mount, and that is the point of the test.
+    command = createGitCommand({ layout, chatId: mountedChatId });
+    inTask = ctxIn(layout.task.shellRoot);
+    // Seeded with the real binary directly.
     for (const dir of [repoDir, workDir]) {
       await fs.writeFile(path.join(dir, "note.md"), "hello\n");
       for (const args of [
@@ -339,92 +330,68 @@ describe("createGitCommand over attached folders", () => {
     }
   });
 
-  it("reads history in a read-only mount through -C", async () => {
+  it("reads history in a folder through -C", async () => {
     const result = await command.execute(
-      ["-C", "/mnt/Repo", "log", "--oneline"],
-      mockCtx,
+      ["-C", repoDir, "log", "--oneline"],
+      inTask,
     );
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("seed");
   });
 
-  it("reads history from inside a mount as the working directory", async () => {
+  it("reads history from inside a folder as the working directory", async () => {
     const result = await command.execute(
       ["log", "--format=%s"],
-      inMount("/mnt/Repo"),
+      ctxIn(repoDir),
     );
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout.trim()).toBe("seed");
   });
 
-  it("prints a mount's own path rather than the host location", async () => {
+  it("prints the folder's real path", async () => {
     const result = await command.execute(
-      ["-C", "/mnt/Repo", "rev-parse", "--show-toplevel"],
-      mockCtx,
+      ["-C", repoDir, "rev-parse", "--show-toplevel"],
+      inTask,
     );
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.trim()).toBe("/mnt/Repo");
+    expect(realpathSync(result.stdout.trim())).toBe(realpathSync(repoDir));
   });
 
-  it.each([
-    { args: ["-C", "/mnt/Repo", "commit", "--allow-empty", "-m", "x"] },
-    { args: ["-C", "/mnt/Repo", "branch", "feature"] },
-    { args: ["-C", "/mnt/Repo", "branch", "--unset-upstream"] },
-    { args: ["-C", "/mnt/Repo", "stash"] },
-    { args: ["-C", "/mnt/Repo", "config", "user.name", "x"] },
-    { args: ["--git-dir=/mnt/Repo/.git", "gc"] },
-  ])("refuses $args in a read-only mount", async ({ args }) => {
-    const result = await command.execute(args, mockCtx);
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("/mnt/Repo is attached read-only");
-  });
-
-  it.each([
-    { args: ["-C", "/mnt/Repo", "branch", "-a", "-vv"] },
-    { args: ["-C", "/mnt/Repo", "status", "--short"] },
-    { args: ["-C", "/mnt/Repo", "config", "--get", "core.bare"] },
-    { args: ["-C", "/mnt/Repo", "stash", "list"] },
-    { args: ["-C", "/mnt/Repo", "diff", "HEAD"] },
-  ])("allows the listing form $args in a read-only mount", async ({ args }) => {
-    const result = await command.execute(args, mockCtx);
-
-    expect(result.stderr).not.toContain("attached read-only");
-    expect(result.exitCode).toBe(0);
-  });
-
-  it("commits in a read-and-write mount", async () => {
+  it("commits in a folder", async () => {
     const commit = await command.execute(
       ["commit", "--allow-empty", "-m", "from the task"],
-      inMount("/mnt/Work"),
+      ctxIn(workDir),
     );
     expect(commit.exitCode).toBe(0);
 
     const log = await command.execute(
-      ["-C", "/mnt/Work", "log", "--format=%s", "-1"],
-      mockCtx,
+      ["-C", workDir, "log", "--format=%s", "-1"],
+      inTask,
     );
     expect(log.stdout.trim()).toBe("from the task");
   });
 
-  it("still refuses a relative path that leaves the mount", async () => {
+  it("still refuses a relative path that leaves the folder", async () => {
     const result = await command.execute(
       ["-C", "../..", "status"],
-      inMount("/mnt/Repo"),
+      ctxIn(repoDir),
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("points outside the task directory");
+    expect(result.stderr).toContain("points outside this conversation's folder");
   });
 
-  it("refuses a mount that is not attached", async () => {
-    const result = await command.execute(["-C", "/mnt/Other", "log"], mockCtx);
+  it("refuses a folder that is not attached", async () => {
+    const result = await command.execute(
+      ["-C", path.join(root, "Other"), "log"],
+      inTask,
+    );
 
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).not.toContain(root);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("points outside this conversation's folder");
   });
 });
 

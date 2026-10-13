@@ -1,5 +1,4 @@
 import { publisher } from "../rpc/publisher";
-import { type TaskId } from "../schemas/task-id";
 import { type BrowserTargetId } from "../types";
 
 /** How many guests' last activity is kept; the oldest go first past it. */
@@ -20,10 +19,7 @@ export function lastBrowserAgentActivity(
  * and kept, so a listener that starts afterwards (a tile drawn once the tab
  * already exists) knows how long ago it was.
  */
-export function noteBrowserAgentActivity(
-  id: TaskId,
-  targetId: BrowserTargetId,
-): void {
+export function noteBrowserAgentActivity(targetId: BrowserTargetId): void {
   lastAt.delete(targetId);
   lastAt.set(targetId, Date.now());
   for (const oldest of lastAt.keys()) {
@@ -32,5 +28,5 @@ export function noteBrowserAgentActivity(
     }
     lastAt.delete(oldest);
   }
-  publisher.publish("browser.agentActivity", { id, targetId });
+  publisher.publish("browser.agentActivity", { targetId });
 }

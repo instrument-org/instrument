@@ -8,17 +8,30 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
+import { FileOpenContext } from "@/client/components/file-open-context";
+import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
-import { type SessionMessageDataPart } from "@instrument-org/workspace/client";
+import { rpcClient } from "@/client/rpc/client";
+import {
+  type ChatId,
+  ChatIdSchema,
+  isFolderPath,
+  type SessionMessageDataPart,
+} from "@instrument-org/workspace/client";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { XIcon } from "@phosphor-icons/react/X";
-import { type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { type ReactNode, useContext } from "react";
 
 import { type AppsBySlug, useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
 import { useComputerVolumes } from "./computer-volumes";
+import { type OpenOptions, WindowContext } from "./context";
+import { type ContextItem } from "./context-items";
 import { pageTabTitle } from "./file-tabs";
 import { segmentsOf } from "./host-path";
 import { screenPresentation, type ScreenNames } from "./screen-presentation";
+import { chatHref } from "./window-href";
 
 type SentChip = SessionMessageDataPart.SentChip;
 
@@ -66,7 +79,7 @@ export function heldChipOf(
  * the words and does not ask to be read; what it is for is in its tooltip.
  * Nothing of the thing itself is drawn in the draft, which stands over it.
  */
-export function IncludedChip({
+function IncludedChip({
   appsBySlug,
   items,
   onLeaveOut,
@@ -106,8 +119,84 @@ export function IncludedChip({
   );
 }
 
+/**
+ * A composer's chips, one per item it carries (see `ContextItem`), in their
+ * order, each with an x that leaves its item out. The one way a composer
+ * shows what goes with its words, so a chip is never missing for something
+ * that goes.
+ */
+export function ContextChips({
+  items,
+  onLeaveOut,
+}: {
+  items: ContextItem[];
+  onLeaveOut: (item: ContextItem) => void;
+}) {
+  const appsBySlug = useAppsBySlug();
+  return items.map((item) => {
+    const leaveOut = () => {
+      onLeaveOut(item);
+    };
+    switch (item.kind) {
+      case "chat": {
+        return (
+          <ChatChip chatId={item.chat} key={item.key} onLeaveOut={leaveOut} />
+        );
+      }
+      case "chosen": {
+        return (
+          <ChosenChip item={item.item} key={item.key} onLeaveOut={leaveOut} />
+        );
+      }
+      case "tab": {
+        return (
+          <IncludedChip
+            appsBySlug={appsBySlug}
+            items={item.items}
+            key={item.key}
+            onLeaveOut={leaveOut}
+            tab={item.tab}
+          />
+        );
+      }
+    }
+  });
+}
+
+/**
+ * Another chat the person had open, named and nothing more: what is in it
+ * is that chat's, so the conversation is told which chat and not what it
+ * shows.
+ */
+function ChatChip({
+  chatId,
+  onLeaveOut,
+}: {
+  chatId: ChatId;
+  onLeaveOut: () => void;
+}) {
+  const info = useQuery(
+    rpcClient.workspace.chats.live.info.experimental_liveOptions({
+      input: { id: chatId },
+    }),
+  );
+  // A chat trashed since is not there to name, and goes with nothing.
+  if (info.isError) {
+    return null;
+  }
+  return (
+    <ContextChip
+      label={<ChipLabel paths={[]} said={SENT_WITH_MESSAGE} />}
+      mark={<ChatCircleIcon />}
+      name={info.data?.title ?? "Chat"}
+      onLeaveOut={onLeaveOut}
+      slot="chat-chip"
+    />
+  );
+}
+
 /** A file or folder the draft was opened on by name, held for the chat until it is left out. */
-export function ChosenChip({
+function ChosenChip({
   item,
   onLeaveOut,
 }: {
@@ -128,10 +217,45 @@ export function ChosenChip({
 /**
  * The chips a message went with, over it in the transcript the way they
  * stood over the words as it was written, without the x: what went cannot
- * be left out after it has gone.
+ * be left out after it has gone. Each opens what it names the way the
+ * surface around the transcript opens things, so in a chat it comes up in
+ * the chat's own tabs.
  */
 export function SentChips({ chips }: { chips: SentChip[] }) {
   const appsBySlug = useAppsBySlug();
+  const appWindow = useContext(WindowContext);
+  const openFile = useContext(FileOpenContext);
+  const openerOf = (chip: SentChip) => {
+    if (chip.kind === "paths") {
+      return openFile
+        ? (options: OpenOptions) => {
+            for (const item of chip.items) {
+              openFile(
+                item.kind === "folder" && !isFolderPath(item.path)
+                  ? `${item.path}/`
+                  : item.path,
+                options,
+              );
+            }
+          }
+        : undefined;
+    }
+    if (!appWindow) {
+      return undefined;
+    }
+    if (chip.kind === "chat") {
+      return (options: OpenOptions) => {
+        appWindow.openScreen(chatHref(ChatIdSchema.parse(chip.id)), options);
+      };
+    }
+    return chip.kind === "page"
+      ? (options: OpenOptions) => {
+          appWindow.openPage(chip.url, options);
+        }
+      : (options: OpenOptions) => {
+          appWindow.openScreen(chip.url, options);
+        };
+  };
   return (
     <div
       className="flex w-full flex-wrap justify-end gap-1"
@@ -153,7 +277,9 @@ export function SentChips({ chips }: { chips: SentChip[] }) {
             />
           }
           mark={
-            chip.kind === "page" ? (
+            chip.kind === "chat" ? (
+              <ChatCircleIcon />
+            ) : chip.kind === "page" ? (
               <TabIcon favicon={undefined} url={chip.url} />
             ) : chip.kind === "screen" ? (
               screenPresentation(chip.url, { appsBySlug }).icon
@@ -164,6 +290,7 @@ export function SentChips({ chips }: { chips: SentChip[] }) {
             )
           }
           name={nameOfChip(chip)}
+          onOpen={openerOf(chip)}
           slot="sent-chip"
         />
       ))}
@@ -203,46 +330,75 @@ function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
  * One quiet line at the head of the words: a mark and a name in grey, with
  * an x that leaves the thing out while there is still a message to leave it
  * out of, so it takes no room from the words and does not ask to be read;
- * what it is is in its tooltip.
+ * what it is is in its tooltip. A chip with somewhere to open its thing is a
+ * button that opens it, a modified or middle click in a tab of its own.
  */
 function ContextChip({
   label,
   mark,
   name,
   onLeaveOut,
+  onOpen,
   slot,
 }: {
   label: ReactNode;
   mark: ReactNode;
   name: string;
   onLeaveOut?: () => void;
+  /** Opens the thing the chip names; a chip that can be left out has none, since the x sits inside it. */
+  onOpen?: (options: OpenOptions) => void;
   slot: string;
 }) {
+  const className = cn(
+    "inline-flex h-6 max-w-44 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pl-2 text-xs text-muted-foreground ring-1 ring-border/70",
+    onLeaveOut ? "pr-0.5" : "pr-2.5",
+  );
+  const content = (
+    <>
+      <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
+        {mark}
+      </span>
+      <span className="truncate">{name}</span>
+      {onLeaveOut && (
+        <button
+          aria-label={`Leave out ${name}`}
+          className="grid size-5 shrink-0 place-items-center rounded-full hover:bg-foreground/8 hover:text-foreground"
+          onClick={onLeaveOut}
+          type="button"
+        >
+          <XIcon className="size-3" />
+        </button>
+      )}
+    </>
+  );
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span
-          className={cn(
-            "inline-flex h-6 max-w-44 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pl-2 text-xs text-muted-foreground ring-1 ring-border/70",
-            onLeaveOut ? "pr-0.5" : "pr-2.5",
-          )}
-          data-slot={slot}
-        >
-          <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
-            {mark}
+        {onOpen && !onLeaveOut ? (
+          <button
+            className={cn(
+              className,
+              "cursor-pointer hover:bg-muted hover:text-foreground",
+            )}
+            data-slot={slot}
+            onAuxClick={(event) => {
+              if (event.button === 1) {
+                event.preventDefault();
+                onOpen({ behind: true, newTab: true });
+              }
+            }}
+            onClick={(event) => {
+              onOpen(wantsNewTab(event) ? { newTab: true } : {});
+            }}
+            type="button"
+          >
+            {content}
+          </button>
+        ) : (
+          <span className={className} data-slot={slot}>
+            {content}
           </span>
-          <span className="truncate">{name}</span>
-          {onLeaveOut && (
-            <button
-              aria-label={`Leave out ${name}`}
-              className="grid size-5 shrink-0 place-items-center rounded-full hover:bg-foreground/8 hover:text-foreground"
-              onClick={onLeaveOut}
-              type="button"
-            >
-              <XIcon className="size-3" />
-            </button>
-          )}
-        </span>
+        )}
       </TooltipTrigger>
       <TooltipContent collisionPadding={10} maxWidth="20rem">
         {label}
@@ -273,9 +429,17 @@ function nameOfChip(chip: SentChip) {
 
 /** What tells a sent chip from the others over its message. */
 function keyOfChip(chip: SentChip) {
-  return chip.kind === "paths"
-    ? chip.items.map((item) => item.path).join("\n")
-    : `${chip.kind}:${chip.url}`;
+  switch (chip.kind) {
+    case "chat": {
+      return `chat:${chip.id}`;
+    }
+    case "paths": {
+      return chip.items.map((item) => item.path).join("\n");
+    }
+    default: {
+      return `${chip.kind}:${chip.url}`;
+    }
+  }
 }
 
 /** The last name in a path, which is what a chip calls the thing. */

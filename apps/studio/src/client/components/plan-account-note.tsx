@@ -32,6 +32,7 @@ import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { ClockIcon } from "@phosphor-icons/react/Clock";
+import { GaugeIcon } from "@phosphor-icons/react/Gauge";
 import { KeyIcon } from "@phosphor-icons/react/Key";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
@@ -172,7 +173,7 @@ export function PlanAccountNote({
                 if (hasToken && auto) {
                   onKeepGoing(auto.uri);
                 } else {
-                  openLogin({ hideManualProvider: true });
+                  openLogin({ instrumentOnly: true });
                 }
               }}
             >
@@ -211,6 +212,20 @@ export function PlanAccountNote({
               >
                 <ArrowSquareOutIcon />
                 See your usage in ChatGPT
+              </DropdownMenuItem>
+            )}
+            {stop.provider === "claude-account" && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  openSettings({
+                    providerUsage: "claude-account",
+                    setting: "claude-account",
+                    tab: "Providers",
+                  });
+                }}
+              >
+                <GaugeIcon />
+                See your Claude usage limits
               </DropdownMenuItem>
             )}
             <DropdownMenuItem onSelect={onWait}>

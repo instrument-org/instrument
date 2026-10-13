@@ -1,5 +1,5 @@
 import { renderWithProviders } from "@/tests/render";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -21,16 +21,18 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
+const CHAT_ID = ChatIdSchema.parse("2026-10-05-lisbon-trip");
+
 function item(
-  id: string,
+  title: string,
   overrides: Partial<Omit<TaskListItem, "id">> = {},
 ): TaskListItem {
   return {
-    id: TaskIdSchema.parse(id),
+    id: StoreId.newSessionId(),
     line: "Working",
     standing: "done",
     stoppable: false,
-    title: id,
+    title,
     updatedAt: new Date(0),
     ...overrides,
   };
@@ -42,7 +44,9 @@ const IDLE = item("madrid-flight");
 
 function renderList(items: TaskListItem[]) {
   const onOpen = vi.fn();
-  renderWithProviders(<ChatTaskList items={items} onOpen={onOpen} />);
+  renderWithProviders(
+    <ChatTaskList chat={CHAT_ID} items={items} onOpen={onOpen} />,
+  );
   return { onOpen };
 }
 
@@ -64,9 +68,12 @@ describe("ChatTaskList", () => {
     });
     const stopped = stopSessions.mock.calls.map(([input]) => input);
     expect(stopped).toEqual(
-      expect.arrayContaining([{ id: WORKING.id }, { id: HELD.id }]),
+      expect.arrayContaining([
+        { id: CHAT_ID, sessionId: WORKING.id },
+        { id: CHAT_ID, sessionId: HELD.id },
+      ]),
     );
-    expect(stopped).not.toContainEqual({ id: IDLE.id });
+    expect(stopped).not.toContainEqual({ id: CHAT_ID, sessionId: IDLE.id });
   });
 
   it("offers no stop while nothing listed is working", () => {
@@ -86,7 +93,10 @@ describe("ChatTaskList", () => {
     await waitFor(() => {
       expect(stopSessions).toHaveBeenCalledTimes(1);
     });
-    expect(stopSessions.mock.calls[0]?.[0]).toEqual({ id: WORKING.id });
+    expect(stopSessions.mock.calls[0]?.[0]).toEqual({
+      id: CHAT_ID,
+      sessionId: WORKING.id,
+    });
     expect(onOpen).not.toHaveBeenCalled();
   });
 });

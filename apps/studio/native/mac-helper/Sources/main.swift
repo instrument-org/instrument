@@ -13,6 +13,7 @@ import Foundation
 //   instrument-mac reminders [--list <name>] [--due-before <date>] [--due-after <date>] [--all] [--search <words>] [--limit <n>]
 //   instrument-mac add-event --title <t> --start <date> [--end <date>] [--calendar <name>] [--location <l>] [--notes <n>]
 //   instrument-mac add-reminder --title <t> [--list <name>] [--due <date>] [--notes <n>]
+//   instrument-mac icloud-folders
 //
 // A date is today, tomorrow, yesterday, 2026-10-06, or 2026-10-06T14:30
 // (local time), with an optional Z or offset. A calendar or list is named
@@ -399,8 +400,40 @@ case "contacts":
       ] as [String: Any]
     })
 
+// The app folders the Finder shows at the top of iCloud Drive: every app's
+// container the system has not flagged hidden, by the app's own name, at its
+// Documents folder, which is what the Finder opens. Reading the containers
+// takes the iCloud Drive permission, and the first try is what asks for it.
+case "icloud-folders":
+  let containers = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(
+    "Library/Mobile Documents")
+  let keys: Set<URLResourceKey> = [.isHiddenKey, .localizedNameKey]
+  let documentsOf = { (container: URL) -> String? in
+    let documents = container.appendingPathComponent("Documents")
+    var isFolder: ObjCBool = false
+    return FileManager.default.fileExists(atPath: documents.path, isDirectory: &isFolder)
+      && isFolder.boolValue ? documents.path : nil
+  }
+  if let found = try? FileManager.default.contentsOfDirectory(
+    at: containers, includingPropertiesForKeys: Array(keys))
+  {
+    emit([
+      "access": "granted",
+      "folders": found.compactMap { container -> [String: Any]? in
+        guard container.lastPathComponent != "com~apple~CloudDocs",
+          let values = try? container.resourceValues(forKeys: keys),
+          values.isHidden == false, let name = values.localizedName,
+          let documents = documentsOf(container)
+        else { return nil }
+        return ["name": name, "path": documents]
+      },
+    ])
+  } else {
+    emit(["access": "refused", "folders": [] as [Any]])
+  }
+
 default:
   fail(
-    "\(command) is not a command: calendars, events, reminders, add-event, add-reminder, contacts, or access."
+    "\(command) is not a command: calendars, events, reminders, add-event, add-reminder, contacts, icloud-folders, or access."
   )
 }

@@ -72,13 +72,16 @@ export function useFileOpenTarget(file: FileRef | undefined) {
   const { data, isPending } = useQuery(openTargetQueryOptions(file));
 
   const appName = data?.appName ?? null;
-  const showOpen = file != null && !isPending && appName != null;
+  const opensUnnamed = data?.opensUnnamed ?? false;
+  const showOpen =
+    file != null && !isPending && (appName != null || opensUnnamed);
 
   return {
     appName,
     iconUrl: data?.iconUrl ?? null,
     isPending,
     openLabel: appName ? `Open in ${appName}` : "Open",
+    opensUnnamed,
     showOpen,
     showOpenWith: showOpen && isMacOS(),
   };

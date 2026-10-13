@@ -1,7 +1,7 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId, type ChatId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * Stopping what the agent left running, on the user's behalf.
@@ -11,18 +11,23 @@ import { toast } from "sonner";
  * `busy` covers both mutations: a second press while one is in flight would be
  * asking a process that is already being stopped to stop.
  */
-export function useStopBackgroundProcess(taskId: TaskId | undefined) {
+export function useStopBackgroundProcess(
+  chatId: ChatId | undefined,
+  /** One session's of the record alone: the chat's own, or a task's. */
+  sessionId?: StoreId.Session,
+) {
+  const owner = sessionId ? { sessionId } : {};
   const { isPending: isStopping, mutate: stopOne } = useMutation(
-    rpcClient.workspace.task.backgroundProcesses.stop.mutationOptions({
+    rpcClient.workspace.chats.backgroundProcesses.stop.mutationOptions({
       onError: (error) => {
-        toast.error("Couldn't stop it", { description: error.message });
+        toast.error("Couldn't stop the process", { cause: error });
       },
     }),
   );
   const { isPending: isStoppingAll, mutate: stopEvery } = useMutation(
-    rpcClient.workspace.task.backgroundProcesses.stopAll.mutationOptions({
+    rpcClient.workspace.chats.backgroundProcesses.stopAll.mutationOptions({
       onError: (error) => {
-        toast.error("Couldn't stop them", { description: error.message });
+        toast.error("Couldn't stop the processes", { cause: error });
       },
     }),
   );
@@ -30,13 +35,13 @@ export function useStopBackgroundProcess(taskId: TaskId | undefined) {
   return {
     busy: isStopping || isStoppingAll,
     stop: (processId: string) => {
-      if (taskId) {
-        stopOne({ id: taskId, processId });
+      if (chatId) {
+        stopOne({ id: chatId, processId, ...owner });
       }
     },
     stopAll: () => {
-      if (taskId) {
-        stopEvery({ id: taskId });
+      if (chatId) {
+        stopEvery({ id: chatId, ...owner });
       }
     },
   };

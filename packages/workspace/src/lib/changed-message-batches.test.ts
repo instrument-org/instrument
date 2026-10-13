@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { publisher } from "../rpc/publisher";
-import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import {
   type ChangedMessageBatch,
   changedMessageBatches,
 } from "./changed-message-batches";
 
-const taskId = TaskIdSchema.parse("task-batches");
+const chatId = ChatIdSchema.parse("task-batches");
 const sessionId = StoreId.newSessionId();
 const otherSessionId = StoreId.newSessionId();
 
@@ -27,24 +26,17 @@ function ids(set: Set<StoreId.Message>) {
   return [...set].sort();
 }
 
+/** A write to one of a message's parts, as the store's write layer says it. */
 function partUpdated(messageId: StoreId.Message, session = sessionId) {
-  // Only metadata.messageId/sessionId are read by the subscription.
-  const part = {
-    metadata: {
-      createdAt: new Date("2024-01-01T00:00:00Z"),
-      id: StoreId.newPartId(),
-      messageId,
-      sessionId: session,
-    },
-    state: "done",
-    text: "",
-    type: "text",
-  } satisfies SessionMessagePart.Type;
-  publisher.publish("part.updated", { id: taskId, part });
+  publisher.publish("record.changed", {
+    id: chatId,
+    kind: "messages",
+    message: { id: messageId, removed: false, sessionId: session },
+  });
 }
 
 function start(signal: AbortSignal) {
-  const batches = changedMessageBatches({ id: taskId, sessionId }, signal);
+  const batches = changedMessageBatches({ id: chatId, sessionId }, signal);
   return { batches, first: batches.next() };
 }
 
@@ -75,7 +67,7 @@ describe("changedMessageBatches", () => {
     // Subscriptions register at call time, so events raised while a caller is
     // still taking its initial snapshot land in the first batch.
     const batches = changedMessageBatches(
-      { id: taskId, sessionId },
+      { id: chatId, sessionId },
       controller.signal,
     );
 
@@ -141,10 +133,10 @@ describe("changedMessageBatches", () => {
     const a = StoreId.newMessageId();
 
     partUpdated(a);
-    publisher.publish("message.removed", {
-      id: taskId,
-      messageId: a,
-      sessionId,
+    publisher.publish("record.changed", {
+      id: chatId,
+      kind: "messages",
+      message: { id: a, removed: true, sessionId },
     });
 
     const firstBatch = await awaitBatch(first);
@@ -162,7 +154,7 @@ describe("changedMessageBatches", () => {
   it("watches every session in the task when no sessionId is given", async () => {
     const controller = new AbortController();
     // Omitting sessionId scopes to the whole task (e.g. a usage rollup).
-    const batches = changedMessageBatches({ id: taskId }, controller.signal);
+    const batches = changedMessageBatches({ id: chatId }, controller.signal);
 
     const here = StoreId.newMessageId();
     const elsewhere = StoreId.newMessageId();

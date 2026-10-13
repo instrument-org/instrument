@@ -9,7 +9,7 @@ describe("chatTopicsModelNote", () => {
         topics: [
           {
             emoji: "✈️",
-            folders: ["/mnt/Trips", "/mnt/Receipts"],
+            folders: ["/Users/sam/Trips", "/Users/sam/Receipts"],
             instructions:
               "Book aisle seats.\n\nKeep hotels under $200 a night.",
             name: "Travel",
@@ -29,7 +29,7 @@ describe("chatTopicsModelNote", () => {
       Keep hotels under $200 a night.
       </topic_instructions>
 
-      Folders the work under "Travel" uses, attached to this chat: /mnt/Trips, /mnt/Receipts. Hand a task the ones its work needs.
+      Folders the work under "Travel" uses, attached to this chat: /Users/sam/Trips, /Users/sam/Receipts. Hand a task the ones its work needs.
       </instrument-system-note>"
     `);
   });

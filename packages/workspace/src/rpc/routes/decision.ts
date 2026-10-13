@@ -1,17 +1,29 @@
-import { selectDecisionConfigs } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
 import {
+  AIUsagePurposeSchema,
+  AIUsageSurfaceSchema,
+} from "../../lib/ai-usage/schema";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import {
   askDecisionModel,
+  decisionModelAvailable,
   DecisionQuestionSchema,
   DecisionResponseSchema,
 } from "../../lib/decision-model";
 import { base } from "../base";
 
+/** Why the app is asking, which the record of model requests files the ask under. */
+const AIUsageAskSchema = z.object({
+  chatId: ChatIdSchema.optional(),
+  purpose: AIUsagePurposeSchema,
+  surface: AIUsageSurfaceSchema.optional(),
+});
+
 /**
  * Typed questions about a state, answered by the decision model with a
  * probability for every option. The questions are passed through in the
- * System One contract's own shape (`choice`, `score`, `noul`), so a caller
+ * decision contract's own shape (`choice`, `score`, `noul`), so a caller
  * builds them from its own data and reads the distributions back.
  */
 const ask = base
@@ -19,6 +31,7 @@ const ask = base
     z.object({
       questions: z.record(z.string(), DecisionQuestionSchema),
       state: z.unknown(),
+      usage: AIUsageAskSchema,
     }),
   )
   .output(
@@ -28,9 +41,10 @@ const ask = base
     let asked: Awaited<ReturnType<typeof askDecisionModel>>;
     try {
       asked = await askDecisionModel({
-        body: input,
+        body: { questions: input.questions, state: input.state },
         configs: context.workspaceConfig.getAIProviderConfigs(),
         signal,
+        usage: input.usage,
       });
     } catch (error) {
       if (signal?.aborted) {
@@ -42,24 +56,23 @@ const ask = base
     }
     if (!asked) {
       throw errors.NOT_FOUND({
-        message: "Classifying needs an OpenRouter key or an Instrument sign-in",
+        message:
+          "The decision model can't be asked: it needs an OpenRouter key or an Instrument sign-in, and is left alone for a minute after asking it fails",
       });
     }
     return { ...asked.response, ms: asked.ms, provider: asked.provider };
   });
 
 /**
- * Whether any provider the workspace has could reach the decision model: an
- * Instrument sign-in or an OpenRouter key. Read off the configs alone, so a
- * caller can skip asking, and skip saying it is looking, when nothing could
- * answer; a provider that is set up but down still only shows on `ask`.
+ * Whether asking the decision model would send anything: a provider that
+ * reaches it is set up (an Instrument sign-in or an OpenRouter key), and
+ * asking hasn't just failed. Answered without a request, so a caller can skip
+ * asking, and skip saying it is looking, when nothing would answer.
  */
 const available = base
   .output(z.boolean())
-  .handler(
-    ({ context }) =>
-      selectDecisionConfigs(context.workspaceConfig.getAIProviderConfigs())
-        .length > 0,
+  .handler(({ context }) =>
+    decisionModelAvailable(context.workspaceConfig.getAIProviderConfigs()),
   );
 
 export const decision = { ask, available };

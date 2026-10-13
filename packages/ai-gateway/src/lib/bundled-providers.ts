@@ -20,12 +20,13 @@ type BundledProviderPackage =
   | "@ai-sdk/gateway"
   | "@ai-sdk/google"
   | "@ai-sdk/groq"
+  | "@ai-sdk/minimax"
   | "@ai-sdk/mistral"
   | "@ai-sdk/openai"
   | "@ai-sdk/openai-compatible"
-  | "@ai-sdk/perplexity"
   | "@ai-sdk/togetherai"
   | "@ai-sdk/xai"
+  | "@ai-sdk/zai"
   | "@openrouter/ai-sdk-provider"
   | "ai-sdk-ollama";
 
@@ -96,6 +97,14 @@ const PROVIDER_TYPE_TO_AI_SDK_INFO: Partial<
     exportName: "createGroq",
     package: "@ai-sdk/groq",
   },
+  minimax: {
+    envVars: {
+      apiKey: "MINIMAX_API_KEY",
+      baseURL: "MINIMAX_BASE_URL",
+    },
+    exportName: "createMiniMax",
+    package: "@ai-sdk/minimax",
+  },
   mistral: {
     envVars: {
       apiKey: "MISTRAL_API_KEY",
@@ -136,14 +145,6 @@ const PROVIDER_TYPE_TO_AI_SDK_INFO: Partial<
     exportName: "createOpenRouter",
     package: "@openrouter/ai-sdk-provider",
   },
-  perplexity: {
-    envVars: {
-      apiKey: "PERPLEXITY_API_KEY",
-      baseURL: "PERPLEXITY_BASE_URL",
-    },
-    exportName: "createPerplexity",
-    package: "@ai-sdk/perplexity",
-  },
   together: {
     envVars: {
       apiKey: "TOGETHER_AI_API_KEY",
@@ -167,6 +168,14 @@ const PROVIDER_TYPE_TO_AI_SDK_INFO: Partial<
     },
     exportName: "createXai",
     package: "@ai-sdk/xai",
+  },
+  "z-ai": {
+    envVars: {
+      apiKey: "ZAI_API_KEY",
+      baseURL: "ZAI_BASE_URL",
+    },
+    exportName: "createZai",
+    package: "@ai-sdk/zai",
   },
 };
 

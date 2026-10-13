@@ -6,8 +6,8 @@ import {
   isKnownCdpMethod,
 } from "../../../lib/cdp-methods";
 import { buildWorkspaceFsLayout } from "../../../lib/workspace-fs-layout";
-import { TaskDirSchema } from "../../../schemas/paths";
-import { TaskIdSchema } from "../../../schemas/task-id";
+import { ChatDirSchema } from "../../../schemas/paths";
+import { ChatIdSchema } from "../../../schemas/chat-id";
 import { BrowserTargetIdSchema, type WorkspaceConfig } from "../../../types";
 import { type WorkspaceServerParentRef } from "../types";
 import {
@@ -17,17 +17,13 @@ import {
   parseCdpMessage,
 } from "./cdp-bridge";
 
-vi.mock("../../../lib/resolve-workspace-file-path", async () => {
-  const { buildWorkspaceFsLayout: build } =
-    await import("../../../lib/workspace-fs-layout");
-  const { TaskDirSchema: TaskDir } = await import("../../../schemas/paths");
-  return {
-    taskFsLayout: () =>
-      Promise.resolve(
-        build({ taskHostRoot: TaskDir.parse("/Users/me/Tasks/t1") }),
-      ),
-  };
-});
+/** The folders of the chat whose agent drives the page. */
+const chatLayout = () =>
+  Promise.resolve(
+    buildWorkspaceFsLayout({
+      taskHostRoot: ChatDirSchema.parse("/Users/me/Tasks/t1"),
+    }),
+  );
 
 /** Drain pending microtasks. */
 async function flush(): Promise<void> {
@@ -156,7 +152,7 @@ describe("createMainFrameLoadGate", () => {
 
 describe("createLocalFileGate", () => {
   const layout = buildWorkspaceFsLayout({
-    taskHostRoot: TaskDirSchema.parse("/Users/me/Tasks/t1"),
+    taskHostRoot: ChatDirSchema.parse("/Users/me/Tasks/t1"),
   });
   const own = "file:///Users/me/Tasks/t1/work/page.html";
   const outside = "file:///Users/me/Desktop/private.html";
@@ -226,7 +222,7 @@ describe("openTargetSession on a local page", () => {
   const own = `file://${TASK}/output/confine.html`;
   const secret = "file:///Users/me/other/secret.txt";
   const targetId = BrowserTargetIdSchema.parse(
-    "t1/ses_00000000018888888888888888",
+    "ses_00000000018888888888888888",
   );
 
   function connect(target = targetId) {
@@ -255,7 +251,7 @@ describe("openTargetSession on a local page", () => {
     const config = {
       browser: {
         getTargetMeta: () => ({
-          id: TaskIdSchema.parse("t1"),
+          id: ChatIdSchema.parse("t1"),
           partitionDir: "/tmp/profile",
           sessionId: "ses_00000000018888888888888888",
         }),
@@ -277,6 +273,7 @@ describe("openTargetSession on a local page", () => {
     } as unknown as WorkspaceConfig;
     const session = openTargetSession({
       onDetach: vi.fn(),
+      readLayout: chatLayout,
       send: (frame) => sent.push(frame),
       sessionId: `session-${target}`,
       targetId: target,
@@ -488,7 +485,7 @@ describe("openTargetSession on a local page", () => {
 
   it("hands the main process no folders for a connection that closed before its layout arrived", async () => {
     const target = BrowserTargetIdSchema.parse(
-      "t1/ses_0000000001888888888888888A",
+      "ses_0000000001888888888888888A",
     );
     const early = connect(target);
     early.close();
@@ -652,7 +649,7 @@ describe("openTargetSession on a local page", () => {
 
   it("releases interception and forgets the agent's folders when its last connection closes", async () => {
     const target = BrowserTargetIdSchema.parse(
-      "t1/ses_00000000018888888888888889",
+      "ses_00000000018888888888888889",
     );
     const first = connect(target);
     const second = connect(target);

@@ -34,7 +34,7 @@ An excerpt whose URL has already been shown in this session does not spend the w
 
 The workable seam is a pass in [prepare-model-messages.ts](../../../packages/workspace/src/lib/prepare-model-messages.ts) over `SessionMessage.WithParts[]`, before `toModelMessages`. At that point a `web_search` part still carries structured `results.sources[]` with a `url` on each, so the pass can walk oldest to newest, track seen URLs, and hand `toModelOutput` a copied part whose repeat sources carry a pointer instead of a body. Copy, never mutate: the stored part is what the transcript and the UI read.
 
-Doing it by re-parsing rendered text after `toModelMessages` is the wrong seam. The rendered form is inside a nonce-bounded block, and a pass that edits that text has to reproduce the boundary exactly or every message after it reads as quoted page content.
+Doing it by re-parsing rendered text after `toModelMessages` is the wrong seam: a pass that edits that text has to parse back what the renderer wrote and reproduce the rest of it exactly.
 
 ## Interaction with rollover
 

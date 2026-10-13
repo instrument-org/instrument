@@ -1,4 +1,3 @@
-import { captureClientEvent } from "@/client/lib/capture-client-event";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation } from "@tanstack/react-query";
 
@@ -8,7 +7,6 @@ export function useLoginSocial() {
   );
 
   const login = () => {
-    captureClientEvent("auth.login_started");
     return loginSocial({});
   };
 

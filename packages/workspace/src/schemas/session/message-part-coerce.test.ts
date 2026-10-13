@@ -25,21 +25,6 @@ function storedPart(type: string, data: unknown) {
 }
 
 describe("coercing a stored data part", () => {
-  it("fills in a field added since the part was written", () => {
-    // accessChanged shipped with writable folders, months after this shape was
-    // the whole of the part. Reading it used to hand every consumer a payload
-    // whose type promised three lists and whose value had two.
-    const part = SessionMessagePart.coerce(
-      storedPart("data-attachedFolderChanges", {
-        removed: [{ name: "Photos", path: "/base/Photos" }],
-        renamed: [],
-      }),
-    );
-
-    expect(part.type).toBe("data-attachedFolderChanges");
-    expect(part).toHaveProperty("data.accessChanged", []);
-  });
-
   it("fills in an attachment's modifiedAt, added after the part was written", () => {
     // modifiedAt shipped as a cache-buster for asset URLs. Without a default,
     // every attachment a pre-2026-06-18 build stored fails its schema, the part
@@ -120,5 +105,56 @@ describe("coercing a stored data part", () => {
     });
 
     expect(part.type).toBe("text");
+  });
+});
+
+describe("coercing a stored failed tool call", () => {
+  function storedFailedCall(fields: { input?: unknown; rawInput?: unknown }) {
+    const { metadata: _metadata, ...part } = SessionMessagePart.coerce({
+      errorText: "Invalid input",
+      metadata: {
+        createdAt: new Date(0),
+        endedAt: new Date(0),
+        id: StoreId.newPartId(),
+        messageId: StoreId.newMessageId(),
+        sessionId: StoreId.newSessionId(),
+      },
+      state: "output-error",
+      toolCallId: "call-1",
+      type: "tool-read_file",
+      ...fields,
+    });
+    return part;
+  }
+
+  it("moves rawInput into an empty input", () => {
+    expect(storedFailedCall({ rawInput: "{not json" })).toMatchInlineSnapshot(`
+      {
+        "errorText": "Invalid input",
+        "input": "{not json",
+        "state": "output-error",
+        "toolCallId": "call-1",
+        "type": "tool-read_file",
+      }
+    `);
+  });
+
+  it("keeps input and drops rawInput", () => {
+    expect(
+      storedFailedCall({
+        input: { filePath: "a.txt" },
+        rawInput: { filePath: "a.txt" },
+      }),
+    ).toMatchInlineSnapshot(`
+      {
+        "errorText": "Invalid input",
+        "input": {
+          "filePath": "a.txt",
+        },
+        "state": "output-error",
+        "toolCallId": "call-1",
+        "type": "tool-read_file",
+      }
+    `);
   });
 });

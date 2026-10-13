@@ -1,207 +1,32 @@
 import { type ByteString, latin1FromBytes } from "just-bash";
 import { mkdirSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
-import { MOUNT } from "../../mount-points";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
+import { AbsolutePathSchema } from "../../schemas/paths";
 import { gitSubprocessEnv } from "../git";
-import { normalizePath } from "../normalize-path";
-import { relativeWithin } from "../path-containment";
-import { getTaskTmpDir, taskDir } from "../task-dir-utils";
+import { getChatTmpDir } from "../chat-dir-utils";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
-import {
-  privateMountPoint,
-  resolveHostDevicePath,
-  resolveNativeHostPath,
-} from "../workspace-fs-layout";
+import { hostPathOf } from "../workspace-fs-layout";
+import { workDir } from "../work-dir";
 
 /**
- * How to reach a `/mnt/...` path a native process cannot: the sandboxed
- * runtime that reads mounts directly when the caller has one to offer, and
- * copying the file into the task either way.
+ * Arguments for a native subprocess. Paths pass through as written; on
+ * Windows an absolute path in the shell's spelling (`/c/Users/sam`, bare or as
+ * a `--flag=` value) becomes the host's (`C:\\Users\\sam`).
  */
-export interface MountAlternative {
-  /**
-   * One sentence naming the sandboxed command that reads attached folders in
-   * place, when the invocation could have used it. Absent for a command with
-   * no sandboxed twin (ffmpeg, pip) and for a skill script, which runs
-   * natively on purpose.
-   */
-  alternative?: string;
-}
-
-/**
- * Guidance for a `/mnt/...` reference; subject names the source. Given the
- * source's code, the copy command names the first file it quotes, so the fix
- * is one the agent can run as written rather than a template to fill in.
- */
-export function attachedMountLiteralError(
-  subject: string,
-  { alternative }: MountAlternative = {},
-  source?: string,
-): string {
-  const file = source === undefined ? undefined : copyableMountFile(source);
-  const copy = file
-    ? `(cp '${file}' attachments/) and open the copy as attachments/${path.posix.basename(file)}.`
-    : `(cp '${MOUNT.attachedFolders}/<folder>/<file>' attachments/) and ` +
-      `reference the copy with a task-relative path (attachments/<file>).`;
-  return (
-    `${subject} references a ${MOUNT.attachedFolders}/... path. ` +
-    `Attached-folder mounts are visible to the sandbox shell, the file tools, ` +
-    `and the sandboxed script runtimes, never to a real interpreter process. ` +
-    (alternative ? `${alternative} Otherwise copy` : `Copy`) +
-    ` the file into the task first ${copy}`
-  );
-}
-
-/**
- * The first quoted `/mnt/...` literal in source, when it reads as one whole
- * file: a name with an extension, and nothing a language would interpolate
- * into it or a single-quoted shell word could not hold. A folder, a pattern,
- * or a path assembled at runtime is left to the generic guidance, since a
- * copy command built from it would be wrong.
- */
-function copyableMountFile(source: string): string | undefined {
-  const escaped = MOUNT.attachedFolders.replaceAll(
-    /[.*+?^${}()|[\]\\]/g,
-    "\\$&",
-  );
-  const literal = new RegExp(`(['"\`])(${escaped}/[^'"\`\\n]+)\\1`).exec(
-    source,
-  )?.[2];
-  if (
-    literal === undefined ||
-    /[{}$%*?\\[\]]/.test(literal) ||
-    !/\.\w+$/.test(path.posix.basename(literal))
-  ) {
-    return undefined;
+export function hostPathArgs(args: string[]): string[] {
+  if (process.platform !== "win32") {
+    return args;
   }
-  return literal;
-}
-
-/**
- * Rewrite the value of a `--flag=<path>` token that points at a
- * sandbox-virtual absolute path (`--env-file=/task/work/.env`) so the real
- * subprocess resolves it, relative to taskCwd so the host dir stays hidden.
- * Flags without an inline path value are returned unchanged.
- */
-export function bridgeFlagValuePath(
-  flag: string,
-  taskId: TaskId,
-  taskCwd: string,
-  resolvePath: (p: string) => string,
-): string {
-  const eqIndex = flag.indexOf("=");
-  const value = eqIndex > 0 ? flag.slice(eqIndex + 1) : "";
-  if (!value.startsWith("/")) {
-    return flag;
-  }
-  const bridged = virtualToRealRelative(value, taskId, taskCwd, resolvePath);
-  return `${flag.slice(0, eqIndex)}=${bridged}`;
-}
-
-/**
- * Bridge sandbox-virtual paths inside inline script source (`-e`/`-c` code,
- * heredoc programs), which real interpreters otherwise resolve against the
- * host filesystem where `/task` and `/mnt` do not exist. Quoted `/task/...`
- * string literals become paths relative to taskCwd (the subprocess cwd) --
- * relative so the host dir never appears in the code and so Windows
- * backslashes never corrupt string escapes. The quote prefix is what
- * distinguishes a string literal from lookalikes such as JS regex literals
- * (`split(/task/)`), which must not be rewritten. Quoted `/mnt/...` literals
- * have no host path a subprocess may receive, at any access level, so they fail
- * fast with the copy-first guidance instead of dereferencing the host root.
- */
-export function bridgeInlineCodePaths(
-  code: string,
-  taskId: TaskId,
-  taskCwd: string,
-  alternative: MountAlternative = {},
-): { code: string } | { error: string } {
-  if (quotedMountPattern(MOUNT.attachedFolders).test(code)) {
-    return {
-      error: attachedMountLiteralError("Inline script code", alternative, code),
-    };
-  }
-
-  // The private dir is masked from the shell and file tools; block inline-code
-  // literals too so a real interpreter can't be steered into task.db/state.json
-  // via a quoted `/task/.instrument/...` string. Best-effort, like the /mnt
-  // guard above.
-  if (quotedMountPattern(privateMountPoint(MOUNT.task)).test(code)) {
-    return { error: privateDirLiteralError("Inline script code") };
-  }
-
-  const relativeTaskRoot =
-    path.relative(taskCwd, taskDir(taskId)).replaceAll("\\", "/") || ".";
-  return {
-    code: code.replaceAll(
-      quotedMountPattern(MOUNT.task),
-      (_match, quote: string) => `${quote}${relativeTaskRoot}`,
-    ),
-  };
-}
-
-/**
- * `bridgeInlineCodePaths` for AppleScript and JavaScript for Automation, whose
- * `POSIX file` and path strings resolve against `/` rather than the working
- * directory, so a quoted `/task/...` literal becomes the task folder's absolute
- * host path. macOS only, so no Windows separators to escape.
- */
-export function bridgeAppleScriptPaths(
-  code: string,
-  taskId: TaskId,
-): { code: string } | { error: string } {
-  const checked = bridgeInlineCodePaths(code, taskId, taskDir(taskId));
-  if ("error" in checked) {
-    return checked;
-  }
-  const taskRoot = taskDir(taskId);
-  return {
-    code: code.replaceAll(
-      quotedMountPattern(MOUNT.task),
-      (_match, quote: string) => `${quote}${taskRoot}`,
-    ),
-  };
-}
-
-/**
- * Extract the resolved file path and trailing script args from positionals + original args.
- * Paths are returned relative to taskCwd so the real host dir is not exposed.
- * All path-like script args (absolute or relative traversals) are resolved through
- * the virtual FS so they land correctly regardless of the agent's cwd.
- */
-export function extractFileAndScriptArgs(
-  positionals: string[],
-  args: string[],
-  taskId: TaskId,
-  taskCwd: string,
-  resolvePath: (path: string) => string,
-): undefined | { filePath: string; scriptArgs: string[] } {
-  const rawFilePath = positionals[0];
-  if (rawFilePath === undefined) {
-    return undefined;
-  }
-
-  const filePath = virtualToRealRelative(
-    rawFilePath,
-    taskId,
-    taskCwd,
-    resolvePath,
-  );
-  const filePathIndex = args.indexOf(rawFilePath);
-  const rawScriptArgs = args.slice(filePathIndex + 1);
-  const scriptArgs = rawScriptArgs.map((arg) =>
-    looksLikePath(arg)
-      ? virtualToRealRelative(arg, taskId, taskCwd, resolvePath)
-      : arg,
-  );
-
-  return { filePath, scriptArgs };
+  return args.map((arg) => {
+    const eq = arg.startsWith("-") ? arg.indexOf("=") : -1;
+    const value = arg.slice(eq + 1);
+    return /^\/[a-z](?:\/|$)/i.test(value)
+      ? `${arg.slice(0, eq + 1)}${hostPathOf(value)}`
+      : arg;
+  });
 }
 
 /** Pick the first string value from a set of aliased parseArgs values. */
@@ -261,31 +86,22 @@ export function parseScriptRunnerArgs<
   return { ...result, unknownFlags };
 }
 
-/** Guidance for a private-dir reference; subject names the source. */
-export function privateDirLiteralError(subject: string): string {
-  return (
-    `${subject} references the private ${TASK_FOLDER_NAMES.private} directory. ` +
-    `It holds task internals (task.db, state.json, settings) and is not readable ` +
-    `by real interpreter processes.`
-  );
-}
-
 /** Resolve the effective cwd and env for a shell command. */
 export function resolveCommandContext(
-  taskId: TaskId,
+  chatId: ChatId,
   ctx: {
     cwd: string;
     env: Map<string, string>;
     fs: { resolvePath(cwd: string, path: string): string };
   },
 ) {
-  const uvEnv = uvSubprocessEnv({ taskId });
+  const uvEnv = uvSubprocessEnv({ chatId });
   const shellEnv = { ...Object.fromEntries(ctx.env), ...uvEnv };
   // A task-local temp dir keeps tempfile, os.tmpdir(), and mktemp inside the
   // sandbox instead of the host temp dir; created here if absent (recursive
   // mkdir is a no-op when it exists) because interpreters fail if TMPDIR points
   // at a missing dir.
-  const tmpDir = getTaskTmpDir(taskDir(taskId));
+  const tmpDir = getChatTmpDir(workDir(chatId));
   mkdirSync(tmpDir, { recursive: true });
   return {
     // Overlay the uv/python env so the real-binary escape hatches (tsx, node,
@@ -303,95 +119,10 @@ export function resolveCommandContext(
       TMP: tmpDir,
       TMPDIR: tmpDir,
     },
-    taskCwd: resolveNativeHostPath(
-      taskDir(taskId),
-      ctx.fs.resolvePath(ctx.cwd, "."),
+    taskCwd: AbsolutePathSchema.parse(
+      hostPathOf(ctx.fs.resolvePath(ctx.cwd, ".")),
     ),
   };
-}
-
-/**
- * Resolves any argument that looks like a virtual absolute path (starts with `/`)
- * into a real filesystem path under dir. Non-path arguments are returned as-is.
- * This prevents sandbox-virtual absolute paths from leaking to the host system.
- *
- * The device paths are the one exception, and pass through to the host
- * unchanged; see {@link resolveHostDevicePath} for why they are safe.
- */
-export function resolvePathArgs(
-  args: string[],
-  taskId: TaskId,
-  ctx: {
-    cwd: string;
-    fs: { resolvePath(cwd: string, path: string): string };
-  },
-): string[] {
-  return args.map((arg) => {
-    if (!arg.startsWith("/")) {
-      return arg;
-    }
-    const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
-    return (
-      resolveHostDevicePath(virtualPath) ??
-      resolveNativeHostPath(taskDir(taskId), virtualPath)
-    );
-  });
-}
-
-/**
- * Read a script FILE the agent is about to run and scan its source for quoted
- * sandbox-virtual path literals a real interpreter cannot resolve, returning an
- * error to surface instead of letting the subprocess fail deep in a stack
- * trace. Fails open: an unreadable or binary file yields undefined so the
- * interpreter produces its own error.
- */
-export async function scanScriptFileForVirtualPaths(
-  taskCwd: string,
-  filePath: string,
-  alternative: MountAlternative = {},
-): Promise<string | undefined> {
-  let source: string;
-  try {
-    source = await readFile(path.resolve(taskCwd, filePath), "utf8");
-  } catch {
-    return undefined;
-  }
-  return scriptFileVirtualPathError(source, alternative);
-}
-
-/**
- * Error message for a quoted sandbox-virtual path literal in a script FILE's
- * source, or undefined if none. Unlike inline code (bridgeInlineCodePaths),
- * file contents are never rewritten -- the file is the agent's own artifact,
- * and silently diverging what runs from what it wrote is worse than a clear
- * up-front error -- so even bridgeable `/task/...` literals are reported rather
- * than fixed (they otherwise fail with a confusing "Read-only file system:
- * '/task'" that contradicts the agent's instructions). Quote-anchored and
- * best-effort, matching the inline guard: only literals right after a quote
- * match, so regex literals and paths embedded mid-string are left alone.
- */
-export function scriptFileVirtualPathError(
-  source: string,
-  alternative: MountAlternative = {},
-): string | undefined {
-  if (quotedMountPattern(MOUNT.attachedFolders).test(source)) {
-    return attachedMountLiteralError("This script file", alternative, source);
-  }
-  if (quotedMountPattern(privateMountPoint(MOUNT.task)).test(source)) {
-    return privateDirLiteralError("This script file");
-  }
-  if (quotedMountPattern(MOUNT.task).test(source)) {
-    return (
-      `This script file references a ${MOUNT.task}/... absolute path, which ` +
-      `real interpreter processes cannot resolve: ${MOUNT.task} is a virtual ` +
-      `path only the sandbox shell and file tools see, and scripts run from the ` +
-      `task root. Use a task-relative path instead (work/report.txt, ` +
-      `work/data.csv). Command-line path arguments and quoted ${MOUNT.task}/... ` +
-      `strings in inline -e/-c code are translated automatically; paths written ` +
-      `inside script files are not.`
-    );
-  }
-  return undefined;
 }
 
 /** Extract a string array from a parseArgs multi-value option. */
@@ -414,80 +145,6 @@ export function subprocessStdin(stdin: ByteString): Buffer | undefined {
   return packed ? Buffer.from(packed, "latin1") : undefined;
 }
 
-/**
- * Explain the first argument naming a virtual path a real subprocess cannot
- * reach, or undefined when every path argument is reachable.
- *
- * `resolvePathArgs` quarantines such a path to a non-existent location inside
- * the task, which is the containment working as designed. What the agent then
- * reads is the binary's own not-found error, naming the quarantined path rather
- * than the one it wrote -- so the failure looks like a relative-path mistake it
- * made, and the sandbox boundary that actually caused it is invisible. Shims
- * answer with this first instead of spawning.
- */
-export function unreachablePathArgError(
-  commandName: string,
-  args: string[],
-  virtualCwd: string,
-  { alternative }: MountAlternative = {},
-): string | undefined {
-  const mount = attachedMountReference(args, virtualCwd);
-  if (mount !== undefined) {
-    return (
-      `${commandName}: ${mount} is inside an attached folder, which ` +
-      `${commandName} cannot read. Attached-folder mounts are visible to the ` +
-      `sandbox shell, the file tools, and the sandboxed script runtimes, never ` +
-      `to a real subprocess. ` +
-      (alternative ? `${alternative} Otherwise copy` : `Copy`) +
-      ` the file into the task first (cp '${mount}' attachments/) and run ` +
-      `${commandName} on the copy.\n`
-    );
-  }
-
-  const outside = args
-    .map((arg) => normalizePath(arg.slice(arg.indexOf("=") + 1)))
-    .find(
-      (value) =>
-        value.startsWith("/") &&
-        relativeWithin(MOUNT.task, value) === null &&
-        resolveHostDevicePath(value) === undefined,
-    );
-  if (outside === undefined) {
-    return undefined;
-  }
-  return (
-    `${commandName}: ${outside} is outside the task, and ${MOUNT.task} is the ` +
-    `only mount a real subprocess can resolve. Use a task-relative path ` +
-    `(work/scratch.txt, work/report.pdf); scratch files belong under work/, ` +
-    `which is where mktemp puts them.\n`
-  );
-}
-
-/**
- * The first attached-folder path a shim was pointed at, whether through an
- * argument or through the working directory it inherited, or undefined.
- *
- * `resolveNativeHostPath` quarantines a `/mnt/...` path to a non-existent
- * location inside the task, which is the containment working as designed --
- * but the resulting failure describes the quarantined path, not the mount the
- * agent actually named, so the report reads like a path bug in the sandbox
- * rather than the boundary it is. Callers use this to answer with the mount
- * the agent asked for before spawning anything.
- */
-function attachedMountReference(
-  args: string[],
-  virtualCwd: string,
-): string | undefined {
-  if (isUnderAttachedMount(normalizePath(virtualCwd))) {
-    return normalizePath(virtualCwd);
-  }
-  // Slicing past an `=` covers `--git-dir=/mnt/x` and leaves a bare `/mnt/x`
-  // whole, since indexOf returns -1 when there is no `=`.
-  return args
-    .map((arg) => normalizePath(arg.slice(arg.indexOf("=") + 1)))
-    .find((value) => isUnderAttachedMount(value));
-}
-
 function isOptionToken(token: { kind: string }): token is {
   kind: "option";
   name: string;
@@ -495,58 +152,4 @@ function isOptionToken(token: { kind: string }): token is {
   value: string | undefined;
 } {
   return token.kind === "option";
-}
-
-function isUnderAttachedMount(value: string): boolean {
-  return (
-    value === MOUNT.attachedFolders ||
-    value.startsWith(`${MOUNT.attachedFolders}/`)
-  );
-}
-
-/**
- * Returns true for args that look like a file path and need sandbox resolution:
- * starts with `/` (virtual absolute) or starts with `.` or contains `/` (relative traversal).
- */
-function looksLikePath(arg: string): boolean {
-  return (
-    arg.startsWith("/") ||
-    arg.startsWith("\\") ||
-    arg.startsWith(".") ||
-    /^[a-z]:[\\/]/i.test(arg) ||
-    arg.includes("/") ||
-    arg.includes("\\")
-  );
-}
-
-/**
- * Matches a mount point immediately after an opening quote, continuing into a
- * subpath or closed by the same quote: `"/task/x"`, `'/task'`, `` `/mnt/Docs/a` ``.
- * The mount point is regex-escaped so paths with metacharacters (e.g. the `.`
- * in `/task/.instrument`) match literally.
- */
-function quotedMountPattern(mountPoint: string): RegExp {
-  const escaped = mountPoint.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(['"\`])${escaped}(?=/|\\1)`, "g");
-}
-
-/**
- * Resolve a virtual path to a real path, then relativize from taskCwd so the
- * host dir is never exposed to the subprocess. A device path is already a host
- * path and holds no layout to hide, so it is returned as it is written.
- */
-function virtualToRealRelative(
-  virtualPath: string,
-  taskId: TaskId,
-  taskCwd: string,
-  resolvePath: (p: string) => string,
-): string {
-  const normalizedVirtualPath = normalizePath(virtualPath);
-  const resolved = resolvePath(normalizedVirtualPath);
-  const device = resolveHostDevicePath(resolved);
-  if (device !== undefined) {
-    return device;
-  }
-  const realAbs = resolveNativeHostPath(taskDir(taskId), resolved);
-  return path.relative(taskCwd, realAbs);
 }

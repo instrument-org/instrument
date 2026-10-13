@@ -11,6 +11,9 @@ import { XIcon } from "@phosphor-icons/react/X";
  * Anything else is neutral: white like the box, with its icon held back. The
  * words get the row and wrap rather than truncate, so a narrow chat keeps the
  * part that says why; the one action and the dismiss sit at the right.
+ *
+ * `nudge` counts the sends the note held back: each new count flashes it, so
+ * a blocked send points at the reason already on screen.
  */
 export function ReplyNote({
   action,
@@ -18,6 +21,7 @@ export function ReplyNote({
   className,
   icon: NoteIcon,
   iconClassName,
+  nudge = 0,
   onDismiss,
   tone,
   ...props
@@ -28,6 +32,7 @@ export function ReplyNote({
   icon: Icon;
   /** The icon's color, where the note's tone is not the right one for it. */
   iconClassName?: string;
+  nudge?: number;
   /** Shows the dismiss button; a note the person cannot set aside has none. */
   onDismiss?: () => void;
   tone: "neutral" | "warn";
@@ -36,7 +41,7 @@ export function ReplyNote({
   return (
     <div
       className={cn(
-        "flex min-h-8 min-w-0 items-center gap-2 rounded-[22px] py-1 pr-1 pl-3 text-xs shadow-xs ring-1 ring-inset",
+        "relative isolate flex min-h-8 min-w-0 items-center gap-2 rounded-[22px] py-1 pr-1 pl-3 text-xs shadow-xs ring-1 ring-inset",
         isWarn
           ? "bg-yellow-50 text-yellow-900 ring-yellow-300 dark:bg-yellow-500/15 dark:text-yellow-100 dark:ring-yellow-500/30"
           : "bg-white text-foreground/70 ring-black/[0.06] dark:bg-gray-800 dark:ring-white/10",
@@ -47,6 +52,13 @@ export function ReplyNote({
       role={isWarn ? "alert" : "status"}
       {...props}
     >
+      {nudge > 0 && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 animate-notice-nudge rounded-[inherit]"
+          key={nudge}
+        />
+      )}
       <NoteIcon
         className={cn(
           "size-4 shrink-0",

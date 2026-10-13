@@ -529,7 +529,7 @@ function Tab({
   );
 
   const className = cn(
-    "group/pane-tab relative flex h-8 cursor-default items-center rounded-xl text-sm font-medium select-none",
+    "group/pane-tab relative flex h-8 cursor-default items-center rounded-xl text-sm font-medium",
     "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
     sizing,
     isSelected

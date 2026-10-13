@@ -3,11 +3,7 @@ import type {
   BrowserTargetId,
 } from "@instrument-org/workspace/electron";
 
-import {
-  encodeBrowserTargetId,
-  StoreId,
-  TaskIdSchema,
-} from "@instrument-org/workspace/electron";
+import { browserTargetOf, StoreId } from "@instrument-org/workspace/electron";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -21,15 +17,12 @@ import {
   subscribeEvents,
 } from "./entry";
 
-const SUBDOMAIN = TaskIdSchema.parse("agent-browser-test");
 const SESSION_ID = StoreId.newSessionId();
-const TARGET_ID = encodeBrowserTargetId(SUBDOMAIN, SESSION_ID);
+const TARGET_ID = browserTargetOf(SESSION_ID);
 
 function makeEntry(targetId: BrowserTargetId = TARGET_ID): BrowserEntry {
   return createEntry({
-    id: SUBDOMAIN,
     partitionDir: "/tmp/partition" as AbsolutePath,
-    sessionId: SESSION_ID,
     targetId,
   });
 }

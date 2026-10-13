@@ -1,8 +1,6 @@
 import {
   type BrowserTab,
   originOf,
-  VISITED_MAX,
-  visitedPagesAtom,
   type WindowTab,
 } from "@/client/atoms/window";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
@@ -20,11 +18,8 @@ import { fileHref } from "@/shared/computer-href";
 import { isPageEditAddress } from "@instrument-org/shared";
 import {
   type BrowserTargetId,
-  decodeBrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  type TaskId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -36,9 +31,11 @@ import { AskTray } from "./ask-tray";
 import { FileAskButton } from "./file-ask-button";
 import { segmentsOf } from "./host-path";
 import { PageEditSession, PageEditToggle } from "./page-edit";
+import { pageHostsAtom, type PageHost } from "./page-hosts";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { EMPTY_GUEST_MEMO, reconcileGuests } from "./reconcile-guests";
 import { visitInTab } from "./tab-history";
+import { chatOfGroup } from "./window-href";
 import {
   addPages,
   isHomeTab,
@@ -88,6 +85,11 @@ export interface BrowserTabsHandle {
    */
   openBehind: (url: string | undefined, group: string) => StoreId.Session;
   /**
+   * Gives a page an agent made with no tab a tab in a chat's group, behind
+   * whatever is up, under the page's own id, as the page goes somewhere.
+   */
+  adopt: (id: StoreId.Session, url: string, group: string) => void;
+  /**
    * Opens a page in the group on screen or the group given, or shows the tab
    * already on it when the address is a file's. Given a tab to replace, a
    * page opened takes that tab's place in the strip rather than arriving
@@ -107,38 +109,16 @@ export interface BrowserTabsHandle {
    */
   readPage: (tabId?: string) => Promise<PageContext | undefined>;
   /**
+   * The whole text of the page in a page tab, as the person sees it, or
+   * undefined when the tab has no live page to read.
+   */
+  readPageText: (tabId: string) => Promise<string | undefined>;
+  /**
    * Makes a page tab's guest again, at the page it last showed, without
    * showing the tab: after a launch a guest comes back only when its tab is
    * shown, and a task working in the tab needs it before then.
    */
   restore: (tabId: string) => boolean;
-}
-
-/**
- * A second place a page is drawn: a draft window's band, which shows the
- * draft's group's tabs itself, or a file tab drawing a page's file beside
- * its tree. The panel for that group's page is portaled into `into`, and
- * shown while `isActive`.
- */
-export interface ComposeHost {
-  /**
-   * Whether the page's own bar is drawn over it, or, for a surface that draws
-   * the window's address row over the page, the elements in that row the
-   * page's reload and controls go into; a surface with a head of its own and
-   * no row says no.
-   */
-  chrome?: boolean | PageChromeSlots;
-  group: string;
-  /** Drawn inside an overlay, whose own cover does not park the page; see BrowserPanel. */
-  insideOverlay?: boolean;
-  into: HTMLElement | null;
-  isActive: boolean;
-  /** The window layer the guest is shown on, for a host inside a floating surface; the panel's own otherwise. */
-  layer?: number;
-  /** Where the host stands, so a page is placed again when the host moves without resizing. */
-  place: string;
-  /** The tab drawn, for a host showing one of its group's tabs that is not the one the group has up: a floating chat's peek. */
-  tabId?: string;
 }
 
 /** Where a page's reload and its controls go in an address row drawn over it. */
@@ -157,29 +137,29 @@ interface PageContext {
   /** The tab on screen, by the id a task can be handed. */
   tab?: string;
   tabs?: { id: string; title: string; url: string }[];
-  text?: string;
   title: string;
   url: string;
 }
 
-/**
- * How much of the page goes with a message. The lead is enough to say what a
- * page is about; the page itself is for a task, which has a browser.
- */
-const PAGE_TEXT_MAX = 1500;
+/** How much of what is selected goes with a message. */
 const SELECTION_MAX = 2000;
+
+/** The most of a page `tab read` hands back, which bounds what crosses to the sandbox. */
+const PAGE_TEXT_MAX = 200_000;
 
 const PageWordsSchema = z.object({
   focus: z.string(),
   selection: z.string(),
-  text: z.string(),
 });
 
+/** Runs in the page: its text as rendered, lines kept. */
+const READ_PAGE_TEXT = `String(document.body?.innerText ?? "")`;
+
 /**
- * Runs in the page: what is selected, its text with the whitespace folded,
- * and where the cursor is. The focused control is described by what any
- * page says about itself (its role or tag, its label or placeholder, and the
- * words around the caret when it holds text), never by knowing the site.
+ * Runs in the page: what is selected and where the cursor is. The focused
+ * control is described by what any page says about itself (its role or tag,
+ * its label or placeholder, and the words around the caret when it holds
+ * text), never by knowing the site.
  */
 const READ_PAGE_WORDS = `(() => {
   const fold = (words) => String(words ?? "").replace(/\\s+/g, " ").trim();
@@ -214,9 +194,6 @@ const READ_PAGE_WORDS = `(() => {
   return {
     focus: describeFocus(),
     selection: String(window.getSelection() ?? ""),
-    text: fold(
-      (document.querySelector("main, article, [role=main]") ?? document.body)?.innerText,
-    ),
   };
 })()`;
 
@@ -241,16 +218,14 @@ interface OpenOptions {
  */
 export function BrowserTabs({
   chromeInto,
-  compose,
   fieldInto,
   onPageChange,
   ref,
   reloadInto,
+  rowWidth,
 }: {
   /** The element in the row above that the page's own bar is drawn into. */
   chromeInto?: HTMLElement | null;
-  /** The draft windows' bands, one per draft up: each group's page is drawn in its own. */
-  compose?: ComposeHost[];
   /** The element inside the row's address field that the page's state is drawn into. */
   fieldInto?: HTMLElement | null;
   /** Told the page on screen whenever it changes, and undefined when none is. */
@@ -258,40 +233,24 @@ export function BrowserTabs({
   ref: Ref<BrowserTabsHandle>;
   /** The element beside the row's arrows that the page's reload is drawn into. */
   reloadInto?: HTMLElement | null;
+  /** The width of the window's row, which a page drawn somewhere inside it is placed again by. */
+  rowWidth: number;
 }) {
   const windowTabs = useWindowTabs();
+  // Every other place a group's page is drawn: each group's page in its own.
+  const hosts = useAtomValue(pageHostsAtom);
   const { activeByGroup, allTabs, groupOnScreen, navigateScreen } = windowTabs;
   const change = useWindowTabsChange();
   const everyTabId = useAtomValue(everyTabIdAtom);
   const tabs = allTabs.filter((tab): tab is PageTab => tab.kind === "page");
-  const setVisited = useSetAtom(visitedPagesAtom);
   const attached = useBrowserTargets();
-  // Holds every tab's guest for as long as the window is open, the way the
-  // task page holds its browser: subscribing is the hold.
-  useQuery(
-    rpcClient.workspace.browser.live.presence.experimental_liveOptions({
-      input: { id: WINDOW_ID, level: "retained" },
-    }),
-  );
-  useQuery(
-    rpcClient.workspace.browser.live.presence.experimental_liveOptions({
-      input: { id: WINDOW_ID, level: "visible" },
-    }),
-  );
 
   const targetOf = (tab: BrowserTab): BrowserTargetId =>
-    encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(tab.id));
+    browserTargetOf(StoreId.SessionSchema.parse(tab.id));
   // The page the group on screen has up, when what it has up is a page.
   const up = windowTabs.active;
   const active = up?.kind === "page" ? up : undefined;
-
-  // The chat's own browser is the tab on screen.
   const activeTarget = active ? targetOf(active) : null;
-  useEffect(() => {
-    void rpcClient.workspace.window.setActiveTab.call({
-      targetId: activeTarget,
-    });
-  }, [activeTarget]);
 
   // The strip as it is at any moment, for the handle below and the listeners,
   // both of which are made once and read it when called.
@@ -322,14 +281,10 @@ export function BrowserTabs({
     });
     guestMemo.current = memo;
     for (const target of close) {
-      const decoded = decodeBrowserTargetId(target);
-      if (!decoded) {
-        continue;
-      }
       // The guest stays attached until the close lands; one that fails is
       // asked for again on the next run.
       void rpcClient.workspace.browser.close
-        .call({ id: decoded.id, sessionId: decoded.sessionId })
+        .call({ targetId: target })
         .catch(() => {
           const closing = new Set(guestMemo.current.closing);
           closing.delete(target);
@@ -354,10 +309,7 @@ export function BrowserTabs({
       if (!id) {
         return;
       }
-      const target = encodeBrowserTargetId(
-        WINDOW_ID,
-        StoreId.SessionSchema.parse(id),
-      );
+      const target = browserTargetOf(StoreId.SessionSchema.parse(id));
       if (!attached.has(target)) {
         return;
       }
@@ -397,15 +349,6 @@ export function BrowserTabs({
               ? {}
               : { favicon: undefined }),
           });
-          if (hostPathOfFileUrl(url) === undefined) {
-            // The new-tab page lists where the browser has been.
-            setVisited((current) =>
-              [
-                { at: Date.now(), title: title ?? "", url },
-                ...current.filter((page) => page.url !== url),
-              ].slice(0, VISITED_MAX),
-            );
-          }
         }
       };
       // A local page's own `history.pushState` moves its address without
@@ -421,14 +364,6 @@ export function BrowserTabs({
       const onTitle = ({ title }: { title: string }) => {
         if (title) {
           patch(id, { title });
-          const url = latest.current.tabs.find((tab) => tab.id === id)?.url;
-          if (url) {
-            setVisited((current) =>
-              current.map((page) =>
-                page.url === url ? { ...page, title } : page,
-              ),
-            );
-          }
         }
       };
       const onFavicon = ({ favicons }: { favicons: string[] }) => {
@@ -444,11 +379,6 @@ export function BrowserTabs({
           guest.url() ||
           latest.current.tabs.find((entry) => entry.id === id)?.url;
         if (originOf(url)) {
-          setVisited((current) =>
-            current.map((page) =>
-              page.url === url ? { ...page, favicon } : page,
-            ),
-          );
           // The site's own icon, kept for it where the favicon proxy has
           // none; only for a page opened here, never one merely named.
           const pageUrl = url;
@@ -482,7 +412,7 @@ export function BrowserTabs({
         cleanup?.();
       }
     };
-  }, [attached, change, setVisited, tabIds]);
+  }, [attached, change, tabIds]);
 
   const activePage: BrowserPage | undefined = active?.url
     ? {
@@ -520,8 +450,7 @@ export function BrowserTabs({
       }),
     );
     void rpcClient.workspace.browser.open.call({
-      id: WINDOW_ID,
-      sessionId: StoreId.SessionSchema.parse(id),
+      targetId: browserTargetOf(StoreId.SessionSchema.parse(id)),
       ...(url ? { url } : {}),
     });
     return id;
@@ -552,10 +481,19 @@ export function BrowserTabs({
           return;
         }
         void rpcClient.workspace.browser.open.call({
-          id: WINDOW_ID,
-          sessionId: StoreId.SessionSchema.parse(tab.id),
+          targetId: browserTargetOf(StoreId.SessionSchema.parse(tab.id)),
           url,
         });
+      },
+      adopt: (id, url, into) => {
+        if (latest.current.tabs.some((tab) => tab.id === id)) {
+          return;
+        }
+        change((current) =>
+          addPages(current, [
+            { group: into, id, openedAt: Date.now(), openedUrl: url, url },
+          ]),
+        );
       },
       open: (url, options) => openTab(url, options),
       openBehind: (url, into) => {
@@ -571,8 +509,7 @@ export function BrowserTabs({
           ]),
         );
         void rpcClient.workspace.browser.open.call({
-          id: WINDOW_ID,
-          sessionId: id,
+          targetId: browserTargetOf(id),
           ...(url ? { url } : {}),
         });
         return id;
@@ -621,8 +558,7 @@ export function BrowserTabs({
         });
         change((current) => replaceTab(current, tab.id, page));
         void rpcClient.workspace.browser.open.call({
-          id: WINDOW_ID,
-          sessionId: id,
+          targetId: browserTargetOf(id),
           url,
         });
         return id;
@@ -676,14 +612,27 @@ export function BrowserTabs({
           return base;
         }
         const selection = words.data.selection.trim().slice(0, SELECTION_MAX);
-        const text = words.data.text.slice(0, PAGE_TEXT_MAX);
         const { focus } = words.data;
         return {
           ...base,
           ...(focus ? { focus } : {}),
           ...(selection ? { selection } : {}),
-          ...(text ? { text } : {}),
         };
+      },
+      readPageText: async (tabId) => {
+        const tab = latest.current.tabs.find((entry) => entry.id === tabId);
+        const guest = tab ? getGuest(targetOf(tab)) : undefined;
+        if (!guest) {
+          return;
+        }
+        try {
+          const raw: unknown = await guest.run(READ_PAGE_TEXT);
+          return typeof raw === "string"
+            ? raw.slice(0, PAGE_TEXT_MAX)
+            : undefined;
+        } catch {
+          return;
+        }
       },
       restore: (tabId) => {
         const tab = latest.current.allTabs.find(
@@ -694,9 +643,10 @@ export function BrowserTabs({
           return false;
         }
         void rpcClient.workspace.browser.open.call({
-          id: WINDOW_ID,
-          sessionId: StoreId.SessionSchema.parse(tab.id),
-          ...(tab.url && tab.url !== "about:blank" ? { url: tab.url } : {}),
+          targetId: browserTargetOf(StoreId.SessionSchema.parse(tab.id)),
+          ...(tab.url && tab.url !== "about:blank"
+            ? { restoreUrl: tab.url }
+            : {}),
         });
         return true;
       },
@@ -781,18 +731,20 @@ export function BrowserTabs({
             ? {}
             : {
                 // A page's file asks about itself the way every file tab
-                // does, beside the Edit control.
+                // does, beside the Edit control, except in a chat's group,
+                // where asking is the chat itself.
                 pageControls: (
                   <>
                     <PageEditToggle tabId={editableId} />
-                    {activeFilePath !== undefined && (
-                      <FileAskButton
-                        name={
-                          segmentsOf(activeFilePath).at(-1) ?? activeFilePath
-                        }
-                        path={activeFilePath}
-                      />
-                    )}
+                    {activeFilePath !== undefined &&
+                      chatOfGroup(active.group) === undefined && (
+                        <FileAskButton
+                          name={
+                            segmentsOf(activeFilePath).at(-1) ?? activeFilePath
+                          }
+                          path={activeFilePath}
+                        />
+                      )}
                   </>
                 ),
               })}
@@ -810,7 +762,6 @@ export function BrowserTabs({
               })}
           restoreUrl={active.url}
           sessionId={StoreId.SessionSchema.parse(active.id)}
-          taskId={WINDOW_ID}
         />
       ) : null}
       {/* A page's file keeps its asks at its foot while viewed; in Edit the
@@ -818,21 +769,21 @@ export function BrowserTabs({
       {activeFilePath !== undefined && !(active && editTabs[active.id]) && (
         <AskTray path={activeFilePath} />
       )}
-      {compose?.map((host) => {
+      {Object.entries(hosts).map(([group, host]) => {
         // The page the window has up, when what it has up is a page: the
         // tab the host names, or else the one its group remembers, or its
         // first.
         const hostUp =
           host.tabId === undefined
-            ? windowTabs.selectedTabIn(host.group)
+            ? windowTabs.selectedTabIn(group)
             : allTabs.find((tab) => tab.id === host.tabId);
         return hostUp?.kind === "page" ? (
           <ComposePagePanel
             attached={attached.has(targetOf(hostUp))}
             host={host}
-            key={host.group}
+            key={group}
+            place={host.place ?? `${group}:${rowWidth}`}
             tab={hostUp}
-            taskId={WINDOW_ID}
           />
         ) : null;
       })}
@@ -872,22 +823,19 @@ export function TabIcon({
 function ComposePagePanel({
   attached,
   host,
+  place,
   tab,
-  taskId,
 }: {
   attached: boolean;
-  host: ComposeHost;
+  host: PageHost;
+  place: string;
   tab: BrowserTab;
-  taskId: TaskId;
 }) {
-  if (!host.into) {
-    return null;
-  }
   return createPortal(
     <ActiveTabProvider isActive={host.isActive}>
       <BrowserPanel
         active={attached}
-        chrome={host.chrome ?? true}
+        chrome={host.chrome}
         className="h-full rounded-none shadow-none"
         // The draft's words keep the caret; the bar is read, not typed into,
         // when a site arrives from the band.
@@ -895,10 +843,9 @@ function ComposePagePanel({
         insideOverlay={host.insideOverlay ?? false}
         key={tab.id}
         {...(host.layer === undefined ? {} : { layer: host.layer })}
-        relayoutKey={host.place}
+        relayoutKey={place}
         restoreUrl={tab.url}
         sessionId={StoreId.SessionSchema.parse(tab.id)}
-        taskId={taskId}
       />
     </ActiveTabProvider>,
     host.into,

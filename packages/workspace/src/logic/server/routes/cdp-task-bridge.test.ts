@@ -4,52 +4,73 @@ import { WebSocket } from "ws";
 import { cdpMethodsHandled } from "../../../lib/cdp-methods";
 import { publisher } from "../../../rpc/publisher";
 import { StoreId } from "../../../schemas/store-id";
-import { TaskIdSchema } from "../../../schemas/task-id";
-import { type HeldTab } from "../../../schemas/task-state";
-import { WINDOW_ID } from "../../../schemas/window-id";
+import { ChatIdSchema } from "../../../schemas/chat-id";
+import { type HeldTab } from "../../../schemas/chat-state";
 import { type WindowTabAction } from "../../../schemas/window-tab";
 import {
   type BrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   type WorkspaceConfig,
 } from "../../../types";
 import { type WorkspaceServerParentRef } from "../types";
 import { handleTaskCdpClient, TASK_TAB_CAP } from "./cdp-task-bridge";
 
-const TASK_ID = TaskIdSchema.parse("read-the-pages");
+const TASK_ID = ChatIdSchema.parse("read-the-pages");
 
-// The task's record, in memory: which tabs it holds.
+const SESSION_ID = StoreId.SessionSchema.parse(
+  "ses_01M3AX9RF3C2E9RTATMB602W0C",
+);
+
+// The tabs the task's session holds, in memory.
 const record: { browserTabs?: HeldTab[] } = {};
-vi.mock("../../../lib/task-record", () => ({
-  getTaskState: () => Promise.resolve({ ...record }),
-  setTaskState: (_dir: unknown, patch: { browserTabs?: HeldTab[] }) => {
-    Object.assign(record, patch);
+vi.mock("../../../lib/held-tabs", () => ({
+  heldTabs: () => Promise.resolve([...(record.browserTabs ?? [])]),
+  updateHeldTabs: (
+    _chatId: unknown,
+    _sessionId: unknown,
+    change: (tabs: HeldTab[]) => HeldTab[],
+  ) => {
+    record.browserTabs = change(record.browserTabs ?? []);
     return Promise.resolve();
   },
 }));
-vi.mock("../../../lib/task-dir-utils", () => ({
+vi.mock("../../../lib/chat-dir-utils", () => ({
   getBrowserSessionDir: () => "/tmp/profile",
-  taskDir: (id: string) => `/tmp/tasks/${id}`,
+  chatDir: (id: string) => `/tmp/tasks/${id}`,
+}));
+// The chats whose folders were read for a gate.
+const { layoutsReadFor } = vi.hoisted(() => ({
+  layoutsReadFor: [] as string[],
 }));
 vi.mock("../../../lib/resolve-workspace-file-path", async () => {
   const { buildWorkspaceFsLayout } =
     await import("../../../lib/workspace-fs-layout");
-  const { TaskDirSchema } = await import("../../../schemas/paths");
+  const { ChatDirSchema } = await import("../../../schemas/paths");
   return {
-    taskFsLayout: () =>
-      Promise.resolve(
+    taskFsLayout: (chatId: string) => {
+      layoutsReadFor.push(chatId);
+      return Promise.resolve(
         buildWorkspaceFsLayout({
-          taskHostRoot: TaskDirSchema.parse("/tmp/tasks/read-the-pages"),
+          taskHostRoot: ChatDirSchema.parse("/tmp/tasks/read-the-pages"),
         }),
-      ),
+      );
+    },
   };
 });
 // The window: what the task asked of it, answered with a tab of its own.
 const asked: WindowTabAction[] = [];
+/** The chat's tabs as the window lists them, a page's guest up or not. */
+let windowList: { id: string; kind: "page"; title: string; url: string }[] = [];
 vi.mock("../../../lib/chat/window-tab", () => ({
   askWindow: ({ action }: { action: WindowTabAction }) => {
     asked.push(action);
-    return Promise.resolve({ requestId: "r" });
+    return Promise.resolve({
+      requestId: "r",
+      ...(action.kind === "adopt" || action.kind === "restore"
+        ? { tabId: action.tabId }
+        : {}),
+      ...(action.kind === "list" ? { tabs: windowList } : {}),
+    });
   },
   chatSessionOfTask: () =>
     StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B"),
@@ -89,17 +110,16 @@ function connect() {
   const sendCommand = vi.fn(() => Promise.resolve({ ok: true }));
   const config = {
     browser: {
-      createTarget: (id: string, sessionId: string) => {
-        const targetId = `${id}/${sessionId}` as BrowserTargetId;
+      createTarget: (targetId: BrowserTargetId) => {
         live.add(targetId);
-        return Promise.resolve({ targetId });
+        return Promise.resolve();
       },
       getTargetMeta: (targetId: BrowserTargetId) =>
-        live.has(targetId)
-          ? { id: WINDOW_ID, partitionDir: "/tmp/profile", sessionId: "s" }
-          : null,
+        live.has(targetId) ? { partitionDir: "/tmp/profile" } : null,
       getTargetUrl: (targetId: BrowserTargetId) =>
-        pages.get(targetId)?.url ?? "https://example.com/",
+        live.has(targetId)
+          ? (pages.get(targetId)?.url ?? "https://example.com/")
+          : undefined,
       listTargets: () =>
         Promise.resolve(
           [...live].map((id) => ({
@@ -126,9 +146,12 @@ function connect() {
     },
     captureException: vi.fn(),
   } as unknown as WorkspaceConfig;
-  handleTaskCdpClient(ws as unknown as WebSocket, TASK_ID, config, {
-    send: vi.fn(),
-  } as unknown as WorkspaceServerParentRef);
+  handleTaskCdpClient(
+    ws as unknown as WebSocket,
+    { sessionId: SESSION_ID, chatId: TASK_ID },
+    config,
+    { send: vi.fn() } as unknown as WorkspaceServerParentRef,
+  );
 
   let nextId = 0;
   const command = async (
@@ -198,7 +221,8 @@ function tab(openedBy: HeldTab["openedBy"] = "handed") {
   const tabId = StoreId.newSessionId();
   return {
     held: {
-      id: encodeBrowserTargetId(WINDOW_ID, tabId),
+      id: browserTargetOf(tabId),
+      inWindow: true,
       openedBy,
     } satisfies HeldTab,
     tabId,
@@ -260,6 +284,26 @@ describe("a task's browser", () => {
     );
   });
 
+  it("judges a handed tab's local files by the folders of the task's chat", async () => {
+    const handed = tab();
+    record.browserTabs = [handed.held];
+    layoutsReadFor.length = 0;
+    const { command } = connect();
+
+    const attached = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: handed.tabId,
+    });
+    await command(
+      "Runtime.evaluate",
+      { expression: "1" },
+      attached.result?.sessionId as string,
+    );
+
+    expect(layoutsReadFor).not.toEqual([]);
+    expect(new Set(layoutsReadFor)).toEqual(new Set([TASK_ID]));
+  });
+
   it("refuses to attach to a tab the task does not hold", async () => {
     record.browserTabs = [tab().held];
     const { command } = connect();
@@ -288,8 +332,9 @@ describe("a task's browser", () => {
       },
     ]);
     const tabId = created.result?.targetId;
-    expect(record.browserTabs.at(-1)).toEqual({
-      id: `${WINDOW_ID}/${String(tabId)}`,
+    expect(record.browserTabs?.at(-1)).toEqual({
+      id: tabId,
+      inWindow: true,
       openedBy: "task",
     });
     expect(
@@ -299,6 +344,70 @@ describe("a task's browser", () => {
             .targetId === tabId,
       ),
     ).toBe(true);
+  });
+
+  it("makes a page asked for with no address without a tab, and gives it one as it goes somewhere", async () => {
+    record.browserTabs = [];
+    const { command, navigates } = connect();
+
+    const created = await command("Target.createTarget", {
+      url: "about:blank",
+    });
+    const targetId = browserTargetOf(
+      StoreId.SessionSchema.parse(created.result?.targetId),
+    );
+
+    expect(asked).toEqual([]);
+    expect(record.browserTabs).toEqual([
+      { id: targetId, inWindow: false, openedBy: "task" },
+    ]);
+
+    await command("Target.attachToTarget", { flatten: true, targetId });
+    await navigates(targetId, {
+      title: "Example",
+      url: "https://example.org/",
+    });
+
+    expect(asked).toEqual([
+      { kind: "adopt", tabId: targetId, url: "https://example.org/" },
+    ]);
+    expect(record.browserTabs).toEqual([
+      { id: targetId, inWindow: true, openedBy: "task" },
+    ]);
+  });
+
+  it("lists a tab whose page was discarded at the window's address, and brings it back as it is attached to", async () => {
+    const resting = tab();
+    record.browserTabs = [resting.held];
+    windowList = [
+      {
+        id: resting.tabId,
+        kind: "page",
+        title: "Kept",
+        url: "https://example.org/kept",
+      },
+    ];
+    const { command, closeByUser } = connect();
+    // Its guest went, and the tab stayed: discarded.
+    closeByUser(resting.held.id);
+    asked.length = 0;
+
+    const targets = await command("Target.getTargets");
+    expect(targets.result?.targetInfos).toMatchObject([
+      {
+        targetId: resting.tabId,
+        title: "Kept",
+        url: "https://example.org/kept",
+      },
+    ]);
+    expect(asked.map((action) => action.kind)).toEqual(["list"]);
+
+    const attached = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: resting.tabId,
+    });
+    expect(attached.result?.sessionId).toBeDefined();
+    expect(asked.map((action) => action.kind)).toContain("restore");
   });
 
   it("stops opening tabs at the cap", async () => {

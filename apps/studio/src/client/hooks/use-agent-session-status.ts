@@ -1,21 +1,21 @@
 import {
   type SessionTag,
   type StoreId,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { skipToken } from "@tanstack/react-query";
 
-import { useTaskActivity } from "./use-task-activity";
+import { useChatActivity } from "./use-chat-activity";
 
 /** Derives agent status for a specific session within a task. */
 export function useAgentSessionStatus({
   id,
   sessionId,
 }: {
-  id: TaskId;
+  id: ChatId;
   sessionId: StoreId.Session | typeof skipToken | undefined;
 }) {
-  const { data: taskActivity } = useTaskActivity({ id });
+  const { data: taskActivity } = useChatActivity({ id });
   const sessionActors = taskActivity?.sessionActors ?? [];
 
   if (!sessionId || sessionId === skipToken) {

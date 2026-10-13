@@ -237,6 +237,8 @@ describe("an MCP app's sign-in", () => {
       ...createMemoryAppsConfig(),
       oauth: {
         redirectUrl: () => "http://127.0.0.1:1/auth/callback/app",
+        relayRedirectUrl: (service) =>
+          `https://api.example/oauth/${service}/callback`,
         store,
       },
     });
@@ -256,6 +258,8 @@ describe("an MCP app's sign-in", () => {
     const begun = await beginMcpOAuth({
       appsDir: getWorkspaceConfig().appsDir,
       redirectUrl: "http://127.0.0.1:1/auth/callback/app",
+      relayRedirectUrl: (service) =>
+        `https://api.example/oauth/${service}/callback`,
       slug,
       store,
     });
@@ -272,6 +276,8 @@ describe("an MCP app's sign-in", () => {
     const begun = await beginMcpOAuth({
       appsDir: getWorkspaceConfig().appsDir,
       redirectUrl: "http://127.0.0.1:1/auth/callback/app",
+      relayRedirectUrl: (service) =>
+        `https://api.example/oauth/${service}/callback`,
       slug,
       store,
     });
@@ -337,7 +343,7 @@ describe("a web app", () => {
     expect(report.checks.find((check) => check.name === "canary"))
       .toMatchInlineSnapshot(`
         {
-          "detail": "This test cannot check the session itself: whether the user is still signed in shows only when a page of the site loads. Work it in the browser: brief a task with https://drive.google.com (it opens the site in a tab of its own, where the sign-in holds), or hand it a tab already open there with \`task new --tab <id>\`. \`app call\` and \`app request\` do not reach a web app.",
+          "detail": "This test cannot check the session itself: whether the user is still signed in shows only when a page of the site loads. Work it in the browser: open https://drive.google.com in a tab, where the sign-in holds, or use a tab already open there. \`app call\` and \`app request\` do not reach a web app.",
           "name": "canary",
           "status": "skip",
         }

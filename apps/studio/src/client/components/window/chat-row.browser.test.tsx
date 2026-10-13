@@ -4,11 +4,7 @@ import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
 import { getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
 import { renderInBrowser } from "@/tests/render-browser";
-import {
-  ChatIdSchema,
-  StoreId,
-  TaskIdSchema,
-} from "@instrument-org/workspace/client";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { createStore } from "jotai";
 import { toast, Toaster } from "sonner";
 import {
@@ -26,15 +22,20 @@ import { useChatActionsFor } from "./chat-actions";
 import { ChatRow } from "./chat-row";
 import { type Chat, type Topic } from "./chats";
 import { WindowContext, type WindowContextValue } from "./context";
+import { type RowAction } from "./row-shell";
 
 /** What each of the row's own routes was asked, by name. */
+
+const NEST_GUARD = StoreId.newSessionId();
 const calls = vi.hoisted(() => ({
   archive: vi.fn(),
-  seen: vi.fn(),
+  rename: vi.fn(),
+  retitle: vi.fn(),
+  read: vi.fn(),
   star: vi.fn(),
   transcript: vi.fn(),
   unarchive: vi.fn(),
-  unseen: vi.fn(),
+  unread: vi.fn(),
 }));
 
 /** `.invalid` sites given an icon partway through a test, as a page opened in a browser tab hands over its own. */
@@ -45,6 +46,7 @@ const developerMode = vi.hoisted(() => ({ enabled: false }));
 
 vi.mock("@/client/hooks/use-developer-mode", () => ({
   useDeveloperMode: () => developerMode.enabled,
+  useTabDeveloperMode: () => developerMode.enabled,
 }));
 
 // A site's icon comes over the app protocol, which only the main process
@@ -104,10 +106,12 @@ vi.mock("@/client/rpc/client", () => {
               experimental_liveOptions: () => ({ queryKey: ["chats"] }),
             },
           },
-          seen: routeOf(calls.seen),
+          rename: routeOf(calls.rename),
+          retitle: routeOf(calls.retitle),
+          read: routeOf(calls.read),
           star: routeOf(calls.star),
           unarchive: routeOf(calls.unarchive),
-          unseen: routeOf(calls.unseen),
+          unread: routeOf(calls.unread),
         },
       },
     },
@@ -150,8 +154,8 @@ function chat(overrides: Partial<Chat> = {}): Chat {
     holds: { apps: [], files: [], sites: [] },
     id: CHAT_ID,
     lastReplyAt: MOVED_AT.getTime(),
+    lastUserMessageAt: STARTED_AT.getTime(),
     latest: { at: MOVED_AT.getTime(), kind: "reply", text: REPLY },
-    replyCount: 3,
     root: {
       id: messageId,
       metadata: { createdAt: STARTED_AT, sessionId },
@@ -176,7 +180,8 @@ function chat(overrides: Partial<Chat> = {}): Chat {
     title: TITLE,
     titled: true,
     topics: [],
-    unread: 0,
+    unread: false,
+    unreadByUser: false,
     updatedAt: MOVED_AT.getTime(),
     ...overrides,
   };
@@ -303,11 +308,14 @@ async function renderRow(
 async function renderRows(
   chats: Chat[],
   {
+    leading = [],
     onOpen = vi.fn(),
     onSetTopics = vi.fn(),
     openScreen = vi.fn(),
     store,
   }: {
+    /** Actions the list puts ahead of the chat's own, as it does Pop out. */
+    leading?: RowAction[];
     onOpen?: Mock<() => void>;
     onSetTopics?: Mock<(topics: string[]) => void>;
     openScreen?: Mock<(href: string) => void>;
@@ -321,15 +329,28 @@ async function renderRows(
     return chats.map((entry, index) => (
       <div key={index} style={{ width: "400px" }}>
         <ChatRow
-          actions={actionsFor(entry)}
+          actions={[...leading, ...actionsFor(entry)]}
           appsBySlug={
             new Map([
               ["github", { name: "GitHub", site: "https://github.com" }],
+              [
+                "gmail",
+                {
+                  home: "https://mail.google.com",
+                  name: "Gmail",
+                  site: "https://gmail.com",
+                },
+              ],
+              [
+                "apple-notes",
+                { local: true, name: "Apple Notes", site: "https://apple.com" },
+              ],
             ])
           }
           chat={entry}
           isOpen={false}
           now={NOW}
+          onDelete={vi.fn()}
           onNewTopic={vi.fn()}
           onOpen={onOpen}
           onSetTopics={onSetTopics}
@@ -368,7 +389,11 @@ describe("ChatRow", () => {
   it("stacks: the title with the pill at its end on one line, the latest under it, the files and the time under that", async () => {
     const { row } = await renderRow(
       chat({
-        holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
+        holds: {
+          apps: [],
+          files: ["/Users/sam/chat/out/report.md"],
+          sites: [],
+        },
         topics: ["house"],
       }),
     );
@@ -394,7 +419,7 @@ describe("ChatRow", () => {
     // The time in the bottom corner. The innermost span with its words,
     // since the corner around it has them too.
     const time = [...row.querySelectorAll("span")]
-      .findLast((span) => span.textContent === "9:11 AM")
+      .findLast((span) => span.textContent === "8:46 AM")
       ?.getBoundingClientRect();
     expect(time?.top).toBeGreaterThanOrEqual(
       peek?.getBoundingClientRect().bottom ?? 0,
@@ -404,9 +429,15 @@ describe("ChatRow", () => {
 
   it("keeps one row height whether a chat holds anything or has said anything", async () => {
     const { rows } = await renderRows([
-      chat({ holds: { apps: [], files: ["/task/out/report.md"], sites: [] } }),
+      chat({
+        holds: {
+          apps: [],
+          files: ["/Users/sam/chat/out/report.md"],
+          sites: [],
+        },
+      }),
       chat(),
-      chat({ lastReplyAt: undefined, latest: undefined, replyCount: 0 }),
+      chat({ lastReplyAt: undefined, latest: undefined }),
       chat({ state: "working" }),
     ]);
     const heights = new Set(
@@ -427,15 +458,15 @@ describe("ChatRow", () => {
   });
 
   it("carries no reply count, and the time", async () => {
-    const { row } = await renderRow(chat({ replyCount: 3 }));
+    const { row } = await renderRow(chat());
     expect(row.querySelector('[aria-label="3 replies"]')).toBeNull();
     expect(firstLineOf(row).textContent).toBe(TITLE);
-    expect(row.textContent).toContain("9:11 AM");
+    expect(row.textContent).toContain("8:46 AM");
   });
 
   it.each<[string, Partial<Chat>]>([
     ["quiet", {}],
-    ["unseen", { unread: 2 }],
+    ["unseen", { unread: true }],
     ["working", { state: "working" }],
     ["waiting", { state: "waiting" }],
   ])(
@@ -447,7 +478,7 @@ describe("ChatRow", () => {
   );
 
   it("sets the title in semibold only while something in it is unseen", async () => {
-    const { rows } = await renderRows([chat({ unread: 1 }), chat()]);
+    const { rows } = await renderRows([chat({ unread: true }), chat()]);
     const [unseen, seen] = rows;
     if (!unseen || !seen) {
       throw new Error("no rows");
@@ -499,11 +530,16 @@ describe("ChatRow", () => {
   it("shows the step in brand while working, and the question behind the amber glyph while waiting", async () => {
     const { rows } = await renderRows([
       chat({
-        latest: undefined,
-        replyCount: 0,
+        // The workspace names a working chat's step in `latest`, the same
+        // step the line under its title shows.
+        latest: {
+          at: MOVED_AT.getTime(),
+          kind: "step",
+          text: "Reading the automation",
+        },
         runningTasks: [
           {
-            id: TaskIdSchema.parse("nest-guard"),
+            id: NEST_GUARD,
             step: "Reading the automation",
             title: "Nest guard",
           },
@@ -546,21 +582,24 @@ describe("ChatRow", () => {
     const { row } = await renderRow(
       chat({
         latest: undefined,
-        runningTasks: [
-          { id: TaskIdSchema.parse("nest-guard"), title: "Nest guard" },
-        ],
+        runningTasks: [{ id: NEST_GUARD, title: "Nest guard" }],
         state: "working",
       }),
     );
     expect(peekOf(row)?.textContent).toBe("Instrument is working");
   });
 
+  it("says a chat stopped on an error in red, in place of its latest line", async () => {
+    const { row } = await renderRow(chat({ state: "failed" }));
+    expect(peekOf(row)?.textContent).toBe("Stopped on an error");
+  });
+
   it("has no latest line for an idle chat with nothing to say", async () => {
     const { row } = await renderRow(
-      chat({ lastReplyAt: undefined, latest: undefined, replyCount: 0 }),
+      chat({ lastReplyAt: undefined, latest: undefined }),
     );
     expect(peekOf(row)).toBeNull();
-    expect(row.textContent).toBe(`${TITLE}9:11 AM`);
+    expect(row.textContent).toBe(`${TITLE}8:46 AM`);
   });
 
   it("opens the chat from a click anywhere on it, and from Enter", async () => {
@@ -608,7 +647,11 @@ describe("ChatRow", () => {
   it("tints the full width on hover and swaps the pills for the corner's controls", async () => {
     const { row } = await renderRow(
       chat({
-        holds: { apps: [], files: ["/task/out/report.md"], sites: [] },
+        holds: {
+          apps: [],
+          files: ["/Users/sam/chat/out/report.md"],
+          sites: [],
+        },
         topics: ["house"],
       }),
     );
@@ -652,7 +695,7 @@ describe("ChatRow", () => {
   it("carries what it holds as chips named for the files and bare marks for the rest, behind a count past a few", async () => {
     const holds = {
       apps: ["github"],
-      files: ["/task/out/report.md", "/task/out/data.csv"],
+      files: ["/Users/sam/chat/out/report.md", "/Users/sam/chat/out/data.csv"],
       sites: ["wakatime.com", "example.com", "example.org", "example.net"],
     };
     const { rows } = await renderRows([chat({ holds })]);
@@ -679,15 +722,56 @@ describe("ChatRow", () => {
               mark.textContent === "" && Object.hasOwn(mark.dataset, "inert"),
           ),
       ).toBe(true);
-      expect(row.textContent).not.toContain("/task");
+      expect(row.textContent).not.toContain("/Users/sam/chat");
       expect(row.textContent).not.toContain("wakatime.com");
     }
+  });
+
+  it("raises the row's menu from a right click on the empty line past what it holds", async () => {
+    const { row } = await renderRow(
+      chat({ holds: { apps: [], files: [], sites: ["wakatime.com"] } }),
+    );
+    const line = row.querySelector<HTMLElement>('[data-slot="holds"]');
+    if (!line) {
+      throw new Error("no line of holds");
+    }
+    const { height, left, top, width } = line.getBoundingClientRect();
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: left + width - 4,
+      clientY: top + height / 2,
+    });
+    line.dispatchEvent(event);
+    // Refused, so the window's own menu does not answer as well.
+    expect(event.defaultPrevented).toBe(true);
+    await expect
+      .element(page.getByRole("menuitem", { name: "Open in New Tab" }))
+      .toBeVisible();
+  });
+
+  it("offers Pop Out beside the ways to open the chat when the list gives it", async () => {
+    const run = vi.fn();
+    const { rows } = await renderRows([chat()], {
+      leading: [{ icon: null, id: "popOut", label: "Pop out", run }],
+    });
+    const [row] = rows;
+    if (!row) {
+      throw new Error("no row");
+    }
+    row.dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
+    );
+    const items = page.getByRole("menuitem");
+    await expect.element(items.nth(2)).toHaveTextContent("Pop Out");
+    await userEvent.click(items.nth(2));
+    expect(run).toHaveBeenCalledOnce();
   });
 
   it("keeps what it holds to one line, the files first, clipped at the row's edge rather than wrapped", async () => {
     const files = Array.from(
       { length: 4 },
-      (_, index) => `/task/out/a-report-with-a-long-name-${index}.md`,
+      (_, index) => `/Users/sam/chat/out/a-report-with-a-long-name-${index}.md`,
     );
     const holds = { apps: ["github"], files, sites: ["wakatime.com"] };
     const { rows } = await renderRows([
@@ -720,6 +804,39 @@ describe("ChatRow", () => {
     expect(marks.slice(0, 4).map((mark) => mark.textContent)).toEqual(
       files.toReversed().map((path) => path.split("/").at(-1)),
     );
+  });
+
+  it("draws a site of an app the chat holds as the app alone", async () => {
+    const { row } = await renderRow(
+      chat({
+        holds: {
+          apps: ["github", "gmail", "apple-notes"],
+          files: [],
+          sites: [
+            "github.com",
+            "gist.github.com",
+            "mail.google.com",
+            "docs.google.com",
+            "apple.com",
+          ],
+        },
+      }),
+    );
+    // The app's own domain, a subdomain of it, and the host of its web app
+    // fold into the app; another app's maker's site, a sibling under the
+    // same parent, and the site of an app that runs here do not.
+    // The apps first, then the sites, newest first.
+    const marks = marksOf(row);
+    expect(marks).toHaveLength(5);
+    expect(
+      marks
+        .slice(3)
+        .map((mark) =>
+          mark
+            .querySelector("[alt], [aria-label]")
+            ?.getAttribute(mark.querySelector("[alt]") ? "alt" : "aria-label"),
+        ),
+    ).toEqual(["Favicon for apple.com", "Favicon for docs.google.com"]);
   });
 
   it("names a bare mark in its tooltip", async () => {
@@ -790,7 +907,7 @@ describe("ChatRow", () => {
   it("lists every hold by name behind the count, never a slug or a path", async () => {
     const files = Array.from(
       { length: 6 },
-      (_, index) => `/task/out/report-${index}.md`,
+      (_, index) => `/Users/sam/chat/out/report-${index}.md`,
     );
     const { row } = await renderRow(
       chat({ holds: { apps: ["paper"], files, sites: [] } }),
@@ -819,17 +936,24 @@ describe("ChatRow", () => {
   it("opens a file it holds inside its chat, as a tab of the chat's group, shown, without opening the row; an app or a site it used opens nothing", async () => {
     const { onOpen, openScreen, row, window } = await renderRow(
       chat({
-        holds: { apps: ["github"], files: ["/task/out/report.md"], sites: [] },
+        holds: {
+          apps: ["github"],
+          files: ["/Users/sam/chat/out/report.md"],
+          sites: [],
+        },
       }),
     );
     const [file, app] = marksOf(row);
     file?.click();
     expect(onOpen).not.toHaveBeenCalled();
-    expect(window.openPath).toHaveBeenCalledWith("/task/out/report.md", {
-      group: CHAT_ID,
-      ownTab: true,
-      show: true,
-    });
+    expect(window.openPath).toHaveBeenCalledWith(
+      "/Users/sam/chat/out/report.md",
+      {
+        group: CHAT_ID,
+        ownTab: true,
+        show: true,
+      },
+    );
     file?.dispatchEvent(
       new MouseEvent("auxclick", { bubbles: true, button: 1 }),
     );
@@ -947,8 +1071,8 @@ describe("the row's actions", () => {
   });
 
   it.each<[string, Partial<Chat>, Mock]>([
-    ["Mark as read", { unread: 2 }, calls.seen],
-    ["Mark as unread", { replyCount: 3, unread: 0 }, calls.unseen],
+    ["Mark as read", { unread: true }, calls.read],
+    ["Mark as unread", { unread: false }, calls.unread],
   ])(
     "offers %s, which asks the route and says nothing",
     async (label, overrides, call) => {
@@ -963,13 +1087,17 @@ describe("the row's actions", () => {
     },
   );
 
-  it("offers no read or unread mark on a chat with no replies to have read", async () => {
-    const { row } = await renderRow(chat({ replyCount: 0, unread: 0 }));
-    expect(barOf(row).labels).toEqual(["Archive", "Star"]);
+  it("offers Mark as unread on a chat with nothing said in it yet", async () => {
+    const { row } = await renderRow(
+      chat({ lastReplyAt: undefined, latest: undefined, unread: false }),
+    );
+    expect(barOf(row).labels).toEqual(["Archive", "Mark as unread", "Star"]);
   });
 
   it("raises the row's menu on a right click: the way in, the actions, and the topics", async () => {
-    const { onOpen, onSetTopics, row } = await renderRow(chat({ unread: 1 }));
+    const { onOpen, onSetTopics, row } = await renderRow(
+      chat({ unread: true }),
+    );
     await userEvent.click(titleOf(row), { button: "right" });
     const menu = page.getByRole("menu");
     await expect.element(menu).toBeVisible();
@@ -982,9 +1110,11 @@ describe("the row's actions", () => {
       "Open in New Tab",
       "Mark as read",
       "Star",
+      "Rename",
       "Topics",
       getRevealInFolderLabel(),
       "Archive",
+      "Delete chat…",
     ]);
     expect(onOpen).not.toHaveBeenCalled();
 

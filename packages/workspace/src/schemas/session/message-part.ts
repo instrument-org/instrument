@@ -63,7 +63,7 @@ export namespace SessionMessagePart {
 
   export type ToolPart = Pick<
     SessionMessageRelaxedPart.ToolPart,
-    "approval" | "preliminary" | "rawInput"
+    "approval" | "preliminary"
   > &
     (
       | ToolPartInputAvailable
@@ -163,7 +163,15 @@ export namespace SessionMessagePart {
    * silently destroys what it was asked to store.
    */
   export const FromStorageSchema = SessionMessageRelaxedPart.Schema.transform(
-    (data) => (isRelaxedDataPart(data) ? coerceDataPart(data) : (data as Type)),
+    (data) => {
+      if (isRelaxedDataPart(data)) {
+        return coerceDataPart(data);
+      }
+      if (isRelaxedToolPart(data)) {
+        return foldRawInput(data);
+      }
+      return data as Type;
+    },
   );
 
   export function coerce(part: SessionMessageRelaxedPart.Type): Type {
@@ -192,6 +200,29 @@ export namespace SessionMessagePart {
       data: { originalType: part.type, reason: parsed.reason },
       type: "data-unknown",
     } as DataPart;
+  }
+
+  /**
+   * A failed tool call stored the model's input in `rawInput`, which the AI SDK
+   * deprecates in favor of `input` and warns about on every conversion. The
+   * value moves to `input` when that is empty, so the chat keeps it, and the
+   * key is dropped either way.
+   */
+  function foldRawInput({
+    rawInput,
+    ...part
+  }: SessionMessageRelaxedPart.ToolPart): Type {
+    return (
+      part.input === undefined && rawInput !== undefined
+        ? { ...part, input: rawInput }
+        : part
+    ) as Type;
+  }
+
+  function isRelaxedToolPart(
+    part: SessionMessageRelaxedPart.Type,
+  ): part is SessionMessageRelaxedPart.ToolPart {
+    return part.type.startsWith("tool-");
   }
 
   function isRelaxedDataPart(

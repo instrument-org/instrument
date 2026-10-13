@@ -10,26 +10,26 @@ import {
   MessageScrollerViewport,
 } from "@/client/components/ui/message-scroller";
 import { Spinner } from "@/client/components/ui/spinner";
-import { TaskSessionProvider } from "@/client/hooks/use-task-session";
-import { isOutputFolder } from "@/client/lib/path-utils";
+import { ChatSessionProvider } from "@/client/hooks/use-chat-session";
+import { folderLabel, isOutputFolder } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { catalogEffort } from "@instrument-org/ai-gateway/client";
 import {
-  decodeBrowserTargetId,
+  type ChatId,
   isFolderPath,
-  type Task,
+  type StoreId,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
+import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { TabIcon } from "./browser-tabs";
 import { type OpenOptions, useWindow } from "./context";
-import { useNewestSessionId } from "./newest-session";
-import { useIsTaskWorking } from "./task-working";
 import { windowTabsAtom } from "./window-tabs";
 
 const noop = () => {
@@ -38,22 +38,39 @@ const noop = () => {
 
 /**
  * A task's transcript, on its own screen, read the way it unfolded and kept
- * at its end while the task works. Nothing to type into: the user talks to
- * the chat, which talks to the task, so this is how they look over
- * its shoulder and not a second conversation.
+ * at its end while the task works: the chat's conversation it carries on
+ * from, then its own. Nothing to type into: the user talks to the chat,
+ * which talks to the task, so this is how they look over its shoulder and
+ * not a second conversation.
  */
-export function ChildTranscript({ task }: { task: Task }) {
-  const sessionId = useNewestSessionId(task.id);
-  const messages = useQuery(
-    rpcClient.workspace.message.live.list.experimental_liveOptions({
-      input: sessionId ? { id: task.id, sessionId } : skipToken,
+export function ChildTranscript({
+  chat,
+  isWorking,
+  sessionId,
+  stoppedBy,
+}: {
+  chat: ChatId;
+  isWorking: boolean;
+  sessionId: StoreId.Session;
+  /** Who stopped its last turn, which the transcript ends by saying. */
+  stoppedBy?: "chat" | "user";
+}) {
+  // The chat's record, which the task runs in: its folder, model and apps.
+  const record = useQuery(
+    rpcClient.workspace.chats.live.info.experimental_liveOptions({
+      input: { id: chat },
     }),
   );
-  const isWorking = useIsTaskWorking(task.id);
+  const messages = useQuery(
+    rpcClient.workspace.message.live.list.experimental_liveOptions({
+      input: { id: chat, sessionId },
+    }),
+  );
 
-  const openFile = useOpenFileNamedByTask(task.id);
+  const openFile = useOpenFileNamedByTask(chat);
 
-  if (!sessionId || !messages.data) {
+  const chatInfo = record.data;
+  if (!chatInfo || !messages.data) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-5" />
@@ -62,7 +79,7 @@ export function ChildTranscript({ task }: { task: Task }) {
   }
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <TaskBrief task={task} />
+      <TaskBrief chatInfo={chatInfo} taskSession={sessionId} />
       <MessageScrollerProvider
         autoScroll={isWorking}
         defaultScrollPosition="end"
@@ -79,7 +96,7 @@ export function ChildTranscript({ task }: { task: Task }) {
             <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
               {/* Names the task and session for the links inside, so a page
                   the task names offers its browser as well as the user's. */}
-              <TaskSessionProvider sessionId={sessionId} taskId={task.id}>
+              <ChatSessionProvider sessionId={sessionId} chatId={chatInfo.id}>
                 {/* Task paths are placed on the computer through the task's own layout before navigation. */}
                 <FileOpenContext value={openFile}>
                   <ChatStream
@@ -89,42 +106,23 @@ export function ChildTranscript({ task }: { task: Task }) {
                     onContinue={noop}
                     onRetry={noop}
                     renderAsItems
-                    task={task}
+                    chatInfo={chatInfo}
                   />
                 </FileOpenContext>
-              </TaskSessionProvider>
+              </ChatSessionProvider>
+              {stoppedBy && (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <StopCircleIcon className="size-3.5 shrink-0" />
+                  {stoppedBy === "user"
+                    ? "You stopped this task."
+                    : "The chat stopped this task."}
+                </p>
+              )}
             </MessageScrollerContent>
           </MessageScrollerViewport>
         </MessageScroller>
       </MessageScrollerProvider>
     </div>
-  );
-}
-
-/**
- * The apps this task may reach. Three states worth telling apart: a list it
- * was handed, none at all, and the absent setting a person's own task carries,
- * which reaches everything connected.
- */
-function AppsChip({ apps }: { apps: string[] | undefined }) {
-  if (!apps) {
-    return (
-      <Chip label="Apps" title="This task can use every connected app">
-        every connected app
-      </Chip>
-    );
-  }
-  if (apps.length === 0) {
-    return (
-      <Chip label="Apps" title="This task can’t use any connected apps.">
-        none
-      </Chip>
-    );
-  }
-  return (
-    <Chip label="Apps" title={apps.join(", ")}>
-      {apps.join(", ")}
-    </Chip>
   );
 }
 
@@ -163,18 +161,15 @@ function Chip({
  * own catalog default, so the chip resolves it the same way the request does
  * rather than reading as though nothing were set.
  */
-function EffortChip({ task }: { task: Task }) {
+function EffortChip({ chatInfo }: { chatInfo: ChatInfo }) {
   const models = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
-  const state = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({ input: { id: task.id } }),
-  );
   const model = models.data?.models.find(
-    (entry) => entry.uri === state.data?.selectedModelURI,
+    (entry) => entry.uri === chatInfo.modelURI,
   );
   const fromModel = model ? catalogEffort(model) : undefined;
-  const effort = task.reasoningEffort ?? fromModel;
+  const effort = chatInfo.reasoningEffort ?? fromModel;
   if (!effort) {
     return (
       <Chip label="Effort" title="This task uses the model’s default effort.">
@@ -186,11 +181,11 @@ function EffortChip({ task }: { task: Task }) {
     <Chip
       label="Effort"
       title={
-        task.reasoningEffort
+        chatInfo.reasoningEffort
           ? "The level this task was created with"
           : "No level chosen; this model reasons by default"
       }
-      {...(task.reasoningEffort ? {} : { note: "model default" })}
+      {...(chatInfo.reasoningEffort ? {} : { note: "model default" })}
     >
       {effort}
     </Chip>
@@ -221,35 +216,46 @@ function HeldTabChip({ sessionId }: { sessionId: string }) {
 /**
  * Everything that constrains the task, along the top, for whoever is checking
  * its work: the model it runs on and the level it thinks at, the folders it
- * reaches and whether it may write to them, the apps it may reach, and the
- * tabs it drives. One chip per thing something enforces, and nothing else -- what
- * the brief asked of the task is the first message below, in the words it was
- * asked in, where it cannot be mistaken for a rule. Chips open to their full
- * value on hover.
+ * reaches and whether it may write to them, and the tabs it drives. One chip
+ * per thing something enforces, and nothing else -- what the chat asked of
+ * the task is the first message below, in the words it was asked in, where
+ * it cannot be mistaken for a rule. Chips open to their full value on hover.
  */
-function TaskBrief({ task }: { task: Task }) {
-  const taskId = task.id;
-  const state = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({ input: { id: taskId } }),
+function TaskBrief({
+  chatInfo,
+  taskSession,
+}: {
+  chatInfo: ChatInfo;
+  /** The task's session, in the chat's store. */
+  taskSession: StoreId.Session;
+}) {
+  const chatId = chatInfo.id;
+  const reach = useQuery(
+    rpcClient.workspace.chats.live.folders.experimental_liveOptions({
+      input: { id: chatId },
+    }),
   );
-  // The workspace folder is every task's, so only the ones it was handed
-  // besides are worth a chip.
-  const folders = Object.values(state.data?.attachedFolders ?? {}).filter(
+  const state = useQuery(
+    rpcClient.workspace.chats.state.queryOptions({ input: { id: chatId } }),
+  );
+  // The workspace folder is every task's, so only the ones its chat was
+  // handed besides are worth a chip.
+  const folders = Object.values(reach.data ?? {}).filter(
     (folder) => !isOutputFolder(folder.path),
   );
-  const heldTabs = (state.data?.browserTabs ?? []).flatMap((held) => {
-    const decoded = decodeBrowserTargetId(held.id);
-    return decoded ? [decoded.sessionId] : [];
-  });
+  // The chat's tabs this task drives.
+  const heldTabs = (state.data?.browserTabs ?? []).flatMap((held) =>
+    held.driver === taskSession ? [held.id] : [],
+  );
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-4 py-2 text-xs">
       <span
         className="flex h-6 items-center rounded-md bg-foreground/5 px-1.5"
         title="The model the task runs on"
       >
-        <ModelPreview id={taskId} />
+        <ModelPreview id={chatId} />
       </span>
-      <EffortChip task={task} />
+      <EffortChip chatInfo={chatInfo} />
       {folders.map((folder) => (
         <span
           className="flex h-6 max-w-64 items-center gap-1.5 rounded-md bg-foreground/5 px-1.5"
@@ -257,13 +263,14 @@ function TaskBrief({ task }: { task: Task }) {
           title={`${folder.path} · ${folder.access}`}
         >
           <MacFolderIcon className="size-4 shrink-0" />
-          <span className="truncate font-medium">{folder.mountName}</span>
+          <span className="truncate font-medium">
+            {folderLabel(folder.path)}
+          </span>
           <span className="text-muted-foreground">
             {folder.access === "read-write" ? "read, write" : "read"}
           </span>
         </span>
       ))}
-      <AppsChip apps={task.apps} />
       {heldTabs.map((sessionId) => (
         <HeldTabChip key={sessionId} sessionId={sessionId} />
       ))}
@@ -281,16 +288,16 @@ function TaskBrief({ task }: { task: Task }) {
  * task's own layout before a tab is asked for it. A path the task cannot
  * reach opens nothing, and says so.
  */
-function useOpenFileNamedByTask(taskId: Task["id"]) {
+function useOpenFileNamedByTask(chatId: ChatInfo["id"]) {
   const { openScreen } = useWindow();
   return (filePath: string, options?: OpenOptions) => {
     const isFolder = isFolderPath(filePath);
     const bare = isFolder ? filePath.slice(0, -1) : filePath;
     void (async () => {
       const [error, hostPaths] = await safe(
-        rpcClient.workspace.task.files.hostPaths.call({
+        rpcClient.workspace.chats.files.hostPaths.call({
           filePaths: [bare],
-          taskId,
+          chatId,
         }),
       );
       const hostPath = hostPaths?.[bare];

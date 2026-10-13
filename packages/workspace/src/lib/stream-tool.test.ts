@@ -2,7 +2,7 @@ import { ok } from "neverthrow";
 import { describe, expect, it } from "vitest";
 
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { streamTool } from "./stream-tool";
 import {
@@ -13,19 +13,17 @@ import {
 } from "./turn-context";
 
 const model = createMockAIGatewayModel();
-const taskId = TaskIdSchema.parse("stream-tool");
+const chatId = ChatIdSchema.parse("stream-tool");
 
 function makeOptions(sessionId: StoreId.Session) {
   return {
-    agentName: "main" as const,
     input: {},
     messageId: StoreId.newMessageId(),
     model,
     partId: StoreId.newPartId(),
     sessionId,
     signal: AbortSignal.timeout(10_000),
-    taskId,
-    taskState: { browserTabs: [] },
+    chatId,
   };
 }
 
@@ -38,7 +36,7 @@ async function sampleTurn(): Promise<TurnId | undefined> {
 describe("streamTool", () => {
   it("binds a plain async tool to its turn", async () => {
     const sessionId = StoreId.newSessionId();
-    const turn = { id: taskId, sessionId };
+    const turn = { id: chatId, sessionId };
     const turnId = beginTurn(turn);
     const seen: (TurnId | undefined)[] = [];
 
@@ -60,7 +58,7 @@ describe("streamTool", () => {
 
   it("rebinds the turn on every generator resumption", async () => {
     const sessionId = StoreId.newSessionId();
-    const turn = { id: taskId, sessionId };
+    const turn = { id: chatId, sessionId };
     const turnId = beginTurn(turn);
     const seen: (TurnId | undefined)[] = [];
 
@@ -91,7 +89,7 @@ describe("streamTool", () => {
 
   it("binds the cleanup of a tool the consumer abandons", async () => {
     const sessionId = StoreId.newSessionId();
-    const turn = { id: taskId, sessionId };
+    const turn = { id: chatId, sessionId };
     const turnId = beginTurn(turn);
     const seen: (TurnId | undefined)[] = [];
 

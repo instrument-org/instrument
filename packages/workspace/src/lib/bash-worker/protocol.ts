@@ -1,12 +1,11 @@
 import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { type BashExecResult, type ExecOptions } from "just-bash";
 
-import { type TaskDir } from "../../schemas/paths";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatDir } from "../../schemas/paths";
+import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { type BashEnvOptions } from "../create-bash-env";
-import { type RecordRef } from "../record-folders";
-import { type TaskVenvError } from "../ensure-task-venv";
+import { type ChatVenvError } from "../ensure-chat-venv";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 
 /**
@@ -17,15 +16,19 @@ import { SubprocessTreeTerminationError } from "../subprocess-tree";
 export const WORKER_CONFIG_KEYS = [
   "appsDir",
   "appVersion",
-  "defaultTaskTemplateDir",
+  "chatsDir",
+  "chatTemplateDir",
   "macHelperBinPath",
+  "nativeSandbox",
   "nodeExecEnv",
   "pnpmBinPath",
   "preparedSkillsDir",
   "registryDir",
   "rootDir",
   "systemSkillsDir",
-  "tasksDir",
+  "legacyTasksDir",
+  "tempFolders",
+  "toolBinDir",
   "uvBinPath",
   "uvDataDir",
 ] as const satisfies readonly (keyof WorkspaceConfig)[];
@@ -51,13 +54,20 @@ export type FromWorker =
       properties?: ExceptionProperties;
       type: "capture-exception";
     }
-  | { id: number; mountPath: string; type: "skill-mutation" }
+  | { id: number; skillPath: string; type: "skill-mutation" }
+  /** A permission ask, raised on main where the app hears the chat's record change. */
+  | {
+      asker: { chatId: string; partId?: string; sessionId: string };
+      kind: "app" | "folder";
+      target: string;
+      type: "ask";
+    }
   | { id: number; result: WireResult; type: "result" }
   | { id: number; seq: number; text: string; type: "chunk" }
   | { pid: number; state: "settled" | "started"; type: "tree" }
-  /** A `js-exec` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
+  /** A `node` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
   | { argsJson: string; callId: number; id: number; path: string; type: "tool" }
-  | { requestId: number; taskId: TaskId; type: "venv" };
+  | { requestId: number; chatId: ChatId; type: "venv" };
 
 export type ToWorker =
   | {
@@ -68,16 +78,14 @@ export type ToWorker =
       execOptions: Omit<ExecOptions, "signal">;
       id: number;
       /**
-       * The record the shell runs in, resolved on main, which keeps the
-       * folder index: the worker answers for this record alone and never
+       * The chat the shell runs in, resolved on main, which keeps the
+       * folder index: the worker answers for this chat alone and never
        * reads the index itself.
        */
-      record: { dir: TaskDir; ref: RecordRef } | undefined;
+      chat: { dir: ChatDir; id: ChatId } | undefined;
       /** Whether main has a background run's sink to stream native output into. */
       stream: boolean;
       type: "exec";
-      /** The port main's workspace server bound, which the shell's fetch refuses. */
-      workspaceServerPort: number;
     }
   | { callId: number; error: WireError; type: "call-error" }
   | { callId: number; result: WireResult; type: "call-result" }
@@ -86,7 +94,7 @@ export type ToWorker =
   | { callId: number; type: "tool-result"; value: string }
   | {
       requestId: number;
-      result: TaskVenvError | undefined;
+      result: ChatVenvError | undefined;
       type: "venv-result";
     }
   | { seq: number; type: "chunk-ack" };
@@ -109,10 +117,14 @@ export type WireResult = Pick<
   "env" | "exitCode" | "metadata" | "stderr" | "stdout" | "stdoutKind"
 >;
 
+/**
+ * The keys above as they are, plus the output folder's answers as of this
+ * command: the app answers those with functions, which cannot cross.
+ */
 export type WorkerConfig = Pick<
   WorkspaceConfig,
   (typeof WORKER_CONFIG_KEYS)[number]
->;
+> & { outputFolder?: { chosenPath: string | undefined; isHeld: boolean } };
 
 const MAX_CAUSE_DEPTH = 5;
 

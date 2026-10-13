@@ -9,29 +9,29 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WorkspaceDirSchema } from "../../schemas/paths";
+import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId, TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { listMemories, memoryDir } from "../memory/store";
 import { Store } from "../store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createMemoryCommand } from "./memory";
-import { ChatIdSchema } from "../../schemas/chat-id";
 
 vi.mock(import("../session-store-storage"));
 
-const id = TaskIdSchema.parse("memory-command-test");
+const id = ChatIdSchema.parse("memory-command-test");
 const sessionId = StoreId.newSessionId();
 
-let taskId: TaskId;
+let chatId: ChatId;
 let root: string;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "memory-command-test-"));
-  taskId = createMockTaskConfig(id);
+  chatId = createMockChatConfig(id);
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
+    chatsDir: AbsolutePathSchema.parse(path.join(root, "chats")),
     rootDir: WorkspaceDirSchema.parse(root),
   });
   await Store.saveSession(
@@ -41,7 +41,7 @@ beforeEach(async () => {
       title: "Roofer call",
       updatedAt: new Date(),
     },
-    taskId,
+    chatId,
   );
 });
 
@@ -51,12 +51,12 @@ afterEach(async () => {
 
 function run(args: string[], stdin = "") {
   return createMemoryCommand({
-    chatId: ChatIdSchema.parse(taskId),
+    chatId: ChatIdSchema.parse(chatId),
     sessionId,
   }).execute(
     args,
     createCommandContext({
-      cwd: "/task",
+      cwd: "/Users/sam/chat",
       env: new Map<string, string>(),
       fs: new InMemoryFs(),
       stdin: stdin ? encodeUtf8ToBytes(stdin) : EMPTY_BYTES,

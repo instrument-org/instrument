@@ -76,6 +76,24 @@ const MEASUREMENT_FRESH_MS = 2000;
 // Half a CSS pixel is rounding, not movement.
 const MOVED_PX = 0.5;
 
+// What CDP answers when the frame, node or target a command named went away
+// while it was in flight: an ad iframe swapped out, a page navigating, an
+// element re-rendered. agent-browser retries or re-snapshots, so these are
+// races in a live page rather than failures worth an error line each.
+const NAVIGATION_RACE_ERRORS = [
+  "Frame with the given frameId is not found",
+  "target closed while handling command",
+  "Inspected target navigated or closed",
+  "Node is detached from document",
+  "Could not find node with given id",
+  "Could not compute box model",
+];
+
+function isNavigationRace(error: unknown): boolean {
+  const message = String(error);
+  return NAVIGATION_RACE_ERRORS.some((race) => message.includes(race));
+}
+
 export async function sendCommand({
   describeHost,
   ensureDebuggerAttached,
@@ -323,17 +341,21 @@ async function forwardToDebugger({
 
   // The press goes where the element was measured. If the page has moved it
   // since, the press would land on whatever took its place and still report
-  // success, so measure once more and refuse a press that would miss.
+  // success, so measure once more and send the press, and the release that
+  // follows it, to where the element is now.
   // One line per press saying what was under the point and whether the user
   // could see the page, so a click that did nothing can be told apart from one
   // that landed somewhere else or on a page nobody was looking at.
   let press: null | { at: number; context: string } = null;
+  let delivered = params;
   if (method === "Input.dispatchMouseEvent" && isPress(params)) {
-    await refusePressThatWouldMiss(entry, params);
+    delivered = await aimPressAtElement(entry, params);
     press = {
       at: Date.now(),
-      context: await describePress(entry, params, describeHost),
+      context: await describePress(entry, delivered, describeHost),
     };
+  } else if (method === "Input.dispatchMouseEvent" && isRelease(params)) {
+    delivered = releaseWherePressed(entry, params);
   }
 
   if (
@@ -396,7 +418,10 @@ async function forwardToDebugger({
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const sent = wc.debugger.sendCommand(
       method,
-      withMacEditingCommands(method, withoutMacNativeKeyCode(method, params)),
+      withMacEditingCommands(
+        method,
+        withoutMacNativeKeyCode(method, delivered),
+      ),
     );
     // oxlint-disable-next-line typescript/no-unsafe-assignment
     const result = await Promise.race([
@@ -465,9 +490,12 @@ async function forwardToDebugger({
         `agent press targetId=${targetId} ${press.context} ack=failed after ${Date.now() - press.at}ms`,
       );
     }
-    log.error(
-      `sendCommand error targetId=${targetId} method=${method} error=${String(error)}`,
-    );
+    const line = `sendCommand error targetId=${targetId} method=${method} error=${String(error)}`;
+    if (isNavigationRace(error)) {
+      log.debug(line);
+    } else {
+      log.error(line);
+    }
     throw error;
   }
 }
@@ -539,6 +567,10 @@ function isPress(params: unknown): boolean {
   return (params as undefined | { type?: unknown })?.type === "mousePressed";
 }
 
+function isRelease(params: unknown): boolean {
+  return (params as undefined | { type?: unknown })?.type === "mouseReleased";
+}
+
 // agent-browser's script that scrolls an element into view and returns the
 // point to click, recognized by the overlay check it carries. It measures in
 // the same task that scrolled, before the page has reacted to the scroll.
@@ -587,40 +619,93 @@ function pointOf(result: unknown): null | { x: number; y: number } {
   return null;
 }
 
-async function refusePressThatWouldMiss(entry: BrowserEntry, params: unknown) {
+type Point = { x: number; y: number };
+
+function isNear(a: { x?: number; y?: number }, b: Point): boolean {
+  return (
+    Math.abs((a.x ?? Number.NaN) - b.x) <= MOVED_PX &&
+    Math.abs((a.y ?? Number.NaN) - b.y) <= MOVED_PX
+  );
+}
+
+// A press sent to an element's new point, kept until its release arrives.
+// Chromium sends the click to the nearest element under both the press and
+// the release, so a release left at the old point would click whatever
+// contains the two instead.
+const redirectedPress = new WeakMap<BrowserEntry, { from: Point; to: Point }>();
+
+/**
+ * The press params to send: unchanged unless this press is aimed at an element
+ * that has moved since it was measured, in which case they point at where the
+ * element is now. Refuses when the element can no longer be measured, or is
+ * still moving after one short settle.
+ */
+async function aimPressAtElement(
+  entry: BrowserEntry,
+  params: unknown,
+): Promise<unknown> {
+  redirectedPress.delete(entry);
   const wc = entry.webContents;
   const measured = lastMeasurement.get(entry);
   lastMeasurement.delete(entry);
   if (!wc || !measured || Date.now() - measured.at > MEASUREMENT_FRESH_MS) {
-    return;
+    return params;
   }
   const then = pointOf(measured.result);
   const press = params as { x?: number; y?: number };
   // Only a press aimed at the measured point is a click on that element.
-  if (
-    !then ||
-    Math.abs((press.x ?? Number.NaN) - then.x) > MOVED_PX ||
-    Math.abs((press.y ?? Number.NaN) - then.y) > MOVED_PX
-  ) {
-    return;
+  if (!then || !isNear(press, then)) {
+    return params;
   }
-  const now = pointOf(
-    await withinGuestProbeTimeout(
-      wc.debugger.sendCommand(measured.method, measured.params).catch(noop),
-      noop,
-    ),
-  );
-  if (
-    now &&
-    (Math.abs(now.x - then.x) > MOVED_PX || Math.abs(now.y - then.y) > MOVED_PX)
-  ) {
+  // `null` when the element no longer measures, `undefined` when the guest did
+  // not answer in time and so says nothing either way.
+  const remeasure = () =>
+    withinGuestProbeTimeout<null | Point | undefined>(
+      wc.debugger
+        .sendCommand(measured.method, measured.params)
+        .then(pointOf, () => null),
+      () => undefined,
+    );
+  const now = await remeasure();
+  if (now === undefined || (now && isNear(now, then))) {
+    return params;
+  }
+  let settled = now;
+  if (now) {
+    await waitForTwoFrames(wc);
+    const again = await remeasure();
+    settled = again === undefined ? now : again;
+  }
+  const moved = `element moved from ${then.x},${then.y} to ${settled ? `${settled.x},${settled.y}` : "gone"}`;
+  if (!settled) {
+    log.warn(`refused press targetId=${entry.targetId}: ${moved}`);
+    throw new Error(
+      "The click was not sent: the element changed after it was measured and can no longer be found on the page. Take a snapshot to see the page as it is now, then click the element by its new ref.",
+    );
+  }
+  if (now && !isNear(settled, now)) {
     log.warn(
-      `refused press targetId=${entry.targetId}: element moved from ${then.x},${then.y} to ${now.x},${now.y}`,
+      `refused press targetId=${entry.targetId}: ${moved}, still moving`,
     );
     throw new Error(
-      "The click was not sent: the page's layout shifted after the element was measured, so the press would have landed on whatever moved into its place. Run the same click again.",
+      "The click was not sent: the element kept moving after it was measured, so the press could have landed on whatever moved into its place. Take a snapshot once the page has settled, then click again.",
     );
   }
+  log.info(`re-aimed press targetId=${entry.targetId}: ${moved}`);
+  redirectedPress.set(entry, { from: then, to: settled });
+  return { ...press, x: settled.x, y: settled.y };
+}
+
+// The release of a press that was sent to an element's new point, sent there
+// too; any other release is sent as it came.
+function releaseWherePressed(entry: BrowserEntry, params: unknown): unknown {
+  const redirect = redirectedPress.get(entry);
+  redirectedPress.delete(entry);
+  const release = params as { x?: number; y?: number };
+  if (!redirect || !isNear(release, redirect.from)) {
+    return params;
+  }
+  return { ...release, x: redirect.to.x, y: redirect.to.y };
 }
 
 // What the press is about to hit, as the guest's own hit test sees it: the

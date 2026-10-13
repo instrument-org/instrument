@@ -1,17 +1,20 @@
 import "./code-editor.css";
 
 import { FileLoading } from "@/client/components/file-loading";
+import { SaveFailedPill } from "@/client/components/save-failed-pill";
 import { UpdatedPill } from "@/client/components/updated-pill";
 import { useAskMarks } from "@/client/components/window/ask-marks";
 import { linesLabel } from "@/client/components/window/staged-asks";
 import { useAskCard } from "@/client/components/window/use-ask-card";
+import { useFindTarget } from "@/client/hooks/use-find-target";
 import { registerFileFlush } from "@/client/lib/file-flush";
 import { type SaveStatus, usePullOnDiskChange } from "@/client/lib/live-file";
 import { rpcClient } from "@/client/rpc/client";
+import { openSearchPanel } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import {
   type CodeExternalChange,
@@ -119,6 +122,16 @@ function LiveCodeDocument({
   wrapRef.current = wrapLines;
 
   usePullOnDiskChange(hostPath, session);
+  // The editor's own keymap answers ⌘F with the caret in it; this is the same
+  // panel for a press anywhere else in the viewer.
+  useFindTarget({
+    anchor: rootRef,
+    openFind: () => {
+      if (session) {
+        openSearchPanel(session.view);
+      }
+    },
+  });
 
   useEffect(() => {
     session?.setWrapLines(wrapLines);
@@ -159,7 +172,7 @@ function LiveCodeDocument({
       onStatus: (next, detail) => {
         setStatus(next);
         if (next === "error") {
-          toast.error("Could not save", { description: detail });
+          toast.error("Couldn't save your changes", { cause: detail });
         }
       },
       parent,
@@ -214,19 +227,28 @@ function LiveCodeDocument({
         data-variant={variant}
       >
         <div className="h-full" ref={rootRef} />
-        {offscreen && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
-            <UpdatedPill
-              direction={offscreen}
-              onClick={() => {
-                session?.view.dispatch({
-                  effects: EditorView.scrollIntoView(changedAt.current, {
-                    y: "center",
-                  }),
-                });
-                setOffscreen(null);
-              }}
-            />
+        {(offscreen || status === "error") && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex flex-wrap justify-center gap-2">
+            {status === "error" && (
+              <SaveFailedPill
+                onRetry={() => {
+                  session?.retrySave();
+                }}
+              />
+            )}
+            {offscreen && (
+              <UpdatedPill
+                direction={offscreen}
+                onClick={() => {
+                  session?.view.dispatch({
+                    effects: EditorView.scrollIntoView(changedAt.current, {
+                      y: "center",
+                    }),
+                  });
+                  setOffscreen(null);
+                }}
+              />
+            )}
           </div>
         )}
       </div>

@@ -5,7 +5,7 @@ export interface InstrumentLink {
   /** The screen address the window opens it at. */
   href: string;
   kind: InstrumentLinkKind;
-  /** The thing's own name: a slug, a task id, a session id or its prefix. */
+  /** The thing's own name: a slug, a session id or its prefix. */
   name: string;
 }
 
@@ -14,7 +14,14 @@ export interface InstrumentLink {
  * leads with. Each is a kind of thing a reply mentions and a person can be
  * taken to, and the noun is the one the agent's own commands use for it.
  */
-type InstrumentLinkKind = "app" | "chat" | "memory" | "skill" | "task";
+type InstrumentLinkKind =
+  | "app"
+  | "chat"
+  | "memory"
+  | "screen"
+  | "settings"
+  | "skill"
+  | "task";
 
 /**
  * The nouns an address may lead with, each with the screen prefix its thing
@@ -25,6 +32,8 @@ const HOSTS = {
   app: { kind: "app", prefix: "/apps" },
   chat: { kind: "chat", prefix: "/chats" },
   memory: { kind: "memory", prefix: "/memory" },
+  screen: { kind: "screen", prefix: "/screen" },
+  settings: { kind: "settings", prefix: "/settings" },
   skill: { kind: "skill", prefix: "/skills" },
   task: { kind: "task", prefix: "/tasks" },
   thread: { kind: "chat", prefix: "/chats" },
@@ -67,7 +76,7 @@ export function filePathOfInstrumentLink(url: string): string | undefined {
   if (!SCHEMES.has(parsed.protocol) || parsed.host.toLowerCase() !== "file") {
     return undefined;
   }
-  // `instrument://file//mnt/a.md` and `instrument://file/mnt/a.md` both mean
+  // `instrument://file//Users/sam/a.md` and `instrument://file/Users/sam/a.md` both mean
   // the absolute path the reply had in hand.
   const path = decoded(parsed.pathname).replace(/^\/+/, "/");
   return path === "/" ? undefined : path;

@@ -12,7 +12,6 @@ import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { openSettings } from "../atoms/settings-modal";
 import { stopLineText } from "../lib/billing";
@@ -43,7 +42,7 @@ interface MessageErrorProps {
   isDeveloperMode: boolean;
   isLastMessage: boolean;
   message: SessionMessage.Assistant;
-  /** Switches the chat to another model; the card offers no switch without it. */
+  /** Retries the pending request with another model; the card offers no switch without it. */
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   /** Sends the last message again; the card offers no retry without it. */
   onRunAgain?: () => void;
@@ -390,7 +389,6 @@ function errorActions({
         label: `Switch to ${name}`,
         onClick: () => {
           onModelChange(switchTo.uri);
-          toast.success(`Switched to ${name}`);
         },
       },
     ];

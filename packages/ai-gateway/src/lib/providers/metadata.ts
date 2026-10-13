@@ -19,7 +19,7 @@ const PROVIDER_METADATA = {
     api: {
       defaultBaseURL: "https://api.anthropic.com",
       keyFormat: "sk-ant-",
-      keyURL: addRef("https://console.anthropic.com/settings/keys"),
+      keyURL: addRef("https://platform.claude.com/settings/keys"),
     },
     description: "Claude models from Anthropic",
     name: "Anthropic",
@@ -34,8 +34,7 @@ const PROVIDER_METADATA = {
       keyFormat: "csk-",
       keyURL: addRef("https://cloud.cerebras.ai"),
     },
-    description:
-      "Ultra-fast inference with popular open-source models like Llama and Qwen",
+    description: "Ultra-fast inference with open models like gpt-oss and Qwen",
     name: "Cerebras",
     type: "cerebras",
     url: addRef("https://www.cerebras.ai"),
@@ -72,7 +71,7 @@ const PROVIDER_METADATA = {
   deepinfra: {
     api: {
       defaultBaseURL: "https://api.deepinfra.com/v1",
-      keyURL: addRef("https://deepinfra.com/docs/deep_infra_api"),
+      keyURL: addRef("https://deepinfra.com/dash/api_keys"),
     },
     description:
       "Cloud platform for running large AI models with flexible pricing",
@@ -97,7 +96,7 @@ const PROVIDER_METADATA = {
     api: {
       defaultBaseURL: "https://api.fireworks.ai/inference/v1",
       keyFormat: "fw_",
-      keyURL: addRef("https://docs.fireworks.ai/getting-started/quickstart"),
+      keyURL: addRef("https://app.fireworks.ai/settings/users/api-keys"),
     },
     description:
       "High-speed multimodal AI inference with advanced FireAttention technology",
@@ -122,7 +121,7 @@ const PROVIDER_METADATA = {
   groq: {
     api: {
       defaultBaseURL: "https://api.groq.com/openai/v1",
-      keyFormat: "gsk-",
+      keyFormat: "gsk_",
       keyURL: addRef("https://console.groq.com/keys"),
     },
     description:
@@ -142,19 +141,9 @@ const PROVIDER_METADATA = {
     type: "huggingface",
     url: addRef("https://huggingface.co"),
   },
-  hyperbolic: {
-    api: {
-      defaultBaseURL: "https://api.hyperbolic.xyz/v1",
-      keyURL: addRef("https://docs.hyperbolic.xyz/docs/getting-started"),
-    },
-    description: "Budget-friendly GPU access for running various AI models",
-    name: "Hyperbolic",
-    type: "hyperbolic",
-    url: addRef("https://hyperbolic.ai"),
-  },
   jan: {
     api: {
-      defaultBaseURL: "http://localhost:8080/v1",
+      defaultBaseURL: "http://localhost:1337/v1",
     },
     description:
       "Open-source offline ChatGPT alternative with 70+ models and customizable inference",
@@ -189,19 +178,17 @@ const PROVIDER_METADATA = {
     api: {
       defaultBaseURL: "https://api.minimax.io/v1",
       keyFormat: "sk-api-",
-      keyURL: addRef(
-        "https://platform.minimax.io/user-center/basic-information/interface-key",
-      ),
+      keyURL: addRef("https://platform.minimax.io/console/access"),
     },
-    description: "Minimax AI models",
-    name: "Minimax",
+    description: "MiniMax AI models",
+    name: "MiniMax",
     type: "minimax",
     url: addRef("https://minimax.com"),
   },
   mistral: {
     api: {
       defaultBaseURL: "https://api.mistral.ai/v1",
-      keyURL: addRef("https://docs.mistral.ai/getting-started/quickstart/"),
+      keyURL: addRef("https://console.mistral.ai/home?profile_dialog=api-keys"),
     },
     description:
       "European AI provider with models optimized for coding and general tasks",
@@ -211,8 +198,8 @@ const PROVIDER_METADATA = {
   },
   novita: {
     api: {
-      defaultBaseURL: "https://api.novita.ai/v1",
-      keyURL: addRef("https://novita.ai/docs/get-started/quickstart.html"),
+      defaultBaseURL: "https://api.novita.ai/openai/v1",
+      keyURL: addRef("https://novita.ai/settings/key-management"),
     },
     description:
       "Affordable serverless GPU platform with access to 200+ AI models",
@@ -300,21 +287,12 @@ const PROVIDER_METADATA = {
     type: OUR_MODELS.providerType,
     url: addRef(APP_URL),
   },
-  perplexity: {
-    api: {
-      defaultBaseURL: "https://api.perplexity.ai",
-      keyURL: addRef("https://docs.perplexity.ai/getting-started/quickstart"),
-    },
-    description:
-      "AI models specialized in search and real-time knowledge retrieval",
-    name: "Perplexity AI",
-    type: "perplexity",
-    url: addRef("https://www.perplexity.ai"),
-  },
   together: {
     api: {
       defaultBaseURL: "https://api.together.xyz/v1",
-      keyURL: addRef("https://docs.together.ai/docs/quickstart"),
+      keyURL: addRef(
+        "https://api.together.ai/settings/projects/~current/api-keys",
+      ),
     },
     description:
       "Access to 200+ open-source AI models with optimized performance at scale",
@@ -327,7 +305,7 @@ const PROVIDER_METADATA = {
     api: {
       defaultBaseURL: "https://ai-gateway.vercel.sh",
       keyFormat: "vck_",
-      keyURL: `https://vercel.com/d?to=${encodeURIComponent(`/[team]/~/ai/api-keys`)}&title=${encodeURIComponent("Get an API Key")}`,
+      keyURL: `https://vercel.com/d?to=${encodeURIComponent(`/[team]/~/ai-gateway/api-keys`)}&title=${encodeURIComponent("Get an API Key")}`,
     },
     description: "Access hundreds of models across many providers",
     name: "Vercel AI Gateway",
@@ -338,6 +316,7 @@ const PROVIDER_METADATA = {
   "x-ai": {
     api: {
       defaultBaseURL: "https://api.x.ai/v1",
+      keyFormat: "xai-",
       keyURL: addRef("https://console.x.ai/team/default/api-keys"),
     },
     description: "Grok models from xAI",
@@ -349,12 +328,12 @@ const PROVIDER_METADATA = {
   "z-ai": {
     api: {
       defaultBaseURL: "https://api.z.ai/api/coding/paas/v4",
-      keyURL: addRef("https://docs.z.ai"),
+      keyURL: addRef("https://z.ai/manage-apikey/apikey-list"),
     },
     description: "GLM Coding Plan for AI-assisted development",
     name: "Z.ai GLM Coding Plan",
     type: "z-ai",
-    url: addRef("https://z.ai"),
+    url: addRef("https://z.ai/subscribe"),
   },
 } as const satisfies Record<AIProviderType, ProviderMetadataInput>;
 

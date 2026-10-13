@@ -1,3 +1,5 @@
+import { createLoopbackSignIn } from "@/electron-main/auth/loopback-sign-in";
+import { AUTH_CALLBACK_PATHS } from "@/electron-main/auth/routes";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -98,16 +100,13 @@ type StoreShape = z.output<typeof StoreSchema>;
 
 let STORE: null | Store<StoreShape> = null;
 
-interface PendingSignIn {
-  deliver: (params: URLSearchParams) => void;
-  promise: Promise<ChatGPTSignInResult>;
-  // The `state` the authorize URL carried; a redirect without it is not this
-  // sign-in's.
-  state: string;
-  supersede: () => void;
-}
-
-let pendingSignIn: null | PendingSignIn = null;
+const signIns = createLoopbackSignIn<ChatGPTSignInResult>({
+  onSettled: () => {
+    publisher.publish("chatgpt-account.updated", null);
+  },
+  timedOut: () => new Error("ChatGPT sign-in timed out"),
+  timeoutMs: SIGN_IN_TIMEOUT_MS,
+});
 
 const VERIFY_EVERY_MS = 30 * 1000;
 const lastVerifiedAt = new Map<string, number>();
@@ -189,7 +188,7 @@ export function chatGPTAccountsStatus(): ChatGPTAccountsStatus {
   const all = registrations();
   return {
     accounts: all.map((registration) => accountStatus(registration, all)),
-    signingIn: pendingSignIn !== null,
+    signingIn: signIns.isWaiting(),
   };
 }
 
@@ -431,12 +430,6 @@ function saveUnlessReplaced(
   return true;
 }
 
-/**
- * Where the auth callback server takes ChatGPT's redirect. OpenAI fixes the
- * scheme, host and path of the redirect; only the port may vary.
- */
-export const CHATGPT_CALLBACK_PATH = "/auth/callback";
-
 class TokenError extends Error {
   readonly code: string | undefined;
   constructor(
@@ -464,18 +457,12 @@ class TokenError extends Error {
  * Hand ChatGPT's redirect to the sign-in waiting for it. Resolves once the
  * sign-in has finished, so the page the browser lands on can say how it went;
  * undefined when no sign-in is waiting or the redirect carries another
- * `state`. Any page or local process can reach the callback port, so a
- * redirect that is not this sign-in's is turned away and the sign-in keeps
- * waiting for its own.
+ * `state`.
  */
 export function receiveChatGPTCallback(
   params: URLSearchParams,
 ): Promise<ChatGPTSignInResult> | undefined {
-  if (!pendingSignIn || params.get("state") !== pendingSignIn.state) {
-    return undefined;
-  }
-  pendingSignIn.deliver(params);
-  return pendingSignIn.promise;
+  return signIns.receive(params);
 }
 
 /**
@@ -492,49 +479,22 @@ export function signInWithChatGPT({
   accountId?: string;
   callbackPort: number;
 }): Promise<ChatGPTSignInResult> {
-  pendingSignIn?.supersede();
-  const controls: {
-    deliver: (params: URLSearchParams) => void;
-    supersede: () => void;
-  } = { deliver: noop, supersede: noop };
-  // Null when a newer sign-in took this one's place.
-  const received = new Promise<null | URLSearchParams>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error("ChatGPT sign-in timed out"));
-    }, SIGN_IN_TIMEOUT_MS);
-    controls.deliver = (params) => {
-      clearTimeout(timeout);
-      resolve(params);
-    };
-    controls.supersede = () => {
-      clearTimeout(timeout);
-      resolve(null);
-    };
-  });
   const target = accountId ? registrationById(accountId) : undefined;
   const grant = target ? grantOf(target.id) : undefined;
-  grant?.send({ type: "signInStarted" });
-  const state = base64url(randomBytes(32));
-  const entry: PendingSignIn = {
-    ...controls,
-    promise: runSignIn({
+  const promise = signIns.start(({ received, state }) => {
+    grant?.send({ type: "signInStarted" });
+    return runSignIn({
       received,
-      redirectURI: `http://127.0.0.1:${String(callbackPort)}${CHATGPT_CALLBACK_PATH}`,
+      redirectURI: `http://127.0.0.1:${String(callbackPort)}${AUTH_CALLBACK_PATHS.chatgpt}`,
       state,
       target,
     }).finally(() => {
       // A sign-in that landed has told its grant; this one ended without.
       grant?.send({ type: "signInEnded" });
-      if (pendingSignIn === entry) {
-        pendingSignIn = null;
-      }
-      publisher.publish("chatgpt-account.updated", null);
-    }),
-    state,
-  };
-  pendingSignIn = entry;
+    });
+  });
   publisher.publish("chatgpt-account.updated", null);
-  return entry.promise;
+  return promise;
 }
 
 /**
@@ -542,7 +502,7 @@ export function signInWithChatGPT({
  * as canceled, and the browser's redirect, should it still come, is refused.
  */
 export function cancelChatGPTSignIn() {
-  pendingSignIn?.supersede();
+  signIns.supersede();
 }
 
 function registrationFromTokens(
@@ -571,7 +531,7 @@ function registrationFromTokens(
 }
 
 function noop() {
-  // Stands in until the sign-in promise hands over its own.
+  // A refresh still running past its wait is left to finish on its own.
 }
 
 async function postToken(tokenUrl: string, form: Record<string, string>) {

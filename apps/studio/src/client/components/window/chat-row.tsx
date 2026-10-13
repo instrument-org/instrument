@@ -1,6 +1,7 @@
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
-import { CHATS_HREF } from "@/client/atoms/window";
+import { chatHref } from "@/client/components/window/window-href";
 import { FileOpenContext } from "@/client/components/file-open-context";
+import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import {
@@ -18,16 +19,23 @@ import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { openClickGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
+import { HourglassIcon } from "@phosphor-icons/react/Hourglass";
+import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { TagIcon } from "@phosphor-icons/react/Tag";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { chatMenuGroups } from "./chat-actions";
-import { activityLabel, type Chat, type Topic } from "./chats";
+import { LIMITED } from "./chat-status-line";
+import { ChatTitleField } from "./chat-title";
+import { activityLabel, type Chat, type Topic, wordRanges } from "./chats";
 import { type OpenOptions, useWindow, WindowContext } from "./context";
 import { HoldMarks } from "./hold-marks";
 import { RowActionBar } from "./row-action-bar";
@@ -36,6 +44,7 @@ import { topicColor } from "./topic-colors";
 import { TopicMark } from "./topic-mark";
 import { TopicPicker } from "./topic-picker";
 import { topicTint } from "./topic-tint";
+import { useChatRename } from "./use-chat-rename";
 
 /** How long the corner's bar stays after the topic list closes: the list's exit animation. */
 const PICKER_LEAVE_MS = 250;
@@ -73,9 +82,11 @@ export function ChatRow({
   isArriving = false,
   isOpen,
   now,
+  onDelete,
   onNewTopic,
   onOpen,
   onSetTopics,
+  search = "",
   topics,
 }: {
   /** The chat's actions, answered by the list for every row through one set of mutations. */
@@ -88,11 +99,15 @@ export function ChatRow({
   isOpen: boolean;
   /** The moment the row's time is read against. */
   now: Date;
+  /** Asks before the chat goes to the trash, through the caller's dialog. */
+  onDelete: () => void;
   /** Opens the new-topic dialog for this chat, with the name typed in the picker when anything was. */
   onNewTopic: (name?: string) => void;
   /** A plain click: the chat in place of whatever the window shows. */
   onOpen: () => void;
   onSetTopics: (topics: string[]) => void;
+  /** The words the list is searched for, which the title and the latest line mark where they turn up. */
+  search?: string;
   topics: Topic[];
 }) {
   // Every topic the chat is filed under, in the order it was filed.
@@ -105,7 +120,7 @@ export function ChatRow({
   // tab of the window's own behind the one up, where a plain click opens
   // it beside the list.
   const openInNewTab = () => {
-    appWindow.openScreen(`${CHATS_HREF}/${chat.id}`, {
+    appWindow.openScreen(chatHref(chat.id), {
       behind: true,
       newTab: true,
     });
@@ -125,7 +140,11 @@ export function ChatRow({
       }, PICKER_LEAVE_MS);
     }
   };
-  const isUnseen = chat.unread > 0;
+  const isUnseen = chat.unread;
+  const rename = useChatRename(chat);
+  // The menu hands focus back to the row as it closes, which would land
+  // after the field took it and blur the rename shut.
+  const isStartingRename = useRef(false);
   // What the chat's composer holds, whether or not it is on screen.
   const draft = useAtomValue(
     promptDraftAtom({ chatId: chat.id, scope: "chat" }),
@@ -159,7 +178,23 @@ export function ChatRow({
   ));
   // The title takes only its own width, so the draft's word stands right
   // after it and keeps its place as the title truncates before it.
-  const title = (
+  const title = rename.isEditing ? (
+    // Clicks and keys in the field are the field's, not the row's door.
+    <span
+      className="-my-1.5 flex min-w-0 flex-1"
+      onAuxClick={stopHere}
+      onClick={stopHere}
+      onKeyDown={stopHere}
+      onMouseDown={stopHere}
+    >
+      <ChatTitleField
+        className="text-[13px] font-medium"
+        grow
+        rename={rename}
+        width={undefined}
+      />
+    </span>
+  ) : (
     <>
       <span
         className={cn(
@@ -169,7 +204,10 @@ export function ChatRow({
             : "font-medium text-foreground/85",
         )}
       >
-        {chat.title}
+        <FuzzyHighlight
+          ranges={wordRanges(chat.title, search)}
+          text={chat.title}
+        />
       </span>
       {hasDraft && (
         <span className="shrink-0 text-[13px] text-error-700 dark:text-error-300">
@@ -178,8 +216,9 @@ export function ChatRow({
       )}
     </>
   );
-  // When something last happened, in the row's bottom corner, in a column
-  // of one width so the times line up down the list.
+  // When the user last messaged the chat, which the list is ordered by, in
+  // the row's bottom corner, in a column of one width so the times line up
+  // down the list.
   const time = (
     <span
       className={cn(
@@ -189,7 +228,7 @@ export function ChatRow({
         isUnseen && "font-semibold",
       )}
     >
-      {activityLabel(new Date(chat.updatedAt), now)}
+      {activityLabel(new Date(chat.lastUserMessageAt), now)}
     </span>
   );
   // A starred chat's star, past its topics in the row's corner and a mark
@@ -205,6 +244,8 @@ export function ChatRow({
   );
   // The same groups, in the same order, as the menu in the chat's head.
   const groups = chatMenuGroups(actions);
+  // Beside the ways to open the chat, where the list offers it.
+  const popOut = actions.find((action) => action.id === "popOut");
   const item = (action: RowAction) => (
     <ContextMenuItem
       key={action.id}
@@ -254,7 +295,7 @@ export function ChatRow({
             {/* A line's room whatever the latest line takes, and when there
                 is none, so the row keeps one height as its chat starts work. */}
             <div className="h-5 min-w-0">
-              <Peek chat={chat} />
+              <Peek chat={chat} search={search} />
             </div>
             {/* What the chat holds and the time in the row's bottom corner,
                 on a line every row has whether or not it holds anything, so
@@ -281,15 +322,37 @@ export function ChatRow({
           />
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent>
+      <ContextMenuContent
+        onCloseAutoFocus={(event) => {
+          if (isStartingRename.current) {
+            isStartingRename.current = false;
+            event.preventDefault();
+          }
+        }}
+      >
         <ContextMenuItem onSelect={onOpen}>Open</ContextMenuItem>
         <ContextMenuItem onSelect={openInNewTab}>
           <NewTabIcon className="size-4" />
           Open in New Tab
         </ContextMenuItem>
+        {popOut && (
+          <ContextMenuItem onSelect={popOut.run}>
+            <PictureInPictureIcon className="size-4" />
+            Pop Out
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         {groups.marks.map(item)}
         <ContextMenuSeparator />
+        <ContextMenuItem
+          onSelect={() => {
+            isStartingRename.current = true;
+            rename.start();
+          }}
+        >
+          <PencilSimpleIcon className="size-4" />
+          Rename
+        </ContextMenuItem>
         <ContextMenuSub>
           <ContextMenuSubTrigger>
             <TagIcon className="size-4" />
@@ -331,6 +394,11 @@ export function ChatRow({
         {groups.files.map(item)}
         <ContextMenuSeparator />
         {groups.put.map(item)}
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={onDelete} variant="destructive">
+          <TrashIcon className="size-4" />
+          Delete chat…
+        </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -473,10 +541,21 @@ function HoldsInChat({
  * and the last reply's first words otherwise, in muted. Nothing when an idle
  * chat has said nothing yet. One line that truncates.
  */
-function Peek({ chat, className }: { chat: Chat; className?: string }) {
+function Peek({
+  chat,
+  className,
+  search = "",
+}: {
+  chat: Chat;
+  className?: string;
+  /** The words searched for, marked where they turn up in the line. */
+  search?: string;
+}) {
+  const isFailed = chat.state === "failed";
+  const isLimited = chat.state === "limited";
   const isWaiting = chat.state === "waiting";
   const isWorking = chat.state === "working";
-  if (!chat.latest && !isWaiting && !isWorking) {
+  if (!chat.latest && !isFailed && !isLimited && !isWaiting && !isWorking) {
     return null;
   }
   return (
@@ -488,6 +567,25 @@ function Peek({ chat, className }: { chat: Chat; className?: string }) {
     >
       {isWorking ? (
         <WorkingPeek chat={chat} />
+      ) : isFailed ? (
+        // The turn never got its reply out, which nothing else on the row
+        // would say: the latest line is whatever came before it.
+        <>
+          <WarningCircleIcon
+            className="size-3.5 shrink-0 text-error-700 dark:text-error-300"
+            weight="bold"
+          />
+          <span className="min-w-0 truncate text-error-700 dark:text-error-300">
+            Stopped on an error
+          </span>
+        </>
+      ) : isLimited ? (
+        <>
+          <HourglassIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 truncate text-muted-foreground">
+            {LIMITED}
+          </span>
+        </>
       ) : isWaiting ? (
         <>
           <QuestionIcon
@@ -495,16 +593,24 @@ function Peek({ chat, className }: { chat: Chat; className?: string }) {
             weight="bold"
           />
           <span className="min-w-0 truncate text-foreground/80">
-            {chat.latest?.text || "Waiting on you"}
+            <Marked
+              search={search}
+              text={chat.latest?.text || "Waiting on you"}
+            />
           </span>
         </>
       ) : (
         <span className="min-w-0 truncate text-muted-foreground">
-          {chat.latest?.text}
+          <Marked search={search} text={chat.latest?.text ?? ""} />
         </span>
       )}
     </span>
   );
+}
+
+/** A line with the words searched for marked the way the command menu marks a match. */
+function Marked({ search, text }: { search: string; text: string }) {
+  return <FuzzyHighlight ranges={wordRanges(text, search)} text={text} />;
 }
 
 /**
@@ -557,12 +663,12 @@ function TagControl({
 }
 
 /**
- * The current step alone, or Instrument is working until a step lands.
+ * What the chat is on, as the line under its title says it: the step its own
+ * turn or a task at work names, or Instrument is working until a step lands.
  * One line keeps the row's height stable as the status changes.
  */
 function WorkingPeek({ chat }: { chat: Chat }) {
-  const working = chat.runningTasks.filter((task) => !task.waiting);
-  const step = working.find((task) => task.step)?.step;
+  const step = chat.latest?.kind === "step" ? chat.latest.text : undefined;
   // `brand-shiny-text` is an inline-block, which a parent's truncate cannot
   // shrink, so it carries its own.
   return (

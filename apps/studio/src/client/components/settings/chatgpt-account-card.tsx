@@ -1,4 +1,5 @@
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import {
   AlertDialog,
@@ -19,7 +20,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 const USAGE_URL = "https://chatgpt.com/settings/usage";
 
@@ -73,9 +74,7 @@ export function ChatGPTAccountCard() {
     }
     setWaiting(null);
     if (result.outcome === "failed") {
-      toast.error("Couldn't sign in with ChatGPT", {
-        description: result.error,
-      });
+      toast.error("Couldn't sign in with ChatGPT", { cause: result.error });
       return;
     }
     // Declined, canceled, or signed in without the plan, which the account's
@@ -115,7 +114,10 @@ export function ChatGPTAccountCard() {
       state={status && accounts.map((account) => account.id).join(" ")}
     >
       <Card className="gap-0 p-4">
-        <div className="flex items-start justify-between gap-4">
+        <div
+          className="flex items-start justify-between gap-4"
+          {...settingAnchor("chatgpt-account")}
+        >
           <div className="flex min-w-0 flex-1 items-start gap-3">
             <div className="flex size-8 shrink-0 items-center justify-center">
               <AIProviderIcon type="chatgpt-account" />

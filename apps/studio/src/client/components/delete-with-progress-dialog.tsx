@@ -1,4 +1,4 @@
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import {
   getTrashTerminology,
@@ -41,7 +41,7 @@ export function DeleteWithProgressDialog<T>({
   open,
   title,
 }: DeleteWithProgressDialogProps<T>) {
-  useBlockTabNavigation(open);
+  const [isPending, setIsPending] = useState(false);
   // Keep the body mounted through the close animation instead of unmounting it
   // the instant `open` flips false, which would animate out an empty frame.
   // Cleared when AlertDialogContent's exit animation actually ends.
@@ -54,7 +54,11 @@ export function DeleteWithProgressDialog<T>({
   return (
     <AlertDialog onOpenChange={onOpenChange} open={open}>
       <AlertDialogContent
+        onEscapeKeyDown={(event) => {
+          if (isPending) event.preventDefault();
+        }}
         onExitComplete={() => {
+          setIsPending(false);
           onBodyExit();
           onExitComplete?.();
         }}
@@ -64,9 +68,12 @@ export function DeleteWithProgressDialog<T>({
             content={content}
             description={description}
             items={items}
+            isPending={isPending}
+            setIsPending={setIsPending}
             key={openKey}
             onDelete={onDelete}
             onOpenChange={onOpenChange}
+            open={open}
             title={title}
           />
         )}
@@ -79,12 +86,22 @@ function DeleteWithProgressDialogBody<T>({
   content,
   description,
   items,
+  isPending,
+  setIsPending,
   onDelete,
   onOpenChange,
+  open,
   title,
-}: Omit<DeleteWithProgressDialogProps<T>, "open">) {
+}: DeleteWithProgressDialogProps<T> & {
+  isPending: boolean;
+  setIsPending: (pending: boolean) => void;
+}) {
   const trashTerminology = getTrashTerminology();
-  const [isPending, setIsPending] = useState(false);
+  // Held for as long as it is open; it can be left only while nothing is
+  // being deleted.
+  useModalBack(() => {
+    onOpenChange(false);
+  }, open && !isPending);
   const [showWarning, setShowWarning] = useState(false);
   const [messageIndex, setMessageIndex] = useState(0);
 

@@ -2,7 +2,7 @@ import { ModelNoticeRow } from "@/client/components/model-notice";
 import { noticeFor, readModelStatus } from "@/client/lib/model-status";
 import { modelStatusScenarios } from "@/client/lib/model-status-scenarios";
 import { createFileRoute } from "@tanstack/react-router";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 export const Route = createFileRoute("/debug/components/model-notices")({
   component: RouteComponent,

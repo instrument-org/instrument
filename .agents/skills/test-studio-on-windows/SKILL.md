@@ -26,6 +26,8 @@ If the profile or either scheduled task is missing, read [references/host-enroll
 - Use `installed` to validate the installed packaged product. It uses the production user data and can mutate real local application state. Route helpers do not exist, so use generic `eval`, `click`, `press`, `wait`, and `shot` operations.
 - The installed target validates the installed application version, not the remote checkout. The dev targets validate the remote checkout's exact Git state, not uncommitted changes on the primary machine.
 
+A preview build is how to test a branch's packaged app without touching the installed one. `gh workflow run preview.yml --ref <branch> -f os=windows` (or `all`) builds it, and `gh api repos/instrument-org/instrument/actions/artifacts/<id>/zip > installer.exe` fetches the installer itself (the run's `artifacts` endpoint lists ids). `gh run download` fails on it, since it expects every artifact to be a zip. It installs beside Instrument under `Instrument Preview (<name>)`, in its own folder under `%LOCALAPPDATA%\Programs`, with its own user data, and `window.__studioDrive` is attached, so route helpers work. No `preview` target is enrolled yet: start it the way [references/host-enrollment.md](references/host-enrollment.md) starts the installed app, with the preview's executable and a CDP port of its own. Every build is a first launch, since the run number is part of its name; for another first launch, build again.
+
 ## Establish source identity
 
 Run status before every test and report the returned commit, branch, and dirty state:
@@ -84,7 +86,7 @@ This target needs two things, and `status` only reports the first: `devSeeded` e
 ```bash
 node "$WINDOWS_HOST" start --host "$HOST" --target dev-seeded --workspace documents
 node "$WINDOWS_HOST" tunnel --host "$HOST" --target dev-seeded --local-port 49162
-node "$DRIVE" goto /tasks/generated-pdf --port 49162
+node "$DRIVE" goto /chats/red-and-blue-squares --port 49162
 ```
 
 Seeding is idempotent, so starting the same fixture again reuses what is on disk. Pass `--fresh` to rebuild a workspace the app has written to since. Neither seeds a workspace a running instance has open: stop that target first.
@@ -95,7 +97,7 @@ Seeding is idempotent, so starting the same fixture again reuses what is on disk
 node "$WINDOWS_HOST" seed --host "$HOST" --workspace documents
 ```
 
-The directory holds one fixture at a time, so naming a different one rebuilds it. `status` reports which fixture is in it, and the task ids it seeded, under `devSeeded.workspace`.
+The directory holds one fixture at a time, so naming a different one rebuilds it. `status` reports which fixture is in it, and the chats and tasks it seeded, under `devSeeded.workspace`.
 
 A seeded workspace has no provider credentials and must not have any, so the composer reads "No models available". That is the tell that the workspace is the seeded one and not the developer's.
 
@@ -108,11 +110,11 @@ node "$DRIVE" state --port 49160
 node "$DRIVE" goto /release-notes --port 49160
 node "$DRIVE" click --text "New chat" --port 49160
 node "$DRIVE" shot /tmp/windows-dev.png --port 49160
-node "$DRIVE" rpc workspace.task.status '{"id":"<task-id>"}' --port 49160
-node "$DRIVE" wait --idle --task <task-id> --port 49160
+node "$DRIVE" rpc workspace.chats.byId '{"id":"<chat-id>"}' --port 49160
+node "$DRIVE" wait --idle --chat <chat-id> --port 49160
 ```
 
-Every `--port` here is the local end of the tunnel, so the whole driver works against a remote host unchanged: it only ever needs a CDP endpoint. That includes running a task end to end without the UI (`studio-chrome-devtools`), with one caveat this platform adds nothing to — the seeded workspace carries no credentials, so a live turn needs the `dev` target rather than `dev-seeded`.
+Every `--port` here is the local end of the tunnel, so the whole driver works against a remote host unchanged: it only ever needs a CDP endpoint. That includes running a chat end to end without the UI (`studio-chrome-devtools`), with one caveat this platform adds nothing to — the seeded workspace carries no credentials, so a live turn needs the `dev` target rather than `dev-seeded`.
 
 Against an installed build:
 
@@ -133,7 +135,7 @@ Do not use `state`, `goto`, or `modal` against the installed build. They wait fo
 node "$DRIVE" rpc workspace.chats.tasks '{"id":"<chat-id>"}' --port 49161
 ```
 
-Two things it needs on a remote host. Developer Mode has to be on in that machine's own settings, because the preference is checked per call and the bridge cannot turn itself on; a call made while it is off says exactly that. And `wait --idle` needs an explicit `--task` here, since without one it asks the dev-only handle which task the active tab is showing.
+Two things it needs on a remote host. Developer Mode has to be on in that machine's own settings, because the preference is checked per call and the bridge cannot turn itself on; a call made while it is off says exactly that. And `wait --idle` needs an explicit `--chat` here, since without one it asks the dev-only handle which chat the active tab is showing.
 
 Treat screenshots as supporting evidence. Also assert the expected DOM or state, inspect relevant logs, and include the remote commit or installed version in the result.
 

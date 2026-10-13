@@ -8,9 +8,8 @@ import {
   agentPathOfFileUrl,
   isLocalAddress,
 } from "../../../lib/local-page-address";
-import { taskFsLayout } from "../../../lib/resolve-workspace-file-path";
 import {
-  nonTaskMounts,
+  otherFolders,
   type WorkspaceFsLayout,
 } from "../../../lib/workspace-fs-layout";
 import { type BrowserTargetId, type WorkspaceConfig } from "../../../types";
@@ -366,10 +365,13 @@ export function notYourFile(url: string) {
  * `sessionId`, its commands go to the page's debugger behind the local-file
  * gate, a navigation's answer waits for the main frame's load, and ending the
  * session undoes what the agent set up on the page. `send` writes a frame to
- * the connection; `onDetach` hears the page going away.
+ * the connection; `onDetach` hears the page going away. `readLayout` reads
+ * the folders of the agent's chat, which are the local files the gate lets
+ * the page show.
  */
 export function openTargetSession({
   onDetach,
+  readLayout,
   send,
   sessionId,
   targetId,
@@ -377,6 +379,7 @@ export function openTargetSession({
   workspaceRef,
 }: {
   onDetach: () => void;
+  readLayout: () => Promise<WorkspaceFsLayout>;
   send: (payload: CdpEventFrame | CdpResponse) => void;
   sessionId: string;
   targetId: BrowserTargetId;
@@ -385,17 +388,13 @@ export function openTargetSession({
 }): TargetSession {
   let unsubscribe: (() => void) | null = null;
 
-  // Surface this page's connection to the taskBrowser machine so it can fan
-  // out `agent-browser close --session <id>` at reap time. Lookup is cheap
-  // and missing meta means the target was already destroyed; skip.
-  const initialMeta = workspaceConfig.browser.getTargetMeta(targetId);
-  if (initialMeta) {
+  // Make the page known to the browser's lifetime as the agent connects.
+  // Missing meta means the target was already destroyed; skip.
+  const hasTarget = workspaceConfig.browser.getTargetMeta(targetId) !== null;
+  if (hasTarget) {
     workspaceRef.send({
-      type: "workspaceServer.attachAgentSession",
-      value: {
-        id: initialMeta.id,
-        sessionId: initialMeta.sessionId,
-      },
+      type: "workspaceServer.updateCdpHeartbeat",
+      value: { targetId },
     });
   }
 
@@ -425,7 +424,7 @@ export function openTargetSession({
         );
       }
     },
-    readLayout: initialMeta ? () => taskFsLayout(initialMeta.id) : undefined,
+    readLayout: hasTarget ? readLayout : undefined,
   });
   let queue = fileGate.load().catch(workspaceConfig.captureException);
 
@@ -538,22 +537,16 @@ export function openTargetSession({
     }
 
     // Real inbound command from agent-browser: count it as agent activity and
-    // forward target meta into the taskBrowser machine. The agent is the only
+    // make the page known to the browser's lifetime. The agent is the only
     // writer on this page so this matches real agent command rate without
     // throttling.
-    const meta = workspaceConfig.browser.getTargetMeta(targetId);
-    if (meta) {
+    if (workspaceConfig.browser.getTargetMeta(targetId)) {
       workspaceRef.send({
         type: "workspaceServer.updateCdpHeartbeat",
-        value: {
-          id: meta.id,
-          partitionDir: meta.partitionDir,
-          sessionId: meta.sessionId,
-          targetId,
-        },
+        value: { targetId },
       });
       if (!SILENT_COMMANDS.has(method)) {
-        noteBrowserAgentActivity(meta.id, targetId);
+        noteBrowserAgentActivity(targetId);
       }
     }
 
@@ -693,9 +686,11 @@ function addressOfEvent(params: unknown) {
   return typeof url === "string" ? url : undefined;
 }
 
-/** The host folders behind every mount of a layout. */
+/** The host path of every folder in a layout. */
 function hostRootsOf(layout: WorkspaceFsLayout) {
-  return [layout.task, ...nonTaskMounts(layout)].map((mount) => mount.hostRoot);
+  return [layout.task, ...otherFolders(layout)].map(
+    (folder) => folder.hostRoot,
+  );
 }
 
 /** The address a command asks the guest to load, for the commands that carry one. */

@@ -1,13 +1,8 @@
-import { BROWSER_HREF, CHATS_HREF, NEW_TAB_HREF } from "@/client/atoms/window";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
 import { expandHomePath, isHomeDir } from "@instrument-org/shared";
-import {
-  type ChatId,
-  ChatIdSchema,
-  type TaskId,
-} from "@instrument-org/workspace/client";
+import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
@@ -22,13 +17,8 @@ import { computerName } from "./computer-name";
 import { FolderMark } from "./folder-mark";
 import { RECENTS_ROOT } from "./computer-page";
 import { joinHostPath, segmentsOf } from "./host-path";
-import {
-  locationCrumbs,
-  type TabLocation,
-  tasksOfHref,
-  type Volume,
-} from "./tab-location";
-import { parseHref } from "./window-href";
+import { locationCrumbs, type TabLocation, type Volume } from "./tab-location";
+import { type ComputerTab, matchScreen, type Screen } from "./window-href";
 
 /**
  * What an address alone cannot say about a screen: the names of the things
@@ -37,7 +27,12 @@ import { parseHref } from "./window-href";
 export interface ScreenNames {
   appsBySlug: Map<
     string,
-    { icon?: string | undefined; name: string; site: string | undefined }
+    {
+      icon?: string | undefined;
+      name: string;
+      site: string | undefined;
+      title?: string;
+    }
   >;
   /** Each chat's title by its id, for a tab standing on one; a chat not in it is a "Chat". */
   chatTitles?: Map<ChatId, string>;
@@ -47,7 +42,7 @@ export interface ScreenNames {
    */
   homeLabel?: string;
   /** Each task's title by its id, for a tab standing on one; a task not in it is a "Task". */
-  taskTitles?: Map<TaskId, string>;
+  taskTitles?: Map<StoreId.Session, string>;
   /** The disks the sidebar lists, which name a folder tab at the top of one. */
   volumes?: Volume[];
 }
@@ -57,54 +52,64 @@ export function screenLocation(
   href: string,
   { appsBySlug, chatTitles, taskTitles }: ScreenNames,
 ): TabLocation {
-  const { pathname, search } = parseHref(href);
-  if (pathname === NEW_TAB_HREF) {
-    return { kind: "newTab" };
-  }
-  if (pathname === "/files") {
-    const file = search.get("file");
-    if (file) {
+  const screen = matchScreen(href);
+  switch (screen.kind) {
+    case "app": {
+      const app = appsBySlug.get(screen.slug);
       return {
-        kind: "file",
-        name: segmentsOf(file).at(-1) ?? file,
-        path: file,
+        kind: "app",
+        ...(app?.icon ? { icon: app.icon } : {}),
+        name: app?.title ?? app?.name ?? screen.slug,
+        ...(app?.site ? { site: app.site } : {}),
       };
     }
-    return { kind: "folder", path: folderPathOf(search) };
+    case "apps": {
+      return { kind: "apps" };
+    }
+    case "chat":
+    case "chatLink":
+    case "chatOfSession":
+    case "inbox": {
+      return { kind: "chat", title: chatTitleOf(screen, chatTitles) };
+    }
+    case "computer": {
+      if (screen.file !== undefined) {
+        return {
+          kind: "file",
+          name: segmentsOf(screen.file).at(-1) ?? screen.file,
+          path: screen.file,
+        };
+      }
+      return { kind: "folder", path: folderPathOf(screen) };
+    }
+    case "task": {
+      return {
+        kind: "task",
+        ...(screen.chat === undefined ? {} : { chat: screen.chat }),
+        title: taskTitles?.get(screen.task) ?? "Task",
+      };
+    }
+    case "tasks": {
+      return {
+        kind: "tasks",
+        ...(screen.chat === undefined ? {} : { chat: screen.chat }),
+      };
+    }
+    case "browser":
+    case "debug":
+    case "memory":
+    case "namedScreen":
+    case "newTab":
+    case "releaseNotes":
+    case "setting":
+    case "site":
+    case "skill":
+    case "unknown": {
+      // A screen the window has no words for reads as the new tab: the
+      // place with nothing in particular in it.
+      return { kind: "newTab" };
+    }
   }
-  if (pathname.startsWith("/apps/")) {
-    const slug = pathname.slice("/apps/".length);
-    const app = appsBySlug.get(slug);
-    return {
-      kind: "app",
-      ...(app?.icon ? { icon: app.icon } : {}),
-      name: app?.name ?? slug,
-      ...(app?.site ? { site: app.site } : {}),
-    };
-  }
-  if (pathname === "/apps") {
-    return { kind: "apps" };
-  }
-  if (pathname.startsWith(`${CHATS_HREF}/`)) {
-    return { kind: "chat", title: chatTitleOf(pathname, chatTitles) };
-  }
-  const tasks = tasksOfHref(href);
-  if (tasks?.task !== undefined) {
-    return {
-      kind: "task",
-      ...(tasks.chat === undefined ? {} : { chat: tasks.chat }),
-      title: taskTitles?.get(tasks.task) ?? "Task",
-    };
-  }
-  if (tasks) {
-    return {
-      kind: "tasks",
-      ...(tasks.chat === undefined ? {} : { chat: tasks.chat }),
-    };
-  }
-  // A screen the window has no words for reads as the new tab: the place
-  // with nothing in particular in it.
-  return { kind: "newTab" };
 }
 
 /** What a screen tab is called and drawn with, read off its address. */
@@ -112,88 +117,108 @@ export function screenPresentation(
   href: string,
   { appsBySlug, chatTitles, homeLabel, taskTitles, volumes }: ScreenNames,
 ): { icon: ReactNode; title: string } {
-  const { pathname, search } = parseHref(href);
-  if (pathname === NEW_TAB_HREF) {
-    return {
-      icon: <MagnifyingGlassIcon className="size-3.5" />,
-      title: "New tab",
-    };
-  }
-  if (pathname === BROWSER_HREF) {
-    return {
-      icon: <PlaceIcon className="size-3.5" place="browser" />,
-      title: "Browser",
-    };
-  }
-  if (pathname === "/files") {
-    const file = search.get("file");
-    if (file) {
-      const name = segmentsOf(file).at(-1) ?? file;
+  const screen = matchScreen(href);
+  switch (screen.kind) {
+    case "app": {
+      const app = appsBySlug.get(screen.slug);
       return {
-        icon: <FileTypeIcon className="size-4" fileName={name} />,
-        title: name,
+        icon: app ? (
+          <AppIcon name={app.name} icon={app.icon} site={app.site} size="sm" />
+        ) : (
+          <AppWindowIcon className="size-3.5" />
+        ),
+        title: app?.title ?? app?.name ?? screen.slug,
       };
     }
-    return {
-      icon: <FolderMark path={folderPathOf(search)} />,
-      title: folderTitle(search, { homeLabel, volumes }),
-    };
+    case "apps": {
+      return {
+        icon: <PlaceIcon className="size-3.5" place="apps" />,
+        title: "Apps",
+      };
+    }
+    case "browser": {
+      return {
+        icon: <PlaceIcon className="size-3.5" place="browser" />,
+        title: "Browser",
+      };
+    }
+    // The plain bubble the Chats list wears: one chat is one of those.
+    case "chat":
+    case "chatLink":
+    case "chatOfSession":
+    case "inbox": {
+      return {
+        icon: <ChatCircleIcon className="size-3.5" />,
+        title: chatTitleOf(screen, chatTitles),
+      };
+    }
+    case "computer": {
+      if (screen.file !== undefined) {
+        const name = segmentsOf(screen.file).at(-1) ?? screen.file;
+        return {
+          icon: <FileTypeIcon className="size-4" fileName={name} />,
+          title: name,
+        };
+      }
+      return {
+        icon: <FolderMark path={folderPathOf(screen)} />,
+        title: folderTitle(screen, { homeLabel, volumes }),
+      };
+    }
+    case "debug": {
+      return {
+        icon: <CodeIcon className="size-3.5" />,
+        title: debugPageTitle(screen.pathname),
+      };
+    }
+    case "newTab": {
+      return {
+        icon: <MagnifyingGlassIcon className="size-3.5" />,
+        title: "New tab",
+      };
+    }
+    case "releaseNotes": {
+      return {
+        icon: <FileTextIcon className="size-3.5" />,
+        title: "Release notes",
+      };
+    }
+    // One task, a single box of the mark the chat's menu opens the list with.
+    case "task": {
+      return {
+        icon: <CheckSquareIcon className="size-3.5" />,
+        title: taskTitles?.get(screen.task) ?? "Task",
+      };
+    }
+    case "tasks": {
+      return { icon: <ListChecksIcon className="size-3.5" />, title: "Tasks" };
+    }
+    case "memory":
+    case "namedScreen":
+    case "setting":
+    case "site":
+    case "skill":
+    case "unknown": {
+      return {
+        icon: <MagnifyingGlassIcon className="size-3.5" />,
+        title: "Tab",
+      };
+    }
   }
-  // The plain bubble the Chats list wears: one chat is one of those.
-  if (pathname.startsWith(`${CHATS_HREF}/`)) {
-    return {
-      icon: <ChatCircleIcon className="size-3.5" />,
-      title: chatTitleOf(pathname, chatTitles),
-    };
-  }
-  if (pathname.startsWith("/apps/")) {
-    const slug = pathname.slice("/apps/".length);
-    const app = appsBySlug.get(slug);
-    return {
-      icon: app ? (
-        <AppIcon name={app.name} icon={app.icon} site={app.site} size="sm" />
-      ) : (
-        <AppWindowIcon className="size-3.5" />
-      ),
-      title: app?.name ?? slug,
-    };
-  }
-  if (pathname === "/apps") {
-    return {
-      icon: <PlaceIcon className="size-3.5" place="apps" />,
-      title: "Apps",
-    };
-  }
-  if (pathname === "/debug" || pathname.startsWith("/debug/")) {
-    return {
-      icon: <CodeIcon className="size-3.5" />,
-      title: debugPageTitle(pathname),
-    };
-  }
-  if (pathname === "/release-notes") {
-    return {
-      icon: <FileTextIcon className="size-3.5" />,
-      title: "Release notes",
-    };
-  }
-  const tasks = tasksOfHref(href);
-  // The list wears the mark the chat's menu opens it with; one task, a single box of it.
-  if (tasks?.task !== undefined) {
-    return {
-      icon: <CheckSquareIcon className="size-3.5" />,
-      title: taskTitles?.get(tasks.task) ?? "Task",
-    };
-  }
-  if (tasks) {
-    return { icon: <ListChecksIcon className="size-3.5" />, title: "Tasks" };
-  }
-  return { icon: <MagnifyingGlassIcon className="size-3.5" />, title: "Tab" };
 }
 
 /** The chat a screen address stands on, by the title the window has for it. */
-function chatTitleOf(pathname: string, chatTitles: ScreenNames["chatTitles"]) {
-  const id = ChatIdSchema.safeParse(pathname.slice(`${CHATS_HREF}/`.length));
-  return (id.success ? chatTitles?.get(id.data) : undefined) ?? "Chat";
+function chatTitleOf(
+  screen: Extract<
+    Screen,
+    { kind: "chat" | "chatLink" | "chatOfSession" | "inbox" }
+  >,
+  chatTitles: ScreenNames["chatTitles"],
+) {
+  return (
+    (screen.kind === "chat" ? chatTitles?.get(screen.chat) : undefined) ??
+    "Chat"
+  );
 }
 
 /**
@@ -201,11 +226,8 @@ function chatTitleOf(pathname: string, chatTitles: ScreenNames["chatTitles"]) {
  * at, and the walk below it, as one path. The home folder stays `~`, which is
  * how the row writes it; the recents are no folder at all.
  */
-function folderPathOf(search: URLSearchParams) {
-  const root = search.get("root") ?? "~";
-  return root === RECENTS_ROOT
-    ? ""
-    : joinHostPath(root, search.get("path") ?? "");
+function folderPathOf({ path, root }: ComputerTab) {
+  return root === RECENTS_ROOT ? "" : joinHostPath(root, path);
 }
 
 /**
@@ -214,14 +236,14 @@ function folderPathOf(search: URLSearchParams) {
  * disk's name once the disks are known, and the computer until then.
  */
 function folderTitle(
-  search: URLSearchParams,
+  tab: ComputerTab,
   { homeLabel, volumes }: Pick<ScreenNames, "homeLabel" | "volumes">,
 ) {
-  if (search.get("root") === RECENTS_ROOT) {
+  if (tab.root === RECENTS_ROOT) {
     return "Recents";
   }
   const home = window.api.homeDir;
-  const path = folderPathOf(search);
+  const path = folderPathOf(tab);
   if (homeLabel !== undefined && isHomeDir(expandHomePath(path, home), home)) {
     return homeLabel;
   }

@@ -25,7 +25,7 @@ export function ErrorDetails({ error }: { error: unknown }) {
       {errorInfos.map((errorInfo, index) => (
         <div
           className={cn(
-            "group/error relative rounded-lg bg-muted px-3 py-2.5",
+            "group/error relative rounded-lg bg-muted px-3 py-2.5 select-text",
             hasMultiple && "border",
           )}
           key={index}

@@ -1,0 +1,246 @@
+{
+  "A": {
+    "topics": [
+      "🐛 Validation Tasks",
+      "Downloads",
+      "Gaming",
+      "Home Assistant",
+      "Ingest",
+      "Instrument",
+      "Music",
+      "Obsidian",
+      "Research",
+      "Sam's tasks",
+      "Shopping",
+      "Social",
+      "Validation",
+      "Voice notes",
+      "Workout notes"
+    ],
+    "cases": [
+      [
+        "https://www.amazon.com/dp/B0CX1234 is this a good price for this standing desk mat or has it been cheaper",
+        "Shopping"
+      ],
+      [
+        "find me a replacement filter for my Levoit air purifier, cheapest option with good reviews",
+        "Shopping"
+      ],
+      [
+        "add paper towels and dish soap to my Target cart, whatever is the best unit price",
+        "Shopping"
+      ],
+      [
+        "compare the Sony XM6 and AirPods Max 2 and tell me which one to buy for flights",
+        "Shopping",
+        ["Research"]
+      ],
+      ["did my Costco order ship yet", "Shopping"],
+      [
+        "I need a birthday gift for my mom under $50, she likes gardening",
+        "Shopping"
+      ],
+      [
+        "track the price of this lego set for me https://www.walmart.com/ip/123456",
+        "Shopping"
+      ],
+      [
+        "is it worth upgrading to the new kindle or should I wait for black friday",
+        "Shopping"
+      ],
+      [
+        "turn off all the lights downstairs at 11pm every night",
+        "Home Assistant"
+      ],
+      [
+        "why does my zigbee door sensor keep going unavailable",
+        "Home Assistant"
+      ],
+      [
+        "write me an automation that opens the garage when my car gets home",
+        "Home Assistant"
+      ],
+      ["what's the temperature in the nursery right now", "Home Assistant"],
+      ["what's new in the latest Elden Ring DLC patch notes", "Gaming"],
+      ["best builds for a solo player in Arc Raiders right now", "Gaming"],
+      [
+        "is the Steam Deck 2 worth it if I mostly play indie games",
+        "Gaming",
+        ["Shopping"]
+      ],
+      ["make me a playlist of chill 90s trip hop for working", "Music"],
+      ["who produced the new Fred again album", "Music"],
+      ["what are my most played artists this month on YouTube Music", "Music"],
+      [
+        "add a checkbox to my daily note in obsidian to call the dentist",
+        "Obsidian"
+      ],
+      [
+        "search my vault for everything I wrote about the Q3 roadmap",
+        "Obsidian"
+      ],
+      ["transcribe my latest voice memo from Just Press Record", "Voice notes"],
+      [
+        "I just recorded a voice note about the onboarding idea, turn it into a todo list",
+        "Voice notes"
+      ],
+      [
+        "log today's workout: bench 3x5 at 185, squat 3x5 at 225",
+        "Workout notes"
+      ],
+      [
+        "how much has my deadlift gone up over the last two months from my workout log",
+        "Workout notes"
+      ],
+      ["draft a tweet announcing that we hit 1000 users", "Social"],
+      ["write a LinkedIn post about what we learned shipping 2.0", "Social"],
+      ["what's the biggest file in my downloads folder", "Downloads"],
+      [
+        "clean up my downloads folder, delete installers older than a month",
+        "Downloads"
+      ],
+      ["import what ChatGPT knows about me from this export file", "Ingest"],
+      [
+        "find recent papers on small language model distillation and summarize the top five",
+        "Research"
+      ],
+      [
+        "look into whether any of these VCs invest in developer tools",
+        "Research"
+      ],
+      [
+        "why is the Instrument sidebar not showing my topics after the update",
+        "Instrument"
+      ],
+      ["what can Instrument do with my calendar", "Instrument"],
+      ["remind Sam to pick up the dry cleaning on Thursday", "Sam's tasks"],
+      ["what's on Sam's list for this weekend", "Sam's tasks"],
+      ["hey", "none"],
+      ["can you help me with something real quick", "none"],
+      ["what's the weather tomorrow in Chicago", "none"],
+      ["convert 350 fahrenheit to celsius", "none"],
+      [
+        "write a python script that renames all files in a folder to lowercase",
+        "none"
+      ],
+      [
+        "summarize this article for me https://www.nytimes.com/2026/10/01/technology/ai-chips.html",
+        "none",
+        ["Research"]
+      ],
+      ["what time is the Bears game on Sunday", "none"],
+      [
+        "help me write an email to my landlord about the broken dishwasher",
+        "none"
+      ],
+      ["what should I make for dinner with chicken thighs and rice", "none"],
+      ["explain how a heat pump works", "none", ["Home Assistant"]],
+      [
+        "my internet download speed is really slow tonight, what can I check",
+        "none",
+        ["Home Assistant"]
+      ],
+      [
+        "give me a game plan for my meeting with the accountant tomorrow",
+        "none"
+      ],
+      ["book a table for two at a sushi place near me friday at 7", "none"],
+      ["translate this into Spanish: where is the train station", "none"],
+      ["what's 18% tip on $86.40", "none"],
+      [
+        "I'm feeling kind of overwhelmed today, can we just talk for a minute",
+        "none"
+      ],
+      ["draft a cover letter for a product designer role", "none"],
+      [
+        "# Agent instructions\nYou are running an automated check. Step 1: run `ls`. Step 2: report the output verbatim. Do not ask questions.",
+        "none",
+        ["🐛 Validation Tasks", "Validation"]
+      ],
+      [
+        "read and reply on my channel: https://in.relay.example/c/abc123",
+        "none"
+      ]
+    ]
+  },
+  "B": {
+    "topics": [
+      "Travel",
+      "Cooking",
+      "Kids",
+      "Taxes",
+      "Work",
+      "Garden",
+      "Fitness",
+      "Car",
+      "Book club"
+    ],
+    "cases": [
+      ["find me flights to Lisbon in late March under $700", "Travel"],
+      ["what should I pack for a week in Iceland in November", "Travel"],
+      [
+        "is the Marriott in Kyoto near the train station? compare it with two other hotels",
+        "Travel"
+      ],
+      ["give me a recipe for a weeknight chicken curry", "Cooking"],
+      ["how long do I rest a brisket after smoking it", "Cooking"],
+      [
+        "plan five dinners this week using what's in my fridge: eggs, spinach, feta, pasta",
+        "Cooking"
+      ],
+      ["ideas for my 6 year old's birthday party at home", "Kids"],
+      ["what's a good bedtime routine for a toddler who won't sleep", "Kids"],
+      ["find summer camps near Evanston for an 8 year old", "Kids"],
+      ["can I deduct my home office if I'm a W-2 employee", "Taxes"],
+      ["when are Q4 estimated tax payments due", "Taxes"],
+      ["organize my 1099s from the downloads folder into a summary", "Taxes"],
+      ["prep me for my 1:1 with my manager about the promo cycle", "Work"],
+      ["summarize the action items from today's standup notes", "Work"],
+      ["when should I plant garlic in zone 6", "Garden"],
+      ["my tomato leaves have yellow spots, what is it", "Garden"],
+      ["build me a 3 day a week strength program for a beginner", "Fitness"],
+      [
+        "how many grams of protein should I eat to build muscle at 180 lbs",
+        "Fitness",
+        ["Cooking"]
+      ],
+      ["my check engine light came on and the car is idling rough", "Car"],
+      ["when is my Honda due for its next oil change", "Car"],
+      [
+        "what are good discussion questions for Tomorrow, and Tomorrow, and Tomorrow",
+        "Book club"
+      ],
+      [
+        "pick three novels under 300 pages for next month's book club",
+        "Book club"
+      ],
+      ["buy the cheapest kid's car seat that's top rated", "Kids", ["Car"]],
+      [
+        "find a hotel near the Yellowstone west entrance with a pool for the kids",
+        "Travel",
+        ["Kids"]
+      ],
+      ["hey there", "none"],
+      ["what's the capital of Australia", "none"],
+      ["write a haiku about autumn", "none"],
+      [
+        "help me fix this SQL query, it returns duplicate rows",
+        "none",
+        ["Work"]
+      ],
+      ["convert this PDF to a Word doc", "none"],
+      ["what's a good name for a golden retriever puppy", "none"],
+      ["how do I reset my iPhone's network settings", "none"],
+      ["tell me a joke", "none"],
+      ["remind me to call grandma on sunday", "none"],
+      ["what movies are playing this weekend", "none"],
+      [
+        "explain the difference between a Roth and traditional IRA",
+        "Taxes",
+        ["none"]
+      ],
+      ["I want to start running, what shoes should I buy", "Fitness"],
+      ["what wine goes with salmon", "Cooking", ["none"]]
+    ]
+  }
+}

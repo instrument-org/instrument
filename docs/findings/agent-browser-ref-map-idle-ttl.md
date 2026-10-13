@@ -30,8 +30,8 @@ ref`.
 So refs had an effective 30s TTL tied to the daemon idle timeout. Nothing
 documents this: both our skill and the upstream README say refs only go stale
 "after navigation or a DOM change," so a slow agent re-snapshots and re-fails
-without understanding why. The **view** survives (workspace owns it on a
-separate 1-hour reaper, `task-browser.ts`), which is why re-snapshot keeps
+without understanding why. The **view** survives (the workspace discards
+a guest on clocks of an hour or more, `window-browser.ts`), which is why re-snapshot keeps
 re-finding the element while the click keeps failing.
 
 ## Why it surfaced now
@@ -49,12 +49,12 @@ direction, not of the fingerprint fix itself. See
 Raised `AGENT_BROWSER_IDLE_TIMEOUT_MS` to `"300000"` (5 min) in
 [agent-browser.ts](../../packages/workspace/src/lib/agent-browser.ts). It must
 outlast an agent's think time between a snapshot and the action that consumes
-its refs, while staying well under the workspace's 1-hour view reaper so it
-remains a backstop.
+its refs, while staying well under the hour-or-more clocks that discard a
+view.
 
 Safe because the daemon idle timeout is only a backstop: the primary reap is the
-explicit `close --session` on view teardown (`task-browser.ts`
-`destroyAndCloseLogic` -> `closeAgentBrowserSessionsForSessions`), which is
+explicit `close --session` when a task's turn ends or its chat is trashed
+(`closeAgentBrowserSessionsForSessions`), which is
 untouched by the value and (since `45006dbf8`) presents a matching daemon-config
 fingerprint. Raising the value does not reintroduce the orphan-leak class; it
 just lets a cheap daemon (a CDP websocket + the ref map) live minutes instead of

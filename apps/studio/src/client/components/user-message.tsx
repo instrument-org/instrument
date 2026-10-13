@@ -2,6 +2,7 @@ import { MESSAGE_FOOTER_ICON_SIZE, SHARED } from "@/client/lib/styles";
 import { cn } from "@/client/lib/utils";
 import { renderSkillMentionsAsText } from "@instrument-org/shared/skill-mention";
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { debounce } from "radashi";
 import { memo, useContext, useEffect, useRef, useState } from "react";
@@ -25,13 +26,19 @@ interface UserMessageProps {
   part: SessionMessagePart.TextPart;
 }
 
-// The height a collapsed message clamps to, chosen so the fade lands in the
-// middle of a line rather than between two. One constant rather than a class
-// and a number, because the height the bubble clamps at and the height the
-// overflow check measures against have to be the same: a message taller than
-// one and shorter than the other gets a fade and a click-to-expand target over
-// text that was never cut off.
-const COLLAPSED_MAX_HEIGHT_PX = 216;
+// The height a collapsed message clamps to: fifteen and a half of `text-sm`'s
+// 20px lines, so the cut lands in the middle of a line rather than between two,
+// where a clipped message would read as one that simply ended. One constant
+// rather than a class and a number, because the height the bubble clamps at and
+// the height the overflow check measures against have to be the same: a
+// message taller than one and shorter than the other gets a fade and a
+// click-to-expand target over text that was never cut off.
+const COLLAPSED_MAX_HEIGHT_PX = 310;
+
+// The row under the message that opens or closes it, the same in both states so
+// the control stays where the reader last found it.
+const TOGGLE_ROW_CLASS =
+  "flex w-full cursor-pointer items-center justify-center gap-1 pt-2 text-xs text-muted-foreground hover:text-foreground";
 
 export const UserMessage = memo(function UserMessage({
   compact = false,
@@ -102,47 +109,60 @@ export const UserMessage = memo(function UserMessage({
             }}
             open={isExpanded}
           >
-            <div
-              className={cn(
-                isExpanded ? "max-h-128 overflow-y-auto" : "overflow-hidden",
-              )}
-              data-slot="user-message-content"
-              ref={contentRef}
-              style={
-                isExpanded ? undefined : { maxHeight: COLLAPSED_MAX_HEIGHT_PX }
-              }
-            >
-              <div className="text-sm break-words whitespace-pre-wrap">
-                <SkillMentionText text={messageText} />
+            <div className="relative">
+              {/* Opened, a message shows whole up to about eighty lines, so
+                  only a pasted log or file scrolls inside the transcript's own
+                  scroll. A fixed length rather than a share of the viewport,
+                  which the window's zoom would throw off. */}
+              <div
+                className={cn(
+                  isExpanded ? "max-h-400 overflow-y-auto" : "overflow-hidden",
+                )}
+                data-slot="user-message-content"
+                ref={contentRef}
+                style={
+                  isExpanded
+                    ? undefined
+                    : { maxHeight: COLLAPSED_MAX_HEIGHT_PX }
+                }
+              >
+                <div className="text-sm break-words whitespace-pre-wrap">
+                  <SkillMentionText text={messageText} />
+                </div>
               </div>
+
+              {/* Over the text rather than the bubble's edge, so the last lines
+                  visibly thin out above the row that says there is more. */}
+              {!isExpanded && isOverflowing && (
+                <div
+                  className={cn(
+                    "pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-t",
+                    compact
+                      ? "from-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] to-[oklch(from_var(--color-brand-500)_0.85_0.05_h/0)] dark:from-[oklch(from_var(--color-brand-500)_0.36_0.06_h)] dark:to-[oklch(from_var(--color-brand-500)_0.36_0.06_h/0)]"
+                      : "from-gray-25 to-gray-25/0 dark:from-card dark:to-card/0",
+                  )}
+                />
+              )}
             </div>
 
             {!isExpanded && isOverflowing && (
               <CollapsibleTrigger asChild>
-                {/* Covers the clipped message so a press anywhere on it expands.
-                  It draws nothing, so the label is the only thing it is: with
-                  no children and no `aria-label` it announced as a button with
-                  no name at all. */}
+                {/* A row anyone can see, named by its own text, and its `after`
+                  stretches over the whole bubble so a press anywhere on the
+                  clipped message expands it too. The bubble is the positioned
+                  ancestor that box fills, so the row itself must not be. */}
                 <button
-                  aria-label="Show the full message"
-                  className="absolute inset-0 cursor-pointer"
+                  className={cn(
+                    TOGGLE_ROW_CLASS,
+                    "after:absolute after:inset-0",
+                  )}
                   data-slot="user-message-expand"
                   type="button"
-                />
+                >
+                  <span>Show more</span>
+                  <CaretDownIcon className="size-3" />
+                </button>
               </CollapsibleTrigger>
-            )}
-
-            {!isExpanded && isOverflowing && (
-              <div
-                className={cn(
-                  "pointer-events-none absolute right-0 bottom-0 left-0 h-12 bg-linear-to-t from-50%",
-                  compact ? "rounded-b-2xl" : "rounded-br-xl rounded-bl-xl",
-                  compact && !isFollowed && "rounded-br-md",
-                  compact
-                    ? "from-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] to-[oklch(from_var(--color-brand-500)_0.85_0.05_h/0)] dark:from-[oklch(from_var(--color-brand-500)_0.36_0.06_h)] dark:to-[oklch(from_var(--color-brand-500)_0.36_0.06_h/0)]"
-                    : "from-gray-25 to-gray-25/0 dark:from-card dark:to-card/0",
-                )}
-              />
             )}
 
             <CollapsibleContent>
@@ -152,11 +172,11 @@ export const UserMessage = memo(function UserMessage({
                 The trigger carries the state, so no handler of its own. */}
               <CollapsibleTrigger asChild>
                 <button
-                  className="flex w-full cursor-pointer items-center justify-center gap-1 pt-2 text-xs text-muted-foreground hover:text-foreground"
+                  className={TOGGLE_ROW_CLASS}
                   data-slot="user-message-collapse"
                   type="button"
                 >
-                  <span>Collapse</span>
+                  <span>Show less</span>
                   <CaretUpIcon className="size-3" />
                 </button>
               </CollapsibleTrigger>

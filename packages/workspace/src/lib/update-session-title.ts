@@ -1,34 +1,30 @@
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { isSessionTitleAutoReplaceable } from "./generate-session-title";
+import { type ChatId } from "../schemas/chat-id";
+import { isUntitledChatSessionTitle } from "./generate-session-title";
 import { Store } from "./store";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export async function updateSessionTitle({
   expectedCurrentTitle,
   sessionId,
-  taskId,
+  chatId,
   title,
 }: {
   // When set, replace only if the stored title still equals this. Callers that
   // set a title at creation pass it here so a user rename in the meantime is
-  // never clobbered: the rename keeps settings.name and the title in sync, so
-  // isSessionTitleAutoReplaceable can't tell it apart from the default.
+  // never clobbered. Without it, only an untitled session's title is replaced.
   expectedCurrentTitle?: string;
   sessionId: StoreId.Session;
-  taskId: TaskId;
+  chatId: ChatId;
   title: string;
 }): Promise<boolean> {
-  const storedSession = await Store.getSession(sessionId, taskId);
+  const storedSession = await Store.getSession(sessionId, chatId);
   if (storedSession.isErr()) {
     return false;
   }
   const canReplace =
     expectedCurrentTitle === undefined
-      ? await isSessionTitleAutoReplaceable({
-          taskId,
-          title: storedSession.value.title,
-        })
+      ? isUntitledChatSessionTitle(storedSession.value.title)
       : storedSession.value.title === expectedCurrentTitle;
   if (!canReplace) {
     return false;
@@ -39,7 +35,7 @@ export async function updateSessionTitle({
       title,
       updatedAt: new Date(),
     },
-    taskId,
+    chatId,
   );
   if (renameResult.isErr()) {
     getWorkspaceConfig().captureException(renameResult.error);

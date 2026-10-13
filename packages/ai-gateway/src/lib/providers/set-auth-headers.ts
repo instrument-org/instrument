@@ -32,6 +32,13 @@ export function setProviderAuthHeaders(
       headers.set("x-goog-api-key", config.apiKey);
       break;
     }
+    case "minimax": {
+      // A bearer token on the OpenAI-compatible API, Anthropic's header on the
+      // Anthropic-compatible one.
+      headers.set("Authorization", `Bearer ${config.apiKey}`);
+      headers.set("x-api-key", config.apiKey);
+      break;
+    }
     case "opencode-go":
     case "opencode-zen": {
       // OpenCode reads the key from the header of the API shape it is asked

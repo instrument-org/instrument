@@ -14,6 +14,7 @@ import { atom, type SetStateAction } from "jotai";
 import { atomFamily } from "jotai/utils";
 
 import { keptAtom } from "@/client/lib/kept-state";
+import { DRAFTS_KEY } from "@/shared/kept-state";
 
 /**
  * What the chat column is narrowed to.
@@ -27,19 +28,13 @@ import { keptAtom } from "@/client/lib/kept-state";
 export const chatFiltersAtom = atom<ChatFilters>(NO_FILTERS);
 
 /**
- * What each screen shows, by the tab it is drawn in (one of the window's own
- * tabs, or a group's tab beside a chat or in a draft's band), written by the
- * screen and cleared when it leaves. What goes with a message is read from
- * the tab in view at the moment of sending, so it is what the user was
- * looking at and never a screen they left. The page's words and the
- * screen's address are added at send time by the layout, which holds both.
+ * What a screen shows, in the terms the conversation is told it; see
+ * `TabSurface.view`.
  */
 export type ScreenView = Omit<
   SessionMessageDataPart.ViewContextDataPart,
   "page" | "url"
 >;
-
-export const screenViewsAtom = atom<Readonly<Record<string, ScreenView>>>({});
 
 /** A file or folder on this computer picked to go with a draft, by its path. */
 export interface ChosenItem {
@@ -54,19 +49,24 @@ export interface FinderShown {
 }
 
 /**
- * What each of the window's own Files tabs has in its Finder, by the tab's
- * id, so a draft opened over one, or with one up behind it, names them as
- * the chat will be told them, whichever tab is up by the time it is sent.
+ * A file or folder given to a draft's composer, by its path on disk: what of
+ * the composer outlasts the app. Bytes pasted in with no file behind them
+ * are written to the draft's own folder first, and kept by that path.
  */
-export const findersByTabAtom = atom<Readonly<Record<string, FinderShown>>>({});
+export type DraftAttachment =
+  | { kind: "file"; mimeType: string; name: string; path: string; size: number }
+  | { kind: "folder"; path: string };
 
 /**
  * A chat not yet started: its words and the topic it will be filed under.
  * What it has gathered (sites, files, folders) is its tab group, kept with
  * the window's tabs under the draft's group key; what its composer holds
- * besides the words is kept in memory beside it.
+ * besides the words is kept in memory beside it, and the part of that with
+ * a place on disk in `attached`.
  */
 export interface Draft {
+  /** What the composer was given that has a place on disk, so it comes back after a relaunch. */
+  attached?: DraftAttachment[];
   /**
    * Files and folders the person opened the draft on by name, from a menu or
    * a button over them: held for the chat whatever the window moves on to,
@@ -81,11 +81,15 @@ export interface Draft {
    * copy or a tab of the draft's own, so the draft says what the screen
    * already gives it and the chat is told about it as it starts. A folder,
    * file, or app's front on one of the window's own tabs is that tab, by its
-   * id. Cleared when the person leaves it out.
+   * id. A chat on screen is the chat, whether or not its pane is open: what
+   * is in it is the chat's, so the draft names the chat and nothing in it.
    */
-  included?: { appTabId: TabId } | { group: string; tabId: string };
-  /** Tabs the window had up behind the draft that the person left out of it, by id. */
-  leftBehind?: string[];
+  included?:
+    | { appTabId: TabId }
+    | { chat: ChatId }
+    | { group: string; tabId: string };
+  /** The chips the person left out of the draft, by their keys (see `ContextItem`). */
+  leftOut?: string[];
   topicId?: string;
   /**
    * Who settled the topic: the person, by picking or clearing one, or the
@@ -108,10 +112,11 @@ export function draftOfGroup(group: string | undefined): string | undefined {
 }
 
 /**
- * Every draft not yet started, newest last, kept on this computer across
- * launches the way the tabs are: a draft put away is still in Drafts.
+ * Every draft not yet started, newest last, kept across launches as a folder
+ * each in the workspace's `drafts/`: a draft put away is still in Drafts, and
+ * one whose folder is deleted is gone.
  */
-export const draftsAtom = keptAtom<Draft[]>("drafts", "drafts.v2", []);
+export const draftsAtom = keptAtom<Draft[]>("drafts", DRAFTS_KEY, []);
 
 /** How long a draft's words are left alone before its record is written. */
 const DRAFT_WORDS_SETTLE_MS = 300;
@@ -189,6 +194,15 @@ export function composeKeyOf(entry: ComposeEntry): string {
   return entry.kind === "draft" ? draftGroupOf(entry.draftId) : entry.chatId;
 }
 
+/** The chats up in a window of their own over the row: docked or grown, not put down to a bar. */
+export function chatsOutOf(entries: ComposeEntry[]): Set<string> {
+  return new Set(
+    entries.flatMap((entry) =>
+      entry.kind === "chat" && entry.placement !== "bar" ? [entry.chatId] : [],
+    ),
+  );
+}
+
 /**
  * The windows floating over the row, the way a mail client keeps several
  * compose windows along its foot, oldest first: the newest stands at the
@@ -252,23 +266,6 @@ export interface BrowserTab {
   /** The last page it showed, opened again when the tab comes back. */
   url?: string;
 }
-
-/** A page the browser showed, for the new-tab page and the address field's completions: newest first, one per address. */
-export interface VisitedPage {
-  at: number;
-  favicon?: string;
-  title: string;
-  url: string;
-}
-
-/** Enough history for the address field to finish the sites a person goes back to, which a page's handful of rows never needed. */
-export const VISITED_MAX = 500;
-
-export const visitedPagesAtom = keptAtom<VisitedPage[]>(
-  "history",
-  "visited-pages.v1",
-  [],
-);
 
 /** A file the window can open in a tab: where it is on the computer, which is the tab's identity. */
 export interface FileTab {
@@ -376,9 +373,10 @@ export const inboxWidthAtom = atom(
 );
 
 /**
- * The layout a folder with no layout of its own opens in, when the browser
- * opens on it fresh: the one last chosen anywhere. Walking into such a folder
- * keeps whatever layout is on screen instead, the way a Finder window does.
+ * The layout last chosen anywhere: what a folder with no layout of its own
+ * opens in when arrived at directly, a new tab's first folder among them.
+ * Walking from folder to folder keeps whatever layout is on screen instead,
+ * the way a Finder window does.
  */
 export const computerViewAtom = keptAtom<
   "columns" | "gallery" | "icons" | "list"
@@ -392,22 +390,12 @@ export const computerHiddenFilesAtom = keptAtom<boolean>(
 );
 
 /**
- * The order a folder with no order of its own opens in, the same way as the
- * layout above. The recents keep their own order, newest shown first, and do
- * not write here.
- */
-export const computerSortAtom = keptAtom<FileSystemSortState>(
-  "view",
-  "computer-sort.v1",
-  { direction: "asc", key: "name" },
-);
-
-/**
- * The layout and order each folder was last left in, by where it is on the
- * computer, the way the Finder keeps them with the folder: a folder reached
- * again, by any way in, looks the way it was left. Both are kept whenever
- * either changes, so a folder's look is one thing rather than two halves
- * that each fall back on their own. The recents are kept under their root.
+ * The layout and order each folder was last set to by hand, by where it is
+ * on the computer, the way the Finder keeps them with the folder. The order
+ * holds however the folder is reached; the layout only when it is arrived at
+ * directly, since walking keeps the tab's own. Both are kept whenever either
+ * is set, and walking into a folder sets neither. The recents are kept under
+ * their root.
  */
 export const computerFolderViewsAtom = keptAtom<
   Record<string, ComputerFolderView>
@@ -453,27 +441,6 @@ export const fileTreeWidthAtom = keptAtom<number>(
   "file-tree-width.v1",
   240,
 );
-
-/**
- * The elements screens draw a page's guest into, by the group the page's
- * tab is kept under: a file tab drawing a page's file beside its tree keeps
- * that page as a tab in a group of its own, off every strip, and says here
- * where the browser is to draw it. A slot inside a surface floating over the
- * window (Quick Look) names the layer its page stands on, and is shown for as
- * long as it is there; a slot in one of the window's tabs is shown while
- * that tab is up. In memory only, with the elements.
- */
-export const pageSlotsAtom = atom<
-  Record<
-    string,
-    {
-      insideOverlay?: boolean;
-      into: HTMLElement | null;
-      isShown?: boolean;
-      layer?: number;
-    }
-  >
->({});
 
 /**
  * The list view's columns beside Name, picked from its header's menu. One set

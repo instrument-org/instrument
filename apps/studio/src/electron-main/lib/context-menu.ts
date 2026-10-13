@@ -28,6 +28,8 @@ export function createContextMenu({
    */
   onOpenLink?: (options: { newTab: boolean }) => void;
 }) {
+  // Whether this right click offers Select All, set by `shouldShowMenu`.
+  let showSelectAll = false;
   // Keep the library's native default template (spellcheck suggestions, Learn
   // Spelling, Look Up, cut/copy/paste, image/link/video actions) and shape it
   // with flags + append/prepend instead of replacing it with a custom `menu`.
@@ -93,8 +95,18 @@ export function createContextMenu({
     showSaveVideoAs: false,
     // Opening the external browser from a desktop text field is out of place.
     showSearchWithGoogle: false,
-    // Off by default on macOS; kept so editable/selection menus still offer it.
-    showSelectAll: true,
+    // Off by default on macOS; offered over a field or a selection, where there
+    // is something to select. Over the window's chrome it would be a menu of
+    // its own that selects the focused field's text. The library reads the
+    // flag on each right click, after `shouldShowMenu`.
+    get showSelectAll() {
+      return showSelectAll;
+    },
+    shouldShowMenu: (_event, parameters) => {
+      showSelectAll =
+        parameters.isEditable || parameters.selectionText.length > 0;
+      return true;
+    },
     window: browserWindow,
   });
 }

@@ -41,7 +41,7 @@ export function canonicalizeThroughMissing(hostPath: string): null | string {
 }
 
 /**
- * The part of `hostPath` under `root` as a mount-relative virtual path (`/`
+ * The part of `hostPath` under `root` as a root-relative path (`/`
  * for the root itself, `/a/b` below it), or null for a path outside it.
  * Compared without case where the disk ignores it; the part returned keeps
  * the spelling `hostPath` gave it.

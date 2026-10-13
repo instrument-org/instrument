@@ -101,6 +101,7 @@ export async function replayStep(step: RecordedStep) {
   const session: StepSession = {
     awaitingToolCallIds: [],
     builtInTools: new Set(step.builtInTools),
+    forkPoint: undefined,
     messages: {
       next: () => {
         const value = queue.shift();

@@ -2,16 +2,18 @@ import { recordPlatformRefusal } from "@/electron-main/lib/platform-refusals";
 import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
 import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
-import { macHelperBinPath } from "@/electron-main/lib/mac-native";
+import {
+  finderEntries,
+  macHelperBinPath,
+  resolveAlias,
+} from "@/electron-main/lib/mac-native";
 import {
   isQuitGuardForcedInDev,
   requestQuit,
   startQuit,
 } from "@/electron-main/lib/quit";
-import { finalizeTelemetry } from "@/electron-main/lib/register-telemetry";
 import { diskModelCache } from "@/electron-main/stores/machine/model-cache";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
-import { isFeatureEnabled } from "@/electron-main/stores/workspace/features";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { isSetupPending } from "@/electron-main/windows/setup-mode";
@@ -25,6 +27,7 @@ import {
   closeAllAgentBrowserSessions,
   killAllBackgroundProcesses,
   migrateWorkspaceLayout,
+  prepareBundledSkills,
   pruneExternalBrowserTmp,
   setBashWorkerFactory,
   stopWorkspaceSkillWatcher,
@@ -43,26 +46,27 @@ import { createBrowserViewManager } from "../browser-view/manager";
 import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { createAppsConfig, rememberAppsDir } from "./apps";
-import { captureServerEvent } from "./capture-server-event";
+import { getBinDirectoryPath } from "./setup-bin-directory";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
+import { workspacePrivateDir } from "./workspaces";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
 import { getRegistryDir } from "./registry-dir";
 import { quitExitCode } from "./relaunch";
 import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
 
-const DEFAULT_TASK_TEMPLATE_DIR_NAME = "default-task-template";
+const CHAT_TEMPLATE_DIR_NAME = "chat-template";
 const SYSTEM_SKILLS_DIR_NAME = "system-skills";
 
 /**
- * What quit teardown allows the skills watcher and the telemetry flush on top of
- * the slowest thing it waits for. Enough that a background process taking its
- * whole grace period does not spend the other two's budget as well.
+ * What quit teardown allows the skills watcher on top of the slowest thing it
+ * waits for. Enough that a background process taking its whole grace period
+ * does not spend the watcher's budget as well.
  */
 const QUIT_TEARDOWN_SLACK_MS = ms("2 seconds");
-const UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR = path.resolve(
+const UNPACKAGED_CHAT_TEMPLATE_DIR = path.resolve(
   import.meta.dirname,
   "../../../../packages/workspace/templates/default",
 );
@@ -135,26 +139,37 @@ export function createWorkspaceActor() {
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,
+      // The workspace's own record, beside its browser history, so it moves
+      // and goes with the workspace.
+      aiUsageFile: path.join(workspacePrivateDir(rootDir), "ai-usage.db"),
       apps: createAppsConfig(),
       appVersion: app.getVersion(),
       browser: browserViewManager.browser,
-      captureEvent: captureServerEvent,
       captureException: captureServerException,
-      defaultTaskTemplateDir: app.isPackaged
-        ? path.join(process.resourcesPath, DEFAULT_TASK_TEMPLATE_DIR_NAME)
-        : UNPACKAGED_DEFAULT_TASK_TEMPLATE_DIR,
+      chatTemplateDir: app.isPackaged
+        ? path.join(process.resourcesPath, CHAT_TEMPLATE_DIR_NAME)
+        : UNPACKAGED_CHAT_TEMPLATE_DIR,
       ensureOutputFolderIcon: (folderPath) =>
         ensureOutputFolderIcon(
           folderPath,
           getMachinePreferences().get("outputFolder"),
         ),
+      finderEntries,
+      resolveAlias,
       macHelperBinPath: macHelperBinPath(),
       getAIProviderConfigs,
       getUser: getSignedInUser,
       // Beside the other per-machine state rather than in the workspace: the
       // index is derived, and a workspace may sit in a synced folder.
       indexesDir: path.join(app.getPath("userData"), "indexes"),
-      isExternalBrowserEnabled: () => isFeatureEnabled("external_browser"),
+      knownFolders: {
+        desktop: app.getPath("desktop"),
+        documents: app.getPath("documents"),
+        downloads: app.getPath("downloads"),
+        music: app.getPath("music"),
+        pictures: app.getPath("pictures"),
+        videos: app.getPath("videos"),
+      },
       modelCache: diskModelCache,
       outputFolder: {
         chosenPath: () => getMachinePreferences().get("outputFolder"),
@@ -167,6 +182,8 @@ export function createWorkspaceActor() {
         // See https://www.electronjs.org/docs/latest/api/environment-variables
         ELECTRON_RUN_AS_NODE: "1",
       },
+      // Passwords and sign-ins stay out of every native command's reach.
+      nativeSandbox: true,
       pnpmBinPath: getPNPMBinPath(),
       reportPlatformRefusal: recordPlatformRefusal,
       // Beside the app-managed `bin` and `uv`, and outside the workspace: the
@@ -181,6 +198,7 @@ export function createWorkspaceActor() {
         : UNPACKAGED_SYSTEM_SKILLS_DIR,
       trashItem: (pathToTrash) => shell.trashItem(pathToTrash),
       uvBinPath: getUvBinPath(),
+      toolBinDir: getBinDirectoryPath(),
       uvDataDir: path.join(app.getPath("userData"), "uv"),
       webSearch: searchWeb,
     },
@@ -199,6 +217,11 @@ export function createWorkspaceActor() {
 
   const workspaceConfig = snapshot.context.config;
   rememberAppsDir(workspaceConfig.appsDir);
+  // In the background: a shell builds its mounts per command, so the bundled
+  // skills appear in the shell for the first command after this lands.
+  prepareBundledSkills(workspaceConfig).catch((error: unknown) => {
+    logger.warn("Could not prepare the bundled skills", error);
+  });
 
   // Warn before stopping in-flight agents. Fails open so a count error never
   // blocks quitting.
@@ -206,7 +229,7 @@ export function createWorkspaceActor() {
     let count = 0;
     try {
       ({ count } = await call(
-        workspaceRouter.task.agentStatus.aliveAgentCount,
+        workspaceRouter.chats.agentStatus.aliveAgentCount,
         undefined,
         { context: { workspaceConfig, workspaceRef: actor } },
       ));
@@ -282,9 +305,6 @@ export function createWorkspaceActor() {
           return confirmQuitWithRunningAgents();
         }),
         closeBrowserSessions: fromPromise(() => closeAllAgentBrowserSessions()),
-        // The app.exit at the end skips `will-quit`, where the telemetry flush
-        // and crash-marker cleanup would otherwise run, so drive them from here.
-        finalizeTelemetry: fromPromise(() => finalizeTelemetry()),
         stopServices: fromPromise(async () => {
           // @parcel/watcher aborts the process (SIGABRT) if a live subscription
           // is torn down while Node frees the environment, so stop the skills
@@ -318,7 +338,6 @@ export function createWorkspaceActor() {
 
   return {
     actor,
-    browserViewManager,
     workspaceConfig,
   };
 }

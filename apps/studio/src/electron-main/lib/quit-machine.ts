@@ -16,9 +16,8 @@ export const BROWSER_SESSIONS_CLOSE_MS = 3000;
  * teardown runs once however many `before-quit`s arrive while it does.
  *
  * Teardown closes the agent browser sessions (bounded on its own), then tears
- * down the browser views and stops the services, while the telemetry flush runs
- * alongside the whole of it. One deadline over everything means a step that
- * hangs still ends in an exit.
+ * down the browser views and stops the services. One deadline over everything
+ * means a step that hangs still ends in an exit.
  */
 export const quitMachine = setup({
   actions: {
@@ -33,7 +32,6 @@ export const quitMachine = setup({
     /** The running-agents prompt. True to go ahead; a throw also goes ahead. */
     approve: fromPromise<boolean>(() => Promise.resolve(true)),
     closeBrowserSessions: fromPromise<void>(() => Promise.resolve()),
-    finalizeTelemetry: fromPromise<void>(() => Promise.resolve()),
     stopServices: fromPromise<void>(() => Promise.resolve()),
   },
   delays: {
@@ -109,63 +107,43 @@ export const quitMachine = setup({
       entry: { params: { stage: "started" }, type: "announce" },
       onDone: {
         actions: {
-          params: { stage: "services and telemetry settled" },
+          params: { stage: "services settled" },
           type: "announce",
         },
         target: "exiting",
       },
+      initial: "closingBrowserSessions",
       states: {
-        steps: {
-          initial: "closingBrowserSessions",
-          states: {
-            closingBrowserSessions: {
-              after: {
-                browserSessionsClose: {
-                  actions: "reportBrowserSessionsTimeout",
-                  target: "stoppingServices",
-                },
-              },
-              invoke: {
-                onDone: "stoppingServices",
-                onError: "stoppingServices",
-                src: "closeBrowserSessions",
-              },
+        closingBrowserSessions: {
+          after: {
+            browserSessionsClose: {
+              actions: "reportBrowserSessionsTimeout",
+              target: "stoppingServices",
             },
-            stoppingServices: {
-              entry: [
-                {
-                  params: { stage: "tearing down browser views" },
-                  type: "announce",
-                },
-                "teardownBrowserViews",
-              ],
-              invoke: {
-                onDone: "stopped",
-                onError: "stopped",
-                src: "stopServices",
-              },
-            },
-            stopped: { type: "final" },
+          },
+          invoke: {
+            onDone: "stoppingServices",
+            onError: "stoppingServices",
+            src: "closeBrowserSessions",
           },
         },
-        // Started with the teardown so it overlaps the rest instead of adding
-        // to it.
-        telemetry: {
-          initial: "flushing",
-          states: {
-            flushing: {
-              invoke: {
-                onDone: "flushed",
-                onError: "flushed",
-                src: "finalizeTelemetry",
-              },
+        stoppingServices: {
+          entry: [
+            {
+              params: { stage: "tearing down browser views" },
+              type: "announce",
             },
-            flushed: { type: "final" },
+            "teardownBrowserViews",
+          ],
+          invoke: {
+            onDone: "stopped",
+            onError: "stopped",
+            src: "stopServices",
           },
         },
+        stopped: { type: "final" },
       },
       tags: ["approved"],
-      type: "parallel",
     },
     exiting: {
       entry: [{ params: { stage: "exiting" }, type: "announce" }, "exit"],

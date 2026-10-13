@@ -1,3 +1,5 @@
+import { watchPlacement } from "./placement";
+
 /** The space kept between the selection toolbar and the edge it is held inside. */
 const EDGE_PAD = 8;
 
@@ -49,25 +51,7 @@ export function fitSelectionToolbar(
       toolbar.style.top = `${at + dy / scale}px`;
     }
   };
-  // Crepe appends the toolbar on its first update and repositions it by
-  // writing `left`/`top`, so every placement shows up as a style change.
-  const observer = new MutationObserver((records) => {
-    for (const { target } of records) {
-      if (
-        target instanceof HTMLElement &&
-        target.classList.contains("milkdown-toolbar")
-      ) {
-        fit(target);
-      }
-    }
-  });
-  observer.observe(root, {
-    attributeFilter: ["style", "data-show"],
-    subtree: true,
-  });
-  return () => {
-    observer.disconnect();
-  };
+  return watchPlacement(root, "milkdown-toolbar", fit);
 }
 
 /** The nearest ancestor that scrolls vertically, which is where the editor's page scrolls. */

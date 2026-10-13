@@ -1,4 +1,4 @@
-import { TASK_FOLDER_NAMES } from "@instrument-org/workspace/client";
+import { CHAT_FOLDER_NAMES } from "@instrument-org/workspace/client";
 
 import {
   CHATGPT_ACCOUNT_MODEL,
@@ -7,7 +7,6 @@ import {
   folder,
   OUR_MODEL,
   platformFailure,
-  PROJECT_ID,
 } from "./parts";
 import {
   type Act,
@@ -98,7 +97,7 @@ const AWKWARD_SHAPES = [
   "Code never fades, by design: `pnpm test run` sits at full strength in the middle of a sentence that is still arriving.",
   "> A quote carries the same prose as anything else, but the rule down its side is drawn before the first word of it exists.",
   "A link is a stub until its URL finishes, so [the docs](https://example.com/reports/quarterly) are an anchor pointing nowhere for a moment. A **bold run** and an *italic one* both resolve early enough to be worth watching too.",
-  "Anything without spaces in it is one word as far as the split is concerned, which covers a path like /mnt/Reports/2026/quarterly/north-by-cohort-corrected.csv as well as 東京の売上は前期比で十一パーセント上がりました。",
+  "Anything without spaces in it is one word as far as the split is concerned, which covers a path like /Users/casey/Reports/2026/quarterly/north-by-cohort-corrected.csv as well as 東京の売上は前期比で十一パーセント上がりました。",
   "---",
   "### A heading with nothing between it and the next one",
   "#### Which is the shape a model reaches for when it is running out of things to say.",
@@ -365,7 +364,7 @@ const REAL_TURN: Act[] = [
   // is only visible where a phase has one.
   activity("Finding the quarterly reports"),
   ran({
-    command: "ls /mnt/Reports",
+    command: "ls /Users/casey/Reports",
     explanation: "Listing the Reports folder",
     output: "q1.csv\nq2.csv\nq3.csv\nq4.csv\nnotes.md\nchart.py\n",
   }),
@@ -374,7 +373,7 @@ const REAL_TURN: Act[] = [
   ),
   read({
     explanation: "Checking the folder notes",
-    filePath: "/mnt/Reports/notes.md",
+    filePath: "/Users/casey/Reports/notes.md",
   }),
   prose(
     "Four quarters and a notes file. The notes mention a reclassification in August, which is going to matter for any comparison across it, so I will read all four rather than just the two either side.",
@@ -383,10 +382,22 @@ const REAL_TURN: Act[] = [
   // The same phase again, this time as one response asking for four at once.
   activity("Reading each quarter"),
   batch(
-    read({ explanation: "Reading Q1", filePath: "/mnt/Reports/q1.csv" }),
-    read({ explanation: "Reading Q2", filePath: "/mnt/Reports/q2.csv" }),
-    read({ explanation: "Reading Q3", filePath: "/mnt/Reports/q3.csv" }),
-    read({ explanation: "Reading Q4", filePath: "/mnt/Reports/q4.csv" }),
+    read({
+      explanation: "Reading Q1",
+      filePath: "/Users/casey/Reports/q1.csv",
+    }),
+    read({
+      explanation: "Reading Q2",
+      filePath: "/Users/casey/Reports/q2.csv",
+    }),
+    read({
+      explanation: "Reading Q3",
+      filePath: "/Users/casey/Reports/q3.csv",
+    }),
+    read({
+      explanation: "Reading Q4",
+      filePath: "/Users/casey/Reports/q4.csv",
+    }),
   ),
   prose(
     "The reported figures show the north up twelve percent across the year and the south flat. Both of those are suspect until the reclassification is accounted for.",
@@ -394,13 +405,13 @@ const REAL_TURN: Act[] = [
 
   // An unannounced run: no heading, so it has to earn one from what it did.
   ran({
-    command: "grep -c reclassified /mnt/Reports/notes.md",
+    command: "grep -c reclassified /Users/casey/Reports/notes.md",
     explanation: "Counting the reclassified accounts",
     output: "412",
   }),
   read({
     explanation: "Reading the account map",
-    filePath: "/mnt/Reports/accounts.csv",
+    filePath: "/Users/casey/Reports/accounts.csv",
   }),
   ran({
     command: "python -c 'print(412 / 3400)'",
@@ -425,25 +436,25 @@ const REAL_TURN: Act[] = [
   ),
   read({
     explanation: "Reading the chart script",
-    filePath: "/mnt/Reports/chart.py",
+    filePath: "/Users/casey/Reports/chart.py",
   }),
   ranAndFailed({
-    command: "python /mnt/Reports/chart.py",
+    command: "python /Users/casey/Reports/chart.py",
     explanation: "Running the chart script",
     output:
       "Traceback (most recent call last):\n  File \"chart.py\", line 22, in <module>\n    plot(totals['north'])\nKeyError: 'north'",
   }),
   readMissing({
     explanation: "Looking for the column map",
-    filePath: "/mnt/Reports/columns.json",
+    filePath: "/Users/casey/Reports/columns.json",
   }),
   prose(
     "The script keys on the region names directly, and the reclassification renamed one of them. There is no column map to fall back on.",
   ),
   threw({
-    error: "EACCES: permission denied, open '/mnt/Reports/chart.py'",
+    error: "EACCES: permission denied, open '/Users/casey/Reports/chart.py'",
     explanation: "Patching the chart script in place",
-    filePath: "/mnt/Reports/chart.py",
+    filePath: "/Users/casey/Reports/chart.py",
   }),
   prose(
     "That folder is read-only, so the fix goes in a copy under the task instead.",
@@ -460,7 +471,7 @@ const REAL_TURN: Act[] = [
         })
       : read({
           explanation: `Reading the quarter ${(index + 1).toString()} slice`,
-          filePath: `/mnt/Reports/slices/q${(index + 1).toString()}.csv`,
+          filePath: `/Users/casey/Reports/slices/q${(index + 1).toString()}.csv`,
         }),
   ),
   edited({
@@ -862,10 +873,22 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
       user("Read all four quarters."),
       activity("Reading each quarter"),
       batch(
-        read({ explanation: "Reading Q1", filePath: "/mnt/Reports/q1.csv" }),
-        read({ explanation: "Reading Q2", filePath: "/mnt/Reports/q2.csv" }),
-        read({ explanation: "Reading Q3", filePath: "/mnt/Reports/q3.csv" }),
-        read({ explanation: "Reading Q4", filePath: "/mnt/Reports/q4.csv" }),
+        read({
+          explanation: "Reading Q1",
+          filePath: "/Users/casey/Reports/q1.csv",
+        }),
+        read({
+          explanation: "Reading Q2",
+          filePath: "/Users/casey/Reports/q2.csv",
+        }),
+        read({
+          explanation: "Reading Q3",
+          filePath: "/Users/casey/Reports/q3.csv",
+        }),
+        read({
+          explanation: "Reading Q4",
+          filePath: "/Users/casey/Reports/q4.csv",
+        }),
       ),
       prose("All four are in. North is the one that moved."),
     ],
@@ -972,8 +995,14 @@ src/components/Button.tsx:14:3 - error TS2322: Type 'string' is not assignable t
     script: [
       user("Read every quarter."),
       activity("Reading each quarter"),
-      read({ explanation: "Reading Q1", filePath: "/mnt/Reports/q1.csv" }),
-      read({ explanation: "Reading Q2", filePath: "/mnt/Reports/q2.csv" }),
+      read({
+        explanation: "Reading Q1",
+        filePath: "/Users/casey/Reports/q1.csv",
+      }),
+      read({
+        explanation: "Reading Q2",
+        filePath: "/Users/casey/Reports/q2.csv",
+      }),
       pause(),
       stop(),
     ],
@@ -1224,31 +1253,31 @@ done`,
           data: {
             files: [
               file({
-                filePath: `${TASK_FOLDER_NAMES.attachments}/hero.png`,
+                filePath: `${CHAT_FOLDER_NAMES.attachments}/hero.png`,
                 mimeType: "image/png",
                 size: 245_760,
               }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.attachments}/brief.md`,
+                filePath: `${CHAT_FOLDER_NAMES.attachments}/brief.md`,
                 mimeType: "text/markdown",
               }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.attachments}/data.csv`,
+                filePath: `${CHAT_FOLDER_NAMES.attachments}/data.csv`,
                 mimeType: "text/csv",
                 size: 4096,
               }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.attachments}/voice.mp3`,
+                filePath: `${CHAT_FOLDER_NAMES.attachments}/voice.mp3`,
                 mimeType: "audio/mpeg",
                 size: 512_000,
               }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.work}/summary.pdf`,
+                filePath: `${CHAT_FOLDER_NAMES.work}/summary.pdf`,
                 mimeType: "application/pdf",
                 size: 88_000,
               }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.work}/demo.mp4`,
+                filePath: `${CHAT_FOLDER_NAMES.work}/demo.mp4`,
                 mimeType: "video/mp4",
                 size: 1_024_000,
               }),
@@ -1260,13 +1289,13 @@ done`,
                 size: 2048,
               }),
               // The supporting sections.
-              file({ filePath: `${TASK_FOLDER_NAMES.work}/deploy.sh` }),
+              file({ filePath: `${CHAT_FOLDER_NAMES.work}/deploy.sh` }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.skills}/pdf/SKILL.md`,
+                filePath: `${CHAT_FOLDER_NAMES.skills}/pdf/SKILL.md`,
                 mimeType: "text/markdown",
               }),
               file({
-                filePath: `${TASK_FOLDER_NAMES.work}/draft.json`,
+                filePath: `${CHAT_FOLDER_NAMES.work}/draft.json`,
                 mimeType: "application/json",
               }),
               file({ filePath: "docs/API.md", mimeType: "text/markdown" }),
@@ -1283,7 +1312,7 @@ done`,
       user("Folder rows sit above the compact file attachments.", {
         data: {
           files: [
-            file({ filePath: `${TASK_FOLDER_NAMES.attachments}/one-off.txt` }),
+            file({ filePath: `${CHAT_FOLDER_NAMES.attachments}/one-off.txt` }),
           ],
           folders: [
             folder({ access: "read-write", path: "/tmp/workspace/components" }),
@@ -1315,34 +1344,13 @@ done`,
           data: {
             files: [
               file({
-                filePath: `${TASK_FOLDER_NAMES.attachments}/brief.md`,
+                filePath: `${CHAT_FOLDER_NAMES.attachments}/brief.md`,
                 mimeType: "text/markdown",
                 size: 4096,
               }),
             ],
           },
           type: "data-attachments",
-        },
-        {
-          data: {
-            instructions: "Prefer Tailwind utilities.",
-            projectId: PROJECT_ID,
-            projectName: "Marketing Site",
-          },
-          type: "data-projectContext",
-        },
-        {
-          data: {
-            foldersAdded: [
-              { access: "read-only", name: "assets", path: "/tmp/assets" },
-            ],
-            foldersRemoved: [],
-            instructions: "Prefer Tailwind utilities. Keep copy concise.",
-            instructionsChanged: true,
-            projectId: PROJECT_ID,
-            projectName: "Marketing Site",
-          },
-          type: "data-projectChanges",
         },
         { data: { names: ["wireframe"] }, type: "data-skillMentions" },
         {
@@ -1368,22 +1376,10 @@ done`,
         },
         {
           data: {
-            accessChanged: [
-              { access: "read-only", name: "Photos", path: "/tmp/Photos" },
-            ],
-            added: [
-              { access: "read-write", name: "Exports", path: "/tmp/Exports" },
-            ],
-            removed: [{ name: "designs", path: "/tmp/designs" }],
-            renamed: [
-              {
-                newName: "CloudDocs-Downloads",
-                oldName: "Downloads",
-                path: "/tmp/CloudDocs/Downloads",
-              },
-            ],
+            added: [{ access: "read-write", path: "/tmp/Exports" }],
+            removed: [{ path: "/tmp/designs" }],
           },
-          type: "data-attachedFolderChanges",
+          type: "data-folderChanges",
         },
       ),
       prose(

@@ -5,8 +5,10 @@ import { Worker } from "node:worker_threads";
 
 import { maskedEntryOf } from "../mask-private-dir-fs";
 import { relativeWithin } from "../path-containment";
+import { reachOf } from "../permissions/rules";
 import {
-  nonTaskMounts,
+  hostPathOf,
+  otherFolders,
   resolveHostPath,
   resolveReadOnlyHostPath,
   type WorkspaceFsLayout,
@@ -19,7 +21,7 @@ const DU_COMMAND = {
   name: "du",
 } as const;
 
-/** One operand: a path inside a mount, or a virtual directory holding mounts. */
+/** One operand: a path inside a mount, or a directory above mounts. */
 type DuOperand =
   | (DuRoot & { kind: "path" })
   | { children: DuRoot[]; display: string; kind: "mounts" }
@@ -64,7 +66,7 @@ interface DuRoot {
  * `-h` rounding up. Windows reports no block counts, so there each file's size
  * is rounded up to a 4 KiB cluster.
  *
- * Paths are printed as the agent typed them, never as host paths. The walk
+ * Paths are printed as the agent typed them, never in the host's spelling. The walk
  * does not follow symlinks, counts a hard-linked file once, and skips the
  * private dir at the root of a mount that masks one, as the sandbox's own view
  * does. Anything it does not implement -- another flag, an operand outside
@@ -293,19 +295,19 @@ function maskedNamesIn(hostRoot: string, mount: WorkspaceFsMount): string[] {
 
 /**
  * Map one operand onto the disk, or null when it is something only the
- * virtual filesystem can answer.
+ * shell's own filesystem can answer.
  */
 function resolveOperand(
   layout: WorkspaceFsLayout,
   display: string,
-  virtualPath: string,
+  path: string,
 ): DuOperand | null {
-  const owner = resolveHostPath(layout, virtualPath);
+  const owner = resolveHostPath(layout, path);
   if (owner !== null) {
-    const hostPath = resolveReadOnlyHostPath(layout, virtualPath);
+    const hostPath = resolveReadOnlyHostPath(layout, path);
     // A masked entry, and a symlink out of its mount, read as absent here as
     // they do everywhere else in the shell.
-    const relative = relativeWithin(owner.mount.mountPoint, virtualPath);
+    const relative = relativeWithin(owner.mount.shellRoot, path);
     if (hostPath === null) {
       return { display, kind: "missing" };
     }
@@ -317,14 +319,29 @@ function resolveOperand(
     };
   }
 
-  // A virtual directory such as `/mnt` holds mounts but no files of its own.
+  // A directory above mounts, such as `/Users`, holds mounts but no files of
+  // its own as far as the layout knows.
   // Its mounts are listed as its children when they sit directly inside it;
   // anything deeper is left to just-bash, which knows the whole tree.
-  const inside = [layout.task, ...nonTaskMounts(layout)].filter(
-    (mount) => relativeWithin(virtualPath, mount.mountPoint) !== null,
+  const inside = [layout.task, ...otherFolders(layout), ...layout.temp].filter(
+    (mount) => relativeWithin(path, mount.shellRoot) !== null,
   );
+  // A folder outside every mount that holds none is measured on the disk,
+  // as the shell reads it there, where the rules allow reading it.
+  if (
+    inside.length === 0 &&
+    process.platform !== "win32" &&
+    reachOf(layout.rules, hostPathOf(path), "read").level === "allow"
+  ) {
+    return {
+      display,
+      hostPath: hostPathOf(path),
+      kind: "path",
+      maskedNames: [],
+    };
+  }
   const direct = inside.filter((mount) => {
-    const relative = relativeWithin(virtualPath, mount.mountPoint);
+    const relative = relativeWithin(path, mount.shellRoot);
     return relative !== null && /^\/[^/]+$/.test(relative);
   });
   if (direct.length === 0 || direct.length !== inside.length) {
@@ -334,8 +351,8 @@ function resolveOperand(
   return {
     children: direct
       .map((mount) => {
-        const name = mount.mountPoint.slice(
-          mount.mountPoint.lastIndexOf("/") + 1,
+        const name = mount.shellRoot.slice(
+          mount.shellRoot.lastIndexOf("/") + 1,
         );
         return {
           display: `${base}/${name}`,

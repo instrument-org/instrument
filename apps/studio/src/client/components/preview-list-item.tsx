@@ -33,7 +33,7 @@ export function PreviewListItem({
 }) {
   const button = (
     // Its own surface rather than a button variant's, taken from the folder
-    // block a message carries beside these (`FolderAttachmentsCard`): the same
+    // block a message carries beside these (`SentFoldersCard`): the same
     // fill and elevation, one chip at a time instead of one divided block. The
     // hairline comes with `shadow-xs`, which is the soft ramp over a 1px ring --
     // a `border` on top of it is that edge drawn twice. Borrowing a variant

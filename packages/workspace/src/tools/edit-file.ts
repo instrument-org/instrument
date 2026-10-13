@@ -8,25 +8,26 @@ import fs from "node:fs/promises";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { TASK_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { CHAT_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import {
   LINE_NUMBER_PAD_WIDTH,
   LINE_NUMBER_SEPARATOR,
 } from "../lib/add-line-numbers";
 import { executeError } from "../lib/execute-error";
+import { chatReach } from "../lib/permissions/chat-rules";
 import { pathExists } from "../lib/path-exists";
+import { sessionRole } from "../lib/chat/children";
 import {
   applyUnicodeFallbacks,
   resolveWritableToolPath,
 } from "../lib/resolve-agent-path";
-import { taskDir } from "../lib/task-dir-utils";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
-import { MOUNT } from "../mount-points";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { TOOL_NAMES } from "./name";
 import { ReadFile } from "./read-file";
+import { workDir } from "../lib/work-dir";
 
 const MAX_FILE_SIZE = 250 * 1024; // 250KB
 
@@ -754,7 +755,7 @@ export const EditFile = setupTool({
   name: "edit_file",
   outputSchema: z.object({
     diff: z.string().optional(),
-    // Task-relative, or the mount path of a writable attached folder.
+    // Task-relative, or the absolute path in a writable folder.
     filePath: z.string(),
     modifiedAt: z.number(),
   }),
@@ -763,21 +764,21 @@ export const EditFile = setupTool({
     Performs exact string replacements in files. 
 
     Usage:
-    - The ${INPUT_PARAMS.filePath} parameter is a path relative to the task (e.g. ./${TASK_FOLDER_NAMES.work}/report.md), or the mount path of an attached folder you have read-and-write access to (${MOUNT.attachedFolders}/<name>/report.md). The attached-folders list in your context says which folders those are.
+    - The ${INPUT_PARAMS.filePath} parameter is a path relative to this conversation's folder (e.g. ./${CHAT_FOLDER_NAMES.work}/report.md), or the full path of a file in one of the user's folders you may change. The attached-folders list in your context says which folders those are.
     - Read the file with \`${ReadFile.name}\` before editing it, so \`${INPUT_PARAMS.oldString}\` matches what is actually on disk.
     - When editing text from \`${ReadFile.name}\` tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: the line number left-padded with spaces to ${LINE_NUMBER_PAD_WIDTH} characters, followed by the \`${LINE_NUMBER_SEPARATOR}\` separator character. Everything after that separator is the actual file content to match. Never include any part of the line number prefix in the \`${INPUT_PARAMS.oldString}\` or \`${INPUT_PARAMS.newString}\`.
     - The edit fails if \`${INPUT_PARAMS.oldString}\` is not unique in the file. Either provide a larger string with more surrounding context to make it unique, or use \`${INPUT_PARAMS.replaceAll}\` to change every instance. \`${INPUT_PARAMS.replaceAll}\` matches literal text, not symbols, so a rename also hits the name inside comments, strings, and longer identifiers -- check the returned diff.
     - Edits apply one at a time in the order you send them, so several edits to the same file in one response land cleanly.
   `,
-  execute: async ({ agentName, input, signal, taskId, taskState }) => {
+  execute: async ({ input, partId, sessionId, signal, chatId }) => {
     if (input.oldString === input.newString) {
       return executeError("oldString and newString must be different");
     }
 
     const layout = buildWorkspaceFsLayout({
-      apps: agentName === "instrument",
-      attachedFolders: taskState.attachedFolders,
-      taskHostRoot: taskDir(taskId),
+      apps: sessionRole(chatId, sessionId) === "chat",
+      ...(await chatReach(chatId, sessionId, partId)),
+      taskHostRoot: workDir(chatId),
     });
     const pathResult = resolveWritableToolPath({
       inputPath: input.filePath,

@@ -1,6 +1,11 @@
 import { buttonVariants } from "@/client/components/ui/button";
 import { handleContentExitAnimation } from "@/client/components/ui/dialog-exit";
-import { useAppZoomStyle, zoomMaxSize } from "@/client/hooks/use-app-zoom";
+import {
+  DialogWindowContext,
+  useDialogWindowHold,
+  useDialogWindowState,
+} from "@/client/components/ui/dialog-window-hold";
+import { dialogMaxSize, useAppZoomStyle } from "@/client/hooks/use-app-zoom";
 import { useCoversGuests } from "@/client/hooks/use-covers-guests";
 import { usePortalContainer } from "@/client/hooks/use-portal-container";
 import { cn } from "@/client/lib/utils";
@@ -8,10 +13,24 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import * as React from "react";
 import { type VariantProps } from "tailwind-variants";
 
-function AlertDialog({
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />;
+function AlertDialog(
+  props: React.ComponentProps<typeof AlertDialogPrimitive.Root>,
+) {
+  const state = useDialogWindowState({
+    defaultOpen: props.defaultOpen,
+    open: props.open,
+    onOpenChange: (open) => props.onOpenChange?.(open),
+  });
+  return (
+    <DialogWindowContext value={state}>
+      <AlertDialogPrimitive.Root
+        data-slot="alert-dialog"
+        {...props}
+        open={state.open}
+        onOpenChange={state.onOpenChange}
+      />
+    </DialogWindowContext>
+  );
 }
 
 function AlertDialogAction({
@@ -49,6 +68,7 @@ function AlertDialogContent({
   maxWidth = "32rem",
   onAnimationEnd,
   onExitComplete,
+  onEscapeKeyDown,
   style,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content> & {
@@ -62,6 +82,7 @@ function AlertDialogContent({
   // had time to play instead of guessing its duration.
   onExitComplete?: () => void;
 }) {
+  useDialogWindowHold(onEscapeKeyDown);
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
@@ -71,14 +92,15 @@ function AlertDialogContent({
           className,
         )}
         data-slot="alert-dialog-content"
+        onEscapeKeyDown={onEscapeKeyDown}
         onAnimationEnd={handleContentExitAnimation(
           onAnimationEnd,
           onExitComplete,
         )}
         style={useAppZoomStyle({
           ...style,
-          maxHeight: zoomMaxSize("height", maxHeight),
-          maxWidth: zoomMaxSize("width", maxWidth),
+          maxHeight: dialogMaxSize("height", maxHeight),
+          maxWidth: dialogMaxSize("width", maxWidth),
         })}
         {...props}
       />

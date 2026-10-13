@@ -201,7 +201,7 @@ export function XlsxViewer({
       </div>
 
       {controller.sheets.length > 1 && (
-        <div className="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-t border-border/60 px-2">
+        <div className="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-t border-border/60 px-2 select-none">
           {controller.sheets.map((sheet, index) => (
             <button
               aria-current={

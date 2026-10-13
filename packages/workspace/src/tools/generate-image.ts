@@ -8,25 +8,24 @@ import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { TASK_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { CHAT_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { executeError } from "../lib/execute-error";
 import { findAvailableName } from "../lib/find-available-name";
 import { formatBytes } from "../lib/format-bytes";
 import { generateImageStream } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
+import { chatReach } from "../lib/permissions/chat-rules";
 import { pathExists } from "../lib/path-exists";
 import { prepareSourceImage } from "../lib/prepare-source-image";
 import {
   resolveExistingFilePath,
   resolveWritableToolPath,
 } from "../lib/resolve-agent-path";
-import { taskDir } from "../lib/task-dir-utils";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { getWorkspaceServerURL } from "../logic/server/url";
-import { MOUNT } from "../mount-points";
 import { RelativePathSchema } from "../schemas/paths";
 import {
   BaseInputSchema,
@@ -34,6 +33,7 @@ import {
   UsageOutputSchema,
 } from "./base";
 import { setupTool } from "./create-tool";
+import { workDir } from "../lib/work-dir";
 
 const INPUT_PARAMS = {
   allowOverwrite: "allowOverwrite",
@@ -53,9 +53,9 @@ const GeneratedImageFileSchema = z.object({
 const PARTIAL_THROTTLE_MS = 400;
 
 const SourceImageFileSchema = z.object({
-  // Task-relative, or an attached folder's mount path (/mnt/<name>/...); mount
-  // paths cannot be served by the task asset server, so the UI falls back to a
-  // name-only chip for them.
+  // Task-relative, or an absolute path in another folder; those cannot be
+  // served by the task asset server, so the UI falls back to a name-only chip
+  // for them.
   filePath: z.string(),
   modifiedAt: z.number(),
 });
@@ -81,12 +81,9 @@ export const GenerateImage = setupTool({
     [INPUT_PARAMS.prompt]: z.string().meta({
       description: "Detailed description of the image to generate",
     }),
-    [INPUT_PARAMS.sourceImages]: z
-      .array(z.string())
-      .optional()
-      .meta({
-        description: `Paths to images used for image-to-image (img2img) conditioning: task-relative, or an attached folder's mount path (${MOUNT.attachedFolders}/<name>/...). Use when the user wants to edit, transform, or use an existing image as a visual reference or style source.`,
-      }),
+    [INPUT_PARAMS.sourceImages]: z.array(z.string()).optional().meta({
+      description: `Paths to images used for image-to-image (img2img) conditioning: relative to this conversation's folder, or the full path of an image in one of the user's folders. Use when the user wants to edit, transform, or use an existing image as a visual reference or style source.`,
+    }),
   }),
   name: "generate_image",
   outputSchema: z.discriminatedUnion("state", [
@@ -144,10 +141,10 @@ export const GenerateImage = setupTool({
       configs: getWorkspaceConfig().getAIProviderConfigs(),
     })}
   `,
-  async *execute({ input, model, sessionId, signal, taskId, taskState }) {
+  async *execute({ input, partId, model, sessionId, signal, chatId }) {
     const layout = buildWorkspaceFsLayout({
-      attachedFolders: taskState.attachedFolders,
-      taskHostRoot: taskDir(taskId),
+      ...(await chatReach(chatId, sessionId, partId)),
+      taskHostRoot: workDir(chatId),
     });
     const filePathResult = resolveWritableToolPath({
       inputPath: input.filePath,
@@ -158,13 +155,13 @@ export const GenerateImage = setupTool({
       return;
     }
     // Everything below resolves against the task directory and the tool's
-    // output contract is a task-relative path, so a mount path would land in a
-    // shadow tree inside the task rather than in the user's folder. Generate
+    // output contract is a task-relative path, so a path in another folder
+    // would land in a shadow tree inside the task rather than in that folder. Generate
     // into the task and move the result instead.
     if (filePathResult.value.mount) {
       yield executeError(
         `Images cannot be generated directly into "${filePathResult.value.displayPath}". ` +
-          `Generate into the task (e.g. ${TASK_FOLDER_NAMES.work}/image.png), then move it there with the bash tool if it belongs in the folder.`,
+          `Generate into this conversation's folder (e.g. ${CHAT_FOLDER_NAMES.work}/image.png), then move it there with the bash tool if it belongs in the folder.`,
       );
       return;
     }
@@ -181,7 +178,7 @@ export const GenerateImage = setupTool({
     );
     let renamedToAvoidOverwrite = false;
     if (!input.allowOverwrite) {
-      const dirAbsolute = absolutePathJoin(taskDir(taskId), parsedPath.dir);
+      const dirAbsolute = absolutePathJoin(workDir(chatId), parsedPath.dir);
       // Match on name without extension: the output extension is model-derived,
       // so a prior foo.jpg must block a new foo.png.
       const existingNames = await readExistingBaseNames(dirAbsolute);
@@ -199,7 +196,7 @@ export const GenerateImage = setupTool({
       const resolvedSources = [];
       for (const inputPath of input.sourceImages) {
         // Sources are reads in our own process (not a native subprocess), so
-        // they resolve like read_file: task paths or attached mounts, with
+        // they resolve like read_file: task paths or paths in other folders, with
         // the same symlink containment.
         const pathResult = resolveExistingFilePath({ inputPath, layout });
         if (pathResult.isErr()) {
@@ -253,7 +250,7 @@ export const GenerateImage = setupTool({
               ? `${pathWithoutExt}-${index + 1}.${ext}`
               : `${pathWithoutExt}.${ext}`;
 
-          const absolutePath = absolutePathJoin(taskDir(taskId), filename);
+          const absolutePath = absolutePathJoin(workDir(chatId), filename);
           const imageBuffer = Buffer.from(image.base64, "base64");
 
           await writeFileWithDir(absolutePath, imageBuffer, { signal });
@@ -291,6 +288,7 @@ export const GenerateImage = setupTool({
       sessionId,
       signal,
       sourceImages: sourceImageBuffers,
+      chatId,
       workspaceConfig: getWorkspaceConfig(),
       workspaceServerURL: getWorkspaceServerURL(),
     })) {
@@ -374,7 +372,7 @@ export const GenerateImage = setupTool({
     }
   },
   readOnly: false,
-  // Image generation (esp. high-quality gpt-image-2) can run for several
+  // Image generation (esp. high-quality gpt-image-2.5) can run for several
   // minutes; streaming previews keep the user informed while it works.
   timeoutMs: ms("5 minutes"),
   toModelOutput: ({ input, output }) => {

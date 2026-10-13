@@ -2,6 +2,8 @@
 
 **Status:** fixed in 0c256870d, measured below; the clause is in the "Where results go" bullet of `packages/workspace/src/agents/instrument.ts`. Checked 2026-10-02.
 
+Since then the cause itself is gone: the agent works at the person's real paths, so the answer can name the file where the person keeps it and no copy is needed. See [the agent works at real paths](../decisions/2026-10-11-the-agent-works-at-real-paths.md).
+
 Asked to fetch a file the user already has, the orchestrator copies it into whichever folder it can write, and hands back the copy. It happens about one turn in three on the model the app's auto setting serves, and one clause in the placement bullet suppressed it in every trial that carried it.
 
 ## What it looks like

@@ -6,15 +6,15 @@ import {
 } from "just-bash";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TaskIdSchema } from "../../schemas/task-id";
-import { createMockTaskConfig } from "../../test/helpers/mock-task-config";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { createFfprobeCommand } from "./ffprobe";
 import { taskLayout } from "../../test/helpers/task-layout";
 
 vi.mock("execa");
 
 const mockCtx = createCommandContext({
-  cwd: "/task",
+  cwd: "/Users/sam/chat",
   env: new Map<string, string>(),
   fs: new InMemoryFs(),
   stdin: EMPTY_BYTES,
@@ -27,8 +27,8 @@ async function mockExeca() {
 }
 
 describe("ffprobeCommand", () => {
-  const taskId = createMockTaskConfig(TaskIdSchema.parse("test"));
-  const command = createFfprobeCommand(taskId, taskLayout(taskId));
+  const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
+  const command = createFfprobeCommand(chatId, taskLayout(chatId));
 
   afterEach(() => {
     vi.resetAllMocks();

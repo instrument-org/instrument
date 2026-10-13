@@ -37,7 +37,7 @@ import { isDefinedError, ORPCError } from "@orpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 import { z } from "zod";
 
 const DEFAULT_TRIAL_DAYS = 7;

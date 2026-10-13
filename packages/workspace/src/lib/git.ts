@@ -29,7 +29,7 @@ const ALLOWED_PROTOCOLS = "http:https";
 /**
  * Env that isolates git from the user's configuration, credentials, and
  * identity. Merged into every task subprocess's env (`resolveCommandContext`,
- * `execaNodeForTask`), not just the `git` shell command: `<userData>/bin` and
+ * `execaNodeForChat`), not just the `git` shell command: `<userData>/bin` and
  * `/usr/bin` both carry a `git` that a script can invoke by bare name, so
  * anchoring the isolation to one command shim would leave those uncovered. The
  * argv-level checks in `shell-commands/git.ts` are the layer that cannot work

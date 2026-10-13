@@ -4,12 +4,12 @@ export namespace StorageKey {
   const SEPARATOR = ":";
   export const MESSAGES_KEY = "messages";
 
-  // Per-session baseline of the task's attached folders, diffed against the
-  // current set when composing a user message to detect folders the user
-  // removed between turns. Keyed by session so concurrent chats in the same task
-  // each track what they witnessed.
-  export function attachedFoldersBaseline(sessionId: StoreId.Session) {
-    return ["attached-folders-baseline", sessionId].join(SEPARATOR);
+  // Per-session baseline of the folders granted in the chat, diffed against
+  // the current set when composing a user message to tell the session of
+  // folders granted, taken back, or moved to a new mount since. Keyed by
+  // session so the chat and each of its tasks track what they were told.
+  export function foldersBaseline(sessionId: StoreId.Session) {
+    return ["folders-baseline", sessionId].join(SEPARATOR);
   }
 
   // Per-session record of the background processes the agent was last told
@@ -76,20 +76,42 @@ export namespace StorageKey {
     return ["parts", sessionId, messageId].join(SEPARATOR);
   }
 
+  /**
+   * The message a transcript key is about: its own row, or one of its
+   * parts. None for any other key.
+   */
+  export function messageOf(
+    key: string,
+  ):
+    | { id: StoreId.Message; ownRow: boolean; sessionId: StoreId.Session }
+    | undefined {
+    const [kind, rawSession, rawMessage] = key.split(SEPARATOR);
+    if (kind !== MESSAGES_KEY && kind !== "parts") {
+      return undefined;
+    }
+    const sessionId = StoreId.SessionSchema.safeParse(rawSession);
+    const id = StoreId.MessageSchema.safeParse(rawMessage);
+    return sessionId.success && id.success
+      ? {
+          id: id.data,
+          ownRow: kind === MESSAGES_KEY,
+          sessionId: sessionId.data,
+        }
+      : undefined;
+  }
+
+  /** The session a key is about, or none for a key that names none. */
+  export function sessionOf(key: string): StoreId.Session | undefined {
+    const parsed = StoreId.SessionSchema.safeParse(key.split(SEPARATOR).at(1));
+    return parsed.success ? parsed.data : undefined;
+  }
+
   export function session(sessionId: StoreId.Session) {
     return [StorageKey.sessions(), sessionId].join(SEPARATOR);
   }
 
   export function sessions() {
     return "sessions";
-  }
-
-  // Per-session baseline of the apps the task may reach, diffed against its
-  // settings when composing a user message so an app handed to it (or taken
-  // back) after it started reaches the model at all. Keyed by session for the
-  // same reason the folder baseline is.
-  export function taskAppsBaseline(sessionId: StoreId.Session) {
-    return ["task-apps-baseline", sessionId].join(SEPARATOR);
   }
 
   // Per-session record of the workspace's apps and whether each was connected,

@@ -1,8 +1,5 @@
 import { rpcClient } from "@/client/rpc/client";
-import {
-  type BrowserTargetId,
-  decodeBrowserTargetId,
-} from "@instrument-org/workspace/client";
+import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -52,11 +49,9 @@ export function useTargetAgentActivity(targetId: BrowserTargetId): boolean {
 export function useTargetAgentLastAt(
   targetId: BrowserTargetId,
 ): number | undefined {
-  const owner = decodeBrowserTargetId(targetId);
   const { data } = useQuery(
     rpcClient.workspace.browser.events.agentActivity.experimental_liveOptions({
-      enabled: owner !== null,
-      input: { id: owner?.id ?? ("" as never), targetId },
+      input: { targetId },
     }),
   );
   return data?.lastAt;

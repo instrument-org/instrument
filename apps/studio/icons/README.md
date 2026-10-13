@@ -17,6 +17,8 @@ Source artwork lives in `source/`:
 - `instrument-solid-square.png` — full-bleed square for macOS 26+ (Tahoe). Used to build `build/icon.icon`.
 - `instrument-solid-rounded.png` — designer-provided squircle for macOS before 26, Windows, and Linux.
 
+`icons:generate` also writes `build/flavors/`: the same artwork recolored for builds that are not the shipping app (`APP_FLAVOR`). A preview gets a full purple set, which `electron-builder.ts` packages in place of the shipping one, and a development run gets a slate Dock icon it sets at launch.
+
 Regenerate packaged icons after changing sources:
 
 ```bash

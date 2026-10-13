@@ -3,7 +3,10 @@ import { APP_NAME } from "@instrument-org/shared";
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { openSettings } from "@/client/atoms/settings-modal";
 import { PlanAccountNote } from "./plan-account-note";
+
+vi.mock("@/client/atoms/settings-modal", () => ({ openSettings: vi.fn() }));
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
@@ -85,6 +88,21 @@ describe("PlanAccountNote", () => {
     expect(
       screen.getByRole("menuitem", { name: /^Wait until / }),
     ).toBeDefined();
+  });
+
+  it("opens Claude's usage limits from the menu", () => {
+    renderNote({ kind: "usage-limit", provider: "claude-account" });
+
+    openSwitchMenu();
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "See your Claude usage limits" }),
+    );
+
+    expect(openSettings).toHaveBeenCalledWith({
+      providerUsage: "claude-account",
+      setting: "claude-account",
+      tab: "Providers",
+    });
   });
 
   it("offers another AI when the account can't be used here", () => {

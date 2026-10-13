@@ -1,12 +1,12 @@
-import type { TaskId } from "@instrument-org/workspace/client";
+import type { ChatId } from "@instrument-org/workspace/client";
 
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 
-export function ModelPreview({ id }: { id: TaskId }) {
-  const { data: taskState } = useQuery(
-    rpcClient.workspace.task.state.get.queryOptions({
+export function ModelPreview({ id }: { id: ChatId }) {
+  const { data: chatInfo } = useQuery(
+    rpcClient.workspace.chats.live.info.experimental_liveOptions({
       input: { id },
     }),
   );
@@ -15,11 +15,11 @@ export function ModelPreview({ id }: { id: TaskId }) {
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
 
-  if (!taskState?.selectedModelURI) {
+  if (!chatInfo?.modelURI) {
     return <span className="text-xs text-muted-foreground">No model</span>;
   }
 
-  const selectedModelURI = taskState.selectedModelURI;
+  const selectedModelURI = chatInfo.modelURI;
   const models = modelsResponse?.models ?? [];
 
   const matchedModel = models.find((model) => model.uri === selectedModelURI);

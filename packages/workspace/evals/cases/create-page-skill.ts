@@ -1,40 +1,20 @@
 /**
- * Does `create-page` get reached for when it should, and left alone when it
+ * Does `instrument-page` get reached for when it should, and left alone when it
  * should not?
  *
- * The task prompt names the skill and tells the model to err toward it for
- * anything long, structured, or worth keeping; the chat's brief rule
- * names it whenever the user asks for a page.
- * Both are prompt lines, so neither can be read off the source.
+ * The agent's prompt names the skill as where a page starts, which is a
+ * prompt line, so it cannot be read off the source.
  *
  * A sandboxed eval home holds far fewer skills than a real machine, so the
  * catalog here shows every description whole and the shortening step never
  * fires. What these measure is whether the model acts on a description it can
- * see and a brief that names the skill; `skill-catalog.test.ts` is what covers
+ * see; `skill-catalog.test.ts` is what covers
  * the description surviving a crowded catalog.
  */
 import { SKILL_NAMES } from "../../src/lib/skill-names";
 import { type Session } from "../../src/schemas/session";
 import { type SessionMessagePart } from "../../src/schemas/session/message-part";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
-
-/** Every `task new` the conversation ran, brief included. */
-function briefs(sessions: Session.WithMessagesAndParts[]): string[] {
-  return sessions.flatMap((session) =>
-    session.messages.flatMap((message) =>
-      message.parts.flatMap((part) => {
-        if (part.type !== "tool-bash") {
-          return [];
-        }
-        const command: string | undefined = part.input?.command;
-        return command !== undefined &&
-          /(?:^|[\n;&|])\s*task new\b/.test(command)
-          ? [command]
-          : [];
-      }),
-    ),
-  );
-}
 
 function fail(text: string, evidence: string): AssertionResult {
   return { evidence, passed: false, text };
@@ -44,8 +24,8 @@ function fail(text: string, evidence: string): AssertionResult {
 function isCreatePageName(name: unknown): boolean {
   return (
     typeof name === "string" &&
-    (name === SKILL_NAMES.createPage ||
-      name.endsWith(`:${SKILL_NAMES.createPage}`))
+    (name === SKILL_NAMES.instrumentPage ||
+      name.endsWith(`:${SKILL_NAMES.instrumentPage}`))
   );
 }
 
@@ -67,61 +47,42 @@ function pass(text: string, evidence: string): AssertionResult {
 
 const loadsCreatePage: Assertion = {
   check: ({ sessions }) => {
-    const text = `loads the ${SKILL_NAMES.createPage} skill`;
+    const text = `loads the ${SKILL_NAMES.instrumentPage} skill`;
     return loadedCreatePage(sessions)
-      ? pass(text, `found a load_skill call for ${SKILL_NAMES.createPage}`)
-      : fail(text, `no load_skill call for ${SKILL_NAMES.createPage}`);
+      ? pass(text, `found a load_skill call for ${SKILL_NAMES.instrumentPage}`)
+      : fail(text, `no load_skill call for ${SKILL_NAMES.instrumentPage}`);
   },
-  text: `loads the ${SKILL_NAMES.createPage} skill`,
+  text: `loads the ${SKILL_NAMES.instrumentPage} skill`,
 };
 
 const leavesCreatePageAlone: Assertion = {
   check: ({ sessions }) => {
-    const text = `does not load the ${SKILL_NAMES.createPage} skill for a file the user named by format`;
+    const text = `does not load the ${SKILL_NAMES.instrumentPage} skill for a file the user named by format`;
     return loadedCreatePage(sessions)
-      ? fail(text, `loaded ${SKILL_NAMES.createPage} anyway`)
-      : pass(text, `no load_skill call for ${SKILL_NAMES.createPage}`);
+      ? fail(text, `loaded ${SKILL_NAMES.instrumentPage} anyway`)
+      : pass(text, `no load_skill call for ${SKILL_NAMES.instrumentPage}`);
   },
-  text: `does not load the ${SKILL_NAMES.createPage} skill for a file the user named by format`,
+  text: `does not load the ${SKILL_NAMES.instrumentPage} skill for a file the user named by format`,
 };
 
-/** The conversation cannot load a skill, so the brief is where it names one. */
-const briefNamesCreatePage: Assertion = {
-  check: ({ sessions }) => {
-    const text = `the brief names the ${SKILL_NAMES.createPage} skill`;
-    const all = briefs(sessions);
-    const naming = all.filter((brief) =>
-      brief.includes(SKILL_NAMES.createPage),
-    );
-    return naming.length > 0
-      ? pass(text, `${naming.length} of ${all.length} briefs name it`)
-      : fail(
-          text,
-          all.length === 0
-            ? "no task was started"
-            : `none of ${all.length} briefs name it: ${all.map((brief) => brief.split("\n").slice(1, 3).join(" ")).join(" | ")}`,
-        );
-  },
-  text: `the brief names the ${SKILL_NAMES.createPage} skill`,
-};
-
-const tasksLoadedCreatePage: Assertion = {
-  check: async ({ childSessions }) => {
-    const text = `a task loaded the ${SKILL_NAMES.createPage} skill`;
+/** The chat or a fork of it loaded the skill. */
+const treeLoadedCreatePage: Assertion = {
+  check: async ({ childSessions, sessions }) => {
+    const text = `the chat or a fork loaded the ${SKILL_NAMES.instrumentPage} skill`;
     const children = await childSessions();
-    if (children.length === 0) {
-      return fail(text, "no task was started");
-    }
-    const loaded = children.filter((child) => loadedCreatePage(child.sessions));
-    const evidence = children
-      .map(
+    const evidence = [
+      `chat: ${loadedCreatePage(sessions) ? "loaded" : "did not load"}`,
+      ...children.map(
         (child) =>
           `${child.title}: ${loadedCreatePage(child.sessions) ? "loaded" : "did not load"}`,
-      )
-      .join("; ");
-    return loaded.length > 0 ? pass(text, evidence) : fail(text, evidence);
+      ),
+    ].join("; ");
+    return loadedCreatePage(sessions) ||
+      children.some((child) => loadedCreatePage(child.sessions))
+      ? pass(text, evidence)
+      : fail(text, evidence);
   },
-  text: `a task loaded the ${SKILL_NAMES.createPage} skill`,
+  text: `the chat or a fork loaded the ${SKILL_NAMES.instrumentPage} skill`,
 };
 
 const stopOnLoadCreatePage = (part: SessionMessagePart.Type) =>
@@ -154,9 +115,8 @@ export const CREATE_PAGE_SKILL_EVALS = [
   }),
 
   defineEval({
-    // The user names the ability. The conversation has no skill tool of its
-    // own, so the whole of the answer is a brief that names the skill.
-    assertions: [briefNamesCreatePage, tasksLoadedCreatePage],
+    // The user names the ability, in the words it was asked with.
+    assertions: [treeLoadedCreatePage],
     kind: "chat",
     name: "chat-create-page-by-name",
     prompt:

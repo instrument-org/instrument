@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { zoomMaxSize } from "./use-app-zoom";
+import { dialogMaxSize, zoomMaxSize } from "./use-app-zoom";
 
 const CLIENT_DIR = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -114,6 +114,14 @@ describe("zoomMaxSize", () => {
   it("falls back to the window when nothing intrinsic is asked for", () => {
     expect(zoomMaxSize("height")).toMatchInlineSnapshot(
       `"calc((100vh - 2rem) / var(--content-zoom))"`,
+    );
+  });
+});
+
+describe("dialogMaxSize", () => {
+  it("caps an intrinsic size by the window less a toolbar band each side", () => {
+    expect(dialogMaxSize("width", "70rem")).toMatchInlineSnapshot(
+      `"min(70rem, calc(100vw / var(--content-zoom) - 80px))"`,
     );
   });
 });

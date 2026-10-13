@@ -1,37 +1,34 @@
 import { type AbsolutePath, type WorkspaceFilePath } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
-import { WINDOW_ID } from "../schemas/window-id";
-import { childTaskMounts, windowTaskMounts } from "./chat/children";
-import { folderReach } from "./chat/folder-reach";
+import { type ChatId } from "../schemas/chat-id";
+import { chatReach } from "./permissions/chat-rules";
 import { resolveExistingFilePath } from "./resolve-agent-path";
-import { taskDir } from "./task-dir-utils";
-import { resolveChat } from "./record-folders";
 import {
   buildWorkspaceFsLayout,
   type WorkspaceFsLayout,
 } from "./workspace-fs-layout";
+import { workDir } from "./work-dir";
 
 /**
- * Host path for a file a task can reach: task-relative, the mount path of a
- * folder the user attached (`/mnt/<name>/...`), or, for a chat, a task it
- * created (`/tasks/<id>/...`). Null when the path resolves outside everything the task
- * has -- including the task's own private dir and a symlink leading out of a
- * mount -- so a caller can fail closed.
+ * Host path for a file a task can reach: task-relative, or an absolute path in
+ * a folder the user attached. Null when the path resolves outside everything
+ * the task has -- including the task's own private dir and a symlink leading
+ * out of a mount -- so a caller can fail closed.
  *
  * Use wherever the main process acts on a path that came from the renderer: the
- * task directory is only part of what a task's files can live in, and a mount
- * path resolved against the task directory is a file that does not exist.
+ * task directory is only part of what a task's files can live in, and a path
+ * in another folder resolved against the task directory is a file that does
+ * not exist.
  */
 export async function resolveWorkspaceFilePath({
   filePath,
-  taskId,
+  chatId,
 }: {
   filePath: WorkspaceFilePath;
-  taskId: TaskId;
+  chatId: ChatId;
 }): Promise<AbsolutePath | null> {
   const resolved = await resolveWorkspaceFilePaths({
     filePaths: [filePath],
-    taskId,
+    chatId,
   });
   return resolved.get(filePath) ?? null;
 }
@@ -43,12 +40,12 @@ export async function resolveWorkspaceFilePath({
  */
 export async function resolveWorkspaceFilePaths({
   filePaths,
-  taskId,
+  chatId,
 }: {
   filePaths: readonly WorkspaceFilePath[];
-  taskId: TaskId;
+  chatId: ChatId;
 }): Promise<Map<WorkspaceFilePath, AbsolutePath | null>> {
-  const layout = await taskFsLayout(taskId);
+  const layout = await taskFsLayout(chatId);
   return new Map(
     filePaths.map((filePath) => {
       const resolved = resolveExistingFilePath({ inputPath: filePath, layout });
@@ -58,20 +55,12 @@ export async function resolveWorkspaceFilePaths({
 }
 
 /**
- * The filesystem a task's agent sees, as it stands now: its own folder, the
- * folders attached to it and, for a chat, the tasks it created. The window's is a chat's without a chat's own folders,
- * reaching every chat's tasks.
+ * The filesystem a task's agent sees, as it stands now: its own folder and
+ * the folders attached to it.
  */
-export async function taskFsLayout(taskId: TaskId): Promise<WorkspaceFsLayout> {
-  const taskHostRoot = taskDir(taskId);
-  const chatId = resolveChat(taskId);
+export async function taskFsLayout(chatId: ChatId): Promise<WorkspaceFsLayout> {
   return buildWorkspaceFsLayout({
-    attachedFolders: await folderReach(taskId),
-    extraMounts: chatId
-      ? await childTaskMounts(chatId)
-      : taskId === WINDOW_ID
-        ? windowTaskMounts()
-        : undefined,
-    taskHostRoot,
+    ...(await chatReach(chatId)),
+    taskHostRoot: workDir(chatId),
   });
 }

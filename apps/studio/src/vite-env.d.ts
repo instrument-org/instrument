@@ -64,16 +64,26 @@ declare namespace NodeJS {
        */
       INSTRUMENT_WORKSPACE: string | undefined;
       NODE_ENV: string | undefined;
+      /** Windows only: where OneDrive keeps its folder, set by OneDrive. */
+      OneDrive: string | undefined;
+      /** Windows only: the work or school account's OneDrive folder. */
+      OneDriveCommercial: string | undefined;
+      /** Windows only: the personal account's OneDrive folder. */
+      OneDriveConsumer: string | undefined;
       PATH: string | undefined;
       /** Dev only: the port electron-vite gives the Electron child for CDP. */
       REMOTE_DEBUGGING_PORT: string | undefined;
       SIGNTOOL_PATH: string | undefined;
       SKIP_MOVE_TO_APPLICATIONS: string | undefined;
       SKIP_ONBOARDING: string | undefined;
+      /** Dev only: the DEV_INSTANCE_COLORS name studio-drive marked this instance with. */
+      STUDIO_DRIVE_COLOR: string | undefined;
       /** Dev only: why studio-drive launched this instance. */
       STUDIO_DRIVE_PURPOSE: string | undefined;
       /** Dev only: the lowest electron-log level the terminal shows; `warn` when unset. */
       STUDIO_LOG_LEVEL: string | undefined;
+      /** Set by Windows: the drive it runs from, such as `C:`. */
+      SystemDrive: string | undefined;
       TARGET_PLATFORM: string | undefined;
       /** Set by a Wayland compositor. The signal Chromium reads for `auto`. */
       WAYLAND_DISPLAY: string | undefined;

@@ -12,13 +12,12 @@ import {
   loadApp,
   readAppGuide,
 } from "../lib/apps/store";
-import { recordAppChat } from "../lib/chat/attribution";
 import { APP_COMMAND } from "../lib/shell-commands/app-command";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { MOUNT } from "../mount-points";
+import { shellPath } from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
-import { resolveChat } from "../lib/record-folders";
+import { sessionRole } from "../lib/chat/children";
 
 /**
  * Ask the user for the one thing only they can give an app: a sign-in, or a
@@ -34,7 +33,7 @@ export const ConnectApp = setupTool({
         "One sentence, addressed to the user, saying what connecting it lets you do for them: 'So I can read and write your Notion pages.'",
     }),
     slug: z.string().meta({
-      description: `The app to connect: its folder name under ${MOUNT.apps}/, already written.`,
+      description: `The app to connect: its folder name in the apps folder, already written.`,
     }),
   }),
   name: "connect_app",
@@ -64,9 +63,18 @@ export const ConnectApp = setupTool({
   ]),
 }).create({
   description: dedent`
-    Ask the user to connect an app whose folder you have written under ${MOUNT.apps}/<slug>/. A card appears in the conversation: a sign-in button for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a button that opens its sign-in in the window's browser. It returns at once; say one line and end your turn. You are woken with a note when the user has signed in, saved a key, or declined. Never ask for a key in prose instead.
+    Ask the user to connect an app whose folder you have written in the apps folder. A card appears in the conversation: a sign-in button for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a button that opens its sign-in in the window's browser. It returns at once; say one line and end your turn. You are woken with a note when the user has signed in, saved a key, or declined. Never ask for a key in prose instead.
   `,
-  execute: async ({ input, taskId }) => {
+  execute: async ({ input, sessionId, chatId }) => {
+    // A task runs the chat's agent where no card is seen.
+    if (sessionRole(chatId, sessionId) !== "chat") {
+      return ok({
+        message:
+          "You are running in the background, where nobody sees a card: only the chat asks the user to connect an app. End your last message with a needs fence naming the app.",
+        slug: input.slug,
+        state: "failure" as const,
+      });
+    }
     const config = getWorkspaceConfig();
     const loaded = await loadApp(config.appsDir, input.slug);
     if (loaded.isErr()) {
@@ -89,8 +97,8 @@ export const ConnectApp = setupTool({
       return ok({
         message:
           guide === null
-            ? `${MOUNT.apps}/${slug}/${APP_GUIDE_FILE_NAME} is missing: what ${manifest.name} is for, the endpoints a request needs, and what a request has to get right. ${write}`
-            : `${MOUNT.apps}/${slug}/${APP_GUIDE_FILE_NAME} still has prompts \`${APP_COMMAND.name} new\` left, a few lines each from what you know about ${manifest.name}. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
+            ? `${shellPath(dir)}/${APP_GUIDE_FILE_NAME} is missing: what ${manifest.name} is for, the endpoints a request needs, and what a request has to get right. ${write}`
+            : `${shellPath(dir)}/${APP_GUIDE_FILE_NAME} still has prompts \`${APP_COMMAND.name} new\` left, a few lines each from what you know about ${manifest.name}. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
         slug,
         state: "failure" as const,
       });
@@ -113,7 +121,11 @@ export const ConnectApp = setupTool({
       });
     }
     if (kind !== "none") {
+      // What the user does on the card or the app's page comes back as an
+      // app event with no chat of its own; the ask kept with the app is
+      // what tells it which chat to wake.
       await recordConnection(slug, {
+        askedIn: chatId,
         status:
           kind === "key"
             ? "needs-key"
@@ -121,12 +133,6 @@ export const ConnectApp = setupTool({
               ? "needs-approval"
               : "needs-sign-in",
       });
-      // What the user does on the card comes back as an app event with no
-      // chat of its own; this is what tells it which one asked.
-      const chatId = resolveChat(taskId);
-      if (chatId) {
-        await recordAppChat({ chatId, slug });
-      }
     }
     return ok({
       kind,

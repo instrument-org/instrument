@@ -1,4 +1,13 @@
 import { execa, type Options } from "execa";
+import { type Serializable } from "node:child_process";
+
+import { inheritedEnv } from "../native-env";
+
+import {
+  refusalNote,
+  refusedPathIn,
+  wrapNativeCommand,
+} from "../native-sandbox";
 
 import { watchSubprocessTree } from "../subprocess-tree";
 import { collectAndForward, currentShellOutputSink } from "./output-sink";
@@ -72,18 +81,58 @@ export function collapseProgress(output: string) {
 export async function execShim(
   file: string,
   args: string[],
-  options: ShimOptions,
+  options: ShimOptions & {
+    /**
+     * Opens an IPC channel to a Node subprocess and hears each message it
+     * sends; `reply` sends one back while the channel is open.
+     */
+    onMessage?: (
+      message: unknown,
+      reply: (message: Serializable) => void,
+    ) => void;
+    /**
+     * Run outside the native sandbox: only for a command the person allowed
+     * to act on its own, such as a script to an app they allowed.
+     */
+    unsandboxed?: true;
+    /**
+     * A walk, whose paths were checked before it ran: a folder the sandbox
+     * refuses on the way is skipped quietly, with no card and no note.
+     */
+    walks?: true;
+  },
 ) {
   const sink = currentShellOutputSink();
-  const { cancelSignal, ...subprocessOptions } = options;
-  const subprocess = execa(file, args, {
+  const { cancelSignal, onMessage, unsandboxed, walks, ...subprocessOptions } =
+    options;
+  const spawned = wrapNativeCommand(file, args, unsandboxed ? null : undefined);
+  const subprocess = execa(spawned.file, spawned.args, {
     ...subprocessOptions,
+    ...(onMessage ? { ipc: true } : {}),
+    // Only what a program needs of the app's own environment, so a key or
+    // token set for the app never reaches a script the agent runs.
+    env: {
+      ...inheritedEnv(process.env, spawned.reach),
+      ...subprocessOptions.env,
+    },
+    extendEnv: false,
     all: true,
     cancelSignal: sink ? undefined : cancelSignal,
     detached: sink !== undefined && process.platform !== "win32",
     reject: false,
     stripFinalNewline: false,
   });
+  if (onMessage) {
+    subprocess.on("message", (message) =>
+      onMessage(message, (reply) => {
+        if (subprocess.connected) {
+          // A subprocess that exits while the reply is on its way has
+          // nothing left to hear it.
+          subprocess.send(reply, () => {});
+        }
+      }),
+    );
+  }
   const finishTreeTermination = sink
     ? watchSubprocessTree({ pid: subprocess.pid, signal: cancelSignal })
     : undefined;
@@ -93,6 +142,18 @@ export async function execShim(
   const result = await subprocess;
   await streamed;
   await finishTreeTermination?.();
+  const stderr = typeof result.stderr === "string" ? result.stderr : "";
+  const stdout = typeof result.stdout === "string" ? result.stdout : "";
+  const refused =
+    spawned.reach && !walks && result.exitCode !== 0
+      ? refusedPathIn(
+          `${stderr}\n${stdout}`,
+          spawned.reach,
+          typeof subprocessOptions.cwd === "string"
+            ? subprocessOptions.cwd
+            : undefined,
+        )
+      : undefined;
   return {
     exitCode: result.exitCode,
     // The binary that was launched, kept so a diagnostic can name the command
@@ -108,8 +169,10 @@ export async function execShim(
     // (when `encoding` is set). Neither is settable here, so the string branch
     // is the only reachable one; narrowing rather than asserting keeps that
     // guarantee checked.
-    stderr: typeof result.stderr === "string" ? result.stderr : "",
-    stdout: typeof result.stdout === "string" ? result.stdout : "",
+    stderr: refused
+      ? `${stderr}${stderr.endsWith("\n") || stderr === "" ? "" : "\n"}${refusalNote(refused)}\n`
+      : stderr,
+    stdout,
   };
 }
 

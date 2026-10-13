@@ -1,18 +1,18 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { type AIProviderType, APP_NAME_SLUG } from "@instrument-org/shared";
 import { execa } from "execa";
+import { cpSync, mkdtempSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { FFMPEG_PATH } from "../lib/ffmpeg";
 import { measureImage } from "../lib/render-image";
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { TaskDirSchema } from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
+import { grantFolder } from "../lib/chat/grants";
+import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { pngHeaderBytes } from "../test/helpers/png-header";
 import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
@@ -52,28 +52,34 @@ async function drawPngFixture(destination: string, size: string) {
   ]);
 }
 
+// A copy, since the chat the tests read in keeps its store in its folder.
 const fixturesPath = path.join(
-  import.meta.dirname,
-  "../../fixtures/file-system",
+  mkdtempSync(path.join(os.tmpdir(), "read-file-")),
+  "file-system",
+);
+cpSync(
+  path.join(import.meta.dirname, "../../fixtures/file-system"),
+  fixturesPath,
+  {
+    recursive: true,
+  },
 );
 
-const taskId = createMockTaskConfigForDir(fixturesPath, { model });
+const chatId = createMockChatConfigForDir(fixturesPath, { model });
 
-const attachedFolders: Record<string, FolderAttachment.Type> = {
-  "test-folder": {
-    access: "read-only",
-    createdAt: Date.now(),
-    id: FolderAttachment.IdSchema.parse("test-folder-id"),
-    mountName: "Test Folder",
-    path: TaskDirSchema.parse(fixturesPath),
-    source: "user",
-  },
-};
+// A folder granted to the chat: another copy,
+// outside the home folder, which a chat reaches too and which would own a path
+// in the repository's fixtures first.
+const testFolder = path.join(path.dirname(fixturesPath), "Test Folder");
+cpSync(fixturesPath, testFolder, { recursive: true });
 
 describe("ReadFile", () => {
+  beforeAll(async () => {
+    await grantFolder({ chatId, path: testFolder, source: "attached" });
+  });
+
   describe("main agent", () => {
     const baseInput = {
-      agentName: "main" as const,
       model,
       // A getter, so spreading this gives each call its own deadline. Built once
       // it would be a budget for the whole file rather than for one tool call,
@@ -82,8 +88,7 @@ describe("ReadFile", () => {
       get signal() {
         return AbortSignal.timeout(30_000);
       },
-      taskId,
-      taskState: { browserTabs: [] },
+      chatId,
     };
 
     it("should list files when given a directory path", async () => {
@@ -118,11 +123,9 @@ describe("ReadFile", () => {
       }
     });
 
-    it("collapses the task dir a script wrote into a file, leaving home paths as data", async () => {
-      // A script that resolved an absolute path can write the task dir into a
-      // deliverable; reading it back must not leak the task layout. An unrelated
-      // home path stays untouched -- redacting it risks mangling a legitimately
-      // absolute path the agent then edits.
+    it("returns a file as written, task paths and home paths alike", async () => {
+      // The agent works at real paths, so an absolute path in a file is data
+      // it may need to edit verbatim.
       const home = os.homedir();
       const probePath = path.join(fixturesPath, "redact-probe.txt");
       await fs.writeFile(
@@ -140,8 +143,9 @@ describe("ReadFile", () => {
 
         expect(value.state).toBe("exists");
         if (value.state === "exists") {
-          expect(value.content).toContain("Attachments: ./attachments");
-          expect(value.content).not.toContain(fixturesPath);
+          expect(value.content).toContain(
+            `Attachments: ${fixturesPath}/attachments`,
+          );
           expect(value.content).toContain(`Unrelated: ${home}/elsewhere`);
         }
       } finally {
@@ -281,9 +285,8 @@ describe("ReadFile", () => {
     it("tells the model which media it can read", async () => {
       const mediaLine = async (features: AIGatewayModel.ModelFeatures[]) => {
         const tool = await ReadFile.aiSDKTool({
-          agentName: "main",
           model: createMockAIGatewayModel({ features }),
-          taskId,
+          chatId,
         });
         const description =
           typeof tool.description === "string" ? tool.description : "";
@@ -891,30 +894,32 @@ describe("ReadFile", () => {
       `);
     }, 60_000);
 
-    it("reads a file from a read-only attached folder by its mount path", async () => {
+    it("reads a file from a granted folder by its full path", async () => {
       const value = (
         await runTool(TOOLS.ReadFile, {
           ...baseInput,
           input: {
             explanation: "read",
-            filePath: "/mnt/Test Folder/grep-test.txt",
+            filePath: path.join(testFolder, "grep-test.txt"),
           },
-          taskState: { attachedFolders, browserTabs: [] },
         })
       )._unsafeUnwrap();
 
       expect(value.state).toBe("exists");
       if (value.state === "exists") {
         expect(value.content).toContain("async function testGrep");
-        expect(value.filePath).toBe("/mnt/Test Folder/grep-test.txt");
+        expect(value.filePath).toBe(path.join(testFolder, "grep-test.txt"));
       }
     });
 
-    it("reads a task file addressed by its /task virtual path", async () => {
+    it("reads a task file addressed by its full path", async () => {
       const value = (
         await runTool(TOOLS.ReadFile, {
           ...baseInput,
-          input: { explanation: "read", filePath: "/task/grep-test.txt" },
+          input: {
+            explanation: "read",
+            filePath: path.join(fixturesPath, "grep-test.txt"),
+          },
         })
       )._unsafeUnwrap();
 
@@ -959,30 +964,13 @@ describe("ReadFile", () => {
         expect(value.content).toContain("async functions");
       }
     });
-
-    it("steers a host path inside an attached folder to its mount path", async () => {
-      const error = (
-        await runTool(TOOLS.ReadFile, {
-          ...baseInput,
-          input: {
-            explanation: "read",
-            filePath: path.join(fixturesPath, "grep-test.txt"),
-          },
-          taskState: { attachedFolders, browserTabs: [] },
-        })
-      )._unsafeUnwrapErr();
-
-      expect(error.message).toContain("Test Folder");
-      expect(error.message).toContain("mount path");
-      expect(error.message).toContain("/mnt/Test Folder");
-    });
   });
 });
 
 describe("ReadFile Unicode path fallbacks", () => {
   let tmpDir: string;
   let taskRoot: string;
-  let tmpTaskConfig: TaskId;
+  let tmpTaskConfig: ChatId;
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(
@@ -990,7 +978,7 @@ describe("ReadFile Unicode path fallbacks", () => {
     );
     taskRoot = path.join(tmpDir, "test");
     await fs.mkdir(taskRoot, { recursive: true });
-    tmpTaskConfig = createMockTaskConfigForDir(taskRoot, { model });
+    tmpTaskConfig = createMockChatConfigForDir(taskRoot, { model });
   });
 
   afterEach(async () => {
@@ -1004,12 +992,10 @@ describe("ReadFile Unicode path fallbacks", () => {
 
     const value = (
       await runTool(TOOLS.ReadFile, {
-        agentName: "main" as const,
         input: { explanation: "read", filePath: `./${inputName}` },
         model,
         signal: AbortSignal.timeout(10_000),
-        taskId: tmpTaskConfig,
-        taskState: { browserTabs: [] },
+        chatId: tmpTaskConfig,
       })
     )._unsafeUnwrap();
 
@@ -1384,9 +1370,12 @@ describe("toModelOutput", () => {
             "type": "text",
           },
           {
-            "data": "abc123",
+            "data": {
+              "data": "abc123",
+              "type": "data",
+            },
             "mediaType": "image/png",
-            "type": "file-data",
+            "type": "file",
           },
         ],
       }
@@ -1414,9 +1403,12 @@ describe("toModelOutput", () => {
             "type": "text",
           },
           {
-            "data": "abc123",
+            "data": {
+              "data": "abc123",
+              "type": "data",
+            },
             "mediaType": "application/pdf",
-            "type": "file-data",
+            "type": "file",
           },
         ],
       }
@@ -1444,9 +1436,12 @@ describe("toModelOutput", () => {
             "type": "text",
           },
           {
-            "data": "abc123",
+            "data": {
+              "data": "abc123",
+              "type": "data",
+            },
             "mediaType": "audio/mpeg",
-            "type": "file-data",
+            "type": "file",
           },
         ],
       }
@@ -1474,9 +1469,12 @@ describe("toModelOutput", () => {
             "type": "text",
           },
           {
-            "data": "abc123",
+            "data": {
+              "data": "abc123",
+              "type": "data",
+            },
             "mediaType": "video/mp4",
-            "type": "file-data",
+            "type": "file",
           },
         ],
       }

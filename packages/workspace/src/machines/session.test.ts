@@ -33,22 +33,23 @@ import {
 } from "xstate";
 
 import { setupAgent } from "../agents/create-agent";
-import { mainAgent } from "../agents/main";
+import { instrumentAgent } from "../agents/instrument";
 import { type AnyAgent } from "../agents/types";
+import * as children from "../lib/chat/children";
+import * as recordFolders from "../lib/record-folders";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { publisher } from "../rpc/publisher";
 import { type RelativePath } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema, type ChatId } from "../schemas/chat-id";
 import { type WebSearchClient } from "../schemas/web-search";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import {
-  createMockTaskConfig,
+  createMockChatConfig,
   MOCK_WORKSPACE_DIRS,
-} from "../test/helpers/mock-task-config";
+} from "../test/helpers/mock-chat-config";
 import { sessionToShorthand } from "../test/helpers/session-to-shorthand";
 import { TOOLS } from "../tools/all";
 import { sessionMachine, type SessionMachineParentEvent } from "./session";
@@ -85,6 +86,19 @@ function createManualModelStream() {
 
 describe("sessionMachine", () => {
   const taskFolder = "pj-test";
+
+  /**
+   * Runs the session as a chat's, where a question waits on the user; a
+   * task's question has nobody to wait on, and answers at once.
+   */
+  function answersAsChat() {
+    vi.spyOn(recordFolders, "resolveChat").mockImplementation((id) =>
+      id === taskFolder ? ChatIdSchema.parse(taskFolder) : undefined,
+    );
+    vi.spyOn(children, "sessionRole").mockImplementation((id) =>
+      id === taskFolder ? "chat" : undefined,
+    );
+  }
   const defaultSessionId = StoreId.newSessionId();
   const mockDate = new Date("2025-01-01T00:00:00.000Z");
   const defaultMessageId = StoreId.newMessageId();
@@ -222,7 +236,7 @@ describe("sessionMachine", () => {
 
   async function createActorAndTask({
     actorOptions,
-    agent = mainAgent,
+    agent = instrumentAgent,
     aiSDKModel,
     baseLLMRetryDelayMs = 1000,
     chunkDelayMs,
@@ -230,6 +244,7 @@ describe("sessionMachine", () => {
     imageModel,
     initialChunkDelaysMs = [],
     llmRequestChunkTimeoutMs = 120_000,
+    machine = sessionMachine,
     maxStepCount,
     modelFeatures,
     providerConfigId = "mock-provider-config-id",
@@ -252,6 +267,8 @@ describe("sessionMachine", () => {
     imageModel?: ImageModelV4;
     initialChunkDelaysMs?: number[];
     llmRequestChunkTimeoutMs?: number;
+    /** The session machine with test stand-ins provided. */
+    machine?: typeof sessionMachine;
     maxStepCount?: number;
     /** What the model takes and gives; the mock's text-and-tools default otherwise. */
     modelFeatures?: AIGatewayModel.ModelFeatures[];
@@ -292,8 +309,8 @@ describe("sessionMachine", () => {
       providerConfigId,
     });
 
-    const testTaskConfig = createMockTaskConfig(
-      TaskIdSchema.parse(taskFolder),
+    const testTaskConfig = createMockChatConfig(
+      ChatIdSchema.parse(taskFolder),
       {
         aiSDKModel: aiSDKModel ?? mockLanguageModel,
         imageModel,
@@ -312,7 +329,7 @@ describe("sessionMachine", () => {
       testTaskConfig,
     );
 
-    const actor = createActor(sessionMachine, {
+    const actor = createActor(machine, {
       ...actorOptions,
       input: {
         agent,
@@ -332,7 +349,7 @@ describe("sessionMachine", () => {
         queuedMessages,
         runRequested,
         sessionId,
-        taskId: testTaskConfig,
+        chatId: testTaskConfig,
       },
       // Uncomment to debug
       // inspect(event) {
@@ -377,21 +394,21 @@ describe("sessionMachine", () => {
       // },
     });
 
-    return { actor, sessionId, taskId: testTaskConfig };
+    return { actor, sessionId, chatId: testTaskConfig };
   }
 
   async function runTestMachine({
     actor,
     sessionId,
-    taskId,
+    chatId,
   }: {
     actor: ActorRefFrom<typeof sessionMachine>;
     sessionId: StoreId.Session;
-    taskId: TaskId;
+    chatId: ChatId;
   }) {
     actor.start();
     await waitFor(actor, (state) => state.status === "done");
-    return Store.getSessionWithMessagesAndParts(sessionId, taskId);
+    return Store.getSessionWithMessagesAndParts(sessionId, chatId);
   }
 
   async function createAndRunTestMachine(
@@ -403,10 +420,10 @@ describe("sessionMachine", () => {
 
   beforeEach(() => {
     mockFs({
-      [MOCK_WORKSPACE_DIRS.defaultTaskTemplate]: {
+      [MOCK_WORKSPACE_DIRS.chatTemplate]: {
         "package.json": "{}",
       },
-      [MOCK_WORKSPACE_DIRS.tasks]: {
+      [MOCK_WORKSPACE_DIRS.chats]: {
         [taskFolder]: {
           "image.png": mockFs.load(
             path.resolve(
@@ -453,8 +470,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="write_file" state="output-available" callId="test-call-2">
@@ -532,8 +549,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
@@ -627,8 +644,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
@@ -707,8 +724,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
@@ -787,8 +804,8 @@ describe("sessionMachine", () => {
           <step-start step="1" />
           <text state="done">First session</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
       </session>"
     `);
 
@@ -802,8 +819,8 @@ describe("sessionMachine", () => {
           <step-start step="1" />
           <text state="done">Second assistant message</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
       </session>"
     `,
     );
@@ -837,11 +854,11 @@ describe("sessionMachine", () => {
                 "filePath": "test.txt"
               }
             </input>
-            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: edit_file, generate_image, load_skill, read_file, bash, web_fetch, web_search, write_file.</error>
+            <error>Model tried to call unavailable tool 'invalid_tool_name'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, web_fetch, web_search, write_file.</error>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
@@ -912,8 +929,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
@@ -992,8 +1009,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
@@ -1038,8 +1055,8 @@ describe("sessionMachine", () => {
           <step-start step="1" />
           <text state="done">I'm done.</text>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
       </session>"
     `);
   });
@@ -1048,7 +1065,7 @@ describe("sessionMachine", () => {
     const result = await createActorAndTask({ chunkSets: [finishChunks] });
     const kinds = new Set<string>();
     const stop = publisher.subscribe("record.changed", (change) => {
-      if (change.id === result.taskId) {
+      if (change.id === result.chatId) {
         kinds.add(change.kind);
       }
     });
@@ -1062,9 +1079,7 @@ describe("sessionMachine", () => {
       chunkSets: [finishChunks],
     });
     result.actor.start();
-    await waitFor(result.actor, (state) =>
-      state.matches({ Agent: "UsingReadOnlyTools" }),
-    );
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Running" }));
     result.actor.send({ type: "stop" });
     await waitFor(result.actor, (state) => state.status === "done");
 
@@ -1078,6 +1093,39 @@ describe("sessionMachine", () => {
       `);
   });
 
+  it("keeps a message stopped before its turn starts unanswered, and says whose stop it was", async () => {
+    const result = await createActorAndTask({
+      chunkSets: [finishChunks],
+    });
+    const done: unknown[] = [];
+    const unsubscribe = publisher.subscribe("session.done", (payload) => {
+      done.push(payload);
+    });
+    result.actor.start();
+    expect(result.actor.getSnapshot().matches("UpdatingSession")).toBe(true);
+    result.actor.send({
+      notice: { by: "user", wakesChat: false },
+      type: "stop",
+    });
+
+    const session = await runTestMachine(result);
+    unsubscribe();
+    expect(sessionToShorthand(session)).toMatchInlineSnapshot(`
+      "<session title="Test session" count="1">
+        <user>
+          <text>Hello, I need help with something.</text>
+        </user>
+      </session>"
+    `);
+    expect(done).toEqual([
+      {
+        id: result.chatId,
+        notice: { by: "user", wakesChat: false },
+        sessionId: result.sessionId,
+      },
+    ]);
+  });
+
   it("should force stop agents before the stopping failsafe completes", async () => {
     let finishOnFinish: (() => void) | undefined;
     const onFinishPromise = new Promise<void>((resolve) => {
@@ -1086,23 +1134,21 @@ describe("sessionMachine", () => {
     const result = await createActorAndTask({
       agent: setupAgent({
         agentTools: pick(TOOLS, ["ReadFile"]),
-        name: "main",
+        name: "instrument",
       }).create(() => ({
-        getMessages: mainAgent.getMessages,
+        getMessages: instrumentAgent.getMessages,
         onFinish: async () => {
           await onFinishPromise;
         },
-        onStart: mainAgent.onStart,
-        shouldContinue: mainAgent.shouldContinue,
-        systemPrompt: mainAgent.systemPrompt,
+        onStart: instrumentAgent.onStart,
+        shouldContinue: instrumentAgent.shouldContinue,
+        systemPrompt: instrumentAgent.systemPrompt,
       })),
       chunkSets: [finishChunks],
     });
     result.actor.start();
 
-    await waitFor(result.actor, (state) =>
-      state.matches({ Agent: "UsingReadOnlyTools" }),
-    );
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Running" }));
     const agentRef = result.actor.getSnapshot().context.agentRef;
     if (!agentRef) {
       throw new Error("Expected agent ref");
@@ -1120,16 +1166,17 @@ describe("sessionMachine", () => {
   });
 
   it("should handle interactive tool calls with choose tool", async () => {
+    answersAsChat();
     const result = await createActorAndTask({
       agent: setupAgent({
         agentTools: pick(TOOLS, ["Choose"]),
-        name: "main",
+        name: "instrument",
       }).create(() => ({
-        getMessages: mainAgent.getMessages,
-        onFinish: mainAgent.onFinish,
-        onStart: mainAgent.onStart,
-        shouldContinue: mainAgent.shouldContinue,
-        systemPrompt: mainAgent.systemPrompt,
+        getMessages: instrumentAgent.getMessages,
+        onFinish: instrumentAgent.onFinish,
+        onStart: instrumentAgent.onStart,
+        shouldContinue: instrumentAgent.shouldContinue,
+        systemPrompt: instrumentAgent.systemPrompt,
       })),
       chunkSets: [chooseChunks, finishChunks],
     });
@@ -1137,9 +1184,7 @@ describe("sessionMachine", () => {
     result.actor.start();
 
     // Wait for the agent to reach the WaitingForPendingToolCalls state
-    await waitFor(result.actor, (state) =>
-      state.matches({ Agent: { UsingReadOnlyTools: "Paused" } }),
-    );
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Paused" }));
 
     // Send the tool call update to simulate user selection
     result.actor.send({
@@ -1183,8 +1228,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <text state="done">I'm done.</text>
@@ -1197,16 +1242,17 @@ describe("sessionMachine", () => {
   // made it can still be running: an answer that quick has to wait for the
   // step to end rather than find nothing pending and vanish.
   it("keeps an answer that arrives before the step ends", async () => {
+    answersAsChat();
     const result = await createActorAndTask({
       agent: setupAgent({
         agentTools: pick(TOOLS, ["Choose"]),
-        name: "main",
+        name: "instrument",
       }).create(() => ({
-        getMessages: mainAgent.getMessages,
-        onFinish: mainAgent.onFinish,
-        onStart: mainAgent.onStart,
-        shouldContinue: mainAgent.shouldContinue,
-        systemPrompt: mainAgent.systemPrompt,
+        getMessages: instrumentAgent.getMessages,
+        onFinish: instrumentAgent.onFinish,
+        onStart: instrumentAgent.onStart,
+        shouldContinue: instrumentAgent.shouldContinue,
+        systemPrompt: instrumentAgent.systemPrompt,
       })),
       chunkDelayMs: 100,
       chunkSets: [chooseChunks, finishChunks],
@@ -1218,11 +1264,9 @@ describe("sessionMachine", () => {
         signal: abort.signal,
       })) {
         if (part.type === "tool-choose" && part.state === "input-available") {
-          expect(
-            result.actor
-              .getSnapshot()
-              .matches({ Agent: { UsingReadOnlyTools: "Paused" } }),
-          ).toBe(false);
+          expect(result.actor.getSnapshot().matches({ Agent: "Paused" })).toBe(
+            false,
+          );
           result.actor.send({
             type: "updateInteractiveToolCall",
             value: {
@@ -1253,25 +1297,24 @@ describe("sessionMachine", () => {
   });
 
   it("stops while a choose is pending without an unhandled event", async () => {
+    answersAsChat();
     const result = await createActorAndTask({
       agent: setupAgent({
         agentTools: pick(TOOLS, ["Choose"]),
-        name: "main",
+        name: "instrument",
       }).create(() => ({
-        getMessages: mainAgent.getMessages,
-        onFinish: mainAgent.onFinish,
-        onStart: mainAgent.onStart,
-        shouldContinue: mainAgent.shouldContinue,
-        systemPrompt: mainAgent.systemPrompt,
+        getMessages: instrumentAgent.getMessages,
+        onFinish: instrumentAgent.onFinish,
+        onStart: instrumentAgent.onStart,
+        shouldContinue: instrumentAgent.shouldContinue,
+        systemPrompt: instrumentAgent.systemPrompt,
       })),
       chunkSets: [chooseChunks],
     });
     const captureException = vi.spyOn(getWorkspaceConfig(), "captureException");
 
     result.actor.start();
-    await waitFor(result.actor, (state) =>
-      state.matches({ Agent: { UsingReadOnlyTools: "Paused" } }),
-    );
+    await waitFor(result.actor, (state) => state.matches({ Agent: "Paused" }));
     result.actor.send({ type: "stop" });
     await waitFor(result.actor, (state) => state.status === "done");
 
@@ -1299,8 +1342,8 @@ describe("sessionMachine", () => {
         <assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">
           <step-start step="1" />
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="aborted" model="mock-model-id" provider="instrument" errorKind="aborted" errorMessage="Aborted">
           <step-start step="1" />
         </assistant>
@@ -1415,7 +1458,7 @@ describe("sessionMachine", () => {
       async () => {
         const session = await Store.getSessionWithMessagesAndParts(
           result.sessionId,
-          result.taskId,
+          result.chatId,
         );
         expect(sessionToShorthand(session)).toContain(
           'state="input-streaming"',
@@ -1464,8 +1507,8 @@ describe("sessionMachine", () => {
             <error>This action was stopped.</error>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="1" />
           <tool tool="read_file" state="output-available" callId="test-call-1">
@@ -1523,8 +1566,9 @@ describe("sessionMachine", () => {
       await waitFor(
         result.actor,
         (state) =>
-          state.matches({ Agent: "UsingReadOnlyTools" }) &&
-          state.context.agentRef?.getSnapshot().context.agent.name === "main",
+          state.matches({ Agent: "Running" }) &&
+          state.context.agentRef?.getSnapshot().context.agent.name ===
+            "instrument",
       ).then(async () => {
         const agentRef = result.actor.getSnapshot().context.agentRef;
         if (!agentRef) {
@@ -1553,8 +1597,8 @@ describe("sessionMachine", () => {
               <error>This action was stopped by you.</error>
             </tool>
           </assistant>
-          <session-context main realRole="system" />
-          <session-context main realRole="user" />
+          <session-context instrument realRole="system" />
+          <session-context instrument realRole="user" />
         </session>"
       `);
     });
@@ -1570,8 +1614,9 @@ describe("sessionMachine", () => {
       await waitFor(
         result.actor,
         (state) =>
-          state.matches({ Agent: "UsingReadOnlyTools" }) &&
-          state.context.agentRef?.getSnapshot().context.agent.name === "main",
+          state.matches({ Agent: "Running" }) &&
+          state.context.agentRef?.getSnapshot().context.agent.name ===
+            "instrument",
       ).then(async () => {
         const agentRef = result.actor.getSnapshot().context.agentRef;
         if (!agentRef) {
@@ -1650,8 +1695,8 @@ describe("sessionMachine", () => {
               <error>This action was interrupted by a newer message from the user, and may not have finished.</error>
             </tool>
           </assistant>
-          <session-context main realRole="system" />
-          <session-context main realRole="user" />
+          <session-context instrument realRole="system" />
+          <session-context instrument realRole="user" />
           <user>
             <text>Make it about a submarine captain instead.</text>
           </user>
@@ -1760,7 +1805,7 @@ describe("sessionMachine", () => {
           role: "user",
         };
         if (saved) {
-          await Store.saveMessageWithParts(steer, result.taskId);
+          await Store.saveMessageWithParts(steer, result.chatId);
         }
         result.actor.send({
           model: createMockAIGatewayModel(),
@@ -1793,8 +1838,8 @@ describe("sessionMachine", () => {
                 </output>
               </tool>
             </assistant>
-            <session-context main realRole="system" />
-            <session-context main realRole="user" />
+            <session-context instrument realRole="system" />
+            <session-context instrument realRole="user" />
             <user>
               <text>Make it about a submarine captain instead.</text>
             </user>
@@ -1806,6 +1851,88 @@ describe("sessionMachine", () => {
         `);
       },
     );
+    describe("a message typed into a chat's working turn", () => {
+      function typed(text: string): SessionMessage.UserWithParts {
+        const messageId = StoreId.newMessageId();
+        return {
+          id: messageId,
+          metadata: { createdAt: mockDate, sessionId: defaultSessionId },
+          parts: [
+            {
+              metadata: {
+                createdAt: mockDate,
+                id: StoreId.newPartId(),
+                messageId,
+                sessionId: defaultSessionId,
+              },
+              text,
+              type: "text",
+            },
+          ],
+          role: "user",
+        };
+      }
+
+      async function startChatTurn() {
+        answersAsChat();
+        const result = await createActorAndTask({
+          chunkSets: [writeFileChunks, finishChunks],
+        });
+        result.actor.start();
+        await waitFor(
+          result.actor,
+          (state) => state.context.agentRef !== undefined,
+        );
+        const agentRef = result.actor.getSnapshot().context.agentRef;
+        if (!agentRef) {
+          throw new Error("The agent never started");
+        }
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
+        return result;
+      }
+
+      // Nothing in flight is cut: the call finishes, and the turn's next
+      // step reads the message with a note that it arrived mid-turn.
+      it("joins the turn at its next step, marked as sent mid-turn", async () => {
+        const result = await startChatTurn();
+        const message = typed("b/c it's for the release notes");
+        await Store.saveMessageWithParts(message, result.chatId);
+        result.actor.send({
+          model: createMockAIGatewayModel(),
+          saved: true,
+          type: "addMessage",
+          value: message,
+        });
+
+        const session = await runTestMachine(result);
+        const shorthand = sessionToShorthand(session);
+        expect(shorthand).not.toContain("interrupted by a newer message");
+        expect(shorthand).toContain(
+          "The user sent this while you were working on their last message.",
+        );
+        // One turn: the message is answered by the step after the call.
+        expect(shorthand.match(/<session-context/g)).toHaveLength(2);
+        expect(shorthand).toContain("I'm done.</text>");
+      });
+
+      // A message that calls the work off stops it where it is, and runs
+      // next as a turn of its own, with no note.
+      it("stops the turn when it calls the work off", async () => {
+        const result = await startChatTurn();
+        result.actor.send({
+          model: createMockAIGatewayModel(),
+          type: "addMessage",
+          value: typed("stop"),
+        });
+
+        const session = await runTestMachine(result);
+        const shorthand = sessionToShorthand(session);
+        expect(shorthand).toContain(
+          "<error>This action was interrupted by a newer message from the user, and may not have finished.</error>",
+        );
+        expect(shorthand).not.toContain("<data-intent>");
+      });
+    });
   });
 
   describe("running a turn over the stored session", () => {
@@ -1849,10 +1976,10 @@ describe("sessionMachine", () => {
         queuedMessages: [],
         runRequested: true,
       });
-      await Store.saveMessageWithParts(defaultQueuedMessage, result.taskId);
+      await Store.saveMessageWithParts(defaultQueuedMessage, result.chatId);
       await Store.saveMessageWithParts(
         createFailedAssistantMessage(),
-        result.taskId,
+        result.chatId,
       );
 
       const session = await runTestMachine(result);
@@ -1868,8 +1995,8 @@ describe("sessionMachine", () => {
             <step-start step="1" />
             <text state="done">I'm done.</text>
           </assistant>
-          <session-context main realRole="system" />
-          <session-context main realRole="user" />
+          <session-context instrument realRole="system" />
+          <session-context instrument realRole="user" />
         </session>"
       `);
     });
@@ -1891,10 +2018,10 @@ describe("sessionMachine", () => {
         queuedMessages: [],
         runRequested: true,
       });
-      await Store.saveMessageWithParts(defaultQueuedMessage, result.taskId);
+      await Store.saveMessageWithParts(defaultQueuedMessage, result.chatId);
       await Store.saveMessageWithParts(
         createFailedAssistantMessage(),
-        result.taskId,
+        result.chatId,
       );
 
       await runTestMachine(result);
@@ -1954,8 +2081,8 @@ describe("sessionMachine", () => {
             </output>
           </tool>
         </assistant>
-        <session-context main realRole="system" />
-        <session-context main realRole="user" />
+        <session-context instrument realRole="system" />
+        <session-context instrument realRole="user" />
         <assistant finishReason="stop" tokens="13" model="mock-model-id" provider="instrument">
           <step-start step="2" />
           <tool tool="read_file" state="output-available" callId="test-call-1">

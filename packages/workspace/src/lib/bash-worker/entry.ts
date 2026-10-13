@@ -7,15 +7,15 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { parentPort } from "node:worker_threads";
 
-import { setWorkspaceServerPort } from "../../logic/server/url";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { createLocalBashEnv } from "../create-bash-env";
-import { setTaskVenvCreator, type TaskVenvError } from "../ensure-task-venv";
-import { handRecord } from "../record-folders";
+import { setChatVenvCreator, type ChatVenvError } from "../ensure-chat-venv";
+import { handChat } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
 import { setWorkspaceConfig } from "../workspace-config";
+import { setAskForwarder } from "../permissions/asks";
 import { setSkillMutationForwarder } from "../workspace-skill-index";
 import {
   type ExceptionProperties,
@@ -46,7 +46,7 @@ const toolCalls = new Map<
 const chunkAcks = new Map<number, () => void>();
 const venvRequests = new Map<
   number,
-  (result: TaskVenvError | undefined) => void
+  (result: ChatVenvError | undefined) => void
 >();
 let nextCallId = 0;
 let nextChunkSeq = 0;
@@ -67,10 +67,13 @@ process.on("unhandledRejection", (reason) => {
 
 // State the main thread owns: which turn a skill write belongs to, the process
 // trees to end if this worker dies, and the one creator of each task's venv.
-setSkillMutationForwarder((mountPath) => {
+setAskForwarder(({ asker, kind, target }) => {
+  post({ asker, kind, target, type: "ask" });
+});
+setSkillMutationForwarder((skillPath) => {
   const id = currentExec.getStore();
   if (id !== undefined) {
-    post({ id, mountPath, type: "skill-mutation" });
+    post({ id, skillPath, type: "skill-mutation" });
   }
 });
 setSubprocessTreeObserver({
@@ -81,12 +84,12 @@ setSubprocessTreeObserver({
     post({ pid, state: "started", type: "tree" });
   },
 });
-setTaskVenvCreator(
-  (taskId: TaskId) =>
+setChatVenvCreator(
+  (chatId: ChatId) =>
     new Promise((resolve) => {
       const requestId = nextVenvRequestId++;
       venvRequests.set(requestId, resolve);
-      post({ requestId, taskId, type: "venv" });
+      post({ requestId, chatId, type: "venv" });
     }),
 );
 
@@ -147,20 +150,18 @@ async function runExec({
   config,
   execOptions,
   id,
-  record,
+  chat,
   stream,
-  workspaceServerPort,
 }: Extract<ToWorker, { type: "exec" }>) {
   const controller = new AbortController();
   runs.set(id, controller);
   // One config per process on main, so the latest snapshot is the only one.
   setWorkspaceConfig(workerConfig(config));
-  setWorkspaceServerPort(workspaceServerPort);
-  // Main keeps the folder index current as it makes and trashes records, so
-  // the record comes resolved with the command rather than read here, where a
-  // copy of the index would miss a task made since.
-  if (record) {
-    handRecord(record);
+  // Main keeps the folder index current as it makes and trashes chats, so
+  // the chat comes resolved with the command rather than read here, where a
+  // copy of the index would miss a chat made since.
+  if (chat) {
+    handChat(chat);
   }
   try {
     const bash = await createLocalBashEnv({
@@ -192,8 +193,8 @@ function sendChunk(id: number, text: string) {
 }
 
 /**
- * A `js-exec` script's app tool call, made on the main thread. An abort of the
- * script's signal stops it there, as it does a proxied command.
+ * A `node` script's app tool call, made on the main thread. An abort of the
+ * command's signal stops it there, as it does a proxied command.
  */
 function invokeTool({
   argsJson,
@@ -267,10 +268,19 @@ function standIn(id: number, name: string) {
   );
 }
 
-function workerConfig(data: WorkerConfig): WorkspaceConfig {
+function workerConfig({
+  outputFolder,
+  ...data
+}: WorkerConfig): WorkspaceConfig {
   const available: Partial<WorkspaceConfig> = {
     ...data,
     captureException,
+    ...(outputFolder && {
+      outputFolder: {
+        chosenPath: () => outputFolder.chosenPath,
+        isHeld: () => outputFolder.isHeld,
+      },
+    }),
   };
   // `as`, because this is not a whole config: every other key is a function
   // or live object on the main thread, reached only by the commands proxied
@@ -278,7 +288,7 @@ function workerConfig(data: WorkerConfig): WorkspaceConfig {
   // undefined into code that assumes it is set. `then` reads as absent so the
   // config is not mistaken for a promise, and a key the worker is sent reads
   // as absent when it was, since an optional one left unset never arrives.
-  const sent = new Set<string>(WORKER_CONFIG_KEYS);
+  const sent = new Set<string>([...WORKER_CONFIG_KEYS, "outputFolder"]);
   return new Proxy(available, {
     get(target, key): unknown {
       if (

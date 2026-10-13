@@ -10,14 +10,13 @@ import { type BrowserTargetId } from "@instrument-org/workspace/client";
 
 /**
  * The chords that can mean a page rather than the window: history, reload,
- * zoom, and find. A focused `<webview>` keeps every key from the window's
+ * and zoom. A focused `<webview>` keeps every key from the window's
  * document, so these reach the window only as menu accelerators, which the
  * main process passes on as they are; which page one means is decided here,
  * and only here.
  */
 export type PageChord =
   | "back"
-  | "findInPage"
   | "forward"
   | "reloadPage"
   | "zoomIn"
@@ -33,14 +32,9 @@ export type PageChord =
  *   window's.
  * - reload means that page too, and otherwise the page the person is looking
  *   at, since the window itself has nothing to reload but every tab at once.
- * - find means the page the person is looking at, whose panel has the find
- *   bar.
  */
 export function pageForChord(chord: PageChord): BrowserTargetId | null {
   switch (chord) {
-    case "findInPage": {
-      return foregroundBrowser()?.targetId ?? null;
-    }
     case "reloadPage": {
       return pageHoldingKeyboard() ?? foregroundBrowser()?.targetId ?? null;
     }
@@ -67,10 +61,6 @@ export function runPageChord(chord: PageChord): boolean {
     case "back":
     case "forward": {
       stepPage(target, chord);
-      return true;
-    }
-    case "findInPage": {
-      foregroundBrowser()?.openFind();
       return true;
     }
     case "reloadPage": {

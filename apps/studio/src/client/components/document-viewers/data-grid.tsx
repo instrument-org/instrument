@@ -1,3 +1,4 @@
+import { useFindTarget } from "@/client/hooks/use-find-target";
 import { logger } from "@/client/lib/logger";
 import { cn } from "@/client/lib/utils";
 import { type ReferenceElement } from "@floating-ui/dom";
@@ -164,6 +165,14 @@ export function DataGrid({
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const filterRef = useRef<HTMLInputElement>(null);
+  useFindTarget({
+    anchor: filterRef,
+    openFind: () => {
+      filterRef.current?.focus();
+      filterRef.current?.select();
+    },
+  });
   // Whether a copy of part of the grid carries the column names. On for the
   // formats that are unreadable without them, and a setting rather than a
   // second row of menu items, which is what the pair of Copy entries this
@@ -715,6 +724,7 @@ export function DataGrid({
             setGlobalFilter(event.target.value);
           }}
           placeholder="Filter rows"
+          ref={filterRef}
           value={globalFilter}
         />
         <TableCopyMenu

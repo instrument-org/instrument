@@ -55,12 +55,17 @@ export function createEditMenu(): MenuItemConstructorOptions {
 }
 
 /**
- * `shortcutGuide` opens the keyboard shortcut guide, which only the app
- * window draws; a window without one leaves the item out.
+ * `shortcutGuide` opens the keyboard shortcut guide and `reportProblem` the
+ * report dialog, which only the app window draws; a window without them
+ * leaves the guide out and links to the public tracker for a bug.
  */
 export function createHelpMenu({
+  reportProblem,
   shortcutGuide,
-}: { shortcutGuide?: () => void } = {}): MenuItemConstructorOptions {
+}: {
+  reportProblem?: () => void;
+  shortcutGuide?: () => void;
+} = {}): MenuItemConstructorOptions {
   return {
     label: "Help",
     role: "help" as const,
@@ -85,12 +90,17 @@ export function createHelpMenu({
         },
         label: "Share Feedback",
       },
-      {
-        click: () => {
-          void openExternal(BUG_REPORT_URL);
-        },
-        label: "Report a Bug",
-      },
+      // The app window answers a report itself, with the log and versions
+      // the person can read before sending; a window without one sends
+      // people to the public tracker.
+      reportProblem
+        ? { click: reportProblem, label: "Report a Problem…" }
+        : {
+            click: () => {
+              void openExternal(BUG_REPORT_URL);
+            },
+            label: "Report a Bug",
+          },
     ],
   };
 }

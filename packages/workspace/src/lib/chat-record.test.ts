@@ -1,0 +1,286 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { TASKS_DIR_NAME } from "../constants";
+import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
+import { getChatPrivateDir } from "./chat-dir-utils";
+import { chatDir } from "./record-folders";
+import { readChatRecord, setChatState, updateChatRecord } from "./chat-record";
+
+const id = ChatIdSchema.parse("task-record-test");
+
+let chatId: ChatId;
+let root: string;
+
+beforeEach(async () => {
+  root = await fs.mkdtemp(path.join(os.tmpdir(), "task-record-test-"));
+  const tasksDir = path.join(root, TASKS_DIR_NAME);
+  chatId = createMockChatConfigForDir(path.join(tasksDir, id));
+  await fs.mkdir(chatDir(chatId), { recursive: true });
+});
+
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await fs.rm(root, { force: true, recursive: true });
+});
+
+function heldFileError(code: string): Error {
+  return Object.assign(new Error(`${code}: held by another program`), { code });
+}
+
+function recordPath(): string {
+  return path.join(getChatPrivateDir(chatDir(chatId)), "settings.json");
+}
+
+async function writeRecordFile(record: unknown): Promise<void> {
+  await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
+  await fs.writeFile(recordPath(), JSON.stringify(record, null, 2), "utf8");
+}
+
+describe("readChatRecord", () => {
+  it("answers empty for a task with no file", async () => {
+    const record = await readChatRecord(chatDir(chatId));
+
+    expect(record.settings).toBeUndefined();
+    expect(record.state).toEqual({ browserTabs: [] });
+    expect(record.raw).toEqual({});
+  });
+
+  // The whole reason the two views are parsed apart. A draft or a pane the
+  // schema rejects must not cost the chat its settings and its place in the list.
+  it("keeps the settings when the state cannot be read", async () => {
+    await writeRecordFile({
+      createdWithAppVersion: "2.0.0",
+      pinnedAt: "2026-01-01T00:00:00.000Z",
+      state: { browserTabs: "not a list at all" },
+    });
+
+    const record = await readChatRecord(chatDir(chatId));
+
+    expect(record.settings?.createdWithAppVersion).toBe("2.0.0");
+    expect(record.state).toEqual({ browserTabs: [] });
+  });
+
+  // And the other direction: settings this build cannot read must not
+  // silently cost the chat what its state holds.
+  it("keeps the state when the settings cannot be read", async () => {
+    await writeRecordFile({
+      createdWithAppVersion: { not: "a string" },
+      state: { appGuidesRead: ["half a sentence"] },
+    });
+
+    const record = await readChatRecord(chatDir(chatId));
+
+    expect(record.settings).toBeUndefined();
+    expect(record.state.appGuidesRead).toEqual(["half a sentence"]);
+  });
+
+  it("answers empty for a file that is not JSON, rather than throwing", async () => {
+    await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
+    await fs.writeFile(recordPath(), "{ truncated mid-wr", "utf8");
+
+    await expect(readChatRecord(chatDir(chatId))).resolves.toMatchObject({
+      settings: undefined,
+    });
+  });
+
+  it("reports a task with no file as readable, since a write may create it", async () => {
+    const record = await readChatRecord(chatDir(chatId));
+
+    expect(record.unreadable).toBe(false);
+  });
+
+  it.each([
+    ["truncated JSON", "{ truncated mid-wr"],
+    ["JSON that is not an object", "[1, 2, 3]"],
+  ])("reports %s as unreadable", async (_name, contents) => {
+    await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
+    await fs.writeFile(recordPath(), contents, "utf8");
+
+    const record = await readChatRecord(chatDir(chatId));
+
+    expect(record.unreadable).toBe(true);
+  });
+});
+
+describe("updateChatRecord", () => {
+  it("carries forward a field it cannot read rather than dropping it", async () => {
+    await writeRecordFile({
+      futureField: { written: "by a newer build" },
+      createdWithAppVersion: "2.0.0",
+    });
+
+    await updateChatRecord(chatDir(chatId), "settings", (record) => ({
+      ...record.raw,
+      createdWithAppVersion: "2.0.1",
+    }));
+
+    const written: unknown = JSON.parse(
+      await fs.readFile(recordPath(), "utf8"),
+    );
+
+    expect(written).toEqual({
+      futureField: { written: "by a newer build" },
+      createdWithAppVersion: "2.0.1",
+    });
+  });
+
+  // The half that matters for this: the top level is a closed set, `state` is
+  // the one that keeps growing, so it is the one a build rollback meets.
+  it("carries forward an unreadable field inside the state too", async () => {
+    await writeRecordFile({
+      createdWithAppVersion: "2.0.0",
+      state: { futureNested: "keep me", appGuidesRead: ["before"] },
+    });
+
+    await setChatState(chatDir(chatId), { appGuidesRead: ["after"] });
+
+    const written: unknown = JSON.parse(
+      await fs.readFile(recordPath(), "utf8"),
+    );
+
+    expect(written).toEqual({
+      createdWithAppVersion: "2.0.0",
+      state: {
+        browserTabs: [],
+        futureNested: "keep me",
+        appGuidesRead: ["after"],
+      },
+    });
+  });
+
+  // What the empty answer to a failed read costs if a write is allowed to build
+  // on it: the record read as though the task had nothing, so the write would
+  // have been the settings and the tabs replaced by one model choice.
+  it("refuses to replace a record it could not read", async () => {
+    await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
+    await fs.writeFile(
+      recordPath(),
+      '{ "createdWithAppVersion": "2.0.0", "state',
+      "utf8",
+    );
+
+    await expect(
+      setChatState(chatDir(chatId), { appGuidesRead: ["new draft"] }),
+    ).rejects.toThrow(/unreadable/);
+
+    expect(await fs.readFile(recordPath(), "utf8")).toBe(
+      '{ "createdWithAppVersion": "2.0.0", "state',
+    );
+  });
+
+  // The other half of the same rule: nothing to lose is not the same as
+  // something we cannot read, and a task's first write has to land.
+  it("creates the record for a task that has no file yet", async () => {
+    await setChatState(chatDir(chatId), { appGuidesRead: ["first draft"] });
+
+    const record = await readChatRecord(chatDir(chatId));
+
+    expect(record.state.appGuidesRead).toEqual(["first draft"]);
+  });
+
+  it("takes writes again once the unreadable record is repaired", async () => {
+    await fs.mkdir(getChatPrivateDir(chatDir(chatId)), { recursive: true });
+    await fs.writeFile(recordPath(), "{ truncated", "utf8");
+    await expect(
+      setChatState(chatDir(chatId), { appGuidesRead: ["refused"] }),
+    ).rejects.toThrow();
+
+    await writeRecordFile({ createdWithAppVersion: "2.0.1" });
+    await setChatState(chatDir(chatId), { appGuidesRead: ["accepted"] });
+
+    const record = await readChatRecord(chatDir(chatId));
+
+    expect(record.settings?.createdWithAppVersion).toBe("2.0.1");
+    expect(record.state.appGuidesRead).toEqual(["accepted"]);
+  });
+
+  it("leaves no temporary file behind", async () => {
+    await updateChatRecord(chatDir(chatId), "settings", () => ({
+      createdWithAppVersion: "2.0.0",
+    }));
+
+    const entries = await fs.readdir(getChatPrivateDir(chatDir(chatId)));
+
+    expect(entries).toEqual(["settings.json"]);
+  });
+
+  // The file is replaced by a rename, so a reader either sees the whole old one
+  // or the whole new one. Nothing observes a half-written record.
+  it("never leaves the file partially written", async () => {
+    await writeRecordFile({ createdWithAppVersion: "2.0.0" });
+
+    const long = "x".repeat(200_000);
+    const reads: Promise<string>[] = [];
+
+    const write = updateChatRecord(chatDir(chatId), "settings", (record) => ({
+      ...record.raw,
+      state: { appGuidesRead: [long] },
+    }));
+    for (let index = 0; index < 20; index++) {
+      reads.push(fs.readFile(recordPath(), "utf8"));
+    }
+
+    await write;
+    const contents = await Promise.all(reads);
+
+    for (const content of contents) {
+      expect(() => JSON.parse(content) as unknown).not.toThrow();
+    }
+  });
+
+  // Windows refuses the rename with EPERM for as long as another program holds
+  // either file, which a virus scanner or a search indexer does to a file this
+  // one is rewritten as often as. Observed there as a channel that would not
+  // stay marked read.
+  it("waits out a rename another program refused", async () => {
+    const rename = fs.rename;
+    let refusals = 2;
+    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      if (refusals > 0) {
+        refusals -= 1;
+        throw heldFileError("EPERM");
+      }
+      await rename(from, to);
+    });
+
+    await setChatState(chatDir(chatId), { appGuidesRead: ["landed"] });
+
+    const record = await readChatRecord(chatDir(chatId));
+
+    expect(record.state.appGuidesRead).toEqual(["landed"]);
+  });
+
+  it("reports a failure that waiting cannot clear, without waiting", async () => {
+    const rename = vi
+      .spyOn(fs, "rename")
+      .mockRejectedValue(heldFileError("EXDEV"));
+
+    await expect(
+      setChatState(chatDir(chatId), { appGuidesRead: ["lost"] }),
+    ).rejects.toThrow(/EXDEV/);
+
+    expect(rename).toHaveBeenCalledTimes(1);
+  });
+
+  it("serializes overlapping updates instead of losing one", async () => {
+    await Promise.all([
+      updateChatRecord(chatDir(chatId), "settings", (record) => ({
+        ...record.raw,
+        createdWithAppVersion: "2.0.0",
+      })),
+      updateChatRecord(chatDir(chatId), "settings", (record) => ({
+        ...record.raw,
+        state: { appGuidesRead: ["drafted"] },
+      })),
+    ]);
+
+    const record = await readChatRecord(chatDir(chatId));
+
+    expect(record.settings?.createdWithAppVersion).toBe("2.0.0");
+    expect(record.state.appGuidesRead).toEqual(["drafted"]);
+  });
+});

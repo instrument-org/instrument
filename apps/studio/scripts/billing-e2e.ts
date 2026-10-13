@@ -251,7 +251,7 @@ interface StudioApp {
     options?: { timeout?: number },
   ) => Promise<unknown>;
   waitForIdle: (options: {
-    taskId: string;
+    chatId: string;
     timeout: number;
   }) => Promise<unknown>;
 }
@@ -353,8 +353,20 @@ async function capturePage(app: StudioApp, slug: string) {
   await app.eval(
     'document.querySelector("[data-billing-section=Actions]").scrollIntoView({ block: "center" })',
   );
-  await app.click({ text: "Refresh" });
-  await sleep(1500);
+  // The API answers ten status reads a minute per person, and a step that
+  // just refused or polled can have spent them: a read refused that way
+  // leaves the page on the previous answer, so wait it out and read again.
+  for (let attempt = 0; ; attempt++) {
+    await app.click({ text: "Refresh" });
+    await sleep(1500);
+    const throttled = await app.eval(
+      'document.body.innerText.includes("Too many requests")',
+    );
+    if (throttled !== true || attempt >= 8) {
+      break;
+    }
+    await sleep(8000);
+  }
   await app.eval(
     'document.querySelector("[data-billing-section]").scrollIntoView()',
   );
@@ -367,29 +379,39 @@ async function capturePage(app: StudioApp, slug: string) {
  * the ai-gateway proxy, and the platform gateway.
  */
 async function chatTurn(app: StudioApp, modelURI: string, prompt: string) {
-  const { id, sessionId } = z
-    .object({ id: z.string(), sessionId: z.string() })
+  // A chat starts the way a draft's send starts one: its record first, then
+  // its opening message.
+  const sessionId = newSessionId();
+  const { id } = z
+    .object({ id: z.string() })
     .parse(
-      await studioRpc(app, "workspace.task.create", {
-        modelURI,
-        name: `billing e2e ${shotIndex}`,
-        prompt,
+      await studioRpc(app, "workspace.chats.ensure", {
+        firstWords: prompt,
+        sessionId,
       }),
     );
-  await app.waitForIdle({ taskId: id, timeout: 180_000 });
-  const listed = await studioRpc(app, "workspace.message.list", {
-    id,
-    sessionId,
-  });
+  await studioRpc(app, "workspace.message.create", { id, modelURI, prompt });
+  await app.waitForIdle({ chatId: id, timeout: 180_000 });
   const list = z
-    .union([
-      z.array(MessageSchema),
-      z
-        .object({ messages: z.array(MessageSchema) })
-        .transform((v) => v.messages),
-    ])
-    .parse(listed);
+    .array(MessageSchema)
+    .parse(await studioRpc(app, "workspace.message.list", { id, sessionId }));
   return { assistant: list.filter((m) => m.role === "assistant"), id, list };
+}
+
+/** A session id as the workspace mints one: its prefix and a ULID. */
+function newSessionId() {
+  const alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+  let time = Date.now();
+  let timePart = "";
+  for (let i = 0; i < 10; i++) {
+    timePart = alphabet.charAt(time % 32) + timePart;
+    time = Math.floor(time / 32);
+  }
+  const randomPart = Array.from(
+    crypto.getRandomValues(new Uint8Array(16)),
+    (byte) => alphabet.charAt(byte % 32),
+  ).join("");
+  return `ses_${timePart}${randomPart}`;
 }
 
 /** Whether anything named like a cost field reached Studio's store. */
@@ -550,7 +572,7 @@ async function main() {
       error?.classification === "usage-limit",
       `classified ${String(error?.classification)}`,
     );
-    await app.goto(`/tasks/${turn.id}`);
+    await app.goto(`/chats/${turn.id}`);
     await app.waitFor(
       `document.body.innerText.includes(${JSON.stringify(stopLine)})`,
       {
@@ -716,7 +738,7 @@ async function main() {
           assert(next.plan === lowerPlan, `plan ${next.plan}`);
           return next;
         },
-        { every: 1000, timeout: 60_000 },
+        { every: 7000, timeout: 90_000 },
       );
       const api = StatusSchema.parse(await userRpc(token, "billing/status"));
       assert(api.plan === lowerPlan, `API plan ${api.plan}`);
@@ -840,7 +862,7 @@ async function main() {
         const current = await status();
         assert(current.plan === higherPlan, `plan ${current.plan}`);
       },
-      { every: 1000, timeout: 60_000 },
+      { every: 7000, timeout: 90_000 },
     );
     const page = await capturePage(app, "higher-plan");
     assert(
@@ -865,7 +887,7 @@ async function main() {
             JSON.stringify(current.subscription),
           );
         },
-        { every: 1000, timeout: 60_000 },
+        { every: 7000, timeout: 90_000 },
       );
       const page = await capturePage(app, "cancel-at-period-end");
       assert(
@@ -897,7 +919,7 @@ async function main() {
             JSON.stringify(current),
           );
         },
-        { every: 1000, timeout: 60_000 },
+        { every: 7000, timeout: 90_000 },
       );
       const refused = await burn(0.01);
       assert(

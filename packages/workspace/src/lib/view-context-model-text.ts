@@ -16,7 +16,22 @@ const TABS_NAMED_MAX = 8;
  * screen is named; a folder the user left a screen ago is not.
  */
 export function viewContextModelNote(data: ViewContext) {
-  return `${screenNote(data)}${chosenNote(data)}${tabsNote(data)}`;
+  return `${screenNote(data)}${otherChatNote(data)}${chosenNote(data)}${tabsNote(data)}`;
+}
+
+/** Another chat named beside what was on screen; on its own, the screen note says it. */
+function otherChatNote(data: ViewContext) {
+  if (!data.chat || data.screen === "chat") {
+    return "";
+  }
+  return systemNote`
+    They also had another chat open, ${chatNamed(data.chat)}.
+  `;
+}
+
+/** Another chat, named and linked, and why nothing in it is the agent's to use. */
+function chatNamed(chat: NonNullable<ViewContext["chat"]>) {
+  return `"${chat.title}" ([${chat.title}](instrument://chat/${chat.id})): its pages and tabs are that chat's, not yours to read or hand to a task`;
 }
 
 /** What the person picked to send with the message, which "this" and "these" take in alongside the screen. */
@@ -28,7 +43,7 @@ function chosenNote(data: ViewContext) {
   const named = chosen
     .map(
       (entry) =>
-        `the ${entry.kind} \`${entry.path}\` (${entry.mount ? `you reach it at \`${entry.mount}\`` : "no folder you can reach covers it: ask for it with request_folder"})`,
+        `the ${entry.kind} \`${entry.path}\` (${entry.mount ? `you reach it at \`${entry.mount}\`` : "no folder you can reach covers it yet: reading it asks the person first"})`,
     )
     .join("; ");
   return systemNote`
@@ -75,7 +90,7 @@ function fileNote(data: ViewContext) {
   }
   const reach = file.mount
     ? `You reach it at \`${file.mount}\`${data.folder?.access === "read-only" ? ", read-only" : ", read and write"}.`
-    : "No folder you can reach covers it, so you cannot read it: ask for its folder with request_folder.";
+    : "No folder you can reach covers it yet: reading it asks the person first.";
   const folder = data.folder
     ? ` It sits in \`${data.folder.display}\`, which "this folder" means.`
     : "";
@@ -88,7 +103,7 @@ function fileNote(data: ViewContext) {
 function folderReach(data: ViewContext) {
   const { folder } = data;
   if (!folder?.mount) {
-    return "No folder you can reach covers it, so you cannot read it or hand it to a task: ask for it with request_folder.";
+    return "No folder you can reach covers it yet: reading it asks the person first, and a task reaches it once they allow it.";
   }
   const access =
     folder.access === "read-only"
@@ -122,11 +137,7 @@ function pageNote(data: ViewContext) {
     `;
   }
   const title = page.title ? ` "${page.title}"` : "";
-  const words = page.selection
-    ? `Selected on it: "${page.selection}".`
-    : page.text
-      ? `It begins: "${page.text}".`
-      : "It has no text yet.";
+  const words = page.selection ? ` Selected on it: "${page.selection}".` : "";
   const focus = page.focus ? ` Their cursor is in ${page.focus}.` : "";
   const shown = page.tabs?.find((other) => other.id === page.tab);
   const tab = page.tab ? ` (tab ${page.tab}${heldClause(shown?.heldBy)})` : "";
@@ -136,7 +147,7 @@ function pageNote(data: ViewContext) {
       ? `Other tabs open but not on screen: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id}${heldClause(other.heldBy)})`).join("; ")}.`
       : "No other tabs are open.";
   return systemNote`
-    When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it. ${words}${focus}
+    When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it.${words}${focus}
     ${tabs}
   `;
 }
@@ -155,6 +166,20 @@ function screenNote(data: ViewContext) {
     }
     case "browser": {
       return pageNote(data);
+    }
+    case "conversation": {
+      return systemNote`
+        When the user sent this, the window showed this conversation, with nothing else in view beside it.
+      `;
+    }
+    case "chat": {
+      return data.chat
+        ? systemNote`
+            When the user sent this, the window showed another chat, ${chatNamed(data.chat)}. "That chat" refers to it.
+          `
+        : systemNote`
+            When the user sent this, the window showed another chat.
+          `;
     }
     case "computer": {
       return systemNote`

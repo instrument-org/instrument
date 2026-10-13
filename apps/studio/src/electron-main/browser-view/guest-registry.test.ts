@@ -4,11 +4,7 @@ import type {
 } from "@instrument-org/workspace/electron";
 import type { Session, WebContents } from "electron";
 
-import {
-  encodeBrowserTargetId,
-  StoreId,
-  TaskIdSchema,
-} from "@instrument-org/workspace/electron";
+import { browserTargetOf, StoreId } from "@instrument-org/workspace/electron";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 
@@ -35,8 +31,6 @@ vi.mock("electron", () => ({
   },
 }));
 
-const TASK = TaskIdSchema.parse("registry-test");
-
 let nextId = 1;
 
 /** A web contents as the registry hears one: its id, type, session and events. */
@@ -57,15 +51,13 @@ function commit(contents: EventEmitter, routingId: number, url: string) {
 
 function entryFor(targetId: BrowserTargetId = randomTarget()) {
   return createEntry({
-    id: TASK,
     partitionDir: "/tmp/profile" as AbsolutePath,
-    sessionId: StoreId.newSessionId(),
     targetId,
   });
 }
 
 function randomTarget() {
-  return encodeBrowserTargetId(TASK, StoreId.newSessionId());
+  return browserTargetOf(StoreId.newSessionId());
 }
 
 describe("createGuestRegistry", () => {
@@ -117,16 +109,21 @@ describe("createGuestRegistry", () => {
     expect(registry.entryOf(contents.id)).toBeUndefined();
   });
 
-  it("exempts a task's own guests from ad blocking, and only while it asks", () => {
+  it("exempts the guests of the tabs an agent names from ad blocking, and only while it asks", () => {
     const registry = createGuestRegistry();
     const contents = contentsIn({});
+    const other = contentsIn({});
+    const driven = randomTarget();
     registry.track(contents as unknown as WebContents, "webview");
-    registry.bind(contents.id, entryFor());
+    registry.track(other as unknown as WebContents, "webview");
+    registry.bind(contents.id, entryFor(driven));
+    registry.bind(other.id, entryFor());
 
-    expect(registry.setAdBlocking(TASK, undefined)).toBe(true);
-    expect(registry.setAdBlocking(TASK, false)).toBe(false);
+    expect(registry.setAdBlocking([driven], undefined)).toBe(true);
+    expect(registry.setAdBlocking([driven], false)).toBe(false);
     expect(registry.isAdBlockExempt(contents.id)).toBe(true);
-    expect(registry.setAdBlocking(TASK, true)).toBe(true);
+    expect(registry.isAdBlockExempt(other.id)).toBe(false);
+    expect(registry.setAdBlocking([driven], true)).toBe(true);
     expect(registry.isAdBlockExempt(contents.id)).toBe(false);
   });
 
@@ -134,7 +131,7 @@ describe("createGuestRegistry", () => {
     const registry = createGuestRegistry();
     const popup = contentsIn({}, "window");
     registry.track(popup as unknown as WebContents, "popup");
-    registry.setAdBlocking(TASK, false);
+    registry.setAdBlocking([randomTarget()], false);
 
     expect(registry.isAdBlockExempt(popup.id)).toBe(false);
   });

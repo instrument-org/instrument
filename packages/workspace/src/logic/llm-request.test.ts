@@ -21,6 +21,7 @@ import {
 } from "xstate";
 
 import { TypedError } from "../lib/errors";
+import { turnNoteFor } from "../lib/turn-note";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
 import { SESSION_CONTEXT_VERSION } from "../lib/prepare-model-messages";
 import { Store } from "../lib/store";
@@ -29,9 +30,9 @@ import { RelativePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { createMockTaskConfig } from "../test/helpers/mock-task-config";
+import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { TOOLS } from "../tools/all";
 import { llmRequestLogic } from "./llm-request";
 
@@ -40,6 +41,10 @@ vi.mock(import("ulid"));
 vi.mock(import("../lib/session-store-storage"));
 
 vi.mock(import("../lib/get-current-date"));
+vi.mock(import("../lib/turn-note"), async (importOriginal) => {
+  const original = await importOriginal();
+  return { ...original, turnNoteFor: vi.fn(original.turnNoteFor) };
+});
 
 describe("llmRequestLogic", () => {
   const sessionId = StoreId.newSessionId();
@@ -157,7 +162,7 @@ describe("llmRequestLogic", () => {
         provider === "anthropic" ? "anthropic" : OUR_PROVIDER_CONFIG.type,
     });
 
-    const taskConfig = createMockTaskConfig(TaskIdSchema.parse(`mock`), {
+    const taskConfig = createMockChatConfig(ChatIdSchema.parse(`mock`), {
       aiSDKModel: mockLanguageModel,
       catalog,
       model,
@@ -196,14 +201,11 @@ describe("llmRequestLogic", () => {
                 agentTools: {},
                 getMessages,
                 getTools: () => Promise.resolve(Object.values(TOOLS)),
-                name: "main",
+                name: "instrument",
                 onFinish: () => Promise.resolve(),
                 onStart: () => Promise.resolve(),
                 shouldContinue: () => Promise.resolve(true),
                 systemPrompt: () => "You are a helpful assistant.",
-              },
-              captureEvent: () => {
-                // no-op
               },
               emitDeltas: true,
               model,
@@ -212,7 +214,7 @@ describe("llmRequestLogic", () => {
               } as unknown as AnyActorRef,
               sessionId,
               stepCount: 1,
-              taskId: taskConfig,
+              chatId: taskConfig,
             }),
             onDone: "Done",
             onError: {
@@ -227,22 +229,22 @@ describe("llmRequestLogic", () => {
       },
     });
 
-    return { machine, mockLanguageModel, taskId: taskConfig };
+    return { machine, mockLanguageModel, chatId: taskConfig };
   }
 
   async function runTestMachine({
     machine,
-    taskId,
+    chatId,
   }: Pick<
     Awaited<ReturnType<typeof createTestMachine>>,
-    "machine" | "taskId"
+    "machine" | "chatId"
   >) {
     const actor = createActor(machine);
     actor.start();
     await waitFor(actor, (state) => state.status === "done");
     const sessionResult = await Store.getSessionWithMessagesAndParts(
       sessionId,
-      taskId,
+      chatId,
     );
     return sessionResult._unsafeUnwrap();
   }
@@ -702,7 +704,9 @@ describe("llmRequestLogic", () => {
           "message": "Invalid input: expected string, received undefined"
         }
       ]",
-              "input": undefined,
+              "input": {
+                "invalid": "params",
+              },
               "metadata": {
                 "createdAt": 2013-08-31T12:00:04.000Z,
                 "endedAt": 2013-08-31T12:00:05.000Z,
@@ -711,9 +715,6 @@ describe("llmRequestLogic", () => {
                 "sessionId": "ses_00000000018888888888888888",
               },
               "providerExecuted": undefined,
-              "rawInput": {
-                "invalid": "params",
-              },
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-read_file",
@@ -787,7 +788,7 @@ describe("llmRequestLogic", () => {
             {
               "errorText": "Invalid input for tool read_file: JSON parsing failed: Text: invalid json.
       Error message: Unexpected token 'i', "invalid json" is not valid JSON",
-              "input": undefined,
+              "input": "invalid json",
               "metadata": {
                 "createdAt": 2013-08-31T12:00:04.000Z,
                 "endedAt": 2013-08-31T12:00:05.000Z,
@@ -796,7 +797,6 @@ describe("llmRequestLogic", () => {
                 "sessionId": "ses_00000000018888888888888888",
               },
               "providerExecuted": undefined,
-              "rawInput": "invalid json",
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-read_file",
@@ -885,9 +885,6 @@ describe("llmRequestLogic", () => {
                 "sessionId": "ses_00000000018888888888888888",
               },
               "providerExecuted": undefined,
-              "rawInput": {
-                "invalid": "params",
-              },
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-read_file",
@@ -1032,8 +1029,10 @@ describe("llmRequestLogic", () => {
               "type": "step-start",
             },
             {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, unavailable, web_fetch, web_search, write_file.",
-              "input": undefined,
+              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, unavailable, web_fetch, web_search, write_file.",
+              "input": {
+                "unknown": "params",
+              },
               "metadata": {
                 "createdAt": 2013-08-31T12:00:04.000Z,
                 "endedAt": 2013-08-31T12:00:05.000Z,
@@ -1042,9 +1041,6 @@ describe("llmRequestLogic", () => {
                 "sessionId": "ses_00000000018888888888888888",
               },
               "providerExecuted": undefined,
-              "rawInput": {
-                "unknown": "params",
-              },
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-unavailable",
@@ -1116,8 +1112,10 @@ describe("llmRequestLogic", () => {
               "type": "step-start",
             },
             {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, unavailable, web_fetch, web_search, write_file.",
-              "input": undefined,
+              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, unavailable, web_fetch, web_search, write_file.",
+              "input": {
+                "filePath": "test.txt",
+              },
               "metadata": {
                 "createdAt": 2013-08-31T12:00:04.000Z,
                 "endedAt": 2013-08-31T12:00:05.000Z,
@@ -1126,9 +1124,6 @@ describe("llmRequestLogic", () => {
                 "sessionId": "ses_00000000018888888888888888",
               },
               "providerExecuted": undefined,
-              "rawInput": {
-                "filePath": "test.txt",
-              },
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-read_file",
@@ -1195,7 +1190,7 @@ describe("llmRequestLogic", () => {
               "type": "step-start",
             },
             {
-              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, request_folder, unavailable, web_fetch, web_search, write_file.",
+              "errorText": "Model tried to call unavailable tool 'non_existent_tool'. Available tools: bash, choose, connect_app, edit_file, generate_image, load_skill, read_file, unavailable, web_fetch, web_search, write_file.",
               "input": {
                 "filePath": "test.txt",
               },
@@ -1207,9 +1202,6 @@ describe("llmRequestLogic", () => {
                 "sessionId": "ses_00000000018888888888888888",
               },
               "providerExecuted": undefined,
-              "rawInput": {
-                "filePath": "test.txt",
-              },
               "state": "output-error",
               "toolCallId": "1",
               "type": "tool-unavailable",
@@ -1409,7 +1401,7 @@ describe("llmRequestLogic", () => {
       await waitFor(actor, (state) => state.status === "done");
       const sessionResult = await Store.getSessionWithMessagesAndParts(
         sessionId,
-        testMachine.taskId,
+        testMachine.chatId,
       );
       const messages = sessionResult._unsafeUnwrap().messages;
       expect(messagesToSnapshot(messages)).toMatchInlineSnapshot(`
@@ -1615,7 +1607,7 @@ describe("llmRequestLogic", () => {
           },
           role: "user",
         },
-        testMachine.taskId,
+        testMachine.chatId,
       );
       await Store.saveParts(
         [
@@ -1631,7 +1623,7 @@ describe("llmRequestLogic", () => {
             type: "text",
           },
         ],
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       await Store.saveMessage(
@@ -1640,7 +1632,7 @@ describe("llmRequestLogic", () => {
           metadata: mockAssistantMessageMetadata,
           role: "assistant",
         },
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       return testMachine;
@@ -1685,12 +1677,12 @@ describe("llmRequestLogic", () => {
       const testMachine = await setupPromptMessagesTest();
       await Store.savePart(
         SessionMessagePart.coerce(readFilePart),
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       await runTestMachine({
         machine: testMachine.machine,
-        taskId: testMachine.taskId,
+        chatId: testMachine.chatId,
       });
       expect(prompts).toMatchInlineSnapshot(`
         [
@@ -1785,7 +1777,7 @@ describe("llmRequestLogic", () => {
             type: "tool-write_file",
           },
         ],
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       await runTestMachine(testMachine);
@@ -1902,7 +1894,7 @@ describe("llmRequestLogic", () => {
             type: "tool-write_file",
           },
         ],
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       await runTestMachine(testMachine);
@@ -1989,7 +1981,7 @@ describe("llmRequestLogic", () => {
             type: "tool-read_file",
           },
         ],
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       await runTestMachine(testMachine);
@@ -2070,7 +2062,7 @@ describe("llmRequestLogic", () => {
           },
           role: "user",
         },
-        testMachine.taskId,
+        testMachine.chatId,
       );
       await Store.saveParts(
         [
@@ -2086,7 +2078,7 @@ describe("llmRequestLogic", () => {
             type: "text",
           },
         ],
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       await Store.saveMessage(
@@ -2095,7 +2087,7 @@ describe("llmRequestLogic", () => {
           metadata: mockAssistantMessageMetadata,
           role: "assistant",
         },
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       const secondMessageId = StoreId.newMessageId();
@@ -2105,7 +2097,7 @@ describe("llmRequestLogic", () => {
           metadata: mockAssistantMessageMetadata,
           role: "assistant",
         },
-        testMachine.taskId,
+        testMachine.chatId,
       );
       await Store.saveParts(
         [
@@ -2121,7 +2113,7 @@ describe("llmRequestLogic", () => {
             type: "text",
           },
         ],
-        testMachine.taskId,
+        testMachine.chatId,
       );
       const thirdMessageId = StoreId.newMessageId();
       await Store.saveMessage(
@@ -2130,7 +2122,7 @@ describe("llmRequestLogic", () => {
           metadata: mockAssistantMessageMetadata,
           role: "assistant",
         },
-        testMachine.taskId,
+        testMachine.chatId,
       );
       await Store.saveParts(
         [
@@ -2146,7 +2138,7 @@ describe("llmRequestLogic", () => {
             type: "text",
           },
         ],
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       await runTestMachine(testMachine);
@@ -2248,6 +2240,23 @@ describe("llmRequestLogic", () => {
               },
               "role": "assistant",
             },
+            {
+              "content": [
+                {
+                  "text": "
+        <instrument-system-note>
+        Your last reply said you would start work but called no tool. Do it now, without saying the line again.
+        </instrument-system-note>",
+                  "type": "text",
+                },
+              ],
+              "providerOptions": {
+                "instrument": {
+                  "transient": true,
+                },
+              },
+              "role": "user",
+            },
           ],
         ]
       `);
@@ -2294,7 +2303,7 @@ describe("llmRequestLogic", () => {
           ],
           role: "session-context",
         },
-        testMachine.taskId,
+        testMachine.chatId,
       );
 
       const { messages } = await runTestMachine(testMachine);
@@ -2925,7 +2934,7 @@ describe("llmRequestLogic", () => {
       const savePart = Store.savePart;
       let rejectedWrite = false;
       vi.spyOn(Store, "savePart").mockImplementation(
-        (part, taskId, options) => {
+        (part, chatId, options) => {
           if (
             !rejectedWrite &&
             part.type === "text" &&
@@ -2934,7 +2943,7 @@ describe("llmRequestLogic", () => {
             rejectedWrite = true;
             return errAsync(new TypedError.Storage("Write failed"));
           }
-          return savePart(part, taskId, options);
+          return savePart(part, chatId, options);
         },
       );
 
@@ -2967,7 +2976,7 @@ describe("llmRequestLogic", () => {
       const savePart = Store.savePart;
       const savePartSpy = vi
         .spyOn(Store, "savePart")
-        .mockImplementation((part, taskId, options) =>
+        .mockImplementation((part, chatId, options) =>
           part.type === "text"
             ? errAsync(
                 new TypedError.Storage("unable to open database file", {
@@ -2977,7 +2986,7 @@ describe("llmRequestLogic", () => {
                   ),
                 }),
               )
-            : savePart(part, taskId, options),
+            : savePart(part, chatId, options),
         );
       const testMachine = await createTestMachine({
         chunks: [
@@ -3049,7 +3058,7 @@ describe("llmRequestLogic", () => {
       await vi.waitFor(async () => {
         const sessionResult = await Store.getSessionWithMessagesAndParts(
           sessionId,
-          testMachine.taskId,
+          testMachine.chatId,
         );
         const assistant = sessionResult
           ._unsafeUnwrap()
@@ -3059,5 +3068,93 @@ describe("llmRequestLogic", () => {
         expect(textPart?.text).toBe(deltaTexts.join(""));
       });
     });
+  });
+
+  it("runs a shell command streamed as a tool name as the bash call it meant", async () => {
+    const { messages } = await createAndRunTestMachine({
+      chunks: [
+        { id: "call-1", toolName: "task new", type: "tool-input-start" },
+        {
+          input: JSON.stringify({ name: "Scan notes" }),
+          toolCallId: "call-1",
+          toolName: "task new",
+          type: "tool-call",
+        },
+        {
+          finishReason: { raw: "tool_use", unified: "tool-calls" },
+          type: "finish",
+          usage: mockUsage,
+        },
+      ],
+    });
+    expect(
+      messages
+        .flatMap((message) => message.parts)
+        .filter((part) => "toolCallId" in part)
+        .map((part) => ({ input: part.input, type: part.type })),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "input": {
+            "command": "task new",
+            "yieldMs": 30000,
+          },
+          "type": "tool-bash",
+        },
+      ]
+    `);
+  });
+
+  // Last in the file: it takes ids from the mocked ulid, and every snapshot
+  // after it would shift. A Claude account's process compares each request
+  // with the last one it saw, and the note is gone by the next step; counted
+  // as seen, it reads as an edited message and restarts the process from a
+  // replay.
+  it("sends the turn note as transient", async () => {
+    const testMachine = await createTestMachine({ chunks: [] });
+    const messageId = StoreId.newMessageId();
+    await Store.saveMessage(
+      { id: messageId, metadata: { createdAt: mockDate, sessionId }, role: "user" },
+      testMachine.chatId,
+    );
+    await Store.saveParts(
+      [
+        {
+          metadata: {
+            createdAt: mockDate,
+            id: StoreId.newPartId(),
+            messageId,
+            sessionId,
+          },
+          state: "done",
+          text: "Do something",
+          type: "text",
+        },
+      ],
+      testMachine.chatId,
+    );
+    vi.mocked(turnNoteFor).mockResolvedValueOnce("Say what you are doing.");
+
+    await runTestMachine({
+      machine: testMachine.machine,
+      chatId: testMachine.chatId,
+    });
+
+    expect(prompts[0]?.at(-1)).toMatchInlineSnapshot(`
+      {
+        "content": [
+          {
+            "text": "Say what you are doing.",
+            "type": "text",
+          },
+        ],
+        "providerOptions": {
+          "instrument": {
+            "transient": true,
+          },
+        },
+        "role": "user",
+      }
+    `);
   });
 });

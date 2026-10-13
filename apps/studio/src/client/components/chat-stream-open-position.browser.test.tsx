@@ -3,8 +3,7 @@ import {
   ChatIdSchema,
   type SessionMessage,
   StoreId,
-  type Task,
-  TaskIdSchema,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
@@ -32,11 +31,9 @@ const VIEWPORT_HEIGHT = 320;
 
 const sessionId = StoreId.newSessionId();
 
-const task: Task = {
+const chatInfo: ChatInfo = {
   createdAt: new Date(0),
-  id: TaskIdSchema.parse("quarterly-numbers"),
-  chatId: ChatIdSchema.parse("a-chat"),
-  isChat: false,
+  id: ChatIdSchema.parse("quarterly-numbers"),
   title: "Quarterly numbers",
   updatedAt: new Date(0),
 };
@@ -137,7 +134,7 @@ function Transcript() {
         onRetry={vi.fn()}
         onRunAgain={vi.fn()}
         renderAsItems
-        task={task}
+        chatInfo={chatInfo}
       />
     </TranscriptScrollContext>
   );

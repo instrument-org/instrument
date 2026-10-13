@@ -1,4 +1,5 @@
 import { resolveAccelerator, SHORTCUT_ENTRIES } from "@/shared/shortcuts";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { describe, expect, it } from "vitest";
 
 import { matchesAccelerator, parseAccelerator } from "./match-accelerator";
@@ -288,6 +289,41 @@ describe("matchesAccelerator", () => {
         isMac: false,
       }),
     ).toBe(false);
+  });
+
+  describe("a place's chord", () => {
+    const { accelerator } = WINDOW_SHORTCUTS.goToFiles;
+
+    it("is Control and Command with the digit on a Mac", () => {
+      const mac = resolveAccelerator(accelerator, { isMac: true });
+      expect(
+        matchesAccelerator(keyInput("2", "Digit2", "control", "meta"), mac, {
+          isMac: true,
+        }),
+      ).toBe(true);
+      // Cmd+2 alone is the second tab.
+      expect(
+        matchesAccelerator(keyInput("2", "Digit2", "meta"), mac, {
+          isMac: true,
+        }),
+      ).toBe(false);
+    });
+
+    it("is Alt and the digit elsewhere, by the key's place", () => {
+      const other = resolveAccelerator(accelerator, { isMac: false });
+      // AZERTY types é on that key; Alt chords go by where it sits.
+      expect(
+        matchesAccelerator(keyInput("é", "Digit2", "alt"), other, {
+          isMac: false,
+        }),
+      ).toBe(true);
+      // AltGr arrives as Control and Alt, and types ² on German layouts.
+      expect(
+        matchesAccelerator(keyInput("²", "Digit2", "control", "alt"), other, {
+          isMac: false,
+        }),
+      ).toBe(false);
+    });
   });
 });
 

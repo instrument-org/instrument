@@ -9,7 +9,7 @@ Status: proposed, not started. Prompted by the MessageScroller adoption ([landed
 `chat-stream.tsx` renders the transcript by flattening every message _and every part_ into a single `chatElements` array in one large loop (`buildChatElements`), then special-casing structure inline as it goes:
 
 - tool-run boundaries that span message boundaries,
-- per-message chrome (assistant logo/wordmark, attachments, project-context note, error rows),
+- per-message chrome (assistant logo/wordmark, attachments, error rows),
 - consecutive-assistant grouping for the footer (`lastFooterIndex`, `visibleAssistantContentCount`),
 - continue-button chrome appended after the loop.
 

@@ -2,6 +2,7 @@ import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import { APP_FLAVOR } from "@instrument-org/shared";
 import Store from "electron-store";
 import { z } from "zod";
 
@@ -23,7 +24,11 @@ export const WorkspacePreferencesSchema = z.object({
   // Ads and trackers blocked in the in-app browser; see content-blocking.ts.
   blockAds: z.boolean().catch(true),
   defaultModelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
-  developerMode: z.boolean().catch(import.meta.env.DEV), // Default to true when running app in development mode
+  // On from the start in a development run and in a preview, which are both
+  // built to be looked into.
+  developerMode: z
+    .boolean()
+    .catch(import.meta.env.DEV || APP_FLAVOR.kind === "preview"),
   theme: z.enum(["light", "dark", "system"]).catch("system"),
 });
 

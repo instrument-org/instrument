@@ -1,4 +1,10 @@
 import type { ToolSet } from "ai";
+
+import {
+  aiUsageTelemetry,
+  connectionFor,
+  turnPurpose,
+} from "../lib/ai-usage/record";
 import type { ActorRef, AnyMachineSnapshot } from "xstate";
 
 import {
@@ -28,17 +34,19 @@ import { getCurrentDate } from "../lib/get-current-date";
 import { isStorageFullError } from "../lib/is-storage-full-error";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
-import { prepareModelMessages } from "../lib/prepare-model-messages";
+import { prepareModelMessages, TRANSIENT } from "../lib/prepare-model-messages";
 import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call";
+import { cacheSessionFor } from "../lib/fork-cache-session";
 import { Store } from "../lib/store";
-import { taskDir } from "../lib/task-dir-utils";
-import { getTaskSettings } from "../lib/task-settings";
+import { turnNoteFor } from "../lib/turn-note";
+import { chatDir } from "../lib/record-folders";
+import { getChatSettings } from "../lib/chat-settings";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { TOOL_NAMES, ToolNameSchema } from "../tools/name";
 
 // A streaming save writes the part's entire accumulated text through a full
@@ -56,7 +64,7 @@ interface LLMRequestInput {
   self: ActorRef<AnyMachineSnapshot, { type: "llmRequest.chunkReceived" }>;
   sessionId: StoreId.Session;
   stepCount: number;
-  taskId: TaskId;
+  chatId: ChatId;
   toolChoice?: "auto" | "none" | "required";
 }
 
@@ -87,7 +95,7 @@ export const llmRequestLogic = fromPromise<
 
   const scopedStore = {
     saveMessage: (message: Parameters<typeof Store.saveMessage>[0]) =>
-      Store.saveMessage(message, input.taskId, { signal }).then((result) => {
+      Store.saveMessage(message, input.chatId, { signal }).then((result) => {
         if (result.isErr()) {
           reportStorageError(result.error);
           return;
@@ -101,7 +109,7 @@ export const llmRequestLogic = fromPromise<
       if (storageFullError !== undefined) {
         return false;
       }
-      const result = await Store.savePart(part, input.taskId, { signal });
+      const result = await Store.savePart(part, input.chatId, { signal });
       if (result.isErr()) {
         reportStorageError(result.error);
         return false;
@@ -158,7 +166,6 @@ export const llmRequestLogic = fromPromise<
     }
   };
 
-  const captureEvent = getWorkspaceConfig().captureEvent;
   const providerId = input.model.params.provider;
   const modelId = input.model.canonicalId;
   const assistantMessage: SessionMessage.Assistant = {
@@ -210,7 +217,7 @@ export const llmRequestLogic = fromPromise<
     const partsResult = await Store.getParts(
       input.sessionId,
       assistantMessage.id,
-      input.taskId,
+      input.chatId,
       { signal },
     );
     if (partsResult.isErr()) {
@@ -226,9 +233,8 @@ export const llmRequestLogic = fromPromise<
   const tools: ToolSet = {};
   for (const tool of agentTools) {
     tools[tool.name as string] = await tool.aiSDKTool({
-      agentName: input.agent.name,
       model: input.model,
-      taskId: input.taskId,
+      chatId: input.chatId,
     });
   }
 
@@ -237,13 +243,31 @@ export const llmRequestLogic = fromPromise<
     model: input.model,
     sessionId: input.sessionId,
     signal,
-    taskId: input.taskId,
+    chatId: input.chatId,
   });
 
   if (messagesResult.isErr()) {
     throw new Error(
       `Error preparing model messages: ${JSON.stringify(messagesResult.error)}`,
     );
+  }
+
+  // Read before this step's message is stored, so the turn it describes is
+  // the steps already taken. See `lib/turn-note.ts`.
+  const turnNote = await turnNoteFor({
+    sessionId: input.sessionId,
+    signal,
+    chatId: input.chatId,
+  });
+  if (turnNote !== undefined) {
+    // After the cache breakpoints, like the budget notice: for this request
+    // alone, and never stored, so a model keeping its own copy of the
+    // conversation must not count it as seen.
+    messagesResult.value.push({
+      content: turnNote,
+      providerOptions: TRANSIENT,
+      role: "user",
+    });
   }
 
   if (signal.aborted) {
@@ -301,6 +325,7 @@ export const llmRequestLogic = fromPromise<
   // arrives: that part carries only the SDK's rendering of this error.
   const invalidToolCallErrors = new Map<string, unknown>();
   const toolCallInputText: Record<string, string> = {};
+
   try {
     // Fetch AI SDK model at the last moment before making the LLM request
     const workspaceConfig = getWorkspaceConfig();
@@ -325,7 +350,7 @@ export const llmRequestLogic = fromPromise<
     // level changed on a task takes effect on its next turn: the context
     // baseline is immutable for the life of the session, and a request
     // parameter is not part of it.
-    const taskSettings = await getTaskSettings(taskDir(input.taskId));
+    const taskSettings = await getChatSettings(chatDir(input.chatId));
 
     // A Claude account searches with Claude Code's own WebSearch, inside the
     // agent's step, rather than through our web_search tool, whose search on
@@ -333,6 +358,10 @@ export const llmRequestLogic = fromPromise<
     // in front of the same WebSearch. What it finds arrives as sources.
     const searchesNatively =
       aiSDKModel.provider === CLAUDE_ACCOUNT_PROVIDER_CONFIG.type;
+    const cacheSession = cacheSessionFor({
+      sessionId: input.sessionId,
+      chatId: input.chatId,
+    });
     const providerOptions = providerOptionsForModel(aiSDKModel, {
       effort: taskSettings?.reasoningEffort ?? catalogEffort(input.model),
       reasoning: input.model.reasoning,
@@ -341,6 +370,13 @@ export const llmRequestLogic = fromPromise<
       providerOptions[CLAUDE_ACCOUNT_PROVIDER_CONFIG.type] = {
         ...providerOptions[CLAUDE_ACCOUNT_PROVIDER_CONFIG.type],
         builtInTools: ["WebSearch"],
+        // Its own session even for a task, so a task and its chat each keep
+        // a Claude Code session of their own, a task's forked from its
+        // chat's where it branched off.
+        sessionId: input.sessionId,
+        ...(cacheSession !== input.sessionId && {
+          parentSessionId: cacheSession,
+        }),
       };
     }
 
@@ -368,8 +404,12 @@ export const llmRequestLogic = fromPromise<
         );
       },
       // Groups this session's generations into one trace in the analytics our
-      // gateway reports.
-      headers: { [CLIENT_SESSION_ID_HEADER]: input.sessionId },
+      // gateway reports, and routes the request to the provider cache the
+      // session's earlier requests warmed. A task names its chat's session,
+      // whose cache holds the conversation it carries on from.
+      headers: {
+        [CLIENT_SESSION_ID_HEADER]: cacheSession,
+      },
       maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       maxRetries: 0, // Handled outside this function
       messages: messagesResult.value,
@@ -379,6 +419,15 @@ export const llmRequestLogic = fromPromise<
         // no-op to avoid excessive logging
       },
       providerOptions,
+      telemetry: aiUsageTelemetry({
+        connection: connectionFor(
+          workspaceConfig.getAIProviderConfigs(),
+          input.model.params.providerConfigId,
+        ),
+        chatId: input.chatId,
+        purpose: turnPurpose(input.chatId, input.sessionId),
+        sessionId: input.sessionId,
+      }),
       toolChoice: input.toolChoice,
       tools: searchesNatively ? omit(tools, [TOOL_NAMES.webSearch]) : tools,
     });
@@ -428,23 +477,6 @@ export const llmRequestLogic = fromPromise<
           assistantMessage.metadata.completionTokensPerSecond =
             completionTokensPerSecond;
           await scopedStore.saveMessage(assistantMessage);
-          captureEvent("llm.request_finished", {
-            cached_input_tokens:
-              part.totalUsage.inputTokenDetails.cacheReadTokens ?? 0,
-            completion_tokens_per_second: completionTokensPerSecond,
-            finish_reason: part.finishReason,
-            input_tokens: part.totalUsage.inputTokens ?? 0,
-            model_id_served: assistantMessage.metadata.modelIdServed,
-            modelId,
-            ms_to_finish: msToFinish ?? 0,
-            ms_to_first_chunk: msToFirstChunk ?? 0,
-            output_tokens: part.totalUsage.outputTokens ?? 0,
-            providerId,
-            reasoning_tokens:
-              part.totalUsage.outputTokenDetails.reasoningTokens ?? 0,
-            step_count: input.stepCount,
-            total_tokens: part.totalUsage.totalTokens ?? 0,
-          });
           break;
         }
         case "file": {
@@ -674,8 +706,15 @@ export const llmRequestLogic = fromPromise<
           }
           const existingPart = toolCalls[part.toolCallId];
           if (existingPart?.state === "input-streaming") {
+            // The part was typed by the name the model streamed, and
+            // `repairToolCall` may have since routed the call to another
+            // tool, which is the one that has to run.
+            const toolNameResult = ToolNameSchema.safeParse(part.toolName);
             const updatedPart: SessionMessagePart.ToolPart = {
               ...existingPart,
+              type: toolNameResult.success
+                ? `tool-${toolNameResult.data}`
+                : "tool-unavailable",
               ...(part.providerMetadata !== undefined && {
                 callProviderMetadata: part.providerMetadata,
               }),
@@ -722,11 +761,6 @@ export const llmRequestLogic = fromPromise<
             toolCalls[part.toolCallId] = newPart;
             await scopedStore.savePart(newPart);
           }
-          captureEvent("llm.tool_called", {
-            modelId,
-            providerId,
-            tool_name: part.toolName,
-          });
           break;
         }
         case "tool-error": {
@@ -755,7 +789,7 @@ export const llmRequestLogic = fromPromise<
                 // oxlint-disable-next-line typescript/no-unsafe-assignment -- the AI SDK types a stored tool-call `input` as `any`
                 input:
                   toolCall.state === "input-streaming"
-                    ? undefined
+                    ? part.input
                     : toolCall.input,
                 metadata: {
                   ...toolCall.metadata,
@@ -763,7 +797,6 @@ export const llmRequestLogic = fromPromise<
                 },
                 ...providerMetadataProps,
                 providerExecuted: part.providerExecuted,
-                rawInput: part.input as never,
                 state: "output-error",
               };
               await scopedStore.savePart(updatedPart);
@@ -791,18 +824,11 @@ export const llmRequestLogic = fromPromise<
                 messageId: assistantMessage.id,
                 sessionId: input.sessionId,
               },
-              rawInput: part.input as never,
               state: "output-error",
               toolCallId: part.toolCallId,
               type: "tool-unavailable",
             });
           }
-          captureEvent("llm.error", {
-            error_type: "tool-error",
-            modelId,
-            providerId,
-            tool_name: part.toolName,
-          });
           break;
         }
         case "tool-input-delta": {
@@ -901,11 +927,6 @@ export const llmRequestLogic = fromPromise<
           kind: "disk-full",
           message: error.message,
         };
-        captureEvent("llm.error", {
-          error_type: "disk-full",
-          modelId,
-          providerId,
-        });
         break;
       }
       case error instanceof Error &&
@@ -915,11 +936,6 @@ export const llmRequestLogic = fromPromise<
           kind: "aborted",
           message: error.message,
         };
-        captureEvent("llm.error", {
-          error_type: "aborted",
-          modelId,
-          providerId,
-        });
         break;
       }
       case LoadAPIKeyError.isInstance(error): {
@@ -928,11 +944,6 @@ export const llmRequestLogic = fromPromise<
           kind: "api-key",
           message: error.message,
         };
-        captureEvent("llm.error", {
-          error_type: "api-key",
-          modelId,
-          providerId,
-        });
         break;
       }
       case APICallError.isInstance(error): {
@@ -946,13 +957,6 @@ export const llmRequestLogic = fromPromise<
           statusCode: error.statusCode,
           url: error.url,
         };
-        captureEvent("llm.error", {
-          error_classification: classification.kind,
-          error_classification_evidence: classification.evidence,
-          error_type: "api-call",
-          modelId,
-          providerId,
-        });
         break;
       }
       // Should not be called now that tool-error above handles this
@@ -962,11 +966,6 @@ export const llmRequestLogic = fromPromise<
           kind: "invalid-tool-input",
           message: error.message,
         };
-        captureEvent("llm.error", {
-          error_type: "invalid-tool-input",
-          modelId,
-          providerId,
-        });
         break;
       }
       // Should not be called now that tool-error above handles this
@@ -976,12 +975,6 @@ export const llmRequestLogic = fromPromise<
           message: error.message,
           toolName: error.toolName,
         };
-        captureEvent("llm.error", {
-          error_type: "no-such-tool",
-          modelId,
-          providerId,
-          tool_name: error.toolName,
-        });
         break;
       }
       default: {
@@ -1000,14 +993,6 @@ export const llmRequestLogic = fromPromise<
         if (classification.kind === "unknown") {
           getWorkspaceConfig().captureException(error, {
             scopes: ["workspace", "llm-request"],
-          });
-        } else {
-          captureEvent("llm.error", {
-            error_classification: classification.kind,
-            error_classification_evidence: classification.evidence,
-            error_type: "streamed",
-            modelId,
-            providerId,
           });
         }
       }

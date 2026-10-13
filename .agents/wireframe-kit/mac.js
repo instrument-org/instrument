@@ -79,7 +79,7 @@ const dock = ({
 /** A notification banner, top right under the menu bar. */
 const macNotification = ({
   title = "Instrument",
-  body = "The Lisbon itinerary is ready.",
+  body = "The pricing comparison is ready.",
   sub = "",
   time = "now",
   top = 34,
@@ -112,11 +112,11 @@ const macDesktop = ({
 const finderWindow = ({
   title = "Documents",
   items = [
-    ["folder", "Taxes 2025"],
-    ["folder", "Kitchen remodel"],
-    ["pdf", "Harbor Build quote.pdf"],
-    ["pdf", "Alder St quote.pdf"],
-    ["csv", "lisbon-costs.csv"],
+    ["folder", "Contracts"],
+    ["folder", "SOC 2 audit"],
+    ["pdf", "Ridgeline quote.pdf"],
+    ["pdf", "Cobalt Assurance quote.pdf"],
+    ["csv", "competitor-prices.csv"],
     ["md", "notes.md"],
   ],
   pick = -1,

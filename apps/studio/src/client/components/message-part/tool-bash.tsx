@@ -2,13 +2,13 @@ import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
 import { useNow } from "../../hooks/use-now";
 import { useStopBackgroundProcess } from "../../hooks/use-stop-background-process";
-import { useTaskSession } from "../../hooks/use-task-session";
+import { useChatSession } from "../../hooks/use-chat-session";
 import { formatElapsed } from "../../lib/format-elapsed";
 import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { Favicon } from "../favicon";
 import { StopProcessButton } from "../task/stop-process-button";
-import { createdTaskId } from "../window/created-task";
+import { createdTaskSession } from "../window/created-task";
 import { CreatedTaskCard } from "../window/created-task-card";
 import { BashCommandSection } from "./bash-command-section";
 import { isFailedBashExitCode } from "./bash-exit-status";
@@ -27,28 +27,8 @@ export interface BrowserInfo {
 }
 type BashPart = Extract<SessionMessagePart.ToolPart, { type: "tool-bash" }>;
 
-const MAX_BASH_COMMAND_CHIPS = 3;
-
 /** Matches the task header's list, the other place this duration appears. */
 const ELAPSED_TICK_MS = 1000;
-
-export function BashCommandChip({ commands }: { commands: string[] }) {
-  if (commands.length === 0) {
-    return null;
-  }
-  const visible = commands.slice(0, MAX_BASH_COMMAND_CHIPS);
-  const extra = commands.length - visible.length;
-  return (
-    <ToolChip className="max-w-[10rem] gap-1 px-1.5">
-      <span className="truncate font-mono text-xs text-foreground/50">
-        {visible.join(", ")}
-      </span>
-      {extra > 0 && (
-        <span className="shrink-0 text-xs text-foreground/30">+{extra}</span>
-      )}
-    </ToolChip>
-  );
-}
 
 export function BrowserChip({ info }: { info: BrowserInfo }) {
   const topDomain = info.domains[0] ?? "";
@@ -73,8 +53,11 @@ export function BrowserChip({ info }: { info: BrowserInfo }) {
 export function ToolBash({ part }: { part: BashPart }) {
   const { backgroundProcess, isStreaming } = useToolCallSession();
   const now = useNow(ELAPSED_TICK_MS);
-  const { taskId } = useTaskSession();
-  const { busy, stop } = useStopBackgroundProcess(taskId);
+  const { chatId } = useChatSession();
+  const { busy, stop } = useStopBackgroundProcess(
+    chatId,
+    part.metadata.sessionId,
+  );
   const command = part.input?.command ?? "";
   const hasOutput = part.state === "output-available";
   const isError = part.state === "output-error";
@@ -102,7 +85,7 @@ export function ToolBash({ part }: { part: BashPart }) {
   // The chat's `task new`: the task it made follows the command as a
   // card, so the work handed off stays in view here rather than only in a
   // note when it ends.
-  const createdTask = createdTaskId(part);
+  const createdTask = createdTaskSession(part);
 
   return (
     <ToolCard>
@@ -174,7 +157,7 @@ export function ToolBash({ part }: { part: BashPart }) {
       )}
       {createdTask ? (
         <div className="px-3 pb-3">
-          <CreatedTaskCard taskId={createdTask} />
+          <CreatedTaskCard chatId={createdTask} />
         </div>
       ) : null}
     </ToolCard>

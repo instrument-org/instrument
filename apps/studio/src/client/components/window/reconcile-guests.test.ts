@@ -1,9 +1,7 @@
 import {
   type BrowserTargetId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  TaskIdSchema,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
@@ -16,14 +14,8 @@ import {
 const open = StoreId.SessionSchema.parse("ses_01M3G55N35541T2M6SWPS72GMF");
 const closed = StoreId.SessionSchema.parse("ses_01M3G55N35541T2M6SWPS72GMG");
 const visited = StoreId.SessionSchema.parse("ses_01M3G55N35541T2M6SWPS72GMH");
-const other = StoreId.SessionSchema.parse("ses_01M3G55N35541T2M6SWPS72GMJ");
 
-const windowGuest = (session: StoreId.Session) =>
-  encodeBrowserTargetId(WINDOW_ID, session);
-const notTheWindows = encodeBrowserTargetId(
-  TaskIdSchema.parse("some-task"),
-  other,
-);
+const windowGuest = (session: StoreId.Session) => browserTargetOf(session);
 
 function reconcile(
   attached: BrowserTargetId[],
@@ -36,31 +28,44 @@ function reconcile(
 }
 
 describe("reconcileGuests", () => {
-  it("closes the window's guests no tab or visit holds, and leaves any other alone", () => {
-    const result = reconcile(
-      [
-        windowGuest(open),
-        windowGuest(closed),
-        windowGuest(visited),
-        notTheWindows,
-      ],
-      { heldIds: new Set([open, "screen-1", visited]) },
-    );
+  const all = [windowGuest(open), windowGuest(closed), windowGuest(visited)];
+  /** Each guest held by its tab, as the window has them before any closes. */
+  const heldBefore = reconcile(all, {
+    heldIds: new Set([open, closed, visited]),
+  }).memo;
+
+  it("closes the guests whose tab and visits are gone", () => {
+    const result = reconcile(all, {
+      heldIds: new Set([open, "screen-1", visited]),
+      memo: heldBefore,
+    });
     expect(result.close).toMatchInlineSnapshot(`
       [
-        "window/ses_01M3G55N35541T2M6SWPS72GMG",
+        "ses_01M3G55N35541T2M6SWPS72GMG",
       ]
     `);
   });
 
-  it("asks for a close once while the guest stays attached, and again once it detached and came back", () => {
-    const first = reconcile([windowGuest(closed)]);
+  it("leaves a guest no tab has held yet: an agent's page that has not gone anywhere", () => {
+    expect(reconcile([windowGuest(closed)]).close).toEqual([]);
+  });
+
+  it("asks for a close once while the guest stays attached, and again once it detached and came back held", () => {
+    const first = reconcile([windowGuest(closed)], { memo: heldBefore });
     const second = reconcile([windowGuest(closed)], { memo: first.memo });
     const detached = reconcile([], { memo: second.memo });
-    const back = reconcile([windowGuest(closed)], { memo: detached.memo });
+    const backHeld = reconcile([windowGuest(closed)], {
+      heldIds: new Set([closed]),
+      memo: detached.memo,
+    });
+    const closedAgain = reconcile([windowGuest(closed)], {
+      memo: backHeld.memo,
+    });
 
     expect(
-      [first, second, detached, back].map((result) => result.close.length),
-    ).toEqual([1, 0, 0, 1]);
+      [first, second, detached, backHeld, closedAgain].map(
+        (result) => result.close.length,
+      ),
+    ).toEqual([1, 0, 0, 0, 1]);
   });
 });

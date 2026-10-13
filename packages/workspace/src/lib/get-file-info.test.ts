@@ -3,28 +3,23 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { FolderAttachment } from "../schemas/folder-attachment";
-import {
-  AbsolutePathSchema,
-  TaskDirSchema,
-  WorkspaceFilePathSchema,
-} from "../schemas/paths";
-import { type TaskId } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { WorkspaceFilePathSchema } from "../schemas/paths";
+import { type ChatId } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { getCurrentFileInfo } from "./get-file-info";
-import { setTaskState } from "./task-record";
+import { grantFolder } from "./chat/grants";
 
 describe("getCurrentFileInfo", () => {
   let mountedModifiedAt: number;
   let root: string;
-  let taskId: TaskId;
+  let chatId: ChatId;
   let taskModifiedAt: number;
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "file-info-"));
     const taskRoot = path.join(root, "tasks", "file-info-task");
     const photosRoot = path.join(root, "Photos");
-    taskId = createMockTaskConfigForDir(taskRoot);
+    chatId = createMockChatConfigForDir(taskRoot);
 
     await fs.mkdir(taskRoot, { recursive: true });
     await fs.mkdir(photosRoot);
@@ -35,18 +30,7 @@ describe("getCurrentFileInfo", () => {
     taskModifiedAt = taskStats.mtimeMs;
     mountedModifiedAt = mountedStats.mtimeMs;
 
-    await setTaskState(TaskDirSchema.parse(taskRoot), {
-      attachedFolders: {
-        photos: {
-          access: "read-only",
-          createdAt: 0,
-          id: FolderAttachment.IdSchema.parse("photos-id"),
-          mountName: "Photos",
-          path: AbsolutePathSchema.parse(photosRoot),
-          source: "user",
-        },
-      },
-    });
+    await grantFolder({ chatId, path: photosRoot, source: "attached" });
   });
 
   afterEach(async () => {
@@ -55,30 +39,39 @@ describe("getCurrentFileInfo", () => {
 
   it.each([
     [
-      "notes.txt",
+      "a chat file",
+      (): string => "notes.txt",
       "notes.txt",
       "text/plain",
-      () => taskModifiedAt,
-      () => path.join(root, "tasks", "file-info-task", "notes.txt"),
+      (): number => taskModifiedAt,
+      (): string => path.join(root, "tasks", "file-info-task", "notes.txt"),
     ],
     [
-      "/mnt/Photos/cat.png",
+      "a file in a granted folder",
+      (): string => path.join(root, "Photos", "cat.png"),
       "cat.png",
       "image/png",
-      () => mountedModifiedAt,
-      () => path.join(root, "Photos", "cat.png"),
+      (): number => mountedModifiedAt,
+      (): string => path.join(root, "Photos", "cat.png"),
     ],
   ] as const)(
     "returns live metadata for %s, and where it is",
-    async (filePath, filename, mimeType, expectedModifiedAt, hostPath) => {
+    async (
+      _label,
+      filePath,
+      filename,
+      mimeType,
+      expectedModifiedAt,
+      hostPath,
+    ) => {
       const result = await getCurrentFileInfo({
-        filePath: WorkspaceFilePathSchema.parse(filePath),
-        taskId,
+        filePath: WorkspaceFilePathSchema.parse(filePath()),
+        chatId,
       });
 
       expect(result._unsafeUnwrap()).toEqual({
         filename,
-        filePath,
+        filePath: filePath(),
         hostPath: hostPath(),
         mimeType,
         modifiedAt: expectedModifiedAt(),
@@ -87,13 +80,14 @@ describe("getCurrentFileInfo", () => {
   );
 
   it("rejects a missing file", async () => {
+    const missing = path.join(root, "Photos", "missing.png");
     const result = await getCurrentFileInfo({
-      filePath: WorkspaceFilePathSchema.parse("/mnt/Photos/missing.png"),
-      taskId,
+      filePath: WorkspaceFilePathSchema.parse(missing),
+      chatId,
     });
 
     expect(result._unsafeUnwrapErr().message).toBe(
-      "File not found: /mnt/Photos/missing.png",
+      `File not found: ${missing}`,
     );
   });
 });

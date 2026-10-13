@@ -3,11 +3,13 @@ import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
 import { thisComputer } from "@/client/components/window/computer-name";
 import { WindowContext } from "@/client/components/window/context";
+import { signInsWaitingAtom } from "@/client/components/window/use-sign-in-landing";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useAtom } from "jotai";
+import { type ReactNode, useContext, useState } from "react";
+import { toast } from "@/client/lib/toast";
 
 /** Where the sign-in page opens: the window's own browser, or the user's. */
 type SignInDestination = "app" | "external";
@@ -54,7 +56,6 @@ export function ConnectControls({
   const appWindow = useContext(WindowContext);
   const openExternalLink = useOpenExternalLink();
   const [value, setValue] = useState("");
-  const [waiting, setWaiting] = useState(false);
   // Whether a web app's site has been opened from here, after which the
   // controls ask for the word that the sign-in there is done.
   const [openedSite, setOpenedSite] = useState(false);
@@ -67,11 +68,21 @@ export function ConnectControls({
       staleTime: Number.POSITIVE_INFINITY,
     }),
   );
-  // The standing when the sign-in started, so a failure or a decline from
-  // the provider's page, which changes it, lets the controls go.
-  const waitingFrom = useRef<string>(undefined);
-  // The sign-in lands where the site sends it, which is the site. The app's
-  // page here is where the user was doing this, so that is where they land.
+  // Whether a sign-in started here is still waiting, kept by the window
+  // so it outlives these controls (see `useSignInLanding`).
+  const [signInsWaiting, setSignInsWaiting] = useAtom(signInsWaitingAtom);
+  const waiting = signInsWaiting.has(slug);
+  const setWaiting = (isWaiting: boolean, from?: string) => {
+    setSignInsWaiting((current) => {
+      const next = new Map(current);
+      if (isWaiting) {
+        next.set(slug, { from, inChat: appWindow?.chatId !== undefined });
+      } else {
+        next.delete(slug);
+      }
+      return next;
+    });
+  };
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const listed = apps.data?.apps.find((app) => app.slug === slug);
   const standing = listed?.standing;
@@ -79,21 +90,6 @@ export function ConnectControls({
   // the key or the sign-in, so main refuses if the app was pointed elsewhere
   // after the user read it.
   const origin = listed?.credentialOrigin;
-  useEffect(() => {
-    if (waiting && standing === "connected") {
-      setWaiting(false);
-      appWindow?.openScreen(`/apps/${slug}`);
-    } else if (
-      waiting &&
-      standing !== waitingFrom.current &&
-      (standing === "declined" || standing === "failed")
-    ) {
-      setWaiting(false);
-    }
-    // Once, as the standing lands; the opener is read then.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [waiting, standing, slug]);
-
   const openAuthorization = (url: string, where: SignInDestination) => {
     if (where === "app" && appWindow?.browser) {
       appWindow.openPage(url);
@@ -105,9 +101,7 @@ export function ConnectControls({
   const startOAuth = useMutation(
     rpcClient.apps.startOAuth.mutationOptions({
       onError: (error) => {
-        toast.error("Could not start the sign-in", {
-          description: error.message,
-        });
+        toast.error("Couldn't start signing in", { cause: error });
       },
     }),
   );
@@ -120,8 +114,7 @@ export function ConnectControls({
       {
         onSuccess: (result) => {
           if (result.status === "started") {
-            waitingFrom.current = standing;
-            setWaiting(true);
+            setWaiting(true, standing);
             openAuthorization(result.url, where);
           }
         },
@@ -133,23 +126,19 @@ export function ConnectControls({
   const markWebSignedIn = useMutation(
     rpcClient.apps.markWebSignedIn.mutationOptions({
       onError: (error) => {
-        toast.error(`Could not connect ${name}`, {
-          description: error.message,
-        });
+        toast.error(`Couldn't connect ${name}`, { cause: error });
       },
     }),
   );
   const allow = useMutation(
     rpcClient.apps.allow.mutationOptions({
       onError: (error) => {
-        toast.error(`Could not start ${name}`, { description: error.message });
+        toast.error(`Couldn't start ${name}`, { cause: error });
       },
       onSuccess: (report) => {
         const failure = report.checks.find((check) => check.status === "fail");
         if (failure) {
-          toast.error(`${name} did not connect`, {
-            description: failure.detail.split("\n")[0],
-          });
+          toast.error(`Couldn't connect ${name}`, { cause: failure.detail });
         }
       },
     }),
@@ -157,7 +146,7 @@ export function ConnectControls({
   const setCredential = useMutation(
     rpcClient.apps.setCredential.mutationOptions({
       onError: (error) => {
-        toast.error("Could not save the key", { description: error.message });
+        toast.error("Couldn't save the key", { cause: error });
       },
       onSuccess: () => {
         setValue("");
@@ -218,7 +207,7 @@ export function ConnectControls({
   // nothing here can see the session, so once the site is open the user says
   // when they are done there.
   if (kind === "web") {
-    const signInPage = listed?.signIn;
+    const signInPage = listed?.type === "web" ? listed.signIn : undefined;
     const openSite = () => {
       if (signInPage !== undefined) {
         appWindow?.openPage(signInPage);
@@ -358,7 +347,7 @@ export function ConnectControls({
   };
   // Where the directory says the key is made, so the card says where to go
   // rather than asking for something the user has never seen.
-  const keyHelp = listed?.keyHelp;
+  const keyHelp = listed?.type === "web" ? undefined : listed?.keyHelp;
   return (
     <div className="flex flex-col gap-2">
       {keyHelp ? (

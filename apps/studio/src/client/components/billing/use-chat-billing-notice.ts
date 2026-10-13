@@ -17,7 +17,7 @@ import { type SessionMessage } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /** The least time between the billing reads a finished turn makes. */
 const TURN_END_READ_GAP_MS = 15_000;
@@ -82,8 +82,8 @@ export function useChatBillingNotice({
   const openLink = useOpenExternalLink();
   const portal = useMutation(
     rpcClient.billing.openPortal.mutationOptions({
-      onError: () => {
-        toast.error("Couldn't open billing");
+      onError: (error) => {
+        toast.error("Couldn't open billing", { cause: error });
       },
     }),
   );

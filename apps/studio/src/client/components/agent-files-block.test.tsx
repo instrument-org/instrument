@@ -1,6 +1,6 @@
 import { type ViewerFile } from "@/client/atoms/task-file-viewer";
 import { renderWithProviders } from "@/tests/render";
-import { TaskIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -47,12 +47,12 @@ vi.mock("@/client/rpc/client", () => ({
   ),
 }));
 vi.mock("@/client/hooks/use-host-paths", () => ({
-  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+  useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
     Object.fromEntries(
       filePaths.map((filePath) => [
         filePath,
-        filePath.startsWith("/mnt/")
-          ? `/Users/casey/${filePath.slice("/mnt/".length)}`
+        filePath.startsWith("/")
+          ? filePath
           : `/Users/casey/tasks/a-task/${filePath}`,
       ]),
     ),
@@ -68,7 +68,7 @@ vi.mock("@/client/lib/computer-file-url", () => ({
     `instrument://computer-test${hostPath}${version === undefined ? "" : `?version=${version}`}`,
 }));
 
-const TASK_ID = TaskIdSchema.parse("a-task");
+const TASK_ID = ChatIdSchema.parse("a-task");
 
 function renderBlock(
   content: string,
@@ -89,7 +89,7 @@ function renderBlock(
           ? {
               assetVersion,
               isStreaming,
-              taskId: TASK_ID,
+              chatId: TASK_ID,
             }
           : { isStreaming }
       }
@@ -134,11 +134,11 @@ describe("AgentFilesBlock", () => {
   // The task-file index covers the task directory only, so this path is one no
   // index could have answered for -- and now nothing has to.
   it("shows a file in a folder the user shared", () => {
-    renderBlock("/mnt/Photos/cat.png");
+    renderBlock("/Users/casey/Photos/cat.png");
 
     expect(shownFiles()).toMatchInlineSnapshot(`
       [
-        "/mnt/Photos/cat.png @ /Users/casey/Photos/cat.png @ instrument://computer-test/Users/casey/Photos/cat.png",
+        "/Users/casey/Photos/cat.png @ /Users/casey/Photos/cat.png @ instrument://computer-test/Users/casey/Photos/cat.png",
       ]
     `);
   });
@@ -147,11 +147,13 @@ describe("AgentFilesBlock", () => {
   // draw a preview of: asked for one, the channel answers 404, which is a
   // card reading "Missing" over a folder sitting where the reply said it was.
   it("keeps a folder out of the grid and names it beside", () => {
-    renderBlock("/mnt/Instrument/backups/\n/mnt/Instrument/report.html");
+    renderBlock(
+      "/Users/casey/Instrument/backups/\n/Users/casey/Instrument/report.html",
+    );
 
     expect(shownFiles()).toMatchInlineSnapshot(`
       [
-        "/mnt/Instrument/report.html @ /Users/casey/Instrument/report.html @ instrument://computer-test/Users/casey/Instrument/report.html",
+        "/Users/casey/Instrument/report.html @ /Users/casey/Instrument/report.html @ instrument://computer-test/Users/casey/Instrument/report.html",
       ]
     `);
     expect(screen.getByRole("button", { name: "Open backups" })).toBeTruthy();
@@ -176,9 +178,10 @@ describe("AgentFilesBlock", () => {
     `);
   });
 
-  // The paths come from model output, so a host path can turn up among them.
-  // Nothing this app can do with one, so it draws no card claiming otherwise.
-  it.each(["/Users/someone/.ssh/id_rsa", "../../etc/passwd", "C:\\keys.txt"])(
+  // The paths come from model output, so a traversal or a Windows spelling can
+  // turn up among them. Nothing this app can do with one, so it draws no card
+  // claiming otherwise.
+  it.each(["../../etc/passwd", "C:\\keys.txt"])(
     "refuses %s, which is not a path it can address",
     (path) => {
       const { container } = renderBlock(path);

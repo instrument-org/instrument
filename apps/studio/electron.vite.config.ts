@@ -14,6 +14,8 @@ import { readPackage } from "read-pkg";
 import { build as viteBuild } from "vite";
 import { analyzer } from "vite-bundle-analyzer";
 
+import { contentSecurityPolicyMeta } from "./src/content-security-policy";
+
 const isAnalyzing = process.env.ANALYZE_BUILD === "true";
 
 // electron-vite's dev watcher does two destructive things on a rebuild: a main
@@ -239,13 +241,10 @@ function createValidateProductionEnv(
 ): Plugin {
   // Map of required environment variables by context
   const requiredVarsByContext = {
-    main: ["MAIN_VITE_GOOGLE_CLIENT_ID", "MAIN_VITE_GOOGLE_CLIENT_SECRET"],
+    main: [] as string[],
     preload: [] as string[],
     renderer: [] as string[],
   };
-
-  // Variables available to all contexts
-  const sharedRequiredVars = ["VITE_POSTHOG_API_HOST", "VITE_POSTHOG_API_KEY"];
 
   return {
     configResolved(config) {
@@ -253,10 +252,7 @@ function createValidateProductionEnv(
         return;
       }
 
-      const contextVars = requiredVarsByContext[context];
-      const allRequiredVars = [...sharedRequiredVars, ...contextVars];
-
-      for (const key of allRequiredVars) {
+      for (const key of requiredVarsByContext[context]) {
         if (!config.env[key]) {
           throw new Error(
             `Missing environment variable for ${context}: ${key}`,
@@ -268,10 +264,9 @@ function createValidateProductionEnv(
   };
 }
 
-// just-bash starts its `python` and `sqlite3` WebAssembly runtimes in workers
-// it finds with `new URL("./worker.js", import.meta.url)`, so it has to run
-// from its own package folder. (`js-exec` runs on the `run` package, which
-// builds its worker from inline source.) The build externalizes it with the
+// just-bash starts its `sqlite3` WebAssembly runtime in a worker it finds
+// beside its own module (`sqlite3-worker.js`), so it has to run from its own
+// package folder. The build externalizes it with the
 // rest of the monorepo's dependencies; dev bundles those into out/main, where
 // the worker file does not exist and every run waits out the script timeout
 // without a word. Dev externalizes it at its resolved path instead, since
@@ -459,6 +454,9 @@ const require = __cjs_mod__.createRequire(import.meta.url);
       plugins: [
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("renderer"),
+        contentSecurityPolicyMeta({
+          previewName: process.env.INSTRUMENT_PREVIEW_NAME,
+        }),
         tanstackRouter({
           autoCodeSplitting: true,
           // Paths are relative to the renderer `root` (`src`) below, not cwd:

@@ -1,54 +1,43 @@
 import { type CommandContext, defineCommand } from "just-bash";
 
 import { type AbsolutePath } from "../../schemas/paths";
-import { type TaskId } from "../../schemas/task-id";
-import { ensureTaskVenvForTask } from "../ensure-task-venv";
+import { type ChatId } from "../../schemas/chat-id";
+import { ensureChatVenv } from "../ensure-chat-venv";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getUvBinPath } from "../uv";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
-import {
-  resolveCommandContext,
-  resolvePathArgs,
-  subprocessStdin,
-  unreachablePathArgError,
-} from "./utils";
+import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 export const UV_COMMAND = {
   description:
-    "Python package and environment manager, backing `python-native` and `pip` with a per-task virtualenv in .venv. The very first native Python use fetches a managed interpreter (one-time); later uses are fast.",
+    "Python package and environment manager, backing `python` and `pip` with a per-task virtualenv in .venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.",
   name: "uv",
 } as const;
 
-export function createUvCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
   return defineCommand(UV_COMMAND.name, async (args, ctx) => {
     const blocked = blockedSelfUpdate(args);
     if (blocked) {
       return blocked;
     }
 
-    const unreachable = unreachablePathArgError(UV_COMMAND.name, args, ctx.cwd);
-    if (unreachable !== undefined) {
-      return { exitCode: 1, stderr: unreachable, stdout: "" };
-    }
-
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
 
     // `uv pip` requires the venv to exist (VIRTUAL_ENV points at .venv).
     // Ensure it here so `uv pip install` works even before any `python`/`pip`
     // call has run, matching the behavior of the `pip` custom command.
     if (args[0] === "pip") {
-      const venvError = await ensureTaskVenv({ ctx, taskId });
+      const venvError = await ensureVenvForCommand({ ctx, chatId });
       if (venvError !== undefined) {
         return { exitCode: 1, stderr: venvError, stdout: "" };
       }
     }
 
     const result = await runUv({
-      args: resolvePathArgs(args, taskId, ctx),
+      args: hostPathArgs(args),
       ctx,
       env,
-      layout,
       taskCwd,
     });
     return result;
@@ -60,14 +49,14 @@ export function createUvCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
  * The first call (machine-wide) downloads a managed CPython, so it can take a
  * few seconds.
  */
-export async function ensureTaskVenv({
+export async function ensureVenvForCommand({
   ctx,
-  taskId,
+  chatId,
 }: {
   ctx: CommandContext;
-  taskId: TaskId;
+  chatId: ChatId;
 }): Promise<string | undefined> {
-  const result = await ensureTaskVenvForTask({ signal: ctx.signal, taskId });
+  const result = await ensureChatVenv({ signal: ctx.signal, chatId });
   return result?.output;
 }
 
@@ -79,14 +68,11 @@ export async function runUv({
   args,
   ctx,
   env,
-  layout,
   taskCwd,
 }: {
   args: string[];
   ctx: CommandContext;
   env: Record<string, string>;
-  /** What the output's host paths are rewritten against. */
-  layout: WorkspaceFsLayout;
   taskCwd: AbsolutePath;
 }) {
   const stdin = subprocessStdin(ctx.stdin);
@@ -99,7 +85,7 @@ export async function runUv({
   return {
     exitCode: result.exitCode ?? 1,
     ...mapStreams(shimOutput(result, UV_COMMAND.name), (text) =>
-      filterShellOutput(text, layout),
+      filterShellOutput(text),
     ),
   };
 }

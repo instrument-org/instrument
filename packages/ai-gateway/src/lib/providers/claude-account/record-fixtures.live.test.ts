@@ -36,6 +36,7 @@ async function recordStep(session: ClaudeCodeSession): Promise<RecordedStep> {
   const source: StepSession = {
     awaitingToolCallIds: session.awaitingToolCallIds,
     builtInTools: session.builtInTools,
+    forkPoint: undefined,
     messages: {
       next: async () => {
         const next = await session.messages.next();

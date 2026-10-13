@@ -18,7 +18,7 @@ import {
   isAddressableTaskFilePath,
   isTaskFileHref,
   taskFilePathFromHref,
-  type TaskId,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { ImageIcon } from "@phosphor-icons/react/Image";
@@ -79,7 +79,8 @@ import { FileTypeIcon } from "./extend/file-system";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FrontMatter } from "./front-matter";
 import {
-  INLINE_CHIP_CLASS_NAME,
+  ChipBody,
+  ChipButton,
   INLINE_CHIP_ICON_CLASS_NAME,
   InlineLink,
 } from "./inline-link";
@@ -139,7 +140,7 @@ interface MarkdownProps {
   // Present only when rendered inside a task chat. Enables the task-file
   // right-click menu (Open in {App} / Save as… / Reveal / …); a left click
   // opens the file without it.
-  taskId?: TaskId;
+  chatId?: ChatId;
 }
 
 type PluginList = NonNullable<Options["rehypePlugins"]>;
@@ -172,7 +173,8 @@ function containsMathSyntax(markdown: string) {
  *
  * Four departures from the default. `file:` is how a model spells a link to a
  * file it just wrote, which `markdownUrlTransform` reduces to a path and
- * `TaskFileLink` then judges against the task and its mounts. The app's own
+ * `TaskFileLink` then judges against the chat's folder and the folders it
+ * reaches. The app's own
  * scheme is how a reply links a thing inside the app, a task or a memory,
  * which `InlineLink` draws as a chip and opens in the window rather than
  * handing to the OS.
@@ -412,7 +414,7 @@ const TaskFileLink = ({
   className?: string;
   href: string;
 }) => {
-  const { taskId } = useContext(MarkdownTaskContext);
+  const { chatId } = useContext(MarkdownTaskContext);
   const filePath = taskFilePathFromHref(href);
   const filename = filePath.split("/").at(-1) ?? filePath;
   const showTaskFile = useShowTaskFile();
@@ -425,7 +427,7 @@ const TaskFileLink = ({
   // Before the guard below, so the chip that turns out not to name a task file
   // still asks in the same order every render.
   const isAddressable = isAddressableTaskFilePath(filePath);
-  const hostPath = useHostPaths(taskId, isAddressable ? [filePath] : [])[
+  const hostPath = useHostPaths(chatId, isAddressable ? [filePath] : [])[
     filePath
   ];
   const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
@@ -435,41 +437,45 @@ const TaskFileLink = ({
   }
 
   const chip = (
-    <button
-      className={cn(INLINE_CHIP_CLASS_NAME, className)}
+    <ChipButton
+      className={className}
+      onActivate={(event) => {
+        showTaskFile(filePath, { newTab: hasTabs && wantsNewTab(event) });
+      }}
       onAuxClick={(event) => {
         if (event.button === 1) {
           event.preventDefault();
           showTaskFile(filePath, { newTab: hasTabs });
         }
       }}
-      onClick={(event) => {
-        showTaskFile(filePath, { newTab: hasTabs && wantsNewTab(event) });
-      }}
       title={filePath}
-      type="button"
       {...dragProps}
     >
-      <FileTypeIcon
-        className={INLINE_CHIP_ICON_CLASS_NAME}
-        fileName={filename}
-      />
-      <span className="truncate">{children}</span>
-    </button>
+      <ChipBody
+        icon={
+          <FileTypeIcon
+            className={INLINE_CHIP_ICON_CLASS_NAME}
+            fileName={filename}
+          />
+        }
+      >
+        {children}
+      </ChipBody>
+    </ChipButton>
   );
 
   // The file-action menu needs the task and where the file is; without the
   // ambient task context (e.g. reasoning or a previewed markdown file), or
   // before the place is known, the chip still opens the file on a left click,
   // just without a right-click menu.
-  if (!taskId || !hostPath) {
+  if (!chatId || !hostPath) {
     return chip;
   }
 
   const viewerFile: ViewerFile = {
     filename,
     hostPath,
-    taskFile: { filePath, taskId },
+    taskFile: { filePath, chatId },
     url: getComputerFileUrl({ hostPath }),
   };
 
@@ -867,9 +873,9 @@ const MarkdownImage = ({
     hostPath?: string,
   ) => void;
 }) => {
-  const { assetVersion, isStreaming, taskId } = useContext(MarkdownTaskContext);
+  const { assetVersion, isStreaming, chatId } = useContext(MarkdownTaskContext);
   const [failedSrc, setFailedSrc] = useState<null | string>(null);
-  const hostPath = useHostPaths(taskId, filePath ? [filePath] : [])[
+  const hostPath = useHostPaths(chatId, filePath ? [filePath] : [])[
     filePath ?? ""
   ];
   const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
@@ -1013,7 +1019,7 @@ export const Markdown = memo(
     imageKinds = MARKDOWN_IMAGE_KINDS,
     isStreaming,
     markdown,
-    taskId,
+    chatId,
   }: MarkdownProps) => {
     const openFilePreview = useSetAtom(openFilePreviewAtom);
     const [rehypePlugins, setRehypePlugins] =
@@ -1205,7 +1211,7 @@ export const Markdown = memo(
     );
 
     return (
-      <MarkdownTaskContext value={{ assetVersion, isStreaming, taskId }}>
+      <MarkdownTaskContext value={{ assetVersion, isStreaming, chatId }}>
         {blocks === undefined ? (
           <MarkdownBlock
             components={components}

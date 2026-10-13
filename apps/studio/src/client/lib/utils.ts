@@ -4,8 +4,13 @@ import { extendTailwindMerge } from "tailwind-merge";
 // `max-h-none` is a real Tailwind utility, but tailwind-merge leaves `none` out
 // of its `max-h` class group. Without this, `cn("max-h-96", "max-h-none")` keeps
 // both classes and stylesheet order decides the winner instead of the caller.
+// The floating shadows (`globals.css`) join the shadow scale, so a caller's
+// `shadow-lg` replaces a primitive's `shadow-float-sm` rather than stacking.
 const twMerge = extendTailwindMerge({
-  extend: { classGroups: { "max-h": [{ "max-h": ["none"] }] } },
+  extend: {
+    classGroups: { "max-h": [{ "max-h": ["none"] }] },
+    theme: { shadow: ["float-sm", "float-md", "float-lg"] },
+  },
 });
 
 export function cn(...inputs: ClassValue[]) {

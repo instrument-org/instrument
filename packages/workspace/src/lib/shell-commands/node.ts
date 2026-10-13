@@ -1,25 +1,28 @@
 import { defineCommand, latin1FromBytes } from "just-bash";
 
-import { MOUNT } from "../../mount-points";
 import { type AbsolutePath } from "../../schemas/paths";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
-import { type WorkspaceFsLayout } from "../workspace-fs-layout";
-import { taskDir } from "../task-dir-utils";
+import { type AppToolInvoker } from "../app-tool-hook";
+import {
+  answerToolCall,
+  isToolCallMessage,
+  nodeToolsPreloadUrl,
+} from "../node-tools-preload";
+import { nodeToolsEnv } from "../tool-isolation";
 import { getWorkspaceConfig } from "../workspace-config";
+import { APP_COMMAND } from "./app-command";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import {
-  bridgeFlagValuePath,
-  bridgeInlineCodePaths,
-  extractFileAndScriptArgs,
   firstString,
+  hostPathArgs,
   parseScriptRunnerArgs,
   resolveCommandContext,
-  scanScriptFileForVirtualPaths,
   stringArray,
   subprocessStdin,
 } from "./utils";
+import { workDir } from "../work-dir";
 
 // Unrecognized flags are forwarded to node as-is; these are refused instead,
 // because they park the process on a debugger or a file watcher that nothing
@@ -28,20 +31,35 @@ import {
 const BLOCKED_FLAGS = new Set(["--interactive", "-i"]);
 const BLOCKED_FLAG_PREFIXES = ["--inspect", "--debug", "--watch"];
 
-function execNode(
-  taskId: TaskId,
+async function execNode(
+  chatId: ChatId,
   args: string[],
   signal?: AbortSignal,
   cwd?: AbsolutePath,
   env?: Record<string, string>,
   stdin?: Buffer,
+  invokeTool?: AppToolInvoker,
 ) {
-  return execShim(process.execPath, args, {
+  const preload = invokeTool ? ["--import", await nodeToolsPreloadUrl()] : [];
+  return execShim(process.execPath, [...preload, ...args], {
     cancelSignal: signal,
-    cwd: cwd ?? taskDir(taskId),
+    ...(invokeTool && {
+      onMessage: (message, reply) => {
+        if (!isToolCallMessage(message)) {
+          return;
+        }
+        void answerToolCall(message, () =>
+          invokeTool(message.path, message.argsJson, signal),
+        ).then(reply);
+      },
+    }),
+    cwd: cwd ?? workDir(chatId),
     env: {
       ...getWorkspaceConfig().nodeExecEnv,
       ...env,
+      // A script that installs or builds a native addon uses the app's own
+      // npm config, store and node-gyp headers, never the person's.
+      ...nodeToolsEnv(),
       // After ...env so the ffmpeg dirs win over ctx.env's host PATH.
       ...ffmpegSubprocessEnv(env?.PATH),
     },
@@ -73,18 +91,18 @@ const KNOWN_OPTIONS = {
 } as const;
 
 export const NODE_COMMAND = {
-  description: `Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd, quoted "${MOUNT.task}/..." strings are bridged; ${MOUNT.attachedFolders} paths are not available (\`js-exec\` reads them, without packages).`,
+  description: `Run a TypeScript or JavaScript file as a real process, with the task's installed packages. Types are stripped, not checked. A loaded skill's dependencies resolve only from inside that skill's folder. In -e code: relative paths resolve from cwd. \`await tools.<slug>.<tool>({...})\` calls a connected app's tool as \`${APP_COMMAND.name} call\` does and returns the result as a value (\`tools["<slug>"]\` for a slug with a hyphen); only the script \`node\` runs has \`tools\`, not a process that script starts.`,
   name: "node",
 } as const;
 
-/** What the mount guard offers in place of copying, when no package is involved. */
-const SANDBOXED_ALTERNATIVE = {
-  alternative: `Run it with \`js-exec\` instead, which reads attached folders directly, if the code imports no package.`,
-};
-
-export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
+/**
+ * `node` as a real process. With `invokeTool`, the script gets the `tools`
+ * global (`node-tools-preload.ts`), and this command answers each call it
+ * makes over the subprocess's IPC channel.
+ */
+export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
   return defineCommand(NODE_COMMAND.name, async (args, ctx) => {
-    const { env, taskCwd } = resolveCommandContext(taskId, ctx);
+    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const stdinProgram = latin1FromBytes(ctx.stdin);
 
     if (args.length === 0 && !stdinProgram) {
@@ -115,7 +133,7 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
 
     if (isVersion) {
       const execResult = await execNode(
-        taskId,
+        chatId,
         ["--version"],
         ctx.signal,
         taskCwd,
@@ -123,7 +141,7 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
       );
       const streams = mapStreams(
         shimOutput(execResult, NODE_COMMAND.name),
-        (text) => filterShellOutput(text, layout),
+        (text) => filterShellOutput(text),
       );
       return {
         exitCode: execResult.exitCode ?? 1,
@@ -145,11 +163,7 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
     // verbatim, so an unlisted one degrades to node's own error rather than
     // silently changing what the script does (a dropped `--env-file` left the
     // script running against the wrong environment, exit code 0).
-    const nodeFlags = unknownFlags.map((flag) =>
-      bridgeFlagValuePath(flag, taskId, taskCwd, (p) =>
-        ctx.fs.resolvePath(ctx.cwd, p),
-      ),
-    );
+    const nodeFlags = hostPathArgs(unknownFlags);
     if (values.check === true || values.c === true) {
       nodeFlags.push("--check");
     }
@@ -167,26 +181,18 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
     }
 
     if (evalCode !== undefined) {
-      const bridged = bridgeInlineCodePaths(
-        evalCode,
-        taskId,
-        taskCwd,
-        SANDBOXED_ALTERNATIVE,
-      );
-      if ("error" in bridged) {
-        return { exitCode: 1, stderr: bridged.error, stdout: "" };
-      }
       const execResult = await execNode(
-        taskId,
-        [...nodeFlags, wantsPrint ? "-p" : "-e", bridged.code],
+        chatId,
+        [...nodeFlags, wantsPrint ? "-p" : "-e", evalCode],
         ctx.signal,
         taskCwd,
         env,
         subprocessStdin(ctx.stdin),
+        invokeTool,
       );
       const streams = mapStreams(
         shimOutput(execResult, NODE_COMMAND.name),
-        (text) => filterShellOutput(text, layout),
+        (text) => filterShellOutput(text),
       );
       return {
         exitCode: execResult.exitCode ?? 1,
@@ -196,30 +202,21 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
 
     if (positionals.length === 0) {
       // With no file, node reads the program itself from stdin
-      // (`node --check < script.js`, heredocs), so bridge sandbox-virtual
-      // paths in it the same way `-e` code is bridged.
+      // (`node --check < script.js`, heredocs).
       if (stdinProgram) {
-        const bridged = bridgeInlineCodePaths(
-          stdinProgram,
-          taskId,
-          taskCwd,
-          SANDBOXED_ALTERNATIVE,
-        );
-        if ("error" in bridged) {
-          return { exitCode: 1, stderr: bridged.error, stdout: "" };
-        }
         const execResult = await execNode(
-          taskId,
+          chatId,
           nodeFlags,
           ctx.signal,
           taskCwd,
           env,
-          Buffer.from(bridged.code, "latin1"),
+          Buffer.from(stdinProgram, "latin1"),
+          invokeTool,
         );
         return {
           exitCode: execResult.exitCode ?? 1,
           ...mapStreams(shimOutput(execResult, NODE_COMMAND.name), (text) =>
-            filterShellOutput(text, layout),
+            filterShellOutput(text),
           ),
         };
       }
@@ -231,15 +228,10 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
       };
     }
 
-    const fileAndArgs = extractFileAndScriptArgs(
-      positionals,
-      args,
-      taskId,
-      taskCwd,
-      (p) => ctx.fs.resolvePath(ctx.cwd, p),
+    const [filePath, ...scriptArgs] = hostPathArgs(
+      args.slice(args.indexOf(positionals[0] ?? "")),
     );
-
-    if (fileAndArgs === undefined) {
+    if (filePath === undefined) {
       return {
         exitCode: 1,
         stderr: `${NODE_COMMAND.name} requires a file path argument.`,
@@ -247,28 +239,18 @@ export function createNodeCommand(taskId: TaskId, layout: WorkspaceFsLayout) {
       };
     }
 
-    const { filePath, scriptArgs } = fileAndArgs;
-
-    const scanError = await scanScriptFileForVirtualPaths(
-      taskCwd,
-      filePath,
-      SANDBOXED_ALTERNATIVE,
-    );
-    if (scanError !== undefined) {
-      return { exitCode: 1, stderr: scanError, stdout: "" };
-    }
-
     const execResult = await execNode(
-      taskId,
+      chatId,
       [...nodeFlags, filePath, ...scriptArgs],
       ctx.signal,
       taskCwd,
       env,
       subprocessStdin(ctx.stdin),
+      invokeTool,
     );
     const streams = mapStreams(
       shimOutput(execResult, NODE_COMMAND.name),
-      (text) => filterShellOutput(text, layout),
+      (text) => filterShellOutput(text),
     );
 
     return {

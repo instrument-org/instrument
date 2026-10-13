@@ -1,4 +1,4 @@
-import { ChatIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -12,6 +12,7 @@ import {
 } from "./tab-location";
 
 const CHAT = ChatIdSchema.parse("2026-10-01-roofer");
+const TASK = StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B");
 
 const HOME = "/Users/casey";
 
@@ -81,6 +82,35 @@ describe("locationCrumbs", () => {
           "Photos",
         ],
       }
+    `);
+  });
+
+  it("starts a path in iCloud Drive at iCloud Drive rather than home", () => {
+    const volumes = [
+      { name: "Macintosh HD", path: "/" },
+      {
+        name: "iCloud Drive",
+        path: "/Users/casey/Library/Mobile Documents/com~apple~CloudDocs",
+      },
+    ];
+    expect(
+      locationCrumbs(
+        {
+          kind: "folder",
+          path: "~/Library/Mobile Documents/com~apple~CloudDocs/Obsidian/Vault",
+        },
+        { home: HOME, volumes },
+      ).map((crumb) =>
+        crumb.to?.kind === "screen"
+          ? `${crumb.label} -> ${crumb.to.href}`
+          : crumb.label,
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "iCloud Drive -> /files?path=&root=%2FUsers%2Fcasey%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs",
+        "Obsidian -> /files?path=&root=%2FUsers%2Fcasey%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2FObsidian",
+        "Vault",
+      ]
     `);
   });
 
@@ -234,9 +264,10 @@ describe("tasksOfHref", () => {
     ["/tasks", {}],
     [`/tasks?chat=${CHAT}`, { chat: CHAT }],
     ["/tasks?chat=Not%20a%20chat", {}],
-    ["/tasks/book", { task: "book" }],
-    [`/tasks/book?chat=${CHAT}`, { chat: CHAT, task: "book" }],
-    ["/tasks/book/edit", undefined],
+    [`/tasks/${TASK}`, { task: TASK }],
+    [`/tasks/${TASK}?chat=${CHAT}`, { chat: CHAT, task: TASK }],
+    ["/tasks/book", undefined],
+    [`/tasks/${TASK}/edit`, undefined],
     ["/memory/book", undefined],
   ])("reads %s", (href, expected) => {
     expect(tasksOfHref(href)).toEqual(expected);

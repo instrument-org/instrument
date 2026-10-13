@@ -1,0 +1,32 @@
+diff --git a/lib/index.js b/lib/index.js
+index dd21ce7068fca62a37812d2048b85920306778ea..0ffa146fe4ab481b7534aa15e3d97adacc1390c0 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -2,7 +2,6 @@ import { browser, findParent } from "@milkdown/prose";
+ import { $ctx, $prose } from "@milkdown/utils";
+ import { NodeSelection, Plugin, PluginKey } from "@milkdown/prose/state";
+ import { editorViewCtx } from "@milkdown/core";
+-import { throttle } from "lodash-es";
+ import { computePosition, flip, offset } from "@floating-ui/dom";
+ //#region src/__internal__/with-meta.ts
+ function withMeta(plugin, meta) {
+@@ -159,7 +158,9 @@ var BlockService = class {
+ 			view.dom.dataset.dragging = "false";
+ 			return false;
+ 		};
+-		this.#mousemoveCallback = throttle((view, event) => {
++		// Read on every move, not once per 200ms: the handle is beside the
++		// block the pointer is on, not the one it was on a moment ago.
++		this.#mousemoveCallback = (view, event) => {
+ 			if (!view.editable) return;
+ 			const rect = view.dom.getBoundingClientRect();
+ 			const x = rect.left + rect.width / 2;
+@@ -178,7 +179,7 @@ var BlockService = class {
+ 				return;
+ 			}
+ 			this.#show(result);
+-		}, 200);
++		};
+ 		this.mousemoveCallback = (view, event) => {
+ 			if (view.composing || !view.editable) return false;
+ 			this.#mousemoveCallback(view, event);

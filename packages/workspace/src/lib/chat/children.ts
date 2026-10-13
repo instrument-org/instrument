@@ -1,62 +1,152 @@
-import path from "node:path";
+import { z } from "zod";
 
-import { TASK_FOLDER_NAMES } from "../../constants";
-import { MOUNT } from "../../mount-points";
-import { type ChatId } from "../../schemas/chat-id";
-import { type TaskDir } from "../../schemas/paths";
-import { type TaskInChat } from "../../schemas/task";
-import { type TaskId } from "../../schemas/task-id";
-import { getTasksIn } from "../get-tasks";
-import { chatTaskDirs, chatTaskIds } from "../record-folders";
-import { taskDir } from "../task-dir-utils";
-import { type WorkspaceFsMount } from "../workspace-fs-layout";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import { type Session } from "../../schemas/session";
+import { StoreId } from "../../schemas/store-id";
+import { createWriteQueue } from "../create-write-queue";
+import { resolveChat, sessionOfChat } from "../record-folders";
+import { Store } from "../store";
 
 /**
- * One read-only mount per child at `/tasks/<id>`, with the child's private
- * directory masked the way its own agent's view of it is. The chat
- * reads a child's scratch and output to see what it made, and never writes
- * there: a child's folder is the child's, and a transcript is read through
- * `task log`, which renders it from the store rather than opening the file.
+ * A task: a session in its chat's store, started from the chat's own
+ * conversation and carrying it on in the background. Its id is its session's.
  */
-export async function childTaskMounts(
+export const ChatTaskSchema = z.object({
+  chatId: ChatIdSchema,
+  createdAt: z.date(),
+  /** Its short name in the chat, `t1`, `t2`, …, which the `task` command takes. */
+  handle: z.string(),
+  id: StoreId.SessionSchema,
+  /** Who stopped its last turn, when a stop ended it. */
+  stoppedBy: z.enum(["chat", "user"]).optional(),
+  title: z.string(),
+  updatedAt: z.date(),
+});
+
+export type ChatTask = z.output<typeof ChatTaskSchema>;
+
+/** One queue per task, for the writes to its session. */
+const taskWrites = createWriteQueue();
+
+/** One queue per chat, so two tasks started together get handles of their own. */
+const taskStarts = createWriteQueue();
+
+/**
+ * Starts a task in its chat's store: a session whose parent is the
+ * chat's own, under the next handle the chat has not given, `t1` for its
+ * first. Returns it.
+ */
+export function addChildTask(
   chatId: ChatId,
-): Promise<WorkspaceFsMount[]> {
-  return taskMounts(chatTaskIds(chatId).map((id) => taskDir(id)));
+  fields: Omit<Session.Type, "handle" | "parentId">,
+): Promise<ChatTask> {
+  return taskStarts(chatId, async () => {
+    const parentId = sessionOfChat(chatId);
+    if (!parentId) {
+      throw new Error(`${chatId} is not a chat.`);
+    }
+    const given = (await listChildTasks(chatId)).flatMap((task) => {
+      const number = /^t(\d+)$/.exec(task.handle)?.[1];
+      return number === undefined ? [] : [Number(number)];
+    });
+    const session = {
+      ...fields,
+      handle: `t${Math.max(0, ...given) + 1}`,
+      parentId,
+    };
+    const saved = await Store.saveSession(session, chatId);
+    if (saved.isErr()) {
+      throw saved.error;
+    }
+    return taskOf(chatId, saved.value);
+  });
 }
 
 /**
- * The tasks a chat started, newest activity first, each read only when
- * `which` takes its id. Anything that is not a chat has none: no id stands
- * for every chat's tasks.
+ * The tasks a chat started, newest activity first, each kept only when
+ * `which` takes its id. Anything that is not a chat has none.
  */
 export async function listChildTasks(
   chatId: ChatId,
-  which: (id: TaskId) => boolean = () => true,
-): Promise<TaskInChat[]> {
-  const tasks = await getTasksIn(
-    chatTaskIds(chatId)
-      .filter((id) => which(id))
-      .map((id) => taskDir(id)),
-    { direction: "desc", sortBy: "updatedAt" },
-  );
-  return tasks.filter((task): task is TaskInChat => !task.isChat);
+  which: (id: StoreId.Session) => boolean = () => true,
+): Promise<ChatTask[]> {
+  const chatSession = sessionOfChat(chatId);
+  if (!chatSession) {
+    return [];
+  }
+  const sessions = await Store.getSessions(chatId, {
+    includeChildSessions: true,
+  });
+  if (sessions.isErr()) {
+    return [];
+  }
+  return sessions.value
+    .filter((session) => session.parentId === chatSession && which(session.id))
+    .map((session) => taskOf(chatId, session))
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+}
+
+/** One of a chat's tasks by its session, or none when it is not one. */
+export async function childTask(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<ChatTask | undefined> {
+  const chatSession = sessionOfChat(chatId);
+  const session = await Store.getSession(sessionId, chatId);
+  return chatSession && session.isOk() && session.value.parentId === chatSession
+    ? taskOf(chatId, session.value)
+    : undefined;
 }
 
 /**
- * The same mounts for the window, which no chat is: every chat's task
- * folder by where the folder index has it, so a `/tasks/<id>` path the
- * window was handed opens wherever it came from. Read from the index alone;
- * no task's record is read.
+ * What a session is in its chat: the chat's own conversation, the session
+ * its settings name, or one of the tasks it started in the same store.
+ * Only the chat's own asks the user anything, starts tasks, or hears the
+ * turn note. None for a record that is no chat.
  */
-export function windowTaskMounts(): WorkspaceFsMount[] {
-  return taskMounts(chatTaskDirs());
+export function sessionRole(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): "chat" | "task" | undefined {
+  if (!resolveChat(chatId)) {
+    return undefined;
+  }
+  return sessionOfChat(chatId) === sessionId ? "chat" : "task";
 }
 
-function taskMounts(dirs: TaskDir[]): WorkspaceFsMount[] {
-  return dirs.map((dir) => ({
-    hostRoot: dir,
-    maskedEntries: [TASK_FOLDER_NAMES.private],
-    mountPoint: `${MOUNT.tasks}/${path.basename(dir)}`,
-    readOnly: true,
-  }));
+/**
+ * Writes what the task list reads onto a task's session: who stopped its
+ * last turn, and that something happened in it now. Queued per task, so two
+ * landing together each build on the other.
+ */
+export function touchTask(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+  changes: Pick<Session.Type, "stoppedBy"> = {},
+): Promise<void> {
+  return taskWrites(sessionId, async () => {
+    const session = await Store.getSession(sessionId, chatId);
+    if (session.isErr()) {
+      return;
+    }
+    const saved = await Store.saveSession(
+      { ...session.value, ...changes, updatedAt: new Date() },
+      chatId,
+    );
+    if (saved.isErr()) {
+      throw saved.error;
+    }
+  });
+}
+
+function taskOf(chatId: ChatId, session: Session.Type): ChatTask {
+  return {
+    chatId,
+    createdAt: session.createdAt,
+    handle: session.handle ?? session.id,
+    id: session.id,
+    ...(session.stoppedBy ? { stoppedBy: session.stoppedBy } : {}),
+    title: session.title,
+    updatedAt: session.updatedAt ?? session.createdAt,
+  };
 }

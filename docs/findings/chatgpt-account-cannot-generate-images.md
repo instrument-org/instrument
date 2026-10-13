@@ -13,4 +13,4 @@ The `chatgpt-account` entry in [`metadata.ts`](../../packages/ai-gateway/src/lib
 ## What might change it
 
 - OpenAI adding the `image_generation` tool to the plan route. Recheck the preview limitations page when it changes.
-- Our own image provider for plan users (the platform gateway) would cover it, but under the Sign in with ChatGPT Terms §2 using the plan must never require paying us, so that can only be an addition the plan works without.
+- Another image provider alongside the plan. Under the Sign in with ChatGPT Terms §2 the plan must work without any other paid service, so that can only be an optional addition.

@@ -115,7 +115,7 @@ describe("generateBufferedImage parameter mapping", () => {
   });
 
   it("drops parameters the selected model does not support", async () => {
-    // gpt-image-2 (default) has no aspect ratio; gemini-via-openrouter has no quality.
+    // gpt-image-2.5-flare (default) has no aspect ratio; gemini-via-openrouter has no quality.
     await callBuffered(OUR_MODELS.providerType, { aspectRatio: "16:9" });
     expect(lastAspectRatio()).toBeUndefined();
     expect(lastProviderOptions()).toBeUndefined();

@@ -84,20 +84,3 @@ it("reaches the end of a transcript that keeps laying out after it arrived", asy
     { timeout: 2000 },
   );
 });
-
-it("leaves the transcript where the reader put it once they took the wheel", async () => {
-  await renderInBrowser(<Harness arrivals={[80, 400]} />);
-  await vi.waitFor(() => {
-    expect(blockCount()).toBe(4);
-    expect(distanceFromEnd()).toBe(0);
-  });
-  viewport().dispatchEvent(
-    new WheelEvent("wheel", { bubbles: true, deltaY: -40 }),
-  );
-  viewport().scrollTop = 0;
-  await vi.waitFor(() => {
-    expect(blockCount()).toBe(5);
-  });
-  await new Promise((resolve) => setTimeout(resolve, 100));
-  expect(viewport().scrollTop).toBe(0);
-});

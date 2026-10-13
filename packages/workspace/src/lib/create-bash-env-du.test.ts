@@ -3,14 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { TASK_FOLDER_NAMES } from "../constants";
-import { FolderAttachment } from "../schemas/folder-attachment";
-import { TaskDirSchema } from "../schemas/paths";
+import { CHAT_FOLDER_NAMES } from "../constants";
+import { MountedFolder } from "../schemas/mounted-folder";
+import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { type ChatId } from "../schemas/chat-id";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
-import { ChatIdSchema } from "../schemas/chat-id";
 
 /**
  * `du` walks the real directories behind the mounts in a worker thread rather
@@ -24,38 +23,37 @@ const sessionId = StoreId.newSessionId();
 const WIDE_FILES = 21_000;
 
 let tmpDir: string;
+let taskRoot: string;
 let homeDir: string;
 let wideDir: string;
-let taskId: TaskId;
+let chatId: ChatId;
 
 async function run(command: string, { chat = false } = {}) {
   const attach = (name: string, folder: string) => ({
     access: "read-only" as const,
     createdAt: Date.now(),
-    id: FolderAttachment.IdSchema.parse(`${name}-id`),
+    id: MountedFolder.IdSchema.parse(`${name}-id`),
     mountName: name,
-    path: TaskDirSchema.parse(folder),
+    path: ChatDirSchema.parse(folder),
     source: "user" as const,
   });
   const bash = await createBashEnv({
-    attachedFolders: {
+    folders: {
       // Deleted on disk since it was attached, so the sandbox leaves it out.
       Gone: attach("Gone", path.join(tmpDir, "Gone")),
       Home: attach("Home", homeDir),
       Wide: attach("Wide", wideDir),
     },
-    chat: chat
-      ? { childMounts: [], id: ChatIdSchema.parse(taskId) }
-      : undefined,
+    role: chat ? "chat" : "task",
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
 }
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-du-"));
-  const taskRoot = path.join(tmpDir, "tasks", "test");
+  taskRoot = path.join(tmpDir, "tasks", "test");
   homeDir = path.join(tmpDir, "Home");
   wideDir = path.join(tmpDir, "Wide");
 
@@ -73,11 +71,11 @@ beforeAll(async () => {
 
   await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
   await fs.writeFile(path.join(taskRoot, "work", "small.txt"), "s".repeat(10));
-  await fs.mkdir(path.join(taskRoot, TASK_FOLDER_NAMES.private), {
+  await fs.mkdir(path.join(taskRoot, CHAT_FOLDER_NAMES.private), {
     recursive: true,
   });
   await fs.writeFile(
-    path.join(taskRoot, TASK_FOLDER_NAMES.private, "task.db"),
+    path.join(taskRoot, CHAT_FOLDER_NAMES.private, "chat.db"),
     Buffer.alloc(5_000_000),
   );
 
@@ -88,7 +86,7 @@ beforeAll(async () => {
     ),
   );
 
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
 });
 
 afterAll(async () => {
@@ -97,15 +95,16 @@ afterAll(async () => {
 
 describe("du", () => {
   it("prints a file's size in bytes and in GNU's rounded-up human form", async () => {
-    const bytes = await run("du -b /mnt/Home/notes/one.txt");
-    const human = await run("du --apparent-size -h /mnt/Home/notes/one.txt");
+    const file = `${homeDir}/notes/one.txt`;
+    const bytes = await run(`du -b '${file}'`);
+    const human = await run(`du --apparent-size -h '${file}'`);
 
-    expect(bytes.stdout).toBe("1500\t/mnt/Home/notes/one.txt\n");
-    expect(human.stdout).toBe("1.5K\t/mnt/Home/notes/one.txt\n");
+    expect(bytes.stdout).toBe(`1500\t${file}\n`);
+    expect(human.stdout).toBe(`1.5K\t${file}\n`);
   });
 
   it("lists children before their parent, down to the depth asked", async () => {
-    const result = await run("du -b -d 1 /mnt/Home");
+    const result = await run(`du -b -d 1 '${homeDir}'`);
     const lines = result.stdout.trim().split("\n");
     const paths = lines.map((line) => line.split("\t")[1]);
     const size = (target: string) =>
@@ -114,15 +113,15 @@ describe("du", () => {
       );
 
     expect(result.exitCode).toBe(0);
-    expect(paths).toEqual(["/mnt/Home/notes", "/mnt/Home/photos", "/mnt/Home"]);
-    expect(size("/mnt/Home/notes")).toBeGreaterThanOrEqual(4500);
-    expect(size("/mnt/Home")).toBeGreaterThanOrEqual(
-      size("/mnt/Home/notes") + size("/mnt/Home/photos"),
+    expect(paths).toEqual([`${homeDir}/notes`, `${homeDir}/photos`, homeDir]);
+    expect(size(`${homeDir}/notes`)).toBeGreaterThanOrEqual(4500);
+    expect(size(homeDir)).toBeGreaterThanOrEqual(
+      size(`${homeDir}/notes`) + size(`${homeDir}/photos`),
     );
   });
 
   it("prints paths as they were typed, relative ones included", async () => {
-    const result = await run("cd /mnt/Home && du -ab notes");
+    const result = await run(`cd '${homeDir}' && du -ab notes`);
 
     expect(result.stdout.trim().split("\n").at(-1)).toMatch(/^\d+\tnotes$/);
     expect(result.stdout).toContain("\tnotes/deep/two.txt\n");
@@ -131,25 +130,26 @@ describe("du", () => {
 
   it("adds a grand total with -c", async () => {
     const result = await run(
-      "du -cb /mnt/Home/notes/one.txt /mnt/Home/notes/deep/two.txt",
+      `du -cb '${homeDir}/notes/one.txt' '${homeDir}/notes/deep/two.txt'`,
     );
 
     expect(result.stdout.trim().split("\n").at(-1)).toBe("4500\ttotal");
   });
 
   it("neither lists nor counts the task's private dir", async () => {
-    const listing = await run("du -ab /task");
-    const total = await run("du -sb /task");
+    const listing = await run(`du -ab '${taskRoot}'`);
+    const total = await run(`du -sb '${taskRoot}'`);
 
     expect(listing.stdout).not.toMatch(/\.instrument/i);
     expect(Number(total.stdout.split("\t")[0])).toBeLessThan(1_000_000);
   });
 
   it.each([
-    [`/task/${TASK_FOLDER_NAMES.private}`],
-    [`/task/${TASK_FOLDER_NAMES.private.toUpperCase()}`],
-  ])("reports %s as absent", async (target) => {
-    const result = await run(`du -sb ${target}`);
+    [CHAT_FOLDER_NAMES.private],
+    [CHAT_FOLDER_NAMES.private.toUpperCase()],
+  ])("reports the task's %s as absent", async (name) => {
+    const target = `${taskRoot}/${name}`;
+    const result = await run(`du -sb '${target}'`);
 
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
@@ -158,18 +158,10 @@ describe("du", () => {
     );
   });
 
-  it("sums the mounts inside a virtual directory", async () => {
-    const result = await run("du -sb /mnt");
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe("");
-    expect(result.stdout).toMatch(/^\d+\t\/mnt\n$/);
-  });
-
   it("answers past the chat's traversal budget", async () => {
     // The walk is not the virtual filesystem's, so the budget that stops
     // find and ls over this folder does not apply to it.
-    const result = await run("du -a /mnt/Wide | wc -l", { chat: true });
+    const result = await run(`du -a '${wideDir}' | wc -l`, { chat: true });
 
     expect(result.exitCode).toBe(0);
     expect(Number(result.stdout.trim())).toBe(WIDE_FILES + 1);
@@ -186,8 +178,20 @@ describe("du", () => {
     expect(result.stdout).toBe("2.0M\tlarge\n49K\tsmall\n");
   });
 
+  it.skipIf(process.platform === "win32")(
+    "measures a folder outside every mount on the disk",
+    async () => {
+      const outside = path.join(tmpDir, "Outside");
+      await fs.mkdir(path.join(outside, "sub"), { recursive: true });
+      await fs.writeFile(path.join(outside, "sub", "a.txt"), "a".repeat(700));
+      const result = await run(`du -sb '${outside}'`);
+      expect(result.stdout).toMatch(new RegExp(`^\\d+\t${outside}\n$`));
+      expect(Number(result.stdout.split("\t")[0])).toBeGreaterThanOrEqual(700);
+    },
+  );
+
   it("leaves a flag it does not implement to just-bash", async () => {
-    const result = await run("du --time /mnt/Home");
+    const result = await run(`du --time '${homeDir}'`);
 
     expect(result.stderr).toContain("--time");
   });

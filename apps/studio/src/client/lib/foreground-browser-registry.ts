@@ -5,8 +5,8 @@ import { type BrowserTargetId } from "@instrument-org/workspace/client";
 // covers it, so a page chord (page-chords.ts) can mean that guest. A focused
 // `<webview>` takes keyboard focus, so these chords only ever arrive as native
 // menu accelerators, never as a renderer keydown -- hence this indirection.
+// Cmd+F reaches the panel's find bar through find-targets.
 let foreground: null | {
-  openFind: () => void;
   targetId: BrowserTargetId;
 } = null;
 
@@ -14,7 +14,6 @@ let foreground: null | {
 // if this panel still owns it (so a tab switch's mount/unmount ordering can't
 // null out the newly-active panel's registration).
 export function registerForegroundBrowser(panel: {
-  openFind: () => void;
   targetId: BrowserTargetId;
 }): () => void {
   foreground = panel;
@@ -27,7 +26,6 @@ export function registerForegroundBrowser(panel: {
 
 /** The browser panel the user is looking at, if one has registered. */
 export function foregroundBrowser(): null | {
-  openFind: () => void;
   targetId: BrowserTargetId;
 } {
   return foreground;

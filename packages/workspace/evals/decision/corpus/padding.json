@@ -1,0 +1,2498 @@
+[
+  {
+    "title": "Quarterly budget spreadsheet cleanup",
+    "ask": "can you clean up the Q3 budget sheet in my Documents folder? lots of duplicate rows and the totals column is off"
+  },
+  {
+    "title": "Merge two customer lists",
+    "ask": "i have two csvs of customers from different exports, merge them and drop dupes by email column pls"
+  },
+  {
+    "title": "Pivot table for regional sales",
+    "ask": "make a pivot table from sales_2025.xlsx showing revenue by region and month"
+  },
+  {
+    "title": "Fix broken VLOOKUP formulas",
+    "ask": "my vlookups all return #N/A after I added a new column. whats going on"
+  },
+  {
+    "title": "Conditional formatting for overdue rows",
+    "ask": "highlight any row in the tracker where the due date is past and status isnt done"
+  },
+  {
+    "title": "Inventory sheet reorder alerts",
+    "ask": "want a column that flags when stock drops below the reorder point in my inventory spreadsheet"
+  },
+  {
+    "title": "Split full names into columns",
+    "ask": "column A has full names, can you split into first and last? some have middle initials"
+  },
+  {
+    "title": "Convert dates to ISO format",
+    "ask": "dates in this sheet are a mix of 3/4/25 and March 4 2025, normalize them all to YYYY-MM-DD"
+  },
+  {
+    "title": "Chart of monthly signups",
+    "ask": "build a line chart of monthly signups from the data tab, nothing fancy"
+  },
+  {
+    "title": "Timesheet hours calculator",
+    "ask": "need a timesheet template that totals hours per week and handles overnight shifts"
+  },
+  {
+    "title": "Deduplicate mailing list spreadsheet",
+    "ask": "theres like 4000 rows in the volunteer list and tons of duplicates w different capitalization"
+  },
+  {
+    "title": "Gradebook weighted averages",
+    "ask": "set up weighted averages in my gradebook: homework 20 quizzes 30 exams 50"
+  },
+  {
+    "title": "Expense report categorization",
+    "ask": "go through expenses.csv and categorize each line into buckets like software, office supplies, misc"
+  },
+  {
+    "title": "Excel to Google Sheets migration",
+    "ask": "moving a workbook with macros to google sheets, what breaks and how do i fix it"
+  },
+  {
+    "title": "Project tracker status rollup",
+    "ask": "summary tab that counts tasks by status across all the team tabs in my tracker"
+  },
+  {
+    "title": "XLOOKUP vs INDEX MATCH",
+    "ask": "which should i use for a big sheet, xlookup or index match? performance matters a bit"
+  },
+  {
+    "title": "Trim contact export columns",
+    "ask": "this contacts export has junk columns, keep just name, company, and notes"
+  },
+  {
+    "title": "Loan amortization schedule",
+    "ask": "build me an amortization table for a 30 year loan at 6.2 percent, monthly payments"
+  },
+  {
+    "title": "Sales commission calculator",
+    "ask": "tiered commission: 5% up to 50k, 8% above. make a sheet that calcs it per rep"
+  },
+  {
+    "title": "Remove blank rows from sheet",
+    "ask": "how do i remove all the blank rows from a sheet without sorting it"
+  },
+  {
+    "title": "Survey results summary",
+    "ask": "summarize the survey responses csv, counts per answer and the top open-ended themes"
+  },
+  {
+    "title": "Spreadsheet data validation dropdowns",
+    "ask": "add dropdowns for status and priority columns so ppl stop typing random stuff"
+  },
+  {
+    "title": "Compare two versions of a sheet",
+    "ask": "which cells changed between budget_v3 and budget_v4? just list the diffs"
+  },
+  {
+    "title": "Hourly rate breakdown",
+    "ask": "figure out my effective hourly rate from the invoices sheet vs hours logged"
+  },
+  {
+    "title": "Freeze header row help",
+    "ask": "how do i freeze the top row AND first column at the same time in numbers"
+  },
+  {
+    "title": "Fiscal year week numbers",
+    "ask": "our fiscal year starts in feb, need a column with fiscal week number for each date"
+  },
+  {
+    "title": "Payroll date calendar sheet",
+    "ask": "generate a list of biweekly pay dates for next year starting jan 9"
+  },
+  {
+    "title": "Unit conversion helper sheet",
+    "ask": "small sheet that converts between metric and imperial for lengths and weights"
+  },
+  {
+    "title": "Attendance tracker for class",
+    "ask": "attendance tracker for 28 students, mark present/absent and show percentage per kid"
+  },
+  {
+    "title": "Pricing tier comparison table",
+    "ask": "turn these three pricing tiers into a clean comparison table i can paste into a doc"
+  },
+  {
+    "title": "Rewrite project proposal intro",
+    "ask": "the intro to my proposal is way too long, tighten it to like 150 words"
+  },
+  {
+    "title": "Employee handbook PTO section",
+    "ask": "draft a PTO policy section for a 20 person company handbook, plain language"
+  },
+  {
+    "title": "Standard operating procedure draft",
+    "ask": "write an SOP for how we onboard a new client, from signed contract to kickoff"
+  },
+  {
+    "title": "Convert Word doc to Markdown",
+    "ask": "convert the policy doc in Downloads from docx to markdown and keep the tables"
+  },
+  {
+    "title": "Shorten a two page memo",
+    "ask": "this memo needs to fit on one page. cut it without losing the asks"
+  },
+  {
+    "title": "Job description for support role",
+    "ask": "write a job description for a customer support specialist, remote, entry level"
+  },
+  {
+    "title": "Performance review self assessment",
+    "ask": "help me write my self assessment, i shipped a lot but im bad at bragging"
+  },
+  {
+    "title": "Style guide for internal docs",
+    "ask": "put together a short style guide for our internal docs: headings, voice, lists"
+  },
+  {
+    "title": "Proofread cover letter draft",
+    "ask": "proofread my cover letter, i think theres a tense problem in paragraph 2"
+  },
+  {
+    "title": "Fix numbering in legal doc",
+    "ask": "section numbering in this contract template got messed up after i deleted 4.2"
+  },
+  {
+    "title": "Write a project status update",
+    "ask": "draft a weekly status update for the warehouse migration project, we're behind 1 week"
+  },
+  {
+    "title": "Annual report executive summary",
+    "ask": "exec summary for the annual report, pull key numbers from the attached pdf"
+  },
+  {
+    "title": "Create a document template",
+    "ask": "make a reusable template for incident postmortems with the usual sections"
+  },
+  {
+    "title": "Combine PDFs into one file",
+    "ask": "combine all the pdfs in the contracts folder into one file in date order"
+  },
+  {
+    "title": "Extract tables from PDF",
+    "ask": "pull the tables out of this pdf report into a spreadsheet, they span multiple pages"
+  },
+  {
+    "title": "Rewrite in plain language",
+    "ask": "rewrite this benefits explainer at like an 8th grade reading level"
+  },
+  {
+    "title": "Glossary for onboarding guide",
+    "ask": "make a glossary of the jargon used in our onboarding guide, alphabetical"
+  },
+  {
+    "title": "RFP response outline",
+    "ask": "outline a response to this RFP, map each requirement to a section"
+  },
+  {
+    "title": "Policy doc version comparison",
+    "ask": "whats different between the old and new remote work policy docs? summarize"
+  },
+  {
+    "title": "Track changes cleanup",
+    "ask": "accept all the formatting changes but leave the wording edits for me to review in this docx"
+  },
+  {
+    "title": "Business letter to landlord office",
+    "ask": "formal letter to the property office asking for a lease renewal copy, polite but firm"
+  },
+  {
+    "title": "Write training checklist",
+    "ask": "checklist for training new warehouse staff on the scanner system, step by step"
+  },
+  {
+    "title": "Reformat bibliography to APA",
+    "ask": "my bibliography is half MLA half APA, make it all APA 7"
+  },
+  {
+    "title": "Table of contents not updating",
+    "ask": "table of contents in my word doc doesnt update when i change headings, help"
+  },
+  {
+    "title": "Two column layout in Pages",
+    "ask": "how do i do a two column layout in Pages for just one section"
+  },
+  {
+    "title": "Draft a FAQ page",
+    "ask": "write an FAQ for our community garden signup page, like 8 questions"
+  },
+  {
+    "title": "Summarize a long PDF",
+    "ask": "summarize the 60 page industry report in my downloads, bullets please"
+  },
+  {
+    "title": "Write an abstract for paper",
+    "ask": "write a 200 word abstract for my paper draft on soil erosion in the folder"
+  },
+  {
+    "title": "Thesis chapter outline",
+    "ask": "help outline chapter 3 of my thesis, its on wetland policy and i keep going in circles"
+  },
+  {
+    "title": "Readme for internal tool",
+    "ask": "write a README for our internal csv import tool, include setup and common errors"
+  },
+  {
+    "title": "Fix inconsistent heading styles",
+    "ask": "half the headings in this doc are manual bold text, convert them to real heading styles"
+  },
+  {
+    "title": "Four day week announcement",
+    "ask": "internal announcement that our office is moving to a 4 day week pilot, upbeat but clear"
+  },
+  {
+    "title": "Convert slides to a handout",
+    "ask": "turn the slide deck into a one page handout with the key points"
+  },
+  {
+    "title": "Make slide deck more concise",
+    "ask": "my deck is 40 slides for a 20 min talk. help me cut it down to like 15"
+  },
+  {
+    "title": "Presenter notes for training deck",
+    "ask": "write presenter notes for each slide in my training deck, conversational"
+  },
+  {
+    "title": "Org chart from a list",
+    "ask": "make an org chart from this list of names and managers, export as image"
+  },
+  {
+    "title": "Decision matrix for vendors",
+    "ask": "decision matrix comparing three payroll vendors on cost support and features"
+  },
+  {
+    "title": "Pros and cons document",
+    "ask": "pros and cons doc for moving our wiki from confluence to notion"
+  },
+  {
+    "title": "Write a case study draft",
+    "ask": "draft a customer case study from these interview notes, 600 words"
+  },
+  {
+    "title": "Business plan market section",
+    "ask": "help write the market analysis section of a business plan for a dog walking service"
+  },
+  {
+    "title": "Newsletter intro paragraph",
+    "ask": "write the intro for our monthly neighborhood association newsletter, october edition"
+  },
+  {
+    "title": "Volunteer handbook rewrite",
+    "ask": "rewrite our volunteer handbook to be friendlier, its very stiff right now"
+  },
+  {
+    "title": "Translate doc to Spanish",
+    "ask": "translate this onboarding checklist into Spanish, keep the formatting"
+  },
+  {
+    "title": "Contract renewal reminder doc",
+    "ask": "list every contract in the folder with its renewal date so i dont miss any"
+  },
+  {
+    "title": "Write an apology to a client",
+    "ask": "we missed a deadline, help me write an apology to the client w a new date"
+  },
+  {
+    "title": "Follow up after interview",
+    "ask": "follow up email after my interview yesterday, short and not desperate"
+  },
+  {
+    "title": "Decline a job offer politely",
+    "ask": "need to decline a job offer but keep the door open, help me word it"
+  },
+  {
+    "title": "Ask for a raise email",
+    "ask": "draft an email to my manager asking to talk about a raise, ive been here 2 yrs"
+  },
+  {
+    "title": "Email to reschedule a call",
+    "ask": "email to push our call from thursday to next week, keep it light"
+  },
+  {
+    "title": "Cold email to a potential client",
+    "ask": "cold outreach email to a local florist offering bookkeeping services, short"
+  },
+  {
+    "title": "Reply to angry customer",
+    "ask": "customer is furious about a late refund, write a calm reply that explains next steps"
+  },
+  {
+    "title": "Out of office message",
+    "ask": "write an out of office reply for while im at a training course, point people to Dana for urgent stuff"
+  },
+  {
+    "title": "Email to a professor about extension",
+    "ask": "email my professor asking for a 3 day extension on the lab report, legit reason"
+  },
+  {
+    "title": "Thank you note to mentor",
+    "ask": "thank you email to a mentor who helped me prep for my promotion"
+  },
+  {
+    "title": "Request a reference letter",
+    "ask": "ask a former boss for a reference letter, its been a couple years"
+  },
+  {
+    "title": "Intro email connecting two people",
+    "ask": "write a double opt-in intro email connecting a designer and a developer i know"
+  },
+  {
+    "title": "Resignation letter draft",
+    "ask": "resignation letter, two weeks notice, grateful tone, no drama"
+  },
+  {
+    "title": "Email asking for feedback",
+    "ask": "ask my team for honest feedback on how i ran the last quarter, anonymous form link"
+  },
+  {
+    "title": "Clean up my inbox",
+    "ask": "go through my inbox and archive anything older than 6 months that i never replied to"
+  },
+  {
+    "title": "Unsubscribe from newsletters",
+    "ask": "find all the newsletters im subscribed to in my mail and make me a list to unsub"
+  },
+  {
+    "title": "Email filter rules setup",
+    "ask": "set up mail rules so receipts go to a Receipts folder automatically"
+  },
+  {
+    "title": "Draft a team welcome email",
+    "ask": "welcome email for a new hire starting monday, what to expect first week"
+  },
+  {
+    "title": "Email to landlord about lease",
+    "ask": "polite email to my landlord asking if i can sublet for the summer months"
+  },
+  {
+    "title": "Reply to recruiter not interested",
+    "ask": "reply to a recruiter saying not right now but maybe in a year"
+  },
+  {
+    "title": "Polite nudge on unpaid invoice",
+    "ask": "client is 30 days late on an invoice. write a polite but clear nudge"
+  },
+  {
+    "title": "Summarize long email thread",
+    "ask": "summarize this 40 message email thread, what got decided and whose doing what"
+  },
+  {
+    "title": "Email declining a speaking invite",
+    "ask": "decline an invite to speak at a conference, too busy this quarter"
+  },
+  {
+    "title": "Write an email to HR about benefits",
+    "ask": "email HR asking how to add dental coverage mid year"
+  },
+  {
+    "title": "Email to coworker about missed handoff",
+    "ask": "coworker forgot to hand off the account notes, how do i bring it up without sounding mad"
+  },
+  {
+    "title": "Draft a vendor complaint",
+    "ask": "our printer vendor keeps sending wrong toner, write a complaint asking for credit"
+  },
+  {
+    "title": "Python script to rename CSV columns",
+    "ask": "write a python script that renames columns in a bunch of csvs using a mapping file"
+  },
+  {
+    "title": "Fix failing Jest test",
+    "ask": "this jest test passes locally but fails in CI with a timeout, can you look at the repo"
+  },
+  {
+    "title": "React form validation",
+    "ask": "add validation to the signup form in my react app, email format and password length"
+  },
+  {
+    "title": "Debug null pointer in Java",
+    "ask": "getting a NullPointerException in OrderService line 88, cant figure out why"
+  },
+  {
+    "title": "SQL query for top customers",
+    "ask": "sql to get the top 10 customers by total order value in the last 90 days"
+  },
+  {
+    "title": "Regex for parsing log lines",
+    "ask": "regex to pull timestamp, level, and message out of these log lines"
+  },
+  {
+    "title": "Git merge conflict help",
+    "ask": "i have a merge conflict in package.json and im scared to break things, walk me thru it"
+  },
+  {
+    "title": "Undo last git commit",
+    "ask": "how do i undo my last commit but keep the changes, havent pushed yet"
+  },
+  {
+    "title": "Bash script to back up folder",
+    "ask": "bash script that zips my projects folder nightly and keeps the last 7 copies"
+  },
+  {
+    "title": "Convert callbacks to async await",
+    "ask": "refactor this node file from callbacks to async/await, its a mess"
+  },
+  {
+    "title": "Dockerfile for Flask app",
+    "ask": "write a dockerfile for my flask app, python 3.12, gunicorn"
+  },
+  {
+    "title": "TypeScript type error explanation",
+    "ask": "what does this typescript error mean: Type string is not assignable to type never"
+  },
+  {
+    "title": "Set up ESLint in project",
+    "ask": "set up linting for my small js project, sensible defaults nothing strict"
+  },
+  {
+    "title": "Write unit tests for parser",
+    "ask": "write unit tests for the date parser in utils/dates.py, cover edge cases"
+  },
+  {
+    "title": "Speed up slow SQL query",
+    "ask": "this query takes 12 seconds on postgres, heres the explain output. help"
+  },
+  {
+    "title": "CSS grid layout help",
+    "ask": "i want a 3 column card grid that goes to 1 column on mobile, css grid"
+  },
+  {
+    "title": "Center a div finally",
+    "ask": "how do i center a div vertically and horizontally, i always forget"
+  },
+  {
+    "title": "Python virtual environment confusion",
+    "ask": "pip installs stuff but my script says module not found. venv confusion i think"
+  },
+  {
+    "title": "Explain recursion simply",
+    "ask": "explain recursion like im new to programming, with a small python example"
+  },
+  {
+    "title": "Rust borrow checker error",
+    "ask": "cannot borrow as mutable because it is also borrowed as immutable. what do i do"
+  },
+  {
+    "title": "API pagination in JavaScript",
+    "ask": "fetch all pages from a paginated REST api in js until next is null"
+  },
+  {
+    "title": "Parse JSON in Swift",
+    "ask": "decode this json into swift structs, some fields are optional"
+  },
+  {
+    "title": "Cron expression help",
+    "ask": "cron expression for every weekday at 6:30am?"
+  },
+  {
+    "title": "GitHub Actions workflow for tests",
+    "ask": "github actions workflow that runs pytest on every pull request"
+  },
+  {
+    "title": "Refactor long function",
+    "ask": "this function is 300 lines, help me break it up into smaller pieces"
+  },
+  {
+    "title": "Write a CLI with argparse",
+    "ask": "small python cli with argparse: input file, output file, and a --verbose flag"
+  },
+  {
+    "title": "Memory leak in Node server",
+    "ask": "node server memory keeps climbing over a day, how do i find the leak"
+  },
+  {
+    "title": "Go error handling patterns",
+    "ask": "whats the idiomatic way to wrap errors in go these days"
+  },
+  {
+    "title": "Kotlin coroutine question",
+    "ask": "why does my kotlin coroutine not cancel when the activity is destroyed"
+  },
+  {
+    "title": "Write a web scraper",
+    "ask": "scrape the table of library branch hours from our city library page into csv"
+  },
+  {
+    "title": "Set up Python logging",
+    "ask": "set up python logging that writes to file and console with different levels"
+  },
+  {
+    "title": "Explain Big O notation",
+    "ask": "explain big O with examples, i have an interview friday"
+  },
+  {
+    "title": "LeetCode two sum walkthrough",
+    "ask": "walk me through two sum with a hash map, why is it O(n)"
+  },
+  {
+    "title": "Fix CORS error",
+    "ask": "getting a CORS error calling my api from localhost:3000, the api is express"
+  },
+  {
+    "title": "Environment variables in Next.js",
+    "ask": "env vars are undefined in my next.js client component, why"
+  },
+  {
+    "title": "Shell alias for git log",
+    "ask": "make a shell alias that shows git log as a pretty one-line graph"
+  },
+  {
+    "title": "Convert JSON to CSV",
+    "ask": "convert this nested json file to csv, flatten the address object"
+  },
+  {
+    "title": "Write a SQL migration",
+    "ask": "write a migration to add a nullable archived_at column to the projects table"
+  },
+  {
+    "title": "Python list comprehension help",
+    "ask": "rewrite this for loop as a list comprehension if it stays readable"
+  },
+  {
+    "title": "Django model relationships",
+    "ask": "how should i model authors and books in django if books can have many authors"
+  },
+  {
+    "title": "Unit test mocking question",
+    "ask": "how do i mock a datetime.now call in pytest"
+  },
+  {
+    "title": "Fix flaky Selenium test",
+    "ask": "selenium test randomly fails cant find element, i think its timing"
+  },
+  {
+    "title": "Rename files with script",
+    "ask": "script to rename every file in a folder to lowercase with dashes instead of spaces"
+  },
+  {
+    "title": "Explain this code snippet",
+    "ask": "can you explain what this bash one-liner does line by line, found it on stackoverflow"
+  },
+  {
+    "title": "VS Code extensions for Python",
+    "ask": "which vs code settings/extensions do i actually need for python dev"
+  },
+  {
+    "title": "Write a Makefile",
+    "ask": "simple makefile with build, test, clean targets for a C project"
+  },
+  {
+    "title": "Fix Python import cycle",
+    "ask": "circular import between models.py and utils.py, how do i untangle it"
+  },
+  {
+    "title": "Sort a list of dicts",
+    "ask": "sort a list of dicts by date then by name in python"
+  },
+  {
+    "title": "Set up SSH keys for GitHub",
+    "ask": "walk me through making ssh keys and adding them to github on a mac"
+  },
+  {
+    "title": "Write a binary search",
+    "ask": "write binary search in javascript and explain the off by one traps"
+  },
+  {
+    "title": "Postgres backup script",
+    "ask": "script that dumps my postgres db daily and uploads to an s3 bucket"
+  },
+  {
+    "title": "Debug a 500 error",
+    "ask": "my flask route returns 500 but no error in the log. where do i look"
+  },
+  {
+    "title": "Write a GraphQL schema",
+    "ask": "graphql schema for a simple todo app with users and lists"
+  },
+  {
+    "title": "Accessible button component",
+    "ask": "make this custom button component accessible, keyboard and screen reader"
+  },
+  {
+    "title": "Explain closures in JS",
+    "ask": "closures in javascript, explain with a counter example please"
+  },
+  {
+    "title": "R script for linear regression",
+    "ask": "run a linear regression in R on this csv and explain the output"
+  },
+  {
+    "title": "Pandas groupby question",
+    "ask": "pandas groupby two columns and get sum and mean in one go"
+  },
+  {
+    "title": "Jupyter notebook cleanup",
+    "ask": "clean up my messy jupyter notebook into a proper python module"
+  },
+  {
+    "title": "Fix date timezone bug",
+    "ask": "dates show a day early for users in california, i store them as UTC midnight"
+  },
+  {
+    "title": "Write a Chrome extension skeleton",
+    "ask": "bare bones chrome extension that adds a word count to any page"
+  },
+  {
+    "title": "Set up pre-commit hooks",
+    "ask": "set up pre-commit with black and isort for my repo"
+  },
+  {
+    "title": "Database index advice",
+    "ask": "which columns should i index on this orders table, heres the common queries"
+  },
+  {
+    "title": "Write a regex for postal codes",
+    "ask": "regex to validate canadian postal codes, with or without the space"
+  },
+  {
+    "title": "Explain REST vs GraphQL",
+    "ask": "rest vs graphql for a small internal app, which is less work"
+  },
+  {
+    "title": "Convert Python 2 script",
+    "ask": "this old script is python 2, port it to python 3"
+  },
+  {
+    "title": "Kubernetes pod keeps restarting",
+    "ask": "pod is in CrashLoopBackOff, how do i see why"
+  },
+  {
+    "title": "Terraform state confusion",
+    "ask": "terraform says resource already exists but its not in my state file"
+  },
+  {
+    "title": "Shell function for large files",
+    "ask": "shell function that lists the 20 biggest files under the current dir"
+  },
+  {
+    "title": "Swift UI list not updating",
+    "ask": "my swiftui list doesnt refresh when i add items to the array"
+  },
+  {
+    "title": "Excel macro to VBA cleanup",
+    "ask": "clean up this recorded VBA macro, its full of Select and Activate"
+  },
+  {
+    "title": "Write a sitemap generator",
+    "ask": "script that crawls my static site folder and writes sitemap.xml"
+  },
+  {
+    "title": "Fix npm install errors",
+    "ask": "npm install fails with ERESOLVE peer dependency stuff, what do i do"
+  },
+  {
+    "title": "Learn TypeScript generics",
+    "ask": "i dont get generics in typescript, show me 3 practical examples"
+  },
+  {
+    "title": "Code review my pull request",
+    "ask": "review the diff in my branch for obvious bugs before i open the PR"
+  },
+  {
+    "title": "Write docstrings for module",
+    "ask": "add docstrings to every function in this python module, google style"
+  },
+  {
+    "title": "Monthly budget template",
+    "ask": "help me set up a simple monthly budget, i get paid twice a month"
+  },
+  {
+    "title": "Emergency fund target",
+    "ask": "how big should my emergency fund be if my expenses are about 3k a month"
+  },
+  {
+    "title": "Compare savings accounts",
+    "ask": "explain the difference between high yield savings and a money market account"
+  },
+  {
+    "title": "Pay off debt strategy",
+    "ask": "avalanche or snowball for paying off 3 credit cards? balances in the sheet"
+  },
+  {
+    "title": "Understanding compound interest",
+    "ask": "explain compound interest with an example, starting with 5k at 4 percent"
+  },
+  {
+    "title": "Credit score basics",
+    "ask": "what actually affects a credit score and how long do late payments stick"
+  },
+  {
+    "title": "Certificate of deposit ladder",
+    "ask": "explain how a CD ladder works and set one up with 10k across 5 terms"
+  },
+  {
+    "title": "Find recurring bank charges",
+    "ask": "go through my bank csv and list recurring charges so i can see what renews monthly"
+  },
+  {
+    "title": "Rent vs buy calculator",
+    "ask": "rent vs buy math for a place around 400k, help me set up the comparison"
+  },
+  {
+    "title": "Student loan repayment options",
+    "ask": "explain income driven repayment vs standard for student loans"
+  },
+  {
+    "title": "Categorize bank transactions",
+    "ask": "categorize last months bank transactions into groceries, rent, utilities, etc"
+  },
+  {
+    "title": "Savings goal tracker",
+    "ask": "make a tracker for saving 6000 by next june, how much per paycheck"
+  },
+  {
+    "title": "Index funds explained",
+    "ask": "what is an index fund and why does everyone say to buy them"
+  },
+  {
+    "title": "Car loan interest comparison",
+    "ask": "compare a 48 vs 60 month car loan at these rates, total interest"
+  },
+  {
+    "title": "Net worth spreadsheet",
+    "ask": "simple net worth tracker sheet, assets and liabilities, updated monthly"
+  },
+  {
+    "title": "Rule of 72 explained",
+    "ask": "what is the rule of 72 and how accurate is it compared to the real math"
+  },
+  {
+    "title": "Splitting bills with roommates",
+    "ask": "fair way to split utilities with 3 roommates when one works from home"
+  },
+  {
+    "title": "Freelance invoicing system",
+    "ask": "set up an invoicing system for freelance work, numbering and due dates"
+  },
+  {
+    "title": "Inflation explained simply",
+    "ask": "why does inflation happen, explain like im 15"
+  },
+  {
+    "title": "Sinking funds setup",
+    "ask": "explain sinking funds and help me set up 4 of them in my budget sheet"
+  },
+  {
+    "title": "Credit card rewards math",
+    "ask": "is a 95 dollar annual fee card worth it if i spend 1500 a month"
+  },
+  {
+    "title": "Reconcile checkbook register",
+    "ask": "my spreadsheet balance is 43 dollars off from the bank, help find it"
+  },
+  {
+    "title": "Insurance deductible explained",
+    "ask": "what does deductible vs out of pocket max actually mean on my plan"
+  },
+  {
+    "title": "Mortgage refinance break even",
+    "ask": "refinance break even calculation, closing costs 4k, saves 180 a month"
+  },
+  {
+    "title": "Budget for irregular income",
+    "ask": "how do i budget when my income swings between 2k and 6k a month"
+  },
+  {
+    "title": "Learn Spanish study plan",
+    "ask": "30 minute a day spanish study plan, im an advanced beginner"
+  },
+  {
+    "title": "Explain photosynthesis",
+    "ask": "explain photosynthesis for a 7th grade science review sheet"
+  },
+  {
+    "title": "Flashcards from lecture notes",
+    "ask": "turn my biology lecture notes into flashcards, question on front answer on back"
+  },
+  {
+    "title": "Study schedule for exams",
+    "ask": "i have 4 exams in 2 weeks, make me a study schedule that isnt insane"
+  },
+  {
+    "title": "Learn statistics basics",
+    "ask": "what stats should i learn first for data analysis, give me an order"
+  },
+  {
+    "title": "Explain the French Revolution",
+    "ask": "summary of the causes of the french revolution in like 10 bullets"
+  },
+  {
+    "title": "Practice calculus problems",
+    "ask": "give me 10 derivative practice problems with answers hidden at the end"
+  },
+  {
+    "title": "Learn touch typing",
+    "ask": "plan for learning to touch type properly, i hunt and peck at 40wpm"
+  },
+  {
+    "title": "Explain how vaccines work",
+    "ask": "how do mRNA vaccines work, simple but accurate"
+  },
+  {
+    "title": "Quiz me on world capitals",
+    "ask": "quiz me on african capitals, one at a time, keep score"
+  },
+  {
+    "title": "Learn Excel shortcuts",
+    "ask": "top 20 excel keyboard shortcuts worth memorizing on mac"
+  },
+  {
+    "title": "Explain blockchain plainly",
+    "ask": "explain what a blockchain actually is without hype"
+  },
+  {
+    "title": "Understanding the electoral college",
+    "ask": "how does the electoral college work and why do people argue about it"
+  },
+  {
+    "title": "Learn basic Japanese phrases",
+    "ask": "basic japanese phrases for a beginner class, with romaji"
+  },
+  {
+    "title": "Physics homework help",
+    "ask": "block on an incline with friction, coefficient 0.3, find acceleration. show steps"
+  },
+  {
+    "title": "Explain supply and demand",
+    "ask": "explain supply and demand curves with a real example"
+  },
+  {
+    "title": "Chemistry balancing equations",
+    "ask": "how do i balance chemical equations, walk through C3H8 + O2"
+  },
+  {
+    "title": "Book summary for class",
+    "ask": "summarize chapters 1 to 5 of The Great Gatsby for my lit class"
+  },
+  {
+    "title": "Essay outline on urban transit",
+    "ask": "outline an argumentative essay on whether cities should make buses free"
+  },
+  {
+    "title": "Learn SQL from scratch",
+    "ask": "im a total beginner, teach me SQL basics with practice exercises"
+  },
+  {
+    "title": "Explain machine learning terms",
+    "ask": "what's the difference between training, validation, and test sets"
+  },
+  {
+    "title": "Memorization techniques",
+    "ask": "best techniques to memorize a 5 minute speech"
+  },
+  {
+    "title": "Learn to read faster",
+    "ask": "is speed reading real? how can i read nonfiction faster without losing it"
+  },
+  {
+    "title": "Explain the stock market",
+    "ask": "how does the stock market actually work, im clueless"
+  },
+  {
+    "title": "Geometry proof help",
+    "ask": "help me prove that the base angles of an isosceles triangle are equal"
+  },
+  {
+    "title": "Learn sign language basics",
+    "ask": "where do i start learning ASL, what should the first month look like"
+  },
+  {
+    "title": "History timeline of Rome",
+    "ask": "timeline of the roman republic to empire, key dates only"
+  },
+  {
+    "title": "Explain DNS like im five",
+    "ask": "explain how DNS works like im five, what happens when i type a url"
+  },
+  {
+    "title": "Grammar who vs whom",
+    "ask": "when do i use who vs whom, my brain refuses to learn this"
+  },
+  {
+    "title": "Research on sleep and memory",
+    "ask": "find recent research on how sleep affects memory consolidation, summarize"
+  },
+  {
+    "title": "Literature review on remote work",
+    "ask": "help me find and summarize papers on remote work and productivity"
+  },
+  {
+    "title": "Compare note-taking methods",
+    "ask": "compare cornell notes, zettelkasten, and outline method for grad school"
+  },
+  {
+    "title": "Research electric vehicle range",
+    "ask": "how much does cold weather reduce EV range? find some real data"
+  },
+  {
+    "title": "History of the printing press",
+    "ask": "research the impact of the printing press on literacy rates in europe"
+  },
+  {
+    "title": "Compare project management tools",
+    "ask": "compare asana, trello, and linear for a 6 person team"
+  },
+  {
+    "title": "Find census data for my county",
+    "ask": "find population growth data for my county over the last 20 years"
+  },
+  {
+    "title": "Research four day work week",
+    "ask": "summarize the evidence from four day work week trials"
+  },
+  {
+    "title": "Fact check a statistic",
+    "ask": "someone said 90% of startups fail in year one. is that true?"
+  },
+  {
+    "title": "Background on microplastics",
+    "ask": "whats the current science on microplastics in drinking water"
+  },
+  {
+    "title": "Research best CRM for small business",
+    "ask": "which CRMs are good for a 3 person consultancy, summarize options"
+  },
+  {
+    "title": "Compare reference managers",
+    "ask": "zotero vs mendeley vs endnote for a phd student, which is least painful"
+  },
+  {
+    "title": "Solar panel degradation research",
+    "ask": "how much does solar panel output degrade over 25 years? find real numbers"
+  },
+  {
+    "title": "Summarize a court ruling",
+    "ask": "summarize the key points of this court opinion pdf for a non lawyer"
+  },
+  {
+    "title": "Research on screen time and kids",
+    "ask": "what does research say about screen time for toddlers, any consensus"
+  },
+  {
+    "title": "Compare email newsletter platforms",
+    "ask": "compare substack, buttondown, and ghost for a small newsletter"
+  },
+  {
+    "title": "Origin of a phrase",
+    "ask": "where does the phrase \"bite the bullet\" come from"
+  },
+  {
+    "title": "Research local zoning rules",
+    "ask": "how do i find out if my lot allows an accessory dwelling unit"
+  },
+  {
+    "title": "Compare kanban vs scrum",
+    "ask": "kanban vs scrum for a 5 person support team, which fits better"
+  },
+  {
+    "title": "Research on remote learning outcomes",
+    "ask": "what did studies find about remote learning outcomes during 2020-2021"
+  },
+  {
+    "title": "History of the internet summary",
+    "ask": "short history of the internet from ARPANET to the web"
+  },
+  {
+    "title": "Explain carbon offsets",
+    "ask": "do carbon offsets actually work? summarize the criticism and the defense"
+  },
+  {
+    "title": "Research public library programs",
+    "ask": "what kinds of programs do public libraries run for adults, ideas for our branch"
+  },
+  {
+    "title": "Compare cloud storage options",
+    "ask": "icloud vs google drive vs dropbox for storing about 500gb"
+  },
+  {
+    "title": "Water usage of lawns",
+    "ask": "how much water does a typical lawn use per summer, find sources"
+  },
+  {
+    "title": "Research wildfire smoke spread",
+    "ask": "how far does wildfire smoke spread and how is AQI measured"
+  },
+  {
+    "title": "Research on standing desks",
+    "ask": "is there real evidence standing desks help anything"
+  },
+  {
+    "title": "Compare online course platforms",
+    "ask": "coursera vs edx vs udemy for learning data science"
+  },
+  {
+    "title": "Explain the debt ceiling",
+    "ask": "what is the debt ceiling and what happens if its hit"
+  },
+  {
+    "title": "Research ocean tide mechanics",
+    "ask": "why are there two high tides a day? explain the moon thing"
+  },
+  {
+    "title": "Summarize a research paper",
+    "ask": "summarize this paper on battery chemistry in plain english, its in my downloads"
+  },
+  {
+    "title": "Organize Downloads folder",
+    "ask": "my downloads folder has 3000 files, sort them into subfolders by type"
+  },
+  {
+    "title": "Rename scanned documents",
+    "ask": "rename the scanned pdfs in Scans to date_description format based on whats in them"
+  },
+  {
+    "title": "Find duplicate files",
+    "ask": "find duplicate files across Documents and Desktop and list them, dont delete yet"
+  },
+  {
+    "title": "Archive old project folders",
+    "ask": "move any project folder i havent touched in a year into an Archive folder"
+  },
+  {
+    "title": "Clean up Desktop clutter",
+    "ask": "my desktop is a disaster, group everything into a few sensible folders"
+  },
+  {
+    "title": "Folder structure for freelancing",
+    "ask": "suggest a folder structure for freelance client work, contracts invoices deliverables"
+  },
+  {
+    "title": "Batch rename photos by date",
+    "ask": "rename all the photos in this folder to their date taken, like 2025-06-14_001"
+  },
+  {
+    "title": "Sort PDFs into folders by topic",
+    "ask": "sort the pdf papers in my research folder into subfolders by topic"
+  },
+  {
+    "title": "Find a file I lost",
+    "ask": "i saved a doc about the warehouse lease last week and cant find it anywhere"
+  },
+  {
+    "title": "Free up disk space",
+    "ask": "disk is almost full, find what's taking up the most space"
+  },
+  {
+    "title": "Empty large caches safely",
+    "ask": "which caches on my mac are safe to delete to get space back"
+  },
+  {
+    "title": "Back up documents to external drive",
+    "ask": "set up a regular backup of Documents to my external drive"
+  },
+  {
+    "title": "Time Machine not finishing",
+    "ask": "time machine backup has been stuck on preparing for hours"
+  },
+  {
+    "title": "Zip and compress project files",
+    "ask": "compress the client deliverables folder into a zip under 25mb if possible"
+  },
+  {
+    "title": "Convert HEIC images to JPG",
+    "ask": "convert all the heic files in this folder to jpg"
+  },
+  {
+    "title": "Clean up old installers",
+    "ask": "find and delete old .dmg and .pkg installers sitting around"
+  },
+  {
+    "title": "Organize ebooks library",
+    "ask": "organize my ebook folder by author, some files are named like book(1).epub"
+  },
+  {
+    "title": "Tag files by project",
+    "ask": "add finder tags to files in Work based on which client they belong to"
+  },
+  {
+    "title": "Folder naming conventions",
+    "ask": "whats a good naming convention for folders so they sort nicely"
+  },
+  {
+    "title": "Find files modified this week",
+    "ask": "show me every file i changed this week across my home folder"
+  },
+  {
+    "title": "Merge two notes folders",
+    "ask": "i have two notes folders with overlapping stuff, merge and keep the newest version"
+  },
+  {
+    "title": "Clean up email attachments folder",
+    "ask": "the mail attachments folder is huge, what can i safely clear"
+  },
+  {
+    "title": "Sync folder between two Macs",
+    "ask": "easiest way to keep one folder in sync between my laptop and desktop"
+  },
+  {
+    "title": "Unzip and sort a big archive",
+    "ask": "unzip this archive from a client and sort the contents into my project folders"
+  },
+  {
+    "title": "Check file permissions issue",
+    "ask": "cant save to a folder on my mac, says i dont have permission"
+  },
+  {
+    "title": "Organize a messy notes app",
+    "ask": "reorganize my notes app, theres like 600 notes with no folders"
+  },
+  {
+    "title": "Spotlight not finding files",
+    "ask": "spotlight stopped finding files i know exist, how do i reindex"
+  },
+  {
+    "title": "Clean up bookmarks",
+    "ask": "my browser bookmarks are chaos, sort them into folders and drop dead links"
+  },
+  {
+    "title": "Close too many browser tabs",
+    "ask": "i have 140 tabs open, help me save the important ones and close the rest"
+  },
+  {
+    "title": "Convert Pages files to Word",
+    "ask": "convert every pages file in this folder to docx for a coworker"
+  },
+  {
+    "title": "Find large old emails",
+    "ask": "find emails with big attachments older than 2 years so i can clear space"
+  },
+  {
+    "title": "Rename folder of invoices",
+    "ask": "rename invoice pdfs to client_invoicenumber_date from whats in each file"
+  },
+  {
+    "title": "Make an index of documents",
+    "ask": "make a spreadsheet index of everything in the HR folder with dates and titles"
+  },
+  {
+    "title": "Archive old work folders",
+    "ask": "archive my 2019 to 2021 work folders onto the external drive and verify the copy"
+  },
+  {
+    "title": "Calendar for semester classes",
+    "ask": "add my spring class schedule to my calendar, MWF and TTh blocks"
+  },
+  {
+    "title": "Recurring reminder setup",
+    "ask": "remind me every other friday to submit my timesheet"
+  },
+  {
+    "title": "Find a free hour this week",
+    "ask": "find a free hour on my calendar this week for a dentist call"
+  },
+  {
+    "title": "Block focus time on calendar",
+    "ask": "block 9 to 11 every morning as focus time, except mondays"
+  },
+  {
+    "title": "Clean up duplicate calendar events",
+    "ask": "my calendar has duplicates of everything after a sync, help me clean it up"
+  },
+  {
+    "title": "Calendar for team on-call rotation",
+    "ask": "make an on-call rotation for 5 people over 10 weeks, no back to back weeks"
+  },
+  {
+    "title": "Schedule a recurring check-in",
+    "ask": "set up a biweekly 1:1 with my report starting next tuesday at 2"
+  },
+  {
+    "title": "Due dates into calendar",
+    "ask": "put all the assignment due dates from this syllabus pdf into my calendar"
+  },
+  {
+    "title": "Color code my calendar",
+    "ask": "help me color code calendar categories so i can see my week at a glance"
+  },
+  {
+    "title": "Plan my week",
+    "ask": "look at my calendar and todo list and help me plan the week realistically"
+  },
+  {
+    "title": "Time blocking template",
+    "ask": "show me how to time block a work day, i have too many small tasks"
+  },
+  {
+    "title": "Reminder for bill due dates",
+    "ask": "set reminders 3 days before each bill is due, list is in the budget sheet"
+  },
+  {
+    "title": "Shared calendar for club",
+    "ask": "set up a shared calendar for our book club with monthly dates"
+  },
+  {
+    "title": "Sort out conflicting appointments",
+    "ask": "i double booked thursday afternoon, which ones can move"
+  },
+  {
+    "title": "Countdown to deadline",
+    "ask": "how many working days until dec 15, excluding thanksgiving"
+  },
+  {
+    "title": "Daily routine schedule",
+    "ask": "help me build a daily routine that fits in a workout and deep work"
+  },
+  {
+    "title": "Weekly review checklist",
+    "ask": "a weekly review checklist like GTD, short enough that ill actually do it"
+  },
+  {
+    "title": "Todo list prioritization",
+    "ask": "i have 30 things on my todo list, help me sort by urgent/important"
+  },
+  {
+    "title": "Convert todo list to calendar",
+    "ask": "take my todo list and schedule each item into open slots this week"
+  },
+  {
+    "title": "Pomodoro schedule plan",
+    "ask": "pomodoro plan for a 6 hour study day with longer breaks"
+  },
+  {
+    "title": "Mac running slow",
+    "ask": "my mac got slow this week, beachballs everywhere, what can i check"
+  },
+  {
+    "title": "Login items cleanup",
+    "ask": "too many apps opening at login, help me trim them down"
+  },
+  {
+    "title": "Wifi keeps dropping",
+    "ask": "wifi on my laptop drops every 20 min but phone is fine"
+  },
+  {
+    "title": "Printer not showing up",
+    "ask": "my printer shows offline on my mac even though its on the network"
+  },
+  {
+    "title": "Reset forgotten app password",
+    "ask": "forgot my password for a desktop app, how do i reset it without losing data"
+  },
+  {
+    "title": "Set up a new user account",
+    "ask": "create a separate user account on this mac for a coworker who shares it sometimes"
+  },
+  {
+    "title": "Keyboard shortcut for window snapping",
+    "ask": "how do i snap windows to halves on mac with keyboard shortcuts"
+  },
+  {
+    "title": "Battery draining fast",
+    "ask": "laptop battery drains way faster than it used to, find the culprit"
+  },
+  {
+    "title": "External monitor resolution wrong",
+    "ask": "external monitor looks blurry, resolution options are weird"
+  },
+  {
+    "title": "Uninstall an app completely",
+    "ask": "how do i fully uninstall an app and its leftover files"
+  },
+  {
+    "title": "Fix Bluetooth mouse lag",
+    "ask": "bluetooth mouse is laggy and jumpy, any fixes"
+  },
+  {
+    "title": "Change default browser",
+    "ask": "change my default browser and make links from mail open there"
+  },
+  {
+    "title": "Terminal basics for beginners",
+    "ask": "teach me basic terminal commands, i'm scared of it"
+  },
+  {
+    "title": "Set up text expansion shortcuts",
+    "ask": "set up text shortcuts so typing ;addr types my work signature block"
+  },
+  {
+    "title": "Automate a repetitive task",
+    "ask": "every morning i open the same 5 apps and files, can that be automated"
+  },
+  {
+    "title": "Fix a corrupted Word file",
+    "ask": "word says this file is corrupted, any way to get the text back"
+  },
+  {
+    "title": "Recover a deleted file",
+    "ask": "i deleted a folder yesterday and emptied trash, any chance to recover it"
+  },
+  {
+    "title": "Update app keeps failing",
+    "ask": "an app update keeps failing at 90 percent, what do i try"
+  },
+  {
+    "title": "Dark mode for specific apps",
+    "ask": "can i keep dark mode on but make one app stay light"
+  },
+  {
+    "title": "Mail signature setup",
+    "ask": "set up a mail signature with my name, title, and the office hours line"
+  },
+  {
+    "title": "Clipboard history tool",
+    "ask": "is there a way to see my clipboard history on mac"
+  },
+  {
+    "title": "Change file associations",
+    "ask": "make all .csv files open in numbers instead of excel"
+  },
+  {
+    "title": "Disk utility first aid",
+    "ask": "disk utility first aid found errors, what does that mean"
+  },
+  {
+    "title": "Font installation help",
+    "ask": "installed a font but it doesnt show up in pages"
+  },
+  {
+    "title": "Kill a frozen process",
+    "ask": "an app is frozen and force quit doesnt work, what now"
+  },
+  {
+    "title": "Default save location change",
+    "ask": "make apps save to Documents/Inbox by default instead of the desktop"
+  },
+  {
+    "title": "Tomato plants turning yellow",
+    "ask": "bottom leaves on my tomato plants are turning yellow, too much water?"
+  },
+  {
+    "title": "Vegetable garden layout",
+    "ask": "plan a 4x8 raised bed for zone 6, tomatoes peppers beans lettuce"
+  },
+  {
+    "title": "When to plant garlic",
+    "ask": "when do i plant garlic in zone 5 and how deep"
+  },
+  {
+    "title": "Composting basics",
+    "ask": "how do i start a compost pile in a small yard without it smelling"
+  },
+  {
+    "title": "Houseplant care schedule",
+    "ask": "make a watering schedule for my 12 houseplants, list in notes"
+  },
+  {
+    "title": "Fiddle leaf fig dropping leaves",
+    "ask": "my fiddle leaf fig keeps dropping leaves, its by a window"
+  },
+  {
+    "title": "Pruning roses guide",
+    "ask": "how and when do i prune knockout roses, they got huge this year"
+  },
+  {
+    "title": "Lawn overseeding timing",
+    "ask": "best time to overseed a patchy lawn in the midwest"
+  },
+  {
+    "title": "Seed starting indoors",
+    "ask": "seed starting schedule for peppers and tomatoes, last frost is may 10"
+  },
+  {
+    "title": "Raised bed soil mix",
+    "ask": "what soil mix should i fill new raised beds with, cost effective"
+  },
+  {
+    "title": "Native plants for pollinators",
+    "ask": "native plants for a pollinator garden in the northeast, part shade"
+  },
+  {
+    "title": "Getting rid of aphids",
+    "ask": "aphids all over my kale, how do i get rid of them without harsh sprays"
+  },
+  {
+    "title": "Succulent repotting",
+    "ask": "how do i repot a succulent thats outgrown its pot"
+  },
+  {
+    "title": "Herb garden on a balcony",
+    "ask": "which herbs grow well on a sunny balcony in pots"
+  },
+  {
+    "title": "Garden journal spreadsheet",
+    "ask": "spreadsheet to log what i planted, where, and how it did each season"
+  },
+  {
+    "title": "Fall garden cleanup list",
+    "ask": "fall garden cleanup checklist, what to cut back and what to leave"
+  },
+  {
+    "title": "Hydrangea color science",
+    "ask": "why are some hydrangeas blue and some pink, is it the soil"
+  },
+  {
+    "title": "Mulch types compared",
+    "ask": "wood chips vs straw vs leaves for mulch in veggie beds"
+  },
+  {
+    "title": "Orchid rebloom tips",
+    "ask": "how do i get my orchid to bloom again, its just leaves now"
+  },
+  {
+    "title": "Planting bulbs for spring",
+    "ask": "which bulbs to plant this fall for early spring color, and spacing"
+  },
+  {
+    "title": "Puppy house training plan",
+    "ask": "we just got an 9 week old puppy, need a house training schedule"
+  },
+  {
+    "title": "Dog pulling on leash",
+    "ask": "my dog pulls like crazy on walks, training tips that actually work"
+  },
+  {
+    "title": "Cat litter box avoidance",
+    "ask": "our cat started peeing outside the litter box, what could cause it"
+  },
+  {
+    "title": "Introducing two cats",
+    "ask": "how do i introduce a new cat to my older cat without fights"
+  },
+  {
+    "title": "Dog separation anxiety",
+    "ask": "dog howls when i leave for work, neighbors complained. ideas"
+  },
+  {
+    "title": "Pet vaccination schedule tracker",
+    "ask": "tracker for my 2 dogs vaccines and vet visits with due dates"
+  },
+  {
+    "title": "Aquarium nitrogen cycle",
+    "ask": "explain the nitrogen cycle for a new fish tank, how long to wait"
+  },
+  {
+    "title": "Choosing a dog breed",
+    "ask": "breeds good for apartment living that dont need tons of exercise"
+  },
+  {
+    "title": "Rabbit diet basics",
+    "ask": "what should a pet rabbit eat daily, how much hay vs pellets"
+  },
+  {
+    "title": "Dog crate training",
+    "ask": "crate training a rescue dog who hates the crate, step by step"
+  },
+  {
+    "title": "Teach dog to stay",
+    "ask": "how do i teach my dog a reliable stay, even when theres a squirrel"
+  },
+  {
+    "title": "Senior dog exercise changes",
+    "ask": "my 12 year old dog is stiff in the mornings, how should i adjust walks"
+  },
+  {
+    "title": "Bird cage setup for parakeet",
+    "ask": "setting up a cage for two parakeets, what do they need"
+  },
+  {
+    "title": "Pet sitter instructions doc",
+    "ask": "write instructions for a pet sitter: feeding, walks, meds, vet number placeholder"
+  },
+  {
+    "title": "Hamster care basics",
+    "ask": "first time hamster owner, what do i need to know"
+  },
+  {
+    "title": "Leopard gecko habitat",
+    "ask": "leopard gecko tank setup, heat and humidity requirements"
+  },
+  {
+    "title": "Cat scratching furniture",
+    "ask": "cat destroying the couch, how do i redirect to a scratching post"
+  },
+  {
+    "title": "Dog adoption checklist",
+    "ask": "checklist of things to prep before adopting a dog this month"
+  },
+  {
+    "title": "Fish tank cloudy water",
+    "ask": "fish tank water went cloudy two days after a water change, why"
+  },
+  {
+    "title": "Training a dog to come",
+    "ask": "recall training tips, my dog ignores me at the park"
+  },
+  {
+    "title": "Fantasy football draft strategy",
+    "ask": "first time doing fantasy football, explain draft strategy for 12 team ppr"
+  },
+  {
+    "title": "Explain offside rule",
+    "ask": "explain the offside rule in soccer, our rec league started and im lost"
+  },
+  {
+    "title": "Marathon training plan",
+    "ask": "16 week marathon training plan, i currently run 20 miles a week"
+  },
+  {
+    "title": "Couch to 5k schedule",
+    "ask": "couch to 5k plan, im starting from zero and my knees are cranky"
+  },
+  {
+    "title": "Basketball stats spreadsheet",
+    "ask": "spreadsheet to track points rebounds assists for a rec league team"
+  },
+  {
+    "title": "Understanding baseball WAR",
+    "ask": "what is WAR in baseball and how is it calculated roughly"
+  },
+  {
+    "title": "Tennis serve technique",
+    "ask": "tips to fix my tennis serve, i keep hitting the net"
+  },
+  {
+    "title": "Swimming laps workout",
+    "ask": "45 min swim workout for an intermediate swimmer"
+  },
+  {
+    "title": "Golf handicap explained",
+    "ask": "how does a golf handicap work, and how many rounds do i need for one"
+  },
+  {
+    "title": "Strength training beginner plan",
+    "ask": "3 day a week beginner strength program, gym access"
+  },
+  {
+    "title": "Stretching routine for runners",
+    "ask": "10 minute stretching routine after runs, my calves are always tight"
+  },
+  {
+    "title": "Coaching youth soccer drills",
+    "ask": "fun drills for coaching 8 year olds soccer, 45 min practice"
+  },
+  {
+    "title": "Rules of pickleball",
+    "ask": "explain pickleball rules and scoring, playing for the first time saturday"
+  },
+  {
+    "title": "Hockey penalty types",
+    "ask": "whats the difference between minor major and misconduct penalties in hockey"
+  },
+  {
+    "title": "Rock climbing grades",
+    "ask": "explain bouldering V grades vs rope climbing grades"
+  },
+  {
+    "title": "Running pace calculator",
+    "ask": "what pace do i need for a sub 2 hour half marathon"
+  },
+  {
+    "title": "Yoga routine for back",
+    "ask": "gentle yoga routine for lower back stiffness"
+  },
+  {
+    "title": "Chess opening for beginners",
+    "ask": "which chess opening should a beginner learn first"
+  },
+  {
+    "title": "Learn to juggle",
+    "ask": "teach me to juggle 3 balls, step by step"
+  },
+  {
+    "title": "Knitting a first blanket",
+    "ask": "first knitting project, which yarn and needles for a simple throw blanket"
+  },
+  {
+    "title": "Crossword solving tips",
+    "ask": "how do i get better at the saturday crossword"
+  },
+  {
+    "title": "Birdwatching for beginners",
+    "ask": "getting into birdwatching, what should i learn first"
+  },
+  {
+    "title": "Stargazing this month",
+    "ask": "what can i see in the night sky this month with just binoculars"
+  },
+  {
+    "title": "Woodworking first project",
+    "ask": "easy first woodworking project with basic hand tools"
+  },
+  {
+    "title": "Start a book club",
+    "ask": "how do i start a book club at work, first few book ideas"
+  },
+  {
+    "title": "Reading list for the year",
+    "ask": "build a 24 book reading list mixing fiction and nonfiction"
+  },
+  {
+    "title": "Learn Morse code",
+    "ask": "best way to learn morse code by ear, not by looking at a chart"
+  },
+  {
+    "title": "New hobby for evenings",
+    "ask": "looking for a new hobby i can do in an hour a night at home, not screens"
+  },
+  {
+    "title": "Model trains layout planning",
+    "ask": "planning a small HO scale layout on a 4x6 table, track ideas"
+  },
+  {
+    "title": "Coin collecting starter",
+    "ask": "how do people get into coin collecting, what to look for"
+  },
+  {
+    "title": "Jigsaw puzzle strategy",
+    "ask": "strategy for a 2000 piece puzzle, i always give up halfway"
+  },
+  {
+    "title": "Fly fishing knots",
+    "ask": "how to tie a clinch knot and a surgeon's knot"
+  },
+  {
+    "title": "Neighborhood nature journal",
+    "ask": "start a nature journal for walks in my neighborhood park, what to record"
+  },
+  {
+    "title": "Geocaching for beginners",
+    "ask": "how does geocaching work and what do i need to get started locally"
+  },
+  {
+    "title": "Rubik's cube beginner method",
+    "ask": "teach me the beginner method for a rubiks cube"
+  },
+  {
+    "title": "Ham radio license study",
+    "ask": "how do i study for the technician ham radio license"
+  },
+  {
+    "title": "Learn to solve sudoku faster",
+    "ask": "tips for harder sudoku puzzles, i get stuck once the easy singles run out"
+  },
+  {
+    "title": "Writing a short story",
+    "ask": "help me brainstorm a short story about a lighthouse keeper who finds a letter"
+  },
+  {
+    "title": "Poem for a retirement card",
+    "ask": "short poem for a coworkers retirement card, warm and a bit funny"
+  },
+  {
+    "title": "Novel outline help",
+    "ask": "outline a mystery novel in three acts, small town setting"
+  },
+  {
+    "title": "Character name ideas",
+    "ask": "names for a gruff sea captain character in a fantasy novel"
+  },
+  {
+    "title": "Fix pacing in chapter",
+    "ask": "chapter 4 drags, can you point out where to cut"
+  },
+  {
+    "title": "Worldbuilding a magic system",
+    "ask": "help me design a magic system with clear costs and limits"
+  },
+  {
+    "title": "Write a limerick",
+    "ask": "write a limerick about a forgetful librarian"
+  },
+  {
+    "title": "Dialogue that sounds natural",
+    "ask": "my dialogue sounds stiff, how do i make it more natural"
+  },
+  {
+    "title": "Query letter for literary agent",
+    "ask": "draft a query letter for my YA novel, 85k words"
+  },
+  {
+    "title": "Children's story draft",
+    "ask": "write a short bedtime story about a turtle who is afraid of the dark"
+  },
+  {
+    "title": "Personal essay feedback",
+    "ask": "feedback on my personal essay about learning to swim as an adult"
+  },
+  {
+    "title": "Writing prompts for a month",
+    "ask": "30 writing prompts for daily journaling, mix of light and deep ones"
+  },
+  {
+    "title": "Toast for a work celebration",
+    "ask": "short toast for my teams 10 year anniversary party, 1 minute max"
+  },
+  {
+    "title": "Haiku about autumn",
+    "ask": "write three haiku about autumn leaves, one of them a bit melancholy"
+  },
+  {
+    "title": "Screenplay formatting",
+    "ask": "how do i format a screenplay scene heading and action lines"
+  },
+  {
+    "title": "Library volunteer thank you speech",
+    "ask": "short speech thanking our library volunteers at the end of year event, 2 min"
+  },
+  {
+    "title": "Make my writing less wordy",
+    "ask": "edit this paragraph to be less wordy without changing the meaning"
+  },
+  {
+    "title": "Blog post about productivity",
+    "ask": "draft a blog post on why i stopped using to-do apps, 800 words"
+  },
+  {
+    "title": "Rewrite in a different tone",
+    "ask": "rewrite this announcement so it sounds less corporate"
+  },
+  {
+    "title": "Update my resume",
+    "ask": "update my resume with my new role, its in Documents/resume_2024.docx"
+  },
+  {
+    "title": "Tailor resume to job posting",
+    "ask": "tailor my resume to this data analyst posting, highlight the right stuff"
+  },
+  {
+    "title": "Resume professional summary",
+    "ask": "write a 3 sentence professional summary for the top of my resume"
+  },
+  {
+    "title": "Practice interview questions",
+    "ask": "run a mock interview for a product manager role, ask me one question at a time"
+  },
+  {
+    "title": "Salary negotiation prep",
+    "ask": "they offered 85k, i want 95k. help me prep what to say on the call"
+  },
+  {
+    "title": "Career change to UX research",
+    "ask": "im a teacher thinking about moving into UX research, what skills transfer"
+  },
+  {
+    "title": "STAR method answers",
+    "ask": "help me turn my project stories into STAR format answers"
+  },
+  {
+    "title": "Portfolio case study structure",
+    "ask": "how should i structure a portfolio case study for a data project"
+  },
+  {
+    "title": "Networking message to alum",
+    "ask": "short message to an alum from my school who works at a company i like"
+  },
+  {
+    "title": "Write a reference for a coworker",
+    "ask": "write a reference for a former coworker applying to a nonprofit role"
+  },
+  {
+    "title": "Manager first 90 days plan",
+    "ask": "first time manager, help me plan my first 90 days"
+  },
+  {
+    "title": "Give constructive feedback",
+    "ask": "how do i give feedback to someone on my team who keeps missing deadlines"
+  },
+  {
+    "title": "Handle a difficult coworker",
+    "ask": "coworker takes credit for my work in standups, how do i handle it"
+  },
+  {
+    "title": "Prep for performance review",
+    "ask": "my performance review is next week, help me prep talking points"
+  },
+  {
+    "title": "Write a promotion case",
+    "ask": "write up the case for promoting my report to senior engineer"
+  },
+  {
+    "title": "Explain a gap in resume",
+    "ask": "how do i explain a 1 year gap in my resume during interviews"
+  },
+  {
+    "title": "Certifications worth getting",
+    "ask": "which IT certifications are actually worth it for a help desk job"
+  },
+  {
+    "title": "Internship application tracker",
+    "ask": "spreadsheet to track internship applications, deadlines, and status"
+  },
+  {
+    "title": "Cover letter for career switch",
+    "ask": "cover letter for switching from retail management to operations analyst"
+  },
+  {
+    "title": "Elevator pitch draft",
+    "ask": "30 second elevator pitch for a career fair, im a mechanical engineering senior"
+  },
+  {
+    "title": "Calculate percentage change",
+    "ask": "whats the percentage change from 1840 to 2215, and how do i calc it myself"
+  },
+  {
+    "title": "Probability of dice rolls",
+    "ask": "probability of rolling at least one six in four rolls, explain the math"
+  },
+  {
+    "title": "Solve system of equations",
+    "ask": "solve 3x + 2y = 12 and x - y = 1, show the steps"
+  },
+  {
+    "title": "Explain standard deviation",
+    "ask": "what does standard deviation actually tell me, plain english"
+  },
+  {
+    "title": "Statistics hypothesis test help",
+    "ask": "which test should i use to compare two groups means, small sample"
+  },
+  {
+    "title": "Convert fractions to percents",
+    "ask": "quick way to convert fractions to percentages in my head"
+  },
+  {
+    "title": "Explain logarithms",
+    "ask": "i never understood logarithms, explain them from scratch"
+  },
+  {
+    "title": "Compound growth formula",
+    "ask": "formula for compound annual growth rate and an example"
+  },
+  {
+    "title": "Help with algebra word problem",
+    "ask": "train leaves at 3pm going 60mph, another at 4pm going 80, when does it catch up"
+  },
+  {
+    "title": "Matrix multiplication explained",
+    "ask": "explain matrix multiplication with a 2x2 example"
+  },
+  {
+    "title": "Explain Bayes theorem",
+    "ask": "explain bayes theorem with the medical test example"
+  },
+  {
+    "title": "Mental math tricks",
+    "ask": "mental math tricks for percentages and splitting bills, im slow at it"
+  },
+  {
+    "title": "Explain the Monty Hall problem",
+    "ask": "monty hall problem, why is switching better? still doesnt feel right"
+  },
+  {
+    "title": "Area of irregular yard",
+    "ask": "my backyard is an L shape, 40x30 with a 15x10 notch. square footage?"
+  },
+  {
+    "title": "Unit conversion question",
+    "ask": "how many feet in a kilometer, and meters in a mile"
+  },
+  {
+    "title": "Toddler sleep regression",
+    "ask": "my 18 month old suddenly fights naps, is this a regression thing"
+  },
+  {
+    "title": "Chore chart for kids",
+    "ask": "chore chart for a 7 and 10 year old with points"
+  },
+  {
+    "title": "Potty training tips",
+    "ask": "potty training a 2.5 year old, what actually works"
+  },
+  {
+    "title": "Homework help routine",
+    "ask": "how do i set up an after school homework routine that isnt a fight"
+  },
+  {
+    "title": "Screen time rules for kids",
+    "ask": "reasonable screen time rules for a 9 year old, school days vs weekends"
+  },
+  {
+    "title": "Teen driving practice log",
+    "ask": "log sheet for my teen's 50 practice driving hours"
+  },
+  {
+    "title": "Kids science experiment ideas",
+    "ask": "easy science experiments for a rainy saturday, ages 6 to 9"
+  },
+  {
+    "title": "Reading aloud with a preschooler",
+    "ask": "tips for reading aloud to a 4 year old who wont sit still for a whole book"
+  },
+  {
+    "title": "Car maintenance schedule",
+    "ask": "maintenance schedule for a 2017 sedan at 80k miles, what's due"
+  },
+  {
+    "title": "Check engine light meaning",
+    "ask": "check engine light came on, car drives fine. what are the common causes"
+  },
+  {
+    "title": "Tire pressure basics",
+    "ask": "what tire pressure should i run and does it change in winter"
+  },
+  {
+    "title": "Jump start a car",
+    "ask": "how do i jump start a car safely, which cable goes where"
+  },
+  {
+    "title": "Compare car insurance quotes",
+    "ask": "help me compare these three car insurance quotes, coverage looks different"
+  },
+  {
+    "title": "Car battery dying in cold",
+    "ask": "my car battery keeps dying on cold mornings, how do i test it"
+  },
+  {
+    "title": "Winter car emergency kit",
+    "ask": "what should be in a winter emergency kit for my car"
+  },
+  {
+    "title": "Explain car warning lights",
+    "ask": "what do the common dashboard warning lights mean, which ones are urgent"
+  },
+  {
+    "title": "Notarize a document basics",
+    "ask": "what does notarizing a document involve and what do i bring"
+  },
+  {
+    "title": "Small claims court process",
+    "ask": "how does small claims court work for a 900 dollar deposit dispute"
+  },
+  {
+    "title": "Read a lease agreement",
+    "ask": "read this lease pdf and flag anything unusual before i sign"
+  },
+  {
+    "title": "Explain an NDA",
+    "ask": "explain what this NDA actually restricts me from doing"
+  },
+  {
+    "title": "Trademark search basics",
+    "ask": "how do i check if a business name is already trademarked"
+  },
+  {
+    "title": "Form an LLC basics",
+    "ask": "steps to form an LLC for a one person consulting business"
+  },
+  {
+    "title": "Write terms of service",
+    "ask": "draft simple terms of service for a small online tutoring service"
+  },
+  {
+    "title": "Volunteer schedule spreadsheet",
+    "ask": "volunteer shift schedule for a food bank, 3 shifts a day, 20 volunteers"
+  },
+  {
+    "title": "Nonprofit volunteer recognition ideas",
+    "ask": "ways a small nonprofit can recognize volunteers at year end without spending much"
+  },
+  {
+    "title": "Neighborhood cleanup flyer text",
+    "ask": "text for a flyer about a neighborhood park cleanup on the 18th"
+  },
+  {
+    "title": "Community garden plot rules",
+    "ask": "write rules for our community garden plots, fair and short"
+  },
+  {
+    "title": "Library board agenda template",
+    "ask": "template for library board agendas with time blocks and a consent section"
+  },
+  {
+    "title": "School PTA newsletter blurb",
+    "ask": "blurb for the PTA newsletter about the reading challenge"
+  },
+  {
+    "title": "Write bylaws for a club",
+    "ask": "draft simple bylaws for a hiking club... actually a chess club, 30 members"
+  },
+  {
+    "title": "Book fair volunteer sign up",
+    "ask": "sign up sheet for volunteers at the school book fair, time slots"
+  },
+  {
+    "title": "Why is the sky blue",
+    "ask": "why is the sky blue but sunsets are orange"
+  },
+  {
+    "title": "How do airplanes stay up",
+    "ask": "explain lift in simple terms, why do planes stay up"
+  },
+  {
+    "title": "Explain black holes",
+    "ask": "what happens at the event horizon of a black hole"
+  },
+  {
+    "title": "Why do leaves change color",
+    "ask": "why do leaves change color in fall, the chemistry"
+  },
+  {
+    "title": "How do batteries work",
+    "ask": "how does a lithium ion battery actually store energy"
+  },
+  {
+    "title": "Explain plate tectonics",
+    "ask": "explain plate tectonics and why earthquakes happen where they do"
+  },
+  {
+    "title": "How tides work on lakes",
+    "ask": "do big lakes have tides? like lake michigan"
+  },
+  {
+    "title": "Explain the immune system",
+    "ask": "explain how the immune system fights a cold"
+  },
+  {
+    "title": "Why do we dream",
+    "ask": "what does science say about why we dream"
+  },
+  {
+    "title": "How does GPS work",
+    "ask": "how does gps figure out where i am, and why is it worse downtown"
+  },
+  {
+    "title": "Explain quantum computing simply",
+    "ask": "quantum computing in simple terms, what can it do that normal ones cant"
+  },
+  {
+    "title": "How bridges hold weight",
+    "ask": "how do suspension bridges hold so much weight"
+  },
+  {
+    "title": "Speed of light question",
+    "ask": "if the sun disappeared how long until we noticed"
+  },
+  {
+    "title": "Explain evolution basics",
+    "ask": "explain natural selection with an example for a 9th grader"
+  },
+  {
+    "title": "Commonly confused words",
+    "ask": "affect vs effect, and a few other pairs i always mess up"
+  },
+  {
+    "title": "Comma splice fixes",
+    "ask": "what is a comma splice and how do i fix them in my essay"
+  },
+  {
+    "title": "Oxford comma debate",
+    "ask": "should i use the oxford comma in business writing"
+  },
+  {
+    "title": "Passive voice explained",
+    "ask": "what is passive voice and when is it actually ok"
+  },
+  {
+    "title": "Synonyms for important",
+    "ask": "give me better words than important for a report, its in every sentence"
+  },
+  {
+    "title": "Proper semicolon use",
+    "ask": "when do i use a semicolon vs a colon, with examples from real sentences"
+  },
+  {
+    "title": "Capitalization in titles",
+    "ask": "title case rules, which small words stay lowercase"
+  },
+  {
+    "title": "Translate a paragraph to French",
+    "ask": "translate this paragraph to french, its for a pen pal"
+  },
+  {
+    "title": "Pronunciation of tricky words",
+    "ask": "how do you pronounce quinoa, epitome, and segue"
+  },
+  {
+    "title": "Learn Italian verb conjugation",
+    "ask": "help me memorize present tense conjugations for italian regular verbs"
+  },
+  {
+    "title": "Clean up survey data in R",
+    "ask": "clean this survey dataset in R, recode the likert columns to numbers"
+  },
+  {
+    "title": "Analyze website traffic CSV",
+    "ask": "analyze this traffic csv: which pages get the most visits by week"
+  },
+  {
+    "title": "Customer churn analysis",
+    "ask": "look at this membership data and figure out which members are likely to churn"
+  },
+  {
+    "title": "A/B test results check",
+    "ask": "is a 3.1 vs 3.6 percent conversion difference significant with 8k visitors each"
+  },
+  {
+    "title": "Dashboard for support tickets",
+    "ask": "make a simple dashboard of support tickets by category and resolution time"
+  },
+  {
+    "title": "Forecast next quarter sales",
+    "ask": "forecast next quarter sales from 3 years of monthly data, simple method is fine"
+  },
+  {
+    "title": "Normalize state abbreviations",
+    "ask": "this dataset has messy state abbreviations, normalize them to two letter codes"
+  },
+  {
+    "title": "Correlation vs causation example",
+    "ask": "explain correlation vs causation with an example i can use in a training"
+  },
+  {
+    "title": "Survey question wording",
+    "ask": "review my survey questions for bias, its for employee engagement"
+  },
+  {
+    "title": "Data visualization best practices",
+    "ask": "bar vs line vs pie, when should i use which"
+  },
+  {
+    "title": "Weekly habit tracker",
+    "ask": "make a habit tracker for 5 habits, checkboxes per day"
+  },
+  {
+    "title": "Morning routine ideas",
+    "ask": "ideas for a 30 minute morning routine that isnt just phone scrolling"
+  },
+  {
+    "title": "Declutter a small apartment",
+    "ask": "plan to declutter a one bedroom apartment over 4 weekends"
+  },
+  {
+    "title": "Moving checklist for apartment",
+    "ask": "checklist for moving to a new apartment across town, 6 weeks out"
+  },
+  {
+    "title": "Packing boxes inventory",
+    "ask": "spreadsheet to track what's in each moving box with a numbering scheme"
+  },
+  {
+    "title": "Cleaning schedule for roommates",
+    "ask": "weekly cleaning rotation for 4 roommates, fair split"
+  },
+  {
+    "title": "Sleep schedule reset",
+    "ask": "i go to bed at 2am and want to shift to 11pm, how do i do it gradually"
+  },
+  {
+    "title": "Reading habit plan",
+    "ask": "i want to read 20 minutes a day, how do i actually make it stick"
+  },
+  {
+    "title": "Journaling prompts for reflection",
+    "ask": "end of day journaling prompts, quick ones"
+  },
+  {
+    "title": "Productivity system setup",
+    "ask": "help me set up a simple system for tracking tasks across work and personal"
+  },
+  {
+    "title": "Goal setting for next year",
+    "ask": "help me set 3 to 5 goals for next year that are actually measurable"
+  },
+  {
+    "title": "Learn to meditate",
+    "ask": "beginner meditation plan, 5 minutes a day"
+  },
+  {
+    "title": "Write a personal mission statement",
+    "ask": "help me write a personal mission statement, sounds cheesy but my coach asked"
+  },
+  {
+    "title": "Birthday message for a friend",
+    "ask": "write a heartfelt birthday message for a close friend turning 40"
+  },
+  {
+    "title": "Condolence message wording",
+    "ask": "what do i write in a sympathy card for a coworker who is grieving"
+  },
+  {
+    "title": "Coworker wedding congrats card",
+    "ask": "short congratulations note for a coworker's wedding, card from the team"
+  },
+  {
+    "title": "Apology text to a friend",
+    "ask": "help me apologize to a friend i snapped at, not too long"
+  },
+  {
+    "title": "Set boundaries with a friend",
+    "ask": "how do i tell a friend i cant keep lending them money"
+  },
+  {
+    "title": "Work anniversary celebration plan",
+    "ask": "plan an office celebration for a coworker's 20 years at the company"
+  },
+  {
+    "title": "Icebreakers for team workshop",
+    "ask": "icebreaker questions for a half day team workshop, nothing cringe"
+  },
+  {
+    "title": "Trivia questions for team event",
+    "ask": "20 trivia questions for a team event, mixed topics, medium difficulty"
+  },
+  {
+    "title": "Write a quiz for students",
+    "ask": "10 question quiz on the water cycle for 5th graders with an answer key"
+  },
+  {
+    "title": "Lesson plan on fractions",
+    "ask": "lesson plan for teaching equivalent fractions to 4th graders, 45 min"
+  },
+  {
+    "title": "Rubric for essay grading",
+    "ask": "grading rubric for a persuasive essay, 4 levels"
+  },
+  {
+    "title": "Classroom rules poster text",
+    "ask": "text for a classroom rules poster, positive phrasing, 6 rules"
+  },
+  {
+    "title": "Parent teacher conference prep",
+    "ask": "im a teacher, prep talking points for a conference about a struggling student"
+  },
+  {
+    "title": "Substitute teacher plans",
+    "ask": "sub plans for a 7th grade science class for one day, no lab"
+  },
+  {
+    "title": "Discussion questions for novel",
+    "ask": "discussion questions for To Kill a Mockingbird chapters 10-15"
+  },
+  {
+    "title": "Reading level of a text",
+    "ask": "check the reading level of this passage and simplify it for grade 3"
+  },
+  {
+    "title": "Explain how a bill becomes law",
+    "ask": "explain how a bill becomes law for a civics class"
+  },
+  {
+    "title": "World War 1 causes summary",
+    "ask": "causes of world war 1 in a simple table i can study from"
+  },
+  {
+    "title": "Scrabble word check",
+    "ask": "is qi a valid scrabble word? and other two letter q words"
+  },
+  {
+    "title": "Write a riddle",
+    "ask": "write a riddle where the answer is a shadow"
+  },
+  {
+    "title": "Name ideas for a small business",
+    "ask": "name ideas for a mobile dog grooming business"
+  },
+  {
+    "title": "Brand voice guide",
+    "ask": "write a short brand voice guide for a bookkeeping firm, friendly and precise"
+  },
+  {
+    "title": "Business card text",
+    "ask": "what should go on a business card for a freelance editor"
+  },
+  {
+    "title": "Customer onboarding email sequence",
+    "ask": "5 email onboarding sequence for a new client of a bookkeeping service"
+  },
+  {
+    "title": "Pricing my consulting services",
+    "ask": "how should i price consulting work, hourly vs project based"
+  },
+  {
+    "title": "Write a mission statement",
+    "ask": "mission statement for a nonprofit that runs coding classes for adults"
+  },
+  {
+    "title": "Price increase notice",
+    "ask": "letter telling clients our rates go up 8 percent in january"
+  },
+  {
+    "title": "Customer survey for small business",
+    "ask": "short customer satisfaction survey for a dog grooming shop"
+  },
+  {
+    "title": "Employee schedule template",
+    "ask": "weekly shift schedule template for a small retail store, 8 staff"
+  },
+  {
+    "title": "Write a refund policy",
+    "ask": "write a clear refund policy for an online course"
+  },
+  {
+    "title": "Competitor analysis outline",
+    "ask": "outline a competitor analysis for a local accounting firm"
+  },
+  {
+    "title": "Client intake form questions",
+    "ask": "questions for a client intake form for a life coaching practice"
+  },
+  {
+    "title": "Process documentation for team",
+    "ask": "document our month end close process from these messy notes"
+  },
+  {
+    "title": "Write a code of conduct",
+    "ask": "code of conduct for a community coding meetup"
+  },
+  {
+    "title": "Track client hours spreadsheet",
+    "ask": "spreadsheet to track billable hours per client per week with totals"
+  },
+  {
+    "title": "Internal tool changelog entry",
+    "ask": "write a changelog entry for version 2.3 of our internal tool from these commits"
+  },
+  {
+    "title": "Explain an error in Excel",
+    "ask": "excel shows #SPILL! in a cell that used to work, what does it mean"
+  },
+  {
+    "title": "Sum by color in Sheets",
+    "ask": "can google sheets sum cells by background color"
+  },
+  {
+    "title": "Concatenate with line breaks",
+    "ask": "how do i combine cells with a line break between them in excel"
+  },
+  {
+    "title": "Count unique values",
+    "ask": "count unique values in a column in google sheets"
+  },
+  {
+    "title": "Random sample from list",
+    "ask": "pick 50 random rows from this list of 2000 for a survey sample"
+  },
+  {
+    "title": "Gantt chart in a spreadsheet",
+    "ask": "make a simple gantt chart in a spreadsheet for a 12 week project"
+  },
+  {
+    "title": "Fix currency formatting",
+    "ask": "some cells show as text instead of currency, sums are wrong"
+  },
+  {
+    "title": "Import data from a website",
+    "ask": "import a table from a web page into google sheets and keep it updated"
+  },
+  {
+    "title": "Spreadsheet for book collection",
+    "ask": "spreadsheet for my book collection with author, genre, read or not"
+  },
+  {
+    "title": "Calculate age from birthdate",
+    "ask": "formula to calculate age in years from a birthdate column"
+  },
+  {
+    "title": "Weighted scoring for job candidates",
+    "ask": "weighted scoring sheet for comparing 6 job candidates"
+  },
+  {
+    "title": "Bash loop over files",
+    "ask": "loop over every .txt file in a folder and count lines in each"
+  },
+  {
+    "title": "Python script to send reminders",
+    "ask": "python script that reads a csv of deadlines and prints whats due this week"
+  },
+  {
+    "title": "Explain Git branches",
+    "ask": "explain git branches and when to make one, im new to git"
+  },
+  {
+    "title": "Build a personal website",
+    "ask": "build a simple personal website with an about page and contact form, static"
+  },
+  {
+    "title": "Write a SQL join explanation",
+    "ask": "explain inner vs left join with a tiny example table"
+  },
+  {
+    "title": "Debug Python indentation error",
+    "ask": "getting IndentationError: unexpected indent, but it looks fine?"
+  },
+  {
+    "title": "Convert spreadsheet to database",
+    "ask": "move this big spreadsheet into sqlite so i can query it"
+  },
+  {
+    "title": "Swift optional unwrapping",
+    "ask": "when do i use if let vs guard let in swift"
+  },
+  {
+    "title": "Explain async in Python",
+    "ask": "explain asyncio in python with a simple example of fetching urls"
+  },
+  {
+    "title": "Regex for order IDs",
+    "ask": "regex to find order IDs like ORD-12345 in a text file"
+  },
+  {
+    "title": "Static type checking in Python",
+    "ask": "should i add type hints to my python project, how do i start"
+  },
+  {
+    "title": "Write a test plan",
+    "ask": "write a manual test plan for a login page"
+  },
+  {
+    "title": "Explain HTTP status codes",
+    "ask": "cheat sheet of the http status codes i actually need to know"
+  },
+  {
+    "title": "Optimize a slow Python loop",
+    "ask": "this python loop over 1M rows takes forever, how do i speed it up"
+  },
+  {
+    "title": "JavaScript array methods",
+    "ask": "map filter reduce explained with examples"
+  },
+  {
+    "title": "Learn Vim basics",
+    "ask": "i keep getting stuck in vim, teach me the bare minimum"
+  },
+  {
+    "title": "SQL window functions",
+    "ask": "explain row_number and partition by with an example"
+  },
+  {
+    "title": "Explain environment variables",
+    "ask": "what are environment variables and why does every tutorial use them"
+  },
+  {
+    "title": "Write a simple REST API",
+    "ask": "simple REST api in express for a notes resource, CRUD"
+  },
+  {
+    "title": "Bird feeder squirrel problem",
+    "ask": "squirrels empty my bird feeder in a day, how do i keep them off it"
+  },
+  {
+    "title": "Identify a mystery plant",
+    "ask": "theres a weed with purple flowers taking over my yard, help me figure out what it is"
+  },
+  {
+    "title": "Weather data for garden planning",
+    "ask": "pull the average first and last frost dates for my area from noaa data"
+  },
+  {
+    "title": "Explain fantasy baseball scoring",
+    "ask": "our office fantasy baseball league uses roto scoring, explain how it works"
+  },
+  {
+    "title": "Track my running mileage",
+    "ask": "spreadsheet to log runs with distance, time, and pace, plus weekly totals"
+  },
+  {
+    "title": "Write a scavenger hunt",
+    "ask": "write clues for a scavenger hunt in a public park for a scout troop"
+  },
+  {
+    "title": "Convert Markdown notes to PDF",
+    "ask": "turn this folder of markdown notes into one nicely formatted pdf"
+  },
+  {
+    "title": "Count words across documents",
+    "ask": "count the total words across all the docx files in my thesis folder"
+  },
+  {
+    "title": "Compare two contracts",
+    "ask": "compare these two vendor contracts and list where the terms differ"
+  }
+]

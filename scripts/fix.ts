@@ -18,7 +18,14 @@ import { spawnSync } from "node:child_process";
 const FORMAT = { command: "pnpm fix:format", label: "format" };
 
 const PASSES = [
-  // Spelling first, so every pass below sees corrected text.
+  // Files derived from app source, which a test holds equal to their source.
+  // An edit to that source otherwise leaves CI red until someone regenerates.
+  {
+    command:
+      "pnpm --silent --filter @instrument-org/studio exec vitest run src/client/lib/product-guide.test.ts -u",
+    label: "generated files",
+  },
+  // Spelling before format, so every pass below sees corrected text.
   { command: "pnpm fix:spelling", label: "spelling" },
   FORMAT,
   ...(process.argv.includes("--lint")

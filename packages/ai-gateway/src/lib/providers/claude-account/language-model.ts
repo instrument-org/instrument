@@ -16,7 +16,6 @@ import {
   type SDKRateLimitInfo,
 } from "@anthropic-ai/claude-agent-sdk";
 import { createHash, randomUUID } from "node:crypto";
-import { omit } from "radashi";
 import { z } from "zod";
 
 import { CLIENT_SESSION_ID_HEADER } from "../../../constants";
@@ -27,7 +26,13 @@ import {
   turnContent,
 } from "./prompt";
 import {
+  readResumeRecord,
+  removeResumeRecord,
+  writeResumeRecord,
+} from "./resume-record";
+import {
   ClaudeCodeSession,
+  type TranscriptStart,
   type SessionShape,
   sessionShapeKey,
   TOOL_PREFIX,
@@ -42,6 +47,16 @@ const CLAUDE_ACCOUNT_PROVIDER_ID = "claude-account";
  * over the process its steps run in.
  */
 const sessions = new Map<string, ClaudeCodeSession>();
+
+/**
+ * Ends every live process, as an idle timeout or quitting would. Their
+ * transcripts stay, so the next request resumes them.
+ */
+export function closeClaudeAccountSessions() {
+  for (const session of sessions.values()) {
+    session.close();
+  }
+}
 
 /**
  * A Claude account's subscription as an AI SDK model, run through the Claude
@@ -73,8 +88,20 @@ export function createClaudeAccountLanguageModel({
 }
 
 type Continuation =
-  | { kind: "tool-results"; results: LanguageModelV4ToolResultPart[] }
+  | {
+      kind: "tool-results";
+      results: LanguageModelV4ToolResultPart[];
+      /**
+       * Messages that came in after the results, as a task finishing does
+       * when the step before handed work off: read in the same turn, once
+       * the results are in.
+       */
+      followedBy: LanguageModelV4Message[];
+    }
   | { kind: "turn"; messages: LanguageModelV4Message[] };
+
+/** Why a request cannot continue the running process, for the log. */
+type Restart = { kind: "restart"; reason: string };
 
 /**
  * A message the workspace says for one request and keeps nowhere, such as a
@@ -99,56 +126,121 @@ export function splitPrompt(prompt: LanguageModelV4Message[]) {
   };
 }
 
-/** What one message is, for telling whether a process has already seen it. */
+/**
+ * What one message is, for telling whether a process has already seen it.
+ * Provider options are left out at every depth: our loop moves its cache
+ * breakpoints onto the newest messages each step, on the message or on its
+ * last part, and a message that lost one is still the message the process saw.
+ */
 function fingerprintOf(message: LanguageModelV4Message) {
   return createHash("sha256")
-    .update(JSON.stringify(omit(message, ["providerOptions"])))
+    .update(
+      JSON.stringify(message, (key, value: unknown) =>
+        key === "providerOptions" ? undefined : value,
+      ),
+    )
     .digest("hex");
 }
 
 /**
- * How a request follows from what the running process saw, or nothing when
- * it does not and the process has to start over from our transcript. It
- * follows when every message the process saw opens the request unchanged,
- * then the reply it gave, then either the results of the tools that reply
- * called or a new turn.
+ * How a request follows from what a Claude Code session saw, or why it does
+ * not and the session has to start over from our transcript. It follows
+ * when every message the session saw opens the request unchanged, then the
+ * reply it gave, then either the results of the tools that reply called
+ * (and anything said since) or a new turn.
  */
 export function continuationOf(
-  session: Pick<ClaudeCodeSession, "awaitingToolCallIds" | "seen">,
+  session: { awaitingToolCallIds: string[]; seen: string[] },
   kept: LanguageModelV4Message[],
   keptPrints: string[],
   transient: LanguageModelV4Message[],
-): Continuation | undefined {
+): Continuation | Restart {
+  const restart = (reason: string): Restart => ({ kind: "restart", reason });
   const { seen } = session;
-  if (seen.length === 0 || kept.length <= seen.length) {
-    return undefined;
+  if (seen.length === 0) {
+    return restart("the process saw no messages");
   }
-  if (seen.some((print, index) => keptPrints[index] !== print)) {
-    return undefined;
+  if (kept.length <= seen.length) {
+    return restart(
+      `the request has ${kept.length} messages, the process saw ${seen.length}`,
+    );
+  }
+  const changed = seen.findIndex((print, index) => keptPrints[index] !== print);
+  if (changed !== -1) {
+    return restart(
+      `message ${changed} of ${seen.length} (${kept[changed]?.role ?? "missing"}) changed since the process saw it`,
+    );
   }
   const [reply, ...unseen] = kept.slice(seen.length);
   if (reply?.role !== "assistant") {
-    return undefined;
+    return restart(
+      `message ${seen.length} is ${reply?.role ?? "missing"}, not the reply`,
+    );
   }
+  const roles = unseen.map((message) => message.role).join(", ") || "none";
   if (session.awaitingToolCallIds.length > 0) {
-    const [results] = unseen;
-    if (unseen.length !== 1 || results?.role !== "tool") {
-      return undefined;
+    const [results, ...followedBy] = unseen;
+    if (
+      results?.role !== "tool" ||
+      !followedBy.every(
+        (message) => message.role === "user" || message.role === "system",
+      )
+    ) {
+      return restart(
+        `awaiting ${session.awaitingToolCallIds.length} tool results, the reply is followed by ${roles}`,
+      );
     }
     const parts = results.content.filter(
       (part): part is LanguageModelV4ToolResultPart =>
         part.type === "tool-result",
     );
     const answered = new Set(parts.map((part) => part.toolCallId));
-    return session.awaitingToolCallIds.every((id) => answered.has(id))
-      ? { kind: "tool-results", results: parts }
-      : undefined;
+    const missing = session.awaitingToolCallIds.filter(
+      (id) => !answered.has(id),
+    );
+    return missing.length === 0
+      ? {
+          kind: "tool-results",
+          results: parts,
+          followedBy:
+            followedBy.length > 0 ? [...followedBy, ...transient] : [],
+        }
+      : restart(
+          `results answer ${parts.length} calls and leave ${missing.length} of ${session.awaitingToolCallIds.length} unanswered`,
+        );
   }
   return unseen.length > 0 &&
     unseen.every(
       (message) => message.role === "user" || message.role === "system",
     )
     ? { kind: "turn", messages: [...unseen, ...transient] }
+    : restart(`no tool results awaited, the reply is followed by ${roles}`);
+}
+
+/**
+ * The new messages a branch of a session starts with, when it carries on
+ * from exactly the input of the session's last step, as a task's first
+ * request carries on from the chat step that started it: everything the
+ * session saw, unchanged, then only user or system messages.
+ */
+export function branchOf(
+  parent: { seen: string[] },
+  kept: LanguageModelV4Message[],
+  keptPrints: string[],
+  transient: LanguageModelV4Message[],
+): LanguageModelV4Message[] | undefined {
+  const { seen } = parent;
+  if (seen.length === 0 || kept.length <= seen.length) {
+    return undefined;
+  }
+  if (seen.some((print, index) => keptPrints[index] !== print)) {
+    return undefined;
+  }
+  const added = kept.slice(seen.length);
+  return added.every(
+    (message) => message.role === "user" || message.role === "system",
+  )
+    ? [...added, ...transient]
     : undefined;
 }
 
@@ -163,7 +255,8 @@ function streamStep({
   modelId: string;
   options: LanguageModelV4CallOptions;
 }) {
-  const key = options.headers?.[CLIENT_SESSION_ID_HEADER];
+  const key = sessionKeyOf(options);
+  const parentKey = parentKeyOf(options);
   const { rest, systemPrompt } = splitSystemPrompt(options.prompt);
   const shape: SessionShape = {
     builtInTools: builtInToolsOf(options),
@@ -189,34 +282,22 @@ function streamStep({
       // A request with no tools is a one-off (a title, a summary), and so is
       // one that arrives while its session's process is mid-step. Each gets
       // a process of its own that ends with it.
+      const shapeHash = createHash("sha256").update(shapeKey).digest("hex");
       const slot =
         key === undefined || shape.tools.length === 0
           ? undefined
-          : `${key}:${createHash("sha256").update(shapeKey).digest("hex")}`;
+          : `${key}:${shapeHash}`;
       const existing = slot === undefined ? undefined : sessions.get(slot);
       const ephemeral = slot === undefined || existing?.busy === true;
-      let session = ephemeral ? undefined : existing;
       const { kept, keptPrints, transient } = splitPrompt(options.prompt);
-      const continuation =
-        session && continuationOf(session, kept, keptPrints, transient);
       const onAbort = () => {
         running?.close();
       };
       options.abortSignal?.addEventListener("abort", onAbort, { once: true });
 
+      let session: ClaudeCodeSession | undefined;
       try {
-        if (!continuation || !session) {
-          if (session) {
-            // The running process saw something other than what this request
-            // continues, so it starts over from a lossy replay of ours.
-            console.warn(
-              `[claude-account] session ${session.key} restarted from a transcript replay`,
-            );
-            session.close();
-          }
-          if (key !== undefined && !ephemeral) {
-            closeOtherIdleSlots(key, slot);
-          }
+        const start = (claudeSessionId: string, begin: TranscriptStart) => {
           const created = new ClaudeCodeSession(
             slot ?? randomUUID(),
             shape,
@@ -225,21 +306,100 @@ function streamStep({
                 sessions.delete(created.key);
               }
             },
+            ephemeral ? undefined : { claudeSessionId, start: begin },
           );
-          session = created;
-          running = created;
           if (!ephemeral) {
             sessions.set(created.key, created);
           }
-          created.send(coldStartContent(rest));
+          return created;
+        };
+
+        // A live process for this slot, or else the transcript its last one
+        // left, resumed where it stopped, or else for a task's first step,
+        // its chat's transcript forked where the task branched off.
+        let continuation: Continuation | Restart | undefined;
+        let resumable:
+          | { claudeSessionId: string; start: TranscriptStart }
+          | undefined;
+        if (!ephemeral && existing) {
+          session = existing;
+          continuation = continuationOf(existing, kept, keptPrints, transient);
+        } else if (!ephemeral && slot !== undefined) {
+          const record = await readResumeRecord(configDir, slot);
+          if (record) {
+            continuation = continuationOf(record, kept, keptPrints, transient);
+            // The calls it waited on died with its process, and a resumed
+            // one has no way to take their results.
+            if (continuation.kind === "tool-results") {
+              continuation = {
+                kind: "restart",
+                reason: "its process ended while waiting on tool results",
+              };
+            }
+            resumable = {
+              claudeSessionId: record.claudeSessionId,
+              start: { kind: "resume" },
+            };
+          } else if (parentKey !== undefined) {
+            const parent = await readResumeRecord(
+              configDir,
+              `${parentKey}:${shapeHash}`,
+            );
+            const branch =
+              parent && branchOf(parent, kept, keptPrints, transient);
+            if (parent?.forkPoint !== undefined && branch !== undefined) {
+              continuation = { kind: "turn", messages: branch };
+              resumable = {
+                claudeSessionId: randomUUID(),
+                start: {
+                  at: parent.forkPoint,
+                  from: parent.claudeSessionId,
+                  kind: "fork",
+                },
+              };
+            }
+          }
+        }
+        if (slot !== undefined && !ephemeral) {
+          await removeResumeRecord(configDir, slot);
+        }
+
+        if (continuation === undefined || continuation.kind === "restart") {
+          if (continuation?.kind === "restart") {
+            // What the session saw is not what this request continues, so it
+            // starts over from a lossy replay of ours.
+            console.warn(
+              `[claude-account] session ${slot ?? "one-off"} restarted from a transcript replay: ${continuation.reason}`,
+            );
+          }
+          session?.close();
+          if (key !== undefined && !ephemeral) {
+            closeOtherIdleSlots(key, slot);
+          }
+          session = start(randomUUID(), { kind: "new" });
+          session.send(coldStartContent(rest));
         } else {
-          running = session;
+          if (session === undefined) {
+            if (resumable === undefined) {
+              throw new Error("A continuation needs a session to continue.");
+            }
+            session = start(resumable.claudeSessionId, resumable.start);
+            console.info(
+              resumable.start.kind === "fork"
+                ? `[claude-account] session ${session.key} forked its parent's Claude Code transcript`
+                : `[claude-account] session ${session.key} resumed its Claude Code transcript`,
+            );
+          }
           // Before the step starts, so it runs on the model now asked for.
           if (session.modelId !== modelId) {
             await session.setModel(modelId);
             session.modelId = modelId;
           }
+          session.forkPoint = undefined;
           if (continuation.kind === "tool-results") {
+            if (continuation.followedBy.length > 0) {
+              session.send(turnContent(continuation.followedBy), "next");
+            }
             for (const part of continuation.results) {
               session.resolveToolCall(
                 part.toolCallId,
@@ -250,6 +410,7 @@ function streamStep({
             session.send(turnContent(continuation.messages));
           }
         }
+        running = session;
 
         session.busy = true;
         session.awaitingToolCallIds = [];
@@ -263,6 +424,14 @@ function streamStep({
         } finally {
           stepSession.busy = false;
           stepSession.touch();
+        }
+        if (slot !== undefined && stepSession.transcript) {
+          await writeResumeRecord(configDir, slot, {
+            awaitingToolCallIds: stepSession.awaitingToolCallIds,
+            claudeSessionId: stepSession.transcript.claudeSessionId,
+            forkPoint: stepSession.forkPoint,
+            seen: stepSession.seen,
+          });
         }
         if (ephemeral) {
           // Nothing continues a one-off, so a tool call it ended on would
@@ -296,7 +465,12 @@ function closeOtherIdleSlots(key: string, keep: string | undefined) {
 /** What one step reads from and leaves on the process it runs in. */
 export type StepSession = Pick<
   ClaudeCodeSession,
-  "awaitingToolCallIds" | "builtInTools" | "messages" | "rateLimit" | "stderr"
+  | "awaitingToolCallIds"
+  | "builtInTools"
+  | "forkPoint"
+  | "messages"
+  | "rateLimit"
+  | "stderr"
 >;
 
 /** Read the CLI's output for one step, ending where it calls our tools or its turn ends. */
@@ -322,6 +496,9 @@ export async function pumpStep(
   let stepUsage: AnthropicUsage = {};
   let messageUsage: AnthropicUsage = {};
   let rateLimit = session.rateLimit;
+  // Until the reply starts, each user-side entry Claude Code reports (a tool
+  // result we answered, a message we sent) is the step's input so far.
+  let replying = false;
 
   const finish = (finishReason: LanguageModelV4FinishReason) => {
     controller.enqueue({
@@ -352,6 +529,7 @@ export async function pumpStep(
     const message = next.value;
     switch (message.type) {
       case "assistant": {
+        replying = true;
         if (message.error && message.error !== "max_output_tokens") {
           throw planError(
             message.error,
@@ -362,6 +540,9 @@ export async function pumpStep(
         break;
       }
       case "user": {
+        if (!replying && message.uuid) {
+          session.forkPoint = message.uuid;
+        }
         for (const source of webSearchSources(message.tool_use_result)) {
           controller.enqueue({
             id: randomUUID(),
@@ -392,6 +573,7 @@ export async function pumpStep(
         return;
       }
       case "stream_event": {
+        replying = true;
         // Output from a subagent the CLI ran itself, which ours never ask for.
         if (message.parent_tool_use_id !== null) {
           break;
@@ -654,6 +836,30 @@ function webSearchSources(result: unknown) {
   return parsed.data.results.flatMap((entry) =>
     typeof entry === "string" ? [] : entry.content,
   );
+}
+
+/**
+ * Which of our sessions a request belongs to, and so which process and
+ * transcript answer it: `{ "claude-account": { sessionId } }`, its own even
+ * for a task, whose client session header names its chat's for the caches
+ * other providers route by. The header stands in where no id is given.
+ */
+function sessionKeyOf(options: LanguageModelV4CallOptions) {
+  const asked =
+    options.providerOptions?.[CLAUDE_ACCOUNT_PROVIDER_ID]?.sessionId;
+  return typeof asked === "string"
+    ? asked
+    : options.headers?.[CLIENT_SESSION_ID_HEADER];
+}
+
+/**
+ * The session a task branched from, `{ "claude-account": { parentSessionId } }`,
+ * whose transcript its first step can fork rather than replay.
+ */
+function parentKeyOf(options: LanguageModelV4CallOptions) {
+  const asked =
+    options.providerOptions?.[CLAUDE_ACCOUNT_PROVIDER_ID]?.parentSessionId;
+  return typeof asked === "string" ? asked : undefined;
 }
 
 function effortOf(options: LanguageModelV4CallOptions) {

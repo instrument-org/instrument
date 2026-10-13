@@ -61,12 +61,15 @@ const UNMEASURED: ComposerMenuPlacement = {
 export function useComposerMenuPlacement({
   anchorRef,
   bounds,
+  maxHeight = COMPOSER_MENU_MAX_HEIGHT,
   open,
 }: {
   /** What Radix positions against, somewhere inside the composer. */
   anchorRef: RefObject<HTMLElement | null>;
   /** The composer box the menu hangs off. */
   bounds: HTMLElement | null;
+  /** Layout px: the most room the menu can ask for, which decides its side. */
+  maxHeight?: number;
   open: boolean;
 }): ComposerMenuPlacement {
   const zoom = useAtomValue(zoomAtom);
@@ -88,7 +91,7 @@ export function useComposerMenuPlacement({
       // but the window edge. Failing that, whichever side has more room.
       const roomBelow = window.innerHeight - box.bottom - gap;
       const side =
-        roomBelow >= COMPOSER_MENU_MAX_HEIGHT * zoom || roomBelow >= box.top
+        roomBelow >= maxHeight * zoom || roomBelow >= box.top
           ? "bottom"
           : "top";
       const next: ComposerMenuPlacement = {
@@ -119,7 +122,7 @@ export function useComposerMenuPlacement({
     return () => {
       observer.disconnect();
     };
-  }, [anchorRef, bounds, open, zoom]);
+  }, [anchorRef, bounds, maxHeight, open, zoom]);
 
   return placement;
 }

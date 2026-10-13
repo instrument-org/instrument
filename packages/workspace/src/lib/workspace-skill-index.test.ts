@@ -6,11 +6,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { TaskIdSchema } from "../schemas/task-id";
+import { ChatIdSchema } from "../schemas/chat-id";
 import {
-  createMockTaskConfigForDir,
+  createMockChatConfigForDir,
   MOCK_WORKSPACE_DIRS,
-} from "../test/helpers/mock-task-config";
+} from "../test/helpers/mock-chat-config";
 import { withTurnContext } from "./turn-context";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import {
@@ -21,8 +21,8 @@ import {
 } from "./workspace-skill-index";
 import { writeFileWithDir } from "./write-file-with-dir";
 
-createMockTaskConfigForDir(
-  `${MOCK_WORKSPACE_DIRS.tasks}/workspace-skill-index`,
+createMockChatConfigForDir(
+  `${MOCK_WORKSPACE_DIRS.chats}/workspace-skill-index`,
 );
 
 // The shared mock workspace root is a real directory every test file's process
@@ -35,7 +35,7 @@ setWorkspaceConfig({
 
 const skillsDir = path.join(rootDir, "skills");
 const turn = {
-  id: TaskIdSchema.parse("workspace-skill-index"),
+  id: ChatIdSchema.parse("workspace-skill-index"),
   sessionId: StoreId.newSessionId(),
 };
 

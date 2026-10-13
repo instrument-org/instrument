@@ -1,7 +1,7 @@
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";
@@ -19,9 +19,7 @@ export function useSetChatTopics() {
   const mutation = useMutation(
     rpcClient.workspace.chats.setTopics.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to tag the chat", {
-          description: error.message,
-        });
+        toast.error("Couldn't change the chat's topics", { cause: error });
         void queryClient.invalidateQueries({ queryKey: key });
       },
       onMutate: (input) => {

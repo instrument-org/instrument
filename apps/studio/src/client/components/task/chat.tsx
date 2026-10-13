@@ -6,10 +6,11 @@ import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn } from "@/client/lib/utils";
+import { PermissionAsksFoot } from "@/client/components/permission-asks";
 import { rpcClient } from "@/client/rpc/client";
 import { outputFolderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
@@ -19,7 +20,7 @@ import {
   type SessionMessageDataPart,
   type SessionMessagePart,
   StoreId,
-  type Task,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
@@ -32,7 +33,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { ChatBillingNoticeView } from "../billing/chat-billing-notice";
 import { useChatBillingNotice } from "../billing/use-chat-billing-notice";
@@ -85,7 +86,7 @@ const TRANSCRIPT_PREVIOUS_TURN_PEEK = 40;
  * session queues what arrives mid-turn and runs it the moment the turn ends.
  * For the same reason the composer never turns into a stop.
  */
-export function TaskChat({
+export function ChatConversation({
   asks,
   beforeComposer,
   composerLead,
@@ -95,7 +96,7 @@ export function TaskChat({
   selectedSessionId,
   sendContext,
   sentPrompt,
-  task,
+  chatInfo,
   transcriptTrailing,
 }: {
   /**
@@ -135,12 +136,12 @@ export function TaskChat({
    * reads as empty on the way.
    */
   sentPrompt?: string;
-  task: Task;
+  chatInfo: ChatInfo;
   /** Drawn under the transcript's last turn, inside the scroller: what is going on past the conversation. */
   transcriptTrailing?: ReactNode;
 }) {
   const appWindow = useContext(WindowContext);
-  const id = task.id;
+  const id = chatInfo.id;
 
   const promptInputRef = useRef<PromptInputRef>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -150,14 +151,14 @@ export function TaskChat({
   const createMessage = useMutation(
     createMessageOptions({
       onError: (error) => {
-        toast.error("Failed to create message", { description: error.message });
+        toast.error("Couldn't send your message", { cause: error });
       },
     }),
   );
   const runTurn = useMutation(
     rpcClient.workspace.session.run.mutationOptions({
       onError: (error) => {
-        toast.error("Failed to try again", { description: error.message });
+        toast.error("Couldn't try again", { cause: error });
       },
     }),
   );
@@ -242,7 +243,7 @@ export function TaskChat({
   const isLoadingMessages = messagesQuery.isLoading;
   const refetch = messagesQuery.refetch;
 
-  const isDeveloperMode = useDeveloperMode();
+  const isDeveloperMode = useTabDeveloperMode();
 
   const { isAgentAlive, isAgentRunning } = useAgentSessionStatus({
     id,
@@ -285,7 +286,9 @@ export function TaskChat({
       return;
     }
     if (!selectedModelURI) {
-      toast.error("Failed to retry", { description: "No model selected" });
+      toast.error("Couldn't try again", {
+        description: "Choose a model first.",
+      });
       return;
     }
     createMessage.mutate({
@@ -298,18 +301,20 @@ export function TaskChat({
 
   // The failed turn again, with nothing said on the user's behalf: the agent
   // runs over the session as it stands and answers the request already in it.
-  const handleRunAgain = () => {
+  const handleRunAgain = (modelURI = selectedModelURI) => {
     if (!selectedSessionId) {
       // No retry UI is shown when no session is selected
       return;
     }
-    if (!selectedModelURI) {
-      toast.error("Failed to try again", { description: "No model selected" });
+    if (!modelURI) {
+      toast.error("Couldn't try again", {
+        description: "Choose a model first.",
+      });
       return;
     }
     runTurn.mutate({
       id,
-      modelURI: selectedModelURI,
+      modelURI,
       sessionId: selectedSessionId,
     });
   };
@@ -532,15 +537,18 @@ export function TaskChat({
                       <NoMessages />
                     ) : (
                       <TranscriptStream
-                        isAgentRunning={isAgentRunning}
+                        isAgentRunning={isAgentRunning || runTurn.isPending}
                         isDeveloperMode={isDeveloperMode}
                         messages={shownMessages}
                         onContinue={handleContinue}
-                        onModelChange={setSelectedModelURI}
+                        onModelChange={(modelURI) => {
+                          setSelectedModelURI(modelURI);
+                          handleRunAgain(modelURI);
+                        }}
                         onRetry={handleRetry}
-                        onRunAgain={handleRunAgain}
+                        onRunAgain={() => handleRunAgain()}
                         presentation="chat"
-                        task={task}
+                        chatInfo={chatInfo}
                       />
                     )
                   ) : (
@@ -572,6 +580,7 @@ export function TaskChat({
             {/* isolate: keep the prompt input's z-10 contained to the composer. */}
             <div className="isolate mx-auto w-full max-w-3xl px-3 pb-3">
               {beforeComposer}
+              <PermissionAsksFoot chatId={id} messages={shownMessages} />
               {replyTo && (
                 <ComposerReplyQuote
                   onDismiss={() => {

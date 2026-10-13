@@ -1,6 +1,6 @@
 import { ContactErrorAlert } from "@/client/components/contact-error-alert";
 import { createFileRoute } from "@tanstack/react-router";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 export const Route = createFileRoute("/debug/components/alerts")({
   component: RouteComponent,
@@ -19,8 +19,8 @@ function RouteComponent() {
           </p>
           <h1 className="text-2xl font-semibold tracking-tight">Alerts</h1>
           <p className="text-sm text-muted-foreground">
-            Special-case alert states that are hard to reproduce in a real
-            session.
+            Alerts that only show up when something goes wrong with an account,
+            which is hard to set up in a real session.
           </p>
         </header>
 
@@ -28,7 +28,8 @@ function RouteComponent() {
           <div>
             <h2 className="text-base font-semibold">Contact error alert</h2>
             <p className="text-sm text-muted-foreground">
-              Shown when an operation fails and the user may need support.
+              Settings shows this under your account when it can&apos;t reach
+              the server to load it.
             </p>
           </div>
           <div className="flex flex-col gap-6">
@@ -43,16 +44,6 @@ function RouteComponent() {
                 title="Connection error"
               >
                 Could not connect to the workspace server.
-              </ContactErrorAlert>
-            </div>
-            <div className="flex flex-col gap-2">
-              <div>
-                <p className="font-mono text-xs text-muted-foreground">
-                  without retry
-                </p>
-              </div>
-              <ContactErrorAlert title="Something went wrong">
-                An unexpected error occurred while loading your data.
               </ContactErrorAlert>
             </div>
           </div>

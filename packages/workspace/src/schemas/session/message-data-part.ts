@@ -1,10 +1,8 @@
 import { z } from "zod";
 
-import { FolderAttachment } from "../folder-attachment";
+import { MountedFolder } from "../mounted-folder";
 import { RelativePathSchema } from "../paths";
-import { ProjectIdSchema } from "../project-id";
 import { StoreId } from "../store-id";
-import { TaskIdSchema } from "../task-id";
 
 export namespace SessionMessageDataPart {
   /**
@@ -12,13 +10,11 @@ export namespace SessionMessageDataPart {
    * whether it needs to guard against repeating itself.
    *
    * - **Event**: something that happened on this turn -- `asks`,
-   *   `attachments`, `contextRollover`, `intent`, `maxSteps`, `reply`,
-   *   `skillChanges`, `skillMentions`, and `projectContext` and
-   *   `chatContext` and `adoptedTask`, which are written once at creation. A repeat is
-   *   impossible by construction; nothing to guard.
-   * - **Diff**: what changed since last time -- `projectChanges`,
-   *   `attachedFolderChanges`, `modelChange`. Self-limiting: no change, no
-   *   part.
+   *   `attachments`, `contextRollover`, `fromChat`, `intent`, `maxSteps`, `reply`,
+   *   `skillChanges`, and `skillMentions`. A repeat is impossible by
+   *   construction; nothing to guard.
+   * - **Diff**: what changed since last time -- `folderChanges`,
+   *   `modelChange`. Self-limiting: no change, no part.
    * - **State**: the whole current picture -- `backgroundProcesses`,
    *   `browserStatus`, `memory`, `chatTopics`, `viewContext`.
    *   These are the ones that will restate an unchanged fact on every single
@@ -30,20 +26,21 @@ export namespace SessionMessageDataPart {
    *
    * Adding a part? Decide which of the three it is first.
    *
-   * One member below is none of the three, because nothing writes it: see
-   * `fileChanges`.
+   * Two members below are none of the three, because nothing writes them:
+   * see `fileChanges` and `chatContext`.
    */
   export const NameSchema = z.enum([
-    "adoptedTask",
     "appEvent",
     "asks",
-    "attachedFolderChanges",
+    "folderChanges",
+    "permissionAnswer",
     "attachments",
     "backgroundProcesses",
     "browserStatus",
     "contextRollover",
     "dateChange",
     "fileChanges",
+    "fromChat",
     "intent",
     "skillChanges",
     "skillMentions",
@@ -51,10 +48,7 @@ export namespace SessionMessageDataPart {
     "memory",
     "messageGap",
     "modelChange",
-    "projectChanges",
-    "projectContext",
     "reply",
-    "taskAppChanges",
     "taskEvent",
     "chatContext",
     "chatTopics",
@@ -64,40 +58,24 @@ export namespace SessionMessageDataPart {
 
   export type Name = z.output<typeof NameSchema>;
 
-  // Attached folders added, removed, renamed, or re-permissioned since the
-  // model last saw them -- attached to the user message that triggers the next
-  // turn so the model stops relying on stale names, removed folders, or an
-  // access level that has since changed, and knows about a folder handed to it
-  // mid-flight. The standing folder list lives in the session context, which is
-  // written once and never rewritten, so this is the only thing that gets a
-  // change to the model at all.
-  const AttachedFolderChangesDataPartSchema = z.object({
-    accessChanged: z
-      .array(
-        z.object({
-          access: FolderAttachment.AccessSchema,
-          name: z.string(),
-          path: z.string(),
-        }),
-      )
-      .default([]),
-    added: z
-      .array(
-        z.object({
-          access: FolderAttachment.AccessSchema,
-          name: z.string(),
-          path: z.string(),
-        }),
-      )
-      .default([]),
-    removed: z.array(z.object({ name: z.string(), path: z.string() })),
-    renamed: z.array(
-      z.object({ newName: z.string(), oldName: z.string(), path: z.string() }),
+  // Folders granted in the chat or taken back since the session last heard --
+  // attached to the user message that starts the next turn so the model knows
+  // of a folder granted mid-conversation and stops relying on one that has
+  // gone. The standing folder
+  // list lives in the session context, which is written once and rebuilt at
+  // most hourly, so this is what gets a change to the model the same turn.
+  const FolderChangesDataPartSchema = z.object({
+    added: z.array(
+      z.object({
+        access: MountedFolder.AccessSchema,
+        path: z.string(),
+      }),
     ),
+    removed: z.array(z.object({ path: z.string() })),
   });
 
-  export type AttachedFolderChangesDataPart = z.output<
-    typeof AttachedFolderChangesDataPartSchema
+  export type FolderChangesDataPart = z.output<
+    typeof FolderChangesDataPartSchema
   >;
 
   const FileAttachmentDataPartSchema = z.object({
@@ -116,54 +94,20 @@ export namespace SessionMessageDataPart {
     typeof FileAttachmentDataPartSchema
   >;
 
-  export type FolderAttachmentDataPart = FolderAttachment.Type;
+  // A folder the user sent with the message, shown with it. Each is granted
+  // to the chat as it is sent, and the agent is told of it by the folder
+  // changes note, so the model reads nothing from this.
+  const SentFolderDataPartSchema = z.object({ path: z.string() });
+
+  export type SentFolderDataPart = z.output<typeof SentFolderDataPartSchema>;
 
   export const FileAttachmentsDataPartSchema = z.object({
     files: z.array(FileAttachmentDataPartSchema),
-    folders: z.array(FolderAttachment.Schema).optional(),
+    folders: z.array(SentFolderDataPartSchema).optional(),
   });
 
   export type FileAttachmentsDataPart = z.output<
     typeof FileAttachmentsDataPartSchema
-  >;
-
-  // Project identity and instructions snapshotted onto the first message when a
-  // task is created from a project. Frozen at creation, so later project edits
-  // or deletion don't change the task. Project folders are not listed here; each
-  // attachment carries its own `source` so consumers tell them apart.
-  const ProjectContextDataPartSchema = z.object({
-    instructions: z.string().optional(),
-    projectId: ProjectIdSchema,
-    projectName: z.string(),
-  });
-
-  export type ProjectContextDataPart = z.output<
-    typeof ProjectContextDataPartSchema
-  >;
-
-  // Drift detected between the frozen project snapshot and the live project when
-  // a user message is sent (no live watching: a single read at send time).
-  // Instructions ride along here; added/removed folders are also written to the
-  // task's attached folders so they become standing context. `instructions` is
-  // the new value when `instructionsChanged` is true (omitted when it was
-  // cleared), so the latest such part is the effective project instructions.
-  const ProjectChangesDataPartSchema = z.object({
-    foldersAdded: z.array(
-      z.object({
-        access: FolderAttachment.AccessSchema,
-        name: z.string(),
-        path: z.string(),
-      }),
-    ),
-    foldersRemoved: z.array(z.object({ name: z.string(), path: z.string() })),
-    instructions: z.string().optional(),
-    instructionsChanged: z.boolean(),
-    projectId: ProjectIdSchema,
-    projectName: z.string(),
-  });
-
-  export type ProjectChangesDataPart = z.output<
-    typeof ProjectChangesDataPartSchema
   >;
 
   /**
@@ -315,7 +259,7 @@ export namespace SessionMessageDataPart {
    * Places in files the user marked and what they want changed at each,
    * gathered on the file before sending and carried beside their words, so
    * the request reads as a list of targets rather than quotes pasted into
-   * the message. Each names the file by its path (and the virtual path the
+   * the message. Each names the file by its path (and the path the
    * agent reaches it by, when a granted folder covers it), where in the file
    * in a reader's words, the words or source at that place, and what the
    * user typed for it, which may be nothing.
@@ -432,27 +376,18 @@ export namespace SessionMessageDataPart {
            */
           ended: z.string().optional(),
           /**
-           * What the task's folder holds when the note is composed: each
-           * top-level folder with the files under it, and the files at the
-           * root, the scaffold left out. Counts rather than names, so the
-           * chat sees the shape of the folder without a listing of it.
-           */
-          holds: z
-            .array(
-              z.object({
-                capped: z.boolean().optional(),
-                files: z.number().nonnegative(),
-                name: z.string(),
-              }),
-            )
-            .optional(),
-          /**
            * The files the task named in the files fence of its last message,
            * in the paths the chat can open. What the task said it
            * made, not a reading of what its tools did: the card draws them as
            * chips, and the note carries the message itself.
            */
           files: z.array(z.string()).optional(),
+          /**
+           * The task's handle in its chat, `t1`, which the `task` command
+           * takes. Absent on an event written before tasks had one, which
+           * names the task by its session alone.
+           */
+          handle: z.string().optional(),
           /**
            * The step running as an overdue note is composed, in one line:
            * how long the turn has run, when it last called a tool, and what
@@ -490,6 +425,13 @@ export namespace SessionMessageDataPart {
            */
           status: z.enum(["done", "error", "overdue"]),
           /**
+           * Set when the user stopped the task, from its page or the chat's
+           * task list: the turn did not finish, and it is not the chat's to
+           * start again unless the user asks. A stop the chat made itself
+           * wakes nothing.
+           */
+          stoppedBy: z.literal("user").optional(),
+          /**
            * The activities the child's agent set this turn, oldest first and
            * capped to the latest few. On an overdue event, so the conversation
            * reads where the task has been going rather than one snapshot.
@@ -513,7 +455,8 @@ export namespace SessionMessageDataPart {
               }),
             )
             .optional(),
-          taskId: TaskIdSchema,
+          /** The task, by its session in the chat's store. */
+          sessionId: StoreId.SessionSchema,
           title: z.string(),
           /** Input and output tokens the child has spent in total. */
           tokens: z.number().nonnegative().optional(),
@@ -523,6 +466,21 @@ export namespace SessionMessageDataPart {
   });
 
   export type TaskEventDataPart = z.output<typeof TaskEventDataPartSchema>;
+
+  /**
+   * Words the chat's agent wrote to one of its tasks, rather than the user's:
+   * the assignment a fork starts on (`assignment`), and what `task send`
+   * passes on later (`message`). Written on a user message with no text, so
+   * the record says who spoke, and the transcript can draw it as one agent
+   * writing to another. The model reads it as the text it carries, with the
+   * fork's standing note ahead of an assignment.
+   */
+  export const FromChatDataPartSchema = z.object({
+    kind: z.enum(["assignment", "message"]),
+    text: z.string().trim().min(1),
+  });
+
+  export type FromChatDataPart = z.output<typeof FromChatDataPartSchema>;
 
   /**
    * An app the user acted on outside the conversation: a sign-in finished in
@@ -540,6 +498,8 @@ export namespace SessionMessageDataPart {
     events: z
       .array(
         z.object({
+          /** The account the app is signed in as, when it is named. */
+          account: z.string().optional(),
           /** A line of detail: how many tools, what went wrong. */
           detail: z.string().optional(),
           event: z.enum([
@@ -561,15 +521,31 @@ export namespace SessionMessageDataPart {
   export type AppEventDataPart = z.output<typeof AppEventDataPartSchema>;
 
   /**
+   * The person's answer to a card the agent's work raised: a folder that asks
+   * first, or an app it may not use. Like an app event, it wakes the session
+   * that ran into it, or joins its turn if it is still going.
+   */
+  export const PermissionAnswerDataPartSchema = z.object({
+    answer: z.enum(["allowed", "always", "declined"]),
+    kind: z.enum(["app", "folder"]),
+    /** The folder's path, or the app's name. */
+    target: z.string(),
+  });
+
+  export type PermissionAnswerDataPart = z.output<
+    typeof PermissionAnswerDataPartSchema
+  >;
+
+  /**
    * What the user was looking at when they sent the message: the folder open
-   * in the window's folder view and what was selected in it, as virtual paths.
+   * in the window's folder view and what was selected in it.
    * Event cadence, written by the surface that sent the message and only when
    * it had a folder on screen.
    */
   /** The task at work in a tab, stamped when the message is stored. */
   const TabHolderSchema = z.object({ id: z.string(), title: z.string() });
 
-  /** The page the window's browser shows: its address and title, what is selected on it, and how its text begins. */
+  /** The page the window's browser shows: its address and title, what is selected on it, and where the cursor is. */
   const ViewedPageSchema = z.object({
     /** Where the user's cursor is on the page: the focused control, described. */
     focus: z.string().optional(),
@@ -587,7 +563,6 @@ export namespace SessionMessageDataPart {
         }),
       )
       .optional(),
-    text: z.string().optional(),
     title: z.string(),
     url: z.string(),
   });
@@ -603,10 +578,11 @@ export namespace SessionMessageDataPart {
   /**
    * One chip the composer showed over the words as they were sent, which the
    * transcript draws again over the message: a page, a screen of the app's
-   * (an app's front, a folder by its route), or files and folders by path.
-   * What a chat had up beside it is not one; that tab is the chat's own.
+   * (an app's front, a folder by its route), files and folders by path, or
+   * another chat the user had open.
    */
   const SentChipSchema = z.discriminatedUnion("kind", [
+    z.object({ id: z.string(), kind: z.literal("chat"), title: z.string() }),
     z.object({ kind: z.literal("page"), title: z.string(), url: z.string() }),
     z.object({
       kind: z.literal("screen"),
@@ -632,6 +608,11 @@ export namespace SessionMessageDataPart {
   export const ViewContextDataPartSchema = z.object({
     /** The chips over the words as they were sent, in their order; for the transcript, not the agent. */
     attached: z.array(SentChipSchema).optional(),
+    /**
+     * Another chat the user had open, by its id and title: named and nothing
+     * more, since its pages and tabs are that chat's own.
+     */
+    chat: z.object({ id: z.string(), title: z.string() }).optional(),
     /** The app whose page is up on the Apps screen, and where it stands. */
     app: z
       .object({
@@ -653,7 +634,7 @@ export namespace SessionMessageDataPart {
     /**
      * Files and folders the person picked to go with the message by name,
      * from a menu or a button over them, rather than by having them on
-     * screen: each by its path, and the virtual path the agent reaches it by
+     * screen: each by its path, and the path the agent reaches it by
      * when a granted folder covers it.
      */
     chosen: z
@@ -669,7 +650,7 @@ export namespace SessionMessageDataPart {
     /** A file open on This Mac, as the person writes its path. */
     file: z
       .object({
-        /** The virtual path the agent reaches it by, when a granted folder covers it. */
+        /** The path the agent reaches it by, when a granted folder covers it. */
         mount: z.string().optional(),
         name: z.string(),
         path: z.string(),
@@ -682,7 +663,7 @@ export namespace SessionMessageDataPart {
         access: z.enum(["read-only", "read-write"]).optional(),
         /** As the person writes it: `~/Documents/Instrument`. */
         display: z.string(),
-        /** The virtual path the agent reaches it by; absent means it cannot read it. */
+        /** The path the agent reaches it by; absent means it cannot read it. */
         mount: z.string().optional(),
         /** The names selected in it, a folder's with a trailing slash. */
         selected: z.array(z.string()).default([]),
@@ -706,7 +687,11 @@ export namespace SessionMessageDataPart {
     screen: z.enum([
       "apps",
       "browser",
+      // Another chat, which `chat` names.
+      "chat",
       "computer",
+      // The chat's own conversation, with nothing else in view beside it.
+      "conversation",
       "file",
       "home",
       // No screen is called this; messages already stored may still name it.
@@ -763,12 +748,13 @@ export namespace SessionMessageDataPart {
   export type MessageGapDataPart = z.output<typeof MessageGapDataPartSchema>;
 
   /**
-   * The user's other chats at the moment a new chat opened,
-   * newest first: each one's title, topics, latest line, and when it last
-   * moved. Written once, onto the chat's root message, so a fresh three-word
-   * ask can find the chat it belongs to. Stored rather than read live, so
-   * the note reads the same every time the transcript is rebuilt; `sentAt`
-   * is what "when" is measured from.
+   * The user's other chats at the moment a new chat opened, newest first:
+   * each one's title, topics, latest line, and when it last moved, on the
+   * root message of a chat an earlier build opened. Nothing writes it and
+   * the model is not shown it; the agent searches and reads earlier chats
+   * with `chat search` and `chat read` when the user refers to earlier work.
+   * Kept so those stored messages still parse, and shown only on the
+   * developer view of the transcript.
    */
   const ChatContextDataPartSchema = z.object({
     chats: z.array(
@@ -786,19 +772,6 @@ export namespace SessionMessageDataPart {
   });
 
   export type ChatContextDataPart = z.output<typeof ChatContextDataPartSchema>;
-
-  /**
-   * The task an earlier version of the app ran as the whole conversation,
-   * on the first message of the chat its words were copied into: which task
-   * it was, now one of the chat's own, and the files it made, as paths the
-   * chat reaches them by. Written once, when the chat is made.
-   */
-  const AdoptedTaskDataPartSchema = z.object({
-    files: z.array(z.string()).default([]),
-    taskId: TaskIdSchema,
-  });
-
-  export type AdoptedTaskDataPart = z.output<typeof AdoptedTaskDataPartSchema>;
 
   /**
    * What the conversation's agent remembers about the user, on a chat's
@@ -846,7 +819,7 @@ export namespace SessionMessageDataPart {
       z.object({
         about: z.string().optional(),
         emoji: z.string().optional(),
-        /** Where the topic's folders are mounted in the chat, as `/mnt/<name>`. */
+        /** The paths of the topic's folders in the chat. */
         folders: z.array(z.string()).optional(),
         /** The topic's instructions as they stood when the message was sent. */
         instructions: z.string().optional(),
@@ -866,7 +839,7 @@ export namespace SessionMessageDataPart {
    *
    * It is still parsed because tasks from before the fence hold it, and it is
    * the only record those conversations have of what a turn produced. Dropping
-   * the schema does not delete the payload -- it survives in `task.db` either
+   * the schema does not delete the payload -- it survives in `chat.db` either
    * way -- it just makes the part unreadable, which costs those transcripts
    * their file links for no gain.
    *
@@ -903,39 +876,14 @@ export namespace SessionMessageDataPart {
   export type FileChangesDataPart = z.output<typeof FileChangesDataPartSchema>;
 
   /**
-   * The apps this task may reach, changed since the model last looked --
-   * attached to the user message that carries the change in.
-   *
-   * A task reaches the apps it was handed and no others, and which those are is
-   * written into the session context, which is composed once and never
-   * rewritten. So a task handed an app after it started could call it while its
-   * standing context says it cannot, which reads to the model as a refusal
-   * rather than a capability. The usual reason one arrives late is that the app
-   * did not exist when the task did: the task needed a service, the
-   * conversation asked the user to sign in, and the task is still waiting on it.
-   */
-  const TaskAppChangesDataPartSchema = z.object({
-    added: z
-      .array(z.object({ name: z.string(), slug: z.string() }))
-      .default([]),
-    removed: z
-      .array(z.object({ name: z.string(), slug: z.string() }))
-      .default([]),
-  });
-
-  export type TaskAppChangesDataPart = z.output<
-    typeof TaskAppChangesDataPartSchema
-  >;
-
-  /**
    * What a data part becomes when it cannot be read as the type it claims.
    *
-   * Two ways in, both of them a task outliving a schema: a type this build has
-   * no schema for at all (`data-gitCommit` is still sitting in tasks from before
-   * git-based file versioning was removed), and a payload written before a field
-   * the schema now describes. The part is kept rather than dropped, because
-   * `attachments` is a data part too and silently losing a turn's uploads is a
-   * worse answer than a row saying something could not be read.
+   * Two ways in, both of them a chat outliving a schema: a type this build has
+   * no schema for at all (a part a retired feature wrote), and a payload
+   * written before a field the schema now describes. The part is kept rather
+   * than dropped, because `attachments` is a data part too and silently
+   * losing a turn's uploads is a worse answer than a row saying something
+   * could not be read.
    *
    * Nothing writes one. It exists only on the way out of the store.
    */
@@ -947,11 +895,10 @@ export namespace SessionMessageDataPart {
   export type UnknownDataPart = z.output<typeof UnknownDataPartSchema>;
 
   const DataPartsSchema = z.object({
-    [NameSchema.enum.adoptedTask]: AdoptedTaskDataPartSchema,
     [NameSchema.enum.appEvent]: AppEventDataPartSchema,
     [NameSchema.enum.asks]: AsksDataPartSchema,
-    [NameSchema.enum.attachedFolderChanges]:
-      AttachedFolderChangesDataPartSchema,
+    [NameSchema.enum.folderChanges]: FolderChangesDataPartSchema,
+    [NameSchema.enum.permissionAnswer]: PermissionAnswerDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
@@ -960,17 +907,15 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
+    [NameSchema.enum.fromChat]: FromChatDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
     [NameSchema.enum.memory]: MemoryDataPartSchema,
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
-    [NameSchema.enum.projectChanges]: ProjectChangesDataPartSchema,
-    [NameSchema.enum.projectContext]: ProjectContextDataPartSchema,
     [NameSchema.enum.reply]: ReplyDataPartSchema,
     [NameSchema.enum.skillChanges]: SkillChangesDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
-    [NameSchema.enum.taskAppChanges]: TaskAppChangesDataPartSchema,
     [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,
     [NameSchema.enum.viewContext]: ViewContextDataPartSchema,

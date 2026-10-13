@@ -22,6 +22,18 @@ const EXCLUDED_BUNDLE_IDS = new Set([
   "com.apple.ScriptEditor2",
 ]);
 
+// System helpers that do their work and step aside, with no window or icon of
+// their own: naming one ("Open in Disk Image Mounter") tells a person nothing,
+// so the file is offered a plain Open that leaves the choice to the system.
+// Hidden from the menu even as the default, which is what sets them apart
+// from the exclusions above.
+const UNNAMED_HANDLER_BUNDLE_IDS = new Set(["com.apple.DiskImageMounter"]);
+
+/** Whether the system's choice of app is one not worth naming. */
+export function isUnnamedHandler(bundleId: null | string) {
+  return bundleId !== null && UNNAMED_HANDLER_BUNDLE_IDS.has(bundleId);
+}
+
 // Apps that genuinely open part of what they claim. Each maps to the extensions
 // it stays listed for and is hidden everywhere else, which is finer-grained
 // than dropping them outright would allow.
@@ -109,7 +121,10 @@ function isUsefulCandidate(candidate: CandidateApp, ext: string) {
   // Instrument claims document types of its own, so Launch Services lists it
   // for files it is already showing, sometimes as the default. Offering to open
   // a file in the app the person is looking at does nothing useful.
-  if (candidate.bundleId === APP_BUNDLE_ID) {
+  if (
+    candidate.bundleId === APP_BUNDLE_ID ||
+    isUnnamedHandler(candidate.bundleId)
+  ) {
     return false;
   }
   // The system's own choice is never second-guessed; it is what the primary

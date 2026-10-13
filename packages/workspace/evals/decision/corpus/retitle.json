@@ -1,0 +1,122 @@
+[
+  {
+    "opening": "can you clean up the volunteer roster spreadsheet? theres a bunch of duplicate people and the phone column is a mess of formats",
+    "reply": "I merged the duplicate rows in the volunteer roster, matching on name plus email, which took the sheet from 412 rows down to 367. Where two copies disagreed I kept the more recent entry and listed the 9 conflicts on a new Review tab. The phone column now uses one format throughout, and the 14 numbers that were too short to be real are highlighted so you can check them.",
+    "title": "Volunteer roster spreadsheet cleanup",
+    "drifted": false
+  },
+  {
+    "opening": "my flask app throws a 500 on the /reports page but nothing shows up in the logs. can you look at the repo and figure out why",
+    "reply": "The 500 comes from the reports view calling strftime on a None value when a report has no end date. Errors weren't reaching your log because the app's logger was set up after Flask had already installed its default handler, so I moved the logging config above app creation. I also guarded the date formatting so open-ended reports show 'ongoing', and added a test that loads /reports with one of those rows.",
+    "title": "Reports page 500 error",
+    "drifted": false
+  },
+  {
+    "opening": "help me plan a raised vegetable bed, 4 by 8, i want tomatoes peppers and some lettuce. zone 6",
+    "reply": "Here's a layout for the 4x8 bed. The two tomato plants go on the north end so they don't shade everything else, with four pepper plants in front of them and lettuce in the southern third, where it gets some afternoon shade from the peppers by midsummer. I've added a planting calendar based on a May 10 last frost: start the peppers indoors in mid March, tomatoes in early April, and sow the lettuce directly in late April with a second round in August.",
+    "title": "Raised vegetable bed plan",
+    "drifted": false
+  },
+  {
+    "opening": "we just adopted a 9 week old puppy and need a house training schedule that works around a 9 to 5",
+    "reply": "I put together a weekday schedule for the puppy: out right after waking, after each meal, after naps, and every two hours while you're home. For the stretch while you're at work, the plan assumes a midday visit, because a 9 week old can't hold it for eight hours. The weekend version moves her to a three hour gap by week 12. I also added a short log sheet so you can track accidents and spot the times of day that need an extra trip out.",
+    "title": "Puppy house training schedule",
+    "drifted": false
+  },
+  {
+    "opening": "i have 4 exams in two weeks, organic chem, stats, history and spanish. make me a study schedule that isnt insane",
+    "reply": "The schedule covers the 14 days before your first exam. Organic chem gets the most time because it's first and you rated it hardest, so it takes the morning block on 8 of the days. Stats and Spanish trade afternoons, and history shows up in shorter review sessions until the final four days, when it gets full blocks. Every day stops by 9pm and keeps one hour free, and Sunday the 12th is a light day.",
+    "title": "Two week exam study schedule",
+    "drifted": false
+  },
+  {
+    "opening": "write me a cover letter for this operations analyst posting, im coming from 6 years in retail management",
+    "reply": "I drafted the cover letter around three things the posting asks for: inventory forecasting, process documentation, and working with cross-functional teams. Each paragraph ties one of them to something from your retail years, like the scheduling change that cut overtime by 18 percent. I kept it to 310 words. Two spots are marked where I guessed at numbers, so swap in the real figures before you send it.",
+    "title": "Operations analyst cover letter",
+    "drifted": false
+  },
+  {
+    "opening": "my downloads folder is a disaster, like 3000 files. sort it into folders by type please",
+    "reply": "Downloads is sorted now. I made folders for Documents, Spreadsheets, Images, Installers, Archives, and Other, and moved 2,914 files into them. The 86 files with no extension went into Other so you can look at them. I left anything modified in the last two days where it was in case you're still using it, and the 41 old installer files are grouped together, since they're the easiest thing to delete if you want space back.",
+    "title": "Sort Downloads folder by type",
+    "drifted": false
+  },
+  {
+    "opening": "couch to 5k plan please, im starting from basically zero and my knees complain on stairs",
+    "reply": "I adapted the standard nine week couch to 5k plan to go easier on your knees. Every session starts with a five minute brisk walk, the run intervals build a little more slowly in weeks three and four, and each week has an optional repeat if a session felt rough. I also added two short strength sessions a week with exercises that support the knee, plus notes on picking softer routes like a track or packed trail.",
+    "title": "Couch to 5k plan",
+    "drifted": false
+  },
+  {
+    "opening": "i need a simple monthly budget, i get paid twice a month and keep running short before the second check",
+    "reply": "I set up the budget as two half-month columns that line up with your paychecks. Rent and the car payment both come out of the first check, which explains why money runs short around the 25th. Moving the phone bill and the gym membership to the second check balances the two halves to within 60 dollars of each other. The sheet also has a small buffer line that grows by 50 dollars each period.",
+    "title": "Twice monthly budget setup",
+    "drifted": false
+  },
+  {
+    "opening": "summarize the 60 page industry report on regional freight rail in my downloads folder, bullets is fine",
+    "reply": "Here's the freight rail report summarized in 12 bullets, grouped into volume trends, labor, infrastructure spending, and the outlook. The main finding is that intermodal volume grew 6 percent while carload traffic was flat, mostly because of trucking competition on short hauls. I also pulled the four charts the report treats as most important and listed the page numbers for the sections you'd want to read in full.",
+    "title": "Freight rail report summary",
+    "drifted": false
+  },
+  {
+    "opening": "our cat started peeing outside the litter box this week. what could be causing it",
+    "reply": "Since this started suddenly, the first thing to rule out is a urinary problem, so I'd call the vet this week, especially if she's going more often or straining. Beyond that, the likely causes from what you described are the new litter brand you switched to on Monday and the box's move to the laundry room. I wrote up a step by step plan: go back to the old litter, add a second box in the old spot, and clean the problem areas with an enzyme cleaner.",
+    "title": "Cat avoiding litter box",
+    "drifted": false
+  },
+  {
+    "opening": "set up a github actions workflow so pytest runs on every pull request for my repo",
+    "reply": "I added .github/workflows/tests.yml, which runs pytest on every pull request and every push to main, on Python 3.11 and 3.12. It caches pip dependencies keyed on requirements.txt, so repeat runs take about 40 seconds instead of two minutes. I pushed it to a branch and opened a test PR, and both jobs passed. If you want failing tests to block merging, turn on the required check in the branch protection settings.",
+    "title": "Pytest GitHub Actions workflow",
+    "drifted": false
+  },
+  {
+    "opening": "help me write a lesson plan teaching equivalent fractions to 4th graders, 45 minutes",
+    "reply": "The lesson plan runs 45 minutes. It opens with a 5 minute warm up folding paper strips, moves to 15 minutes of guided practice on a number line, then 15 minutes of partner work matching fraction cards, and ends with a 10 minute exit ticket. I added a version of the card set for students who need more support, plus a challenge extension with improper fractions, and a printable answer key for the exit ticket.",
+    "title": "Equivalent fractions lesson plan",
+    "drifted": false
+  },
+  {
+    "opening": "my tomato plants have yellow leaves on the bottom, is it too much water or something else",
+    "reply": "Based on the photos, it's early blight rather than overwatering. The yellow leaves have brown spots with rings, and they're spreading upward from the soil line. I'd remove the affected lower leaves now, mulch so soil doesn't splash onto the plants, and water at the base in the morning. The Roma plants look worse than the cherry tomatoes, so I'd check those every couple of days. Next year, rotating the bed's location will help a lot.",
+    "title": "Yellowing tomato leaves",
+    "drifted": false
+  },
+  {
+    "opening": "can you rename all the photos in my Pictures/2024 folder to their date taken, like 2024-06-14_001",
+    "reply": "The renaming stopped partway through because the disk was full, so I spent most of this session freeing up space. The biggest culprit was a 48 GB folder of old iOS device backups, plus 22 GB of caches from an app you uninstalled. After clearing those you have 71 GB free. I also found that Time Machine snapshots were holding another 15 GB and explained how to thin them. I haven't restarted the photo renaming yet.",
+    "title": "Rename photos by date taken",
+    "drifted": true
+  },
+  {
+    "opening": "help me write a short welcome email for a new hire starting monday on the support team",
+    "reply": "I sent the welcome email, then you asked about the onboarding checklist, and we spent most of the time rebuilding the team's shift schedule. The new rotation covers 7am to 9pm across five people with no one on back to back closing shifts, and it's in a new tab of the staffing sheet. I also flagged that two people are scheduled over 40 hours in week three. Do you want me to rebalance that before you share it?",
+    "title": "New hire welcome email",
+    "drifted": true
+  },
+  {
+    "opening": "whats the best way to learn spanish in 30 minutes a day, im an advanced beginner",
+    "reply": "We drifted from the study plan to the flashcard app itself. It turned out your deck export was failing because the CSV had mixed encodings, so I wrote a small Python script that reads the old export, fixes the accented characters, and writes a clean file the app can import. All 1,840 cards came through, including the audio links. The script is saved in your scripts folder as fix_deck_export.py in case the app does this again.",
+    "title": "Daily Spanish study plan",
+    "drifted": true
+  },
+  {
+    "opening": "i want to make a spreadsheet to track my running mileage, distance time pace and weekly totals",
+    "reply": "The run log is done, and then we got into your knee pain. Most of the session went into a comparison of physical therapy options and what your insurance plan covers for them. Your plan covers 20 PT visits a year after the deductible, with a 30 dollar copay. I also summarized the three clinics near your office that take your plan, along with their evening hours, and drafted the referral request to send to your doctor's office.",
+    "title": "Running mileage tracker",
+    "drifted": true
+  },
+  {
+    "opening": "can you look over my resume and tighten up the bullets for my last two jobs",
+    "reply": "After the resume edits, we switched to the job offer you got this morning. I compared the offer letter against your current role: base pay is 9 percent higher, but the 401k match is half as much and the PTO starts lower. I drafted a negotiation email that asks for a signing bonus to make up the match difference and an extra week of PTO in year one, and I listed three questions to ask about the on-call expectations.",
+    "title": "Tighten resume bullet points",
+    "drifted": true
+  },
+  {
+    "opening": "explain the offside rule in soccer, our rec league starts saturday and i have no idea",
+    "reply": "Since you're coaching, we moved on from the offside rule to running the team. I built a roster sheet with a playing time rotation so each of the 14 players gets at least half of every game, a snack and carpool signup tab, and a group message to send out before Saturday with the field location, arrival time, and what to bring. The rotation also accounts for the two players who can't make the first game.",
+    "title": "Soccer offside rule explained",
+    "drifted": true
+  }
+]

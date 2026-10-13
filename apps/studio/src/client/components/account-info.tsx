@@ -1,4 +1,5 @@
 import { openLogin } from "@/client/atoms/login-modal";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
 import { Skeleton } from "@/client/components/ui/skeleton";
@@ -30,7 +31,7 @@ export function AccountInfo() {
         <UserInfoCard />
       ) : (
         <Card className="p-4">
-          <div className="space-y-3">
+          <div className="space-y-3" {...settingAnchor("account")}>
             {hasToken ? (
               <>
                 {isLoading && (
@@ -89,14 +90,14 @@ export function AccountInfo() {
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <p className="text-sm font-medium">Log in to {APP_NAME}</p>
                   <p className="text-xs text-muted-foreground">
-                    You&apos;re using {APP_NAME} without an account. Create an
-                    account to claim free AI usage and try the app.
+                    You&apos;re using {APP_NAME} without an account. Create one
+                    to start a free trial of {APP_NAME}&apos;s AI.
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Button
                     onClick={() => {
-                      openLogin({ hideManualProvider: true });
+                      openLogin({ instrumentOnly: true });
                     }}
                     variant="outline"
                   >
@@ -104,7 +105,7 @@ export function AccountInfo() {
                   </Button>
                   <Button
                     onClick={() => {
-                      openLogin({ hideManualProvider: true });
+                      openLogin({ instrumentOnly: true });
                     }}
                     variant="brand"
                   >

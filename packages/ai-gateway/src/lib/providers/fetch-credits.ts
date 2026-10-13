@@ -13,6 +13,18 @@ const OpenRouterCreditsResponseSchema = z.object({
   }),
 });
 
+const OpenRouterKeyResponseSchema = z.object({
+  data: z.object({
+    // Null for a key with no spending limit of its own.
+    limit_remaining: z.number().nullable(),
+  }),
+});
+
+/**
+ * What an OpenRouter key can still spend: the account's balance, or less when
+ * the key has a limit of its own, since a key draws on the account and stops
+ * at whichever runs out first.
+ */
 export function fetchCredits(
   config: Pick<AIGatewayProviderConfig.Type, "apiKey" | "baseURL" | "type">,
 ) {
@@ -28,25 +40,34 @@ export function fetchCredits(
     const headers = new Headers({ "Content-Type": "application/json" });
     setProviderAuthHeaders(headers, config);
 
-    const url = apiURL({ config, path: "/credits" });
+    const read = async <T>(path: `/${string}`, schema: z.ZodType<T>) => {
+      const response = await fetch(apiURL({ config, path }), { headers });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ${path} (${String(response.status)})`);
+      }
+      return schema.parse(await response.json());
+    };
 
-    const result = Result.try(
+    return Result.try(
       async () => {
-        const response = await fetch(url, { headers });
-        if (!response.ok) {
-          throw new Error("Failed to fetch credits");
-        }
-        const creditsData = OpenRouterCreditsResponseSchema.parse(
-          await response.json(),
-        );
-
-        return creditsData.data;
+        const [account, key] = await Promise.all([
+          read("/credits", OpenRouterCreditsResponseSchema),
+          read("/key", OpenRouterKeyResponseSchema),
+        ]);
+        const accountRemaining =
+          account.data.total_credits - account.data.total_usage;
+        const keyRemaining = key.data.limit_remaining;
+        return {
+          remaining:
+            keyRemaining === null
+              ? accountRemaining
+              : Math.min(keyRemaining, accountRemaining),
+        };
       },
       (error) =>
         new TypedError.Fetch("Failed to fetch credits", {
           cause: error,
         }),
     );
-    return result;
   });
 }

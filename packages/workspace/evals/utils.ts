@@ -19,12 +19,12 @@ import path from "node:path";
 import { z } from "zod";
 
 import { env } from "../scripts/lib/env";
-import { TASKS_DIR_NAME } from "../src/constants";
+import { CHATS_DIR_NAME, TASKS_DIR_NAME } from "../src/constants";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { type UsageSummary } from "../src/lib/usage-summary-compute";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../src/schemas/paths";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
-import { createStubBrowserConfig } from "../src/test/helpers/mock-task-config";
+import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type WorkspaceConfig } from "../src/types";
 
 /**
@@ -58,17 +58,13 @@ export function buildReportWorkspaceConfig(
     appsDir: AbsolutePathSchema.parse(path.join(absoluteWorkspaceDir, "apps")),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
-    captureEvent: () => {
-      return;
-    },
     captureException: () => {
       return;
     },
-    defaultTaskTemplateDir: AbsolutePathSchema.parse(
-      path.join(absoluteWorkspaceDir, "default-task-template"),
+    chatTemplateDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, "chat-template"),
     ),
     getAIProviderConfigs: () => [],
-    isExternalBrowserEnabled: () => true,
     modelCache: noopModelCache,
     nodeExecEnv: {},
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),
@@ -80,7 +76,10 @@ export function buildReportWorkspaceConfig(
     systemSkillsDir: AbsolutePathSchema.parse(
       path.join(absoluteWorkspaceDir, "system-skills"),
     ),
-    tasksDir: WorkspaceDirSchema.parse(
+    chatsDir: AbsolutePathSchema.parse(
+      path.join(absoluteWorkspaceDir, CHATS_DIR_NAME),
+    ),
+    legacyTasksDir: WorkspaceDirSchema.parse(
       path.join(absoluteWorkspaceDir, TASKS_DIR_NAME),
     ),
     trashItem: () => Promise.resolve(),
@@ -272,8 +271,8 @@ export function costOfUsage(
 /**
  * Whether running this model spends metered credits.
  *
- * Workers AI is the one provider this project has credits sitting unused on, so
- * it is the free side of the line and everything else is the paid side. The
+ * Workers AI is the one provider evals treat as unmetered, so it is the free
+ * side of the line and everything else is the paid side. The
  * question is asked before a run starts rather than reported after it, since a
  * bill is not a result you can decline once it arrives.
  */

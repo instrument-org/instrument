@@ -576,6 +576,10 @@ export function createCodeSession(options: CodeSessionOptions) {
     /** Whether nothing is waiting to be written. */
     idle: async () => (await saves.idle()) && currentText() === disk.text,
     pull,
+    /** Saves again now, after a save that failed. */
+    retrySave: () => {
+      scheduleSave(0);
+    },
     /** Scrolls a staged ask's place into view and selects it. */
     revealAskMark: (id: string) => {
       const place = view.state

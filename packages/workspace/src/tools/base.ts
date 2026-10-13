@@ -2,7 +2,6 @@ import { AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
 import { jsonSchema, type JSONSchema7, type Schema, zodSchema } from "ai";
 import { z } from "zod";
 
-import type { AgentName } from "../agents/types";
 import {
   TOOL_ACTIVITY_PARAM_NAME,
   TOOL_EXPLANATION_PARAM_NAME,
@@ -14,8 +13,7 @@ export const BaseInputSchema = z.object({
   // own: a heading sent as its own call was always its own step, a model round
   // trip that did nothing else, while a field rides along with work the model
   // was making anyway. Optional and required on the same terms as
-  // `explanation`, below, and offered only to the task agent, whose transcript
-  // is the one drawn in phases.
+  // `explanation`, below.
   [TOOL_ACTIVITY_PARAM_NAME]: z.string().optional().meta({
     description:
       "The phase of work this call belongs to, as a short heading in the present continuous, under about eight words (e.g. 'Charting the quarterly numbers'). Calls serving one objective repeat the same heading word for word. Generate this first.",
@@ -40,11 +38,10 @@ export const BaseInputSchema = z.object({
  */
 export function toolInputSchemaForLLM<TSchema extends z.ZodType>(
   schema: TSchema,
-  agentName: AgentName,
 ): Schema<z.output<TSchema>> {
   const inner = zodSchema(schema);
   return jsonSchema<z.output<TSchema>>(
-    async () => forceLabelsRequired(await inner.jsonSchema, agentName),
+    async () => forceLabelsRequired(await inner.jsonSchema),
     {
       validate: async (value) => {
         const result = await schema.safeParseAsync(value);
@@ -56,22 +53,17 @@ export function toolInputSchemaForLLM<TSchema extends z.ZodType>(
   );
 }
 
-function forceLabelsRequired(
-  json: JSONSchema7,
-  agentName: AgentName,
-): JSONSchema7 {
-  if (!json.properties) {
+function forceLabelsRequired(json: JSONSchema7): JSONSchema7 {
+  const { properties } = json;
+  if (!properties) {
     return json;
   }
-  const { [TOOL_ACTIVITY_PARAM_NAME]: activity, ...rest } = json.properties;
-  const properties =
-    agentName === "main" || activity === undefined ? json.properties : rest;
   const existing = json.required ?? [];
   const missing = [
     TOOL_ACTIVITY_PARAM_NAME,
     TOOL_EXPLANATION_PARAM_NAME,
   ].filter((name) => name in properties && !existing.includes(name));
-  return { ...json, properties, required: [...missing, ...existing] };
+  return { ...json, required: [...missing, ...existing] };
 }
 
 export const ProviderOutputSchema = AIGatewayProviderConfig.Schema.pick({

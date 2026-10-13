@@ -34,6 +34,6 @@ export function browserStatusModelNote(
   }
 
   return systemNote`
-    An in-app browser tab is already open for this task (opened by you or the user). Current URL: ${data.target.url}.${title} Drive it with \`agent-browser\`.
+    An in-app browser tab is already open for this conversation (opened by you or the user). Current URL: ${data.target.url}.${title} Drive it with \`agent-browser\`.
   `;
 }

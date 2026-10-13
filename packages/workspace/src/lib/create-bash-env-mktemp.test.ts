@@ -3,39 +3,36 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { ChatIdSchema } from "../schemas/chat-id";
-import { TaskDirSchema } from "../schemas/paths";
+import { type ChatId } from "../schemas/chat-id";
+import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
-import { createMockTaskConfigForDir } from "../test/helpers/mock-task-config";
+import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
 
 /**
  * just-bash's own `mktemp` writes under /tmp, which no mount covers, so it
- * fails on every call. A task's shell names a file with ours instead, and the
- * chat's shell, which writes no files, has no `mktemp` at all.
+ * fails on every call. Every shell names a file with ours instead.
  */
 const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
-let taskId: TaskId;
+let taskRoot: string;
+let chatId: ChatId;
 
 async function run(command: string, { chat = false } = {}) {
   const bash = await createBashEnv({
-    chat: chat
-      ? { childMounts: [], id: ChatIdSchema.parse(taskId) }
-      : undefined,
+    role: chat ? "chat" : "task",
     sessionId,
-    taskId,
+    chatId,
   });
   return bash.exec(command, { signal: AbortSignal.timeout(30_000) });
 }
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-mktemp-"));
-  const taskRoot = path.join(tmpDir, "tasks", "test");
+  taskRoot = path.join(tmpDir, "tasks", "test");
   await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
-  taskId = createMockTaskConfigForDir(TaskDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
 });
 
 afterAll(async () => {
@@ -46,12 +43,18 @@ describe("mktemp in the agent's shells", () => {
   it("names a file in the task's temp dir in a task's shell", async () => {
     const result = await run('f=$(mktemp) && test -f "$f" && echo "$f"');
     expect(result).toMatchObject({ exitCode: 0, stderr: "" });
-    expect(result.stdout.trim()).toMatch(/^\/task\/\.tmp\/tmp\.\w{10}$/);
+    expect(result.stdout.trim()).toMatch(
+      new RegExp(`^${taskRoot}/\\.tmp/tmp\\.\\w{10}$`),
+    );
   });
 
-  it("is not a command in the chat's shell", async () => {
-    const result = await run("mktemp", { chat: true });
-    expect(result.exitCode).toBe(127);
-    expect(result.stderr).toContain("command not found");
+  it("names a file in the chat's shell too", async () => {
+    const result = await run('f=$(mktemp) && test -f "$f" && echo "$f"', {
+      chat: true,
+    });
+    expect(result).toMatchObject({ exitCode: 0, stderr: "" });
+    expect(result.stdout.trim()).toMatch(
+      new RegExp(`^${taskRoot}/\\.tmp/tmp\\.\\w{10}$`),
+    );
   });
 });

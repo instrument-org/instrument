@@ -6,7 +6,6 @@ import {
   computerHiddenFilesAtom,
   computerListColumnsAtom,
   computerListColumnWidthsAtom,
-  computerSortAtom,
   computerViewAtom,
   type FileTab,
   finderPlacesOpenAtom,
@@ -20,6 +19,7 @@ import {
   type FileSystemItem,
   type FileSystemSortKey,
   type FileSystemSortState,
+  type FileSystemView,
   TOOLBAR_CONTROL_CLASSNAME,
   TOOLBAR_ICON_BUTTON_CLASSNAME,
 } from "@/client/components/extend/file-system";
@@ -27,6 +27,7 @@ import { InstrumentGlyph } from "@/client/components/wordmark";
 import { OUTPUT_FOLDER_GLYPH_URL } from "@/client/components/icons/output-folder";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { IconWithFallback } from "@/client/components/icon-with-fallback";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { OpenInMenu } from "@/client/components/open-with-menu";
 import {
@@ -61,24 +62,32 @@ import {
 } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 import { useOpenFile } from "@/client/hooks/use-open-file";
 import {
   getComputerFileUrl,
   getComputerThumbnailUrl,
 } from "@/client/lib/computer-file-url";
-import { getFileType } from "@/client/lib/get-file-type";
+import { getFileType, opensInSystemApp } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
-import { cn, getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
+import {
+  cn,
+  getFileManagerName,
+  getRevealInFolderLabel,
+  isMacOS,
+} from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
+import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
 import { folderNameFromPath } from "@instrument-org/shared";
 import {
   type ComputerFolder,
   type ComputerRefusal,
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
@@ -87,6 +96,8 @@ import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
+import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
@@ -109,7 +120,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
+import { spokenMessage, toast } from "@/client/lib/toast";
 
 import { useWindow } from "./context";
 import { FileThumbnail } from "./file-thumbnail";
@@ -145,29 +156,25 @@ const PAGE_ASPECT = 0.78;
 const REFRESH_MS = ms("4 seconds");
 
 /**
- * The soonest the recents are read again. Their own clock, slower than a
- * folder's: the answer is read out of what every channel has said, and it can
- * only change when the conversation says something new.
- */
-const RECENTS_REFRESH_MS = ms("15 seconds");
-
-/**
- * The place that is not a folder: the files the conversation has shown the
- * user, wherever they live. Stands where a root folder stands, so the browser
- * opens on it the way it opens on Home.
+ * The place that is not a folder: the files the person opened, wherever they
+ * live. Stands where a root folder stands, so the browser opens on it the way
+ * it opens on Home.
  */
 export const RECENTS_ROOT = "recents:";
 
-/**
- * The order the recents open in: the order they were handed over, most
- * recently shown first, which is the order the user met them in.
- */
-const RECENTS_SORT: FileSystemSortState = { direction: "desc", key: "shownAt" };
+/** The order a folder never sorted by hand opens in. */
+const NAME_SORT: FileSystemSortState = { direction: "asc", key: "name" };
+
+/** The order the recents open in: the most recently opened first. */
+const RECENTS_SORT: FileSystemSortState = {
+  direction: "desc",
+  key: "openedAt",
+};
 
 /**
  * The orders the folder's menu offers, in the Finder's words, each opening in
  * the direction the toolbar's sort opens it in. The recents add the order
- * they were shown in, which is theirs alone.
+ * they were opened in, which is theirs alone.
  */
 const SORT_BY: {
   direction: "asc" | "desc";
@@ -175,7 +182,12 @@ const SORT_BY: {
   label: string;
   recentsOnly?: boolean;
 }[] = [
-  { direction: "desc", key: "shownAt", label: "Date Shown", recentsOnly: true },
+  {
+    direction: "desc",
+    key: "openedAt",
+    label: "Date Last Opened",
+    recentsOnly: true,
+  },
   { direction: "asc", key: "name", label: "Name" },
   { direction: "asc", key: "kind", label: "Kind" },
   { direction: "desc", key: "updatedAt", label: "Date Modified" },
@@ -196,6 +208,12 @@ export interface FolderOnScreen {
   selected: string[];
   /** What is selected in it, by host path and kind. */
   selectedItems: ChosenItem[];
+  /**
+   * As the person walked to it, which is how the location bar names it.
+   * Differs from `display` where the folder lives somewhere other than
+   * where it is shown: an iCloud Drive app folder.
+   */
+  walked: string;
 }
 
 /**
@@ -225,6 +243,7 @@ export function ComputerPage({
   refreshInterval = REFRESH_MS,
   root,
   select,
+  view: viewInHistory,
 }: {
   /** Told the folder on screen whenever it changes; null when nothing on screen is a folder. */
   onFolderChange?: (folder: FolderOnScreen | null) => void;
@@ -242,6 +261,8 @@ export function ComputerPage({
   root: string;
   /** What the folder opens with selected, as a path under the root: a file shown in its folder. */
   select?: string;
+  /** The layout this step of the tab's history shows the folder in; absent on a direct arrival. */
+  view?: FileSystemView;
 }) {
   const { askAbout, openScreen, rowLead } = useWindow();
   const { resolvedTheme } = useTheme();
@@ -249,10 +270,9 @@ export function ComputerPage({
   const queryClient = useQueryClient();
   // Held above the browser, which is rebuilt on every opening, so the column
   // width and the dotfiles answer survive walking into the next folder. The
-  // layout and order are kept per folder, below; these two are what a folder
-  // of no layout of its own opens in when nothing is on screen to keep.
+  // layout and order are kept per folder, below; this is the layout a folder
+  // of no layout of its own opens in when arrived at directly.
   const [defaultView, setDefaultView] = useAtom(computerViewAtom);
-  const [defaultSort, setDefaultSort] = useAtom(computerSortAtom);
   const [folderViews, setFolderViews] = useAtom(computerFolderViewsAtom);
   const [columnWidth, setColumnWidth] = useAtom(computerColumnWidthAtom);
   const [listColumns, setListColumns] = useAtom(computerListColumnsAtom);
@@ -266,19 +286,33 @@ export function ComputerPage({
   // The recents stand where a root folder stands, and are listed the way a
   // folder is, so everything the browser does to a folder it does to them.
   const isRecents = root === RECENTS_ROOT;
-  const recents = useQuery(
-    rpcClient.workspace.computer.recents.queryOptions({
-      enabled: isRecents,
-      refetchInterval:
-        refreshInterval === false
-          ? false
-          : Math.max(refreshInterval, RECENTS_REFRESH_MS),
+  const recents = useRecentFiles({
+    enabled: isRecents,
+    refetchInterval: refreshInterval,
+  });
+  const homePath = window.api.homeDir;
+  const preferences = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const sidebarPlaces = preferences.data?.sidebarPlaces ?? NO_SIDEBAR_CHANGES;
+  const sidebarChangeFailed = () => {
+    toast.error("Couldn't change the sidebar");
+  };
+  // The Instrument folder stands with Recents, as the app's own, and the rest
+  // of the defaults under Pinned with whatever the person pinned.
+  const instrumentPlace = places.data?.pinned.find(
+    (place) => place.kind === "output",
+  );
+  const instrumentPath = instrumentPlace?.path;
+  const pinned = pinnedPlaces(
+    (places.data?.pinned ?? []).filter((place) => place !== instrumentPlace),
+    sidebarPlaces,
+    (place) => ({
+      kind: "folder" as const,
+      name: folderNameFromPath(place),
+      path: place,
     }),
   );
-  const homePath = window.api.homeDir;
-  const instrumentPath = places.data?.favorites.find(
-    (place) => place.name === "Instrument",
-  )?.path;
   // Folder prefixes under the root whose listings are held, root first. The
   // browser asks for a folder's children only once the folder is in its
   // index, so the folder it opens on needs every folder above it listed. The
@@ -411,8 +445,8 @@ export function ComputerPage({
     }));
   }, [goneFolder]);
   // The recents as a folder's worth of files: named where they live, and flat,
-  // since a list of what was shown is not a tree.
-  const recentEntries = recents.data ?? [];
+  // since a list of what was opened is not a tree.
+  const recentEntries = recents.files;
   const recentKeys = recentPaths(recentEntries);
   const recentItems = recentEntries.map((entry, index): FileSystemItem => {
     return {
@@ -425,7 +459,7 @@ export function ComputerPage({
       name: entry.name,
       path: recentKeys[index] ?? entry.name,
       ...previewOf(entry, resolvedTheme),
-      shownAt: new Date(entry.shownAt).toISOString(),
+      openedAt: new Date(entry.openedAt).toISOString(),
       size: entry.size,
       ...(entry.modifiedAt === undefined
         ? {}
@@ -470,16 +504,31 @@ export function ComputerPage({
           return {
             ...stamps,
             contentType: entry.mimeType,
+            ...(entry.displayName === undefined
+              ? {}
+              : { displayName: entry.displayName }),
             kind: "file",
             metadata: { hostPath: entry.path },
             path: `${prefix}${entry.name}`,
             ...previewOf(entry, resolvedTheme),
             size: entry.size,
+            ...(entry.typeName === undefined
+              ? {}
+              : { typeName: entry.typeName }),
           };
         })
     );
   });
   const items = isRecents ? recentItems : folderItems;
+  // Listed as files and opened as one, but folders inside, which the menu's
+  // Show Package Contents goes into.
+  const packagePaths = new Set(
+    listings.flatMap(({ data }) =>
+      (data?.entries ?? []).flatMap((entry) =>
+        entry.package ? [entry.path] : [],
+      ),
+    ),
+  );
   const itemsByPath = new Map(items.map((item) => [item.path, item]));
   const selectedItem =
     selectedPath === null ? undefined : itemsByPath.get(selectedPath);
@@ -501,7 +550,7 @@ export function ComputerPage({
       queryKey: rpcClient.workspace.computer.list.key(),
     });
     void queryClient.invalidateQueries({
-      queryKey: rpcClient.workspace.computer.recents.key(),
+      queryKey: rpcClient.workspace.computer.describe.key(),
     });
   };
 
@@ -552,7 +601,7 @@ export function ComputerPage({
         `${parent.prefix}${made.path.split("/").at(-1) ?? ""}/`,
       );
     } catch (error) {
-      failed(error);
+      fileActionFailed("Couldn't make a new folder", error);
     }
   };
   // A failure is said and thrown on, so the browser opens the name field
@@ -565,7 +614,7 @@ export function ComputerPage({
     try {
       await rpcClient.files.rename.call({ name, path: hostPath });
     } catch (error) {
-      failed(error);
+      fileActionFailed(`Couldn't rename “${item.name ?? item.path}”`, error);
       throw error;
     }
     // The thing renamed stays selected under its new name, so the column it
@@ -594,7 +643,7 @@ export function ComputerPage({
       }
       focusBrowser();
     } catch (error) {
-      failed(error);
+      fileActionFailed("Couldn't make a copy", error);
     } finally {
       reread();
     }
@@ -611,7 +660,7 @@ export function ComputerPage({
       await navigator.clipboard.writeText(hostPath);
       focusBrowser();
     } catch (error) {
-      failed(error);
+      fileActionFailed("Couldn't copy the path", error);
     }
   };
   const trash = async (picked: FileSystemItem[]) => {
@@ -641,12 +690,13 @@ export function ComputerPage({
         first === undefined
           ? current
           : first.slice(0, first.lastIndexOf("/", first.length - 2) + 1);
-      setSelectedPath(
-        shown.view === "columns" && holder !== current ? holder : null,
-      );
+      setSelectedPath(view === "columns" && holder !== current ? holder : null);
       focusBrowser();
     } catch (error) {
-      failed(error);
+      fileActionFailed(
+        `Couldn't move that to the ${getTrashTerminology()}`,
+        error,
+      );
     } finally {
       reread();
       if (undoable.length > 0) {
@@ -676,7 +726,7 @@ export function ComputerPage({
         first = await rpcClient.files.undo.call({ journalId });
       }
     } catch (error) {
-      failed(error);
+      fileActionFailed("Couldn't put that back", error);
     }
     reread();
     if (first) {
@@ -703,34 +753,42 @@ export function ComputerPage({
         ? homePath && joinHostPath(homePath, root.slice(2))
         : root;
 
-  // Each folder in the layout and order it was last left in, the way a Finder
-  // window shows one: walking into a folder with a look of its own takes that
-  // look, and walking into one without keeps whatever is on screen. Walking
-  // means the browser's own folder changing, by a double-click, the sidebar or
-  // back and forward; the columns opening a folder beside the last is still
-  // the same window, and nothing changes under the pointer there.
+  // The layout and order go the way a Finder window's do. The layout belongs
+  // to the tab: walking from folder to folder (a double-click, the columns,
+  // back and forward) keeps it, and each step of the tab's history holds the
+  // layout it was shown in. Arriving at a folder directly (a place, a new
+  // tab, a typed path) is the one time a folder's own layout counts, the one
+  // it was last set to by hand, or else the one last chosen anywhere. The
+  // order belongs to the folder however it is reached, and one never set is
+  // by name; the recents are a list of their own and open newest first.
   const folderKeyOf = (prefix: string) =>
     isRecents ? RECENTS_ROOT : hostPathOf(prefix, rootHostPath ?? root);
   const currentKey = folderKeyOf(current);
-  const [shown, setShown] = useState(() => {
-    const own = folderViews[currentKey];
-    return {
-      at: currentKey,
-      sort: own?.sort ?? (isRecents ? RECENTS_SORT : defaultSort),
-      view: own?.view ?? defaultView,
-    };
-  });
-  // Set during render rather than in an effect, so the folder is drawn in its
-  // own look from its first frame. A new root arrives a render ahead of the
-  // folder under it, so nothing is taken until the two agree. The recents are
-  // a list of their own rather than a folder, and open in their own order.
-  if (settled && shown.at !== currentKey) {
-    const own = folderViews[currentKey];
-    setShown({
-      at: currentKey,
-      sort: own?.sort ?? (isRecents ? RECENTS_SORT : shown.sort),
-      view: own?.view ?? shown.view,
+  const view =
+    viewInHistory ?? folderViews[folderKeyOf(path)]?.view ?? defaultView;
+  // A direct arrival's layout written into its step, so back to it shows it
+  // the way it was even after the folder's own or the default moves on.
+  useEffect(() => {
+    if (viewInHistory !== undefined) {
+      return;
+    }
+    void navigate({
+      replace: true,
+      search: (previous) => ({ ...previous, view }),
+      to: "/files",
     });
+  }, [navigate, view, viewInHistory]);
+  const sortOf = (key: string) =>
+    folderViews[key]?.sort ?? (isRecents ? RECENTS_SORT : NAME_SORT);
+  const [shown, setShown] = useState(() => ({
+    at: currentKey,
+    sort: sortOf(currentKey),
+  }));
+  // Set during render rather than in an effect, so the folder is drawn in its
+  // own order from its first frame. A new root arrives a render ahead of the
+  // folder under it, so nothing is taken until the two agree.
+  if (settled && shown.at !== currentKey) {
+    setShown({ at: currentKey, sort: sortOf(currentKey) });
   }
 
   // The folder on screen. In the columns a selected folder shows its contents
@@ -741,7 +799,7 @@ export function ComputerPage({
   // anywhere, and neither the address nor back and forward move for it.
   // Several selected open nothing past the column that lists them.
   const onScreen =
-    selectedPath === null || shown.view !== "columns"
+    selectedPath === null || view !== "columns"
       ? current
       : selectedPath.endsWith("/") && allSelectedPaths.length === 1
         ? selectedPath
@@ -776,8 +834,8 @@ export function ComputerPage({
   // A change is kept for the folder the window is showing. In the columns that
   // is the last column's folder, which is where leaving the columns goes.
   const keepLook = (look: ComputerFolderView) => {
-    setShown((previous) => ({ ...previous, ...look }));
-    const key = folderKeyOf(shown.view === "columns" ? onScreen : current);
+    setShown((previous) => ({ ...previous, sort: look.sort }));
+    const key = folderKeyOf(view === "columns" ? onScreen : current);
     // Newest last, so the oldest are the ones let go of past the cap.
     setFolderViews((previous) => {
       const kept: [string, ComputerFolderView][] = [
@@ -788,11 +846,7 @@ export function ComputerPage({
     });
   };
   const sortBy = (sort: FileSystemSortState) => {
-    // The recents' order is their own and says nothing about a folder's.
-    if (!isRecents) {
-      setDefaultSort(sort);
-    }
-    keepLook({ sort, view: shown.view });
+    keepLook({ sort, view });
   };
   // The folder on screen as the address last had it. An address arriving
   // from outside (back, forward, the sidebar) changes `path` a render before
@@ -831,6 +885,7 @@ export function ComputerPage({
           path: onScreen,
           root,
           select: undefined,
+          view,
         }),
         to: "/files",
       });
@@ -838,7 +893,7 @@ export function ComputerPage({
     return () => {
       clearTimeout(timer);
     };
-  }, [navigate, onScreen, path, root, settled]);
+  }, [navigate, onScreen, path, root, settled, view]);
 
   // The arrows work the moment a folder is on screen: the first row takes
   // the keyboard on each opening, unless the user is typing somewhere.
@@ -874,12 +929,19 @@ export function ComputerPage({
     ? recentFolder && homeRelative(recentFolder, homePath)
     : (currentListing?.display ??
       (refusedHostPath && homeRelative(refusedHostPath, homePath)));
+  // Where the person walked to the folder, which is how the location bar
+  // names it: an iCloud Drive app folder under iCloud Drive, though it lives
+  // in its app's container.
+  const walked =
+    isRecents || display === undefined
+      ? display
+      : homeRelative(hostPathOf(onScreen, rootHostPath ?? root), homePath);
   const hostPath = isRecents
     ? recentFolder
     : (currentListing?.path ?? refusedHostPath);
   const mount = isRecents
-    ? selectedRecent?.access && folderOf(selectedRecent.access.mountPath)
-    : currentListing?.access?.mountPath;
+    ? selectedRecent?.access && folderOf(selectedRecent.access.shellPath)
+    : currentListing?.access?.shellPath;
   const access = isRecents
     ? selectedRecent?.access?.access
     : currentListing?.access?.access;
@@ -921,16 +983,43 @@ export function ComputerPage({
       ...(mount === undefined ? {} : { mount }),
       selected: selectedOnScreen.map(({ name }) => name),
       selectedItems: selectedOnScreen.map(({ item }) => item),
+      walked: walked ?? display,
     });
     // The selection by its key: the rows are rebuilt on every re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [access, display, hostPath, mount, onFolderChange, selectedKey]);
+  }, [access, display, hostPath, mount, onFolderChange, selectedKey, walked]);
 
+  // A type with no viewer here goes to the app the computer would use, the way
+  // a double-click in the system's file manager does: a disk image mounts and
+  // shows its window. Where that fails, the tab's card says why and offers
+  // what is left.
+  //
+  // An app is launched too. `opensInSystemApp` holds back what runs the moment
+  // it opens, since nothing about such a file says it is a program; an app the
+  // Finder lists as one is drawn with its own icon and called an Application,
+  // so opening it is asking to run it.
+  const handOff = useMutation(rpcClient.utils.openPath.mutationOptions());
+  const isApp = (tab: { hostPath: string; name: string }) =>
+    /\.app$/i.test(tab.name) && packagePaths.has(tab.hostPath);
+  const opensOutside = (tab: { hostPath: string; name: string }) =>
+    opensInSystemApp(tab.name) || isApp(tab);
   const openFile = (file: FileSystemFileItem) => {
     const tab = fileTabOf(file);
-    if (tab) {
-      onOpenFile(tab);
+    if (!tab) {
+      return;
     }
+    if (opensOutside(tab)) {
+      handOff.mutate(
+        { filepath: tab.hostPath },
+        {
+          onError: () => {
+            onOpenFile(tab);
+          },
+        },
+      );
+      return;
+    }
+    onOpenFile(tab);
   };
 
   // Space on a selected file, the way the Finder shows one over everything.
@@ -1005,7 +1094,9 @@ export function ComputerPage({
           reread();
           selectUndone(undone);
         })
-        .catch(failed);
+        .catch((error: unknown) => {
+          fileActionFailed("Couldn't undo that", error);
+        });
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
@@ -1104,7 +1195,7 @@ export function ComputerPage({
   const openPlaceInNewTab = (place: string) => {
     openScreen(folderHref(place), { behind: true, newTab: true });
   };
-  const placeMenu = (place: string) => (
+  const placeMenu = (place: string, { isPinned = false } = {}) => (
     <PlaceMenu
       hostPath={place}
       onNewDraft={
@@ -1116,6 +1207,14 @@ export function ComputerPage({
       onOpenInNewTab={() => {
         openPlaceInNewTab(place);
       }}
+      onUnpin={
+        isPinned
+          ? () =>
+              void rpcClient.preferences.unpinSidebarPlace
+                .call({ path: place })
+                .catch(sidebarChangeFailed)
+          : undefined
+      }
     />
   );
   const afterMenuClosed = () => {
@@ -1146,13 +1245,15 @@ export function ComputerPage({
       ...(group
         ? {
             onOpen: () => {
-              openInTabs(group, { behind: false });
+              openSeveral(group);
             },
             onOpenInNewTab: () => {
               openInTabs(group, { behind: true });
             },
             onQuickLook: undefined,
             onRename: undefined,
+            opensOutside: undefined,
+            pin: undefined,
             group,
           }
         : {}),
@@ -1183,7 +1284,27 @@ export function ComputerPage({
       isFirst = false;
     }
   };
+  // Opening several, as a double-click or ⌘O on a selection does: each file
+  // goes where opening it alone would, and the rest come up in tabs.
+  const openSeveral = (picked: FileSystemItem[]) => {
+    const inTabs = picked.filter((item) => {
+      const tab = item.kind === "file" ? fileTabOf(item) : undefined;
+      if (item.kind === "file" && tab && opensOutside(tab)) {
+        openFile(item);
+        return false;
+      }
+      return true;
+    });
+    openInTabs(inTabs, { behind: false });
+  };
   const menuActionsForOne = (item: FileSystemItem | undefined) => ({
+    opensOutside: ((): FolderMenuActions["opensOutside"] => {
+      const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
+      if (!tab || !opensOutside(tab)) {
+        return undefined;
+      }
+      return isApp(tab) ? "app" : "file";
+    })(),
     onCopyPath: () => void copyPath(item),
     onNewFolder:
       folderOnScreenPath === undefined
@@ -1210,6 +1331,14 @@ export function ComputerPage({
           onQuickLook(tab);
         }
       }),
+    onShowPackageContents: (() => {
+      const packagePath = hostPathOfItem(item);
+      return packagePath && packagePaths.has(packagePath)
+        ? () => {
+            rootTo(packagePath);
+          }
+        : undefined;
+    })(),
     onRename: () => {
       const renaming = item?.path;
       if (renaming === undefined) {
@@ -1219,10 +1348,33 @@ export function ComputerPage({
         fileSystemRef.current?.startRename(renaming);
       };
     },
+    pin: (() => {
+      const folderPath = hostPathOfItem(item);
+      if (item?.kind !== "folder" || !folderPath) {
+        return undefined;
+      }
+      const isPinned = pinned.some((place) => place.path === folderPath);
+      return {
+        isPinned,
+        onToggle: () =>
+          void (
+            isPinned
+              ? rpcClient.preferences.unpinSidebarPlace
+              : rpcClient.preferences.pinSidebarPlace
+          )
+            .call({ path: folderPath })
+            .catch(sidebarChangeFailed),
+      };
+    })(),
     onReveal: () =>
       void rpcClient.utils.showFileInFolder
         .call({ filepath: hostPathOfItem(item) })
-        .catch(failed),
+        .catch((error: unknown) => {
+          fileActionFailed(
+            `Couldn't show it in ${getFileManagerName()}`,
+            error,
+          );
+        }),
   });
   const rootName = isRecents
     ? "Recents"
@@ -1246,8 +1398,12 @@ export function ComputerPage({
   };
   const placeLists = (
     <>
-      {/* What the conversation showed, before the places a person keeps things. */}
+      {/* The app's own places, which nobody unpins: what the person opened,
+          and the folder Instrument keeps what it makes in. */}
       <PlaceList
+        menu={(place) =>
+          place === RECENTS_ROOT ? undefined : placeMenu(place)
+        }
         onOpenInNewTab={openPlaceInNewTab}
         onOpen={(folder) => {
           rootTo(folder);
@@ -1261,16 +1417,41 @@ export function ComputerPage({
             name: "Recents",
             path: RECENTS_ROOT,
           },
+          ...(instrumentPlace
+            ? [
+                {
+                  icon: <FolderMark large path={instrumentPlace.path} />,
+                  isActive: folderHostPath === instrumentPlace.path,
+                  name: instrumentPlace.name,
+                  path: instrumentPlace.path,
+                },
+              ]
+            : []),
         ]}
       />
       <PlaceList
-        label="Favorites"
-        menu={placeMenu}
+        label="Pinned"
+        labelMenu={
+          <ContextMenuContent className="min-w-48">
+            <ContextMenuItem
+              disabled={sidebarPlaces.unpinned.length === 0}
+              onClick={() =>
+                void rpcClient.preferences.restoreDefaultSidebarPlaces
+                  .call()
+                  .catch(sidebarChangeFailed)
+              }
+            >
+              <PushPinIcon className="size-4" />
+              <span>Restore Default Places</span>
+            </ContextMenuItem>
+          </ContextMenuContent>
+        }
+        menu={(place) => placeMenu(place, { isPinned: true })}
         onOpenInNewTab={openPlaceInNewTab}
         onOpen={(folder) => {
           rootTo(folder === homePath ? "~" : folder);
         }}
-        places={places.data.favorites.map((place) => ({
+        places={pinned.map((place) => ({
           // The home folder wears the house it wears in the Finder, which
           // is what says the account-named folder is home.
           icon: <FolderMark large path={place.path} />,
@@ -1320,7 +1501,7 @@ export function ComputerPage({
       {isNarrow ? (
         <nav
           className={cn(
-            "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft select-none",
+            "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft",
             !isPlacesOpen && "hidden",
           )}
           onKeyDown={onPlacesKeyDown}
@@ -1386,6 +1567,15 @@ export function ComputerPage({
                 // Every row here is a thing on this computer, and drags out of
                 // the window as one: to the desktop, a Finder window, another
                 // app. What lands there is the OS's copy; nothing here moves.
+                emptyState={
+                  isRecents
+                    ? {
+                        description:
+                          "Files you open in Instrument show up here, so you can get back to them quickly.",
+                        title: "No recent files yet",
+                      }
+                    : undefined
+                }
                 getHostPath={(item) => hostPathOfItem(item) || undefined}
                 items={items}
                 key={`${root}#${openings}`}
@@ -1426,7 +1616,7 @@ export function ComputerPage({
                 onColumnWidthChange={setColumnWidth}
                 onFileOpen={openFile}
                 onOpenSeveral={(several) => {
-                  openInTabs(several, { behind: false });
+                  openSeveral(several);
                 }}
                 onItemContextMenu={(item) => {
                   setMenuItem(item ?? undefined);
@@ -1442,9 +1632,16 @@ export function ComputerPage({
                 onShowHiddenFilesChange={setShowHiddenFiles}
                 onSortChange={sortBy}
                 onTrash={(picked) => void trash(picked)}
-                onViewChange={(view) => {
-                  setDefaultView(view);
-                  keepLook({ sort: shown.sort, view });
+                onViewChange={(next) => {
+                  setDefaultView(next);
+                  keepLook({ sort: shown.sort, view: next });
+                  // The step on screen takes the new layout rather than a
+                  // new step being made for it, the way the Finder's does.
+                  void navigate({
+                    replace: true,
+                    search: (previous) => ({ ...previous, view: next }),
+                    to: "/files",
+                  });
                 }}
                 pendingFolders={pendingFolders}
                 // Resting on a folder reads it ahead, so opening it in place
@@ -1475,6 +1672,17 @@ export function ComputerPage({
                   ) {
                     return (
                       <StagePicture fallbackAspect={4 / 3} src={file.url} />
+                    );
+                  }
+                  // An app's icon at the size the grid already holds, which
+                  // is more than the pane draws it at, and bare.
+                  if (tab && file.previewImageUrl && file.previewIsIcon) {
+                    return (
+                      <StagePicture
+                        bare
+                        fallbackAspect={1}
+                        src={file.previewImageUrl}
+                      />
                     );
                   }
                   // Anything else the system draws is drawn here as the grid
@@ -1582,7 +1790,7 @@ export function ComputerPage({
                 showHiddenFiles={showHiddenFiles}
                 sort={shown.sort}
                 title={rootName}
-                view={shown.view}
+                view={view}
               />
             </div>
           </ContextMenuTrigger>
@@ -1606,7 +1814,38 @@ export function ComputerPage({
             sort={shown.sort}
           />
         </ContextMenu>
+        {currentListing?.appFoldersLocked && <ICloudAccessBanner />}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Under the top of iCloud Drive while macOS keeps its app folders from
+ * Instrument. The first read asks for the iCloud Drive permission, and macOS
+ * never asks twice, so after that the switch in System Settings is the only
+ * way in.
+ */
+function ICloudAccessBanner() {
+  const openSettings = useMutation(
+    rpcClient.features.openFilesAndFoldersSettings.mutationOptions(),
+  );
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-4 py-3 text-xs text-muted-foreground">
+      <p className="min-w-0 flex-1 leading-5">
+        Some folders in iCloud Drive need your permission before Instrument can
+        show them. You can turn on iCloud Drive for Instrument in System
+        Settings.
+      </p>
+      <Button
+        onClick={() => {
+          openSettings.mutate(undefined);
+        }}
+        size="sm"
+        variant="outline"
+      >
+        Open System Settings
+      </Button>
     </div>
   );
 }
@@ -1628,7 +1867,16 @@ type FolderMenuActions = {
   /** Left out where there is no field to type a name in. */
   onRename?: () => void;
   onReveal: () => void;
+  /** A package (an app) gone into as the folder it is; left out for anything else. */
+  onShowPackageContents?: (() => void) | undefined;
   onTrash: () => void;
+  /**
+   * Where opening leaves this window: an app that runs, or a file the
+   * computer's own app for it opens. Left out for what opens here.
+   */
+  opensOutside?: "app" | "file" | undefined;
+  /** Pinning a folder to the sidebar, or unpinning it; left out for anything but one folder. */
+  pin?: { isPinned: boolean; onToggle: () => void } | undefined;
   /**
    * What the menu acts on, when it is several selected: what names one thing
    * (Rename, Copy Path, Quick Look, Reveal) is left off, and Open With lists
@@ -1769,7 +2017,10 @@ function FolderMenuItems({
   onQuickLook,
   onRename,
   onReveal,
+  onShowPackageContents,
   onTrash,
+  opensOutside,
+  pin,
   group,
 }: FolderMenuActions & {
   /** What the menu adds on the folder's empty space, after New Folder. */
@@ -1784,10 +2035,14 @@ function FolderMenuItems({
   const several = group?.length;
   const file = tab && !several ? { hostPath: tab.hostPath } : undefined;
   const openFile = useOpenFile();
-  const { openLabel, showOpen } = useFileOpenTarget(file);
+  const { openLabel, opensUnnamed, showOpen } = useFileOpenTarget(file);
   const itemHostPath = hostPathOfItem(item);
+  // A file the system opens with a helper not worth naming has one way to
+  // open, and the Open above already takes it.
   const openIn =
-    isMacOS() && itemHostPath ? { hostPath: itemHostPath } : undefined;
+    isMacOS() && itemHostPath && !opensUnnamed
+      ? { hostPath: itemHostPath }
+      : undefined;
   // The rest of the selection, opened along with the row in the app picked.
   const openInOthers = (group ?? []).flatMap((each) => {
     const hostPath = hostPathOfItem(each);
@@ -1816,16 +2071,39 @@ function FolderMenuItems({
       ) : null}
       {item ? (
         <>
+          {/* Open is drawn as where the file goes: an app runs, and a file
+              with no viewer here comes up in the app the computer picks for
+              it, so neither looks like it opens in this window. */}
           {(item.kind === "file" || several) && (
             <Item onClick={onOpen}>
-              <FolderOpenIcon className="size-4" />
-              <span>Open</span>
+              {!opensOutside ? (
+                <FolderOpenIcon className="size-4" />
+              ) : opensOutside === "app" && item.kind === "file" ? (
+                <IconWithFallback
+                  className="size-4"
+                  fallback={<AppWindowIcon className="size-4" />}
+                  src={item.previewImageUrl ?? null}
+                />
+              ) : file ? (
+                <OpenTargetIcon className="size-4" file={file} />
+              ) : (
+                <AppWindowIcon className="size-4" />
+              )}
+              <span>
+                {opensOutside === "file" ? openLabel : "Open"}
+              </span>
             </Item>
           )}
           <Item onClick={onOpenInNewTab}>
             <NewTabIcon className="size-4" />
             <span>{several ? "Open in New Tabs" : "Open in New Tab"}</span>
           </Item>
+          {onShowPackageContents && !several ? (
+            <Item onClick={onShowPackageContents}>
+              <FolderOpenIcon className="size-4" />
+              <span>Show Package Contents</span>
+            </Item>
+          ) : null}
           {/* The apps are listed where the Mac can be asked for them, and the
                 submenu asks only once it is opened, so the row is there from
                 the first frame rather than arriving under the pointer once a
@@ -1835,9 +2113,10 @@ function FolderMenuItems({
             <OpenInMenu
               file={openIn}
               menuComponents={menuComponents}
+              onlyAlternatives={opensOutside === "file"}
               others={openInOthers}
             />
-          ) : file && showOpen ? (
+          ) : file && showOpen && !opensUnnamed && !opensOutside ? (
             <Item
               onClick={() => {
                 openFile(file);
@@ -1885,6 +2164,18 @@ function FolderMenuItems({
                   <span>{getRevealInFolderLabel()}</span>
                 </Item>
               )}
+              {pin ? (
+                <Item onClick={pin.onToggle}>
+                  {pin.isPinned ? (
+                    <PushPinSlashIcon className="size-4" />
+                  ) : (
+                    <PushPinIcon className="size-4" />
+                  )}
+                  <span>
+                    {pin.isPinned ? "Unpin from Sidebar" : "Pin to Sidebar"}
+                  </span>
+                </Item>
+              ) : null}
             </>
           )}
         </>
@@ -1939,9 +2230,16 @@ function relativeHostPath(root: string, hostPath: string) {
     : null;
 }
 
-/** What went wrong with a file action, said where the folder is. */
-function failed(error: unknown) {
-  toast(error instanceof Error ? error.message : "That did not work");
+// The files routes' errors that come with a sentence written for people. The
+// rest carry the system's own message, which only developer mode shows.
+const SPOKEN_FILE_ERRORS = ["NAME_IN_USE", "NAME_INVALID", "NOTHING_TO_UNDO"];
+
+/** Says a file action didn't happen, with the reason when it is one a person can use. */
+export function fileActionFailed(title: string, error: unknown) {
+  toast.error(title, {
+    cause: error,
+    description: spokenMessage(error, SPOKEN_FILE_ERRORS),
+  });
 }
 
 /** Where an item the browser is showing sits on the Mac. */
@@ -1964,7 +2262,10 @@ export function refusalLine(reason: ComputerRefusal["reason"]) {
  * person's intent, which the Mac honors from then on without asking again,
  * so the panel opens at the folder itself and the answer is one press. The
  * settings pane is where a declined ask is undone for good. A refusal by the
- * folder's own permissions has neither, so it only says whose they are.
+ * folder's own permissions has neither, so it only says whose they are. A
+ * package (a Photos library) has neither either: the panel will not pick one,
+ * and what guards it is the app's own permission, so the way in is to open it
+ * in its app.
  */
 function NotPermitted({
   onGranted,
@@ -1991,7 +2292,33 @@ function NotPermitted({
   const openSettings = useMutation(
     rpcClient.features.openFilesAndFoldersSettings.mutationOptions(),
   );
+  const openInApp = useMutation(rpcClient.utils.openPath.mutationOptions());
   const isSystem = refusal.reason === "system";
+  if (isSystem && refusal.package) {
+    return (
+      <div className="flex size-full items-center justify-center p-8">
+        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+          <FileSystemFolderGlyph className="h-10 w-auto opacity-60" />
+          <div>
+            <p className="text-sm font-medium">
+              {`macOS hasn’t let Instrument look inside “${name}”`}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              It belongs to another app, so you can open it there instead.
+            </p>
+          </div>
+          <Button
+            onClick={() => {
+              openInApp.mutate({ filepath: refusal.path });
+            }}
+            size="sm"
+          >
+            Open
+          </Button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex size-full items-center justify-center p-8">
       <div className="flex max-w-sm flex-col items-center gap-4 text-center">
@@ -2079,9 +2406,12 @@ function siblingPath(path: string, name: string) {
  * they will stay rather than jumping down once it loads.
  */
 function StagePicture({
+  bare = false,
   fallbackAspect,
   src,
 }: {
+  /** No frame around it, for an icon that carries its own shape. */
+  bare?: boolean;
   /** Width over height while the picture is on its way. */
   fallbackAspect: number;
   src: string;
@@ -2095,8 +2425,9 @@ function StagePicture({
   return (
     <div
       className={cn(
-        "relative w-full overflow-hidden rounded-xl shadow-sm ring-1 ring-border",
-        !isLoaded && "bg-muted",
+        "relative w-full overflow-hidden",
+        !bare && "rounded-xl shadow-sm ring-1 ring-border",
+        !isLoaded && !bare && "bg-muted",
       )}
       style={isLoaded ? undefined : { aspectRatio: fallbackAspect }}
     >
@@ -2235,14 +2566,17 @@ function isTextLike(file: FileSystemFileItem) {
 
 function PlaceList({
   label,
+  labelMenu,
   menu,
   onOpen,
   onOpenInNewTab,
   places,
 }: {
-  /** Left out for a list of one, where a heading says nothing the row does not. */
+  /** Left out for the app's own places, which need no heading. */
   label?: string;
-  /** What a right-click on a place offers, left out where a place is not a folder. */
+  /** What a right-click on the heading offers. */
+  labelMenu?: ReactNode;
+  /** What a right-click on a place offers; nothing where a place is not a folder. */
   menu?: (path: string) => ReactNode;
   onOpen: (path: string) => void;
   /** A middle click: the place in a tab of its own, waiting behind. */
@@ -2257,46 +2591,54 @@ function PlaceList({
   return (
     <div>
       {label === undefined ? null : (
-        <p className="px-2 pb-1 text-xs font-medium text-muted-foreground/70">
-          {label}
-        </p>
+        <ContextMenu>
+          <ContextMenuTrigger asChild disabled={labelMenu === undefined}>
+            <p className="px-2 pb-1 text-xs font-medium text-muted-foreground/70">
+              {label}
+            </p>
+          </ContextMenuTrigger>
+          {labelMenu}
+        </ContextMenu>
       )}
       <ul className="flex flex-col gap-px">
-        {places.map((place) => (
-          <li key={place.path}>
-            <ContextMenu>
-              <ContextMenuTrigger asChild disabled={menu === undefined}>
-                <button
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-foreground/5 data-[state=open]:bg-foreground/5",
-                    place.isActive && "bg-foreground/8",
-                  )}
-                  onAuxClick={(event) => {
-                    if (event.button === 1) {
-                      event.preventDefault();
-                      onOpenInNewTab(place.path);
-                    }
-                  }}
-                  onClick={() => {
-                    onOpen(place.path);
-                  }}
-                  onMouseDown={(event) => {
-                    if (event.button === 1) {
-                      event.preventDefault();
-                    }
-                  }}
-                  type="button"
-                >
-                  <span className="flex size-4 shrink-0 items-center justify-center">
-                    {place.icon}
-                  </span>
-                  <span className="truncate">{place.name}</span>
-                </button>
-              </ContextMenuTrigger>
-              {menu?.(place.path)}
-            </ContextMenu>
-          </li>
-        ))}
+        {places.map((place) => {
+          const placeMenu = menu?.(place.path);
+          return (
+            <li key={place.path}>
+              <ContextMenu>
+                <ContextMenuTrigger asChild disabled={placeMenu === undefined}>
+                  <button
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-foreground/5 data-[state=open]:bg-foreground/5",
+                      place.isActive && "bg-foreground/8",
+                    )}
+                    onAuxClick={(event) => {
+                      if (event.button === 1) {
+                        event.preventDefault();
+                        onOpenInNewTab(place.path);
+                      }
+                    }}
+                    onClick={() => {
+                      onOpen(place.path);
+                    }}
+                    onMouseDown={(event) => {
+                      if (event.button === 1) {
+                        event.preventDefault();
+                      }
+                    }}
+                    type="button"
+                  >
+                    <span className="flex size-4 shrink-0 items-center justify-center">
+                      {place.icon}
+                    </span>
+                    <span className="truncate">{place.name}</span>
+                  </button>
+                </ContextMenuTrigger>
+                {placeMenu}
+              </ContextMenu>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -2312,11 +2654,14 @@ function PlaceMenu({
   hostPath,
   onNewDraft,
   onOpenInNewTab,
+  onUnpin,
 }: {
   hostPath: string;
   /** Left out where no draft can be opened. */
   onNewDraft: (() => void) | undefined;
   onOpenInNewTab: () => void;
+  /** Left out for a place that is not pinned: the app's own, and the disks. */
+  onUnpin: (() => void) | undefined;
 }) {
   return (
     <ContextMenuContent className="min-w-48">
@@ -2345,7 +2690,12 @@ function PlaceMenu({
           onClick={() =>
             void rpcClient.utils.showFileInFolder
               .call({ filepath: hostPath })
-              .catch(failed)
+              .catch((error: unknown) => {
+                fileActionFailed(
+                  `Couldn't show it in ${getFileManagerName()}`,
+                  error,
+                );
+              })
           }
         >
           <RevealInFolderIcon className="size-4" />
@@ -2355,32 +2705,63 @@ function PlaceMenu({
       <ContextMenuSeparator />
       <ContextMenuItem
         onClick={() =>
-          void navigator.clipboard.writeText(hostPath).catch(failed)
+          void navigator.clipboard
+            .writeText(hostPath)
+            .catch((error: unknown) => {
+              fileActionFailed("Couldn't copy the path", error);
+            })
         }
       >
         <ClipboardTextIcon className="size-4" />
         <span>Copy Path</span>
       </ContextMenuItem>
+      {onUnpin ? (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuItem onClick={onUnpin}>
+            <PushPinSlashIcon className="size-4" />
+            <span>Unpin from Sidebar</span>
+          </ContextMenuItem>
+        </>
+      ) : null}
     </ContextMenuContent>
   );
 }
 
 /**
  * A listed file's own URL, and the system's picture of it where there is one,
- * named by when the file was written so a new write is a new picture.
+ * named by when the file was written so a new write is a new picture. A
+ * package's picture is the system's icon for it, square.
  */
 function previewOf(
   entry: {
     mimeType?: string;
     modifiedAt?: number;
     name: string;
+    package?: true;
     path: string;
   },
   theme: "dark" | "light",
-): Pick<FileSystemFileItem, "previewImageUrl" | "url"> {
+): Pick<
+  FileSystemFileItem,
+  "previewAspectRatio" | "previewImageUrl" | "previewIsIcon" | "url"
+> {
   const version = entry.modifiedAt;
   const url = getComputerFileUrl({ hostPath: entry.path, version });
   const extension = entry.name.split(".").at(-1)?.toLowerCase() ?? "";
+  if (entry.package) {
+    return {
+      previewAspectRatio: 1,
+      previewImageUrl: getComputerThumbnailUrl({
+        hostPath: entry.path,
+        size: 512,
+        theme,
+        version,
+      }),
+      previewIsIcon: true,
+      url,
+    };
+  }
   if (
     !entry.mimeType?.startsWith("image/") &&
     !THUMBNAIL_EXTENSIONS.has(extension)

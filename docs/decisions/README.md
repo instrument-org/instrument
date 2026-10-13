@@ -10,16 +10,26 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-12 | [The shell stays just-bash, and real programs do the rest](2026-10-12-the-shell-stays-just-bash-and-real-programs-do-the-rest.md) |
+| 2026-10-12 | [Carry the just-bash command-limit and stdin-bytes fixes as a local patch until they are released](2026-10-12-carry-the-limit-and-stdin-bytes-patch.md) |
+| 2026-10-12 | [Programs on the PATH run natively, by name, under the same rules](2026-10-12-programs-on-path-run-natively.md) |
+| 2026-10-12 | [`python` and `node` run native, and the WebAssembly runtimes are gone](2026-10-12-python-and-node-run-native.md) |
+| 2026-10-11 | [Carry just-bash's error-code fix as a local patch rather than rewrite the builtins' output](2026-10-11-carry-the-error-code-patch.md) |
+| 2026-10-11 | [The agent works at real paths, held to the Permissions rules](2026-10-11-the-agent-works-at-real-paths.md) |
+| 2026-10-10 | [One chat, one database: a task is a child session, not a record](2026-10-10-one-chat-one-database.md) |
+| 2026-10-10 | [The workspace server guards itself, so the agent's HTTP tools refuse no address](2026-10-10-the-workspace-server-guards-itself.md) |
+| 2026-10-09 | [Outside content arrives last and unmarked](2026-10-09-outside-content-arrives-last-and-unmarked.md) |
+| 2026-10-07 | [The chat and its tasks are one agent that does quick work itself and forks the rest](2026-10-07-one-agent-that-forks.md) |
 | 2026-10-07 | [The CDP bridge refuses any `Target.*` command its table does not list](2026-10-07-cdp-bridge-refuses-unlisted-target-commands.md) |
 | 2026-10-06 | [The packaged log keeps cheap lines on by default and gates only what is expensive to gather](2026-10-06-logs-keep-cheap-lines-on-by-default.md) |
-| 2026-10-06 | [`curl` and `web_fetch` reach the local network, except Instrument's own workspace server](2026-10-06-curl-and-web-fetch-reach-the-local-network.md) |
+| 2026-10-06 | [`curl` and `web_fetch` reach the local network, except Instrument's own workspace server](2026-10-06-curl-and-web-fetch-reach-the-local-network.md), its exception superseded by 2026-10-10 |
 | 2026-10-06 | ~~[Carry a fix for dynamic `import()` in `js-exec` scripts as a local patch](2026-10-06-carry-the-script-dynamic-import-patch.md)~~ retired with just-bash 3.6.0 |
-| 2026-09-29 | [Tasks report to their chat, not to each other: typed signals up the tree, peer messaging deferred](2026-09-29-tasks-report-to-their-chat-not-to-each-other.md) |
+| 2026-09-29 | [Tasks report to their chat, not to each other: typed signals up the tree, peer messaging deferred](2026-09-29-tasks-report-to-their-chat-not-to-each-other.md) partly overtaken by 2026-10-07 |
 | 2026-09-22 | [Carry just-bash's linear `ls` and awk `printf` output as a local patch rather than guard the commands ourselves](2026-09-22-carry-the-ls-and-awk-output-patch.md) |
 | 2026-09-21 | [Carry a just-bash `stdinConnected` flag as a local patch so `rg` can tell an empty pipe from no pipe](2026-09-21-carry-the-stdin-connected-patch.md) |
 | 2026-09-19 | [Drop the orchestrator's Activity screen](2026-09-19-drop-the-activity-screen.md) |
 | 2026-09-11 | [`git` reaches attached folders, and a read-only grant means read-only git](2026-09-11-git-reaches-attached-folders.md) |
-| 2026-09-10 | [`python` is the sandboxed interpreter, `node` stays native, and each names the other](2026-09-10-python-is-the-sandboxed-interpreter.md) |
+| 2026-09-10 | ~~[`python` is the sandboxed interpreter, `node` stays native, and each names the other](2026-09-10-python-is-the-sandboxed-interpreter.md)~~ superseded by 2026-10-12 |
 | 2026-09-10 | [Carry the just-bash cross-mount copy fix as a local patch until it is released](2026-09-10-carry-the-cross-mount-copy-patch.md) |
 | 2026-09-10 | [Carry the just-bash python worker fixes as a local patch until they are released](2026-09-10-carry-the-python-worker-patch.md) |
 | 2026-09-09 | [Carry the just-bash `stat -c` fix as a local patch until it is released](2026-09-09-carry-the-stat-patch.md) |
@@ -36,7 +46,7 @@ Newest first. A struck-through entry has been superseded.
 | 2026-07-31 | [pdfium is the PDF engine](2026-07-31-pdfium-is-the-pdf-engine.md) |
 | 2026-07-29 | [Controls activate on release](2026-07-29-controls-activate-on-release.md) |
 | 2026-07-28 | [Search moves into the shell, on the real ripgrep binary](2026-07-28-real-ripgrep-in-the-sandbox.md) |
-| 2026-07-27 | [Untrusted content is bounded by a nonce, not escaped](2026-07-27-nonce-bounded-untrusted-content.md) |
+| 2026-07-27 | ~~[Untrusted content is bounded by a nonce, not escaped](2026-07-27-nonce-bounded-untrusted-content.md)~~ superseded by 2026-10-09 |
 | 2026-07-27 | [Turn context through AsyncLocalStorage](2026-07-27-turn-context-through-async-local-storage.md) |
 | 2026-07-27 | [Hover and press feedback does not ease](2026-07-27-hover-and-press-feedback-does-not-ease.md) |
 | 2026-07-27 | ~~[Controls activate on press, not release](2026-07-27-controls-activate-on-press.md)~~ superseded by 2026-07-29 |

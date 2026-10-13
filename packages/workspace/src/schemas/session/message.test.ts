@@ -227,7 +227,7 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
-  it("replays persisted bounded tool output byte for byte", async () => {
+  it("replays persisted tool output byte for byte", async () => {
     const { sessionId } = baseMetadata();
     const messageId = StoreId.newMessageId();
     const toolCallId = StoreId.ToolCallSchema.parse("call_search_replay");
@@ -289,7 +289,6 @@ describe("SessionMessage.toModelMessages", () => {
     );
 
     expect(replay).toEqual(first);
-    expect(JSON.stringify(first)).toMatch(/nonce=[0-9a-f]{32}/);
   });
 
   it("injects browser status on a user message", async () => {
@@ -346,7 +345,7 @@ describe("SessionMessage.toModelMessages", () => {
             {
               "text": "
       <instrument-system-note>
-      An in-app browser tab is already open for this task (opened by you or the user). Current URL: https://example.com. Page title: Example. Drive it with \`agent-browser\`.
+      An in-app browser tab is already open for this conversation (opened by you or the user). Current URL: https://example.com. Page title: Example. Drive it with \`agent-browser\`.
       </instrument-system-note>",
               "type": "text",
             },
@@ -502,7 +501,7 @@ describe("SessionMessage.toModelMessages", () => {
             {
               "text": "
       <instrument-system-note>
-      An in-app browser tab is already open for this task (opened by you or the user). Current URL: https://example.com. Page title: Example. Drive it with \`agent-browser\`.
+      An in-app browser tab is already open for this conversation (opened by you or the user). Current URL: https://example.com. Page title: Example. Drive it with \`agent-browser\`.
       </instrument-system-note>",
               "type": "text",
             },
@@ -721,13 +720,12 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
-  // Assembling a turn reads a folder's mount name to build its /mnt path, and
-  // a part that reached here without one crashed the whole turn rather than
-  // losing a line. Store migrations are what guarantee the field is there; this
-  // is the reader holding up its end.
-  it("builds an attached folder's mount path when replaying a turn", async () => {
+  // A folder sent with a message is granted to the chat and told to the
+  // agent by the folder changes note; the message itself prints nothing about
+  // it, whatever an older build stored on the part.
+  it("prints nothing for a folder sent with a message", async () => {
     const { messageMetadata, partMetadata } = baseMetadata();
-    const legacyStoredPart = SessionMessagePart.coerce({
+    const storedPart = SessionMessagePart.coerce({
       data: {
         files: [],
         folders: [
@@ -751,7 +749,7 @@ describe("SessionMessage.toModelMessages", () => {
           id: StoreId.newMessageId(),
           metadata: messageMetadata,
           parts: [
-            legacyStoredPart,
+            storedPart,
             { metadata: partMetadata, text: "what is in here", type: "text" },
           ],
           role: "user",
@@ -761,129 +759,11 @@ describe("SessionMessage.toModelMessages", () => {
     );
 
     const text = JSON.stringify(result);
-    expect(text).toContain("/mnt/Home-Downloads");
-    expect(text).not.toContain("/mnt/undefined");
+    expect(text).not.toContain("attached_folders");
+    expect(text).not.toContain("/Users/sam/Downloads");
   });
 
-  function attachedFoldersPart(
-    partMetadata: ReturnType<typeof baseMetadata>["partMetadata"],
-  ) {
-    return SessionMessagePart.coerce({
-      data: {
-        files: [],
-        folders: [
-          {
-            access: "read-write",
-            createdAt: 1_718_198_400_000,
-            id: "01KZ9NPNZZPQF80Z7A7DG4Z5BN",
-            mountName: "Reports",
-            path: "/Users/sam/Reports",
-            source: "user",
-          },
-        ],
-      },
-      metadata: partMetadata,
-      type: "data-attachments",
-    });
-  }
-
-  // A folder attached with the first message is mounted before the session's
-  // baseline is written, so the baseline already carries it with the rules for
-  // using it. The note on the message lists the folder and stops there.
-  it("lists a folder attached with the first message without repeating the rules", async () => {
-    const { messageMetadata, partMetadata } = baseMetadata();
-
-    const result = await SessionMessage.toModelMessages(
-      [
-        {
-          id: StoreId.newMessageId(),
-          metadata: messageMetadata,
-          parts: [
-            attachedFoldersPart(partMetadata),
-            { metadata: partMetadata, text: "summarize these", type: "text" },
-          ],
-          role: "user",
-        },
-      ],
-      TOOLS_FOR_MODEL_OUTPUT,
-    );
-
-    const text = JSON.stringify(result);
-    expect(text).toContain("-> `/mnt/Reports` (read and write)");
-    expect(text).not.toContain("Read, list, and search by mount path");
-  });
-
-  // A folder attached later may be the first the session has heard of, so
-  // the rules ride with it.
-  it("carries the folder rules on a folder attached after the first message", async () => {
-    const { messageMetadata, partMetadata } = baseMetadata();
-
-    const result = await SessionMessage.toModelMessages(
-      [
-        {
-          id: StoreId.newMessageId(),
-          metadata: messageMetadata,
-          parts: [{ metadata: partMetadata, text: "hello", type: "text" }],
-          role: "user",
-        },
-        {
-          id: StoreId.newMessageId(),
-          metadata: messageMetadata,
-          parts: [
-            attachedFoldersPart(partMetadata),
-            { metadata: partMetadata, text: "summarize these", type: "text" },
-          ],
-          role: "user",
-        },
-      ],
-      TOOLS_FOR_MODEL_OUTPUT,
-    );
-
-    const text = JSON.stringify(result);
-    expect(text).toContain("Read, list, and search by mount path");
-    expect(text).toContain("write_file");
-  });
-
-  // The conversation's agent has no file tools, so its copy of the rules says
-  // a task writes and never names a tool it has not got.
-  it("tells the conversation's agent a task writes into an attached folder", async () => {
-    const { messageMetadata, partMetadata } = baseMetadata();
-
-    const result = await SessionMessage.toModelMessages(
-      [
-        {
-          id: StoreId.newMessageId(),
-          metadata: messageMetadata,
-          parts: [{ metadata: partMetadata, text: "hello", type: "text" }],
-          role: "user",
-        },
-        {
-          id: StoreId.newMessageId(),
-          metadata: messageMetadata,
-          parts: [
-            attachedFoldersPart(partMetadata),
-            { metadata: partMetadata, text: "summarize these", type: "text" },
-          ],
-          role: "user",
-        },
-      ],
-      TOOLS_FOR_MODEL_OUTPUT,
-      { agentName: "instrument" },
-    );
-
-    const text = JSON.stringify(result);
-    expect(text).toContain(
-      "a task reaches one only when you pass it with --folder",
-    );
-    expect(text).toContain("written by a task handed the folder with --folder");
-    expect(text).not.toContain("write_file");
-    expect(text).not.toContain("read_file");
-  });
-
-  // A file sent to the conversation lands in its own folder, which no task can
-  // see, and it cannot read a picture itself: the note says how to hand the
-  // file on rather than calling it available "in the task".
-  it("tells the conversation's agent to hand a sent file to a task with --file", async () => {
+  it("lists a sent file at the path the agent reads it by", async () => {
     const { messageMetadata, partMetadata } = baseMetadata();
     const sentFile = SessionMessagePart.coerce({
       data: {
@@ -912,23 +792,11 @@ describe("SessionMessage.toModelMessages", () => {
       },
     ] satisfies SessionMessage.WithParts[];
 
-    const forConversation = JSON.stringify(
-      await SessionMessage.toModelMessages(messages, TOOLS_FOR_MODEL_OUTPUT, {
-        agentName: "instrument",
-      }),
-    );
-    expect(forConversation).toContain("The user sent these files");
-    expect(forConversation).toContain(
-      "put --file <path> on the task new or task send that needs it",
-    );
-    expect(forConversation).toContain("- /task/attachments/screen.png (18KB)");
-    expect(forConversation).not.toContain("available in the task");
-
-    const forTask = JSON.stringify(
+    const note = JSON.stringify(
       await SessionMessage.toModelMessages(messages, TOOLS_FOR_MODEL_OUTPUT),
     );
-    expect(forTask).toContain("now available in the task");
-    expect(forTask).not.toContain("--file");
+    expect(note).toContain("now available in the task");
+    expect(note).not.toContain("--file");
   });
 
   // A tool's output schema outgrows the sessions already recorded against it,
@@ -1156,5 +1024,44 @@ describe("SessionMessage.toModelMessages", () => {
         },
       ]
     `);
+  });
+});
+
+// A provider renamed or removed since a turn ran left that turn's model record
+// unparsable, and failing it failed the read of the whole session.
+describe("SessionMessage.Schema", () => {
+  it("reads a past turn whose model names a provider this build does not know", () => {
+    const { messageId, sessionId } = baseMetadata();
+    const model = {
+      author: "openai",
+      canonicalId: "gpt-5.6-sol",
+      features: [],
+      name: "GPT-5.6 Sol",
+      params: { provider: "retired-provider", providerConfigId: "gone" },
+      providerId: "gpt-5.6-sol",
+      providerName: "Retired",
+      tags: [],
+      uri: "openai/gpt-5.6-sol?provider=retired-provider&providerConfigId=gone",
+    };
+
+    const message = SessionMessage.Schema.parse({
+      id: messageId,
+      metadata: {
+        aiGatewayModel: model,
+        aiGatewayModelServed: model,
+        createdAt: mockDate,
+        modelId: "gpt-5.6-sol",
+        providerId: "retired-provider",
+        realRole: "assistant",
+        sessionId,
+      },
+      role: "assistant",
+    });
+
+    expect(message.metadata).toMatchObject({
+      aiGatewayModel: undefined,
+      aiGatewayModelServed: undefined,
+      modelId: "gpt-5.6-sol",
+    });
   });
 });

@@ -1,5 +1,5 @@
 import { shortcutGuideModalAtom } from "@/client/atoms/shortcut-guide-modal";
-import { blockingModalCountAtom } from "@/client/atoms/tab-navigation-block";
+import { windowHoldsAtom } from "@/client/atoms/tab-navigation-block";
 import { renderWithDefaultStore } from "@/tests/render";
 import { screen } from "@testing-library/react";
 import { getDefaultStore } from "jotai";
@@ -36,7 +36,7 @@ describe("useShortcutGuideHotkey", () => {
   // The modal slot is cleared for us after each test (see setup-dom); the
   // blocking count is this test's own doing, so it resets that itself.
   beforeEach(() => {
-    store.set(blockingModalCountAtom, 0);
+    store.set(windowHoldsAtom, []);
   });
 
   it("opens the guide on ?", () => {
@@ -65,7 +65,7 @@ describe("useShortcutGuideHotkey", () => {
 
   it("stays out of the way while a modal is blocking", () => {
     renderWithDefaultStore(<Host />);
-    store.set(blockingModalCountAtom, 1);
+    store.set(windowHoldsAtom, [{}]);
 
     press(screen.getByTestId("plain"));
 

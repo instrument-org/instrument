@@ -39,7 +39,7 @@ import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 import { useEmojiSet } from "./emoji-set";
 import { useEmojiSuggestions } from "./emoji-suggestions";
@@ -234,8 +234,8 @@ function TopicFolders({
   const add = async () => {
     const picked = await rpcClient.utils.showFolderPicker
       .call({ buttonLabel: "Add" })
-      .catch(() => {
-        toast.error("Could not open the folder picker");
+      .catch((error: unknown) => {
+        toast.error("Couldn't open the folder picker", { cause: error });
         return null;
       });
     if (picked && !folders.some((folder) => folder.path === picked.path)) {

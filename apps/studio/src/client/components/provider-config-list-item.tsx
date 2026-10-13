@@ -1,4 +1,5 @@
 import { Button } from "@/client/components/ui/button";
+import { settingAnchor } from "@/client/components/settings/settings-index";
 import { Card } from "@/client/components/ui/card";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -39,7 +40,10 @@ export function ProviderConfigListItem({
 
   return (
     <Card className={cn("gap-0 p-4", className)}>
-      <div className="flex items-start justify-between">
+      <div
+        className="flex items-start justify-between"
+        {...settingAnchor(`provider:${config.id}`)}
+      >
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <div className="flex size-8 shrink-0 items-center justify-center">
             <AIProviderIcon type={config.type} />
@@ -67,7 +71,7 @@ export function ProviderConfigListItem({
                 {isLoadingCredits
                   ? "Loading credits..."
                   : openRouterCredits?.credits
-                    ? `$${formatCredits(openRouterCredits.credits.total_credits - openRouterCredits.credits.total_usage)} remaining`
+                    ? `$${formatCredits(openRouterCredits.credits.remaining)} remaining`
                     : "Unable to load credits"}
               </p>
             )}

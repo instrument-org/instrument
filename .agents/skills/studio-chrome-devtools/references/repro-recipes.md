@@ -4,12 +4,12 @@ Learnings from driving Studio live to reproduce and verify a browser-panel layou
 
 ## Check the debug pages before hand-inspecting the DOM
 
-The `/debug/*` routes (`node $DRIVE goto /debug/browser-views`, or the Debug links in the Developer Mode dev panel) are worth checking before reaching for `evaluate_script` archaeology:
+The `/debug/*` routes are worth checking before reaching for `evaluate_script` archaeology. In developer mode, Command K lists every one of them.
 
-- **`/debug/browser-views`** -- every live agent-controlled browser: URL, target id, profile dir, CDP-attached state, loading/crashed state, screencast state, webContents id, listener counts, downloads, plus each task's cleanup machine. Its RPCs are Developer-Mode-only. Each card's "View" button (`rpcClient.debug.browserViewManager.openAsTab`) opens the owning task's page, where its browser is.
-- **`/debug`** -- index of all debug tools (components, errors, notifications, browser views).
+- **`/debug/components/transcript?scenario=<id>`** -- a chat played through a scripted scenario (`routes/debug/-transcript/scenarios.ts`), so a transcript rendering bug can be reproduced without a model turn.
+- **`/debug/components/*`** -- the app's components in the states the product draws them in.
 
-If what you need isn't visible there, that's a signal the debug page could be extended (cheap, high-leverage) rather than a one-off script.
+If what you need isn't visible there, a new scenario is usually cheaper than a one-off script.
 
 ## Driving the chat input
 
@@ -38,10 +38,10 @@ Other CLI gotchas hit along the way:
 Never `sleep` for this, and never regex the page text for a spinner. Both are guesses about how long a turn takes, and a guess that comes back short produces a half-written transcript that reads like a bug in what you were testing.
 
 ```bash
-node $DRIVE wait --idle --task <task-id>
+node $DRIVE wait --idle --chat <chat-id>
 ```
 
-It blocks on the same status the app's own indicators read (`task.status`) and returns when the task has no live agent. The main SKILL.md covers what "no live agent" means and the `sawBusy` field.
+It blocks on the same state the app's own indicators read (the chat's `state` from `chats.byId`, or with `--task <session-id>` that task's row in `chats.tasks`) and returns when nothing there is at work. The main SKILL.md covers what "no live agent" means and the `sawBusy` field.
 
 ## Inspecting a `<webview>` guest's real internal state
 
@@ -51,9 +51,9 @@ Agent-browser tabs are renderer `<webview>` guests, not separate DevTools page t
 pnpm exec chrome-devtools evaluate_script "async function() {
   const webviews = Array.from(document.querySelectorAll('webview'));
   // Match by partition, not DOM order -- the pool can hold guests for
-  // multiple tasks at once. Partition encodes the task/session id:
-  // persist:browser-route:<taskId>%2F<sessionId>
-  const target = webviews.find(w => w.getAttribute('partition')?.includes('<task-id>'));
+  // several chats and sessions at once. Partition encodes the chat and session:
+  // persist:browser-route:<chatId>%2F<sessionId>
+  const target = webviews.find(w => w.getAttribute('partition')?.includes('<chat-id>'));
   if (!target) return { error: 'not found' };
   return JSON.parse(await target.executeJavaScript(
     'JSON.stringify({w: window.innerWidth, h: window.innerHeight})'

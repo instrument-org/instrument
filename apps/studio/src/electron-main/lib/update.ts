@@ -7,7 +7,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import {
   APP_NAME,
   APP_NAME_SLUG,
-  APP_PREVIEW_NAME,
+  APP_FLAVOR,
   APP_UPDATER_CACHE_DIR_NAME,
   RELEASES_BUCKET_URL,
 } from "@instrument-org/shared";
@@ -84,7 +84,7 @@ export function createStudioAppUpdater({
     // A preview's feed would be the shipping app's, whose update replaces the
     // preview's identity with the real one, so a preview stays where it is.
     isActive: () =>
-      APP_PREVIEW_NAME === undefined && autoUpdater.isUpdaterActive(),
+      APP_FLAVOR.kind !== "preview" && autoUpdater.isUpdaterActive(),
     subscribe: (handlers) => {
       autoUpdater.on("download-progress", handlers.progress);
       autoUpdater.on("error", handlers.failed);

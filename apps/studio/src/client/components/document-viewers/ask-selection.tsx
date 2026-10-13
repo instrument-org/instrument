@@ -77,7 +77,7 @@ export function AskButton({
 
   return createPortal(
     <div
-      className="invisible fixed top-0 left-0 z-50 rounded-xl bg-popover p-1 text-popover-foreground shadow-md"
+      className="invisible fixed top-0 left-0 z-50 rounded-xl bg-popover p-1 text-popover-foreground shadow-float-md"
       data-ask-selection
       ref={floating}
     >

@@ -72,9 +72,13 @@ const alphaOf = (color: string) => {
   return channels.length >= 4 ? (channels[3] ?? 1) : 1;
 };
 
+/** The chips drawn: the ones framed piece by piece when they break across lines. */
 const chips = () =>
-  [...document.querySelectorAll("a, button")].filter(
-    (element) => getComputedStyle(element).display === "inline-flex",
+  [...document.querySelectorAll("a, span")].filter((element) =>
+    ["box-decoration-break", "-webkit-box-decoration-break"].some(
+      (property) =>
+        getComputedStyle(element).getPropertyValue(property) === "clone",
+    ),
   );
 
 /** The whole URL, once a hover has asked for it. */
@@ -129,6 +133,30 @@ describe("An inline link in a browser", () => {
       expect(paragraph.getBoundingClientRect().height).toBe(lineHeight);
     },
   );
+
+  // A chip too long for what is left of its line starts there and carries on
+  // to the next, the way the words around it do, rather than jumping down
+  // whole and leaving a gap where it would have started.
+  it("breaks a chip too long for its line across lines, starting where the sentence is", async () => {
+    await renderReply(
+      "When you want the whole app a little larger, turn up [the zoom level for everything in the window](instrument://task/zoom-level) in Settings.",
+    );
+
+    const paragraph = document.querySelector("p");
+    const [chip] = chips();
+    if (!paragraph || !chip) {
+      throw new Error("the reply rendered without its chip");
+    }
+    const lineHeight = Number.parseFloat(
+      getComputedStyle(paragraph).lineHeight,
+    );
+    const pieces = [...chip.getClientRects()];
+    const paragraphTop = paragraph.getBoundingClientRect().top;
+
+    expect(pieces.length).toBeGreaterThan(1);
+    // The first piece is on the sentence's first line.
+    expect(pieces[0]?.top ?? 0).toBeLessThan(paragraphTop + lineHeight);
+  });
 
   // A favicon is drawn for the light chrome a browser puts it in, where it
   // wants nothing from us; on a dark page a faint tile under it separates the

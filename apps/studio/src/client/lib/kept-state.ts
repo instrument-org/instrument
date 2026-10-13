@@ -47,11 +47,6 @@ function remember(file: KeptFile, key: string, value: unknown) {
   }
 }
 
-/** Whether a file holds a value under a key. */
-export function hasKept(file: KeptFile, key: string): boolean {
-  return kept().has(slotOf(file, key));
-}
-
 /** Keeps a value under a key of a file, here and on disk; `undefined` removes it. */
 export function writeKept(file: KeptFile, key: string, value: unknown) {
   remember(file, key, value);

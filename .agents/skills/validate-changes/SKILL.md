@@ -48,14 +48,14 @@ Root-level checks (`pnpm exec turbo run check:types check:lint`) are in the root
 
 ## Rung 2: the sandbox shell
 
-Boots the same `just-bash` sandbox the agent gets (same virtual FS, same command
+Boots the same `just-bash` sandbox the agent gets (same mounted filesystem, same command
 shims, same network policy) without Studio.
 
 ```bash
 pnpm --filter @instrument-org/workspace run --silent script:run-bash -- "<command>"
 ```
 
-Full options, mounts, and what the sandbox provides: `run-bash` skill.
+Full options, folders, and what the sandbox provides: `run-bash` skill.
 
 ## Rung 3: a real agent, on real models
 
@@ -68,15 +68,16 @@ pnpm eval run --yes --prompt "<task for the agent>" --model cf:zai-org/glm-5.3-f
 ```
 
 - Runs from the repo root; no `cd` first.
-- `--prompt` runs a task agent; add `--chat` to send it through the chat
-  agent the user talks to, which starts tasks of its own.
+- `--prompt` runs the agent as a task of a chat the run makes for it; add
+  `--chat` to send it through the chat the user talks to, which does quick
+  work itself and hands the rest to tasks.
 - **`--model` is required, and there is no default set.** `pnpm eval models
 [pattern]` lists what the configured providers can run today, newest first,
   each row spelled the way `--model` takes it. Pick for the question you are
   actually asking, and say which models you ran and why when you report the
   result.
 - **Workers AI unless the question needs a model only another provider has.**
-  This project holds Cloudflare credits and pays per token everywhere else, so
+  Workers AI runs unmetered here and everything else is metered, so
   `cf:<id>` is the spelling to reach for, and anything metered is refused until
   `--paid` is passed. "Does a model find this affordance" is answered by the
   cheap models; answering it on a frontier model spends real money on a question
@@ -139,7 +140,7 @@ still hot reload: an edit landing mid-run resets the state you navigated to.
 
 Two things not to do, each of which costs someone else their session:
 
-- **`pnpm dev` or `pnpm dev:studio` with a `REMOTE_DEBUGGING_PORT` you picked.**
+- **`pnpm studio` or `pnpm dev` with a `REMOTE_DEBUGGING_PORT` you picked.**
   A hand-picked port is either already a window someone is using, and you will
   connect to their app and report confidently about the wrong code, or it is
   nobody's, and nothing can drive what you just started. Either way it is a
@@ -152,6 +153,6 @@ Two things not to do, each of which costs someone else their session:
 
 - `session-transcript` skill — render any task's session as markdown, including
   one from an exported `.zip`. This is also how you read a real user's run.
-- `task-database-query` skill — read-only SQL against a task's `task.db` when
+- `chat-database-query` skill — read-only SQL against a chat's `chat.db` when
   the transcript is not enough.
 - `find-ui-changes` skill — which recent commits changed user-visible surfaces.

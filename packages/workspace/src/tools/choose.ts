@@ -33,8 +33,13 @@ export const Choose = setupTool({
 }).create({
   description:
     "Present a question with multiple choice options to the user and get their selection. The user can also answer in their own words, add a note, or skip the question, so never add an 'Other' or 'Skip' choice yourself.",
+  // Reached only in a fork, where a question has nobody to park for.
   execute: () => {
-    return Promise.resolve(executeError("Not implemented"));
+    return Promise.resolve(
+      executeError(
+        "You are running in the background, where nobody sees a question: only the chat asks the user. Do what you can, and end your last message with a needs fence naming what you need.",
+      ),
+    );
   },
   readOnly: true,
   timeoutMs: ms("1 second"),

@@ -202,7 +202,6 @@ const session = Session.WithMessagesAndPartsSchema.parse({
             messageId: assistantMessageId,
             sessionId,
           },
-          rawInput: "{",
           state: "input-streaming",
           toolCallId: "tool-call-1",
           type: "tool-bash",
@@ -216,23 +215,15 @@ const session = Session.WithMessagesAndPartsSchema.parse({
 });
 
 describe("session diagnostics", () => {
-  it.each([
-    ["Debug session", "Fix the modal", "# Debug session"],
-    ["Untitled chat", "Fix the modal", "# Fix the modal"],
-    ["Untitled chat 2", "Fix the modal", "# Fix the modal"],
-    ["Untitled chat", undefined, "# Untitled chat"],
-  ])(
-    "heads a session titled %j in a task named %j with %j",
-    async (title, taskName, heading) => {
-      const markdown = await sessionToMarkdown(
-        { ...session, title },
-        { taskName },
-      );
-      expect(markdown.split("\n").find((line) => line.startsWith("# "))).toBe(
-        heading,
-      );
-    },
-  );
+  it("heads the transcript with the session's title", async () => {
+    const markdown = await sessionToMarkdown({
+      ...session,
+      title: "Debug session",
+    });
+    expect(markdown.split("\n").find((line) => line.startsWith("# "))).toBe(
+      "# Debug session",
+    );
+  });
 
   it("includes persisted system context by default", async () => {
     const markdown = await sessionToMarkdown(session);
@@ -264,7 +255,7 @@ describe("session diagnostics", () => {
     expect(markdown).toContain(
       "### Tool Call 1: bash *(incomplete: input-streaming)*",
     );
-    expect(markdown).toContain('"rawInput": "{"');
+    expect(markdown).toContain("- **command:** `pnpm test`");
   });
 
   it("says how much of a tool call's span it spent running", async () => {
@@ -497,14 +488,14 @@ describe("renderToolInput", () => {
   it("highlights file text as the file's own language", () => {
     expect(
       renderToolInput({
-        filePath: "/mnt/Instrument/page.html",
+        filePath: "/Users/sam/Instrument/page.html",
         newString: '<footer class="source-footer">\n<strong>Sources.</strong>',
         oldString: "<footer>\n<strong>Sources.</strong>",
         replaceAll: false,
       }),
     ).toMatchInlineSnapshot(`
       [
-        "- **filePath:** \`/mnt/Instrument/page.html\`",
+        "- **filePath:** \`/Users/sam/Instrument/page.html\`",
         "- **replaceAll:** \`false\`",
         "",
         "**newString**",

@@ -3,9 +3,12 @@ import "../scripts/lib/test-node-env";
 import "../scripts/lib/define-globals-apply";
 
 import { REASONING_EFFORTS } from "@instrument-org/ai-gateway";
+import { execa } from "execa";
+import os from "node:os";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { parseArgs } from "node:util";
+import { list, sum } from "radashi";
 import { z } from "zod";
 
 import { EVALS } from "./cases";
@@ -17,6 +20,7 @@ import {
   HOUSE_FLOOR,
   runEvals,
 } from "./harness";
+import { removePreparedSkills, sweepOldRuns } from "./lib/sweep-old-runs";
 import { generateReport } from "./report";
 import {
   c,
@@ -99,11 +103,15 @@ const maxRunSeconds = values["max-run-seconds"]
 // Every positional past the subcommand is a pattern, matched as alternatives.
 // Reading only the first silently ran a subset: `run region unreadable` looked
 // like it covered both suites and covered one.
+// A pattern that is an eval's whole name means that eval alone, so a name
+// that begins another still picks out one.
 const namePatterns = positionals.slice(1);
 const matchesPattern = (name: string) =>
   namePatterns.length === 0 ||
   namePatterns.some((pattern) =>
-    name.toLowerCase().includes(pattern.toLowerCase()),
+    EVALS.some((one) => one.name.toLowerCase() === pattern.toLowerCase())
+      ? name.toLowerCase() === pattern.toLowerCase()
+      : name.toLowerCase().includes(pattern.toLowerCase()),
   );
 const patternLabel = namePatterns.join(", ");
 
@@ -117,7 +125,7 @@ const reasoningEffort = values.effort
 
 /**
  * A `cf:` prefix reads the name as a Workers AI id (with or without its
- * `@cf/`), which is what this project has credits on; a bare name is an
+ * `@cf/`), which runs without `--paid`; a bare name is an
  * OpenRouter slug, and a full model URI pins any configured provider. The last
  * two are metered, and metered needs `--paid`.
  */
@@ -143,7 +151,7 @@ if (subcommand === "run" && models.length === 0) {
     `\`pnpm eval models\` lists what the configured providers can run right now, newest first.\nPick for the question being asked and say which you picked and why.\n\n`,
   );
   write(
-    `Workers AI carries this project's credits, so it is where to start: pass one as\n\`--model cf:<id>\`, e.g. \`--model cf:${HOUSE_FLOOR}\`, the model this project is\nusually tested against. Everything else is metered and needs --paid.\n`,
+    `Workers AI runs without --paid, so it is where to start: pass one as\n\`--model cf:<id>\`, e.g. \`--model cf:${HOUSE_FLOOR}\`, the model this project is\nusually tested against. Everything else is metered and needs --paid.\n`,
   );
   process.exit(1);
 }
@@ -165,7 +173,7 @@ if (paidModels.length > 0 && !values.paid) {
     write(`  ${model.split("?")[0] ?? model}\n`);
   }
   write(
-    `\nWorkers AI carries this project's credits: pass one as \`--model cf:<id>\`, or\n\`pnpm eval models\` to see what is there. Pass --paid when the question is\nspecifically about a model only another provider has.\n`,
+    `\nWorkers AI runs without --paid: pass one as \`--model cf:<id>\`, or\n\`pnpm eval models\` to see what is there. Pass --paid when the question is\nspecifically about a model only another provider has.\n`,
   );
   process.exit(1);
 }
@@ -178,7 +186,7 @@ if (paidModels.length > 0 && !values.paid) {
 const adHocEval = values.prompt
   ? defineEval({
       // `--chat` runs the prompt through the agent the user talks to
-      // in the app window, which delegates to tasks of its own.
+      // in the app window, which forks tasks of its own.
       kind: values.chat ? "chat" : undefined,
       name: values.name ?? "ad-hoc",
       prompt: values.prompt,
@@ -210,7 +218,7 @@ if (
     `                   --effort <${REASONING_EFFORTS.join("|")}> asks every task to think that hard\n`,
   );
   process.stderr.write(
-    "                   --model <cf:id|slug|uri>, repeatable; default is the free Workers AI set\n",
+    "                   --model <cf:id|slug|uri>, repeatable; Workers AI (cf:) runs without --paid\n",
   );
   process.stderr.write(
     "                   --paid allows a metered model, which is refused without it\n",
@@ -220,6 +228,9 @@ if (
   );
   process.stderr.write(
     "  report <dir>     Generate report from an existing workspace dir\n",
+  );
+  process.stderr.write(
+    "                   --name <case> scores every task no chat started as that case\n",
   );
   process.stderr.write("  list [pattern]   List available evals\n");
   process.stderr.write(
@@ -422,7 +433,7 @@ switch (subcommand) {
     write(
       [
         ...section(
-          "Free, on this project's Cloudflare credits:",
+          "Workers AI, no --paid needed:",
           rows.filter((model) => !isPaidModel(model.uri)),
         ),
         ...section(
@@ -452,6 +463,8 @@ switch (subcommand) {
     write(`Workspace: ${absoluteWorkspaceDir}\n`);
 
     const rollup = await generateReport({
+      // With --name, the workspace is taken to hold that one case's run.
+      caseForRoots: values.name,
       evalCases: EVALS,
       includeContextMessages,
       outputDir,
@@ -524,6 +537,11 @@ switch (subcommand) {
       write("\n");
     }
 
+    if (repeat > 1 && process.env.INSTRUMENT_EVAL_TRIAL === undefined) {
+      process.exit(await runTrialsApart());
+    }
+
+    sweepOldRuns();
     const { runs, workspaceRootDir } = await runEvals(filteredEvals, {
       concurrency,
       dryRun,
@@ -548,6 +566,7 @@ switch (subcommand) {
         runs,
         workspaceRootDir,
       });
+      removePreparedSkills(workspaceRootDir);
 
       printSummary({ outputDir, rollup, workspaceRootDir });
       printTranscripts({ outputDir, rollup });
@@ -557,6 +576,94 @@ switch (subcommand) {
       process.exit(exitCodeFor(rollup));
     }
   }
+}
+
+/**
+ * `--repeat` runs each trial as a run of its own, in a child process with a
+ * home of its own. The product reads the home from HOME, once per process, so
+ * trials in one process share every file a case plants and every file a run
+ * writes, and a case that checks a file's time reads another trial's. Each
+ * child prints its own narration and results; this adds a line per trial and
+ * the total.
+ */
+async function runTrialsApart(): Promise<number> {
+  const baseHome =
+    process.env.INSTRUMENT_EVAL_HOME ??
+    path.join(os.tmpdir(), "instrument-eval-home");
+  const script = process.argv[1] ?? "";
+  const args = withoutOptions(process.argv.slice(2), [
+    "--concurrency",
+    "--repeat",
+  ]).filter((arg) => arg !== "--json" && arg !== "--yes" && arg !== "-y");
+  const perTrial = Math.max(1, Math.ceil(concurrency / repeat));
+  const trials = await Promise.all(
+    list(1, repeat).map(async (trial) => {
+      const child = await execa(
+        process.execPath,
+        [
+          ...process.execArgv,
+          script,
+          ...args,
+          "--repeat",
+          "1",
+          "--concurrency",
+          String(perTrial),
+          "--json",
+          "--yes",
+        ],
+        {
+          env: {
+            ...process.env,
+            INSTRUMENT_EVAL_HOME: `${baseHome}-trial-${trial}`,
+            INSTRUMENT_EVAL_TRIAL: String(trial),
+          },
+          reject: false,
+          stderr: "inherit",
+          stdin: "ignore",
+        },
+      );
+      const report = child.stdout
+        .split("\n")
+        .find((line) => line.startsWith("{"));
+      // The child's own `--json` report, written by this same CLI.
+      const rollup = report ? (JSON.parse(report) as Rollup) : undefined;
+      return { exitCode: child.exitCode ?? 1, rollup, trial };
+    }),
+  );
+  const passed = sum(trials, (each) => each.rollup?.assertions.passed ?? 0);
+  const total = sum(trials, (each) => each.rollup?.assertions.total ?? 0);
+  write(
+    [
+      "",
+      `${c.dim}┌─ Trials ────────────────────────────────────────────${c.reset}`,
+      ...trials.map(({ rollup, trial }) =>
+        rollup
+          ? `${c.dim}│${c.reset}  trial ${trial}: ${rollup.assertions.passed}/${rollup.assertions.total} assertions passed`
+          : `${c.dim}│${c.reset}  trial ${trial}: ${c.yellow}no report${c.reset}`,
+      ),
+      `${c.dim}│${c.reset}  all: ${passed}/${total} assertions passed`,
+      `${c.dim}└─────────────────────────────────────────────────────${c.reset}`,
+      "",
+    ].join("\n"),
+  );
+  return trials.some((each) => each.exitCode !== 0) ? 1 : 0;
+}
+
+/** `args` with each of `names` and its value left out, in either spelling. */
+function withoutOptions(args: string[], names: string[]): string[] {
+  const kept: string[] = [];
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index] ?? "";
+    if (names.includes(arg)) {
+      index++;
+      continue;
+    }
+    if (names.some((name) => arg.startsWith(`${name}=`))) {
+      continue;
+    }
+    kept.push(arg);
+  }
+  return kept;
 }
 
 /**

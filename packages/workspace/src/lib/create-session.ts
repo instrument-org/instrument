@@ -1,21 +1,24 @@
+import { err } from "neverthrow";
+
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
+import { TypedError } from "./errors";
 import { generateSessionTitle } from "./generate-session-title";
+import { sessionOfChat } from "./record-folders";
 import { Store } from "./store";
-import { getWorkspaceConfig } from "./workspace-config";
 
 export async function createSession({
   sessionId,
   signal,
-  taskId,
+  chatId,
 }: {
   sessionId: StoreId.Session;
   signal?: AbortSignal;
-  taskId: TaskId;
+  chatId: ChatId;
 }) {
   const title = await generateSessionTitle({
     signal,
-    taskId,
+    chatId,
   });
   const now = new Date();
   const result = await Store.saveSession(
@@ -25,13 +28,25 @@ export async function createSession({
       title,
       updatedAt: now,
     },
-    taskId,
+    chatId,
     { signal },
   );
 
-  if (result.isOk()) {
-    getWorkspaceConfig().captureEvent("session.created");
-  }
-
   return result;
+}
+
+/**
+ * A chat's own session, the one its settings name. Made with the chat, so
+ * this only writes it for a chat made before that, on its first send.
+ */
+export async function ensureChatSession(chatId: ChatId) {
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
+    return err(new TypedError.NotFound(`${chatId} is not a chat.`));
+  }
+  const existing = await Store.getSession(sessionId, chatId);
+  if (existing.isOk() || existing.error.type !== "workspace-not-found-error") {
+    return existing;
+  }
+  return createSession({ chatId, sessionId });
 }

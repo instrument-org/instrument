@@ -1,23 +1,17 @@
 import { type WorkspaceServerActorRef } from "../../logic/server";
-import { type TaskId } from "../../schemas/task-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceConfig } from "../../types";
 import { type SessionActorRef } from "../session";
-import { type TaskBrowserActorRef } from "../task-browser";
+import { type WindowBrowserActorRef } from "../window-browser";
 
 // Declared here to avoid circular dependency
 export interface WorkspaceContext {
   config: WorkspaceConfig;
   error?: unknown;
-  // Resolvers waiting for the taskBrowser at `id` to reach Stopped
-  // before trash-task deletes the directory. Drained when the matching
-  // taskBrowser.stopped event arrives (or immediately if no machine
-  // existed when prepareToTrashTask ran).
-  pendingBrowserReapResolvers: Map<TaskId, (() => void)[]>;
-  sessionRefsByTaskId: Map<TaskId, SessionActorRef[]>;
-  // One taskBrowser actor per task id with browser activity or an
-  // active task-page presence subscription. Spawned lazily and reaped on
-  // taskBrowser.stopped.
-  taskBrowserRefs: Map<TaskId, TaskBrowserActorRef>;
-  tasksBeingTrashed: TaskId[];
+  sessionRefsByChatId: Map<ChatId, SessionActorRef[]>;
+  // The lifetime of the window's browser guests, for as long as the
+  // workspace runs.
+  windowBrowserRef: WindowBrowserActorRef;
+  chatsBeingTrashed: ChatId[];
   workspaceServerRef: WorkspaceServerActorRef;
 }

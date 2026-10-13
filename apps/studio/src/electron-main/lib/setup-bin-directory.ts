@@ -135,7 +135,7 @@ function getBinaryConfigs(): BinaryConfig[] {
   ];
 }
 
-function getBinDirectoryPath(): string {
+export function getBinDirectoryPath(): string {
   return path.join(app.getPath("userData"), BIN_DIR_NAME);
 }
 

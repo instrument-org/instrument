@@ -9,9 +9,21 @@ import { type ShortcutAccelerator } from "@/shared/shortcuts";
  * `shortcuts.ts`.
  */
 export interface WindowShortcut {
-  accelerator: string;
+  accelerator: ShortcutAccelerator;
   label: string;
 }
+
+/**
+ * The rail's places, one chord each in the rail's order: Control and Command
+ * with the digit on a Mac, as Safari puts its sidebar's sections, where
+ * Option and a digit types a character; Alt and the digit elsewhere, where
+ * Control and Alt together is AltGr on many layouts and types one too. One
+ * modifier away from the tabs' Cmd or Ctrl and a digit.
+ */
+const placeChord = (digit: number) => ({
+  darwin: `Control+Command+${digit}`,
+  default: `Alt+${digit}`,
+});
 
 export const WINDOW_SHORTCUTS = {
   back: { accelerator: "CmdOrCtrl+[", label: "Back" },
@@ -20,6 +32,10 @@ export const WINDOW_SHORTCUTS = {
   editPage: { accelerator: "CmdOrCtrl+E", label: "Edit Page" },
   findInPage: { accelerator: "CmdOrCtrl+F", label: "Find in Page" },
   forward: { accelerator: "CmdOrCtrl+]", label: "Forward" },
+  goToApps: { accelerator: placeChord(4), label: "Go to Apps" },
+  goToBrowser: { accelerator: placeChord(3), label: "Go to Browser" },
+  goToChat: { accelerator: placeChord(1), label: "Go to Chat" },
+  goToFiles: { accelerator: placeChord(2), label: "Go to Files" },
   newChat: { accelerator: "CmdOrCtrl+N", label: "New Chat" },
   newTab: { accelerator: "CmdOrCtrl+T", label: "New Tab" },
   nextChat: { accelerator: "Alt+CmdOrCtrl+Down", label: "Next Chat" },

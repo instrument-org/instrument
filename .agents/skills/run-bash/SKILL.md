@@ -23,7 +23,7 @@ Pass the command as a positional argument. The process exits with the command's 
 
 ```bash
 pnpm --silent script:run-bash -- "python -c 'import sys; print(sys.version)'"
-pnpm --silent script:run-bash -- "uv pip install numpy && python-native -c 'import numpy'"
+pnpm --silent script:run-bash -- "uv pip install numpy && python -c 'import numpy'"
 pnpm --silent script:run-bash -- "node --version"
 ```
 
@@ -40,7 +40,7 @@ By default, all commands run and the process exits with the first non-zero exit 
 ```bash
 pnpm --silent script:run-bash -- --bail \
   "uv pip install requests" \
-  "python-native -c 'import requests'"
+  "python -c 'import requests'"
 ```
 
 ### One-shot against an existing task dir
@@ -48,26 +48,28 @@ pnpm --silent script:run-bash -- --bail \
 Reuse a task dir to persist installed packages, created files, etc. across calls. The task ID is printed to stderr on every run.
 
 ```bash
-pnpm --silent script:run-bash -- --task TASK_ID "python-native -c 'import numpy'"
+pnpm --silent script:run-bash -- --task TASK_ID "python -c 'import numpy'"
 ```
 
-### Attached-folder mounts
+### Reaching a folder
 
-Mount host folders read-only under `/mnt/<basename>` (repeatable; `--attach-writable` mounts one read-write), the same way user-attached folders appear to the agent. `--mount-name <name>` before either mounts the next folder under that name instead, which may hold a slash the way a folder a chat hands a task does (`--mount-name Home/Downloads --attach ~/Downloads` mounts it at `/mnt/Home/Downloads`):
+The runner reaches only the task dir unless told otherwise. `--attach <dir>` (repeatable) reaches a host folder at its own path, the way a folder a chat has been granted appears to the agent; `--attach-writable <dir>` is the same spelling for a folder meant to be changed. Both give the folder an Allowed rule in the runner's chat, so either can be changed; the runner has no home folder and no Settings › Permissions rules beyond the folders you attach.
 
 ```bash
 pnpm --silent script:run-bash -- --attach ~/Documents/Photos \
-  "ls /mnt/Photos" \
-  "python -c 'import os; print(len(os.listdir(\"/mnt/Photos\")))'" \
-  "cp '/mnt/Photos/pic.jpg' attachments/"
+  "ls $HOME/Documents/Photos" \
+  "python -c 'import os; print(len(os.listdir(\"$HOME/Documents/Photos\")))'" \
+  "ffprobe $HOME/Documents/Photos/clip.mov"
 ```
+
+The path to type is the folder's real one. The sandbox shell's `~` and `$HOME` are your real home folder as well, but the runner reaches only what you attach.
 
 ### Piped sequential commands
 
 Pipe a newline-separated script when you need multiple commands sharing one task dir without passing `--task` explicitly:
 
 ```bash
-printf 'uv pip install requests\npython-native -c "import requests; print(requests.__version__)"\n' \
+printf 'uv pip install requests\npython -c "import requests; print(requests.__version__)"\n' \
   | pnpm --silent script:run-bash
 ```
 
@@ -85,7 +87,7 @@ Just `pnpm --silent script:run-bash` with no arguments when stdin is a TTY.
 Stderr example:
 
 ```plaintext
-task dir: /tmp/instrument-bash-repl/tasks/01kv...
+task dir: /tmp/instrument-bash-repl/chats/01kv...
 task: 01kv...  session: ses_01KV...
 
 [exit 0 · 23ms]
@@ -95,12 +97,11 @@ task: 01kv...  session: ses_01KV...
 
 Same environment as the real agent:
 
-- **FS**: the task dir mounts writable at `/task` (the working directory), skills read-only at `/skills`, and `--attach` folders under `/mnt/<name>`; everything else is a read-only empty root, so there is no access to the host filesystem
-- **Network**: full internet access; private/loopback ranges blocked (SSRF guard)
+- **FS**: the task dir is the working directory, at its real path under the system temp dir; skills are reached at their real directories; `--attach` folders are reached at their own paths; everything else in the shell is a read-only empty root, so a builtin cannot reach the rest of the host filesystem. Native commands (`python`, `node`, `ffmpeg`, any program on the PATH, ...) are spawned under the same rules through Seatbelt on macOS and bubblewrap on Linux (the runner turns `nativeSandbox` on), and unwrapped elsewhere
+- **Network**: full internet access, the local network and loopback included
 - **Built-in commands**: standard unix builtins (`ls`, `grep`, `find`, `curl`, etc.)
-- **Sandboxed script runtimes**: `python`/`python3` (CPython on WebAssembly, standard library only, reads `/mnt` directly) and `js-exec` (QuickJS, built-ins only); both are just-bash's, wrapped by our shims
-- **Custom shims**: `node` (also runs TypeScript), `pnpm`, `pnx`/`pnpx`/`npx`, `uv`, `python-native`, `pip`/`pip3`, `ffmpeg`, `ffprobe`, `git`, `rg`, `osascript`, `app`, `jobs`/`fg`/`kill`
-- **Not here**: the chat agent's commands (`task`, `chat`, `tab`, `memory`); this runner builds a task agent's shell
+- **Custom shims**: `python`/`python3` (the chat's virtualenv interpreter), `node` (also runs TypeScript), `pnpm`, `pnx`/`pnpx`/`npx`, `uv`, `pip`/`pip3`, `ffmpeg`, `ffprobe`, `git`, `rg`, `osascript`, `app`, `jobs`/`fg`/`kill`
+- **Not here**: the commands only a chat's shell has (`task`, `chat`, `tab`, `memory`) and its `apps/` folder; this runner builds a task's shell
 - **Stub**: `npm` -> error (use `pnpm`)
 - **Managed command**: `agent-browser` resolves to the wrapped CLI; use this runner for command availability/help checks, not real browser-session testing
 
@@ -120,4 +121,4 @@ TASK_DIR=$(pnpm --silent script:run-bash -- "echo hi" 2>&1 \
   | grep 'task dir:' | awk '{print $3}')
 ```
 
-Alternatively pass `--task <id>` to a known task dir under `$TMPDIR/instrument-bash-repl/tasks/<id>/` (`--tasks-dir <dir>` uses another tasks root).
+Alternatively pass `--task <id>` to a known folder under `$TMPDIR/instrument-bash-repl/chats/<id>/` (`--chats-dir <dir>` uses another root).

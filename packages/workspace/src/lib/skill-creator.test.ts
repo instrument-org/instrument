@@ -2,14 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { MOUNT } from "../mount-points";
 import { TOOL_NAMES } from "../tools/name";
 import { VALIDATE_SKILL_COMMAND } from "./shell-commands/validate-skill";
 import { parseFrontmatter } from "./skills";
 import { SKILL_LIMITS } from "./validate-skill";
 
 /**
- * The one skill we ship documents runtime facts as prose: the skills mount
+ * The one skill we ship documents runtime facts as prose: the skills folder
  * point, the `load_skill` tool, the `validate-skill` command, and the SKILL.md
  * budgets. A rename or a bumped limit in the code would silently leave its
  * instructions wrong. Deriving the expected text from the same constants the
@@ -33,7 +32,6 @@ describe("skill-creator system skill", () => {
   });
 
   it.each([
-    ["skills mount point", MOUNT.skills],
     ["load_skill tool", TOOL_NAMES.loadSkill],
     ["validate-skill command", VALIDATE_SKILL_COMMAND.name],
     ["SKILL.md line budget", String(SKILL_LIMITS.skillFileLines)],

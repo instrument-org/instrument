@@ -3,11 +3,11 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { TASK_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { publisher } from "../rpc/publisher";
 import { type RelativePath, RelativePathSchema } from "../schemas/paths";
 import { type StoreId } from "../schemas/store-id";
-import { type TaskId } from "../schemas/task-id";
+import { type ChatId } from "../schemas/chat-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { BackgroundOutputBuffer } from "./background-output-buffer";
 import { BoundedLogWriter } from "./bounded-log-writer";
@@ -20,11 +20,7 @@ import {
   withShellOutputSink,
 } from "./shell-commands/output-sink";
 import { SubprocessTreeTerminationError } from "./subprocess-tree";
-import { taskDir } from "./task-dir-utils";
-import {
-  buildWorkspaceFsLayout,
-  type WorkspaceFsLayout,
-} from "./workspace-fs-layout";
+import { workDir } from "./work-dir";
 
 /**
  * How many processes may run at once per task. A ceiling the agent can hit beats
@@ -137,7 +133,7 @@ export interface BackgroundRunHandle {
  * Who asked a process to stop. The agent reads each differently: its own
  * `kill` is a step it took, the user's stop button is a decision it must not
  * undo by starting the process again, and the conversation's `task stop` is
- * the assistant that briefed it stepping in.
+ * the chat stepping in on a task's command.
  */
 export type StoppedBy = "agent" | "conversation" | "user";
 
@@ -163,7 +159,7 @@ interface BackgroundProcessRecord {
   stoppedBy?: StoppedBy;
   /** Set once a stop was asked for, and by what, so the outcome is labeled. */
   stopReason?: StopReason;
-  taskId: TaskId;
+  chatId: ChatId;
   waiters: Set<() => void>;
 }
 
@@ -204,11 +200,13 @@ const recordsBySession = new Map<
 /** Refuses promotion and lets concurrent callers join session cleanup. */
 const cleanupBySession = new Map<StoreId.Session, Promise<void>>();
 /**
- * Never reset within a run, and seeded from disk on first use per task. Ids name
- * log files that persisted tool results point at, so reusing one would overwrite
- * the output an earlier turn's transcript promises.
+ * Never reset within a run, and seeded from disk on first use per working
+ * folder. Ids name log files that persisted tool results point at, so reusing
+ * one would overwrite the output an earlier turn's transcript promises. Kept
+ * per folder rather than per task because a fork shares its chat's folder,
+ * and two counters over one folder would hand out the same log name.
  */
-const nextIdByTask = new Map<TaskId, number>();
+const nextIdByFolder = new Map<string, number>();
 
 /**
  * Kills everything, for app shutdown. Child processes normally die with the
@@ -295,12 +293,12 @@ export function killSessionBackgroundProcesses(
           `Could not confirm that every background process for session ${sessionId} stopped.`,
         );
       }
-      const taskIds = new Set(
-        [...records.values()].map(({ taskId }) => taskId),
+      const chatIds = new Set(
+        [...records.values()].map(({ chatId }) => chatId),
       );
       recordsBySession.delete(sessionId);
-      for (const taskId of taskIds) {
-        publishChanged(taskId);
+      for (const chatId of chatIds) {
+        publishChanged(chatId);
       }
     } finally {
       cleanupBySession.delete(sessionId);
@@ -311,16 +309,56 @@ export function killSessionBackgroundProcesses(
 }
 
 /** Kills everything running for a task; for trashing one. */
-export async function killTaskBackgroundProcesses(
-  taskId: TaskId,
+export async function killChatBackgroundProcesses(
+  chatId: ChatId,
 ): Promise<void> {
   await Promise.all(
     [...recordsBySession.entries()].map(async ([sessionId, records]) => {
-      if ([...records.values()].some((record) => record.taskId === taskId)) {
+      if ([...records.values()].some((record) => record.chatId === chatId)) {
         await killSessionBackgroundProcesses(sessionId);
       }
     }),
   );
+}
+
+/**
+ * Moves processes to another session, for work a chat hands to a task
+ * partway (`task new --job`): the task carries the work on, so what the chat
+ * left running is the task's to read, wait on and stop, under the same ids.
+ * A task works in its chat's folder, so the logs stay where they are.
+ */
+export function handOverBackgroundProcesses({
+  from,
+  ids,
+  to,
+  toChatId,
+}: {
+  from: StoreId.Session;
+  ids: string[];
+  to: StoreId.Session;
+  toChatId: ChatId;
+}): void {
+  const source = recordsBySession.get(from);
+  if (!source) {
+    return;
+  }
+  const target =
+    recordsBySession.get(to) ?? new Map<string, BackgroundProcessRecord>();
+  recordsBySession.set(to, target);
+  const changed = new Set<ChatId>([toChatId]);
+  for (const id of ids) {
+    const record = source.get(id);
+    if (!record) {
+      continue;
+    }
+    source.delete(id);
+    changed.add(record.chatId);
+    record.chatId = toChatId;
+    target.set(id, record);
+  }
+  for (const chatId of changed) {
+    publishChanged(chatId);
+  }
 }
 
 export function listBackgroundProcesses(
@@ -343,13 +381,13 @@ export function listBackgroundProcesses(
  * turn each have one. What they left running is the task's, so the surfaces that
  * show it and the cap that bounds it are both task-wide.
  */
-export function listTaskBackgroundProcesses(
-  taskId: TaskId,
+export function listChatBackgroundProcesses(
+  chatId: ChatId,
 ): (BackgroundProcessInfo & { sessionId: StoreId.Session })[] {
   return [...recordsBySession.entries()]
     .flatMap(([sessionId, records]) =>
       [...records.values()]
-        .filter((record) => record.taskId === taskId)
+        .filter((record) => record.chatId === chatId)
         .map((record) => ({ ...toInfo(record), sessionId })),
     )
     .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
@@ -363,13 +401,13 @@ export function listTaskBackgroundProcesses(
 export function promoteBackgroundProcess({
   handle,
   sessionId,
-  taskId,
+  chatId,
 }: {
   handle: BackgroundRunHandle;
   /** Owns the process: reads, kills, and turn cleanup are all scoped to it. */
   sessionId: StoreId.Session;
   /** Only locates the log file; ownership is the session's. */
-  taskId: TaskId;
+  chatId: ChatId;
 }): { error: string } | { info: BackgroundProcessInfo } {
   if (cleanupBySession.has(sessionId)) {
     return {
@@ -388,7 +426,7 @@ export function promoteBackgroundProcess({
     ([recordsSessionId, sessionRecords]) =>
       [...sessionRecords.values()]
         .filter(
-          (record) => record.taskId === taskId && record.status === "running",
+          (record) => record.chatId === chatId && record.status === "running",
         )
         .map((record) => ({
           ownedHere: recordsSessionId === sessionId,
@@ -416,9 +454,9 @@ export function promoteBackgroundProcess({
     };
   }
 
-  const id = allocateId(taskId);
+  const id = allocateId(chatId);
 
-  const log = openLogFile({ id, taskId });
+  const log = openLogFile({ id, chatId });
   if ("error" in log) {
     return { error: log.error };
   }
@@ -444,7 +482,7 @@ export function promoteBackgroundProcess({
     prePromotionOmittedBytes: handle.buffer.omittedBytesSoFar(),
     startedAt: handle.startedAt,
     status: "running",
-    taskId,
+    chatId,
     waiters: new Set(),
   };
   records.set(id, record);
@@ -484,7 +522,7 @@ export function promoteBackgroundProcess({
     finish({ outcome, record });
   });
 
-  publishChanged(taskId);
+  publishChanged(chatId);
   return { info: toInfo(record) };
 }
 
@@ -557,9 +595,7 @@ export function startBackgroundRun({
   callerSignal,
   command,
   explanation,
-  layout,
   run,
-  taskId,
 }: {
   /** Cancels the run until it is promoted; typically the tool call's signal. */
   callerSignal: AbortSignal;
@@ -570,18 +606,7 @@ export function startBackgroundRun({
     exitCode: number;
     output: string;
   }>;
-  /**
-   * The layout of the shell the command runs in, which the streamed copy's
-   * host paths are written back against the way a foreground shim writes the
-   * copy it returns. Left out where there is no shell, which leaves the
-   * task's own folder and the skills.
-   */
-  layout?: WorkspaceFsLayout;
-  /** The task the run belongs to. */
-  taskId: TaskId;
 }): BackgroundRunHandle {
-  const outputLayout =
-    layout ?? buildWorkspaceFsLayout({ taskHostRoot: taskDir(taskId) });
   const buffer = new BackgroundOutputBuffer({
     capBytes: PENDING_OUTPUT_CAP_BYTES,
   });
@@ -612,7 +637,7 @@ export function startBackgroundRun({
     // usable as a tool input, and the authoritative final shell output already
     // does that; applying it to a live view would corrupt backslashes inside
     // matched lines for no gain.
-    const text = filterShellOutput(rawText, outputLayout, {
+    const text = filterShellOutput(rawText, {
       rewriteSeparators: false,
     });
     // Redaction can empty a chunk that arrived non-empty, and a chunk that adds
@@ -686,7 +711,7 @@ export function startBackgroundRun({
 
 /**
  * Hands out the next `bg_N` for a task, seeding from the log files already on
- * disk the first time a task is seen.
+ * disk the first time its working folder is seen.
  *
  * The counter lives in memory, so without the seed a restart would begin again at
  * `bg_1` and the write stream, which truncates, would overwrite a log that a
@@ -694,14 +719,14 @@ export function startBackgroundRun({
  * missing file: the log would then hold some later command's output under the
  * earlier one's name.
  */
-function allocateId(taskId: TaskId): string {
-  let next = nextIdByTask.get(taskId);
+function allocateId(chatId: ChatId): string {
+  const outputDir = absolutePathJoin(
+    workDir(chatId),
+    CHAT_FOLDER_NAMES.toolOutput,
+  );
+  let next = nextIdByFolder.get(outputDir);
 
   if (next === undefined) {
-    const outputDir = absolutePathJoin(
-      taskDir(taskId),
-      TASK_FOLDER_NAMES.toolOutput,
-    );
     let highest = 0;
     try {
       for (const name of fs.readdirSync(outputDir)) {
@@ -715,7 +740,7 @@ function allocateId(taskId: TaskId): string {
     next = highest + 1;
   }
 
-  nextIdByTask.set(taskId, next + 1);
+  nextIdByFolder.set(outputDir, next + 1);
   return `bg_${next}`;
 }
 
@@ -814,7 +839,7 @@ function finish({
     }
     record.status = status;
     notify(record);
-    publishChanged(record.taskId);
+    publishChanged(record.chatId);
     return;
   }
   record.endedAt = getCurrentDate();
@@ -833,7 +858,7 @@ function finish({
 
   record.logWriter.close();
   notify(record);
-  publishChanged(record.taskId);
+  publishChanged(record.chatId);
 }
 
 function notify(record: BackgroundProcessRecord) {
@@ -849,7 +874,7 @@ function notify(record: BackgroundProcessRecord) {
  * signal is detached, so a throw here would leave a detached process that
  * nothing lists, nothing can stop, and quit cleanup cannot reach.
  */
-function openLogFile({ id, taskId }: { id: string; taskId: TaskId }):
+function openLogFile({ id, chatId }: { id: string; chatId: ChatId }):
   | { error: string }
   | {
       logFileAbsolutePath: ReturnType<typeof absolutePathJoin>;
@@ -857,9 +882,9 @@ function openLogFile({ id, taskId }: { id: string; taskId: TaskId }):
     } {
   try {
     const logFilePath = RelativePathSchema.parse(
-      path.posix.join(TASK_FOLDER_NAMES.toolOutput, `${id}.log`),
+      path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${id}.log`),
     );
-    const logFileAbsolutePath = absolutePathJoin(taskDir(taskId), logFilePath);
+    const logFileAbsolutePath = absolutePathJoin(workDir(chatId), logFilePath);
     fs.mkdirSync(path.dirname(logFileAbsolutePath), { recursive: true });
     return { logFileAbsolutePath, logFilePath };
   } catch (error) {
@@ -877,8 +902,8 @@ function openLogFile({ id, taskId }: { id: string; taskId: TaskId }):
  * viewer needs is only whether the process is still there. Appearing, ending
  * and being removed are the only three moments that answer that.
  */
-function publishChanged(taskId: TaskId) {
-  publisher.publish("backgroundProcesses.changed", { id: taskId });
+function publishChanged(chatId: ChatId) {
+  publisher.publish("backgroundProcesses.changed", { id: chatId });
 }
 
 /** Drops stale finished records. */

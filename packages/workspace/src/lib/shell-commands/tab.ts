@@ -1,20 +1,19 @@
 import { defineCommand } from "just-bash";
 
-import { MOUNT } from "../../mount-points";
-import { StoreId } from "../../schemas/store-id";
 import {
   type WindowTabAction,
   type WindowTabTarget,
 } from "../../schemas/window-tab";
-import { encodeBrowserTargetId } from "../../types";
+import { parseBrowserTargetId } from "../../types";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
-import { WINDOW_ID } from "../../schemas/window-id";
 import {
   askWindow,
   tabHolders,
   WINDOW_TAB_TIMEOUT_MS,
 } from "../chat/window-tab";
-import { isUnder } from "../path-containment";
+import { agentPathOfFileUrl, isLocalAddress } from "../local-page-address";
+import { getWorkspaceConfig } from "../workspace-config";
+import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import {
   defineSubcommands,
   type SubcommandShell,
@@ -27,7 +26,7 @@ const TAB_NAME = TAB_COMMAND.name;
 
 const NO_WINDOW = "the window did not answer, so no tab changed.";
 
-const USAGE = `Usage: ${TAB_NAME} open <url or path>... | ${TAB_NAME} replace <id> <url or path> | ${TAB_NAME} close <id>... | ${TAB_NAME} show <id>`;
+const USAGE = `Usage: ${TAB_NAME} open <url or path>... | ${TAB_NAME} replace <id> <url or path> | ${TAB_NAME} close <id>... | ${TAB_NAME} show <id> | ${TAB_NAME} read <id>`;
 
 /**
  * The conversation's hands on the window's tabs. The window keeps the tabs
@@ -40,9 +39,12 @@ const USAGE = `Usage: ${TAB_NAME} open <url or path>... | ${TAB_NAME} replace <i
  */
 export function createTabCommand({
   chatId,
+  layout,
   timeoutMs = WINDOW_TAB_TIMEOUT_MS,
 }: {
   chatId: ChatId;
+  /** The chat's shell layout: a local page outside it is not the chat's to read. */
+  layout: WorkspaceFsLayout;
   timeoutMs?: number;
 }) {
   const ask = (action: WindowTabAction) =>
@@ -67,6 +69,7 @@ export function createTabCommand({
       replace: subcommand({
         run: ({ positional }, _, ctx) => replace(positional, ctx),
       }),
+      read: subcommand({ run: ({ positional }) => read(positional) }),
       show: subcommand({ run: ({ positional }) => show(positional) }),
     },
     usage: USAGE,
@@ -165,13 +168,62 @@ export function createTabCommand({
     };
   }
 
+  async function read(rest: string[]) {
+    const [tabId, ...extra] = rest;
+    if (!tabId || extra.length > 0) {
+      return fail(`read takes one tab id. ${USAGE}`);
+    }
+    // Checked on both sides of the read, since a page can take its own tab to
+    // another file while the window reads it.
+    if (showsFileOutside(tabId)) {
+      return fail(outsideFile(tabId));
+    }
+    const answer = await ask({ kind: "read", tabId });
+    if (!answer) {
+      return fail(NO_WINDOW);
+    }
+    if (answer.error) {
+      return fail(answer.error);
+    }
+    if (showsFileOutside(tabId)) {
+      return fail(outsideFile(tabId));
+    }
+    const text = answer.text ?? "";
+    return {
+      exitCode: 0,
+      stderr: "",
+      stdout: text.endsWith("\n") ? text : `${text}\n`,
+    };
+  }
+
+  /**
+   * Whether a page tab is on a file of this computer the chat's own tools
+   * could not read, which the window would otherwise read for it.
+   */
+  function showsFileOutside(tabId: string): boolean {
+    const targetId = parseBrowserTargetId(tabId);
+    if (targetId === null) {
+      return false;
+    }
+    const url = getWorkspaceConfig().browser.getTargetUrl(targetId);
+    return (
+      url !== undefined &&
+      isLocalAddress(url) &&
+      agentPathOfFileUrl(layout, url) === null
+    );
+  }
+
   return defineCommand(TAB_COMMAND.name, (args, ctx) =>
     runTab(args, undefined, ctx),
   );
 }
 
 function describeTarget(target: WindowTabTarget) {
-  return target.kind === "page" ? (target.url ?? "a new page") : target.mount;
+  return target.kind === "page" ? (target.url ?? "a new page") : target.path;
+}
+
+function outsideFile(tabId: string) {
+  return `tab ${tabId} shows a file outside your folders, so it can't be read.`;
 }
 
 function fail(message: string) {
@@ -184,14 +236,10 @@ function isUrl(arg: string): boolean {
 
 /** The agent opening a page is its first work in it, which the tab's working mark shows from the start. */
 function noteOpenedPage(tabId: string | undefined) {
-  const session = StoreId.SessionSchema.safeParse(tabId);
-  if (!session.success) {
-    return;
+  const targetId = parseBrowserTargetId(tabId ?? "");
+  if (targetId !== null) {
+    noteBrowserAgentActivity(targetId);
   }
-  noteBrowserAgentActivity(
-    WINDOW_ID,
-    encodeBrowserTargetId(WINDOW_ID, session.data),
-  );
 }
 
 function report(lines: string[], failures: string[]) {
@@ -216,18 +264,10 @@ async function targetOf(
   if (isUrl(arg)) {
     return { kind: "page", url: arg };
   }
-  const virtualPath = ctx.fs.resolvePath(ctx.cwd, arg);
-  if (
-    !isUnder(MOUNT.attachedFolders, virtualPath) &&
-    !isUnder(MOUNT.tasks, virtualPath)
-  ) {
-    return {
-      error: `${TAB_NAME}: "${arg}" is not a page, and not under ${MOUNT.attachedFolders} or ${MOUNT.tasks}, which are the files and folders the window can show.`,
-    };
-  }
+  const path = ctx.fs.resolvePath(ctx.cwd, arg);
   let stat;
   try {
-    stat = await ctx.fs.stat(virtualPath);
+    stat = await ctx.fs.stat(path);
   } catch {
     return { error: `${TAB_NAME}: "${arg}" does not exist.` };
   }
@@ -236,6 +276,6 @@ async function targetOf(
   }
   return {
     kind: "path",
-    mount: stat.isDirectory ? `${virtualPath}/` : virtualPath,
+    path: stat.isDirectory ? `${path}/` : path,
   };
 }

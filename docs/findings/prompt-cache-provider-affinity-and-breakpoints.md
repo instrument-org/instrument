@@ -4,7 +4,7 @@
 
 ## Finding
 
-Byte-stable prompts are necessary but not sufficient for reliable prompt-cache reuse. The current harness has provider-specific gaps that can lower hit rates even after the nonce and immutable-session-context work removes avoidable byte changes.
+Byte-stable prompts are necessary but not sufficient for reliable prompt-cache reuse. The current harness has provider-specific gaps that can lower hit rates even after the immutable-session-context work removes avoidable byte changes.
 
 ## Current behavior
 
@@ -31,7 +31,7 @@ Byte-stable prompts are necessary but not sufficient for reliable prompt-cache r
 
 ## Constraints
 
-- Affinity keys cannot rescue a prefix whose bytes change. Land and measure nonce replay stability and immutable session context first.
+- Affinity keys cannot rescue a prefix whose bytes change. Land and measure immutable session context first.
 - Provider options are not portable. Each field needs a supported adapter type, serialized-request proof, and an explicit fallback when routed through another provider.
 - A new cache breakpoint can increase cache-write cost or exceed a provider's allowed breakpoint count. It needs cost and request-shape validation, not only a type check.
 - Cache retention stays provider-default. This finding does not recommend 24-hour retention.

@@ -37,7 +37,7 @@ import { KeyIcon } from "@phosphor-icons/react/Key";
 import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 const PRODUCT_NAME = { chatgpt: "ChatGPT", claude: "Claude" } as const;
 

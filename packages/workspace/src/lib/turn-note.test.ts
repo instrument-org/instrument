@@ -1,0 +1,153 @@
+import { describe, expect, it } from "vitest";
+
+import { type SessionMessage } from "../schemas/session/message";
+import { type SessionMessagePart } from "../schemas/session/message-part";
+import { StoreId } from "../schemas/store-id";
+import { MID_TURN_NOTE } from "./chat/mid-turn";
+import { systemNoteBody } from "./system-note";
+import { continuesOwnReply, opensTypedTurn, TURN_NOTE } from "./turn-note";
+
+const sessionId = StoreId.newSessionId();
+const createdAt = new Date("2026-10-07T12:00:00Z");
+
+function message(
+  role: "assistant" | "user",
+  parts: ("midTurn" | "text" | "tool" | "wake")[],
+  extra: { error?: boolean } = {},
+): SessionMessage.WithParts {
+  const id = StoreId.newMessageId();
+  const meta = () => ({
+    createdAt,
+    id: StoreId.newPartId(),
+    messageId: id,
+    sessionId,
+  });
+  const built = parts.map((kind): SessionMessagePart.Type => {
+    switch (kind) {
+      case "midTurn": {
+        return {
+          data: { text: MID_TURN_NOTE },
+          metadata: meta(),
+          type: "data-intent",
+        };
+      }
+      case "text": {
+        return { metadata: meta(), state: "done", text: "Hi.", type: "text" };
+      }
+      case "tool": {
+        return {
+          input: { command: "ls", explanation: "Listing", yieldMs: 1000 },
+          metadata: { ...meta(), endedAt: createdAt },
+          output: {
+            command: "ls",
+            commands: ["ls"],
+            durationMs: 0,
+            exitCode: 0,
+            omittedBytes: 0,
+            output: "",
+          },
+          state: "output-available",
+          toolCallId: `call-${id}`,
+          type: "tool-bash",
+        };
+      }
+      case "wake": {
+        return {
+          data: {
+            events: [
+              {
+                status: "done",
+                sessionId: StoreId.SessionSchema.parse(
+                  "ses_01K4M8C2B5N7R0T3V6X9Z1D4F7",
+                ),
+                title: "Lisbon hotel",
+              },
+            ],
+          },
+          metadata: meta(),
+          type: "data-taskEvent",
+        };
+      }
+    }
+  });
+  return role === "user"
+    ? {
+        id,
+        metadata: { createdAt, sessionId },
+        parts: built,
+        role,
+      }
+    : {
+        id,
+        metadata: {
+          createdAt,
+          finishReason: "stop",
+          modelId: "m",
+          providerId: "p",
+          sessionId,
+          ...(extra.error
+            ? { error: { kind: "aborted" as const, message: "Aborted" } }
+            : {}),
+        },
+        parts: built,
+        role,
+      };
+}
+
+describe("opensTypedTurn", () => {
+  const asked = message("user", ["text"]);
+
+  it.each<[string, SessionMessage.WithParts[], boolean]>([
+    ["the first step of a turn the user typed", [asked], true],
+    ["a later step", [asked, message("assistant", ["tool"])], false],
+    [
+      "the retry of a first step that failed",
+      [asked, message("assistant", [], { error: true })],
+      true,
+    ],
+    ["a turn a finished task started", [message("user", ["wake"])], false],
+    [
+      "a message that joined a turn under way",
+      [
+        asked,
+        message("assistant", ["tool"]),
+        message("user", ["text", "midTurn"]),
+      ],
+      false,
+    ],
+    ["a session with no message yet", [], false],
+  ])("%s", (_, messages, expected) => {
+    expect(opensTypedTurn(messages)).toBe(expected);
+  });
+
+  it("asks for a few words, then quiet until the outcome", () => {
+    expect(systemNoteBody(TURN_NOTE)).toMatchInlineSnapshot(
+      `"Before using any tool, tell the user in a few words what you are doing ("Reading the lease."), the work rather than their request said back, then nothing more until the outcome. If no tool is needed, just answer."`,
+    );
+  });
+});
+
+describe("continuesOwnReply", () => {
+  const asked = message("user", ["text"]);
+
+  it.each<[string, SessionMessage.WithParts[], boolean]>([
+    [
+      "a step after one that only wrote",
+      [asked, message("assistant", ["text"])],
+      true,
+    ],
+    [
+      "a step after one that called a tool",
+      [asked, message("assistant", ["text", "tool"])],
+      false,
+    ],
+    [
+      "the retry of a step that failed",
+      [asked, message("assistant", ["text"], { error: true })],
+      false,
+    ],
+    ["the first step of a turn", [asked], false],
+  ])("%s", (_, messages, expected) => {
+    expect(continuesOwnReply(messages)).toBe(expected);
+  });
+});

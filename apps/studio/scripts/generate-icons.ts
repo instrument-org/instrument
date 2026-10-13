@@ -36,6 +36,15 @@ const ROUNDED = src("instrument-solid-rounded.png");
 const LINUX_SIZES = [16, 32, 48, 64, 128, 256, 512] as const;
 const ICNS_SIZES = [16, 32, 128, 256, 512] as const;
 
+// The shipping artwork recolored for builds that are not the shipping app
+// (APP_FLAVOR), as ImageMagick `-modulate` brightness,saturation,hue. A hue
+// shift keeps the artwork's gradient and glass intact.
+const PREVIEW_TINT = "100,110,150"; // purple
+const DEVELOPMENT_TINT = "100,30,125"; // slate
+const BRAND_FILL = "#0b6056";
+const BRAND_FILL_SOLID = "srgb:0.04314,0.37647,0.33725,1.00000";
+const flavor = (name: string) => build(path.join("flavors", name));
+
 // All files that must exist and be hash-stable after generation.
 const OUTPUTS = [
   build("icon.icns"),
@@ -45,6 +54,14 @@ const OUTPUTS = [
   build("icon.icon/Assets/icon.png"),
   resources("icon.png"),
   ...LINUX_SIZES.map((s) => build(`icons/${s}x${s}.png`)),
+  // A preview's whole set, read by electron-builder.ts.
+  flavor("preview/icon.icns"),
+  flavor("preview/icon.ico"),
+  flavor("preview/icon.icon/icon.json"),
+  flavor("preview/icon.icon/Assets/icon.png"),
+  ...LINUX_SIZES.map((s) => flavor(`preview/icons/${s}x${s}.png`)),
+  // Only the Dock's: a development run sets it at launch.
+  flavor("development/icon.png"),
 ];
 
 function buildIcns(input: string, output: string) {
@@ -117,9 +134,57 @@ function generate() {
   }
 
   // macOS 26+ Tahoe: full-bleed square so actool can apply Liquid Glass mask cleanly
-  writeIconBundle(SQUARE, build("icon.icon"));
+  writeIconBundle(SQUARE, build("icon.icon"), BRAND_FILL_SOLID);
+
+  generatePreview();
+  mkdirSync(flavor("development"), { recursive: true });
+  // The Dock draws a set icon edge to edge, so the margin Apple's icon grid
+  // keeps around the shape (824 of 1024) is part of the image. The rounded
+  // artwork has almost none of its own.
+  run("magick", [
+    ROUNDED,
+    "-resize",
+    "412x412",
+    "-background",
+    "none",
+    "-gravity",
+    "center",
+    "-extent",
+    "512x512",
+    "-modulate",
+    DEVELOPMENT_TINT,
+    flavor("development/icon.png"),
+  ]);
 
   console.log("Icons generated.");
+}
+
+function generatePreview() {
+  const dir = flavor("preview");
+  rmSync(dir, { force: true, recursive: true });
+  mkdirSync(path.join(dir, "icons"), { recursive: true });
+  const rounded = path.join(dir, "rounded.png");
+  const square = path.join(dir, "square.png");
+  tint(ROUNDED, rounded, PREVIEW_TINT);
+  tint(SQUARE, square, PREVIEW_TINT);
+
+  buildIcns(rounded, path.join(dir, "icon.icns"));
+  run("magick", [
+    rounded,
+    "-define",
+    "icon:auto-resize=256,128,64,48,32,16",
+    path.join(dir, "icon.ico"),
+  ]);
+  for (const s of LINUX_SIZES) {
+    resize(rounded, path.join(dir, `icons/${s}x${s}.png`), s);
+  }
+  writeIconBundle(
+    square,
+    path.join(dir, "icon.icon"),
+    iconComposerColor(tintColor(BRAND_FILL)),
+  );
+  rmSync(rounded);
+  rmSync(square);
 }
 
 function hashFile(p: string) {
@@ -129,6 +194,30 @@ function hashFile(p: string) {
 function resize(input: string, output: string, size: number) {
   mkdirSync(path.dirname(output), { recursive: true });
   run("magick", [input, "-resize", `${size}x${size}`, output]);
+}
+
+function tint(input: string, output: string, modulate: string) {
+  run("magick", [input, "-modulate", modulate, output]);
+}
+
+// The bundle's fill, shifted the way the artwork over it is.
+function tintColor(hex: string) {
+  const r = spawnSync(
+    "magick",
+    [
+      "xc:" + hex,
+      "-modulate",
+      PREVIEW_TINT,
+      "-format",
+      "%[pixel:p{0,0}]",
+      "info:",
+    ],
+    { encoding: "utf8" },
+  );
+  if (r.status !== 0) {
+    throw new Error(r.stderr);
+  }
+  return r.stdout.trim();
 }
 
 function run(cmd: string, args: string[]) {
@@ -141,8 +230,9 @@ function run(cmd: string, args: string[]) {
 // The .icon bundle is the Icon Composer format used by macOS 26+.
 // It's a folder with icon.json (metadata) and an Assets/ dir with the artwork.
 // electron-builder feeds it to actool at build time to produce Assets.car.
-// The fill color in icon.json is brand-600 (#0b6056).
-function writeIconBundle(squarePng: string, bundleDir: string) {
+// The fill color in icon.json is brand-600 (#0b6056), or that color tinted the
+// way the artwork is, in Icon Composer's notation.
+function writeIconBundle(squarePng: string, bundleDir: string, fill: string) {
   rmSync(bundleDir, { force: true, recursive: true });
   mkdirSync(path.join(bundleDir, "Assets"), { recursive: true });
 
@@ -153,7 +243,7 @@ function writeIconBundle(squarePng: string, bundleDir: string) {
     path.join(bundleDir, "icon.json"),
     JSON.stringify(
       {
-        fill: { solid: "srgb:0.04314,0.37647,0.33725,1.00000" },
+        fill: { solid: fill },
         groups: [
           {
             "blur-material": null,
@@ -178,6 +268,23 @@ function writeIconBundle(squarePng: string, bundleDir: string) {
       2,
     ) + "\n",
   );
+}
+
+// Icon Composer's color notation: "srgb:r,g,b,a" with each channel 0 to 1.
+function iconComposerColor(color: string) {
+  const r = spawnSync(
+    "magick",
+    ["xc:" + color, "-format", "%[fx:r],%[fx:g],%[fx:b]", "info:"],
+    { encoding: "utf8" },
+  );
+  if (r.status !== 0) {
+    throw new Error(r.stderr);
+  }
+  const channels = r.stdout
+    .trim()
+    .split(",")
+    .map((value) => Number(value).toFixed(5));
+  return `srgb:${channels.join(",")},1.00000`;
 }
 
 function writeSnapshot() {

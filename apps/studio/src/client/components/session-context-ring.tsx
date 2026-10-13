@@ -1,7 +1,7 @@
 import { formatNumber } from "@/client/lib/format-number";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
-import { type StoreId, type TaskId } from "@instrument-org/workspace/client";
+import { type StoreId, type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -93,7 +93,7 @@ export function SessionContextRing({
   model,
   selectedSessionId,
 }: {
-  id: TaskId;
+  id: ChatId;
   model?: AIGatewayModel.Type;
   selectedSessionId: StoreId.Session;
 }) {

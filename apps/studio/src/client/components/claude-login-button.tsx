@@ -4,7 +4,7 @@ import { ClaudeSignInCode } from "@/client/components/claude-sign-in-code";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/client/lib/toast";
 
 /**
  * Connects a Claude account, the way Continue with ChatGPT does: one press
@@ -15,17 +15,23 @@ export function ClaudeLoginButton({
   caption,
   className,
   onSuccess,
+  onWaitingChange,
 }: {
   /** Under the button; replaced by what is happening while it holds. */
   caption: string;
   className?: string;
   onSuccess: () => void;
+  /** Told when the button starts and stops holding. */
+  onWaitingChange?: (waiting: boolean) => void;
 }) {
   const { data: status } = useQuery(
     rpcClient.claudeAccount.live.status.experimental_liveOptions(),
   );
   const [pressed, setPressed] = useState(false);
   const [hint, setHint] = useState<string>();
+  // Between Claude Code being ready and its sign-in starting, so the button
+  // holds through the handoff rather than coming back for a moment.
+  const [starting, setStarting] = useState(false);
   const connecting = useRef(false);
 
   const connect = async () => {
@@ -64,7 +70,10 @@ export function ClaudeLoginButton({
       await connect();
       return;
     }
-    const result = await rpcClient.claudeAccount.signIn.call({});
+    setStarting(true);
+    const result = await rpcClient.claudeAccount.signIn.call({}).finally(() => {
+      setStarting(false);
+    });
     if (result.error) {
       setPressed(false);
       setHint(result.error);
@@ -72,8 +81,18 @@ export function ClaudeLoginButton({
   };
 
   const installing = status?.install?.state === "downloading";
+  // Signed in while pressed is the connect still settling.
   const waiting =
-    pressed && (installing || status?.signingIn === true || !status);
+    pressed &&
+    (starting ||
+      installing ||
+      status?.signingIn === true ||
+      status?.kind === "signed-in" ||
+      !status);
+
+  useEffect(() => {
+    onWaitingChange?.(waiting);
+  }, [onWaitingChange, waiting]);
 
   return (
     <div className="flex w-full flex-col items-center gap-y-2">
@@ -96,12 +115,17 @@ export function ClaudeLoginButton({
         {hint ??
           (status?.install?.state === "downloading"
             ? `Getting Claude Code ready, ${installPercent(status.install)}% done`
-            : pressed && status?.signingIn
-              ? "Finish signing in to Claude in your browser"
-              : caption)}
+            : pressed && (status?.finishing || status?.kind === "signed-in")
+              ? "Connecting your Claude account"
+              : pressed && status?.signingIn
+                ? "Finish signing in to Claude in your browser"
+                : caption)}
       </p>
       {pressed && status?.signingIn && status.signInLink && (
-        <ClaudeSignInCode className="w-full" link={status.signInLink} />
+        <ClaudeSignInCode
+          className="w-full text-center"
+          link={status.signInLink}
+        />
       )}
     </div>
   );

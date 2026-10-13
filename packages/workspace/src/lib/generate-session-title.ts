@@ -1,22 +1,21 @@
-import { type TaskId } from "../schemas/task-id";
+import { UNTITLED_CHAT_TITLE } from "../constants";
+import { type ChatId } from "../schemas/chat-id";
 import { Store } from "./store";
-import { taskDir } from "./task-dir-utils";
-import { getTaskSettings } from "./task-settings";
 
-const DEFAULT_UNTITLED_BASE = "Untitled chat";
-
-const defaultUntitledChatPattern = /^Untitled chat(?: \d+)?$/;
+const defaultUntitledChatPattern = new RegExp(
+  `^${UNTITLED_CHAT_TITLE}(?: \\d+)?$`,
+);
 
 export async function generateSessionTitle({
   signal,
-  taskId,
+  chatId,
 }: {
   signal?: AbortSignal;
-  taskId: TaskId;
+  chatId: ChatId;
 }): Promise<string> {
-  const baseTitle = DEFAULT_UNTITLED_BASE;
+  const baseTitle = UNTITLED_CHAT_TITLE;
 
-  const sessionsResult = await Store.getSessions(taskId, {
+  const sessionsResult = await Store.getSessions(chatId, {
     includeChildSessions: true,
     signal,
   });
@@ -43,20 +42,6 @@ export async function generateSessionTitle({
   }
 
   return candidateTitle;
-}
-
-export async function isSessionTitleAutoReplaceable({
-  taskId,
-  title,
-}: {
-  taskId: TaskId;
-  title: string;
-}) {
-  if (isUntitledChatSessionTitle(title)) {
-    return true;
-  }
-  const settings = await getTaskSettings(taskDir(taskId));
-  return settings?.name === title;
 }
 
 export function isUntitledChatSessionTitle(title: string) {

@@ -5,24 +5,22 @@ description: Export a chat's or task's session as a markdown transcript from its
 
 # Session Transcript
 
-`script:dump-session-transcript` renders a task's or a chat's `.instrument/task.db` into a markdown transcript.
+`script:dump-session-transcript` renders a session from a chat's `.instrument/chat.db` (the chat's own, or one of its tasks', each a session in that store) into a markdown transcript.
 
 The script lives in `packages/workspace`; the filter runs it from anywhere in the monorepo:
 
 ```bash
-# From a chat's folder, one of its tasks, or a task no chat owns
-# (any folder containing .instrument/task.db)
+# From a chat's folder: its own conversation, or one of its tasks by session
 pnpm --filter @instrument-org/workspace run script:dump-session-transcript <workspace>/chats/my-chat
-pnpm --filter @instrument-org/workspace run script:dump-session-transcript <workspace>/chats/my-chat/tasks/my-task
-pnpm --filter @instrument-org/workspace run script:dump-session-transcript <workspace>/tasks/my-task
+pnpm --filter @instrument-org/workspace run script:dump-session-transcript <workspace>/chats/my-chat --session <task session id>
 
 # Write to a file instead of stdout
-pnpm --filter @instrument-org/workspace run script:dump-session-transcript <workspace>/tasks/my-task --output transcript.md
+pnpm --filter @instrument-org/workspace run script:dump-session-transcript <workspace>/chats/my-chat --output transcript.md
 ```
 
 ## What it does
 
-- Picks the root session (warns, lists them, and uses the first if a task has more than one; `--session <id>` picks one).
+- Picks the chat's own session (warns, lists them, and uses the first if the store has more than one root); `--session <id>` picks any session, a task's included.
 - Renders the selected session via `getSessionMarkdown`
   (`src/lib/session-to-markdown.ts`).
 - Includes the latest persisted system and agent-context snapshot. Long-running
@@ -39,5 +37,5 @@ pnpm --filter @instrument-org/workspace run script:dump-session-transcript <work
 
 ## Notes
 
-- Reads only; never mutates the task. Output is stdout unless `--output` is set.
+- Reads only; never mutates the chat. Output is stdout unless `--output` is set.
 - To explore raw session JSON interactively instead, use `script:dump-sessions <workspace-dir>` (prompts for a task, copies JSON to the clipboard).

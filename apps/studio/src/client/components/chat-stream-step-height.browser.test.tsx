@@ -3,8 +3,7 @@ import {
   ChatIdSchema,
   type SessionMessage,
   StoreId,
-  type Task,
-  TaskIdSchema,
+  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { useState } from "react";
 import { expect, test, vi } from "vitest";
@@ -31,7 +30,7 @@ import {
  */
 
 vi.mock("@/client/hooks/use-host-paths", () => ({
-  useHostPaths: (_taskId: unknown, filePaths: readonly string[]) =>
+  useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
     Object.fromEntries(filePaths.map((path) => [path, `/computer/${path}`])),
 }));
 
@@ -39,11 +38,9 @@ const ACTIVITY = "Creating a blank draft";
 
 const sessionId = StoreId.newSessionId();
 
-const task: Task = {
+const chatInfo: ChatInfo = {
   createdAt: new Date(0),
-  id: TaskIdSchema.parse("blank-draft"),
-  chatId: ChatIdSchema.parse("a-chat"),
-  isChat: false,
+  id: ChatIdSchema.parse("blank-draft"),
   title: "Blank draft",
   updatedAt: new Date(0),
 };
@@ -227,7 +224,7 @@ function Transcript({ messages }: { messages: unknown[] }) {
         onRetry={vi.fn()}
         onRunAgain={vi.fn()}
         renderAsItems
-        task={task}
+        chatInfo={chatInfo}
       />
     </TranscriptScrollContext>
   );

@@ -11,15 +11,20 @@ import { ReplyNote, ReplyNoteButton } from "@/client/components/reply-note";
  *
  * Its button does the thing (switches, retries) rather than opening something
  * that does, so the row that reports a problem is also the way out of it.
+ *
+ * `nudge` counts the sends it refused: each new count flashes the row, so a
+ * blocked send points at the reason already on screen.
  */
 export function ModelNoticeRow({
   className,
   notice,
+  nudge = 0,
   onAction,
   onDismiss,
 }: {
   className?: string;
   notice: ModelNotice;
+  nudge?: number;
   onAction: (action: ModelAction) => void;
   onDismiss?: () => void;
 }) {
@@ -43,6 +48,7 @@ export function ModelNoticeRow({
       data-model-notice={notice.tone}
       icon={isOffer ? ArrowCircleUpIcon : WarningIcon}
       iconClassName={isOffer ? "text-brand-700 dark:text-brand-300" : undefined}
+      nudge={nudge}
       onDismiss={notice.dismissible ? onDismiss : undefined}
       title={notice.detail}
       tone={isOffer ? "neutral" : "warn"}

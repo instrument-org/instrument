@@ -34,7 +34,6 @@ const signIn = base
   .input(z.object({ accountId: z.string().optional() }))
   .handler(
     async ({
-      context,
       input,
     }): Promise<ChatGPTSignInResult | { error: string; outcome: "failed" }> => {
       try {
@@ -51,9 +50,6 @@ const signIn = base
           // the app opens on the window from now on, as it does after either
           // of those.
           getWorkspaceState().set("hasCompletedProviderSetup", true);
-          context.workspaceConfig.captureEvent("provider.created", {
-            provider_type: "chatgpt-account",
-          });
         }
         return result;
       } catch (error) {

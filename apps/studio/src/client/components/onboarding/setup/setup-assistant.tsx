@@ -12,7 +12,7 @@ import {
   useSaveSetupDrafts,
 } from "@/client/components/onboarding/setup/tasks-landing";
 import { useTaskWriting } from "@/client/components/onboarding/setup/tasks-writing";
-import { useBlockTabNavigation } from "@/client/hooks/use-block-tab-navigation";
+import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -78,7 +78,8 @@ function SetupFlow({
   onFinish: () => void;
   returning: boolean;
 }) {
-  useBlockTabNavigation();
+  // No way out but finishing, so the tab chords and back wait.
+  useHoldWindow();
   const [state, dispatch] = useReducer(
     setupReducer,
     { returning },

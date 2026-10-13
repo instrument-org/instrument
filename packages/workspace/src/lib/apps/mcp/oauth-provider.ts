@@ -7,6 +7,7 @@ import {
   type OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 
+import { catalogRegisteredClient } from "../catalog";
 import { boundTo, type OriginBound } from "../origin-bound";
 
 /**
@@ -53,6 +54,11 @@ export interface McpOAuthStore {
  * `openAuthorization` is injected by the host (Electron opens the system
  * browser); in a non-interactive context it can throw or no-op.
  *
+ * `clientId` is a client Instrument registered with the vendor, for a server
+ * that takes no dynamic registration: the SDK uses it as it stands and never
+ * registers one. `statePrefix` goes in front of every state, as
+ * `<prefix>.<uuid>`, for a relay that reads where to send the browser from it.
+ *
  * `origin` is the MCP server's origin under the manifest as it stands. What
  * this provider saves is recorded against it, and what it reads back is only
  * what was saved for it: a manifest pointed at another server gets no token
@@ -60,18 +66,22 @@ export interface McpOAuthStore {
  * instead of handing that server the user's session.
  */
 export function createMcpOAuthProvider({
+  clientId,
   openAuthorization,
   origin,
   redirectUrl,
   scope,
   slug,
+  statePrefix,
   store,
 }: {
+  clientId?: string;
   openAuthorization: (url: URL) => Promise<void> | void;
   origin: string;
   redirectUrl: string;
   scope?: string;
   slug: string;
+  statePrefix?: string;
   store: McpOAuthStore;
 }): OAuthClientProvider {
   const clientMetadata: OAuthClientMetadata = {
@@ -85,7 +95,9 @@ export function createMcpOAuthProvider({
 
   return {
     clientInformation: async () =>
-      boundTo(await store.getClientInformation(slug), origin),
+      clientId === undefined
+        ? boundTo(await store.getClientInformation(slug), origin)
+        : { client_id: clientId },
     clientMetadata,
     codeVerifier: async () => {
       const verifier = await store.getCodeVerifier(slug);
@@ -125,10 +137,40 @@ export function createMcpOAuthProvider({
     // so state stays single-use (its CSRF purpose) and a stale value can't make
     // a later begin misfire.
     state: async () => {
-      const state = crypto.randomUUID();
+      const state =
+        statePrefix === undefined
+          ? crypto.randomUUID()
+          : `${statePrefix}.${crypto.randomUUID()}`;
       await store.saveState(slug, state);
       return state;
     },
     tokens: async () => boundTo(await store.getTokens(slug), origin),
+  };
+}
+
+/**
+ * Which client a sign-in to an MCP server uses and where the vendor sends the
+ * browser back. A server Instrument holds a registered client for signs in
+ * with it through our API's relay, the state naming the loopback port the
+ * relay passes the browser on to; any other server registers a client of its
+ * own and comes straight back to the loopback.
+ */
+export function mcpSignInClient({
+  loopbackRedirectUrl,
+  relayRedirectUrl,
+  serverUrl,
+}: {
+  loopbackRedirectUrl: string;
+  relayRedirectUrl: (service: string) => string;
+  serverUrl: string;
+}): { clientId?: string; redirectUrl: string; statePrefix?: string } {
+  const registered = catalogRegisteredClient(serverUrl);
+  if (registered === undefined) {
+    return { redirectUrl: loopbackRedirectUrl };
+  }
+  return {
+    clientId: registered.clientId,
+    redirectUrl: relayRedirectUrl(registered.service),
+    statePrefix: new URL(loopbackRedirectUrl).port,
   };
 }

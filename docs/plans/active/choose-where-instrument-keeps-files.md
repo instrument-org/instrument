@@ -20,7 +20,7 @@ Not in the first cut. Every chat recomputes its standing `Instrument` mount on e
 
 ## Things to know while building it
 
-- The consent lives on the folder (`com.apple.macl` xattr). It survives reinstalls, never shows in System Settings, and `tccutil` does not clear it, so Preview › Reset to First Run does not either. Testing the denied path again needs a folder that has never been picked.
+- The consent lives on the folder (`com.apple.macl` xattr). It survives reinstalls, never shows in System Settings, and `tccutil` does not clear it. Testing the denied path again needs a folder that has never been picked.
 - With Desktop & Documents in iCloud on, files in Documents may sync, which is part of why `~/Instrument` is offered.
 - The Mac native bridge (`docs/architecture/mac-native-bridge.md`) needs no change: its helper has no bundle id of its own, so macOS attributes its prompts to Instrument, and it never reads files.
 

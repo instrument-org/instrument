@@ -8,7 +8,6 @@ import {
   type MenuItemConstructorOptions,
 } from "electron";
 
-import { previewMenu } from "../lib/preview-reset";
 import { createAppWindowMenu } from "./app-window";
 import { createOtherWindowMenu } from "./other-window";
 
@@ -43,7 +42,6 @@ function updateApplicationMenu(): void {
     ...((focusedWindow && focusedWindow !== getAppWindow()) || isSetupPending()
       ? createOtherWindowMenu()
       : createAppWindowMenu()),
-    ...previewMenu(),
   ];
 
   const menu = Menu.buildFromTemplate(template);

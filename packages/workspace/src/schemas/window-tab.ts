@@ -8,7 +8,7 @@ const WindowTabTargetSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("path"),
     /** The path as the agent wrote it; a folder's ends with a slash. */
-    mount: z.string(),
+    path: z.string(),
   }),
 ]);
 
@@ -31,12 +31,27 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("close"), tabId: z.string() }),
   z.object({ kind: z.literal("show"), tabId: z.string() }),
+  /** Reads the text of the page in a page tab, as the person sees it. */
+  z.object({ kind: z.literal("read"), tabId: z.string() }),
   /**
    * Brings a page tab's guest back, at the page it last showed, without
    * showing it: the window makes a tab's guest again only when the tab is
    * next shown after a launch, and a task working in the tab needs it before.
    */
   z.object({ kind: z.literal("restore"), tabId: z.string() }),
+  /**
+   * Puts a page an agent made with no tab into the chat's tabs behind
+   * whatever is up, as it goes somewhere: the guest is already there, so
+   * the tab takes its id and nothing is loaded again.
+   */
+  z.object({ kind: z.literal("adopt"), tabId: z.string(), url: z.string() }),
+  /**
+   * The chat's tabs, which are the only tabs it may name, hand to a task, or
+   * have an agent drive. Asked at the moment a tab is named, so it is never
+   * a copy that could be out of date, and answered whether or not a page's
+   * guest is up: a tab whose page was discarded is still the chat's.
+   */
+  z.object({ kind: z.literal("list") }),
 ]);
 
 export type WindowTabAction = z.output<typeof WindowTabActionSchema>;
@@ -56,6 +71,22 @@ export const WindowTabAnswerSchema = z.object({
   error: z.string().optional(),
   requestId: z.string(),
   tabId: z.string().optional(),
+  /** The chat's tabs, for a list: each by its id, with the address of a page's. */
+  tabs: z
+    .array(
+      z.discriminatedUnion("kind", [
+        z.object({
+          id: z.string(),
+          kind: z.literal("page"),
+          title: z.string(),
+          url: z.string(),
+        }),
+        z.object({ id: z.string(), kind: z.literal("screen") }),
+      ]),
+    )
+    .optional(),
+  /** The page's text, for a read. */
+  text: z.string().optional(),
 });
 
 export type WindowTabAnswer = z.output<typeof WindowTabAnswerSchema>;

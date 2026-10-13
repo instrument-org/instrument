@@ -6,36 +6,29 @@ import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { type StopNotice } from "../../schemas/stop-notice";
 import { StoreId } from "../../schemas/store-id";
-import { type TaskId } from "../../schemas/task-id";
+import { closePagesWithNoTab, heldTabs, returnTabsToChat } from "../held-tabs";
+import {
+  agentPathOfFileUrl,
+  agentSpellingOfFileUrls,
+  isLocalAddress,
+} from "../local-page-address";
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
-import { owningChat, resolveChat, sessionOfChat } from "../record-folders";
+import { resolveChat, sessionOfChat } from "../record-folders";
+import { taskFsLayout } from "../resolve-workspace-file-path";
 import { Store } from "../store";
-import { taskDir } from "../task-dir-utils";
-import { getTaskState } from "../task-record";
-import { getTaskSettings, recordTaskActivity } from "../task-settings";
-import { getTaskUsageSummary } from "../usage-summary";
+import { chatModelURI, recordChatActivity } from "../chat-settings";
+import { getUsageSummary } from "../usage-summary";
+import { closeAgentBrowserSessionsForSessions } from "../agent-browser-cleanup";
 import { getWorkspaceConfig } from "../workspace-config";
-import { decodeBrowserTargetId } from "../../types";
 import { isWorking, latestStep, leftRunning, turnStartedAt } from "./activity";
 import { currentChatApps, setChatAppsBaseline } from "../chat-app-changes";
-import { chatOfTask } from "./attribution";
 import { listChatIds } from "./chat-records";
-import { listChildTasks } from "./children";
-import { taskFolderHoldings } from "./folder-holdings";
+import { childTask, listChildTasks, touchTask } from "./children";
 import { stepInFlight } from "./in-flight";
-import {
-  cutForNote,
-  lastAssistantText,
-  latestOrNewSessionId,
-} from "./latest-session";
-import { folderReach } from "./folder-reach";
-import {
-  mountAliases,
-  toChatPaths,
-  translateTaskFolderPaths,
-} from "./mount-paths";
+import { cutForNote, lastAssistantText } from "./latest-session";
 import { endedWithoutWords } from "./standing";
 import { trajectorySince } from "./steps";
 import { replacesPendingEvent } from "./wake-event";
@@ -45,6 +38,10 @@ import { type ChatId } from "../../schemas/chat-id";
 /** What a wake carries: the part that starts the chat's turn. */
 export type WakePart =
   | { data: SessionMessageDataPart.AppEventDataPart; type: "data-appEvent" }
+  | {
+      data: SessionMessageDataPart.PermissionAnswerDataPart;
+      type: "data-permissionAnswer";
+    }
   | { data: SessionMessageDataPart.TaskEventDataPart; type: "data-taskEvent" };
 
 type TaskEvent = SessionMessageDataPart.TaskEventDataPart["events"][number];
@@ -80,95 +77,41 @@ const WAKE_MODEL_RETRY_DELAYS_MS = [
 /** How many of a turn's steps an overdue note carries, latest last. */
 const OVERDUE_STEPS = 6;
 
-/** When each child was last reported overdue, so the note comes once per stretch. */
-const overdueReportedAt = new Map<TaskId, number>();
+/** When each task was last reported overdue, by its session, so the note comes once per stretch. */
+const overdueReportedAt = new Map<StoreId.Session, number>();
 
 /**
- * Wakes the conversation asked for itself, one per child: a timer, and what
- * it was told to wait. A task with one pending is off the clock above, since
- * the conversation has said when it wants to look.
+ * Who stopped a task's working turn, and whether the chat hears of it.
+ * The chat's own `task stop` is a step it took, and the user's Stop on the
+ * whole chat stops the chat too, so neither wakes it. The user stopping one
+ * task while the chat carries on does, so the chat knows the task did not
+ * finish and leaves it stopped.
  */
-const askedWakes = new Map<
-  TaskId,
-  { afterMs: number; timer: NodeJS.Timeout }
->();
-
-/**
- * Children the chat itself told to stop. The turn that ends is the
- * one it ended, so there is nothing to wake it about; the next finish after
- * that is news again.
- */
-const stoppedByChat = new Set<TaskId>();
-
-/**
- * Wakes the conversation about one of its tasks after a delay of its choosing,
- * with the same note the clock sends. One per task: asking again moves the
- * wake. Dropped when the task finishes first, since the finish is the news.
- */
-export function askWake({
-  afterMs,
-  chatId,
-  taskId,
-  workspaceRef,
-}: {
-  afterMs: number;
-  chatId: TaskId;
-  taskId: TaskId;
-  workspaceRef: WorkspaceActorRef;
-}) {
-  cancelAskedWake(taskId);
-  const timer = setTimeout(() => {
-    askedWakes.delete(taskId);
-    deliverAskedWake({ afterMs, chatId, taskId }, workspaceRef).catch(
-      (error: unknown) => {
-        getWorkspaceConfig().captureException(error);
-      },
-    );
-  }, afterMs);
-  timer.unref();
-  askedWakes.set(taskId, { afterMs, timer });
-}
-
-/** Forgets a wake the conversation asked for; true when there was one. */
-export function cancelAskedWake(taskId: TaskId): boolean {
-  const asked = askedWakes.get(taskId);
-  if (!asked) {
-    return false;
-  }
-  clearTimeout(asked.timer);
-  askedWakes.delete(taskId);
-  return true;
-}
-
 /**
  * Wakes a chat about one of its tasks with an event composed elsewhere,
  * through the same debounce and delivery a finish takes. What the eval
  * harness stands a task's finish in with, without the task doing the work.
  */
 export function wakeChatWithTaskEvent(
-  chatId: TaskId,
+  chatId: ChatId,
   event: TaskEvent,
   workspaceRef: WorkspaceActorRef,
 ) {
   schedule(chatId, event, workspaceRef);
 }
 
-export function expectStop(taskId: TaskId) {
-  stoppedByChat.add(taskId);
-}
-
 const pending = new Map<
-  TaskId,
-  { events: Map<TaskId, TaskEvent>; timer: NodeJS.Timeout }
+  ChatId,
+  { events: Map<string, TaskEvent>; timer: NodeJS.Timeout }
 >();
 
 /**
- * Whether a task's finish is waiting out the debounce before its wake is
- * written. The chat it was filed from is still at work in that gap: its task
- * has stopped and its own agent has not started on the news yet.
+ * Whether any of a chat's tasks has a finish waiting out the debounce before
+ * its wake is written. The chat is still at work in that gap: its task has
+ * stopped and its own agent has not started on the news yet.
  */
-export function hasPendingWake(chatId: TaskId, taskId: TaskId) {
-  return pending.get(chatId)?.events.has(taskId) ?? false;
+export function hasPendingWake(chatId: ChatId) {
+  return (pending.get(chatId)?.events.size ?? 0) > 0;
 }
 
 /**
@@ -218,12 +161,11 @@ export async function wakeChatForApp(
   if (asked === undefined || !resolveChat(asked)) {
     return;
   }
-  const state = await getTaskState(taskDir(asked));
-  if (!state.selectedModelURI) {
+  if (!(await chatModelURI(asked))) {
     return;
   }
   const sessionId = sessionOfChat(asked);
-  await wakeWith(asked, part, workspaceRef, sessionId);
+  await wakeWith(asked, part, workspaceRef);
   if (sessionId !== undefined) {
     const baseline = await setChatAppsBaseline(
       asked,
@@ -236,12 +178,32 @@ export async function wakeChatForApp(
   }
 }
 
+/**
+ * Wakes the session that ran into a folder or an app with the person's
+ * answer to its card, or joins that session's turn at its next step when it
+ * is still going: a task's own session when a task asked, the chat's when
+ * the chat did.
+ */
+export async function wakeSessionForPermission(
+  part: Extract<WakePart, { type: "data-permissionAnswer" }>,
+  workspaceRef: WorkspaceActorRef,
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<void> {
+  if (!resolveChat(chatId) || !(await chatModelURI(chatId))) {
+    return;
+  }
+  await wakeWith(chatId, part, workspaceRef, sessionId);
+}
+
 async function checkOverdue(workspaceRef: WorkspaceActorRef) {
   const now = Date.now();
   // Only a chat's task reports in, and only one at work is read.
   const working = (
     await Promise.all(
-      listChatIds().map((chatId) => listChildTasks(chatId, isWorking)),
+      listChatIds().map((chatId) =>
+        listChildTasks(chatId, (id) => isWorking(chatId, id)),
+      ),
     )
   ).flat();
   const workingIds = new Set(working.map((task) => task.id));
@@ -252,26 +214,23 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
   }
   for (const task of working) {
     const { chatId } = task;
-    // The conversation said when it wants to look; the clock stays quiet.
-    if (askedWakes.has(task.id)) {
-      continue;
-    }
+    const ref = { sessionId: task.id, chatId };
     const reportedAt = overdueReportedAt.get(task.id);
-    const turnStart = await turnStartedAt(task.id);
+    const turnStart = await turnStartedAt(ref);
     const startedAt = reportedAt ?? turnStart?.getTime();
     if (startedAt === undefined || now - startedAt < OVERDUE_AFTER_MS) {
       continue;
     }
     overdueReportedAt.set(task.id, now);
     const event = await stillWorkingEvent({
-      chatId,
-      taskId: task.id,
+      ...ref,
+      handle: task.handle,
       title: task.title,
       turnStart,
     });
     // The note took several reads to compose; a task that finished meanwhile
     // has already woken the chat with its finish.
-    if (!isWorking(task.id)) {
+    if (!isWorking(chatId, task.id)) {
       continue;
     }
     schedule(chatId, event, workspaceRef);
@@ -279,132 +238,86 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
 }
 
 async function deliver(
-  chatId: TaskId,
+  chatId: ChatId,
   events: TaskEvent[],
   workspaceRef: WorkspaceActorRef,
 ) {
-  // A task reports into the chat it was filed from, so a batch that spans
-  // chats becomes one wake each rather than one message in whichever
-  // chat happens to be newest.
-  const byChat = new Map<string, TaskEvent[]>();
-  const sessions = new Map<string, StoreId.Session | undefined>();
-  for (const event of events) {
-    const sessionId = chatOfTask(event.taskId);
-    const key = sessionId ?? "";
-    sessions.set(key, sessionId);
-    byChat.set(key, [...(byChat.get(key) ?? []), event]);
-  }
-  for (const [key, chatEvents] of byChat) {
-    await wakeWith(
-      chatId,
-      { data: { events: chatEvents }, type: "data-taskEvent" },
-      workspaceRef,
-      sessions.get(key),
-    );
-  }
-}
-
-/**
- * The note the conversation asked for, if the task is still at work when the
- * time comes. A task that finished first already woke it; one it stopped
- * itself is not news either. The clock starts over from here, so the asked
- * wake is not followed by the clock's own note a moment later.
- */
-async function deliverAskedWake(
-  {
-    afterMs,
+  // A report is the task's latest activity: the list orders by it, and the
+  // chat's line names a task that finished since the user last wrote by it.
+  await Promise.all(events.map((event) => touchTask(chatId, event.sessionId)));
+  await wakeWith(
     chatId,
-    taskId,
-  }: { afterMs: number; chatId: TaskId; taskId: TaskId },
-  workspaceRef: WorkspaceActorRef,
-) {
-  if (!isWorking(taskId)) {
-    return;
-  }
-  const settings = await getTaskSettings(taskDir(taskId));
-  overdueReportedAt.set(taskId, Date.now());
-  const event = await stillWorkingEvent({
-    chatId,
-    taskId,
-    title: settings?.name ?? taskId,
-    turnStart: await turnStartedAt(taskId),
-  });
-  if (!isWorking(taskId)) {
-    return;
-  }
-  schedule(chatId, { ...event, askedAfterMs: afterMs }, workspaceRef);
-}
-
-/**
- * What a task said, in the paths the conversation that started it reads: its
- * own folder at `/tasks/<id>`, and any folder it holds under a name of its own
- * at the chat's path for it (see mount-paths.ts). A note is composed for the
- * conversation rather than for the task.
- */
-async function inChatPaths(
-  text: string | undefined,
-  { chatId, taskId }: { chatId: TaskId; taskId: TaskId },
-): Promise<string | undefined> {
-  if (text === undefined) {
-    return undefined;
-  }
-  const aliases = mountAliases(
-    await folderReach(chatId),
-    await folderReach(taskId),
+    { data: { events }, type: "data-taskEvent" },
+    workspaceRef,
   );
-  return translateTaskFolderPaths(toChatPaths(text, aliases), taskId);
 }
 
 async function onSessionDone(
   {
     id,
+    notice: stop,
     sessionId,
   }: {
-    id: TaskId;
+    id: ChatId;
+    notice?: StopNotice;
     sessionId: StoreId.Session;
   },
   workspaceRef: WorkspaceActorRef,
 ) {
-  // Only a chat is woken, by a task inside it.
-  const chatId = owningChat(id);
-  if (!chatId) {
+  // Only a chat is woken, by a task of its own.
+  const chatId = resolveChat(id);
+  // Any session's pages that never went anywhere go with its turn, unless
+  // its next turn has started, whose pages these may be by now: they go
+  // when that one ends.
+  if (chatId && !isWorkingAgain(chatId, sessionId)) {
+    await closePagesWithNoTab(chatId, sessionId);
+  }
+  const task = chatId ? await childTask(chatId, sessionId) : undefined;
+  if (!chatId || !task) {
     return;
   }
-  cancelAskedWake(id);
-  if (stoppedByChat.delete(id)) {
+  const ref = { sessionId, chatId };
+  // Read as the turn ends rather than at delivery, a debounce later: a process
+  // that exits in between was the task's own doing and is not news.
+  const running = leftRunning(sessionId);
+  // What the task's agent said, never what the chat said before it.
+  const said = await lastAssistantText(ref);
+  // A turn with no words ended on a stop, the step limit, or a model error,
+  // and the note has to say which: the chat continues one of those
+  // with `task send`, and leaves one the user stopped alone.
+  const ending = said === undefined ? await endedWithoutWords(ref) : undefined;
+  // What the task cannot go on without, read the same way and listed apart
+  // from its words, so a turn that ended blocked reads as waiting rather than
+  // finished and the fence is not said twice.
+  const needs = said === undefined ? [] : needsNamedIn(said);
+  await touchTask(chatId, sessionId, { stoppedBy: stop?.by });
+  // The pages it leaves open, read while it still drives them, then given
+  // back: a tab has one driver, and a finished task drives nothing.
+  const tabs = await openTabsOf(ref);
+  await returnTabsToChat(chatId, sessionId);
+  // Its agent-browser daemons, which would otherwise idle out on their own
+  // clock; a later `task send` starts them again.
+  void closeAgentBrowserSessionsForSessions([sessionId]).catch(
+    getWorkspaceConfig().captureException,
+  );
+  if (stop && !stop.wakesChat) {
     return;
   }
   // A chat nobody has written in has no conversation to report to: the eval
   // harness runs a task case in one (`evals/lib/start-run.ts`).
-  if (!(await getTaskState(taskDir(chatId))).selectedModelURI) {
+  if (!(await chatModelURI(chatId))) {
     return;
   }
 
-  const usage = await getTaskUsageSummary(id);
-  // Read as the turn ends rather than at delivery, a debounce later: a process
-  // that exits in between was the task's own doing and is not news.
-  const running = leftRunning(id);
-  const said = await lastAssistantText({ sessionId, taskId: id });
-  // A turn with no words ended on a stop, the step limit, or a model error,
-  // and the note has to say which: the chat continues one of those
-  // with `task send`, and leaves one the user stopped alone.
-  const ending =
-    said === undefined ? await endedWithoutWords(id, sessionId) : undefined;
-  const receipt = await inChatPaths(said, {
-    chatId,
-    taskId: id,
-  });
-  // What the task said it made, read from the whole receipt once the paths
-  // in it are the chat's, before the ceiling cuts it: the fence is
-  // the receipt's last lines, and a long receipt would otherwise lose it.
-  // The note carries the receipt itself; this is for the card, which draws
-  // the files as chips.
+  const usage = await getUsageSummary(chatId, { sessionId });
+  // The task works in the chat's folder with the chat's folders, so what it
+  // said names every path the way the chat reads it.
+  const receipt = said;
+  // What the task said it made, read from the whole receipt before the
+  // ceiling cuts it: the fence is the receipt's last lines, and a long
+  // receipt would otherwise lose it. The note carries the receipt itself;
+  // this is for the card, which draws the files as chips.
   const files = receipt === undefined ? [] : filesNamedIn(receipt);
-  // What the task cannot go on without, read the same way and listed apart
-  // from its words, so a turn that ended blocked reads as waiting rather than
-  // finished and the fence is not said twice.
-  const needs = receipt === undefined ? [] : needsNamedIn(receipt);
-  const tabs = await openTabsOf(id);
   const summary =
     receipt === undefined
       ? undefined
@@ -418,14 +331,15 @@ async function onSessionDone(
       activeMs: usage.activeMs,
       ...(ending ? { ended: ending.line } : {}),
       ...(files.length > 0 ? { files } : {}),
-      holds: await taskFolderHoldings(id),
+      handle: task.handle,
       ...(needs.length > 0 ? { needs } : {}),
       ...(running.length > 0 ? { running } : {}),
       status: ending?.failed ? "error" : "done",
+      ...(stop?.by === "user" ? { stoppedBy: stop.by } : {}),
       summary,
+      sessionId,
       ...(tabs.length > 0 ? { tabs } : {}),
-      taskId: id,
-      title: (await getTaskSettings(taskDir(id)))?.name ?? id,
+      title: task.title,
       tokens: usage.inputTokens + usage.outputTokens,
     },
     workspaceRef,
@@ -433,19 +347,19 @@ async function onSessionDone(
 }
 
 function schedule(
-  chatId: TaskId,
+  chatId: ChatId,
   event: TaskEvent,
   workspaceRef: WorkspaceActorRef,
 ) {
   const existing = pending.get(chatId);
-  if (!replacesPendingEvent(existing?.events.get(event.taskId), event)) {
+  if (!replacesPendingEvent(existing?.events.get(event.sessionId), event)) {
     return;
   }
   if (existing) {
     clearTimeout(existing.timer);
   }
-  const events = existing?.events ?? new Map<TaskId, TaskEvent>();
-  events.set(event.taskId, event);
+  const events = existing?.events ?? new Map<string, TaskEvent>();
+  events.set(event.sessionId, event);
   const timer = setTimeout(() => {
     pending.delete(chatId);
     deliver(chatId, [...events.values()], workspaceRef).catch(
@@ -462,25 +376,50 @@ function schedule(
  * a result the task left on a page is in one of these, and nowhere in the
  * task's own transcript.
  */
-async function openTabsOf(
-  taskId: TaskId,
-): Promise<NonNullable<TaskEvent["tabs"]>> {
+async function openTabsOf({
+  sessionId,
+  chatId,
+}: {
+  sessionId: StoreId.Session;
+  chatId: ChatId;
+}): Promise<NonNullable<TaskEvent["tabs"]>> {
   const { browser } = getWorkspaceConfig();
-  const held = (await getTaskState(taskDir(taskId))).browserTabs;
-  return held.flatMap((tab) => {
-    const decoded = decodeBrowserTargetId(tab.id);
-    if (!decoded || !browser.getTargetMeta(tab.id)) {
-      return [];
+  const tabs: NonNullable<TaskEvent["tabs"]> = [];
+  for (const tab of await heldTabs(chatId, sessionId)) {
+    if (!browser.getTargetMeta(tab.id)) {
+      continue;
     }
     const url = browser.getTargetUrl(tab.id);
-    return [
-      {
-        id: decoded.sessionId,
-        openedBy: tab.openedBy,
-        ...(url === undefined ? {} : { url }),
-      },
-    ];
-  });
+    tabs.push({
+      id: tab.id,
+      openedBy: tab.openedBy,
+      ...(url === undefined
+        ? {}
+        : { url: await chatSpellingOfUrl(url, chatId) }),
+    });
+  }
+  return tabs;
+}
+
+/**
+ * A tab's address as the chat names it: a page on this computer by the
+ * chat's own path to it, or as a file outside its folders, never by where it
+ * is on disk. A task works in the chat's folder with the chat's folders, so
+ * its pages are named the same way.
+ */
+export async function chatSpellingOfUrl(
+  url: string,
+  chatId: ChatId,
+): Promise<string> {
+  if (!isLocalAddress(url)) {
+    return url;
+  }
+  const layout = await taskFsLayout(chatId);
+  const agentPath = agentPathOfFileUrl(layout, url);
+  if (agentPath === null) {
+    return agentSpellingOfFileUrls(url, layout);
+  }
+  return `file://${agentPath}`;
 }
 
 /**
@@ -490,54 +429,52 @@ async function openTabsOf(
  * its latest step alone does not.
  */
 async function stillWorkingEvent({
+  handle,
+  sessionId,
   chatId,
-  taskId,
   title,
   turnStart,
 }: {
-  chatId: TaskId;
-  taskId: TaskId;
+  handle: string;
+  sessionId: StoreId.Session;
+  chatId: ChatId;
   title: string;
   turnStart: Date | undefined;
 }): Promise<TaskEvent> {
-  const usage = await getTaskUsageSummary(taskId);
-  const paths = { chatId, taskId };
-  const trajectory = await trajectorySince(taskId, turnStart ?? new Date());
-  const steps = await Promise.all(
-    trajectory.slice(-OVERDUE_STEPS).map((step) => inChatPaths(step, paths)),
-  );
+  const ref = { sessionId, chatId };
+  const usage = await getUsageSummary(chatId, { sessionId });
+  const trajectory = await trajectorySince(ref, turnStart ?? new Date());
   return {
     activeMs: usage.activeMs,
     cachedTokens: usage.inputTokenDetails.cacheReadTokens,
-    holds: await taskFolderHoldings(taskId),
-    inFlight: await stepInFlight(taskId),
+    handle,
+    inFlight: await stepInFlight(ref),
     status: "overdue",
-    steps: steps.filter((step) => step !== undefined),
-    summary: await inChatPaths(await latestStep(taskId), paths),
-    taskId,
+    steps: trajectory.slice(-OVERDUE_STEPS),
+    sessionId,
+    summary: await latestStep(ref),
     title,
     tokens: usage.inputTokens + usage.outputTokens,
   };
 }
 
 async function wakeWith(
-  chatId: TaskId,
+  chatId: ChatId,
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
-  /** The chat to wake in; the newest one when a caller has no chat. */
-  chatSessionId?: StoreId.Session,
+  /** The session to wake: a task that asked, else the chat's own. */
+  askingSessionId?: StoreId.Session,
 ) {
-  const state = await getTaskState(taskDir(chatId));
-  if (!state.selectedModelURI) {
+  const modelURI = await chatModelURI(chatId);
+  if (!modelURI) {
     throw new Error(
       `Chat ${chatId} has no model to wake with; it has never been messaged.`,
     );
   }
-  const session = await latestOrNewSessionId(chatId);
-  if (session.isErr()) {
-    throw session.error;
+  const sessionId = askingSessionId ?? sessionOfChat(chatId);
+  if (!sessionId) {
+    throw new Error(`${chatId} is not a chat.`);
   }
-  const sessionId = chatSessionId ?? session.value;
 
   const createdAt = new Date();
   const messageId = StoreId.newMessageId();
@@ -568,13 +505,10 @@ async function wakeWith(
   // Looked up after the note is written, so a model the chat cannot resolve
   // yet still leaves the news in the conversation, where the user's next
   // message carries it to the agent.
-  const model = await wakeModel(
-    AIGatewayModelURI.Schema.parse(state.selectedModelURI),
-  );
+  const model = await wakeModel(modelURI);
   workspaceRef.send({
     type: "addMessage",
     value: {
-      agentName: "instrument",
       id: chatId,
       message,
       model,
@@ -582,7 +516,7 @@ async function wakeWith(
       sessionId,
     },
   });
-  await recordTaskActivity(chatId);
+  await recordChatActivity(chatId);
 }
 
 /**
@@ -611,4 +545,13 @@ async function wakeModel(modelURI: AIGatewayModelURI.Type) {
     throw result.error;
   }
   return result.value;
+}
+
+/** Whether a session that just ended has a turn running again, or false where no workspace is running to ask. */
+function isWorkingAgain(chatId: ChatId, sessionId: StoreId.Session): boolean {
+  try {
+    return isWorking(chatId, sessionId);
+  } catch {
+    return false;
+  }
 }

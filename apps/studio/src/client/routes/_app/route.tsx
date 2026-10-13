@@ -4,11 +4,10 @@ import {
 } from "@/client/atoms/right-pane";
 import {
   BROWSER_HREF,
-  CHATS_HREF,
   inboxOpenAtom,
   inboxWidthAtom,
   paneOpenByGroupAtom,
-  screenViewsAtom,
+  chatsOutOf,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
 } from "@/client/atoms/window";
@@ -19,20 +18,20 @@ import {
   StudioSidebarRail,
 } from "@/client/components/studio-sidebar-rail";
 import {
-  groupOfHref,
   INBOX_HREF,
-  isChatHref,
-  isSiteHref,
   putAwaySitesAtom,
+  siteGroupOf,
 } from "@/client/components/window/app-tabs";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { type PageChromeSlots } from "@/client/components/window/browser-tabs";
 import { ChatHeader } from "@/client/components/window/chat-header";
 import { ChatPane } from "@/client/components/window/chat-pane";
 import { ChatScreen } from "@/client/components/window/chat-screen";
+import { ContextChips } from "@/client/components/window/context-chip";
 import { ChatTiles } from "@/client/components/window/chat-tiles";
 import { GroupItem } from "@/client/components/window/group-item";
 import { useWindow, WindowContext } from "@/client/components/window/context";
+import { isPaneOpen } from "@/client/components/window/draft-context";
 import { computerTabOf } from "@/client/components/window/file-tabs";
 import { useGroupTab } from "@/client/components/window/group-tab";
 import { useInboxRoom } from "@/client/components/window/inbox-room";
@@ -40,16 +39,15 @@ import { InboxToggle } from "@/client/components/window/inbox-toggle";
 import { NoChatOpen } from "@/client/components/window/no-chat-open";
 import { RightPane } from "@/client/components/window/right-pane";
 import { screenLocation } from "@/client/components/window/screen-presentation";
+import { useShell } from "@/client/components/window/shell-context";
+import { useChatContext } from "@/client/components/window/use-chat-context";
+import { taskHref, tasksHref } from "@/client/components/window/tab-location";
 import {
-  pageSlotByTabAtom,
-  useShell,
-} from "@/client/components/window/shell-context";
-import { tasksHref } from "@/client/components/window/tab-location";
+  tabSurfaceAtom,
+  useTabSurface,
+} from "@/client/components/window/tab-surface";
 import { TabLocationRow } from "@/client/components/window/tab-location-row";
-import {
-  chatOfHref,
-  chatSessionOfHref,
-} from "@/client/components/window/window-href";
+import { chatHref, matchScreen } from "@/client/components/window/window-href";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
@@ -57,9 +55,8 @@ import { rpcClient } from "@/client/rpc/client";
 import { outputFolderHref } from "@/shared/computer-href";
 import {
   type ChatId,
-  encodeBrowserTargetId,
+  browserTargetOf,
   StoreId,
-  WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import {
   createFileRoute,
@@ -145,7 +142,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
       ? []
       : windowTabs.allTabs.filter((tab) => tab.group === chat);
   const up = windowTabs.selectedTabIn(chat);
-  const isPaneWanted = chat === undefined || (paneOpenByGroup[chat] ?? true);
+  const isPaneWanted = chat === undefined || isPaneOpen(chat, paneOpenByGroup);
   const showsPane = up !== undefined && isPaneWanted;
 
   // What gives way as the window narrows, one thing at a time and in one
@@ -154,7 +151,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
   // brings them back in the other order, each a margin past the width it
   // left at.
   const needs = CONVERSATION_WIDTH_MIN + (showsPane ? PANE_WIDTH_MIN : 0);
-  const { isCrossing, isShown } = useInboxRoom({
+  const { isAtOnce, isShown } = useInboxRoom({
     isActive,
     margin: ROOM_MARGIN,
     needs,
@@ -177,6 +174,17 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     showsPane && up.kind === "page",
   );
   const chatRecord = chats?.find((entry) => entry.id === chat);
+  /** A browser beside the chat, the way the tiles' Browser does. */
+  const addWeb = () => {
+    if (chat === undefined) {
+      return;
+    }
+    windowTabs.openScreen(BROWSER_HREF, {
+      group: chat,
+      select: true,
+    });
+    setPaneOpen(chat, true);
+  };
 
   // Drawn only once there is something in it.
   const tiles = chat !== undefined && tabs.length > 0 && (
@@ -192,13 +200,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
         });
         setPaneOpen(chat, true);
       }}
-      onAddWeb={() => {
-        windowTabs.openScreen(BROWSER_HREF, {
-          group: chat,
-          select: true,
-        });
-        setPaneOpen(chat, true);
-      }}
+      onAddWeb={addWeb}
       onClose={shell.requestClose}
       onReorder={(keys) => {
         windowTabs.reorder(keys, chat);
@@ -208,9 +210,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
         setPaneOpen(chat, true);
       }}
       tabs={tabs}
-      targetOf={(tab) =>
-        encodeBrowserTargetId(WINDOW_ID, StoreId.SessionSchema.parse(tab.id))
-      }
+      targetOf={(tab) => browserTargetOf(StoreId.SessionSchema.parse(tab.id))}
       taskTitles={shell.childTitles}
     />
   );
@@ -219,7 +219,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
     <div className="flex min-h-0 min-w-0 flex-1">
       <ChatColumn
         bounds={bounds}
-        isAtOnce={isCrossing}
+        isAtOnce={isAtOnce}
         // With no chat open there is no toggle to bring it back by, so it
         // stays.
         isOpen={isShown || !showsRightArea}
@@ -227,8 +227,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
           setInboxOpen(false);
         }}
       >
-        {/* `select-text`: the window's shell is chrome and turns selection off; the chat is text. */}
-        <div className="flex min-h-0 w-full flex-1 flex-col select-text [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
+        <div className="flex min-h-0 w-full flex-1 flex-col [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
           {/* A plain click on a row opens in this tab, and a middle or
             modified click asks for a tab of its own. */}
           <ChatPane
@@ -237,13 +236,31 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
             // An archived chat is put away, so it leaves the side beside
             // the list with it.
             onArchiveOpen={leaveChat}
-            onDeleteDraft={shell.deleteDraft}
+            // A chat deleted from its row takes its tabs with it, and the
+            // inbox takes the tab back when it was the one open.
+            onDeleted={(id) => {
+              windowTabs.dropGroup(id);
+              if (id === chat) {
+                appTabs.navigate(INBOX_HREF, { replace: true });
+                setInboxOpen(true);
+              }
+            }}
+            onDeleteDraft={shell.discardDraft}
             onListed={isActive ? shell.onListed : undefined}
             onOpenChat={(entry) => {
-              appWindow.openScreen(`${CHATS_HREF}/${entry.id}`);
+              appWindow.openScreen(chatHref(entry.id));
             }}
             onOpenDraft={shell.showDraft}
+            // As from the chat's head: popped out, the chat open here is
+            // no longer the one this tab has open.
+            onPopOut={(entry) => {
+              shell.compose.float(entry.id);
+              if (entry.id === chat) {
+                leaveChat();
+              }
+            }}
             openChatId={chat}
+            outIds={chatsOutOf(shell.compose.entries)}
           />
         </div>
       </ChatColumn>
@@ -275,7 +292,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                         onNewTopic={shell.onNewTopic}
                         // A task opens beside the chat, in the pane.
                         onOpenTask={(id) => {
-                          appWindow.openScreen(`/tasks/${id}`, {
+                          appWindow.openScreen(taskHref(id, chat), {
                             group: chat,
                             ownTab: true,
                             show: true,
@@ -306,8 +323,10 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                       />
                       <div className="relative min-h-0 flex-1">
                         <div className="absolute inset-0">
-                          <ChatScreen
+                          <ChatScreenInPlace
+                            chatId={chat}
                             isUp={isActive}
+                            isViewOpen={showsPane}
                             key={chat}
                             onGone={() => {
                               // As for a deleted chat: its tabs go, and the
@@ -316,15 +335,7 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
                               appTabs.navigate(INBOX_HREF, { replace: true });
                               setInboxOpen(true);
                             }}
-                            sendContext={() =>
-                              shell.sendContext({
-                                chatId: chat,
-                                isViewOpen: showsPane,
-                              })
-                            }
-                            sentPrompt={shell.sentWords.get(chat)}
                             tiles={tiles}
-                            chatId={chat}
                           />
                         </div>
                       </div>
@@ -378,6 +389,45 @@ function ChatView({ chat }: { chat: ChatId | undefined }) {
  * floor only while a chat is open, since that chat's head holds the toggle
  * that brings it back.
  */
+/**
+ * A chat's screen in the window's place, with the chips over its composer
+ * for what goes with a reply: the chat's own tab while its pane is open,
+ * and otherwise what the window has in view, each until left out.
+ */
+function ChatScreenInPlace({
+  chatId,
+  isUp,
+  isViewOpen,
+  onGone,
+  tiles,
+}: {
+  chatId: ChatId;
+  isUp: boolean;
+  isViewOpen: boolean;
+  onGone: () => void;
+  tiles: ReactNode;
+}) {
+  const shell = useShell();
+  const context = useChatContext({ chatId, isViewOpen });
+  return (
+    <ChatScreen
+      chatId={chatId}
+      composerLead={
+        context.chips.length > 0 ? (
+          <ContextChips items={context.chips} onLeaveOut={context.leaveOut} />
+        ) : undefined
+      }
+      isUp={isUp}
+      onGone={onGone}
+      sendContext={() =>
+        shell.sendContext({ chatId, isViewOpen, leftOut: context.leftOut })
+      }
+      sentPrompt={shell.sentWords.get(chatId)}
+      tiles={tiles}
+    />
+  );
+}
+
 function inboxBounds(
   rowWidth: number,
   { canCollapse }: { canCollapse: boolean },
@@ -402,7 +452,9 @@ function RouteScreen({ href }: { href: string }) {
   const appWindow = useWindow();
   const shell = useShell();
   const appsBySlug = useAppsBySlug();
-  const screenView = useAtomValue(screenViewsAtom)[useTabId()];
+  const tabId = useTabId();
+  const { view: screenView, walked: walkedFolder } =
+    useAtomValue(tabSurfaceAtom)[tabId] ?? {};
   usePageSlot(null, undefined, false);
   // The row's head and tail, where a file's viewer puts a toggle for its
   // panel and its actions.
@@ -417,12 +469,19 @@ function RouteScreen({ href }: { href: string }) {
   });
   const location =
     fromHref.kind === "folder" && screenView?.folder
-      ? { ...fromHref, path: screenView.folder.display }
+      ? {
+          ...fromHref,
+          ...(walkedFolder
+            ? { hostPath: walkedFolder.hostPath, path: walkedFolder.walked }
+            : { path: screenView.folder.display }),
+        }
       : fromHref;
   // The apps' catalog is a place you arrive at from the rail, with nothing
   // above it to walk back up to and nothing to type an address for: a row
-  // there would only offer to leave for the web.
-  const hasLocationRow = location.kind !== "apps";
+  // there would only offer to leave for the web. A new tab's own menu takes
+  // addresses, so a row over it would be a second field.
+  const hasLocationRow =
+    location.kind !== "apps" && matchScreen(href).kind !== "newTab";
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {hasLocationRow && (
@@ -449,6 +508,7 @@ function RouteScreen({ href }: { href: string }) {
                 ),
               }
             : {})}
+          fillsTab
           location={location}
         />
       )}
@@ -549,18 +609,25 @@ function TabContent() {
   if (groupTab) {
     return <Outlet />;
   }
-  const session = chatSessionOfHref(href);
-  if (session) {
-    return <ChatOfSession sessionId={session} />;
+  const screen = matchScreen(href);
+  switch (screen.kind) {
+    case "chat": {
+      return <ChatView chat={screen.chat} />;
+    }
+    case "chatLink":
+    case "inbox": {
+      return <ChatView chat={undefined} />;
+    }
+    case "chatOfSession": {
+      return <ChatOfSession sessionId={screen.session} />;
+    }
+    case "site": {
+      return <SiteView group={siteGroupOf(screen.id)} />;
+    }
+    default: {
+      return <RouteScreen href={href} />;
+    }
   }
-  if (isChatHref(href)) {
-    return <ChatView chat={chatOfHref(href)} />;
-  }
-  const group = groupOfHref(href);
-  if (isSiteHref(href) && group !== undefined) {
-    return <SiteView group={group} />;
-  }
-  return <RouteScreen href={href} />;
 }
 
 /**
@@ -580,9 +647,7 @@ function ChatOfSession({ sessionId }: { sessionId: StoreId.Session }) {
   const answer = chat.data;
   useEffect(() => {
     if (answer) {
-      router.history.replace(
-        answer.id ? `${CHATS_HREF}/${answer.id}` : INBOX_HREF,
-      );
+      router.history.replace(answer.id ? chatHref(answer.id) : INBOX_HREF);
     }
   }, [answer, router]);
   return <ChatView chat={undefined} />;
@@ -597,22 +662,5 @@ function usePageSlot(
   chrome: PageChromeSlots | undefined,
   isShown: boolean,
 ) {
-  const setSlots = useSetAtom(pageSlotByTabAtom);
-  const tabId = useTabId();
-  useEffect(() => {
-    if (!host) {
-      return;
-    }
-    const slot = { chrome, host, isShown };
-    setSlots((current) => ({ ...current, [tabId]: slot }));
-    return () => {
-      setSlots((current) => {
-        if (current[tabId] !== slot) {
-          return current;
-        }
-        const { [tabId]: _gone, ...rest } = current;
-        return rest;
-      });
-    };
-  }, [chrome, host, isShown, setSlots, tabId]);
+  useTabSurface("slot", host ? { chrome, host, isShown } : null);
 }

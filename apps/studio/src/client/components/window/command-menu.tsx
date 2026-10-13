@@ -396,11 +396,15 @@ export function useCommandMenuRows({
   const isSearch = words !== "" && !isBang;
   const typedPath = isSearch ? typedPathHere(words) : undefined;
   const site = isSearch && !typedPath ? siteFromWords(words) : undefined;
-  // A path pressed Return on that led nowhere, kept for as long as the words
-  // are still the ones that led there.
+  // A path pressed Return on that led nowhere, kept until the words change:
+  // it answers that Return alone, so the same words typed again later are
+  // looked for again.
   const [missedAt, setMissedAt] = useState<
     undefined | { outcome: MissedPath; typed: string }
   >();
+  if (missedAt !== undefined && missedAt.typed !== typed.trim()) {
+    setMissedAt(undefined);
+  }
   // A path still being looked for, once the look has gone on long enough
   // to say so.
   const [looking, setLooking] = useState<string>();

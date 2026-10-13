@@ -274,11 +274,15 @@ export function Omnibar({
     );
     leave();
   };
-  // A path pressed Return on that led nowhere, kept for as long as the
-  // words in the field are still the ones that led there.
+  // A path pressed Return on that led nowhere, kept until the words in the
+  // field change: it answers that Return alone, so the same words typed
+  // again later are looked for again.
   const [missed, setMissed] = useState<
     undefined | { outcome: MissedPath; typed: string }
   >();
+  if (missed !== undefined && missed.typed !== typed.trim()) {
+    setMissed(undefined);
+  }
   // A path still being looked for, once the look has gone on long enough
   // to say so.
   const [looking, setLooking] = useState<string>();

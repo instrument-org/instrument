@@ -130,7 +130,7 @@ import {
   parentFolderOf,
   segmentsOf,
 } from "./host-path";
-import { dropUndoOffer, holdUndoOffer, withdrawUndoOffer } from "./undo-offers";
+import { toastWithUndo, withdrawUndoOffer } from "./undo-offers";
 
 /**
  * How many folders' layouts are kept. Past it the one left alone longest goes
@@ -707,31 +707,19 @@ export function ComputerPage({
         const [only] = hostPaths;
         // Offered only when the app found every one of them in the Trash
         // and so can put them all back.
-        const canUndo = undoable.length === moved;
-        const toastId = toast(
+        toastWithUndo(
           moved === 1 && only
             ? `Moved “${segmentsOf(only).at(-1) ?? only}” to the ${getTrashTerminology()}`
             : `Moved ${moved} items to the ${getTrashTerminology()}`,
-          {
-            action: canUndo
-              ? {
-                  label: "Undo",
-                  onClick: () => {
-                    void undoTrash(undoable);
-                  },
-                }
-              : undefined,
-            onAutoClose: ({ id }) => {
-              dropUndoOffer(id);
-            },
-            onDismiss: ({ id }) => {
-              dropUndoOffer(id);
-            },
-          },
+          undoable.length === moved
+            ? {
+                journalIds: undoable,
+                undo: () => {
+                  void undoTrash(undoable);
+                },
+              }
+            : null,
         );
-        if (canUndo) {
-          holdUndoOffer(toastId, undoable);
-        }
       }
     }
   };

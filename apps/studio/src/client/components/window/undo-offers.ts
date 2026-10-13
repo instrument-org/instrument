@@ -8,6 +8,40 @@ import { toast } from "@/client/lib/toast";
  */
 const offers = new Map<string, number | string>();
 
+/**
+ * Raises a toast saying `message`, with an Undo that runs `offer.undo` when
+ * there is an offer, held until the toast goes or each of its entries is
+ * undone another way.
+ */
+export function toastWithUndo(
+  message: string,
+  offer: null | { journalIds: readonly string[]; undo: () => void },
+) {
+  const toastId = toast(message, {
+    action:
+      offer === null
+        ? undefined
+        : {
+            label: "Undo",
+            onClick: () => {
+              // Sonner takes the toast away without calling `onDismiss`, and
+              // an undo that stops partway would leave the rest held.
+              dropUndoOffer(toastId);
+              offer.undo();
+            },
+          },
+    onAutoClose: ({ id }) => {
+      dropUndoOffer(id);
+    },
+    onDismiss: ({ id }) => {
+      dropUndoOffer(id);
+    },
+  });
+  if (offer !== null) {
+    holdUndoOffer(toastId, offer.journalIds);
+  }
+}
+
 /** Keeps the toast that offers to undo `journalIds`, until it goes or one of them is undone. */
 export function holdUndoOffer(
   toastId: number | string,

@@ -1,7 +1,7 @@
 import { rmsOf } from "@/client/lib/dictation-levels";
 
 /** What the recorder writes, and what the API is told it is getting. */
-export const RECORDING_MIME_TYPE = "audio/webm;codecs=opus";
+const RECORDING_MIME_TYPE = "audio/webm;codecs=opus";
 
 /** Why the microphone could not be opened, in the terms a toast speaks. */
 export class MicrophoneError extends Error {

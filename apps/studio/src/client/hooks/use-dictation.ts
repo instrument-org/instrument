@@ -15,11 +15,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /** A recording stops itself here. */
-export const DICTATION_MAX_MS = 10 * 60 * 1000;
+const DICTATION_MAX_MS = 10 * 60 * 1000;
 /** Anything shorter is a slip of the finger rather than something said. */
 const MIN_RECORDING_MS = 1000;
 /** How many bars the meter draws, newest at the right. */
-export const DICTATION_LEVEL_BARS = 18;
+const DICTATION_LEVEL_BARS = 18;
 const TICK_MS = 100;
 
 const silentLevels = () =>

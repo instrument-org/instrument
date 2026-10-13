@@ -795,6 +795,11 @@ export async function connect({
      */
     rpc: (route, input, label) =>
       step(label ?? `rpc ${route}`, () => callRpc(cdp, route, input)),
+    /** The current value of a live (event iterator) route, such as permissions.liveAsks. */
+    rpcFirst: (route, input, label) =>
+      step(label ?? `rpc ${route} (first)`, () =>
+        callRpc(cdp, route, input, { first: true }),
+      ),
 
     /** Screenshot the window, or one element, cropped browser-side. */
     shot: (file, { label, pad = 0, selector, text } = {}) =>
@@ -1033,7 +1038,7 @@ export async function rectFor(cdp, kind, needle) {
  * under `data`), and none of that survives being reported as the description of
  * a thrown exception.
  */
-export async function callRpc(cdp, route, input) {
+export async function callRpc(cdp, route, input, { first = false } = {}) {
   await waitForDebugBridge(cdp);
 
   const outcome = await evaluate(
@@ -1042,7 +1047,16 @@ export async function callRpc(cdp, route, input) {
       try {
         const value = await window.__studioDebug.rpc(${JSON.stringify(route)}, ${JSON.stringify(input) ?? "undefined"});
         if (value && typeof value[Symbol.asyncIterator] === "function") {
-          return { iterator: true };
+          if (!${first}) return { iterator: true };
+          // A live route yields its current value first; take that and close it.
+          const iterator = value[Symbol.asyncIterator]();
+          const next = await Promise.race([
+            iterator.next(),
+            new Promise((resolve) => setTimeout(() => resolve({ timedOut: true }), 10000)),
+          ]);
+          await iterator.return?.();
+          if (next.timedOut) return { error: { message: "no value within 10 s" } };
+          return { json: JSON.stringify(next.value) ?? "null" };
         }
         return { json: JSON.stringify(value) ?? "null" };
       } catch (error) {
@@ -1060,7 +1074,7 @@ export async function callRpc(cdp, route, input) {
   if (outcome.iterator) {
     fail(
       `"${route}" is an event iterator, and one cannot be carried back through a single evaluation.\n` +
-        `Poll its plain counterpart instead: chats.tasks for chats.live.tasks.`,
+        `Poll its plain counterpart instead (chats.tasks for chats.live.tasks), or read its current value with app.rpcFirst.`,
     );
   }
 

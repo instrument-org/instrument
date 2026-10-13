@@ -97,7 +97,7 @@ async function firstModel(app) {
 
 /** The chat's open cards, oldest first, as its cards draw them. */
 const openAsks = (app, chat) =>
-  app.rpc("workspace.permissions.asks", { id: chat });
+  app.rpcFirst("workspace.permissions.liveAsks", { id: chat });
 
 /**
  * Idle has to hold for two seconds once the chat has been seen working, and

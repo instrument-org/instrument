@@ -353,8 +353,20 @@ async function capturePage(app: StudioApp, slug: string) {
   await app.eval(
     'document.querySelector("[data-billing-section=Actions]").scrollIntoView({ block: "center" })',
   );
-  await app.click({ text: "Refresh" });
-  await sleep(1500);
+  // The API answers ten status reads a minute per person, and a step that
+  // just refused or polled can have spent them: a read refused that way
+  // leaves the page on the previous answer, so wait it out and read again.
+  for (let attempt = 0; ; attempt++) {
+    await app.click({ text: "Refresh" });
+    await sleep(1500);
+    const throttled = await app.eval(
+      'document.body.innerText.includes("Too many requests")',
+    );
+    if (throttled !== true || attempt >= 8) {
+      break;
+    }
+    await sleep(8000);
+  }
   await app.eval(
     'document.querySelector("[data-billing-section]").scrollIntoView()',
   );

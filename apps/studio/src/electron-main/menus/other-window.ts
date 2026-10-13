@@ -79,10 +79,11 @@ export function createOtherWindowViewMenu({
         label: WINDOW_MENU_SHORTCUTS.zoomIn.label,
       },
       {
-        // ⌘=, the key pressed to zoom in without Shift, where the row above
-        // shows ⌘+. Off the Mac the row above is Ctrl+= already, and this
-        // repeats it.
-        accelerator: "CmdOrCtrl+=",
+        // The other way to the same key: ⌘= on a Mac, the key pressed without
+        // Shift, where the row above shows ⌘+; and off the Mac, where the row
+        // above is Ctrl+=, Ctrl and the plus sign, which takes Shift to type.
+        accelerator:
+          process.platform === "darwin" ? "CmdOrCtrl+=" : "CmdOrCtrl+Plus",
         click: () => {
           zoom("zoomIn");
         },

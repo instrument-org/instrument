@@ -38,6 +38,7 @@ import { useInboxRoom } from "@/client/components/window/inbox-room";
 import { InboxToggle } from "@/client/components/window/inbox-toggle";
 import { NoChatOpen } from "@/client/components/window/no-chat-open";
 import { RightPane } from "@/client/components/window/right-pane";
+import { useRowSlots } from "@/client/components/window/row-slots";
 import { screenLocation } from "@/client/components/window/screen-presentation";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatContext } from "@/client/components/window/use-chat-context";
@@ -465,12 +466,7 @@ function RouteScreen({ href }: { href: string }) {
     walked: walkedFolder,
   } = useAtomValue(tabSurfaceAtom)[tabId] ?? {};
   usePageSlot(null, undefined, false);
-  // The row's head and tail: where a folder puts its sidebar's toggle,
-  // its views, sort and filter, and its Ask and search, and a file's viewer a
-  // toggle for its panel and its actions.
-  const [rowLead, setRowLead] = useState<HTMLElement | null>(null);
-  const [rowTail, setRowTail] = useState<HTMLElement | null>(null);
-  const [rowField, setRowField] = useState<HTMLElement | null>(null);
+  const { rowProps, slots } = useRowSlots();
   const computerTab = computerTabOf(href);
   const fromHref = screenLocation(href, {
     appsBySlug,
@@ -505,46 +501,15 @@ function RouteScreen({ href }: { href: string }) {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {hasLocationRow && (
-        <TabLocationRow
-          // A folder's Finder puts the toggle for its sidebar at the head of
-          // the row, where a file puts the toggle for its tree.
-          {...(computerTab
-            ? {
-                leading: (
-                  <div
-                    className="flex shrink-0 items-center empty:hidden"
-                    ref={setRowLead}
-                  />
-                ),
-              }
-            : {})}
-          {...(computerTab
-            ? {
-                fieldEnd: (
-                  <div
-                    className="flex shrink-0 items-center empty:hidden"
-                    ref={setRowField}
-                  />
-                ),
-                trailing: (
-                  <div
-                    className="flex shrink-0 items-center gap-0.5"
-                    ref={setRowTail}
-                  />
-                ),
-              }
-            : {})}
-          fillsTab
-          location={location}
-        />
+        <TabLocationRow fillsTab location={location} {...rowProps} />
       )}
       <WindowContext
         value={{
           ...appWindow,
-          rowField,
+          rowField: slots.field,
           rowHoldsTools: computerTab !== undefined,
-          rowLead,
-          rowTail,
+          rowLead: slots.lead,
+          rowTail: slots.tail,
         }}
       >
         <FileOpenContext

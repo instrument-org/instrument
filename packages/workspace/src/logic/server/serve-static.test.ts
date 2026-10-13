@@ -52,6 +52,25 @@ describe("serveStaticFile", () => {
     expect(response.headers.get("content-range")).toBe("bytes 1-3/5");
   });
 
+  // A range ending past the file is the rest of the file (RFC 9110 14.1.2);
+  // only one starting past it can't be met.
+  it.each([
+    ["bytes=0-4095", 206, "plain", "bytes 0-4/5"],
+    ["bytes=2-", 206, "ain", "bytes 2-4/5"],
+    ["bytes=4-9", 206, "n", "bytes 4-4/5"],
+    ["bytes=5-9", 416, "", null],
+    ["bytes=3-1", 416, "", null],
+  ])("answers %s with %i", async (range, status, body, contentRange) => {
+    const response = await requestStatic({
+      headers: { range },
+      precompressed: false,
+    });
+
+    expect(response.status).toBe(status);
+    await expect(response.text()).resolves.toBe(body);
+    expect(response.headers.get("content-range")).toBe(contentRange);
+  });
+
   function requestStatic({
     headers = { "accept-encoding": "br" },
     isPathAllowed,

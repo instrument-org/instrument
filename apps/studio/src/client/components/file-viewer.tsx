@@ -312,8 +312,8 @@ function useFileType(file: ViewerFile): FileType | undefined {
     // Kept through a save, which changes the URL, so the file does not blink
     // back to loading.
     placeholderData: keepPreviousData,
-    // The first chunk the channel sends and no more: the channel answers a
-    // range only within the file, and the file may be any size.
+    // The first chunk the channel sends and no more, since the file may be
+    // any size. Not a range: no range fits an empty file, which is text.
     queryFn: async ({ signal }) => {
       const response = await fetch(file.url, { signal });
       if (!response.ok || !response.body) {

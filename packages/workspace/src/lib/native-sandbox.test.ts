@@ -77,8 +77,8 @@ describe("seatbeltProfile", () => {
         "(deny file-write* (subpath "/"))",
         "(allow file-write* (subpath "/dev"))",
         "(deny file-write* (subpath "/nope/home"))",
-        "(deny file-read* file-write* (subpath "/nope/home/Documents"))",
         "(deny file-read* file-write* (regex #"^/nope/home/\\.[^/]+(/|$)"))",
+        "(deny file-read* file-write* (subpath "/nope/home/Documents"))",
         "(deny file-read* file-write* network-outbound (subpath "/nope/home/with \\"quote\\""))",
         "(allow file-read* file-write* network-outbound (subpath "/nope/home/Documents/Acme"))",
         "(allow file-read-metadata (literal "/nope"))",
@@ -355,6 +355,35 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
         server.close();
       }
     }
+  });
+
+  it("keeps a sign-in folder closed when using folders without asking opens the other hidden ones", async () => {
+    mkdirSync(path.join(home, ".ssh"), { recursive: true });
+    writeFileSync(path.join(home, ".ssh", "id"), "k");
+    const withoutAsking = {
+      ...reach,
+      rules: {
+        ...reach.rules,
+        // The passwords place comes before other apps' files, as in
+        // `placeRules`.
+        rules: [
+          {
+            level: "ask",
+            path: path.join(home, ".ssh"),
+            place: "passwords",
+            source: "place",
+          } satisfies Rule,
+          ...reach.rules.rules,
+        ],
+        withoutAsking: true,
+      },
+    };
+    const cat = (file: string) => {
+      const spawned = wrapNativeCommand("/bin/cat", [file], withoutAsking);
+      return execa(spawned.file, spawned.args, { reject: false });
+    };
+    expect((await cat(path.join(home, ".hidden", "x"))).exitCode).toBe(0);
+    expect((await cat(path.join(home, ".ssh", "id"))).exitCode).not.toBe(0);
   });
 
   it("writes the temp folder an allow opens, and still closes the home inside it", async () => {

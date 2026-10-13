@@ -29,6 +29,7 @@ import {
   levelWithoutAsking,
   type Reach,
   reachOf,
+  type Rule,
   type Rules,
   SOURCE_RANK,
 } from "./permissions/rules";
@@ -196,7 +197,7 @@ export function seatbeltProfile(
               : rule.dotEntries
                 ? undefined
                 : spelled,
-          rank: SOURCE_RANK[rule.source],
+          rank: dotEntryRank(rule),
           text,
         })),
       ),
@@ -321,6 +322,16 @@ export function seatbeltProfile(
     '(deny mach-lookup (global-name "com.apple.coreservices.appleevents"))',
   );
   return ["(version 1)", "(allow default)", ...texts].join("\n");
+}
+
+/**
+ * A rule's rank among rules at its depth. A rule for every hidden entry in a
+ * folder stands for each of them only as a fallback, so a rule naming one of
+ * them at the same depth (~/.ssh in the passwords place against the hidden
+ * entries of other apps' files) comes after it and wins, as `reachOf` decides.
+ */
+function dotEntryRank(rule: Rule): number {
+  return SOURCE_RANK[rule.source] - (rule.dotEntries ? 0.5 : 0);
 }
 
 function depthOf(hostPath: string): number {
@@ -511,7 +522,7 @@ export function bwrapArgs(
       level === "allow" ? "write" : level === "readOnly" ? "read" : "none";
     const targets = rule.dotEntries ? dotEntriesIn(rule.path) : [rule.path];
     for (const target of targets) {
-      add(target, access, SOURCE_RANK[rule.source]);
+      add(target, access, dotEntryRank(rule));
     }
   }
   const tools = toolPlaces(home);

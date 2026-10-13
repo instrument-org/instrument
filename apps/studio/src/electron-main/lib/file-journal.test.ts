@@ -8,6 +8,7 @@ import {
   findInTrash,
   identityOf,
   JOURNAL_LIMIT,
+  JournalEntrySchema,
   type JournalEntry,
   type NewJournalEntry,
   undoEntry,
@@ -169,7 +170,7 @@ describe("undoing a move to the Trash", () => {
             at: 0,
             from: at("notes.txt"),
             id: "entry",
-            identity: { dev: 1, ino: 1 },
+            identity: { dev: 1, ino: "1" },
             kind: "trash",
             trashed: null,
           },
@@ -186,7 +187,7 @@ describe("undoing a move to the Trash", () => {
           at: 0,
           from: at("notes.txt"),
           id: "entry",
-          identity: { dev: 1, ino: 1 },
+          identity: { dev: 1, ino: "1" },
           kind: "trash",
           trashed: at("$RABC123.txt"),
         },
@@ -198,7 +199,7 @@ describe("undoing a move to the Trash", () => {
   it("finds nothing in a Trash it cannot read", async () => {
     expect(
       await findInTrash(
-        { dev: 1, ino: 1 },
+        { dev: 1, ino: "1" },
         {
           folders: Promise.resolve([at("missing")]),
           from: at("notes.txt"),
@@ -206,6 +207,53 @@ describe("undoing a move to the Trash", () => {
         },
       ),
     ).toBeNull();
+  });
+
+  it("looks in the home folder's Trash first at what is named like it", async () => {
+    await fs.mkdir(at("home/.Trash"), { recursive: true });
+    for (const name of ["agenda.txt", "zebra.txt"]) {
+      await fs.writeFile(at(`home/.Trash/${name}`), "someone else's");
+    }
+    await fs.writeFile(at("notes.txt"), "trashed");
+    const before = await identity("notes.txt");
+    await fs.rename(at("notes.txt"), at("home/.Trash/notes 12.00.00.txt"));
+    const stat = vi.fn(identityOf);
+
+    expect(
+      await findInTrash(before, {
+        from: at("notes.txt"),
+        home: at("home"),
+        platform: "darwin",
+        stat,
+        uid: 501,
+      }),
+    ).toBe(at("home/.Trash/notes 12.00.00.txt"));
+    // The home folder, for its disk, then the one item named like it.
+    expect(stat.mock.calls).toEqual([
+      [at("home")],
+      [at("home/.Trash/notes 12.00.00.txt")],
+    ]);
+  });
+});
+
+describe("an identity", () => {
+  it("keeps an inode whole, as its digits", async () => {
+    await fs.writeFile(at("notes.txt"), "");
+    const { ino } = await fs.lstat(at("notes.txt"), { bigint: true });
+
+    expect((await identity("notes.txt")).ino).toBe(String(ino));
+  });
+
+  it("reads an inode the journal kept as a number", () => {
+    expect(
+      JournalEntrySchema.parse({
+        at: 0,
+        id: "entry",
+        identity: { dev: 1, ino: 42 },
+        kind: "new-folder",
+        made: "/untitled folder",
+      }).identity,
+    ).toEqual({ dev: 1, ino: "42" });
   });
 });
 
@@ -251,14 +299,73 @@ describe("undoing a move to the freedesktop Trash", () => {
     expect(await fs.readFile(at("notes.txt"), "utf8")).toBe("trashed");
     expect(await fs.readdir(at("data/Trash/info"))).toEqual([]);
   });
+
+  it("looks only at the items whose record says they came from there", async () => {
+    await fs.writeFile(at("agenda.txt"), "someone else's");
+    await gioTrash("agenda.txt");
+    await fs.writeFile(at("notes.txt"), "trashed");
+    const before = await identity("notes.txt");
+    await gioTrash("notes.txt");
+    const stat = vi.fn(identityOf);
+
+    expect(
+      await findInTrash(before, {
+        folders: Promise.resolve([at("data/Trash/files")]),
+        from: at("notes.txt"),
+        platform: "linux",
+        stat,
+      }),
+    ).toBe(at("data/Trash/files/notes.txt"));
+    expect(stat.mock.calls).toEqual([[at("data/Trash/files/notes.txt")]]);
+  });
+
+  it("finds it in the Trash at the top of another disk, by the path kept from there", async () => {
+    vi.stubEnv("XDG_DATA_HOME", "");
+    const disk = at("disk");
+    // Everything under `disk` reads as a second disk.
+    const stat = async (place: string) => {
+      const found = await identityOf(place);
+      return found && (place === disk || place.startsWith(`${disk}${path.sep}`))
+        ? { ...found, dev: 2 }
+        : found;
+    };
+    await fs.mkdir(at("disk/.Trash-1000/files"), { recursive: true });
+    await fs.mkdir(at("disk/.Trash-1000/info"), { recursive: true });
+    await fs.writeFile(at("disk/notes.txt"), "trashed");
+    const before = await stat(at("disk/notes.txt"));
+    if (!before) throw new Error("notes.txt is not there");
+    await fs.rename(
+      at("disk/notes.txt"),
+      at("disk/.Trash-1000/files/notes.txt"),
+    );
+    await fs.writeFile(
+      at("disk/.Trash-1000/info/notes.txt.trashinfo"),
+      "[Trash Info]\nPath=notes.txt\nDeletionDate=2026-10-13T09:20:26\n",
+    );
+
+    expect(
+      await findInTrash(before, {
+        from: at("disk/notes.txt"),
+        home: at("home"),
+        platform: "linux",
+        stat,
+        uid: 1000,
+      }),
+    ).toBe(at("disk/.Trash-1000/files/notes.txt"));
+  });
 });
 
 describe("undoing a move to the Recycle Bin", () => {
-  /** A `$I` record as Windows 10 and later write it: where the item came from, in UTF-16. */
-  function recycleRecord(from: string) {
+  /**
+   * A `$I` record as Windows 10 and later write it: when the item was
+   * deleted, in 100-nanosecond ticks since 1601, and where it came from, in
+   * UTF-16.
+   */
+  function recycleRecord(from: string, deletedAt = 134_049_000_000_000_000n) {
     const original = Buffer.from(`${from}\0`, "utf16le");
     const header = Buffer.alloc(28);
     header.writeBigUInt64LE(2n, 0);
+    header.writeBigUInt64LE(deletedAt, 16);
     header.writeUInt32LE(original.length / 2, 24);
     return Buffer.concat([header, original]);
   }
@@ -318,6 +425,62 @@ describe("undoing a move to the Recycle Bin", () => {
       }),
     ).toBeNull();
   });
+
+  // Two items that share an identity and came from the same place, as two
+  // files Node read the same rounded NTFS id for and both deleted from one
+  // path did. A hard link shares an identity for real. Either name can be
+  // the one listed first, so both orders are tried.
+  it.each([
+    ["$RAAAAAA.txt", "$RZZZZZZ.txt"],
+    ["$RZZZZZZ.txt", "$RAAAAAA.txt"],
+  ])(
+    "puts back the newest of several from the same place, %s before %s",
+    async (older, newer) => {
+      const account = at("bin/S-1-5-21-1001");
+      await fs.mkdir(account, { recursive: true });
+      await fs.writeFile(at("notes.txt"), "recycled");
+      const before = await identity("notes.txt");
+      await fs.link(at("notes.txt"), path.join(account, older));
+      await fs.rename(at("notes.txt"), path.join(account, newer));
+      await fs.writeFile(
+        path.join(account, `$I${older.slice(2)}`),
+        recycleRecord(at("notes.txt"), 134_049_000_000_000_000n),
+      );
+      await fs.writeFile(
+        path.join(account, `$I${newer.slice(2)}`),
+        recycleRecord(at("notes.txt"), 134_049_000_100_000_000n),
+      );
+
+      expect(
+        await findInTrash(before, {
+          folders: bins(),
+          from: at("notes.txt"),
+          platform: "win32",
+        }),
+      ).toBe(path.join(account, newer));
+    },
+  );
+
+  it("refuses an item whose record no longer says it came from there", async () => {
+    await fs.writeFile(at("notes.txt"), "someone else's");
+    const before = await identity("notes.txt");
+    await recycle("notes.txt", at("other.txt"));
+
+    await expect(
+      undoEntry(
+        {
+          at: 0,
+          from: at("notes.txt"),
+          id: "entry",
+          identity: before,
+          kind: "trash",
+          trashed: at("bin/S-1-5-21-1001/$RYSLFOO.txt"),
+        },
+        { platform: "win32", trash },
+      ),
+    ).rejects.toThrow("“notes.txt” is no longer in the Recycle Bin.");
+    expect(await listed()).toEqual(["bin"]);
+  });
 });
 
 describe("the journal", () => {
@@ -336,7 +499,7 @@ describe("the journal", () => {
 
     for (let n = 0; n < JOURNAL_LIMIT + 5; n += 1) {
       journal.record({
-        identity: { dev: 1, ino: n },
+        identity: { dev: 1, ino: String(n) },
         kind: "new-folder",
         made: `/folder ${n}`,
       });

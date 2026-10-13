@@ -248,6 +248,7 @@ export const SETTINGS_PAGES: Record<
   Debug: {
     detail: "Tools for working on the app.",
     developerOnly: true,
+    shownWhen: "the app runs on Linux",
   },
 };
 

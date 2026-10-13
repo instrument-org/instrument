@@ -40,7 +40,7 @@ import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { flashJumpTarget } from "@/client/lib/flash-jump-target";
-import { cn } from "@/client/lib/utils";
+import { cn, isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
@@ -570,6 +570,10 @@ function useNavItems(): NavItem[] {
             tab: "Features" as const,
             title: "Features",
           },
+        ]
+      : []),
+    ...(isDeveloperMode && isLinux()
+      ? [
           {
             icon: CodeIcon,
             isDeveloperMode: true,

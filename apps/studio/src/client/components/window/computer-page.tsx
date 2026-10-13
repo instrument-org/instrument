@@ -71,8 +71,7 @@ import {
 } from "@/client/lib/computer-file-url";
 import { getFileType, opensInSystemApp } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
-import { getTrashTerminology } from "@/client/lib/trash-terminology";
-import { cn, isMacOS, osConventions } from "@/client/lib/utils";
+import { cn, commandKeyHeld, isMacOS, osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
@@ -698,7 +697,7 @@ export function ComputerPage({
       focusBrowser();
     } catch (error) {
       fileActionFailed(
-        `Couldn't move that to the ${getTrashTerminology()}`,
+        `Couldn't move that to the ${osConventions().trash}`,
         error,
       );
     } finally {
@@ -709,8 +708,8 @@ export function ComputerPage({
         // and so can put them all back.
         toastWithUndo(
           moved === 1 && only
-            ? `Moved “${segmentsOf(only).at(-1) ?? only}” to the ${getTrashTerminology()}`
-            : `Moved ${moved} items to the ${getTrashTerminology()}`,
+            ? `Moved “${segmentsOf(only).at(-1) ?? only}” to the ${osConventions().trash}`
+            : `Moved ${moved} items to the ${osConventions().trash}`,
           undoable.length === moved
             ? {
                 journalIds: undoable,
@@ -1103,7 +1102,7 @@ export function ComputerPage({
         event.key.toLowerCase() !== "z" ||
         event.shiftKey ||
         event.altKey ||
-        !(isMacOS() ? event.metaKey : event.ctrlKey) ||
+        !commandKeyHeld(event) ||
         isTypingTarget(event.target)
       ) {
         return;

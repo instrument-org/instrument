@@ -1,9 +1,3 @@
-import { osConventions } from "./utils";
-
-export function getTrashTerminology(): string {
-  return osConventions().trash;
-}
-
 export const PROGRESS_MESSAGES = [
   "Still trashing...",
   "Who knew deleting node_modules was so slow...",

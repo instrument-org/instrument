@@ -559,6 +559,14 @@ describe("bwrapArgs", () => {
     );
     rmSync(home, { force: true, recursive: true });
   });
+
+  it("leaves the temp folder to the rule that opens it", () => {
+    // The layout holds each temp folder with a system allow rule, which
+    // binds it; a fixed bind besides would mount it twice.
+    expect(bwrapArgs(reachOver("/nope/home", [])).join(" ")).not.toContain(
+      "--bind /tmp /tmp",
+    );
+  });
 });
 
 describe("bwrapArgs over names that run code", () => {

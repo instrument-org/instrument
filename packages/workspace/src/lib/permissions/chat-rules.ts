@@ -70,7 +70,6 @@ export async function chatReach(
   };
 }
 
-/** What a native command the chat's shell spawns is held to. */
 /**
  * The app's bin folder and the folders its links lead to, which a program
  * has to read to run `node` or `pnpm` off PATH. Read once per folder: the
@@ -100,6 +99,7 @@ function toolBinFolders(toolBinDir: string): string[] {
   return folders;
 }
 
+/** What a native command the chat's shell spawns is held to. */
 export function nativeReachFor(
   rules: Rules,
   layout: WorkspaceFsLayout,

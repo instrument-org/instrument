@@ -42,28 +42,14 @@ const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
 const appEnv: NodeJS.ProcessEnv = process.env;
 
 /**
- * Places in the home folder a native command still reads whatever the
- * rules say. The app's own pnpm, uv and node-gyp keep their stores, caches
- * and config in the app's folders (`tool-isolation.ts`, `uv.ts`), never the
- * person's.
+ * The places native tools keep as their own: macOS's per-user cache folder,
+ * which the frameworks a native tool loads write to. ~/Library/Caches stays
+ * as the rules say: other apps keep code there they run later outside any
+ * sandbox (Playwright's browsers, Go's builds).
  */
-const TOOL_SETTINGS: string[] = [];
-
-/**
- * The places native tools keep as their own: in `home`, and macOS's
- * per-user cache folder, which the frameworks a native tool loads write to.
- * ~/Library/Caches stays as the rules say: other apps keep code there they
- * run later outside any sandbox (Playwright's browsers, Go's builds).
- */
-function toolPlaces(home = os.homedir()): {
-  caches: string[];
-  settings: string[];
-} {
+function toolCaches(): string[] {
   const userCache = darwinUserCacheDir();
-  return {
-    caches: userCache ? [userCache] : [],
-    settings: TOOL_SETTINGS.map((place) => path.join(home, place)),
-  };
+  return userCache ? [userCache] : [];
 }
 
 /**
@@ -213,11 +199,9 @@ export function seatbeltProfile(
         text: `(allow ${access} (subpath ${sbplString(spelled)}))`,
       })),
     );
-  const tools = toolPlaces(home);
   entries.push(
     ...opens([DEVICES], "file-write*"),
-    ...opens(tools.caches, "file-read* file-write*"),
-    ...opens(tools.settings, "file-read*"),
+    ...opens(toolCaches(), "file-read* file-write*"),
     ...opens(reach.readOnly, "file-read*"),
     ...opens(reach.readWrite, "file-read* file-write*"),
   );
@@ -400,12 +384,6 @@ export function seatbeltAvailable(): boolean {
 }
 
 /**
- * The command to spawn for a native binary, held to the chat's rules on macOS
- * when it runs for a chat, and out of the passwords place when it runs for
- * the app. Elsewhere, or when Seatbelt cannot apply, the command comes back
- * unchanged and `reach` is absent.
- */
-/**
  * A program the app runs for itself, outside the rules, with only the
  * Command Line Tools installer closed to it and everything it starts: the
  * one thing of the native profile that holds for a child that clears its
@@ -430,6 +408,11 @@ export function withInstallerClosed(
     : { args: [...args], file };
 }
 
+/**
+ * The command to spawn for a native binary, held to `reach` under Seatbelt
+ * or bubblewrap. Where neither can apply, the command comes back unchanged
+ * and `reach` is absent.
+ */
 export function wrapNativeCommand(
   file: string,
   args: readonly string[],
@@ -559,11 +542,11 @@ export function bwrapArgs(
       add(target, access, dotEntryRank(rule));
     }
   }
-  const tools = toolPlaces(home);
-  for (const opened of [...tools.caches, ...reach.readWrite]) {
+  const caches = toolCaches();
+  for (const opened of [...caches, ...reach.readWrite]) {
     add(opened, "write", 3);
   }
-  for (const opened of [...tools.settings, ...reach.readOnly]) {
+  for (const opened of reach.readOnly) {
     add(opened, "read", 3);
   }
   // bubblewrap has no pattern for a name that runs code when its folder is
@@ -573,7 +556,7 @@ export function bwrapArgs(
   // the allowed folder, is bound onto itself: a mount point cannot be renamed
   // or removed, so the name cannot be carried out from under its bind and
   // made again unbound, or the folder holding it swapped for a copy.
-  const own = [...tools.caches, ...reach.readWrite].map(resolveReal);
+  const own = [...caches, ...reach.readWrite].map(resolveReal);
   const isOwn = (target: string) =>
     own.some((folder) => hostPathWithin(folder, target) !== null);
   const stops = new Set([
@@ -638,9 +621,6 @@ export function bwrapArgs(
     "/dev",
     "--proc",
     "/proc",
-    "--bind",
-    "/tmp",
-    "/tmp",
     // Its own process namespace, so a program the command starts and leaves
     // behind dies with it when the app quits, rather than being handed to
     // the session's init still holding what it inherited.
@@ -671,7 +651,7 @@ export function bwrapArgs(
   // is a folder the person allowed by name before it was made (a card for
   // the repository `git init` was about to make), where the folder holding
   // it is there.
-  const ours = new Set([...tools.caches, ...reach.readWrite]);
+  const ours = new Set([...caches, ...reach.readWrite]);
   const allowedByName = new Set(
     rules
       .filter(

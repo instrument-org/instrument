@@ -216,7 +216,7 @@ function PermissionAskCard({
         <div className="flex items-center justify-between gap-3 px-3 py-2">
           <div className="min-w-0">
             <p className="truncate text-sm">
-              {`Let Instrument use "${name}"?`}
+              {`Let Instrument use “${name}”?`}
             </p>
             {explanation ? (
               <p className="truncate text-xs text-muted-foreground">
@@ -255,7 +255,7 @@ function PermissionAskCard({
       <ToolCardSection collapsedHeight={256}>
         <p className="text-sm">
           {ask.kind === "folder"
-            ? `Let Instrument use "${name}"?`
+            ? `Let Instrument use “${name}”?`
             : `Let Instrument use ${name}?`}
         </p>
         {explanation ? (
@@ -331,10 +331,10 @@ export function PermissionAnswerNote({
       <InstrumentGlyph className="size-3.5 shrink-0" />
       <span>
         {data.answer === "allowed"
-          ? `You allowed "${name}" in this chat.`
+          ? `You allowed “${name}” in this chat.`
           : data.answer === "always"
-            ? `You allowed "${name}" for every chat.`
-            : `You said not now to "${name}".`}
+            ? `You allowed “${name}” for every chat.`
+            : `You said not now to “${name}”.`}
       </span>
     </p>
   );

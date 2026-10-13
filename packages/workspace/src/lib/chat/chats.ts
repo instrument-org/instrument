@@ -1,8 +1,13 @@
-import { APP_NAME_SLUG, placeholderTitle } from "@instrument-org/shared";
+import {
+  APP_NAME_SLUG,
+  folderNameFromPath,
+  placeholderTitle,
+} from "@instrument-org/shared";
 import { parallel, unique } from "radashi";
 import { z } from "zod";
 
 import { publisher } from "../../rpc/publisher";
+import { type PermissionAsk } from "../../schemas/chat-state";
 import { type Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -12,6 +17,7 @@ import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { pathsNamedInMessage } from "../paths-named-in-message";
+import { openAsks } from "../permissions/asks";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -105,10 +111,12 @@ export const ChatSchema = z.object({
   /** The chat's session, which its transcript is read and its messages are sent through. */
   sessionId: StoreId.SessionSchema,
   /**
-   * Working while the chat's own agent is alive or a task filed from it is
-   * moving; waiting while a task filed from it is stopped on an ask, or its
-   * own last turn ended on one; failed while its last turn ended in an error
-   * and nothing has been said since; idle otherwise.
+   * Waiting while a card is open in it, a task filed from it is stopped on
+   * an ask, or its own last turn ended on one, whatever else still moves,
+   * unless the user has sent a message since; working while the chat's own
+   * agent is alive or a task filed from it is moving; failed while its last
+   * turn ended in an error and nothing has been said since; idle otherwise.
+   * See `chatStateOf`.
    */
   state: z.enum(["failed", "idle", "waiting", "working"]),
   title: z.string(),
@@ -173,7 +181,9 @@ export async function chatIsWorking(chatId: ChatId): Promise<boolean> {
     return false;
   }
   const { running } = await chatActivity(chatId);
-  return stateOf(chatId, digest, running).state === "working";
+  // Whether anything moves does not turn on what waits on the user, so the
+  // chat's cards are not read.
+  return stateOf(chatId, digest, running, []).working;
 }
 
 /**
@@ -409,22 +419,28 @@ function asFolder(path: string): string {
 }
 
 /**
- * What the chat has stopped for, and when: a task filed from it that is
- * paused on an ask comes first, since that is what the user can answer, then
- * the chat's own last turn ending on one.
+ * Everything the chat waits on the user for, each with when it was asked,
+ * in the order its line names them: an open card first, since the chat and
+ * whatever raised it are stopped on it, then a task filed from it that is
+ * paused on an ask, then the chat's own last turn ending on one.
  */
-function askOf(
+function asksOf(
   digest: ChatDigest,
   filed: ChatActivity["running"],
-): undefined | { at: number; text: string } {
-  for (const task of filed) {
-    if (task.waiting) {
-      return { at: task.updatedAt, text: task.waiting };
-    }
-  }
-  return digest.ownAsk && digest.lastAssistantAt !== undefined
-    ? { at: digest.lastAssistantAt, text: digest.ownAsk }
-    : undefined;
+  cards: PermissionAsk[],
+): { at: number; text: string }[] {
+  return [
+    ...cards.map((card) => ({
+      at: card.askedAt.getTime(),
+      text: cardLine(card),
+    })),
+    ...filed.flatMap((task) =>
+      task.waiting ? [{ at: task.updatedAt, text: task.waiting }] : [],
+    ),
+    ...(digest.ownAsk && digest.lastAssistantAt !== undefined
+      ? [{ at: digest.lastAssistantAt, text: digest.ownAsk }]
+      : []),
+  ];
 }
 
 /** The command a shell call ran, once its input has arrived whole. */
@@ -461,6 +477,13 @@ function behind(given: string[], made: string[]): string[] {
   return [...given.filter((item) => !made.includes(item)), ...made];
 }
 
+/** What an open card waits on the user for, naming the folder or app it asks about. */
+function cardLine(card: PermissionAsk): string {
+  const name =
+    card.kind === "folder" ? folderNameFromPath(card.target) : card.target;
+  return `Waiting for your OK to use “${name}”`;
+}
+
 async function chatFor(
   digest: ChatDigest,
   chatId: ChatId,
@@ -476,7 +499,11 @@ async function chatFor(
     ...(task.waiting ? { waiting: task.waiting } : {}),
   }));
 
-  const { ask: anyAsk, ownWorking, state } = stateOf(chatId, digest, filed);
+  const {
+    ask: anyAsk,
+    ownWorking,
+    state,
+  } = stateOf(chatId, digest, filed, await openAsks(chatId));
   const ask = state === "working" ? undefined : anyAsk;
 
   const lead = runningTasks.find((task) => !task.waiting);
@@ -940,23 +967,29 @@ function webHostOf(url: string): string {
 }
 
 /**
- * Where a chat stands by `chatStateOf`, read from its digest and the tasks
- * running in it, with what it waits on the user for.
+ * Where a chat stands by `chatStateOf`, read from its digest, the tasks
+ * running in it, and its open cards, with what its line says it waits on
+ * the user for.
  */
 function stateOf(
   chatId: ChatId,
   digest: ChatDigest,
   running: ChatActivity["running"],
+  cards: PermissionAsk[],
 ) {
-  const ask = askOf(digest, running);
+  const asks = asksOf(digest, running, cards);
+  const askedAt = asks.length
+    ? Math.max(...asks.map((ask) => ask.at))
+    : undefined;
   return {
-    ask,
+    ask: asks[0],
     ...chatStateOf({
+      askedAt,
       failed: digest.failed,
-      hasAsk: ask !== undefined,
       ownAlive: chatIsAlive(chatId),
       ownAsking: digest.ownAsk !== undefined,
       pendingWake: hasPendingWake(chatId),
+      spokeAt: digest.lastUserMessageAt ?? 0,
       tasks: running,
       turnStarting: turnIsStarting(digest),
     }),

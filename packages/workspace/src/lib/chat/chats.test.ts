@@ -16,6 +16,7 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { recordAsk } from "../permissions/asks";
 import { recordChanged, recordRemoved } from "../record-changes";
 import { forgetChat, sessionOfChat } from "../record-folders";
 import { Store } from "../store";
@@ -691,8 +692,8 @@ describe("listChats", () => {
       },
     ]);
 
-    // Another task still moving keeps the chat at work, and its step is
-    // the one shown rather than the stalled task's.
+    // Another task still moving leaves the chat waiting on the question,
+    // which is what the user can do something about.
     running.value = [
       ...running.value,
       {
@@ -704,8 +705,8 @@ describe("listChats", () => {
       },
     ];
     const [busy] = await listChats();
-    expect(busy?.state).toBe("working");
-    expect(busy?.latest?.text).toBe("Checking the pantry");
+    expect(busy?.state).toBe("waiting");
+    expect(busy?.latest?.text).toBe("Which one?");
   });
 
   it("is working while its own agent is alive, saying what it is doing", async () => {
@@ -790,6 +791,48 @@ describe("listChats", () => {
       expect(chat?.latest?.kind).toBe("question");
     } finally {
       alive.value = new Set();
+    }
+  });
+
+  it("waits on an open card, even while the turn that raised it winds down", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const chatId = await freshChat();
+      const sessionId = await session(chatId, "Pantry");
+      await userSays(chatId, sessionId, "read my pantry list", 1);
+      await agentSays(chatId, sessionId, "", {
+        commands: ["cat ~/Pantry/list.txt"],
+        finished: false,
+        minute: 2,
+      });
+      vi.setSystemTime(at(3));
+      await recordAsk(
+        { chatId: chatFor(sessionId), sessionId },
+        "folder",
+        path.join(os.homedir(), "Pantry"),
+      );
+      alive.value = new Set([sessionId]);
+
+      const [winding] = await listChats();
+      expect(winding?.state).toBe("waiting");
+      expect(winding?.latest).toEqual({
+        at: at(3).getTime(),
+        kind: "question",
+        text: "Waiting for your OK to use “Pantry”",
+      });
+
+      alive.value = new Set();
+      const [ended] = await listChats();
+      expect(ended?.state).toBe("waiting");
+
+      // The user sent something else rather than answer: the turn that
+      // starts is what the chat is on until it ends.
+      await userSays(chatId, sessionId, "never mind, check the fridge", 4);
+      alive.value = new Set([sessionId]);
+      const [spokenPast] = await listChats();
+      expect(spokenPast?.state).toBe("working");
+    } finally {
+      vi.useRealTimers();
     }
   });
 

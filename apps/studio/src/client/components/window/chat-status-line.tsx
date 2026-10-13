@@ -20,16 +20,24 @@ type StatusLine = {
 const WORKING = "Instrument is working";
 
 /**
+ * Said with the check once the chat's own work is done. A step's label is
+ * worded as under way ("Creating the file"), which a check beside it would
+ * contradict.
+ */
+const DONE = "Done";
+
+/**
  * The one line under a chat's title that says where its work stands, in the
  * voice the chat's row in the list uses: while anything runs, the step it is
  * on beside the planning dot, the chat's own work and its tasks' alike, so
- * this is the chat's only loading state; what it waits on the user for,
- * behind the amber question; and at rest, the last thing it did with a
- * check, so the line stays once work is done. Only labels of work and task
- * names are said here, never the agent's own words. Pressed, it lists the
- * chat's tasks, the same list the activity at the head's right opens; with no
- * task filed it is only a line. Nothing at all in a chat that has only
- * talked.
+ * this is the chat's only loading state; while a card or a question waits on
+ * the user, that it does, behind the amber question, whatever else still
+ * runs; and at rest, a check beside the task that finished last or that the
+ * chat's own work is done, so the line stays once work is done. Only labels
+ * of work and task names are said here, never the agent's own words.
+ * Pressed, it lists the chat's tasks, the same list the activity at the
+ * head's right opens; with no task filed it is only a line. Nothing at all in
+ * a chat that has only talked.
  */
 export function ChatStatusLine({
   chat,
@@ -123,12 +131,13 @@ function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
 /**
  * Where the chat's work stands, as one line, said only in labels of work and
  * task names. Running: the step the chat's record names (the chat's own turn
- * first, then a task at work), or the plain line. Stalled: what the user is
- * waited on for. At rest: the last thing done, the chat's own last step or
- * the task that finished last, whichever came later, with a check. Nothing
- * in a chat that has done no work. Never the chat's own title again, right
- * under it: a task named like the chat says its last step instead, and one
- * with nothing else to say says nothing.
+ * first, then a task at work), or the plain line. Stalled, which the record
+ * says over anything still running: what the user is waited on for. At
+ * rest, whichever came later of the chat's own last step and the task that
+ * finished last: the task's name, or that the chat's work is done, with a
+ * check. Nothing in a chat that has done no work. Never the chat's own title
+ * again, right under it: a task named like the chat says it is done, or the
+ * step it stopped on when it failed.
  */
 export function statusLine({
   chat,
@@ -170,11 +179,9 @@ export function statusLine({
   const differs = (text: string | undefined) =>
     text?.trim() && text.trim() !== chat.title.trim() ? text : undefined;
   if (task && (!own || task.updatedAt.getTime() >= own.at)) {
-    const text = differs(task.title) ?? differs(task.step);
-    return text
-      ? { text, tone: task.standing.kind === "failed" ? "stopped" : "done" }
-      : undefined;
+    const failed = task.standing.kind === "failed";
+    const text = differs(task.title) ?? (failed ? differs(task.step) : DONE);
+    return text ? { text, tone: failed ? "stopped" : "done" } : undefined;
   }
-  const text = differs(own?.text);
-  return text ? { text, tone: "done" } : undefined;
+  return own ? { text: DONE, tone: "done" } : undefined;
 }

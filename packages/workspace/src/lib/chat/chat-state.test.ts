@@ -3,53 +3,95 @@ import { describe, expect, it } from "vitest";
 import { chatStateOf } from "./chat-state";
 
 const resting = {
+  askedAt: undefined,
   failed: false,
-  hasAsk: false,
   ownAlive: false,
   ownAsking: false,
   pendingWake: false,
+  spokeAt: 1,
   tasks: [],
   turnStarting: false,
 };
 
 describe("chatStateOf", () => {
   it.each<
-    [string, Partial<Parameters<typeof chatStateOf>[0]>, string, boolean]
+    [
+      string,
+      Partial<Parameters<typeof chatStateOf>[0]>,
+      ReturnType<typeof chatStateOf>,
+    ]
   >([
-    ["nothing moving", {}, "idle", false],
-    ["its own agent at work", { ownAlive: true }, "working", true],
+    [
+      "nothing moving",
+      {},
+      { ownWorking: false, state: "idle", working: false },
+    ],
+    [
+      "its own agent at work",
+      { ownAlive: true },
+      { ownWorking: true, state: "working", working: true },
+    ],
     [
       "its own agent stopped on its own ask",
-      { hasAsk: true, ownAlive: true, ownAsking: true },
-      "waiting",
-      false,
+      { askedAt: 5, ownAlive: true, ownAsking: true },
+      { ownWorking: false, state: "waiting", working: false },
     ],
     [
       "a message sent and not yet started",
       { turnStarting: true },
-      "working",
-      true,
+      { ownWorking: true, state: "working", working: true },
     ],
-    ["a task at work", { tasks: [{}] }, "working", false],
+    [
+      "a task at work",
+      { tasks: [{}] },
+      { ownWorking: false, state: "working", working: true },
+    ],
     [
       "only a task stopped on an ask",
-      { hasAsk: true, tasks: [{ waiting: "Which file?" }] },
-      "waiting",
-      false,
+      { askedAt: 5, tasks: [{ waiting: "Which file?" }] },
+      { ownWorking: false, state: "waiting", working: false },
     ],
     [
       "a task waiting while another works",
-      { hasAsk: true, tasks: [{ waiting: "Which file?" }, {}] },
-      "working",
-      false,
+      { askedAt: 5, tasks: [{ waiting: "Which file?" }, {}] },
+      { ownWorking: false, state: "waiting", working: true },
     ],
-    ["a wake on its way", { pendingWake: true }, "working", false],
-    ["a turn that ended in an error", { failed: true }, "failed", false],
-    ["an ask over an error", { failed: true, hasAsk: true }, "waiting", false],
-  ])("%s", (_name, over, state, ownWorking) => {
-    expect(chatStateOf({ ...resting, ...over })).toEqual({
-      ownWorking,
-      state,
-    });
+    [
+      "a card its own agent raised, while the turn that met it winds down",
+      { askedAt: 5, ownAlive: true },
+      { ownWorking: true, state: "waiting", working: true },
+    ],
+    [
+      "a card raised after a turn that ended",
+      { askedAt: 5 },
+      { ownWorking: false, state: "waiting", working: false },
+    ],
+    [
+      "an ask the user spoke past, while the turn they started runs",
+      { askedAt: 3, ownAlive: true, spokeAt: 4 },
+      { ownWorking: true, state: "working", working: true },
+    ],
+    [
+      "an ask the user spoke past, once that turn is over",
+      { askedAt: 3, spokeAt: 4 },
+      { ownWorking: false, state: "waiting", working: false },
+    ],
+    [
+      "a wake on its way",
+      { pendingWake: true },
+      { ownWorking: false, state: "working", working: true },
+    ],
+    [
+      "a turn that ended in an error",
+      { failed: true },
+      { ownWorking: false, state: "failed", working: false },
+    ],
+    [
+      "an ask over an error",
+      { askedAt: 5, failed: true },
+      { ownWorking: false, state: "waiting", working: false },
+    ],
+  ])("%s", (_name, over, expected) => {
+    expect(chatStateOf({ ...resting, ...over })).toEqual(expected);
   });
 });

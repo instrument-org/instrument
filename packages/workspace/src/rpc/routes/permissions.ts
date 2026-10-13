@@ -3,7 +3,7 @@ import { eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { getCurrentDate } from "../../lib/get-current-date";
-import { bwrapAvailable, seatbeltAvailable } from "../../lib/native-sandbox";
+import { nativeSandboxEnforced } from "../../lib/native-sandbox";
 import {
   type Level,
   LevelSchema,
@@ -65,7 +65,7 @@ function view(
   const home = os.homedir();
   return {
     apps: settings.apps,
-    enforced: seatbeltAvailable() || bwrapAvailable(),
+    enforced: nativeSandboxEnforced(),
     folders: settings.folders,
     home,
     places: placePaths(home).map((place) => ({

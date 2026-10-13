@@ -11,6 +11,7 @@ import {
 import { inheritedEnv } from "../native-env";
 
 import {
+  NativeSandboxUnavailableError,
   refusalNote,
   refusedPathIn,
   wrapNativeCommand,
@@ -112,7 +113,23 @@ export async function execShim(
   const sink = currentShellOutputSink();
   const { cancelSignal, onMessage, unsandboxed, walks, ...subprocessOptions } =
     options;
-  const spawned = wrapNativeCommand(file, args, unsandboxed ? null : undefined);
+  let spawned: ReturnType<typeof wrapNativeCommand>;
+  try {
+    spawned = wrapNativeCommand(file, args, unsandboxed ? null : undefined);
+  } catch (error) {
+    if (!(error instanceof NativeSandboxUnavailableError)) {
+      throw error;
+    }
+    // 126, the shell's "found but could not run".
+    return {
+      exitCode: 126,
+      file,
+      isMaxBuffer: false,
+      shortMessage: undefined,
+      stderr: `${error.message}\n`,
+      stdout: "",
+    };
+  }
   const subprocess = execa(spawned.file, spawned.args, {
     ...subprocessOptions,
     ...(onMessage ? { ipc: true } : {}),

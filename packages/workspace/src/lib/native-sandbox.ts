@@ -354,33 +354,105 @@ function regexEscape(value: string): string {
   return value.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-let available: boolean | undefined;
+/**
+ * What starting a sandbox from this process came to: it works, or the system
+ * said it cannot (no bubblewrap installed, user namespaces closed, Seatbelt
+ * already applied to this process, which does not nest), or the probe gave
+ * no answer (it timed out under load, or the system was out of processes).
+ */
+type ProbeResult = "failed" | "unavailable" | "works";
+
+const PROBE_TIMEOUT_MS = 5000;
 
 /**
- * Whether a profile can be applied from this process. False off macOS, and on
- * macOS when this process is itself sandboxed (Seatbelt does not nest), which
- * is the case under some agent harnesses and in a test runner run inside one.
+ * Runs a sandbox's probe. Only an answer is kept by the callers: a probe
+ * that gave none is run again the next time a command needs it, since
+ * keeping it would run every later command with no rules at all.
  */
-export function seatbeltAvailable(): boolean {
-  if (process.platform !== "darwin") {
-    return false;
-  }
-  if (available === undefined) {
-    try {
-      execFileSync(
-        SANDBOX_EXEC,
-        ["-p", "(version 1)(allow default)", "/usr/bin/true"],
-        {
-          stdio: "ignore",
-          timeout: 5000,
-        },
-      );
-      available = true;
-    } catch {
-      available = false;
+function probeSandbox(
+  file: string,
+  args: readonly string[],
+  /** What the system prints when it refuses to make the sandbox here. */
+  refusals: readonly string[],
+): ProbeResult {
+  try {
+    execFileSync(file, args, {
+      stdio: ["ignore", "ignore", "pipe"],
+      timeout: PROBE_TIMEOUT_MS,
+    });
+    return "works";
+  } catch (error) {
+    // execFileSync's error carries the spawn's fields, which its type omits.
+    const failure = error as {
+      code?: string;
+      signal?: string | null;
+      status?: number | null;
+      stderr?: Buffer | string;
+    };
+    const stderr = String(failure.stderr ?? "");
+    if (
+      failure.code === "ENOENT" ||
+      (typeof failure.status === "number" &&
+        refusals.some((refusal) => stderr.includes(refusal)))
+    ) {
+      return "unavailable";
     }
+    console.warn(
+      `The native sandbox probe (${path.basename(file)}) gave no answer: ${
+        failure.code ?? failure.signal ?? `exit ${failure.status}`
+      } ${stderr.trim()}`.trim(),
+    );
+    return "failed";
   }
-  return available;
+}
+
+let seatbeltProbe: ProbeResult | undefined;
+
+/**
+ * Whether a Seatbelt profile can be applied from this process: macOS, unless
+ * this process is itself sandboxed (Seatbelt does not nest), which is the
+ * case under some agent harnesses and in a test runner run inside one.
+ */
+function seatbeltState(): ProbeResult {
+  if (process.platform !== "darwin") {
+    return "unavailable";
+  }
+  if (seatbeltProbe === undefined || seatbeltProbe === "failed") {
+    seatbeltProbe = probeSandbox(
+      SANDBOX_EXEC,
+      ["-p", "(version 1)(allow default)", "/usr/bin/true"],
+      // `sandbox_apply: Operation not permitted` inside another sandbox.
+      ["sandbox_apply", "Operation not permitted"],
+    );
+  }
+  return seatbeltProbe;
+}
+
+/** Whether Seatbelt holds the native commands this process starts. */
+export function seatbeltAvailable(): boolean {
+  return seatbeltState() === "works";
+}
+
+/**
+ * Whether native commands run under a system sandbox here, or would once a
+ * probe that gave no answer gets one; false only where the system said none
+ * can be made.
+ */
+export function nativeSandboxEnforced(): boolean {
+  return seatbeltState() !== "unavailable" || bwrapState() !== "unavailable";
+}
+
+/**
+ * Thrown in place of running a command with no sandbox when the one this
+ * computer has did not start.
+ */
+export class NativeSandboxUnavailableError extends Error {
+  constructor(file: string) {
+    super(
+      `${path.basename(file)} did not run: the sandbox that holds commands to the permission settings did not start, and Instrument does not run a command without it. Run the command again in a moment.`,
+    );
+    this.name = "NativeSandboxUnavailableError";
+  }
 }
 
 /**
@@ -424,14 +496,19 @@ export function wrapNativeCommand(
   if (!reach || (path.isAbsolute(file) && !existsSync(file))) {
     return { args: [...args], file };
   }
-  if (seatbeltAvailable()) {
+  const seatbelt = seatbeltState();
+  if (seatbelt === "works") {
     return {
       args: ["-p", seatbeltProfile(reach), file, ...args],
       file: SANDBOX_EXEC,
       reach,
     };
   }
-  if (bwrapAvailable()) {
+  const bwrap = bwrapState();
+  if (seatbelt === "failed" || bwrap === "failed") {
+    throw new NativeSandboxUnavailableError(file);
+  }
+  if (bwrap === "works") {
     return {
       args: [
         ...bwrapArgs(reach),
@@ -474,7 +551,7 @@ function closingInheritedFds(): string[] {
     : [];
 }
 
-let bwrapWorks: boolean | undefined;
+let bwrapProbe: ProbeResult | undefined;
 
 /**
  * Whether bubblewrap can make a sandbox from this process: Linux with bwrap
@@ -482,23 +559,26 @@ let bwrapWorks: boolean | undefined;
  * unprivileged programs, and the app's own AppArmor profile, which the
  * `.deb` installs, opens them for the app and what it starts.
  */
-export function bwrapAvailable(): boolean {
+function bwrapState(): ProbeResult {
   if (process.platform !== "linux") {
-    return false;
+    return "unavailable";
   }
-  if (bwrapWorks === undefined) {
-    try {
-      execFileSync(
-        BWRAP,
-        ["--ro-bind", "/", "/", "--dev-bind", "/dev", "/dev", "/usr/bin/true"],
-        { stdio: "ignore", timeout: 5000 },
-      );
-      bwrapWorks = true;
-    } catch {
-      bwrapWorks = false;
-    }
+  if (bwrapProbe === undefined || bwrapProbe === "failed") {
+    bwrapProbe = probeSandbox(
+      BWRAP,
+      ["--ro-bind", "/", "/", "--dev-bind", "/dev", "/dev", "/usr/bin/true"],
+      // User namespaces closed: `No permissions to create new namespace`,
+      // `setting up uid map: Permission denied`, `Creating new namespace
+      // failed: Operation not permitted`.
+      ["No permissions", "Permission denied", "Operation not permitted"],
+    );
   }
-  return bwrapWorks;
+  return bwrapProbe;
+}
+
+/** Whether bubblewrap holds the native commands this process starts. */
+export function bwrapAvailable(): boolean {
+  return bwrapState() === "works";
 }
 
 /**

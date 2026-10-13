@@ -18,6 +18,17 @@ saved /d/photos/a.png and /e
 a\b\c regex \d+\s {"x":"line\nline"} output\smiley.png`);
   });
 
+  it("respells folder names with spaces, PATH lists and escaped paths", () => {
+    const output = String.raw`C:\Program Files\Oculus\a.dll was loaded
+PATH=C:\a;C:\Program Files\b;D:\c
+{"exe":"C:\\Users\\sam\\node.exe"}`;
+
+    expect(filterShellOutput(output, { rewriteSeparators: true }))
+      .toBe(String.raw`/c/Program Files/Oculus/a.dll was loaded
+PATH=/c/a;/c/Program Files/b;/d/c
+{"exe":"/c/Users/sam/node.exe"}`);
+  });
+
   it("leaves a script's own escape sequences alone on a posix host", () => {
     // The rewrite exists for paths a Windows-native tool prints. Where no such
     // tool can run, every backslash in output is content: JSON, a regex, a

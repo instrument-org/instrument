@@ -1,6 +1,6 @@
 # Plan: real host paths, held to the Permissions rules
 
-Status: in progress. Steps 1 to 4 have landed: Seatbelt on macOS and bubblewrap on Linux hold native commands to the Permissions rules, the shell and file tools follow the same rules, the agent works at real paths, request_folder is a card, and Settings › Permissions edits the rules. [The decision](../../decisions/2026-10-11-the-agent-works-at-real-paths.md) records how. Step 5 (Windows) has not landed, so native commands there run unwrapped. Tracked in FP-1371.
+Status: completed. Steps 1 to 4 landed: native commands are held to the Permissions rules by Seatbelt on macOS and bubblewrap on Linux, the shell and the file tools follow the same rules, the agent works at real paths with `/task`, `/mnt`, `/skills`, `/apps` and the path bridge removed, a folder the agent runs into raises a card on its own, and Settings › Permissions edits the rules ([the decision](../../decisions/2026-10-11-the-agent-works-at-real-paths.md)). Step 5 is not built: native commands on Windows run unconfined until MXC can hold node and git ([windows-sandbox.md](../../architecture/windows-sandbox.md)).
 
 ## Summary
 

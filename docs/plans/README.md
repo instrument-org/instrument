@@ -49,7 +49,6 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | Plan | Status |
 | --- | --- |
 | [Conversation storage](active/conversation-storage.md) — conversation data the agent can read across | index and search landed, storage not started |
-| [Agent-requested folder access](active/agent-requested-folder-access.md) | phase 1 landed, reduced phase 2 |
 | [Legacy data migration](active/legacy-data-migration.md): bringing 1.x tasks and projects into chats | built, backfill and eval left |
 | [Skills mount instead of copy](active/skills-mount-instead-of-copy.md) | step 3 copy removal left |
 | [Skills from attached folders](active/skills-from-attached-folders.md) | proposed, waits on skills mount |
@@ -124,7 +123,10 @@ Wireframes are working artifacts drawn with the `wireframe` skill and the Studio
 | [Lazy browser targets, and multiple tabs](completed/lazy-browser-targets-and-multiple-tabs.md) | superseded |
 | [Browser popups as agent-drivable tabs](completed/browser-popups-as-agent-drivable-tabs.md) | not built; the starting point for popups |
 | [One owner for each fact about a browser guest](completed/guest-plumbing.md): guest registry, guest handle, captureFrame, CDP table, page chords, ChatGPT grant machine | done |
-| [Sandboxed script runtimes as the default](completed/sandboxed-script-runtimes.md) — `python` reads attached folders in place, `python-native` is the escape hatch, `js-exec` beside `node` | landed |
+| [Real host paths, held to the Permissions rules](completed/real-host-paths.md) | landed on macOS and Linux; Windows unconfined |
+| [One Python and one JavaScript, both native](completed/native-script-runtimes.md) | landed |
+| [Agent-requested folder access](completed/agent-requested-folder-access.md) | superseded by real paths |
+| [Sandboxed script runtimes as the default](completed/sandboxed-script-runtimes.md) — `python` reads attached folders in place, `python-native` is the escape hatch, `js-exec` beside `node` | landed, then superseded by native runtimes |
 | [Pane tabs and the `show` command](completed/pane-tabs-and-the-show-command.md) | landed |
 | [File references without a watcher](completed/file-references-without-a-watcher.md) | landed |
 | [Anchor the submitted turn](completed/anchor-the-submitted-turn.md) | landed |

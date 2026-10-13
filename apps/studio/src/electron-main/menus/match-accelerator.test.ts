@@ -1,7 +1,12 @@
 import { CODE_EDITOR_KEYS } from "@/client/components/code-editor/keymap";
-import { resolveAccelerator, SHORTCUT_ENTRIES } from "@/shared/shortcuts";
+import {
+  resolveAccelerator,
+  SHORTCUT_ENTRIES,
+  type ShortcutAccelerator,
+} from "@/shared/shortcuts";
 import {
   CODE_EDITOR_SHORTCUTS,
+  WINDOW_MENU_SHORTCUTS,
   WINDOW_SHORTCUT_ALIASES,
   WINDOW_SHORTCUTS,
   type WindowShortcutId,
@@ -426,4 +431,66 @@ describe("CODE_EDITOR_SHORTCUTS", () => {
       );
     },
   );
+});
+
+/**
+ * Every chord the app window binds on one side, by a name for the failure:
+ * its own and their second chords, the ones its menu answers (a tab by its
+ * place spelled out, as the menu spells it), and the app and Developer
+ * menus'.
+ */
+function boundChords(isMac: boolean) {
+  const resolve = (accelerator: ShortcutAccelerator) =>
+    resolveAccelerator(accelerator, { isMac });
+  return [
+    ...windowChords(isMac).map(({ accelerator, id }) => ({
+      accelerator,
+      name: id,
+    })),
+    ...Object.entries(WINDOW_MENU_SHORTCUTS).flatMap(
+      ([name, { accelerator }]) =>
+        name === "tabByPlace"
+          ? Array.from({ length: 8 }, (_, index) => ({
+              accelerator: `CmdOrCtrl+${index + 1}`,
+              name: `tab ${index + 1}`,
+            }))
+          : [{ accelerator: resolve(accelerator), name }],
+    ),
+    ...SHORTCUT_ENTRIES.map(({ descriptor, id }) => ({
+      accelerator: resolve(descriptor.accelerator),
+      name: id,
+    })),
+  ];
+}
+
+describe.each([
+  { isMac: true, system: "a Mac" },
+  { isMac: false, system: "Windows and Linux" },
+])("the app window's chords on $system", ({ isMac }) => {
+  // A chord the binder or the menu can't read never fires, silently.
+  it.each(boundChords(isMac))(
+    "$name is a readable chord ($accelerator)",
+    ({ accelerator }) => {
+      expect(parseAccelerator(accelerator, { isMac })).not.toBeNull();
+    },
+  );
+
+  // The binder runs the first row a press matches, so a second command on
+  // the same press would never run.
+  it("never put two commands on one press", () => {
+    const bound = boundChords(isMac).map((each) => ({
+      ...each,
+      chord: parseAccelerator(each.accelerator, { isMac }),
+    }));
+    const clashes = bound.flatMap((a, index) =>
+      bound
+        .slice(index + 1)
+        .flatMap((b) =>
+          a.chord && b.chord && overlaps(a.chord, b.chord)
+            ? [`${a.name} (${a.accelerator}) and ${b.name} (${b.accelerator})`]
+            : [],
+        ),
+    );
+    expect(clashes).toEqual([]);
+  });
 });

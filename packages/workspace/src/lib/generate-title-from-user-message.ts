@@ -176,7 +176,7 @@ export function generateTitleFromUserMessage({
   });
 }
 
-export function titleSourceText(message: SessionMessage.UserWithParts): string {
+function titleSourceText(message: SessionMessage.UserWithParts): string {
   // Same as the message the agent reads: the model names what the user typed,
   // not the `[$name](skill:name)` wire form the mention is stored in.
   const text = renderSkillMentionsAsText(textForMessage(message));

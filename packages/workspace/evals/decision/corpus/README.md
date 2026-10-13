@@ -10,6 +10,5 @@ Labeled cases for `pnpm eval:decision`. Indexes in the label files are positions
 - `drafts.json`: opening messages and the topic each should be filed under, as `[text, topic or "none", acceptable alternates?]`, in two sets with their own topic lists.
 - `settings.json`: the rows settings search reads, and searches with the entry ids each should find.
 - `emoji.json`: a topic and the emoji that fit it; a hit is any of them among the eight shown.
-- `retitle.json`: invented chats with a fitting title; `drifted` marks the ones whose reply moved off it. Each is also asked against another chat's title, which has moved by construction.
 
 Labels were made by hand by reading every candidate. When a model offers something unlabeled that a person would also accept, add it to `ok` rather than tuning around it.

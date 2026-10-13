@@ -23,7 +23,7 @@ Pass the command as a positional argument. The process exits with the command's 
 
 ```bash
 pnpm --silent script:run-bash -- "python -c 'import sys; print(sys.version)'"
-pnpm --silent script:run-bash -- "uv pip install numpy && python-native -c 'import numpy'"
+pnpm --silent script:run-bash -- "uv pip install numpy && python -c 'import numpy'"
 pnpm --silent script:run-bash -- "node --version"
 ```
 
@@ -40,7 +40,7 @@ By default, all commands run and the process exits with the first non-zero exit 
 ```bash
 pnpm --silent script:run-bash -- --bail \
   "uv pip install requests" \
-  "python-native -c 'import requests'"
+  "python -c 'import requests'"
 ```
 
 ### One-shot against an existing task dir
@@ -48,7 +48,7 @@ pnpm --silent script:run-bash -- --bail \
 Reuse a task dir to persist installed packages, created files, etc. across calls. The task ID is printed to stderr on every run.
 
 ```bash
-pnpm --silent script:run-bash -- --task TASK_ID "python-native -c 'import numpy'"
+pnpm --silent script:run-bash -- --task TASK_ID "python -c 'import numpy'"
 ```
 
 ### Reaching a folder
@@ -62,14 +62,14 @@ pnpm --silent script:run-bash -- --attach ~/Documents/Photos \
   "ffprobe $HOME/Documents/Photos/clip.mov"
 ```
 
-The path to type is the folder's real one, so let your own shell expand `$HOME` inside double quotes: the sandbox shell's own `~` is `/`.
+The path to type is the folder's real one. The sandbox shell's `~` and `$HOME` are your real home folder as well, but the runner reaches only what you attach.
 
 ### Piped sequential commands
 
 Pipe a newline-separated script when you need multiple commands sharing one task dir without passing `--task` explicitly:
 
 ```bash
-printf 'uv pip install requests\npython-native -c "import requests; print(requests.__version__)"\n' \
+printf 'uv pip install requests\npython -c "import requests; print(requests.__version__)"\n' \
   | pnpm --silent script:run-bash
 ```
 
@@ -97,11 +97,10 @@ task: 01kv...  session: ses_01KV...
 
 Same environment as the real agent:
 
-- **FS**: the task dir is the working directory, at its real path under the system temp dir; skills are reached at their real directories; `--attach` folders are reached at their own paths; everything else in the shell is a read-only empty root, so a builtin or sandboxed script cannot reach the rest of the host filesystem. Native commands (`python-native`, `node`, `ffmpeg`, ...) are spawned under the same rules through Seatbelt on macOS and bubblewrap on Linux (the runner turns `nativeSandbox` on), and unwrapped elsewhere
-- **Network**: full internet access; private/loopback ranges blocked (SSRF guard)
+- **FS**: the task dir is the working directory, at its real path under the system temp dir; skills are reached at their real directories; `--attach` folders are reached at their own paths; everything else in the shell is a read-only empty root, so a builtin cannot reach the rest of the host filesystem. Native commands (`python`, `node`, `ffmpeg`, any program on the PATH, ...) are spawned under the same rules through Seatbelt on macOS and bubblewrap on Linux (the runner turns `nativeSandbox` on), and unwrapped elsewhere
+- **Network**: full internet access, the local network and loopback included
 - **Built-in commands**: standard unix builtins (`ls`, `grep`, `find`, `curl`, etc.)
-- **Sandboxed script runtimes**: `python`/`python3` (CPython on WebAssembly, standard library only, reads an attached folder directly) and `js-exec` (QuickJS, built-ins only); both are just-bash's, wrapped by our shims
-- **Custom shims**: `node` (also runs TypeScript), `pnpm`, `pnx`/`pnpx`/`npx`, `uv`, `python-native`, `pip`/`pip3`, `ffmpeg`, `ffprobe`, `git`, `rg`, `osascript`, `app`, `jobs`/`fg`/`kill`
+- **Custom shims**: `python`/`python3` (the chat's virtualenv interpreter), `node` (also runs TypeScript), `pnpm`, `pnx`/`pnpx`/`npx`, `uv`, `pip`/`pip3`, `ffmpeg`, `ffprobe`, `git`, `rg`, `osascript`, `app`, `jobs`/`fg`/`kill`
 - **Not here**: the commands only a chat's shell has (`task`, `chat`, `tab`, `memory`) and its `apps/` folder; this runner builds a task's shell
 - **Stub**: `npm` -> error (use `pnpm`)
 - **Managed command**: `agent-browser` resolves to the wrapped CLI; use this runner for command availability/help checks, not real browser-session testing

@@ -1,3 +1,4 @@
+import { type AIGatewayProviderConfig } from "@instrument-org/ai-gateway";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
@@ -16,8 +17,13 @@ function answering(moved: number | undefined) {
   );
 }
 
+// Only the type matters to which providers can reach the decision model.
+const reachable = [
+  { type: "openrouter" },
+] as unknown as AIGatewayProviderConfig.Type[];
+
 const chat = {
-  configs: [],
+  configs: reachable,
   currentTitle: "Find flights to Lisbon",
   opening: "find me cheap flights to lisbon",
   reply: "I found three options under $600.",
@@ -41,17 +47,23 @@ describe("titleStillFits", () => {
   );
 
   it("leaves the title model to decide when no provider can reach the decision model", async () => {
-    const ask = vi.fn<typeof askDecisionModel>(() =>
-      Promise.resolve(undefined),
+    const ask = answering(0.1);
+    await expect(titleStillFits({ ...chat, ask, configs: [] })).resolves.toBe(
+      false,
     );
-    await expect(titleStillFits({ ...chat, ask })).resolves.toBe(false);
+    expect(ask).not.toHaveBeenCalled();
   });
 
-  it("leaves the title model to decide when the decision model fails", async () => {
-    const ask = vi.fn<typeof askDecisionModel>(() =>
-      Promise.reject(new Error("upstream 529")),
-    );
-    await expect(titleStillFits({ ...chat, ask })).resolves.toBe(false);
+  it.each([
+    {
+      ask: () => Promise.reject(new Error("upstream 529")),
+      case: "fails",
+    },
+    { ask: () => Promise.resolve(undefined), case: "is resting after failing" },
+  ])("keeps the title when the decision model $case", async ({ ask }) => {
+    await expect(
+      titleStillFits({ ...chat, ask: vi.fn<typeof askDecisionModel>(ask) }),
+    ).resolves.toBe(true);
   });
 
   it("asks one yes-or-no about the title against the opening and the reply", async () => {

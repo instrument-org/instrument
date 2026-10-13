@@ -1,4 +1,4 @@
-import { fetchModel } from "@instrument-org/ai-gateway";
+import { fetchModel, selectDecisionConfigs } from "@instrument-org/ai-gateway";
 import { alphabetical } from "radashi";
 
 import { publisher } from "../../rpc/publisher";
@@ -154,8 +154,10 @@ export function startChatRetitle(): void {
  * Whether a title the agent gave still names the chat, asked of the
  * decision model before the title model is: one yes-or-no on whether the
  * subject has moved, a few hundred milliseconds and a fraction of a cent
- * against a full title call. Only a confident no keeps the title. No
- * provider for the decision model, a failure, or an unsure answer all say
+ * against a full title call. A confident no keeps the title, and so does a
+ * decision model that is set up but cannot answer (failing, or resting after
+ * failing), since asking the title model in its place would rename the chat
+ * on a guess. No provider for the decision model, or an unsure answer, say
  * false, which leaves the title model to decide as it would without this.
  */
 export async function titleStillFits({
@@ -173,6 +175,9 @@ export async function titleStillFits({
   reply: string;
   chatId: ChatId;
 }): Promise<boolean> {
+  if (selectDecisionConfigs(configs).length === 0) {
+    return false;
+  }
   try {
     const asked = await ask({
       body: {
@@ -197,10 +202,13 @@ export async function titleStillFits({
       configs,
       usage: { purpose: "title-check", chatId },
     });
-    const moved = asked?.response.answers.moved?.noul;
+    if (!asked) {
+      return true;
+    }
+    const moved = asked.response.answers.moved?.noul;
     return moved !== undefined && moved < MOVED_BELOW;
   } catch {
-    return false;
+    return true;
   }
 }
 

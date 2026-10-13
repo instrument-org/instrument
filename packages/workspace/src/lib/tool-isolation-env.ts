@@ -65,6 +65,10 @@ export function uvToolsEnvFor(
   now = new Date(),
 ): Record<string, string> {
   return {
+    // matplotlib keeps its font cache in ~/.matplotlib on macOS, which the
+    // sandbox keeps from changes, so without its own folder every chart
+    // rebuilt the cache (about ten seconds).
+    MPLCONFIGDIR: path.join(uvDataDir, "matplotlib"),
     PIP_CONFIG_FILE: os.devNull,
     UV_CACHE_DIR: path.join(uvDataDir, "cache"),
     UV_EXCLUDE_NEWER: new Date(

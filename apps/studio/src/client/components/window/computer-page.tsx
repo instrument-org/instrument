@@ -2293,7 +2293,12 @@ function relativeHostPath(root: string, hostPath: string) {
 
 // The files routes' errors that come with a sentence written for people. The
 // rest carry the system's own message, which only developer mode shows.
-const SPOKEN_FILE_ERRORS = ["NAME_IN_USE", "NAME_INVALID", "NOTHING_TO_UNDO"];
+const SPOKEN_FILE_ERRORS = [
+  "CANNOT_UNDO",
+  "NAME_IN_USE",
+  "NAME_INVALID",
+  "NOTHING_TO_UNDO",
+];
 
 /** Says a file action didn't happen, with the reason when it is one a person can use. */
 export function fileActionFailed(title: string, error: unknown) {

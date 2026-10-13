@@ -1,4 +1,4 @@
-import { AppErrorFallback } from "@/client/components/app-error-fallback";
+import { AppErrorCard } from "@/client/components/app-error-fallback";
 import { ErrorCard } from "@/client/components/error-card";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -73,7 +73,7 @@ function RouteComponent() {
                 is the only way back.
               </p>
             </div>
-            <AppErrorFallback error={simpleError} />
+            <AppErrorCard error={simpleError} />
           </section>
         </div>
       </div>

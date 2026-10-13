@@ -152,9 +152,11 @@ export function AppWindow() {
                   </RouterContextProvider>
                 ) : null}
               </OnboardingZoomRoot>
-              <WindowBorder />
             </IconContext.Provider>
           </CatchBoundary>
+          {/* Past the boundary, so a window showing its crash card keeps
+            its edge too. */}
+          <WindowBorder />
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

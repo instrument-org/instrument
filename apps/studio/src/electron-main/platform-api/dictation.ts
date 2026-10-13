@@ -31,6 +31,38 @@ const ErrorSchema = z.object({
   ]),
 });
 
+/**
+ * What the last answer said about today's allowance: seconds left, and when
+ * it comes back once there are none. Held in memory only, so a press of the
+ * mic can be told before recording that there is nothing left to spend.
+ */
+let lastAllowance: { remainingSeconds?: number; resetsAt?: string } = {};
+
+function remainingSecondsOf(response: Response): number | undefined {
+  const header = response.headers.get("x-dictation-remaining-seconds");
+  const seconds = header === null ? Number.NaN : Number(header);
+  return Number.isFinite(seconds) ? seconds : undefined;
+}
+
+/**
+ * Whether today's dictation is known to be used up: the last answer left
+ * none, and the time it comes back has not passed. Anything less certain
+ * lets the recording go ahead, and the API says no if it must.
+ */
+export function dictationAllowance(now = Date.now()): {
+  exhausted: boolean;
+  resetsAt?: string;
+} {
+  const { remainingSeconds, resetsAt } = lastAllowance;
+  const resets = resetsAt === undefined ? Number.NaN : Date.parse(resetsAt);
+  const exhausted =
+    remainingSeconds !== undefined &&
+    remainingSeconds <= 0 &&
+    Number.isFinite(resets) &&
+    now < resets;
+  return exhausted ? { exhausted, resetsAt } : { exhausted };
+}
+
 function failed(failure: DictationFailure): DictationResult {
   return { failure, ok: false };
 }
@@ -111,8 +143,20 @@ export async function transcribeDictation({
   }
 
   const body = await response.text().catch(() => "");
+  const remainingSeconds = remainingSecondsOf(response);
   if (!response.ok) {
-    return failed(failureOf(response.status, body));
+    const failure = failureOf(response.status, body);
+    if (failure.kind === "allowance-reached") {
+      lastAllowance = {
+        remainingSeconds: remainingSeconds ?? 0,
+        resetsAt: failure.resetsAt,
+      };
+      return failed({ ...failure, remainingSeconds: remainingSeconds ?? 0 });
+    }
+    return failed(failure);
+  }
+  if (remainingSeconds !== undefined) {
+    lastAllowance = { remainingSeconds };
   }
 
   let json: unknown;
@@ -125,5 +169,9 @@ export async function transcribeDictation({
   if (!parsed.success) {
     return failed({ kind: "server" });
   }
-  return { ...parsed.data, ok: true };
+  return {
+    ...parsed.data,
+    ok: true,
+    ...(remainingSeconds !== undefined && { remainingSeconds }),
+  };
 }

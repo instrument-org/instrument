@@ -275,6 +275,24 @@ export function useDictation({
       }
     };
 
+    // Known to be used up: say so rather than record something that can't
+    // be sent, and leave a recording already held where it is.
+    const [, allowance] = await safe(rpcClient.dictation.allowance.call());
+    if (allowance?.exhausted) {
+      giveUp();
+      if (current.ended) {
+        return;
+      }
+      if (kept.current) {
+        report(
+          { kind: "allowance-reached", resetsAt: allowance.resetsAt },
+          retryKept,
+        );
+      } else {
+        report({ kind: "allowance-used-up", resetsAt: allowance.resetsAt });
+      }
+      return;
+    }
     kept.current = undefined;
     toast.dismiss(toastId);
 

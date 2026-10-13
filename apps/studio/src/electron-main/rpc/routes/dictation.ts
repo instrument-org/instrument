@@ -1,4 +1,7 @@
-import { transcribeDictation } from "@/electron-main/platform-api/dictation";
+import {
+  dictationAllowance,
+  transcribeDictation,
+} from "@/electron-main/platform-api/dictation";
 import { base } from "@/electron-main/rpc/base";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import {
@@ -53,4 +56,7 @@ const setLanguage = base
     }
   });
 
-export const dictation = { setLanguage, setMicrophone, transcribe };
+/** Whether today's dictation is known to be used up, and when it comes back. */
+const allowance = base.handler(() => dictationAllowance());
+
+export const dictation = { allowance, setLanguage, setMicrophone, transcribe };

@@ -4,6 +4,8 @@ import { APP_NAME } from "@instrument-org/shared";
 /** Everything that can stop a dictation from landing as text. */
 export type DictationProblem =
   | Exclude<DictationFailure, { kind: "canceled" | "no-audio" }>
+  /** The mic was pressed with today's dictation already used up. */
+  | { kind: "allowance-used-up"; resetsAt?: string }
   | { kind: "capture-failed" }
   | { kind: "microphone-busy" }
   | { kind: "microphone-refused" }
@@ -68,6 +70,15 @@ export function describeDictationProblem(
 ): DictationNotice {
   switch (problem.kind) {
     case "allowance-reached": {
+      return {
+        action: "retry",
+        description: `Your recording is safe, and you can send it ${resetPhrase(problem.resetsAt, { now, timeZone })}.`,
+        keepsRecording: true,
+        title: "You've used today's dictation",
+        tone: "info",
+      };
+    }
+    case "allowance-used-up": {
       return {
         description: `You can dictate again ${resetPhrase(problem.resetsAt, { now, timeZone })}.`,
         keepsRecording: false,

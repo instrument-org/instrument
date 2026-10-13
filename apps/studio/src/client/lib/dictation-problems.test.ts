@@ -13,6 +13,7 @@ const timeZone = "America/New_York";
 describe("describeDictationProblem", () => {
   const kinds: DictationProblem["kind"][] = [
     "allowance-reached",
+    "allowance-used-up",
     "capture-failed",
     "connection",
     "microphone-busy",
@@ -32,7 +33,7 @@ describe("describeDictationProblem", () => {
     const notices = Object.fromEntries(
       kinds.map((kind) => {
         const problem: DictationProblem =
-          kind === "allowance-reached"
+          kind === "allowance-reached" || kind === "allowance-used-up"
             ? { kind, resetsAt: "2026-10-14T00:00:00.000Z" }
             : { kind };
         const notice = describeDictationProblem(problem, {
@@ -51,7 +52,8 @@ describe("describeDictationProblem", () => {
     );
     expect(notices).toMatchInlineSnapshot(`
       {
-        "allowance-reached": "info: You've used today's dictation / You can dictate again at 8:00 PM.",
+        "allowance-reached": "info: You've used today's dictation / Your recording is safe, and you can send it at 8:00 PM. [retry]",
+        "allowance-used-up": "info: You've used today's dictation / You can dictate again at 8:00 PM.",
         "capture-failed": "error: Couldn't start recording / Something went wrong with the microphone. Try again.",
         "connection": "error: Couldn't reach Instrument / Your recording is safe. Check your connection, then try again. [retry]",
         "microphone-busy": "error: Couldn't start recording / Another app is using the microphone. Close it, then try again.",

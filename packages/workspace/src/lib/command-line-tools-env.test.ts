@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const execFileSync = vi.hoisted(() => vi.fn());
-vi.mock("node:child_process", () => ({ execFileSync }));
+const execFile = vi.hoisted(() => vi.fn());
+vi.mock("node:child_process", () => ({ execFile, execFileSync }));
 
 const existsSync = vi.hoisted(() => vi.fn());
 vi.mock("node:fs", () => ({ default: { existsSync } }));
@@ -149,5 +150,94 @@ describe("commandLineToolsEnv", () => {
       loadCommandLineToolsEnv({ platform: "linux" }),
     ).resolves.toEqual({});
     expect(execFileSync).not.toHaveBeenCalled();
+  });
+});
+
+/** A variable of the env an `execFile` call was given, read off its options. */
+function readEnv(options: unknown, name: string): unknown {
+  if (
+    typeof options === "object" &&
+    options !== null &&
+    "env" in options &&
+    typeof options.env === "object" &&
+    options.env !== null
+  ) {
+    return new Map<string, unknown>(Object.entries(options.env)).get(name);
+  }
+  return undefined;
+}
+
+describe("recheckCommandLineTools", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /**
+   * A Mac that started without the tools, with the guard on the process as
+   * Studio sets it, asked again once `xcode-select -p` prints `selectedPath`.
+   */
+  async function recheck(selectedPath: string | undefined) {
+    vi.resetModules();
+    execFile.mockReset();
+    existsSync.mockReset();
+    existsSync.mockReturnValue(true);
+    execFile.mockImplementation(
+      (
+        _file: string,
+        _args: string[],
+        _options: unknown,
+        callback: (error: Error | null, result?: { stdout: string }) => void,
+      ) =>
+        selectedPath === undefined
+          ? callback(new Error("unable to get active developer directory"))
+          : callback(null, { stdout: `${selectedPath}\n` }),
+    );
+    const platformSpy = vi
+      .spyOn(process, "platform", "get")
+      .mockReturnValue("darwin");
+    const prior = {
+      CC: process.env.CC,
+      DEVELOPER_DIR: process.env.DEVELOPER_DIR,
+    };
+    applyEnv({ CC: GUARDED.CC, DEVELOPER_DIR: GUARDED.DEVELOPER_DIR });
+    try {
+      const module = await import("./command-line-tools-env");
+      const missing = await module.recheckCommandLineTools();
+      return {
+        env: module.commandLineToolsEnv(),
+        missing,
+        onProcess: {
+          CC: process.env.CC,
+          DEVELOPER_DIR: process.env.DEVELOPER_DIR,
+        },
+        probedWith: execFile.mock.calls.map((call: unknown[]): unknown =>
+          readEnv(call[2], "DEVELOPER_DIR"),
+        ),
+      };
+    } finally {
+      platformSpy.mockRestore();
+      applyEnv(prior);
+    }
+  }
+
+  it("lifts the guard from the process once the tools are installed", async () => {
+    await expect(
+      recheck("/Library/Developer/CommandLineTools"),
+    ).resolves.toEqual({
+      env: {},
+      missing: false,
+      onProcess: { CC: undefined, DEVELOPER_DIR: undefined },
+      // The guard would answer for itself, so the probe runs without it.
+      probedWith: [undefined],
+    });
+  });
+
+  it("keeps it while they are still missing", async () => {
+    await expect(recheck(undefined)).resolves.toEqual({
+      env: GUARDED,
+      missing: true,
+      onProcess: { CC: GUARDED.CC, DEVELOPER_DIR: GUARDED.DEVELOPER_DIR },
+      probedWith: [undefined],
+    });
   });
 });

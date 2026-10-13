@@ -28,6 +28,7 @@ declare namespace NodeJS {
       BUILDER_PUBLISH_S3_ENDPOINT: string | undefined;
       CC: string | undefined;
       CI: string | undefined;
+      CXX: string | undefined;
       DEVELOPER_DIR: string | undefined;
       DISABLE_AUTO_UPDATE_POLLING: string | undefined;
       /** Dev only: keep main and preload at the bytes they booted with. */

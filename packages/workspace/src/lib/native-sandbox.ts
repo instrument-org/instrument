@@ -15,6 +15,7 @@ import path from "node:path";
 
 import { AsyncLocalStorage } from "node:async_hooks";
 
+import { COMMAND_LINE_TOOLS_INSTALLER } from "./command-line-tools-env";
 import { canonicalizeThroughMissing, hostPathWithin } from "./host-path";
 import {
   accountCanWrite,
@@ -320,6 +321,14 @@ export function seatbeltProfile(
     "(deny appleevent-send)",
     "(deny lsopen)",
     '(deny mach-lookup (global-name "com.apple.coreservices.appleevents"))',
+    // The macOS developer tool stubs in /usr/bin (`make`, `cc`, `git`,
+    // `python3`, `xcrun`) ask this launchd service to show the Command Line
+    // Tools installer when no developer directory resolves. Closed, a stub
+    // reports that no install could be requested and exits, whatever its
+    // environment: `DEVELOPER_DIR` (command-line-tools-env.ts) is only a
+    // variable, and `env -i` or a script's scrubbed env drops it. A Mac with
+    // the tools never asks, so nothing that works is lost.
+    `(deny mach-lookup (global-name "${COMMAND_LINE_TOOLS_INSTALLER}"))`,
   );
   return ["(version 1)", "(allow default)", ...texts].join("\n");
 }
@@ -396,6 +405,31 @@ export function seatbeltAvailable(): boolean {
  * the app. Elsewhere, or when Seatbelt cannot apply, the command comes back
  * unchanged and `reach` is absent.
  */
+/**
+ * A program the app runs for itself, outside the rules, with only the
+ * Command Line Tools installer closed to it and everything it starts: the
+ * one thing of the native profile that holds for a child that clears its
+ * environment of the `DEVELOPER_DIR` guard. Unwrapped where Seatbelt cannot
+ * be applied. Not for a program that sandboxes itself (Chromium), since
+ * Seatbelt does not nest.
+ */
+export function withInstallerClosed(
+  file: string,
+  args: readonly string[],
+): { args: string[]; file: string } {
+  return seatbeltAvailable()
+    ? {
+        args: [
+          "-p",
+          `(version 1)(allow default)(deny mach-lookup (global-name "${COMMAND_LINE_TOOLS_INSTALLER}"))`,
+          file,
+          ...args,
+        ],
+        file: SANDBOX_EXEC,
+      }
+    : { args: [...args], file };
+}
+
 export function wrapNativeCommand(
   file: string,
   args: readonly string[],

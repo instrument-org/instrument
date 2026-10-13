@@ -1,7 +1,8 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import fs from "node:fs";
+import { promisify } from "node:util";
 
-// macOS ships ~110 binaries in /usr/bin -- `cc`, `git`, `make`, `python3`,
+// macOS ships 95 binaries in /usr/bin -- `cc`, `git`, `make`, `python3`,
 // `install_name_tool`, `strip`, `ranlib`, and the rest -- as xcode-select stubs
 // rather than real tools. Each one resolves the active developer directory
 // before doing anything else, and on a machine that has never installed the
@@ -30,6 +31,25 @@ import fs from "node:fs";
  */
 export const MISSING_DEVELOPER_DIR =
   "/nonexistent/instrument-command-line-tools-not-installed";
+
+/**
+ * The launchd service a stub asks to show the installer. The native sandbox
+ * closes it, so a stub run with the guard scrubbed from its environment
+ * (`env -i`, a script that builds its own) still cannot raise the dialog.
+ */
+export const COMMAND_LINE_TOOLS_INSTALLER =
+  "com.apple.dt.CommandLineTools.installondemand";
+
+/**
+ * The symbol a stub calls to hand itself to the developer directory's real
+ * tool. Every stub imports it, so its name is in the binary; the real tools
+ * that link libxcselect only to look the directory up (`leaks`, `heap`,
+ * `kmutil`) import something else and never ask for an install.
+ */
+const STUB_MARKER = "xcselect_invoke_xcrun";
+
+/** Stubs are a few hundred kilobytes; a larger file is not read. */
+const STUB_MAX_BYTES = 4 * 1024 * 1024;
 
 /** A real binary that fails, so an unexpected compile ends rather than prompts. */
 const NOOP_COMPILER = "/usr/bin/false";
@@ -89,18 +109,136 @@ function guard() {
 function hasDeveloperDirectory(): boolean {
   if (cachedDeveloperDirectory === undefined) {
     try {
-      const developerDir = execFileSync("xcode-select", ["-p"], {
-        encoding: "utf8",
-      }).trim();
-      // The exit status alone is not enough: xcode-select reports the path it
-      // was pointed at, which outlives the Xcode.app or CommandLineTools
-      // directory a macOS upgrade or an uninstall removed. The stubs resolve
-      // the directory itself, so that is what has to be checked.
-      cachedDeveloperDirectory =
-        developerDir !== "" && fs.existsSync(developerDir);
+      cachedDeveloperDirectory = developerDirectoryExists(
+        execFileSync("xcode-select", ["-p"], {
+          encoding: "utf8",
+          env: probeEnv(),
+        }),
+      );
     } catch {
       cachedDeveloperDirectory = false;
     }
   }
   return cachedDeveloperDirectory;
+}
+
+// The exit status alone is not enough: xcode-select reports the path it was
+// pointed at, which outlives the Xcode.app or CommandLineTools directory a
+// macOS upgrade or an uninstall removed. The stubs resolve the directory
+// itself, so that is what has to be checked.
+function developerDirectoryExists(printed: string) {
+  const developerDir = printed.trim();
+  return developerDir !== "" && fs.existsSync(developerDir);
+}
+
+/**
+ * The environment the probe runs in. `xcode-select -p` prints `DEVELOPER_DIR`
+ * when it is set, so with the guard on this process it would answer for the
+ * guard rather than the disk.
+ */
+function probeEnv() {
+  const env = { ...process.env };
+  delete env.DEVELOPER_DIR;
+  return env;
+}
+
+/**
+ * Whether this Mac has no developer tools, so a stub would ask to install
+ * them: the guard is what {@link commandLineToolsEnv} decided on. False off
+ * macOS and wherever a toolchain is configured or installed.
+ */
+export function commandLineToolsMissing(): boolean {
+  return commandLineToolsEnv().DEVELOPER_DIR === MISSING_DEVELOPER_DIR;
+}
+
+/**
+ * Asks again whether the tools are installed, for a Mac that had none when the
+ * probe first ran: the person may have installed them since. Once they are
+ * there, the guard comes off this process, so every later spawn reaches the
+ * tools without a restart. Resolves whether they are still missing.
+ */
+export async function recheckCommandLineTools(): Promise<boolean> {
+  if (!commandLineToolsMissing()) {
+    return false;
+  }
+  let installed = false;
+  try {
+    const { stdout } = await promisify(execFile)("xcode-select", ["-p"], {
+      encoding: "utf8",
+      env: probeEnv(),
+    });
+    installed = developerDirectoryExists(stdout);
+  } catch {
+    installed = false;
+  }
+  if (!installed) {
+    return true;
+  }
+  cachedDeveloperDirectory = true;
+  if (process.env.DEVELOPER_DIR === MISSING_DEVELOPER_DIR) {
+    delete process.env.DEVELOPER_DIR;
+  }
+  if (process.env.CC === NOOP_COMPILER) {
+    delete process.env.CC;
+  }
+  if (process.env.CXX === NOOP_COMPILER) {
+    delete process.env.CXX;
+  }
+  return false;
+}
+
+const stubs = new Map<string, boolean>();
+
+/**
+ * Whether the file at `hostPath` is one of the xcode-select stubs, read off
+ * the binary itself, so a macOS release that adds or drops one needs no list.
+ * Remembered per path for the life of the process: the stubs live on the
+ * system volume, which changes only with a macOS update and a restart.
+ */
+export async function isCommandLineToolsStub(
+  hostPath: string,
+): Promise<boolean> {
+  const known = stubs.get(hostPath);
+  if (known !== undefined) {
+    return known;
+  }
+  let stub = false;
+  try {
+    const { size } = await fs.promises.stat(hostPath);
+    stub =
+      size <= STUB_MAX_BYTES &&
+      (await fs.promises.readFile(hostPath)).includes(STUB_MARKER);
+  } catch {
+    stub = false;
+  }
+  stubs.set(hostPath, stub);
+  return stub;
+}
+
+const INSTALL_ADVICE =
+  "Ask the person whether they want to install them (they run `xcode-select --install` in Terminal), and run the command again once they have.";
+
+/** What the agent is told in place of running a stub, named by its file name. */
+export function commandLineToolsRefusal(command: string): string {
+  const name = command.split("/").at(-1) ?? command;
+  return `${name} needs Apple's Command Line Tools, which aren't installed on this Mac. ${INSTALL_ADVICE}\n`;
+}
+
+/**
+ * The note for a command that failed on the guard after the person installed
+ * the tools: the recheck lifted it, so running the command again works.
+ */
+export const COMMAND_LINE_TOOLS_ARRIVED =
+  "Apple's Command Line Tools are installed now, so run the command again.\n";
+
+/**
+ * The note for a command whose own program reached a stub that failed: the
+ * guard's error, or the stub's report that the closed installer service could
+ * not be asked. Undefined for output that shows neither.
+ */
+export function commandLineToolsNote(output: string): string | undefined {
+  return output.includes(MISSING_DEVELOPER_DIR) ||
+    output.includes("no install could be requested")
+    ? `A program this command started needs Apple's Command Line Tools, which aren't installed on this Mac. ${INSTALL_ADVICE}\n`
+    : undefined;
 }

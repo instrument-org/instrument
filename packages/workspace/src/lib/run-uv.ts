@@ -4,6 +4,7 @@ import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { filterShellOutput } from "./filter-shell-output";
 import { inheritedEnv } from "./native-env";
+import { withInstallerClosed } from "./native-sandbox";
 import { getUvBinPath, uvSubprocessEnv } from "./uv";
 
 export async function runUvCommand({
@@ -27,7 +28,10 @@ export async function runUvCommand({
   chatId: ChatId;
 }) {
   const { UV_EXCLUDE_NEWER, ...pinnedEnv } = uvSubprocessEnv({ chatId });
-  const result = await execa(getUvBinPath(), args, {
+  // Outside the rules, as the app's own install, but never able to open the
+  // Command Line Tools installer: a build backend uv runs may clear its env.
+  const spawned = withInstallerClosed(getUvBinPath(), args);
+  const result = await execa(spawned.file, spawned.args, {
     all: true,
     cancelSignal: signal,
     cwd,

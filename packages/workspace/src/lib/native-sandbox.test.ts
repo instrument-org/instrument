@@ -93,6 +93,7 @@ describe("seatbeltProfile", () => {
         "(deny appleevent-send)",
         "(deny lsopen)",
         "(deny mach-lookup (global-name "com.apple.coreservices.appleevents"))",
+        "(deny mach-lookup (global-name "com.apple.dt.CommandLineTools.installondemand"))",
       ]
     `);
   });

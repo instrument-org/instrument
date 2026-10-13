@@ -8,6 +8,12 @@ import { access, open, stat } from "node:fs/promises";
 import nodePath from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
+import {
+  commandLineToolsMissing,
+  commandLineToolsRefusal,
+  isCommandLineToolsStub,
+  recheckCommandLineTools,
+} from "../command-line-tools-env";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { nodeToolsEnv } from "../tool-isolation";
@@ -162,7 +168,7 @@ export function createPathProgramResolver(
       const hostPath = hostPathOf(nodePath.posix.resolve(cwd, name));
       return (await runsNatively(hostPath))
         ? {
-            command: createPathProgramCommand(chatId, name, hostPath),
+            command: await programCommand(chatId, name, hostPath),
             path: shellPath(hostPath),
           }
         : undefined;
@@ -174,10 +180,47 @@ export function createPathProgramResolver(
     return hostPath === undefined
       ? undefined
       : {
-          command: createPathProgramCommand(chatId, name, hostPath),
+          command: await programCommand(chatId, name, hostPath),
           path: shellPath(hostPath),
         };
   };
+}
+
+/**
+ * Whether the program at `hostPath` is a macOS developer tool stub on a Mac
+ * without the tools, which would ask to install them rather than run.
+ */
+export async function isMissingDeveloperTool(hostPath: string) {
+  return (
+    process.platform === "darwin" &&
+    commandLineToolsMissing() &&
+    (await isCommandLineToolsStub(hostPath))
+  );
+}
+
+/**
+ * The command a found program runs as. A developer tool stub on a Mac without
+ * the tools is refused with what the agent should do instead, since running it
+ * could only fail; once the person has installed the tools it runs.
+ */
+async function programCommand(
+  chatId: ChatId,
+  name: string,
+  hostPath: string,
+): Promise<Command> {
+  const program = createPathProgramCommand(chatId, name, hostPath);
+  if (!(await isMissingDeveloperTool(hostPath))) {
+    return program;
+  }
+  return defineCommand(name, async (args, ctx) =>
+    (await recheckCommandLineTools())
+      ? {
+          exitCode: 127,
+          stderr: commandLineToolsRefusal(name),
+          stdout: "",
+        }
+      : program.execute(args, ctx),
+  );
 }
 
 /** Every program a name names on the PATH programs are looked up on. */

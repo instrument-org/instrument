@@ -19,8 +19,13 @@
  *   has never installed the tools, then sets the guard on this process with
  *   `applyCommandLineToolsEnv`, as Studio's startup does. Every stub reached
  *   afterwards, by the install and by a `make` run through `execShim` the way
- *   the agent's shell runs one, must see the guard's DEVELOPER_DIR. This is
- *   the end-to-end regression test for that guard, and has to run alone.
+ *   the agent's shell runs one, must see the guard's DEVELOPER_DIR. Then a
+ *   real chat shell must refuse `make`, `/usr/bin/make`, `xcrun` and `env
+ *   make` and have `which` say they need the tools, without reaching a stub,
+ *   and a program it starts must be refused the installer service, the one
+ *   check that holds for a child that clears its environment (skipped where
+ *   no GUI session offers the service at all, as on a CI runner). This is the
+ *   end-to-end regression test for the boundary, and has to run alone.
  *
  * Exits non-zero on any failed install, unrunnable interpreter, unaccounted
  * stub, or (in `guarded`) a guard that did not engage or a stub reached
@@ -49,9 +54,12 @@ import { ulid } from "ulid";
 import { CHAT_FOLDER_NAMES } from "../src/constants";
 import {
   applyCommandLineToolsEnv,
+  COMMAND_LINE_TOOLS_INSTALLER,
   MISSING_DEVELOPER_DIR,
 } from "../src/lib/command-line-tools-env";
 import { copySkill } from "../src/lib/copy-skill";
+import { createBashEnv } from "../src/lib/create-bash-env";
+import { seatbeltAvailable } from "../src/lib/native-sandbox";
 import { installPythonSkill } from "../src/lib/install-python-skill";
 import { runPnpmCommand } from "../src/lib/run-pnpm";
 import { execShim } from "../src/lib/shell-commands/exec-shim";
@@ -67,7 +75,7 @@ import { StoreId } from "../src/schemas/store-id";
 import { ChatIdSchema } from "../src/schemas/chat-id";
 import {
   CLT_SHIM_NAMES,
-  findUnlistedHostShims,
+  compareHostShims,
   SAFE_SHIM_INVOCATIONS,
 } from "./lib/clt-shims";
 import { createStubWorkspaceConfig } from "./lib/stub-workspace-config";
@@ -117,7 +125,8 @@ function indent(text: string) {
 async function placeAuditChat() {
   const chatId = ChatIdSchema.parse(ulid().toLowerCase());
   // Put in the chat index, so every later lookup of the id finds its folder.
-  const dir = placeChat(chatId, StoreId.newSessionId());
+  const sessionId = StoreId.newSessionId();
+  const dir = placeChat(chatId, sessionId);
   await fs.mkdir(dir, { recursive: true });
   // `work/` has to arrive from the template: its package.json and
   // pnpm-workspace.yaml are what make the skill's own `pnpm install` a nested
@@ -132,7 +141,7 @@ async function placeAuditChat() {
   ]) {
     await fs.mkdir(path.join(dir, folder), { recursive: true });
   }
-  return { chatId, dir };
+  return { chatId, dir, sessionId };
 }
 
 /**
@@ -149,6 +158,91 @@ async function probeShellStubs() {
       ...(env ? { env } : {}),
     });
   }
+}
+
+/**
+ * Does the mach-lookup of the installer service a stub makes, as Python's
+ * ctypes can, and prints the kern_return_t: 0 is a port, anything else is
+ * no service to ask.
+ */
+const INSTALLER_LOOKUP = [
+  "import ctypes, sys",
+  'lib = ctypes.CDLL("/usr/lib/libSystem.B.dylib")',
+  "port = ctypes.c_uint(0)",
+  'print(lib.bootstrap_look_up(ctypes.c_uint.in_dll(lib, "bootstrap_port"), sys.argv[1].encode(), ctypes.byref(port)))',
+].join("\n");
+
+/**
+ * The boundary on a Mac without the tools, through a real chat shell: the
+ * shell refuses a stub by bare name, by path, through `xcrun` and `env`, and
+ * `which` says it needs the tools, none of it reaching the stub; and a program
+ * the shell starts cannot ask for the installer, the case a child that clears
+ * its environment leaves to the sandbox alone. Returns the failures.
+ */
+async function probeBoundary(logPath: string) {
+  const { chatId, sessionId } = await placeAuditChat();
+  const bash = await createBashEnv({
+    chatId,
+    sessionId,
+  });
+  const before = (await readShimLog(logPath)).length;
+  let failed = 0;
+  const report = (ok: boolean, line: string) => {
+    if (!ok) {
+      failed++;
+    }
+    process.stdout.write(`  ${ok ? "ok  " : "FAIL"} ${line}\n`);
+  };
+
+  process.stdout.write("\nshell boundary:\n");
+  for (const command of [
+    "make --version",
+    "/usr/bin/make --version",
+    "xcrun --find clang",
+    "env make --version",
+    "which make",
+  ]) {
+    const result = await bash.exec(command);
+    report(
+      result.stderr.includes("needs Apple's Command Line Tools") &&
+        result.exitCode !== 0,
+      `${command}: ${result.stderr.trim().split("\n")[0] ?? `exit ${result.exitCode}`}`,
+    );
+  }
+  // xcode-select is the recheck asking whether the tools arrived since.
+  const reached = (await readShimLog(logPath))
+    .slice(before)
+    .filter(({ name }) => name !== "xcode-select");
+  report(
+    reached.length === 0,
+    `stubs reached through the refusals: ${reached.map(({ name }) => name).join(", ") || "none"}`,
+  );
+
+  // The sandbox's half needs a Python; the chat's is the one a script runs.
+  const lookup = `python3 -c '${INSTALLER_LOOKUP}' ${COMMAND_LINE_TOOLS_INSTALLER}`;
+  const wrapped = await bash.exec(lookup);
+  const unwrapped = await execa(
+    chatVenvPython(chatId),
+    ["-c", INSTALLER_LOOKUP, COMMAND_LINE_TOOLS_INSTALLER],
+    { reject: false },
+  );
+  if (!seatbeltAvailable()) {
+    process.stdout.write(
+      "  skip installer service: Seatbelt cannot be applied from this process\n",
+    );
+  } else if (unwrapped.stdout.trim() !== "0") {
+    // Without a GUI session (a CI runner) the service is not in reach of
+    // anything, so a refusal inside the sandbox would prove nothing.
+    process.stdout.write(
+      `  skip installer service: not reachable outside the sandbox either (${unwrapped.stdout.trim() || unwrapped.stderr.trim()})\n`,
+    );
+  } else {
+    report(
+      wrapped.exitCode === 0 && wrapped.stdout.trim() !== "0",
+      `installer service from inside the sandbox: ${wrapped.stdout.trim() || wrapped.stderr.trim()} (0 outside it)`,
+    );
+  }
+  return failed;
 }
 
 /** Runs the two installs `load_skill` runs, against a throwaway task dir. */
@@ -393,6 +487,9 @@ async function writeShimStubs({
           : [`if [ -x '${real}' ]; then exec '${real}' "$@"; fi`, "exit 127"];
       const script = [
         "#!/bin/sh",
+        // Carries the symbol a real stub imports, so the shell takes this
+        // stand-in for one as it would the stub it shadows.
+        "# _xcselect_invoke_xcrun",
         "{",
         `  printf '%s\\t%s\\t%s' '${name}' "$(ps -o comm= -p "$PPID" 2>/dev/null | sed 's|.*/||')" "$DEVELOPER_DIR"`,
         `  for arg in "$@"; do printf '\\t%s' "$arg"; done`,
@@ -419,10 +516,22 @@ const repoRoot = path.resolve(
 );
 const registrySkillsDir = path.join(repoRoot, "registry", "skills");
 
-const unlisted = await findUnlistedHostShims();
+const { notStubs, unlisted } = await compareHostShims();
 if (unlisted.length > 0) {
   process.stderr.write(
     `warning: this macOS ships stubs not in CLT_SHIM_NAMES: ${unlisted.join(", ")}\n\n`,
+  );
+}
+
+let failures = 0;
+
+// The shell refuses a stub by what isCommandLineToolsStub reads off the
+// binary, so a listed name it no longer recognizes is a stub the agent would
+// run, and on a Mac without the tools only the sandbox would stop it.
+if (notStubs.length > 0) {
+  failures++;
+  process.stderr.write(
+    `isCommandLineToolsStub does not recognize these listed stubs on this macOS: ${notStubs.join(", ")}\n\n`,
   );
 }
 
@@ -435,8 +544,6 @@ const pnpmBinPath = await resolveBundledBinary(
   "pnpm",
 );
 const originalPath = process.env.PATH ?? "";
-
-let failures = 0;
 
 for (const mode of args.modes) {
   // A cold uv cache and pnpm store per pass. A warm one skips the downloads,
@@ -554,6 +661,8 @@ for (const mode of args.modes) {
           "shell probe DID NOT REACH the make stub -- the check proved nothing\n",
         );
       }
+
+      failures += await probeBoundary(logPath);
 
       // xcode-select is the guard's own probe, which runs before the guard
       // exists and never prompts.

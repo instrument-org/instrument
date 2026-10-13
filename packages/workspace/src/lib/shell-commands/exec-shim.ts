@@ -1,6 +1,12 @@
 import { execa, type Options } from "execa";
 import { type Serializable } from "node:child_process";
 
+import {
+  COMMAND_LINE_TOOLS_ARRIVED,
+  commandLineToolsMissing,
+  commandLineToolsNote,
+  recheckCommandLineTools,
+} from "../command-line-tools-env";
 import { inheritedEnv } from "../native-env";
 
 import {
@@ -154,6 +160,22 @@ export async function execShim(
             : undefined,
         )
       : undefined;
+  // A program that reached a developer tool stub on a Mac without the tools
+  // fails with the stub's own error, which does not say what to do.
+  const missingTools =
+    result.exitCode !== 0 && commandLineToolsMissing()
+      ? commandLineToolsNote(`${stderr}\n${stdout}`)
+      : undefined;
+  const notes = [
+    ...(refused ? [`${refusalNote(refused)}\n`] : []),
+    ...(missingTools
+      ? [
+          (await recheckCommandLineTools())
+            ? missingTools
+            : COMMAND_LINE_TOOLS_ARRIVED,
+        ]
+      : []),
+  ].join("");
   return {
     exitCode: result.exitCode,
     // The binary that was launched, kept so a diagnostic can name the command
@@ -169,8 +191,8 @@ export async function execShim(
     // (when `encoding` is set). Neither is settable here, so the string branch
     // is the only reachable one; narrowing rather than asserting keeps that
     // guarantee checked.
-    stderr: refused
-      ? `${stderr}${stderr.endsWith("\n") || stderr === "" ? "" : "\n"}${refusalNote(refused)}\n`
+    stderr: notes
+      ? `${stderr}${stderr.endsWith("\n") || stderr === "" ? "" : "\n"}${notes}`
       : stderr,
     stdout,
   };

@@ -204,7 +204,7 @@ export function createOsascriptCommand(
         : undefined;
     if (outside) {
       return refuse(
-        `this script runs code outside the app it tells (\`${outside}\`), which an app you control may not do. Do that part with your own shell, where the folder rules hold, and keep the script to the app's own terms.`,
+        `this script reaches past the app it tells (\`${outside}\`), which a script to an app you control may not do. Do that part with your own shell, where the folder rules hold, and keep the script to the app's own terms.`,
       );
     }
     const hostArgs = args.flatMap((arg, index) =>

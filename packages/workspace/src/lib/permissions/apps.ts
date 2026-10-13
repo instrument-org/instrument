@@ -175,12 +175,13 @@ export function reachesEveryFile(app: string): boolean {
 }
 
 /**
- * Ways a script runs code outside the app it tells: a shell, another script,
- * the Objective-C bridge. An allowed script runs outside the native sandbox
- * (an app refuses Apple Events from a sandboxed sender), so one carrying any
- * of these is refused rather than run with the reach of a shell. Read off the
- * script's text, so a script that hides one in a built string gets past it;
- * the card says so for the apps that reach every file.
+ * Ways a script reaches past the app it tells: a shell, another script, the
+ * Objective-C bridge, Standard Additions' own file reading and writing, or an
+ * app named by a value the check cannot read. An allowed script runs outside
+ * the native sandbox (an app refuses Apple Events from a sandboxed sender),
+ * so one carrying any of these is refused rather than run with the reach of a
+ * shell. Read off the script's text, so a script that hides one in a built
+ * string gets past it; the card says so for the apps that reach every file.
  */
 const RUNS_CODE_OUTSIDE = [
   /\bdo\s+shell\s+script\b/i,
@@ -195,10 +196,41 @@ const RUNS_CODE_OUTSIDE = [
   /\bFunction\s*\(/,
 ];
 
+/**
+ * The same, matched with the script's string literals emptied, since these
+ * are words a note or a message may well hold.
+ */
+const REACHES_OUTSIDE_IN_CODE = [
+  /\bopen\s+for\s+access\b/i,
+  /\bwrite\b[^\n]*\bto\b/i,
+  // Mail's `read status` is a property, not Standard Additions' `read`.
+  /\bread\s+(?!status\b)\S/i,
+  /\bincludeStandardAdditions\b/,
+  // An app named by a variable or an expression, which scriptTargets cannot
+  // hold to the allowed apps.
+  /(?<!current\s)\bapp(?:lication)?\s+(?!id\s*["']|["'])[\w(]/i,
+  /\bApplication\s*\(\s*(?!["'])[^)\s]/,
+];
+
+/** A script with every string literal's contents removed. */
+function withoutStrings(source: string): string {
+  return source.replaceAll(
+    /"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g,
+    (literal) => literal.charAt(0).repeat(2),
+  );
+}
+
 /** The first way a script runs code outside its app, as written in it. */
 export function runsCodeOutside(source: string): string | undefined {
   for (const pattern of RUNS_CODE_OUTSIDE) {
     const found = pattern.exec(source)?.[0];
+    if (found) {
+      return found.trim();
+    }
+  }
+  const code = withoutStrings(source);
+  for (const pattern of REACHES_OUTSIDE_IN_CODE) {
+    const found = pattern.exec(code)?.[0];
     if (found) {
       return found.trim();
     }

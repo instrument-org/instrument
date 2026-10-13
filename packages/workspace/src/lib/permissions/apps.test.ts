@@ -33,6 +33,18 @@ describe("runsCodeOutside", () => {
     ["$.NSTask.alloc", "$."],
     ['tell application "Mail" to count messages of inbox', undefined],
     ["Application('Music').play()", undefined],
+    ['read POSIX file "/Users/sam/.ssh/id_test"', "read P"],
+    ["set f to open for access p with write permission", "open for access"],
+    ['write "x" to f', "write \"\" to"],
+    ['set n to "Terminal"\ntell application n to activate', "application n"],
+    ["Application(name).activate()", "Application(n"],
+    ["app.includeStandardAdditions = true", "includeStandardAdditions"],
+    [
+      'tell application "Notes" to make new note with properties {body:"read this and write back to me"}',
+      undefined,
+    ],
+    ['tell application "Mail" to set read status of m to true', undefined],
+    ["tell current application to activate", undefined],
   ])("%s", (source, expected) => {
     expect(runsCodeOutside(source)).toBe(expected);
   });

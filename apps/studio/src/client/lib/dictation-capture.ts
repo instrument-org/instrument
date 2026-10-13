@@ -2,6 +2,8 @@ import { rmsOf } from "@/client/lib/dictation-levels";
 
 /** What the recorder writes, and what the API is told it is getting. */
 const RECORDING_MIME_TYPE = "audio/webm;codecs=opus";
+/** The rate the API estimates a recording's length by, and caps its size from. */
+const RECORDING_BITS_PER_SECOND = 32_000;
 
 /** Why the microphone could not be opened, in the terms a toast speaks. */
 export class MicrophoneError extends Error {
@@ -82,6 +84,7 @@ export class MicCapture {
 
     try {
       const recorder = new MediaRecorder(stream, {
+        audioBitsPerSecond: RECORDING_BITS_PER_SECOND,
         mimeType: MediaRecorder.isTypeSupported(RECORDING_MIME_TYPE)
           ? RECORDING_MIME_TYPE
           : undefined,

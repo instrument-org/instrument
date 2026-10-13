@@ -7,7 +7,7 @@ import { useState } from "react";
  * page's zoom, "Updated"); and the tail (a page's controls, a file's
  * actions). Null until the row is up.
  */
-export interface RowSlots {
+interface RowSlots {
   field: HTMLElement | null;
   lead: HTMLElement | null;
   reload: HTMLElement | null;

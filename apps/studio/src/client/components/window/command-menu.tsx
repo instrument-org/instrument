@@ -165,7 +165,8 @@ export type CommandMenuSurface = "dialog" | "page";
  * starting `!` reach the switches kept out of sight: `!dev` and `!beta`.
  *
  * The rows follow the words a beat behind while typing, so the field keeps
- * up with the keys; `words` in the result is what the rows are for.
+ * up with the keys; `words` in the result is what the rows are for, and
+ * `pick` is the row Return runs, for the menu's `Command` to hold.
  */
 export function useCommandMenuRows({
   active,
@@ -183,7 +184,12 @@ export function useCommandMenuRows({
   openScreen: (href: string) => void;
   surface: CommandMenuSurface;
   words: string;
-}): { isBang: boolean; rows: Row[]; words: string } {
+}): {
+  isBang: boolean;
+  pick: { onValueChange: (id: string) => void; value: string };
+  rows: Row[];
+  words: string;
+} {
   const words = useDeferredValue(typed);
   const shell = useShell();
   const { setTheme, theme } = useTheme();
@@ -756,7 +762,24 @@ export function useCommandMenuRows({
           ...(section.looking ? [{ type: "looking" as const }] : []),
         ],
   );
-  return { isBang, rows, words };
+
+  // The row Return runs: the first for each new search, and one picked by a
+  // key or the pointer for as long as it is listed. cmdk's own pick moves to
+  // the first row only when the rows it already shows change, and these
+  // arrive a beat after the words, so words pasted whole would otherwise
+  // leave it on a row the empty menu had and the new rows do not.
+  const [picked, setPicked] = useState<{ id: string; words: string }>();
+  const ids = rows.flatMap((row) => (row.type === "item" ? [row.id] : []));
+  const pick = {
+    onValueChange: (id: string) => {
+      setPicked({ id, words });
+    },
+    value:
+      picked?.words === words && ids.includes(picked.id)
+        ? picked.id
+        : (ids[0] ?? ""),
+  };
+  return { isBang, pick, rows, words };
 }
 
 /**
@@ -810,7 +833,7 @@ export function CommandMenu({
   };
   useModalBack(close, open);
 
-  const { isBang, rows, words } = useCommandMenuRows({
+  const { isBang, pick, rows, words } = useCommandMenuRows({
     active: open,
     // A row's action, run once the menu is out of the way.
     done: (run) => () => {
@@ -833,10 +856,12 @@ export function CommandMenu({
           close();
         }
       }}
+      onValueChange={pick.onValueChange}
       open={open}
       shouldFilter={false}
       showCloseButton={false}
       title="Command menu"
+      value={pick.value}
     >
       <CommandInput
         onValueChange={setSearch}

@@ -40,16 +40,21 @@ function CommandDialog({
   children,
   className,
   description = "Search for a command to run...",
+  onValueChange,
   shouldFilter,
   showCloseButton = true,
   title = "Command palette",
+  value,
   ...props
 }: React.ComponentProps<typeof Dialog> & {
   className?: string;
   description?: string;
+  /** The picked row, for a menu that keeps it itself. */
+  onValueChange?: (value: string) => void;
   shouldFilter?: boolean;
   showCloseButton?: boolean;
   title?: string;
+  value?: string;
 }) {
   return (
     <Dialog {...props}>
@@ -63,7 +68,9 @@ function CommandDialog({
       >
         <Command
           className="**:data-[slot=command-input-wrapper]:h-10 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:size-4 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:text-muted-foreground **:[[cmdk-input]]:h-10 **:[[cmdk-item]]:px-3 **:[[cmdk-item]]:py-2"
+          onValueChange={onValueChange}
           shouldFilter={shouldFilter}
+          value={value}
         >
           {children}
         </Command>

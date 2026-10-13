@@ -89,6 +89,7 @@ import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
+import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -264,6 +265,11 @@ export function BrowserPanel({
   const setBlockAds = useMutation(
     rpcClient.preferences.setBlockAds.mutationOptions(),
   );
+  // The blocker reads the choice per request, so the page reloads to show
+  // it the way it looks under the new one.
+  const setBlocking = (enabled: boolean) => {
+    setBlockAds.mutate({ enabled }, { onSuccess: () => guestNow()?.reload() });
+  };
   const openExternalLink = useMutation(
     rpcClient.utils.openExternalLink.mutationOptions(),
   );
@@ -616,14 +622,7 @@ export function BrowserPanel({
               </DropdownMenuItem>
               <DropdownMenuCheckboxItem
                 checked={preferences?.blockAds ?? true}
-                onCheckedChange={(enabled) => {
-                  // The blocker reads the choice per request, so the page
-                  // reloads to show it the way it looks under the new one.
-                  setBlockAds.mutate(
-                    { enabled },
-                    { onSuccess: () => guestNow()?.reload() },
-                  );
-                }}
+                onCheckedChange={setBlocking}
               >
                 <ShieldCheckIcon className="size-4" />
                 Block ads
@@ -748,6 +747,22 @@ export function BrowserPanel({
         );
         // Reload becomes Stop for as long as the page loads, which is also
         // how a reload that changes nothing on the page still shows it ran.
+        // Said in the address field only while ads are let through, since
+        // the choice holds for every page from then on and is easy to forget
+        // once the page that needed it is gone. A press turns blocking back on.
+        const fieldShield = preferences?.blockAds === false && (
+          <ToolbarTooltip label="Turn on ad blocking">
+            <button
+              className="grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
+              onClick={() => {
+                setBlocking(true);
+              }}
+              type="button"
+            >
+              <ShieldSlashIcon className="size-3.5" />
+            </button>
+          </ToolbarTooltip>
+        );
         const rowReload = nav.isLoading ? (
           <TabRowControl
             disabled={!active}
@@ -828,6 +843,11 @@ export function BrowserPanel({
                   value={draftUrl}
                 />
                 <LoadProgress isLoading={nav.isLoading} />
+                {fieldShield && (
+                  <InputGroupAddon align="inline-end">
+                    {fieldShield}
+                  </InputGroupAddon>
+                )}
                 <InputGroupAddon
                   align="inline-end"
                   className="hidden group-focus-within/input-group:flex group-hover/input-group:flex"
@@ -860,6 +880,7 @@ export function BrowserPanel({
               {chrome.fieldInto &&
                 createPortal(
                   <>
+                    {fieldShield}
                     {fieldZoom}
                     <LoadProgress isLoading={nav.isLoading} />
                   </>,

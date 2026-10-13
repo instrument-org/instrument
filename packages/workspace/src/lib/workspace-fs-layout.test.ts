@@ -111,9 +111,9 @@ describe("buildBashFs", () => {
     const bash = await makeBash([
       { level: "readOnly", path: docs, source: "system" },
     ]);
-    await expect(bash.exec(`echo nope > '${docs}/new.txt'`)).rejects.toThrow(
-      /EACCES/,
-    );
+    const write = await bash.exec(`echo nope > '${docs}/new.txt'`);
+    expect(write.exitCode).toBe(1);
+    expect(write.stderr).toBe(`bash: ${docs}/new.txt: Permission denied\n`);
     await expect(fs.access(path.join(docs, "new.txt"))).rejects.toThrow();
     const read = await bash.exec(`cat '${docs}/readme.txt'`);
     expect(read.stdout).toBe("hello docs");

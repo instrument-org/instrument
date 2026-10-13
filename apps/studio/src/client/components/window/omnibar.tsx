@@ -44,7 +44,10 @@ import {
   type TypedPath,
   withoutTrailingSeparators,
 } from "@/client/lib/typed-path";
-import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
+import {
+  webSearchLabel,
+  webSearchUrl,
+} from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -680,11 +683,10 @@ function useRows({
       ? pages.find((page) => bareAddress(page.url) === bareAddress(site.url))
       : undefined;
     const searchRow: OmniRow = {
-      detail: "Search DuckDuckGo",
       fill: whole,
       icon: <MagnifyingGlassIcon className="size-4" />,
       id: "search",
-      name: whole,
+      name: webSearchLabel(whole),
       run: () => {
         open.openSite(webSearchUrl(whole));
       },
@@ -954,10 +956,9 @@ function missedRows(
             } satisfies OmniRow,
           ]),
       {
-        detail: "Search DuckDuckGo",
         icon: <MagnifyingGlassIcon className="size-4" />,
         id: "search",
-        name: typed,
+        name: webSearchLabel(typed),
         run: () => {
           open.openSite(webSearchUrl(typed));
         },

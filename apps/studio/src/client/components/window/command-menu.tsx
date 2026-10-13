@@ -52,7 +52,10 @@ import {
   shownTypedPath,
   typedPathHere,
 } from "@/client/lib/locate-typed-path";
-import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
+import {
+  webSearchLabel,
+  webSearchUrl,
+} from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { osConventions } from "@/client/lib/utils";
 import {
@@ -443,7 +446,7 @@ export function useCommandMenuRows({
   const webSearchItem: Item = {
     icon: <MagnifyingGlassIcon />,
     id: "web-search",
-    label: `Search the web for “${words}”`,
+    label: webSearchLabel(words),
     ranges: null,
     run: () => {
       openPage(webSearchUrl(words));

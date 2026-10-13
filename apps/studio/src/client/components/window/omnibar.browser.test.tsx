@@ -81,6 +81,32 @@ describe("a path the field found nothing at", () => {
   });
 });
 
+// The same row the command menu and a new tab offer, in the same words.
+describe("words the field searches the web for", () => {
+  it.each([
+    [{ kind: "newTab" } as const, "rust borrow checker"],
+    [{ kind: "page", url: "https://example.org/" } as const, "rust borrow"],
+  ])("are offered as a web search on %o", async (location, words) => {
+    await renderInBrowser(<Omnibar location={location} />);
+
+    await userEvent.fill(page.getByRole("combobox"), words);
+
+    await expect
+      .element(page.getByRole("option", { selected: true }))
+      .toHaveTextContent(new RegExp(`^Search the web for “${words}”$`));
+  });
+
+  it("is offered after a path with nothing at it", async () => {
+    await renderInBrowser(<Omnibar location={{ kind: "newTab" }} />);
+    await userEvent.fill(page.getByRole("combobox"), "/nowhere/x");
+    await userEvent.keyboard("{Enter}");
+
+    await expect
+      .element(page.getByRole("option", { selected: true }))
+      .toHaveTextContent(/^Search the web for “\/nowhere\/x”$/);
+  });
+});
+
 // Typed over home in Files, a whole path's names are in some other folder,
 // where a name home has too (Documents) would read as home's own.
 describe("a folder's names a whole path reaches", () => {

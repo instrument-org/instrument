@@ -33,6 +33,11 @@ export function webSearchUrl(words: string): string {
   return `https://duckduckgo.com/?q=${encodeURIComponent(words)}`;
 }
 
+/** What a row that searches the web for typed words says, in every field that offers one. */
+export function webSearchLabel(words: string): string {
+  return `Search the web for “${words}”`;
+}
+
 function isLoopbackHost(authority: string): boolean {
   const host = authority.replace(/:\d+$/, "").toLowerCase();
   return (

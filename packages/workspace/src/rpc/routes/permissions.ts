@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getCurrentDate } from "../../lib/get-current-date";
 import { bwrapAvailable, seatbeltAvailable } from "../../lib/native-sandbox";
 import {
+  type Level,
   LevelSchema,
   PLACE_DEFAULTS,
   PlaceIdSchema,
@@ -30,8 +31,9 @@ import { recordChanges } from "../../lib/record-changes";
 import { PermissionAskSchema } from "../../schemas/chat-state";
 import { distinct, liveRead } from "../live-read";
 import { reachOf } from "../../lib/permissions/rules";
+import { hostPathWithin } from "../../lib/host-path";
 import { ChatIdSchema } from "../../schemas/chat-id";
-import { AbsolutePathSchema } from "../../schemas/paths";
+import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import { base } from "../base";
 
 const PermissionsViewSchema = z.object({
@@ -101,30 +103,56 @@ const setPlace = base
     ),
   );
 
+/**
+ * Settings with a folder set to `level`. A folder that is a built-in place
+ * on its own (Documents, Desktop, Downloads) changes that place instead, so
+ * the list never shows one folder twice with two answers. A place made of
+ * several folders, or one that also holds the home folder's hidden entries,
+ * keeps a rule for the one folder, which opens no more than was asked.
+ */
+function withFolderLevel(
+  settings: PermissionSettings,
+  folder: AbsolutePath,
+  level: Level,
+): PermissionSettings {
+  for (const place of placePaths()) {
+    const [only, ...others] = place.paths;
+    if (
+      place.id !== "output" &&
+      only !== undefined &&
+      others.length === 0 &&
+      !place.homeDotEntries &&
+      !place.closedUnlessAllowed &&
+      hostPathWithin(only, folder) === "/"
+    ) {
+      return {
+        ...settings,
+        folders: settings.folders.filter((f) => f.path !== folder),
+        places: { ...settings.places, [place.id]: level },
+      };
+    }
+  }
+  const known = settings.folders.find((f) => f.path === folder);
+  return {
+    ...settings,
+    folders: known
+      ? settings.folders.map((f) => (f.path === folder ? { ...f, level } : f))
+      : [
+          ...settings.folders,
+          { addedAt: getCurrentDate(), level, path: folder },
+        ],
+  };
+}
+
 /** Adds or changes a folder's own rule. */
 const setFolder = base
   .input(z.object({ level: LevelSchema, path: AbsolutePathSchema }))
   .output(PermissionsViewSchema)
   .handler(async ({ input }) =>
     view(
-      await updatePermissionSettings((settings) => {
-        const known = settings.folders.find((f) => f.path === input.path);
-        return {
-          ...settings,
-          folders: known
-            ? settings.folders.map((f) =>
-                f.path === input.path ? { ...f, level: input.level } : f,
-              )
-            : [
-                ...settings.folders,
-                {
-                  addedAt: getCurrentDate(),
-                  level: input.level,
-                  path: input.path,
-                },
-              ],
-        };
-      }),
+      await updatePermissionSettings((settings) =>
+        withFolderLevel(settings, input.path, input.level),
+      ),
     ),
   );
 
@@ -309,13 +337,9 @@ const answer = base
         await grantFolder({ chatId: input.id, path: target, source: "card" });
         if (input.decision === "always") {
           const folder = AbsolutePathSchema.parse(target);
-          await updatePermissionSettings((settings) => ({
-            ...settings,
-            folders: [
-              ...settings.folders.filter((known) => known.path !== folder),
-              { addedAt: getCurrentDate(), level: "allow", path: folder },
-            ],
-          }));
+          await updatePermissionSettings((settings) =>
+            withFolderLevel(settings, folder, "allow"),
+          );
         }
       } else {
         await grantApp(input.id, target);

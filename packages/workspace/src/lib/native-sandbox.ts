@@ -37,30 +37,28 @@ const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
 const appEnv: NodeJS.ProcessEnv = process.env;
 
 /**
- * Places in the home folder a native command still writes whatever the
+ * Places in the home folder a native command still reads whatever the
  * rules say. The app's own pnpm, uv and node-gyp keep their stores, caches
  * and config in the app's folders (`tool-isolation.ts`, `uv.ts`), never the
- * person's, so only the system's own caches stay open here, for the
- * frameworks a native tool loads.
+ * person's.
  */
-const TOOL_CACHES =
-  process.platform === "darwin"
-    ? [
-        // The system's own caches, which frameworks a native tool loads
-        // write to.
-        "Library/Caches",
-      ]
-    : [];
 const TOOL_SETTINGS: string[] = [];
 
-/** The places native tools keep as their own, in `home`. */
+/**
+ * The places native tools keep as their own: in `home`, and macOS's
+ * per-user cache folder, which the frameworks a native tool loads write to.
+ * ~/Library/Caches stays as the rules say: other apps keep code there they
+ * run later outside any sandbox (Playwright's browsers, Go's builds).
+ */
 function toolPlaces(home = os.homedir()): {
   caches: string[];
   settings: string[];
 } {
-  const inHome = (names: string[]) =>
-    names.map((place) => path.join(home, place));
-  return { caches: inHome(TOOL_CACHES), settings: inHome(TOOL_SETTINGS) };
+  const userCache = darwinUserCacheDir();
+  return {
+    caches: userCache ? [userCache] : [],
+    settings: TOOL_SETTINGS.map((place) => path.join(home, place)),
+  };
 }
 
 /**
@@ -165,17 +163,26 @@ export function seatbeltProfile(
       rule.dotEntries
         ? `(regex #"^${regexEscape(spelled)}/\\.[^/]+(/|$)")`
         : `(subpath ${sbplString(spelled)})`;
+    // A socket in a closed place is how another program hands out what the
+    // place holds (1Password's or gpg's agent signs with keys the agent may
+    // not read), so connecting to one is closed with it, as the ssh-agent's
+    // is with ~/.ssh below. Other folders that ask first keep their sockets
+    // open: a container runtime's lives in one.
+    const socketsClosed =
+      level === "never" || (rule.place === "passwords" && level !== "allow");
     // A read-only folder opens for reading and closes to changes; the two
     // rules sit at one depth, in that order.
     const texts = (spelled: string) =>
       level === "allow"
-        ? [`(allow file-read* file-write* ${filter(spelled)})`]
+        ? [`(allow file-read* file-write* network-outbound ${filter(spelled)})`]
         : level === "readOnly"
           ? [
               `(allow file-read* ${filter(spelled)})`,
               `(deny file-write* ${filter(spelled)})`,
             ]
-          : [`(deny file-read* file-write* ${filter(spelled)})`];
+          : [
+              `(deny file-read* file-write*${socketsClosed ? " network-outbound" : ""} ${filter(spelled)})`,
+            ];
     entries.push(
       ...spellings(rule.path).flatMap((spelled) =>
         texts(spelled).map((text) => ({
@@ -202,10 +209,8 @@ export function seatbeltProfile(
       })),
     );
   const tools = toolPlaces(home);
-  const userCache = darwinUserCacheDir();
   entries.push(
     ...opens([DEVICES], "file-write*"),
-    ...opens(userCache ? [userCache] : [], "file-read* file-write*"),
     ...opens(tools.caches, "file-read* file-write*"),
     ...opens(tools.settings, "file-read*"),
     ...opens(reach.readOnly, "file-read*"),
@@ -522,8 +527,9 @@ export function bwrapArgs(reach: NativeReach): string[] {
     "--ro-bind",
     "/",
     "/",
-    "--dev-bind",
-    "/dev",
+    // A fresh /dev with the nodes a program uses (null, zero, random, tty,
+    // a pty, shm), not the host's disks, input devices and GPU.
+    "--dev",
     "/dev",
     "--proc",
     "/proc",
@@ -534,6 +540,13 @@ export function bwrapArgs(reach: NativeReach): string[] {
     // behind dies with it when the app quits, rather than being handed to
     // the session's init still holding what it inherited.
     "--unshare-pid",
+    // Its own user and IPC namespaces with every capability dropped, so a
+    // setuid helper or a shared-memory segment of the person's other
+    // programs is no way out.
+    "--unshare-user",
+    "--unshare-ipc",
+    "--cap-drop",
+    "ALL",
     "--die-with-parent",
     // Its own session, so a command cannot push keystrokes into the
     // terminal the app was started from (TIOCSTI).
@@ -573,7 +586,16 @@ export function bwrapArgs(reach: NativeReach): string[] {
           other.depth > entry.depth &&
           other.path.startsWith(`${entry.path}${path.sep}`),
       );
-      args.push("--perms", opensInside ? "0111" : "0000", "--tmpfs", real);
+      // Read-only too, so nothing can be made in it to stand in for what it
+      // closes; one a folder opens inside stays writable until that folder
+      // is bound in, since bubblewrap makes the folder to bind it to.
+      args.push(
+        "--perms",
+        opensInside ? "0111" : "0000",
+        "--tmpfs",
+        real,
+        ...(opensInside ? [] : ["--remount-ro", real]),
+      );
     } else {
       // A file nobody may open, in place of the closed one, so reading it
       // is refused rather than empty.

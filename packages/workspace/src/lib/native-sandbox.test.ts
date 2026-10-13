@@ -6,6 +6,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 
@@ -70,12 +71,11 @@ describe("seatbeltProfile", () => {
         "(deny file-write* (subpath "/nope/home"))",
         "(deny file-read* file-write* (subpath "/nope/home/Documents"))",
         "(deny file-read* file-write* (regex #"^/nope/home/\\.[^/]+(/|$)"))",
-        "(deny file-read* file-write* (subpath "/nope/home/with \\"quote\\""))",
-        "(allow file-read* file-write* (subpath "/nope/home/Documents/Acme"))",
+        "(deny file-read* file-write* network-outbound (subpath "/nope/home/with \\"quote\\""))",
+        "(allow file-read* file-write* network-outbound (subpath "/nope/home/Documents/Acme"))",
         "(allow file-read-metadata (literal "/nope"))",
         "(allow file-read-metadata (literal "/nope/home"))",
         "(allow file-read-metadata (literal "/nope/home/Documents"))",
-        "(allow file-read-metadata (literal "/nope/home/Library"))",
         "(allow file-read-metadata (literal "/private"))",
         "(allow file-read-metadata (literal "/private/var"))",
         "(deny file-write* (literal "/nope"))",
@@ -285,6 +285,30 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
     expect(result.exitCode === 0 ? 0 : 1).toBe(exitCode);
   });
 
+  it("closes a socket in a closed place, and leaves one in a place that asks", async () => {
+    const listen = (socket: string) =>
+      new Promise<net.Server>((resolve) => {
+        const server = net.createServer((client) => client.end());
+        server.listen(socket, () => resolve(server));
+      });
+    const inClosed = path.join(closed, "agent.sock");
+    const inAsks = path.join(asks, "runtime.sock");
+    const servers = await Promise.all([listen(inClosed), listen(inAsks)]);
+    const connect = (socket: string) =>
+      run("/usr/bin/python3", [
+        "-c",
+        `import socket; s = socket.socket(socket.AF_UNIX); s.connect(${JSON.stringify(socket)})`,
+      ]);
+    try {
+      expect((await connect(inClosed)).exitCode).not.toBe(0);
+      expect((await connect(inAsks)).exitCode).toBe(0);
+    } finally {
+      for (const server of servers) {
+        server.close();
+      }
+    }
+  });
+
   it("writes the temp folder an allow opens, and still closes the home inside it", async () => {
     const temp = realpathSync(os.tmpdir());
     const withTemp = reachOver(home, [
@@ -426,7 +450,10 @@ describe("bwrapArgs", () => {
     ).join(" ");
     expect(args).toContain(`--perms 0111 --tmpfs ${home}/Documents`);
     expect(args).toContain(`--bind ${home}/Documents/Acme`);
-    expect(args).toContain(`--perms 0000 --tmpfs ${home}/Secrets`);
+    expect(args).toContain(
+      `--perms 0000 --tmpfs ${home}/Secrets --remount-ro ${home}/Secrets`,
+    );
+    expect(args).not.toContain(`--remount-ro ${home}/Documents`);
     expect(args).toMatch(
       new RegExp(`--ro-bind \\S*instrument-closed-\\d+ ${home}/secret.txt`),
     );

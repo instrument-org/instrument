@@ -32,7 +32,7 @@ import { listChatBackgroundProcesses } from "../src/lib/background-processes";
 import { isWorking } from "../src/lib/chat/activity";
 import { isTypedByUser } from "../src/lib/typed-by-user";
 import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
-import { listChildTasks } from "../src/lib/chat/children";
+import { type ChatTask, listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
 import { openAsks } from "../src/lib/permissions/asks";
 import { Store } from "../src/lib/store";
@@ -474,7 +474,10 @@ type FollowUp = FollowUpTiming &
         /**
          * The user pressing Stop on one of the chat's tasks, by its handle,
          * in place of a message: what the task's page and the chat's task
-         * list do.
+         * list do. A person stops a task they can see, so this waits for the
+         * chat to start it, and counts `afterMs` from the task's start when
+         * that came after the last message. Nothing is pressed when the
+         * chat's turn ends without starting it.
          */
         stopTask: string;
       }
@@ -1074,6 +1077,16 @@ export async function runEvals(
         if (stoppedBy || outcome === "timeout") {
           break;
         }
+        // A slow model can still be writing `task new` when `afterMs` has
+        // passed since the message that asked for it.
+        const taskToStop =
+          "stopTask" in followUp
+            ? await taskOnceStarted(id, followUp.stopTask, turn)
+            : undefined;
+        const timedFrom = Math.max(
+          lastSentAt,
+          taskToStop?.createdAt.getTime() ?? 0,
+        );
         if (followUp.duringWork !== undefined) {
           const { afterToolCalls, command } = followUp.duringWork;
           const inFlight = new Promise<"in flight">((resolve) => {
@@ -1099,7 +1112,7 @@ export async function runEvals(
           await new Promise((resolve) =>
             setTimeout(
               resolve,
-              Math.max(0, lastSentAt + (followUp.afterMs ?? 0) - Date.now()),
+              Math.max(0, timedFrom + (followUp.afterMs ?? 0) - Date.now()),
             ),
           );
         } else if (followUp.settled && evalCase.kind === "chat") {
@@ -1112,16 +1125,13 @@ export async function runEvals(
         // rest, it starts a turn of its own.
         await evalCase.beforeFollowUp?.(position);
         if ("stopTask" in followUp) {
-          const task = (await listChildTasks(id)).find(
-            (child) => child.handle === followUp.stopTask,
-          );
           write(
-            `${evalPrefix(label)}${c.dim}Stop: ${followUp.stopTask}${task ? "" : " (no such task)"}${c.reset}\n`,
+            `${evalPrefix(label)}${c.dim}Stop: ${followUp.stopTask}${taskToStop ? "" : " (no such task)"}${c.reset}\n`,
           );
-          if (task) {
+          if (taskToStop) {
             await call(
               sessionRoute.stop,
-              { id, sessionId: task.id },
+              { id, sessionId: taskToStop.id },
               { context },
             );
           }
@@ -1711,6 +1721,33 @@ async function standInForTasks(
       },
       workspaceRef,
     );
+  }
+}
+
+/**
+ * The chat's task by its handle, once the chat has started it; none when
+ * `turn`, the chat's turn that would start it, ends first.
+ */
+async function taskOnceStarted(
+  chatId: ChatId,
+  handle: string,
+  turn: Promise<unknown>,
+): Promise<ChatTask | undefined> {
+  let turnOver = false;
+  void turn.then(() => {
+    turnOver = true;
+  });
+  for (;;) {
+    const task = (await listChildTasks(chatId)).find(
+      (child) => child.handle === handle,
+    );
+    if (task || turnOver) {
+      return task;
+    }
+    await Promise.race([
+      turn,
+      new Promise((resolve) => setTimeout(resolve, TREE_POLL_MS)),
+    ]);
   }
 }
 

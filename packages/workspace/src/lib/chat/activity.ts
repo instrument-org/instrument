@@ -41,7 +41,6 @@ export type ChatActivity = z.output<typeof ChatActivitySchema>;
 const ASKS: Record<string, string> = {
   choose: "Waiting for you to answer",
   connect_app: "Waiting for you to sign in",
-  request_folder: "Waiting for you to pick a folder",
 };
 
 /**

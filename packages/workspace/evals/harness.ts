@@ -33,14 +33,14 @@ import { isTypedByUser } from "../src/lib/typed-by-user";
 import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { listChildTasks } from "../src/lib/chat/children";
 import { outputFolderPath } from "../src/lib/chat/output-folder";
+import { openAsks } from "../src/lib/permissions/asks";
 import { Store } from "../src/lib/store";
 import { updateChatSettings } from "../src/lib/chat-settings";
 import { getUsageSummary } from "../src/lib/usage-summary";
 import { publisher } from "../src/rpc/publisher";
 import { message as messageRoute } from "../src/rpc/routes/message";
 import { session as sessionRoute } from "../src/rpc/routes/session";
-import { chatFolders } from "../src/rpc/routes/chat/folders";
-import { MOUNT } from "../src/mount-points";
+import { permissions as permissionsRoute } from "../src/rpc/routes/permissions";
 import { type FileUpload } from "../src/schemas/file-upload";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
@@ -49,7 +49,6 @@ import { type ChatId } from "../src/schemas/chat-id";
 import { unavailableWebSearchClient } from "../src/schemas/web-search";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { type Choose } from "../src/tools/choose";
-import { ToolNameSchema } from "../src/tools/name";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import { createStandInWindow } from "./lib/stand-in-window";
 import { startRun } from "./lib/start-run";
@@ -68,12 +67,7 @@ import { ensureChat } from "../src/lib/chat/chat-records";
 import { createTopic, updateTopic } from "../src/lib/chat/topics";
 import { StoreId } from "../src/schemas/store-id";
 import { type WorkspaceConfig } from "../src/types";
-
-/** The tools that ask the user to let the agent control an app. */
-const APP_ASK_TOOLS: ReadonlySet<string> = new Set([
-  "request_access",
-  "request_app_control",
-]);
+import { toolBinDirIn } from "../scripts/lib/tool-bin-dir";
 
 /** The Mac helper a checkout builds, when it has; see the harness input. */
 const MAC_HELPER_BIN = path.resolve(
@@ -301,6 +295,12 @@ const TREE_QUIET_MS = 6000;
 /** How often the tree is sampled while waiting for it to go quiet. */
 const TREE_POLL_MS = 500;
 
+/**
+ * How long an answer to a card waits for the asking session's turn to end
+ * before it goes in anyway, for an agent that keeps working past an ask.
+ */
+const ANSWER_AFTER_TURN_MAX_MS = 120_000;
+
 export interface EvalCase {
   /**
    * What the user answers to each `choose` the agent puts to them, in the
@@ -337,21 +337,20 @@ export interface EvalCase {
    */
   beforeFollowUp?: (position: number) => Promise<void> | void;
   /**
-   * Every `request_folder` the agent asks is answered as the user pressing
-   * Cancel in the picker: for what the agent does once a folder is refused.
+   * Every folder the agent runs into and asks for is answered as the user
+   * saying not now: for what the agent does once a folder is refused.
    */
   declinesFolders?: boolean;
-  /**
-   * Every ask to control an app (`request_app_control`, or `request_access`
-   * should the two asks merge) is answered as the user saying not now.
-   */
+  /** Every app the agent asks to use is answered as the user saying not now. */
   declinesApps?: boolean;
+  /** Every app the agent asks to use is answered as the user allowing it. */
+  allowsApps?: boolean;
   files?: FileUpload.Type[];
   /**
-   * The folders the user picks for each `request_folder` the agent asks,
-   * in the order it asks, granted and answered the way the card does once
-   * a folder is chosen in the picker. A request past the end of the list
-   * goes unanswered, as one nobody clicks.
+   * The folders the user picks for each folder card the agent's work raises,
+   * in the order they come up, answered the way the card does once a folder
+   * is chosen in the picker. A card past the end of the list goes
+   * unanswered, as one nobody clicks.
    */
   folderPicks?: string[];
   /**
@@ -586,6 +585,7 @@ export async function runEvals(
       uvBinPath: await execa({ reject: false })`which uv`.then(
         (result) => result.stdout.trim() || "uv",
       ),
+      toolBinDir: toolBinDirIn(workspaceRootDir),
       uvDataDir: path.join(workspaceRootDir, "uv-data"),
       webSearch: unavailableWebSearchClient,
     },
@@ -708,8 +708,8 @@ export async function runEvals(
       let overBudget: number | undefined;
       // Each question once: a part is published again on every update.
       const askedIds = new Set<string>();
-      const declinedIds = new Set<string>();
-      const folderAskIds = new Set<string>();
+      const handledAskIds = new Set<string>();
+      let folderPicksUsed = 0;
       // See `FollowUp.duringWork`: the run's own finished tool calls, and
       // who is waiting for one to be in flight after enough of them.
       const ownToolsDone = new Set<string>();
@@ -864,35 +864,52 @@ export async function runEvals(
               }
             }
 
-            if (
-              part.type === "tool-request_folder" &&
-              part.state === "input-available" &&
-              !folderAskIds.has(part.toolCallId)
-            ) {
-              folderAskIds.add(part.toolCallId);
-              const picked = evalCase.folderPicks?.[folderAskIds.size - 1];
+            // A boundary the agent ran into shows the person a card, which
+            // the case answers the way they would: a scripted pick, a no, or
+            // nothing, leaving the agent to carry on without it.
+            for (const ask of await openAsks(id)) {
+              if (handledAskIds.has(ask.id)) {
+                continue;
+              }
+              handledAskIds.add(ask.id);
+              const declines =
+                ask.kind === "folder"
+                  ? evalCase.declinesFolders
+                  : evalCase.declinesApps;
+              const picked =
+                ask.kind === "folder" && !declines
+                  ? evalCase.folderPicks?.[folderPicksUsed++]
+                  : undefined;
+              const allows = ask.kind === "app" && evalCase.allowsApps;
               write(
-                `${evalPrefix(label)}${c.cyan}request_folder${c.reset}${c.dim} asked: ${part.input.reason}${picked ? `; picking ${picked}` : ""}${c.reset}\n`,
+                `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : picked ? `; picking ${picked}` : allows ? "; allowing" : ""}${c.reset}\n`,
               );
-              if (picked) {
-                const reached = await call(
-                  chatFolders.grant,
-                  { id, path: picked },
-                  { context },
-                );
-                void call(
-                  sessionRoute.answerToolCall,
-                  {
-                    id,
-                    output: {
-                      mountPoint: `${MOUNT.folders}/${reached.mountName}`,
-                      status: "granted",
+              if (declines || picked || allows) {
+                // Answered once the asking session's turn is over, as a
+                // person reading the card would, so the answer arrives as a
+                // wake rather than mid-turn.
+                void (async () => {
+                  const until = Date.now() + ANSWER_AFTER_TURN_MAX_MS;
+                  while (isWorking(id, ask.sessionId) && Date.now() < until) {
+                    await new Promise((resolve) =>
+                      setTimeout(resolve, TREE_POLL_MS),
+                    );
+                  }
+                  await call(
+                    permissionsRoute.answer,
+                    {
+                      askId: ask.id,
+                      decision: declines ? "declined" : "allowed",
+                      id,
+                      ...(picked && { path: picked }),
                     },
-                    toolCallId: part.toolCallId,
-                    toolName: "request_folder",
-                  },
-                  { context },
-                );
+                    { context },
+                  );
+                })().catch((error: unknown) => {
+                  process.stderr.write(
+                    `${evalPrefix(label)}${c.red}answering the ${ask.kind} ask failed${c.reset}${c.dim}: ${String(error)}${c.reset}\n`,
+                  );
+                });
               }
             }
 
@@ -931,55 +948,6 @@ export async function runEvals(
                 );
                 void call(sessionRoute.stop, { id }, { context });
               }
-            }
-
-            if (
-              evalCase.declinesFolders &&
-              part.type === "tool-request_folder" &&
-              part.state === "input-available" &&
-              !declinedIds.has(part.toolCallId)
-            ) {
-              declinedIds.add(part.toolCallId);
-              write(
-                `${evalPrefix(label)}${c.cyan}request_folder${c.reset}${c.dim} declined: ${part.input.reason}${c.reset}\n`,
-              );
-              void call(
-                sessionRoute.answerToolCall,
-                {
-                  id,
-                  output: { status: "declined" },
-                  toolCallId: part.toolCallId,
-                  toolName: "request_folder",
-                },
-                { context },
-              );
-            }
-
-            // Parsed and looked up by name, so a build with neither tool
-            // still compiles and simply never matches.
-            const appAsk = ToolNameSchema.safeParse(part.type.slice(5)).data;
-            if (
-              evalCase.declinesApps &&
-              isToolPart(part) &&
-              appAsk !== undefined &&
-              APP_ASK_TOOLS.has(appAsk) &&
-              part.state === "input-available" &&
-              !declinedIds.has(part.toolCallId)
-            ) {
-              declinedIds.add(part.toolCallId);
-              write(
-                `${evalPrefix(label)}${c.cyan}${appAsk}${c.reset}${c.dim} declined: ${JSON.stringify(part.input)}${c.reset}\n`,
-              );
-              void call(
-                sessionRoute.answerToolCall,
-                {
-                  id,
-                  output: { status: "declined" },
-                  toolCallId: part.toolCallId,
-                  toolName: appAsk,
-                },
-                { context },
-              );
             }
 
             if (

@@ -82,6 +82,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
   }
 
   switch (part.type) {
+    case "data-permissionAnswer": {
+      return `<data-permissionAnswer ${part.data.kind}="${part.data.target}" answer="${part.data.answer}" />`;
+    }
     case "data-appEvent": {
       return `<data-appEvent events="${part.data.events.map((event) => `${event.slug}:${event.event}`).join(",")}" />`;
     }
@@ -90,9 +93,7 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     }
     case "data-folderChanges": {
       const foldersList = part.data.removed
-        .map(
-          (folder) => `<folder name="${folder.name}" path="${folder.path}" />`,
-        )
+        .map((folder) => `<folder path="${folder.path}" />`)
         .join("\n");
       return `<data-folderChanges>\n${indent(foldersList)}\n</data-folderChanges>`;
     }

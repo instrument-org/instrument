@@ -19,7 +19,6 @@ import { ToolEditFile } from "./tool-edit-file";
 import { ToolGenerateImage } from "./tool-generate-image";
 import { ToolLoadSkill } from "./tool-load-skill";
 import { ToolReadFile } from "./tool-read-file";
-import { ToolRequestFolder } from "./tool-request-folder";
 import { ToolUnavailable } from "./tool-unavailable";
 import { ToolWebFetch } from "./tool-web-fetch";
 import { ToolWebSearch } from "./tool-web-search";
@@ -141,9 +140,6 @@ export function ToolCallBody({
     }
     case "tool-read_file": {
       return <ToolReadFile part={part} />;
-    }
-    case "tool-request_folder": {
-      return <ToolRequestFolder part={part} chatId={chatInfo.id} />;
     }
     case "tool-unavailable": {
       return <ToolUnavailable part={part} />;

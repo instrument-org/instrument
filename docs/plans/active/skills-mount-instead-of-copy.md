@@ -1,6 +1,8 @@
 # Skills mount instead of copy, and a task installs once
 
-Status: in progress (checked 2026-10-02). Steps 1 and 2 landed (step 2 as `ae997fa7d`, the task root is the one package), except that the template's `packages: work/skills/*` globs stay until the copy goes. Step 3's mounts are live in the mount table, but `load_skill` still copies into `work/skills/` (`copySkill`). What is left of step 3 is the part that removes the copy: materializing the bundled set, rewriting `load_skill`, and threading the skill mounts through the native bridge's callers.
+Status: in progress (checked 2026-10-02). Steps 1 and 2 landed (step 2 as `ae997fa7d`, the task root is the one package), except that the template's `packages: work/skills/*` globs stay until the copy goes. Step 3's mounts are live, each skill source reached at its own directory, but `load_skill` still copies into `work/skills/` (`copySkill`). What is left of step 3 is the part that removes the copy: materializing the bundled set and rewriting `load_skill`. The native bridge this plan meant to extend is gone; a native command reads a skill directory in place under the OS profile, which opens the skills for reading.
+
+The virtual paths below (`/task`, `/skills/<source>/<name>`) are the layout the plan was written against. [The agent works at real paths](../../decisions/2026-10-11-the-agent-works-at-real-paths.md) now, so read each `/skills/<source>` as that source's directory and `/task` as the chat's folder.
 
 Supersedes one stated consequence of [skills as a mount, not a tool](../../decisions/2026-07-20-skills-as-a-mount-not-a-tool.md): "Running a skill's script still means loading the skill and running the copy under `work/skills/`."
 

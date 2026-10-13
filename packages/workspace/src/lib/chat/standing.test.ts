@@ -51,12 +51,16 @@ const partMetadata = (ids: PartIds) => ({
 const activity =
   (explanation: string) =>
   (ids: PartIds): SessionMessage.WithParts["parts"][number] => ({
-    input: { explanation, reason: "Your Desktop." },
+    input: {
+      choices: ["Desktop", "Documents"],
+      explanation,
+      question: "Where?",
+    },
     metadata: { ...partMetadata(ids), endedAt: new Date() },
-    output: { status: "declined" },
+    output: { declined: true, note: undefined },
     state: "output-available",
     toolCallId: `call_${explanation}`,
-    type: "tool-request_folder",
+    type: "tool-choose",
   });
 
 async function withSession(chatId: ReturnType<typeof freshChat>) {
@@ -102,7 +106,7 @@ describe("taskStanding", () => {
       assistant(sessionId, [
         (ids) => ({
           metadata: partMetadata(ids),
-          text: "```files\n/mnt/Instrument/quotes/compared.html\n```",
+          text: "```files\n/Users/sam/Instrument/quotes/compared.html\n```",
           type: "text",
         }),
       ]),
@@ -126,7 +130,7 @@ describe("taskStanding", () => {
       assistant(sessionId, [
         (ids) => ({
           metadata: partMetadata(ids),
-          text: `\`\`\`files\n/mnt/Instrument/quotes/compared.html\n\`\`\`\n\n${words}`,
+          text: `\`\`\`files\n/Users/sam/Instrument/quotes/compared.html\n\`\`\`\n\n${words}`,
           type: "text",
         }),
       ]),

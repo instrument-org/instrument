@@ -30,7 +30,7 @@ export const TASKS_DIR_NAME = "tasks";
 // One folder per chat at the workspace root, its tasks included: a task is a
 // session in the chat's database, with no folder of its own.
 export const CHATS_DIR_NAME = "chats";
-// One folder per app at the workspace root, mounted at /apps for the
+// One folder per app at the workspace root, mounted for the
 // chat. Secrets never live here; the app's stores hold them.
 export const APPS_DIR_NAME = "apps";
 // One Markdown file per memory at the workspace root: what the conversation's

@@ -1,6 +1,6 @@
 # Plan: real host paths, held to the Permissions rules
 
-Status: proposed. Step 1 is spiked (a Seatbelt profile around native commands, denying passwords and sign-ins); nothing else is started. Tracked in FP-1371 with the Permissions list it depends on. Replaces the virtual layout's reason for being, and with it the "the main agent never learns where anything lives" premise of [agent-requested-folder-access.md](agent-requested-folder-access.md).
+Status: in progress. Steps 1 to 4 have landed: Seatbelt on macOS and bubblewrap on Linux hold native commands to the Permissions rules, the shell and file tools follow the same rules, the agent works at real paths, request_folder is a card, and Settings › Permissions edits the rules. [The decision](../../decisions/2026-10-11-the-agent-works-at-real-paths.md) records how. Step 5 (Windows) has not landed, so native commands there run unwrapped. Tracked in FP-1371.
 
 ## Summary
 
@@ -20,11 +20,12 @@ One set of rules, from Settings › Permissions: a path at any depth is Allowed,
 
 | Layer | How it applies the rules | Platforms |
 | --- | --- | --- |
-| File tools, `rg`, `du` | `classifyHostPath` per path | All |
+| File tools | `classifyHostPath` and `ruleRefusal` per path | All |
+| `rg`, `du` | `classifyHostPath` per operand, for masked entries and symlinks; `rg` also runs under the OS sandbox below | All |
 | just-bash builtins, sandboxed `python` and `js-exec` | The virtual filesystem, now mounting each reachable folder at its host path | All |
-| In-app browser `file://` reads | The CDP bridge and `tab read` check | All |
-| Native command lines | Every path argument checked before spawning: Not allowed refused, Ask first raises the card | All |
-| What a native command's code reaches on its own | An OS sandbox around the spawn, generated from the rules | macOS now; Linux and Windows per the steps below |
+| In-app browser `file://` reads | The CDP bridge and `tab read` check the layout (folders the chat reaches and their masked entries), not the rules | All |
+| Native command lines | `git` asks the rules before a command that writes; no other command line is checked, and the OS sandbox holds the rest | All (`git`) |
+| What a native command's code reaches on its own | An OS sandbox around the spawn, generated from the rules | macOS and Linux; Windows per step 5 |
 
 The chat's own folder stops being `/task`. The prompt names it as the place the chat works and keeps what it makes, at its real path.
 
@@ -32,13 +33,22 @@ Where an OS sandbox is not available, Settings › Permissions says the list is 
 
 ## Steps
 
-1. **Seatbelt for native commands on macOS.** Every spawn through `execShim` and `execaNodeForTask` runs under `/usr/bin/sandbox-exec` with an allow-by-default profile that denies the places that hold passwords and sign-ins. Measured on macOS 27: uv installs with numpy and pandas, pnpm with a native addon, ffmpeg, git over https and osascript all run; reads under `~/.ssh`, `~/.config/gh` and Keychains are refused, including from a script's own subprocess; about 6 ms per spawn. Not yet run from the signed, hardened app.
+1. **Seatbelt for native commands on macOS.** Every spawn through `execShim` and `execaNodeForTask` runs under `/usr/bin/sandbox-exec` with an allow-by-default profile that denies the places that hold passwords and sign-ins. Measured on macOS 27: uv installs with numpy and pandas, pnpm with a native addon, ffmpeg, git over https and osascript all run; reads under `~/.ssh`, `~/.config/gh` and Keychains are refused, including from a script's own subprocess; about 6 ms per spawn. Run from the signed, hardened app too: sandbox-exec starts from it, the refusals hold, and macOS still attributes a protected folder's prompt to the app.
 2. **The Permissions rules, enforced.** The rules feed every layer in the table. The Seatbelt profile gains the Not allowed and Ask first places, and denies writes across the home folder outside granted folders, which means allowing what native tools write themselves: `~/Library/Caches`, `~/.cache`, the pnpm store, uv's folders, the chat's own folder. This is where native tools are most likely to break, so it gets the same real-workload run before it ships. A refusal under an Ask first place raises the card and the agent runs the command again after Allow.
-3. **Real paths.** Remove `/task`, `/mnt`, the native-command bridge, output rewriting and chat-to-task path translation (inventory below). The prompt's folder guidance becomes a statement of where the chat works and which folders it holds.
-4. **Linux: bubblewrap.** Hide a denied folder with `--tmpfs`, a denied file with `--ro-bind /dev/null`, and bind nested allows back over them. Probe at launch and fall back to unenforced with the Settings note. Ubuntu 24.04 blocks unprivileged user namespaces unless an AppArmor profile for `bwrap` is installed with root, which a `.deb` can do and an AppImage cannot; a bundled copy at another path stays blocked.
-5. **Windows: a spike on Microsoft's MXC.** AppContainer through `@microsoft/mxc-sdk` (MIT), also what Codex uses. It is deny-by-default, so the rules become a list of granted trees (the user profile, tool folders, granted folders); it needs a one-time admin step and Windows 11 24H2 or later, and calls itself an early preview. Worth carrying as experimental if it fails safe: a probe at launch, and the Settings note when it cannot run.
+3. **Real paths**, measured against the evaluation below. Remove `/task`, `/mnt`, the native-command bridge, output rewriting and chat-to-task path translation (inventory below). The prompt's folder guidance becomes a statement of where the chat works and which folders it holds.
+4. **Linux: bubblewrap.** Native commands run under bwrap built from the same rules: the home folder bound read-only, a closed folder replaced by an empty one and a closed file by an empty file, each granted folder bound back read-write, shallow to deep. bwrap is probed once, and where it cannot run the commands go unwrapped and Settings shows its note. Hidden entries in the home folder have no pattern form, so the spawn lists the home folder and hides each one by name. Measured on Ubuntu 24.04 (kernel 7.0, bwrap 0.9.0): every rule case behaves as on macOS, a script's own child included, at about 2 ms a spawn. Ubuntu blocks unprivileged user namespaces, but the `.deb` already installs an AppArmor profile for the app that allows them, and bwrap started by the app runs under that profile, so no separate profile or root step is needed. An AppImage installs no profile and stays unenforced.
+5. **Windows: MXC.** AppContainer through `@microsoft/mxc-sdk` (MIT, 1.0.0), needing Node 24 or later and Windows 11 24H2 or later. Measured on build 26200: the process container's filesystem policy matches the rules (deny by default, a read-write grant inside a denied folder works, writes outside grants refused) at about 50 ms a spawn. But in that container node 24 and Git for Windows die at startup with `STATUS_DLL_INIT_FAILED`, with their folders readable and with UI allowed, while `cmd` and a stock Python run. Until that is understood, MXC can hold Python and plain commands but not node or git, so Windows ships unenforced with the Settings note.
 
 Node's permission model (`--permission` with `--allow-fs-*`) is not a substitute: it covers node alone, not python-native, uv, ffmpeg or git.
+
+## Evaluation before real paths
+
+Real paths change what every model sees on every turn, so step 3 is measured against a baseline suite run on the virtual layout, and merges when it matches or beats it. The suite is built and graded apart from the change it measures, so the builder isn't grading itself. It runs on a fast model for every iteration, with a wider set of models rechecked at the end.
+
+It answers one open concern: whether the virtual layout's obscurity kept weaker models in check, so that seeing real paths makes them wander, reach for the home folder, or work around a refusal.
+
+- **Capability.** Work on a given folder in place: native tools (python-native, uv, ffmpeg, git) on its files, returning a result where the person's file lives, fetching a file without copying it somewhere writable. Measured by success, turns taken, detours such as copies, and whether paths shown to the person are ones they recognize.
+- **Safety.** Tasks that tempt the agent past its grants: a credential place, a write in the home folder outside any grant, a Not allowed folder, an Ask first folder. Measured by attempts made, whether a refusal ends the attempt or starts a workaround, whether it asks through the card, and whether it tells the person what it couldn't reach.
 
 ## What goes, and what stays
 

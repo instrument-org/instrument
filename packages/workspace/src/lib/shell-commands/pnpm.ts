@@ -6,9 +6,9 @@ import {
 } from "just-bash";
 import { dedent } from "radashi";
 
-import { MOUNT } from "../../mount-points";
 import { type ChatId } from "../../schemas/chat-id";
-import { type WorkspaceFsLayout } from "../workspace-fs-layout";
+import { type WorkspaceFsLayout, shellPath } from "../workspace-fs-layout";
+import { workDir } from "../work-dir";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
 import { systemNote } from "../system-note";
 import { resolveCommandContext, subprocessStdin } from "./utils";
@@ -73,16 +73,15 @@ const PACKAGE_MANAGEMENT_SUBCOMMANDS = new Set([
   "update",
 ]);
 
-export function createNpxCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
+export function createNpxCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
   return createDlxAliasCommand(
     NPX_COMMAND.name,
     chatId,
-    layout,
     stripNpxCompatibilityFlags,
   );
 }
 
-export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
+export function createPnpmCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
   return defineCommand(PNPM_COMMAND.name, async (args, ctx) => {
     const subcommand = args[0];
 
@@ -119,7 +118,6 @@ export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
       }
       const { env: execEnv, taskCwd } = resolveCommandContext(chatId, ctx);
       const execResult = await runPnpmCommand({
-        layout,
         args: ["exec", ...args.slice(1)],
         cwd: taskCwd,
         env: execEnv,
@@ -167,10 +165,14 @@ export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
       ? args.filter((arg) => !GLOBAL_FLAGS.has(arg))
       : args;
 
-    const env = Object.fromEntries(ctx.env);
+    // The host's PATH, which the shell's own does not carry: pnpm's shims
+    // call sed, uname and node from it.
+    const env = {
+      ...Object.fromEntries(ctx.env),
+      ...(process.env.PATH && { PATH: process.env.PATH }),
+    };
 
-    // Map the virtual cwd to its real host dir via the shared bridge so pnpm
-    // runs in the right place regardless of where the task is mounted.
+    // The shell's cwd as a host path.
     const { taskCwd: cwd } = resolveCommandContext(chatId, ctx);
 
     // The manifest is at the task root, which is also where the agent starts,
@@ -186,8 +188,8 @@ export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
       return {
         exitCode: 1,
         stderr: dedent`
-          No package manifest found here. Your package is the task root (\`${MOUNT.task}\`), which is also where you start.
-          Run package commands from there, e.g. \`cd ${MOUNT.task} && ${PNPM_COMMAND.name} ${filteredArgs.join(" ")}\`.
+          No package manifest found here. Your package is this conversation's folder, which is also where you start.
+          Run package commands from there, e.g. \`cd ${shellPath(workDir(chatId))} && ${PNPM_COMMAND.name} ${filteredArgs.join(" ")}\`.
         `,
         stdout: "",
       };
@@ -196,7 +198,6 @@ export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
     let installOutput = "";
     if (!isInformational && !PACKAGE_MANAGEMENT_SUBCOMMANDS.has(subcommand)) {
       const installResult = await runPnpmCommand({
-        layout,
         args: ["install"],
         cwd,
         env,
@@ -208,7 +209,6 @@ export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
       }
     }
     const result = await runPnpmCommand({
-      layout,
       args: filteredArgs,
       cwd,
       env,
@@ -237,18 +237,17 @@ export function createPnpmCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
   });
 }
 
-export function createPnpxCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
-  return createDlxAliasCommand(PNPX_COMMAND.name, chatId, layout);
+export function createPnpxCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
+  return createDlxAliasCommand(PNPX_COMMAND.name, chatId);
 }
 
-export function createPnxCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
-  return createDlxAliasCommand(PNX_COMMAND.name, chatId, layout);
+export function createPnxCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
+  return createDlxAliasCommand(PNX_COMMAND.name, chatId);
 }
 
 function createDlxAliasCommand(
   name: string,
   chatId: ChatId,
-  layout: WorkspaceFsLayout,
   normalizeArgs = (args: string[]) => args,
 ) {
   return defineCommand(name, async (args, ctx) => {
@@ -260,7 +259,6 @@ function createDlxAliasCommand(
 
     const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const result = await runPnpmCommand({
-      layout,
       args: ["dlx", ...normalizedArgs],
       cwd: taskCwd,
       env,

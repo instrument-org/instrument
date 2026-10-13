@@ -13,8 +13,7 @@ export async function chatGrants(chatId: ChatId): Promise<ChatGrant[]> {
 
 /**
  * Grants a chat a folder, read and write. A path already granted keeps the
- * grant it has, and with it the mount name it was given, so a folder sent
- * again never moves under the agent.
+ * grant it has, so a folder sent again keeps its access.
  */
 export async function grantFolder({
   chatId,

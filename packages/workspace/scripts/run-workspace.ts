@@ -122,6 +122,7 @@ const actor = createActor(workspaceMachine, {
     getAIProviderConfigs: () => PROVIDER_CONFIGS,
     modelCache: noopModelCache,
     nodeExecEnv: {},
+    nativeSandbox: true,
     pnpmBinPath: await execa({ reject: false })`which pnpm`.then(
       (result) => result.stdout.trim() || "pnpm",
     ),

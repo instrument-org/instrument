@@ -15,7 +15,6 @@ import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-mod
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { subcommandRunner } from "../../test/helpers/run-subcommand";
 import { instrumentAgent } from "../../agents/instrument";
-import { folderReach } from "../chat/folder-reach";
 import { createSession } from "../create-session";
 import {
   prepareModelMessages,
@@ -25,10 +24,8 @@ import { Store } from "../store";
 import { chatDir } from "../record-folders";
 import { updateChatSettings } from "../chat-settings";
 import { chatGrants } from "../chat/grants";
-import { effectiveFolderAccess } from "../workspace-fs-layout";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
-import { folderSubcommand } from "./task/folder";
 import { newSubcommand } from "./task/fork";
 import { type HandOff, withHandOffs } from "./task-hand-off";
 
@@ -477,7 +474,7 @@ describe("task new", () => {
   it("refuses the flags that would hand a fork what it already has", async () => {
     for (const flag of [
       ["--fresh"],
-      ["--folder", "/mnt/x"],
+      ["--folder", "/Users/sam/x"],
       ["--file", "a"],
       ["--app", "linear"],
     ]) {
@@ -545,32 +542,5 @@ describe("task new", () => {
     const before = await chatGrants(context.chatId);
     await fork();
     expect(await chatGrants(context.chatId)).toEqual(before);
-  });
-});
-
-describe("task folder", () => {
-  it("gives the chat a folder inside one it reaches, which its tasks reach too", async () => {
-    await fork();
-    const writable = Object.values(await folderReach(context.chatId)).find(
-      (folder) => effectiveFolderAccess(folder) === "read-write",
-    );
-    if (!writable) {
-      throw new Error("the chat reaches no writable folder");
-    }
-    const inside = path.join(writable.path, "Sales");
-    await fs.mkdir(inside, { recursive: true });
-    const result = await subcommandRunner(folderSubcommand, "task folder")(
-      ["--add", `/mnt/${writable.mountName}/Sales`],
-      context,
-    );
-    expect(result.stdout).toContain("You now have");
-    expect(
-      Object.values(await folderReach(context.chatId)).map(
-        (folder) => folder.path,
-      ),
-    ).toContain(inside);
-    expect(await chatGrants(context.chatId)).toEqual([
-      { grantedAt: expect.any(Date), path: inside, source: "card" },
-    ]);
   });
 });

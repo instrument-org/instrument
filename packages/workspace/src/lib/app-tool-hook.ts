@@ -1,10 +1,9 @@
 import { invokeAppTool } from "./shell-commands/app";
 
 /**
- * just-bash's `javascript.invokeTool`: a dotted tool path and the arguments as
- * JSON in, the result as JSON out. just-bash builds the `tools` proxy a
- * `js-exec` script calls through it. The signal is the script's own, where the
- * just-bash build passes one.
+ * What answers a `node` script's `tools.<slug>.<tool>(args)`: a dotted tool
+ * path and the arguments as JSON in, the result as JSON out. The signal is the
+ * `node` command's own, so a stopped command stops its calls.
  */
 export type AppToolInvoker = (
   path: string,

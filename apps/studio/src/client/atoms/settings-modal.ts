@@ -7,6 +7,7 @@ export type SettingsTab =
   | "Features"
   | "General"
   | "Memory"
+  | "Permissions"
   | "Providers"
   | "Skills"
   | "Storage";

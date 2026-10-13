@@ -16,7 +16,7 @@ There is no `background: true` flag. Deliberately starting a long-lived process 
 
 ### What runs where
 
-The agent's shell is `just-bash`, a JS interpreter over a virtual filesystem with a curated command set, not a real shell (see [agent-sandbox.md](../../architecture/agent-sandbox.md)). Backgrounding had to stay inside it: handing the agent a real `sh -c` for long-running commands would give it the host filesystem and every binary on `PATH`, which is precisely what the sandbox exists to prevent. So a background process is a `bash.exec()` call that outlived its yield window, not a detached host process, and `&`/`nohup`/`disown` remain unsupported.
+The agent's shell is `just-bash`, a JS interpreter over a mounted filesystem with a curated command set, not a real shell (see [agent-sandbox.md](../../architecture/agent-sandbox.md)). Backgrounding had to stay inside it: handing the agent a real `sh -c` for long-running commands would give it the host filesystem and every binary on `PATH`, which is precisely what the sandbox exists to prevent. So a background process is a `bash.exec()` call that outlived its yield window, not a detached host process, and `&`/`nohup`/`disown` remain unsupported.
 
 ### Streaming without a PTY
 
@@ -26,7 +26,7 @@ Both now read the subprocess's merged output stream themselves and forward whole
 
 The consequence to know: **only real-binary output streams.** A long pipeline of pure builtins (`for i in ...; do echo; sleep; done`) reports nothing until it finishes, and then reports everything at once. The tool description says so.
 
-The streamed copy is redacted in the sink itself, not in the shims. A shim applies [`filterShellOutput`](../../../packages/workspace/src/lib/filter-shell-output.ts) to the value it *returns*, which is the copy a foreground call reports; a promoted call reports the streamed copy instead, so redacting per shim would have left host paths, a home directory naming the user, and a token echoed back in a remote URL going to the model and into `bg_N.log`. One redaction at the sink covers every chokepoint, including any added later.
+The streamed copy is redacted in the sink itself, not in the shims. A shim applies [`filterShellOutput`](../../../packages/workspace/src/lib/filter-shell-output.ts) to the value it *returns*, which is the copy a foreground call reports; a promoted call reports the streamed copy instead, so redacting per shim would have left a token echoed back in a remote URL going to the model and into `bg_N.log`. One redaction at the sink covers every chokepoint, including any added later.
 
 Lines, not chunks, because that redaction is line-anchored: a chunk boundary mid-line would split a `password=` line in two and let it through. Separators are the one thing the sink does not rewrite -- that rewrite exists to make a Windows path usable as a tool input, the authoritative final output already does it, and applying it to a live view would corrupt backslashes inside matched lines.
 
@@ -215,10 +215,8 @@ shell result is appended and labeled, including an explicit note when that resul
 is empty.
 
 It also sits below each shim's own post-processing. Redaction is applied at the
-sink, so host paths and credentials never reach the model either way, but a
-rewrite a single shim does to its own result is not: a promoted `rg` streams
-`~/project/src/x.ts` where its final output says `/mnt/project/src/x.ts`, because
-the mount virtualization lives in the shim and runs on the value it returns.
+sink, so credentials never reach the model either way, but a transformation a
+single shim does to its own result is not.
 
 Fixing the live view itself needs a streaming boundary inside the interpreter,
 after redirects, pipes, and shim rewriting are resolved. Until then the live view

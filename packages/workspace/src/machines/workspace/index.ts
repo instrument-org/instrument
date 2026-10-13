@@ -270,6 +270,7 @@ export const workspaceMachine = setup({
       getUser?: WorkspaceConfig["getUser"];
       indexesDir?: string;
       modelCache: ModelCache;
+      nativeSandbox?: WorkspaceConfig["nativeSandbox"];
       nodeExecEnv: Record<string, string>;
       pnpmBinPath: string;
       preparedSkillsDir: string;
@@ -278,6 +279,7 @@ export const workspaceMachine = setup({
       rootDir: string;
       systemSkillsDir: string;
       trashItem: (path: AbsolutePath) => Promise<void>;
+      toolBinDir?: string;
       uvBinPath: string;
       uvDataDir: string;
       macHelperBinPath?: string;
@@ -311,6 +313,9 @@ export const workspaceMachine = setup({
         indexesDir: AbsolutePathSchema.parse(input.indexesDir),
       }),
       modelCache: input.modelCache,
+      ...(input.nativeSandbox && {
+        nativeSandbox: input.nativeSandbox,
+      }),
       nodeExecEnv: input.nodeExecEnv,
       pnpmBinPath: AbsolutePathSchema.parse(input.pnpmBinPath),
       preparedSkillsDir: AbsolutePathSchema.parse(input.preparedSkillsDir),
@@ -320,6 +325,9 @@ export const workspaceMachine = setup({
       registryDir: AbsolutePathSchema.parse(input.registryDir),
       rootDir,
       systemSkillsDir: AbsolutePathSchema.parse(input.systemSkillsDir),
+      ...(input.toolBinDir && {
+        toolBinDir: AbsolutePathSchema.parse(input.toolBinDir),
+      }),
       chatsDir: absolutePathJoin(rootDir, CHATS_DIR_NAME),
       legacyTasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),
       trashItem: input.trashItem,

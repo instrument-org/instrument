@@ -27,3 +27,20 @@ export function isOutputFolder(folderPath: string): boolean {
   const separator = home.includes("\\") ? "\\" : "/";
   return folderPath === [home, "Documents", "Instrument"].join(separator);
 }
+
+/**
+ * A folder the agent named, as this computer spells it. The agent's shell
+ * writes a Windows drive as `/c/Users/x`; everywhere else the path is already
+ * the computer's own.
+ */
+export function hostPathFromShellPath(
+  shellPath: string,
+  isWindows: boolean,
+): string {
+  const drive = isWindows ? /^\/([a-zA-Z])(?:\/(.*))?$/.exec(shellPath) : null;
+  if (!drive) {
+    return shellPath;
+  }
+  const rest = (drive[2] ?? "").replaceAll("/", "\\");
+  return `${(drive[1] ?? "").toUpperCase()}:\\${rest}`;
+}

@@ -43,7 +43,7 @@ function chosenNote(data: ViewContext) {
   const named = chosen
     .map(
       (entry) =>
-        `the ${entry.kind} \`${entry.path}\` (${entry.mount ? `you reach it at \`${entry.mount}\`` : "no folder you can reach covers it: ask for it with request_folder"})`,
+        `the ${entry.kind} \`${entry.path}\` (${entry.mount ? `you reach it at \`${entry.mount}\`` : "no folder you can reach covers it yet: reading it asks the person first"})`,
     )
     .join("; ");
   return systemNote`
@@ -90,7 +90,7 @@ function fileNote(data: ViewContext) {
   }
   const reach = file.mount
     ? `You reach it at \`${file.mount}\`${data.folder?.access === "read-only" ? ", read-only" : ", read and write"}.`
-    : "No folder you can reach covers it, so you cannot read it: ask for its folder with request_folder.";
+    : "No folder you can reach covers it yet: reading it asks the person first.";
   const folder = data.folder
     ? ` It sits in \`${data.folder.display}\`, which "this folder" means.`
     : "";
@@ -103,7 +103,7 @@ function fileNote(data: ViewContext) {
 function folderReach(data: ViewContext) {
   const { folder } = data;
   if (!folder?.mount) {
-    return "No folder you can reach covers it, so you cannot read it or hand it to a task: ask for it with request_folder.";
+    return "No folder you can reach covers it yet: reading it asks the person first, and a task reaches it once they allow it.";
   }
   const access =
     folder.access === "read-only"

@@ -1,6 +1,6 @@
-import { MOUNT } from "../../mount-points";
 import { APP_COMMAND } from "../shell-commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
+import { shellPath } from "../workspace-fs-layout";
 import { getAppCatalog } from "./catalog";
 import { describeConnection } from "./connection";
 import { listApps } from "./store";
@@ -29,8 +29,8 @@ export async function buildAppsContextText(): Promise<string> {
 
   return [
     rows.length > 0
-      ? `Apps in this workspace, at ${MOUNT.apps}/<slug>/ (\`${APP_COMMAND.name} list\` for the current standing):\n${rows.join("\n")}`
-      : `No apps are connected yet. An app is a service you reach with the \`${APP_COMMAND.name}\` command once it is set up under ${MOUNT.apps}/<slug>/.`,
+      ? `Apps in this workspace, at ${shellPath(appsDir)}/<slug>/ (\`${APP_COMMAND.name} list\` for the current standing):\n${rows.join("\n")}`
+      : `No apps are connected yet. An app is a service you reach with the \`${APP_COMMAND.name}\` command once it is set up under ${shellPath(appsDir)}/<slug>/.`,
     `The directory (\`${APP_COMMAND.name} catalog <words>\`) knows these services and how they are reached: ${known}.`,
   ].join("\n");
 }

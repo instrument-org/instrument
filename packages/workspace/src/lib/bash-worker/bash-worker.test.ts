@@ -6,7 +6,6 @@ import { type Worker } from "node:worker_threads";
 import { noop } from "radashi";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { MOUNT } from "../../mount-points";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
@@ -23,6 +22,7 @@ import { withShellOutputSink } from "../shell-commands/output-sink";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 import { withTurnContext } from "../turn-context";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { getWorkspaceSkillsDir } from "../workspace-skills-dir";
 import {
   beginSkillChangeTracking,
   consumeSkillChanges,
@@ -129,7 +129,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     );
     expect(result).toMatchObject({
       exitCode: 0,
-      stdout: `hi\n${MOUNT.task}/work\n`,
+      stdout: `hi\n${chatDir(chatId)}/work\n`,
     });
     expect(result.metadata?.commands).toEqual(["cd", "echo", "cat", "pwd"]);
   });
@@ -148,7 +148,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
 
   it("makes a script's tool calls on the main thread", async () => {
     const result = await remoteBash().exec(
-      `js-exec -c 'console.log(JSON.stringify(await tools["my-app"].list({ page: 2 }))); try { await tools.no.way(); } catch (error) { console.log(error.message); }'`,
+      `node --input-type=module -e 'console.log(JSON.stringify(await tools["my-app"].list({ page: 2 }))); try { await tools.no.way(); } catch (error) { console.log(error.message); }'`,
     );
     expect(result.stderr).toBe("");
     expect(result.stdout).toMatchInlineSnapshot(`
@@ -162,7 +162,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     const bashOptions = options();
     const turn = { id: chatId, sessionId: bashOptions.sessionId };
     await beginSkillChangeTracking(turn);
-    const skill = `${MOUNT.skills}/workspace/tracked`;
+    const skill = `${getWorkspaceSkillsDir()}/tracked`;
 
     await withTurnContext(turn, () =>
       remoteBash(bashOptions).exec(
@@ -206,8 +206,9 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
   });
 
   // A `tasks/` folder an earlier version left inside a chat's own folder,
-  // which mounts writable at /task: nothing of it is the chat's, and the chat
-  // must not reach it through /task/tasks/<id>.
+  // which is writable: nothing of it is the chat's, and the chat must not
+  // reach it through its own folder's tasks/<id>. `<chat>` stands for the
+  // chat's folder.
   describe("a chat's tasks", () => {
     const childId = ChatIdSchema.parse(`01k${"nestedchild".padEnd(23, "0")}`);
     let nestedChat: ChatId;
@@ -241,14 +242,15 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
         chatId: nestedChat,
       };
       const bash = remoteBash(bashOptions);
-      chatBash = (command) => bash.exec(command);
+      chatBash = (command) =>
+        bash.exec(command.replaceAll("<chat>", chatFolder));
     });
 
     it.each([
-      `${MOUNT.task}/tasks/${childId}/.instrument/settings.json`,
+      `<chat>/tasks/${childId}/.instrument/settings.json`,
       `tasks/${childId}/.instrument/settings.json`,
-      `${MOUNT.task}/TASKS/${childId}/.instrument/settings.json`,
-      `${MOUNT.task}/tasks/${childId}/output/report.md`,
+      `<chat>/TASKS/${childId}/.instrument/settings.json`,
+      `<chat>/tasks/${childId}/output/report.md`,
     ])("refuses to read %s", async (target) => {
       const result = await chatBash(`cat ${target}`);
       expect(result.exitCode).not.toBe(0);
@@ -256,15 +258,15 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     });
 
     it.each([
-      `cp ${MOUNT.task}/attachments/replacement.json ${MOUNT.task}/tasks/${childId}/.instrument/settings.json`,
+      `cp <chat>/attachments/replacement.json <chat>/tasks/${childId}/.instrument/settings.json`,
       `cp attachments/replacement.json tasks/${childId}/.instrument/settings.json`,
-      `cp -r ${MOUNT.task}/attachments ${MOUNT.task}/tasks/${childId}/.instrument`,
-      `mv ${MOUNT.task}/attachments/replacement.json ${MOUNT.task}/tasks/${childId}/.instrument/settings.json`,
-      `echo '{}' > ${MOUNT.task}/tasks/${childId}/.instrument/settings.json`,
-      `rm -rf ${MOUNT.task}/tasks`,
-      `rm -f ${MOUNT.task}/tasks/${childId}/output/report.md`,
-      `mkdir -p ${MOUNT.task}/tasks/${childId}/output/more`,
-      `ln -s ${MOUNT.task}/tasks/${childId} ${MOUNT.task}/work/child && cp ${MOUNT.task}/attachments/replacement.json ${MOUNT.task}/work/child/.instrument/settings.json`,
+      `cp -r <chat>/attachments <chat>/tasks/${childId}/.instrument`,
+      `mv <chat>/attachments/replacement.json <chat>/tasks/${childId}/.instrument/settings.json`,
+      `echo '{}' > <chat>/tasks/${childId}/.instrument/settings.json`,
+      `rm -rf <chat>/tasks`,
+      `rm -f <chat>/tasks/${childId}/output/report.md`,
+      `mkdir -p <chat>/tasks/${childId}/output/more`,
+      `ln -s <chat>/tasks/${childId} <chat>/work/child && cp <chat>/attachments/replacement.json <chat>/work/child/.instrument/settings.json`,
     ])("leaves the task untouched by %s", async (command) => {
       // A refused redirection rejects rather than reporting an exit code.
       await chatBash(command).catch(noop);
@@ -283,14 +285,14 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     // Each of these also reaches the chat's own attachment, so a command that
     // failed outright cannot pass for one that left the tasks dir alone.
     it.each([
-      `ls -aR ${MOUNT.task}`,
-      `find ${MOUNT.task}`,
-      `grep -r private ${MOUNT.task}`,
-      `rg -uu private ${MOUNT.task}`,
+      `ls -aR <chat>`,
+      `find <chat>`,
+      `grep -r private <chat>`,
+      `rg -uu private <chat>`,
       `rg -uu --files`,
-      `cd ${MOUNT.task}/work && rg -uu private ${MOUNT.task}`,
-      `cd ${MOUNT.task}/work && rg -uu private ..`,
-      `du -a ${MOUNT.task}`,
+      `cd <chat>/work && rg -uu private <chat>`,
+      `cd <chat>/work && rg -uu private ..`,
+      `du -a <chat>`,
     ])("keeps %s out of the tasks dir", async (command) => {
       const result = await chatBash(command);
       expect(result.stdout).toMatch(/replacement\.json|overwritten/);
@@ -300,7 +302,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     it.each([
       `rg -uu private tasks`,
       `rg -uu private tasks/${childId}`,
-      `rg -uu private ${MOUNT.task}/tasks/${childId}/.instrument`,
+      `rg -uu private <chat>/tasks/${childId}/.instrument`,
     ])("finds nothing with %s", async (command) => {
       const result = await chatBash(command);
       expect(result.exitCode).not.toBe(0);
@@ -308,9 +310,7 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     });
 
     it("copies nothing out of the tasks dir", async () => {
-      const result = await chatBash(
-        `cp -r ${MOUNT.task}/tasks ${MOUNT.task}/work/copy`,
-      );
+      const result = await chatBash(`cp -r <chat>/tasks <chat>/work/copy`);
       expect(result.exitCode).not.toBe(0);
       await expect(
         fs.stat(path.join(chatFolder, "work", "copy")),

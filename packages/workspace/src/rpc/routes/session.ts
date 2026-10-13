@@ -206,8 +206,8 @@ const live = {
 };
 
 /**
- * Answer a tool call that is waiting on the user: a `choose` or a
- * `request_folder`. The output is checked against the tool's own schema, then
+ * Answer a tool call that is waiting on the user: a `choose`. The output is
+ * checked against the tool's own schema, then
  * handed to the session holding the call, which records it and lets the agent
  * go on.
  */

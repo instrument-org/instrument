@@ -11,15 +11,14 @@ function listOf(text: string): string[] {
 }
 
 describe("buildFoldersText", () => {
-  // The bug this exists to prevent: the model reads back the mount name as
+  // The bug this exists to prevent: the model reads back a path segment as
   // though it were the folder's name, and the user is told about a
   // "documents-test" folder they never created.
-  it("names a folder the way the user does, whatever its mount is called", () => {
+  it("names a folder the way the user does, whatever its path is", () => {
     const text = buildFoldersText({
       folders: [
         {
           access: "read-write",
-          mountPoint: "/mnt/Documents-test",
           path: "/Users/sam/Documents/test",
         },
       ],
@@ -28,36 +27,37 @@ describe("buildFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "test" -> \`/mnt/Documents-test\` (read and write)",
+        "- "test" -> \`/Users/sam/Documents/test\` (read and write)",
       ]
     `);
   });
 
-  it("tells the model to speak the name and address the mount", () => {
+  it("tells the model to speak the name and address the path", () => {
     const text = buildFoldersText({
-      folders: [
-        { access: "read-only", mountPoint: "/mnt/notes", path: "/tmp/notes" },
-      ],
+      folders: [{ access: "read-only", path: "/tmp/notes" }],
       intro: INTRO,
     });
 
     expect(text).toContain("Call a folder by its quoted name");
-    expect(text).toContain("The mount path is its address, not its name");
+    expect(text).toContain("The path is its address, not its name");
   });
 
   it("leaves a name unqualified when nothing else shares it", () => {
     const text = buildFoldersText({
       folders: [
-        { access: "read-only", mountPoint: "/mnt/test", path: "/tmp/a/test" },
-        { access: "read-only", mountPoint: "/mnt/notes", path: "/tmp/b/notes" },
+        { access: "read-only", path: "/tmp/a/test" },
+        {
+          access: "read-only",
+          path: "/tmp/b/notes",
+        },
       ],
       intro: INTRO,
     });
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "test" -> \`/mnt/test\` (read-only)",
-        "- "notes" -> \`/mnt/notes\` (read-only)",
+        "- "test" -> \`/tmp/a/test\` (read-only)",
+        "- "notes" -> \`/tmp/b/notes\` (read-only)",
       ]
     `);
   });
@@ -69,12 +69,10 @@ describe("buildFoldersText", () => {
       folders: [
         {
           access: "read-write",
-          mountPoint: "/mnt/test",
           path: "/Users/sam/Downloads/test",
         },
         {
           access: "read-only",
-          mountPoint: "/mnt/Documents-test",
           path: "/Users/sam/Documents/test",
         },
       ],
@@ -83,8 +81,8 @@ describe("buildFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "test" (in Downloads) -> \`/mnt/test\` (read and write)",
-        "- "test" (in Documents) -> \`/mnt/Documents-test\` (read-only)",
+        "- "test" (in Downloads) -> \`/Users/sam/Downloads/test\` (read and write)",
+        "- "test" (in Documents) -> \`/Users/sam/Documents/test\` (read-only)",
       ]
     `);
   });
@@ -94,35 +92,27 @@ describe("buildFoldersText", () => {
       folders: [
         {
           access: "read-only",
-          mountPoint: "/mnt/test",
           path: path.join(os.homedir(), "test"),
         },
         {
           access: "read-only",
-          mountPoint: "/mnt/Documents-test",
           path: path.join(os.homedir(), "Documents", "test"),
         },
       ],
       intro: INTRO,
     });
 
-    expect(listOf(text)).toMatchInlineSnapshot(`
-      [
-        "- "test" (in Home) -> \`/mnt/test\` (read-only)",
-        "- "test" (in Documents) -> \`/mnt/Documents-test\` (read-only)",
-      ]
-    `);
-    expect(text).not.toContain(path.basename(os.homedir()));
+    const hints = listOf(text).map((line) => /\(in ([^)]*)\)/.exec(line)?.[1]);
+    expect(hints).toEqual(["Home", "Documents"]);
   });
 
   // The chat has no file tools and a shell that refuses to write, so
   // its copy names the task as the writer rather than tools it has not got.
-  it("labels the home folder as writable inside without calling it read-only", () => {
+  it("labels the home folder as one to look through and ask inside", () => {
     const text = buildFoldersText({
       folders: [
         {
           access: "read-only",
-          mountPoint: "/mnt/sam",
           path: "/Users/sam",
           writableInside: true,
         },
@@ -132,27 +122,22 @@ describe("buildFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "sam" -> \`/mnt/sam\` (read-only, and \`task folder --add\` gives you write on a folder inside it)",
+        "- "sam" -> \`/Users/sam\` (look through it; changing anything in it asks the person first)",
       ]
     `);
-    expect(text).not.toContain("Writing into a read-only folder fails");
   });
 
-  it.runIf(process.platform === "darwin")(
-    "says what a refusal from macOS looks like",
-    () => {
-      const folders = [
-        {
-          access: "read-write" as const,
-          mountPoint: "/mnt/Desktop",
-          path: "/Users/sam/Desktop",
-        },
-      ];
-      expect(buildFoldersText({ folders, intro: INTRO })).toContain(
-        "Operation not permitted",
-      );
-    },
-  );
+  it("says a folder that asks shows the person a card", () => {
+    const folders = [
+      {
+        access: "read-write" as const,
+        path: "/Users/sam/Desktop",
+      },
+    ];
+    expect(buildFoldersText({ folders, intro: INTRO })).toContain(
+      "shows the person a card",
+    );
+  });
 
   it("marks a folder that is no longer on disk", () => {
     const text = buildFoldersText({
@@ -160,7 +145,6 @@ describe("buildFoldersText", () => {
         {
           access: "read-write",
           missing: true,
-          mountPoint: "/mnt/test",
           path: "/tmp/gone/test",
         },
       ],
@@ -169,7 +153,7 @@ describe("buildFoldersText", () => {
 
     expect(listOf(text)).toMatchInlineSnapshot(`
       [
-        "- "test" -> \`/mnt/test\` (read and write, no longer exists)",
+        "- "test" -> \`/tmp/gone/test\` (read and write, no longer exists)",
       ]
     `);
   });

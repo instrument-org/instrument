@@ -71,11 +71,11 @@ function answeringWindow() {
 
 function run(options: { timeoutMs?: number }, ...args: string[]) {
   const fsTree = new InMemoryFs();
-  fsTree.writeFileSync("/mnt/Instrument/report.md", "# report");
+  fsTree.writeFileSync("/Users/me/Instrument/report.md", "# report");
   return createTabCommand({ chatId, layout, ...options }).execute(
     args,
     createCommandContext({
-      cwd: "/task",
+      cwd: layout.task.shellRoot,
       env: new Map<string, string>(),
       fs: fsTree,
       stdin: EMPTY_BYTES,
@@ -133,28 +133,28 @@ describe("tab open", () => {
   // A terminal's `open` stands you in a folder, and so does this one. The
   // slash is how the window is told which of the two it was handed.
   it("opens a folder, named with the slash that says it is one", async () => {
-    const result = await run({}, "open", "/mnt/Instrument");
+    const result = await run({}, "open", "/Users/me/Instrument");
 
-    expect(result.stdout).toBe("Opened /mnt/Instrument/ (tab made-1)\n");
+    expect(result.stdout).toBe("Opened /Users/me/Instrument/ (tab made-1)\n");
     expect(asked[0]?.action).toEqual({
       kind: "open",
       show: true,
-      target: { kind: "path", mount: "/mnt/Instrument/" },
+      target: { kind: "path", path: "/Users/me/Instrument/" },
     });
   });
 
-  it("refuses a path the window cannot show, and opens the rest", async () => {
+  it("refuses a path that does not exist, and opens the rest", async () => {
     const result = await run(
       {},
       "open",
       "/etc/hosts",
-      "/mnt/Instrument/report.md",
+      "/Users/me/Instrument/report.md",
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('"/etc/hosts" is not a page');
+    expect(result.stderr).toContain('"/etc/hosts" does not exist');
     expect(result.stdout).toBe(
-      "Opened /mnt/Instrument/report.md (tab made-1)\n",
+      "Opened /Users/me/Instrument/report.md (tab made-1)\n",
     );
   });
 

@@ -24,6 +24,13 @@ What Instrument remembers about you, which you can search, forget, or add to fro
 
 - **Import from another AI** (`memory-import`): Bring in what another AI knows about you.
 
+### Permissions (`permissions`)
+
+Which folders and places on this computer Instrument may use.
+
+- **Permissions** (`permissions`): Which folders and places on this computer the agent may use.
+- **Use folders without asking** (`use-folders-without-asking`): Use any folder that isn't marked Not allowed, without asking.
+
 ### Providers (`providers`)
 
 The AI models Instrument can use: your ChatGPT or Claude plan, or a provider you add with your own key.

@@ -4,17 +4,14 @@ import { type Session } from "../../src/schemas/session";
 import { type Assertion, defineEval } from "../harness";
 
 /**
- * The two Pythons, as the agent has to tell them apart.
+ * Python over a folder the chat reaches.
  *
- * `python` runs inside the sandbox and reads an attached folder in place, so
- * a standard-library parse of a mounted file should involve no copy into the
- * task. A package runs in the task's virtualenv, which `python` goes to on its
- * own once the package is installed, and the route there is the message the
- * sandboxed interpreter prints when an import fails. The virtualenv cannot see
- * the mount, so a package run on a mounted file also has to be copied in, and
- * the refusal says so. These check that a model takes the direct path when it
- * exists and follows the signposts when it does not, since a unit test can
- * show a message is printed and nothing about whether it is read.
+ * `python` is the chat's virtualenv interpreter, held to the native sandbox,
+ * and reads an attached folder in place, so a parse of a file there should
+ * involve no copy into the chat's folder. A package goes in with `pip` and
+ * the same `python` runs it. These check that a model takes the direct path,
+ * since a unit test can show the folder is readable and nothing about
+ * whether a model reads it there.
  */
 const DATA_FIXTURE = path.resolve(import.meta.dirname, "../fixtures/Data");
 
@@ -72,19 +69,19 @@ function replyContains(label: string, value: number): Assertion {
   };
 }
 
-/** A copy of the mounted file into the task is the step this work no longer needs. */
+/** A copy of the attached file into the chat's folder is the step this work does not need. */
 const neverCopiedTheMount: Assertion = {
   check: ({ sessions }) => {
     const copies = bashCommands(sessions).filter((command) =>
-      /\b(?:cp|mv|rsync|cat)\b[^|;&]*\/mnt\/Data[^|;&]*(?:attachments|work|output|>)/.test(
+      /\b(?:cp|mv|rsync)\b[^|;&\n]*-eval-folders-[^/\s]*\/Data[^|;&\n]*(?:attachments|work|output)|\bcat\s+\S*-eval-folders-[^/\s]*\/Data\S*\s*>/.test(
         command,
       ),
     );
     return {
       evidence:
         copies.length === 0
-          ? "No copy of /mnt/Data into the task"
-          : `Copied the mount first: ${copies.join(" | ").slice(0, 300)}`,
+          ? "No copy of the Data folder into the chat's folder"
+          : `Copied the folder's file first: ${copies.join(" | ").slice(0, 300)}`,
       passed: copies.length === 0,
       text: "read the attached file where it is",
     };
@@ -92,20 +89,19 @@ const neverCopiedTheMount: Assertion = {
   text: "read the attached file where it is",
 };
 
-/** The sandboxed interpreter, pointed at the mount. */
+/** The interpreter, pointed at the attached folder. */
 const ranPythonOnTheMount: Assertion = {
   check: ({ sessions }) => {
     const runs = bashCommands(sessions).filter(
       (command) =>
         /(?:^|[\s;&|(])python3?\s/.test(command) &&
-        !command.includes("python-native") &&
-        command.includes("/mnt/Data"),
+        /-eval-folders-[^/\s]*\/Data/.test(command),
     );
     return {
       evidence:
         runs.length > 0
-          ? `python ran against the mount ${runs.length}x: ${(runs[0] ?? "").slice(0, 200)}`
-          : `No python command named /mnt/Data. Commands: ${bashCommands(sessions).join(" | ").slice(0, 400)}`,
+          ? `python ran against the folder ${runs.length}x: ${(runs[0] ?? "").slice(0, 200)}`
+          : `No python command named the Data folder. Commands: ${bashCommands(sessions).join(" | ").slice(0, 400)}`,
       passed: runs.length > 0,
       text: "ran python on the mounted file",
     };
@@ -120,7 +116,7 @@ function pandasInstalledAt(commands: string[]): number {
   );
 }
 
-/** After the import failed, the package went in and a Python ran it, under either name. */
+/** The package went in and a Python ran it, under either name. */
 const installedThePackageAndRanIt: Assertion = {
   check: ({ sessions }) => {
     const commands = bashCommands(sessions);
@@ -130,9 +126,8 @@ const installedThePackageAndRanIt: Assertion = {
         // The same command counts when python comes after the install in it:
         // `pip install pandas && python -c ...`.
         (index > installed ||
-          (index === installed &&
-            /install[^\n]*python(?:3|-native)?\s/.test(command))) &&
-        /(?:^|[\s;&|(])python(?:3|-native)?\s/.test(command),
+          (index === installed && /install[^\n]*python3?\s/.test(command))) &&
+        /(?:^|[\s;&|(])python3?\s/.test(command),
     );
     const passed = installed !== -1 && ran !== -1;
     return {
@@ -146,33 +141,11 @@ const installedThePackageAndRanIt: Assertion = {
   text: "installed the package and ran it",
 };
 
-/** The message says once what to do; a model that loops on the failing import did not read it. */
-const didNotRetryTheSandboxedImport: Assertion = {
-  check: ({ sessions }) => {
-    const commands = bashCommands(sessions);
-    const installed = pandasInstalledAt(commands);
-    const failing = commands.filter(
-      (command, index) =>
-        (installed === -1 || index < installed) &&
-        /(?:^|[\s;&|(])python3?\s/.test(command) &&
-        command.includes("pandas"),
-    );
-    return {
-      evidence: `${failing.length} python command(s) imported pandas before it was installed`,
-      passed: failing.length <= 2,
-      text: "did not keep retrying the sandboxed import",
-    };
-  },
-  text: "did not keep retrying the sandboxed import",
-};
-
-/** The script the prompt asked for ran as a file, under the sandboxed interpreter. */
+/** The script the prompt asked for ran as a file. */
 const ranTheScriptFileWithPython: Assertion = {
   check: ({ sessions }) => {
-    const runs = bashCommands(sessions).filter(
-      (command) =>
-        /(?:^|[\s;&|(])python3?\s+(?:\S+\s+)*\S*count\.py\b/.test(command) &&
-        !command.includes("python-native"),
+    const runs = bashCommands(sessions).filter((command) =>
+      /(?:^|[\s;&|(])python3?\s+(?:\S+\s+)*\S*count\.py\b/.test(command),
     );
     return {
       evidence:
@@ -216,7 +189,6 @@ export const SANDBOXED_PYTHON_EVALS = [
     assertions: [
       replyContains("the total revenue", TOTAL_REVENUE),
       installedThePackageAndRanIt,
-      didNotRetryTheSandboxedImport,
     ],
     folders: [{ path: DATA_FIXTURE }],
     name: "python-runs-a-package-once-installed",

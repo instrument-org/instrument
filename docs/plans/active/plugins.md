@@ -30,7 +30,7 @@ Scenarios worth having from the start: a service with a first-party MCP server, 
 
 Not plugin work. Nothing below is worth starting while the mount layout is still moving.
 
-- Land the skills mount reorganization, since it changes what `/skills` means and the plugin mount sits beside it.
+- Land the skills mount reorganization, since it changes where the skill sources are reached and the plugin source sits beside them.
 - Retire the connectors prototype rather than rebasing it. Keep it readable as a reference implementation; it is a complete worked example of the agent-authored setup loop and re-landing four files against the plugin shape is less work than carrying them forward twice.
 
 ## Phase 1: harvest what does not depend on the shape

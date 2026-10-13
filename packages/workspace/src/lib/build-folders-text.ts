@@ -3,17 +3,14 @@ import { dedent } from "radashi";
 
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { TOOL_NAMES } from "../tools/name";
-import { TASK_COMMAND } from "./shell-commands/task-command";
+import { shellPath } from "./workspace-fs-layout";
 import { folderLabel, folderParentLabel } from "./folder-parent-label";
 
 /**
  * The list of folders the model reads: every folder the chat reaches.
  *
  * A folder is introduced by the name the user knows it by, taken from its path,
- * with its mount path beside it as an address rather than a label. The two come
- * apart because the mount name has to be unique per chat and the user's name for
- * a folder does not: told only "Documents-test", a model reports back that it
- * wrote to "the documents-test folder", naming something the user never created.
+ * with its path beside it as an address rather than a label.
  *
  * The parent appears only where two folders share a name, which is the only
  * case where the user needs it to tell them apart.
@@ -27,11 +24,10 @@ export function buildFoldersText({
     access: MountedFolder.Access;
     /** Reached, but no longer on disk when the list was built. */
     missing?: boolean;
-    mountPoint: string;
     path: string;
     /**
-     * Read-only as a whole because the workspace lives inside it, while a
-     * folder inside it takes the write grant the user gave: the home folder.
+     * Open to look through, while changing anything in it takes the person's
+     * yes for the folder inside it: the home folder.
      */
     writableInside?: boolean;
   }[];
@@ -50,7 +46,7 @@ export function buildFoldersText({
   }
 
   const folderList = folders
-    .map(({ access, missing, mountPoint, path, writableInside }, index) => {
+    .map(({ access, missing, path, writableInside }, index) => {
       const name = displayNames[index] ?? path;
       const parent =
         (nameCounts.get(name) ?? 0) > 1 ? folderParentLabel(path) : undefined;
@@ -59,13 +55,13 @@ export function buildFoldersText({
         access === "read-write"
           ? "read and write"
           : writableInside
-            ? `read-only, and \`${TASK_COMMAND.name} folder --add\` gives you write on a folder inside it`
+            ? "look through it; changing anything in it asks the person first"
             : "read-only",
         missing ? "no longer exists" : null,
       ]
         .filter((part) => part !== null)
         .join(", ");
-      return `- "${name}"${where} -> \`${mountPoint}\` (${state})`;
+      return `- "${name}"${where} -> \`${shellPath(path)}\` (${state})`;
     })
     .join("\n");
 
@@ -79,26 +75,18 @@ export function buildFoldersText({
   }
 
   const writable = folders.some(({ access }) => access === "read-write");
-  const readOnly = folders.some(
-    ({ access, writableInside }) => access !== "read-write" && !writableInside,
-  );
 
   // Lines, not a `- ` list: the folder list above already is one, and a second
   // list under it reads as more folders.
   const rules = [
-    `Call a folder by its quoted name when you write to the user. The mount path is its address, not its name.`,
-    `Read, list, and search by mount path with \`${TOOL_NAMES.readFile}\` or bash (\`ls\`, \`rg\`, \`find\`), like any other directory. On a large folder \`rg\` is the one that finishes: \`rg --files -g '<glob>'\` lists and \`rg -l\` searches a whole home folder in seconds, where \`find\` stops part way with a traversal limit and returns nothing. Narrow it to a glob or a subdirectory either way, since an unfiltered \`rg --files\` over a home folder is millions of lines.`,
+    `Call a folder by its quoted name when you write to the user. The path is its address, not its name.`,
+    `Read, list, and search by path with \`${TOOL_NAMES.readFile}\` or bash (\`ls\`, \`rg\`, \`find\`), like any other directory. On a large folder \`rg\` is the one that finishes: \`rg --files -g '<glob>'\` lists and \`rg -l\` searches a whole home folder in seconds, where \`find\` stops part way with a traversal limit and returns nothing. Narrow it to a glob or a subdirectory either way, since an unfiltered \`rg --files\` over a home folder is millions of lines.`,
     writable
       ? `In the read-and-write folders you may also create, edit, move, rename, and delete, with \`${TOOL_NAMES.writeFile}\`, \`${TOOL_NAMES.editFile}\`, and bash. These are the user's real files: every change is immediate and there is no undo, so prefer moving and renaming over deleting, and tell them what you changed.`
       : null,
-    readOnly
-      ? `Writing into a read-only folder fails. It mirrors the user's real files and is not yours to change.`
-      : null,
-    process.platform === "darwin"
-      ? `\`EPERM\` or "Operation not permitted" on reading or listing one of these means macOS has not let ${APP_NAME} into that folder. Call \`${TOOL_NAMES.requestFolder}\` with \`folder\` set to its mount path rather than trying again: it opens the system's own panel at that folder, and a pick there lets ${APP_NAME} in for good.`
-      : null,
-    `\`cp\`, \`mv\`, the file tools, the sandboxed script runtimes (\`python\`, \`js-exec\`), and \`git\` reach a mount directly, one mount to another included, so reading a file, parsing it in a script, or putting one where it belongs takes no copy through the task. A real subprocess (python-native, node, ffmpeg, pnpm) is the exception: it cannot see a mount at all, so copy in first and run it on the copy: \`cp '<mount path>/file' attachments/\`${writable ? `, then \`mv\` the result back if it belongs in the folder` : ""}.`,
-    `A repository in a folder is read in place: \`git -C '<mount path>' log\`, or \`cd\` there first. In a read-only folder git may only read (log, show, diff, blame, status); committing or changing files there needs write on the repository's own folder, which \`${TASK_COMMAND.name} folder --add\` gives.`,
+    `Some folders inside these need the person's yes, and some they closed to ${APP_NAME}. Reaching one that asks shows the person a card on its own, and you hear when they answer; one they closed stays closed, so say what you couldn't reach. Never look for another way in.`,
+    `Every command works on these folders in place, the native ones (\`python\`, \`node\`, \`ffmpeg\`) included, so reading a file, parsing it in a script, or putting one where it belongs takes no copy through your folder.`,
+    `A repository in a folder is read in place: \`git -C '<folder>' log\`, or \`cd\` there first. In a read-only folder git may only read (log, show, diff, blame, status); committing or changing files there asks the person for the repository's own folder.`,
   ]
     .filter((line) => line !== null)
     .join("\n");

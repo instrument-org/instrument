@@ -10,11 +10,7 @@ import {
   promoteBackgroundProcess,
   startBackgroundRun,
 } from "../lib/background-processes";
-import {
-  createBashDescription,
-  createBashEnv,
-  shellLayout,
-} from "../lib/create-bash-env";
+import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import {
   BrowserSkillSchema,
   browserSkillToDeliver,
@@ -182,10 +178,6 @@ export const BashTool = setupTool({
       sessionId,
       chatId,
     });
-    // The layout the native shims write their own output's host paths back
-    // against, so the live copy a promoted command streams names them the way
-    // the foreground copy does.
-    const layout = shellLayout({ folders, role, chatId });
     // Interpreter metadata, only available once the run finishes. A promoted
     // command reports none, which is what the empty default stands for.
     let commands: string[] = [];
@@ -226,8 +218,6 @@ export const BashTool = setupTool({
           };
         }
       },
-      layout,
-      chatId,
     });
 
     const outcome = await raceYield(handle.completion, yieldMs);

@@ -1,6 +1,6 @@
 import { type AbsolutePath, type WorkspaceFilePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
-import { folderReach } from "./chat/folder-reach";
+import { chatReach } from "./permissions/chat-rules";
 import { resolveExistingFilePath } from "./resolve-agent-path";
 import {
   buildWorkspaceFsLayout,
@@ -9,14 +9,15 @@ import {
 import { workDir } from "./work-dir";
 
 /**
- * Host path for a file a task can reach: task-relative, or the mount path of a
- * folder the user attached (`/mnt/<name>/...`). Null when the path resolves outside everything the task
- * has -- including the task's own private dir and a symlink leading out of a
- * mount -- so a caller can fail closed.
+ * Host path for a file a task can reach: task-relative, or an absolute path in
+ * a folder the user attached. Null when the path resolves outside everything
+ * the task has -- including the task's own private dir and a symlink leading
+ * out of a mount -- so a caller can fail closed.
  *
  * Use wherever the main process acts on a path that came from the renderer: the
- * task directory is only part of what a task's files can live in, and a mount
- * path resolved against the task directory is a file that does not exist.
+ * task directory is only part of what a task's files can live in, and a path
+ * in another folder resolved against the task directory is a file that does
+ * not exist.
  */
 export async function resolveWorkspaceFilePath({
   filePath,
@@ -59,7 +60,7 @@ export async function resolveWorkspaceFilePaths({
  */
 export async function taskFsLayout(chatId: ChatId): Promise<WorkspaceFsLayout> {
   return buildWorkspaceFsLayout({
-    folders: await folderReach(chatId),
+    ...(await chatReach(chatId)),
     taskHostRoot: workDir(chatId),
   });
 }

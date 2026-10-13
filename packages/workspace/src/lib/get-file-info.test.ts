@@ -39,30 +39,39 @@ describe("getCurrentFileInfo", () => {
 
   it.each([
     [
-      "notes.txt",
+      "a chat file",
+      (): string => "notes.txt",
       "notes.txt",
       "text/plain",
-      () => taskModifiedAt,
-      () => path.join(root, "tasks", "file-info-task", "notes.txt"),
+      (): number => taskModifiedAt,
+      (): string => path.join(root, "tasks", "file-info-task", "notes.txt"),
     ],
     [
-      "/mnt/Photos/cat.png",
+      "a file in a granted folder",
+      (): string => path.join(root, "Photos", "cat.png"),
       "cat.png",
       "image/png",
-      () => mountedModifiedAt,
-      () => path.join(root, "Photos", "cat.png"),
+      (): number => mountedModifiedAt,
+      (): string => path.join(root, "Photos", "cat.png"),
     ],
   ] as const)(
     "returns live metadata for %s, and where it is",
-    async (filePath, filename, mimeType, expectedModifiedAt, hostPath) => {
+    async (
+      _label,
+      filePath,
+      filename,
+      mimeType,
+      expectedModifiedAt,
+      hostPath,
+    ) => {
       const result = await getCurrentFileInfo({
-        filePath: WorkspaceFilePathSchema.parse(filePath),
+        filePath: WorkspaceFilePathSchema.parse(filePath()),
         chatId,
       });
 
       expect(result._unsafeUnwrap()).toEqual({
         filename,
-        filePath,
+        filePath: filePath(),
         hostPath: hostPath(),
         mimeType,
         modifiedAt: expectedModifiedAt(),
@@ -71,13 +80,14 @@ describe("getCurrentFileInfo", () => {
   );
 
   it("rejects a missing file", async () => {
+    const missing = path.join(root, "Photos", "missing.png");
     const result = await getCurrentFileInfo({
-      filePath: WorkspaceFilePathSchema.parse("/mnt/Photos/missing.png"),
+      filePath: WorkspaceFilePathSchema.parse(missing),
       chatId,
     });
 
     expect(result._unsafeUnwrapErr().message).toBe(
-      "File not found: /mnt/Photos/missing.png",
+      `File not found: ${missing}`,
     );
   });
 });

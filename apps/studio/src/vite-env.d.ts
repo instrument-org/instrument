@@ -78,6 +78,8 @@ declare namespace NodeJS {
       STUDIO_DRIVE_PURPOSE: string | undefined;
       /** Dev only: the lowest electron-log level the terminal shows; `warn` when unset. */
       STUDIO_LOG_LEVEL: string | undefined;
+      /** Set by Windows: the drive it runs from, such as `C:`. */
+      SystemDrive: string | undefined;
       TARGET_PLATFORM: string | undefined;
       /** Set by a Wayland compositor. The signal Chromium reads for `auto`. */
       WAYLAND_DISPLAY: string | undefined;

@@ -22,7 +22,6 @@ const HOME = MountedFolder.Schema.parse({
   access: "read-write",
   createdAt: 0,
   id: "home",
-  mountName: "Home",
   path: "/Users/casey",
   source: "user",
 });
@@ -234,7 +233,7 @@ describe("sendContext", () => {
       .resolves.toMatchInlineSnapshot(`
       {
         "file": {
-          "mount": "/mnt/Home/Downloads/receipt.pdf",
+          "mount": "/Users/casey/Downloads/receipt.pdf",
           "name": "receipt.pdf",
           "path": "/Users/casey/Downloads/receipt.pdf",
         },
@@ -425,7 +424,7 @@ describe("draftContext", () => {
       {
         folder: {
           display: "/Users/casey/Documents",
-          mount: "/mnt/Home/Documents",
+          mount: "/Users/casey/Documents",
           selected: [],
         },
         screen: "computer",
@@ -438,7 +437,7 @@ describe("draftContext", () => {
       { group: "place:files", href: FILE, id: "over", kind: "screen" },
       {
         file: {
-          mount: "/mnt/Home/Downloads/receipt.pdf",
+          mount: "/Users/casey/Downloads/receipt.pdf",
           name: "receipt.pdf",
           path: "/Users/casey/Downloads/receipt.pdf",
         },
@@ -548,7 +547,7 @@ describe("draftContext", () => {
         chosen: [
           {
             kind: "file",
-            mount: "/mnt/Home/Documents/notes.md",
+            mount: "/Users/casey/Documents/notes.md",
             name: "notes.md",
             path: NOTES,
           },
@@ -576,7 +575,7 @@ describe("draftContext", () => {
       expect(context?.chosen).toEqual([
         {
           kind: "file",
-          mount: "/mnt/Home/Documents/notes.md",
+          mount: "/Users/casey/Documents/notes.md",
           name: "notes.md",
           path: NOTES,
         },
@@ -646,7 +645,7 @@ describe("draftContext", () => {
         "chosen": [
           {
             "kind": "file",
-            "mount": "/mnt/Home/Notes/plan.md",
+            "mount": "/Users/casey/Notes/plan.md",
             "name": "plan.md",
             "path": "/Users/casey/Notes/plan.md",
           },
@@ -696,7 +695,7 @@ describe("draftContext", () => {
           },
         ],
         "file": {
-          "mount": "/mnt/Home/Notes/plan.md",
+          "mount": "/Users/casey/Notes/plan.md",
           "name": "plan.md",
           "path": "/Users/casey/Notes/plan.md",
         },

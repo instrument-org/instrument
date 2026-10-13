@@ -195,6 +195,14 @@ export interface WorkspaceConfig {
   refreshExpiredCredentials?: AIGatewayEnv["Variables"]["refreshExpiredCredentials"];
   modelCache: ModelCache;
   nodeExecEnv: Record<string, string>;
+  /**
+   * Whether native commands (node, python, uv, pnpm, ffmpeg, git,
+   * osascript) are held to Settings › Permissions with Seatbelt on macOS. A
+   * plain flag, because native commands run in the bash worker, which is sent
+   * a snapshot of the config with each command. Off, native commands run
+   * unwrapped, as they do off macOS.
+   */
+  nativeSandbox?: boolean;
   pnpmBinPath: AbsolutePath;
   // Where the skills the app ships are prepared for use. They cannot run from
   // the bundle -- it is signed, notarized, and replaced wholesale by the updater,
@@ -221,8 +229,12 @@ export interface WorkspaceConfig {
   // the home folder by its English name: Windows moves Desktop and Documents
   // into OneDrive, and Linux names them in the desktop's language.
   knownFolders?: Record<KnownFolder, string>;
+  // The app's folder on PATH that links `node`, `pnpm`, `uv` and the rest,
+  // which a package script or bin shim finds `node` through. Native commands
+  // may read it whatever the rules say about the folder it sits in.
+  toolBinDir?: AbsolutePath;
   // Base dir for uv's isolated cache/python-install/tool dirs. Lives under the
-  // app's userData so a sandboxed `HOME=/` never sends uv writing to the host.
+  // app's userData so uv never writes into the person's home.
   uvDataDir: AbsolutePath;
   webSearch: WebSearchClient;
 }

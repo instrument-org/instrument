@@ -116,7 +116,7 @@ function run(...args: string[]) {
   return createChatCommand().execute(
     args,
     createCommandContext({
-      cwd: "/task",
+      cwd: "/Users/sam/chat",
       env: new Map<string, string>(),
       fs: new InMemoryFs(),
       stdin: EMPTY_BYTES,
@@ -165,6 +165,16 @@ describe("chat read", () => {
     expect(result.stdout).toMatch(
       /^\S+ {2}"Trip to Lisbon"\nuser: plan a trip\n$/,
     );
+  });
+
+  it("reads a long message whole, so a path at its end arrives", async () => {
+    await freshChat();
+    const leasePath = "/Users/sam/Documents/Leases/2026/signed-lease.pdf";
+    await chat("Lease pickup", `${"Some background. ".repeat(30)}${leasePath}`);
+
+    const result = await run("read", "lease");
+
+    expect(result.stdout).toContain(leasePath);
   });
 
   it("lists the matches when the words fit more than one chat", async () => {

@@ -4,11 +4,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
-import {
-  resolveCommandContext,
-  resolvePathArgs,
-  unreachablePathArgError,
-} from "./utils";
+import { hostPathArgs, resolveCommandContext } from "./utils";
 
 export const SHORTCUTS_COMMAND = {
   description:
@@ -26,7 +22,7 @@ const PATH_FLAGS = new Set(["-i", "--input-path", "-o", "--output-path"]);
 
 export function createShortcutsCommand(
   chatId: ChatId,
-  layout: WorkspaceFsLayout,
+  _layout: WorkspaceFsLayout,
 ) {
   return defineCommand(SHORTCUTS_COMMAND.name, async (args, ctx) => {
     const [subcommand] = args;
@@ -39,22 +35,11 @@ export function createShortcutsCommand(
         stdout: "",
       };
     }
-    const isPath = args.map((_arg, index) =>
-      PATH_FLAGS.has(args[index - 1] ?? ""),
-    );
-    const unreachable = unreachablePathArgError(
-      SHORTCUTS_COMMAND.name,
-      args.filter((_arg, index) => isPath[index]),
-      ctx.cwd,
-    );
-    if (unreachable !== undefined) {
-      return { exitCode: 1, stderr: unreachable, stdout: "" };
-    }
-    const bridgedArgs = args.flatMap((arg, index) =>
-      isPath[index] ? resolvePathArgs([arg], chatId, ctx) : [arg],
+    const hostArgs = args.flatMap((arg, index) =>
+      PATH_FLAGS.has(args[index - 1] ?? "") ? hostPathArgs([arg]) : [arg],
     );
     const { env, taskCwd } = resolveCommandContext(chatId, ctx);
-    const result = await execShim(SHORTCUTS_PATH, bridgedArgs, {
+    const result = await execShim(SHORTCUTS_PATH, hostArgs, {
       cancelSignal: ctx.signal,
       cwd: taskCwd,
       env,
@@ -63,7 +48,7 @@ export function createShortcutsCommand(
     return {
       exitCode: result.exitCode ?? 1,
       ...mapStreams(shimOutput(result, SHORTCUTS_COMMAND.name), (text) =>
-        filterShellOutput(text, layout),
+        filterShellOutput(text),
       ),
     };
   });

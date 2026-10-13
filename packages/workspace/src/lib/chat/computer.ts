@@ -79,8 +79,8 @@ type ComputerEntry = z.output<typeof ComputerEntrySchema>;
  */
 const ComputerAccessSchema = z.object({
   access: z.enum(["read-only", "read-write"]),
-  /** The virtual path the agent knows this folder by. */
-  mountPath: z.string(),
+  /** The path the agent knows this folder by, in the shell's spelling. */
+  shellPath: z.string(),
   /** The host path of the granted folder this one is in. */
   root: z.string(),
 });
@@ -149,15 +149,15 @@ export interface FolderRoot {
    * workspace lives inside it, while its Desktop takes the grant in full.
    */
   grant: MountedFolder.Access;
-  mountPoint: string;
+  /** The folder's path in the shell's spelling. */
+  shellRoot: string;
   root: string;
 }
 
 /**
- * The deepest granted folder a host path sits in, and the virtual path the
- * agent reaches it by through that grant. Both paths are resolved host paths,
- * so the walk from the root down is in the host's own separators, and the
- * mount path it becomes is in the agent's.
+ * The deepest granted folder a host path sits in, and the path the agent
+ * reaches it by through that grant. The walk from the root down is in the
+ * host's own separators, and the path it becomes is in the shell's.
  */
 export function accessIn(
   roots: FolderRoot[],
@@ -179,7 +179,7 @@ export function accessIn(
   const rest = path.relative(best.root, hostPath).split(path.sep).join("/");
   return {
     access: effectiveFolderAccess({ access: best.grant, path: hostPath }),
-    mountPath: rest === "" ? best.mountPoint : `${best.mountPoint}/${rest}`,
+    shellPath: rest === "" ? best.shellRoot : `${best.shellRoot}/${rest}`,
     root: best.root,
   };
 }
@@ -343,7 +343,7 @@ function compareEntries(
 
 /**
  * The grant that covers a host path, if any: the deepest granted folder it is
- * in, and the virtual path the agent reaches it by through that grant.
+ * in, and the path the agent reaches it by through that grant.
  */
 async function computerAccess(
   chatId: ChatId,
@@ -488,7 +488,7 @@ async function exists(hostPath: string) {
 
 /**
  * The chat's own view of the filesystem: its folder and the folders it
- * reaches. Beside the layout, the same mounts as host roots with the grant
+ * reaches. Beside the layout, the same folders as host roots with the grant
  * each carries, which is what a folder's access is judged from.
  */
 async function chatView(chatId: ChatId) {
@@ -512,12 +512,12 @@ function reachableRoots(
       folder.access,
     ]),
   );
-  return layout.folders.map((mount) => {
-    const root = path.resolve(mount.hostRoot);
+  return layout.folders.map((folder) => {
+    const root = path.resolve(folder.hostRoot);
     return {
-      // A mount with no grant behind it is one the layout holds read-only.
-      grant: grants.get(root) ?? (mount.readOnly ? "read-only" : "read-write"),
-      mountPoint: mount.mountPoint,
+      // A folder with no grant behind it is one the layout holds read-only.
+      grant: grants.get(root) ?? (folder.readOnly ? "read-only" : "read-write"),
+      shellRoot: folder.shellRoot,
       root,
     };
   });

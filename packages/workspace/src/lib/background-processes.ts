@@ -20,10 +20,6 @@ import {
   withShellOutputSink,
 } from "./shell-commands/output-sink";
 import { SubprocessTreeTerminationError } from "./subprocess-tree";
-import {
-  buildWorkspaceFsLayout,
-  type WorkspaceFsLayout,
-} from "./workspace-fs-layout";
 import { workDir } from "./work-dir";
 
 /**
@@ -599,9 +595,7 @@ export function startBackgroundRun({
   callerSignal,
   command,
   explanation,
-  layout,
   run,
-  chatId,
 }: {
   /** Cancels the run until it is promoted; typically the tool call's signal. */
   callerSignal: AbortSignal;
@@ -612,18 +606,7 @@ export function startBackgroundRun({
     exitCode: number;
     output: string;
   }>;
-  /**
-   * The layout of the shell the command runs in, which the streamed copy's
-   * host paths are written back against the way a foreground shim writes the
-   * copy it returns. Left out where there is no shell, which leaves the
-   * task's own folder and the skills.
-   */
-  layout?: WorkspaceFsLayout;
-  /** The task the run belongs to. */
-  chatId: ChatId;
 }): BackgroundRunHandle {
-  const outputLayout =
-    layout ?? buildWorkspaceFsLayout({ taskHostRoot: workDir(chatId) });
   const buffer = new BackgroundOutputBuffer({
     capBytes: PENDING_OUTPUT_CAP_BYTES,
   });
@@ -654,7 +637,7 @@ export function startBackgroundRun({
     // usable as a tool input, and the authoritative final shell output already
     // does that; applying it to a live view would corrupt backslashes inside
     // matched lines for no gain.
-    const text = filterShellOutput(rawText, outputLayout, {
+    const text = filterShellOutput(rawText, {
       rewriteSeparators: false,
     });
     // Redaction can empty a chunk that arrived non-empty, and a chunk that adds

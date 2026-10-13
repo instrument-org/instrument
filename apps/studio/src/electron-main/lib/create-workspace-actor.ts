@@ -43,6 +43,7 @@ import { createBrowserViewManager } from "../browser-view/manager";
 import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { createAppsConfig, rememberAppsDir } from "./apps";
+import { getBinDirectoryPath } from "./setup-bin-directory";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
 import { getWorkspaceFolder } from "./get-workspace-folder";
@@ -168,6 +169,8 @@ export function createWorkspaceActor() {
         // See https://www.electronjs.org/docs/latest/api/environment-variables
         ELECTRON_RUN_AS_NODE: "1",
       },
+      // Passwords and sign-ins stay out of every native command's reach.
+      nativeSandbox: true,
       pnpmBinPath: getPNPMBinPath(),
       // Beside the app-managed `bin` and `uv`, and outside the workspace: the
       // set is prepared per machine, so several workspaces or a workspace the
@@ -181,6 +184,7 @@ export function createWorkspaceActor() {
         : UNPACKAGED_SYSTEM_SKILLS_DIR,
       trashItem: (pathToTrash) => shell.trashItem(pathToTrash),
       uvBinPath: getUvBinPath(),
+      toolBinDir: getBinDirectoryPath(),
       uvDataDir: path.join(app.getPath("userData"), "uv"),
       webSearch: searchWeb,
     },
@@ -200,7 +204,7 @@ export function createWorkspaceActor() {
   const workspaceConfig = snapshot.context.config;
   rememberAppsDir(workspaceConfig.appsDir);
   // In the background: a shell builds its mounts per command, so the bundled
-  // skills appear under `/skills` for the first command after this lands.
+  // skills appear in the shell for the first command after this lands.
   prepareBundledSkills(workspaceConfig).catch((error: unknown) => {
     logger.warn("Could not prepare the bundled skills", error);
   });

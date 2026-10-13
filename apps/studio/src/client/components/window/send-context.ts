@@ -23,7 +23,7 @@ import {
   draftContextItems,
 } from "./context-items";
 import { isGroupShown, tabInView } from "./draft-context";
-import { computerTabOf, mountOfHostPath } from "./file-tabs";
+import { computerTabOf, reachablePath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { type Volume } from "./tab-location";
@@ -137,7 +137,7 @@ export function contextReaders({
     });
   /** How the conversation reaches a file on this computer: its name, its path, and the mount it is under when a granted folder covers it. */
   const fileOf = (filePath: string) => {
-    const mount = mountOfHostPath(filePath, state?.folders ?? {});
+    const mount = reachablePath(filePath, state?.folders ?? {});
     return {
       ...(mount === undefined ? {} : { mount }),
       name: segmentsOf(filePath).at(-1) ?? filePath,
@@ -211,7 +211,7 @@ export function contextReaders({
     }
     if (computer) {
       const path = joinHostPath(computer.root, computer.path);
-      const mount = mountOfHostPath(path, state?.folders ?? {});
+      const mount = reachablePath(path, state?.folders ?? {});
       return {
         folder: {
           display: path,

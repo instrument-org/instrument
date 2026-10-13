@@ -3,32 +3,30 @@ import os from "node:os";
 import { type ChatGrant } from "../../schemas/chat-settings";
 import { MountedFolder } from "../../schemas/mounted-folder";
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { assignMountNames } from "../assign-mount-names";
 import { pathExists } from "../path-exists";
 import { WINDOW_ID } from "../../schemas/window-id";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { chatGrants } from "./grants";
+import { readPermissionSettings } from "../permissions/rules";
 import { outputFolderPath } from "./output-folder";
 import { listTopics } from "./topics";
 import { type ChatId } from "../../schemas/chat-id";
 
 /**
- * The folders a chat reaches, by the name each is mounted under: the home
+ * The folders a chat reaches: the home
  * folder and the workspace folder always, the folders granted in the chat,
- * and the folders of the topics it is filed under while it is. Only the
+ * the folders of the topics it is filed under while it is, and the folders
+ * Settings › Permissions allows everywhere. Only the
  * grants are written to the chat. Worked out on every read, so a topic's
  * folder comes and goes with the topic and a folder granted in one chat
  * stays in that chat. Every session of the chat reaches the same folders.
  *
  * The window, which no chat is, reaches the two standing folders alone.
  *
- * Names are derived, never stored, and assigned in a fixed order: the two
- * standing folders, then the grants by when each was granted, then the
- * topics' folders. A folder takes its plain name where it is free, so an
- * earlier grant keeps its name and only a later one that collides with it is
- * qualified, and a path the chat already used never moves when a folder is
- * granted after it.
+ * Keyed by path, in a fixed order: the two standing folders, then the
+ * grants by when each was granted, then the topics' folders, then the
+ * folders allowed everywhere.
  */
 export async function folderReach(
   chatId: ChatId,
@@ -51,24 +49,22 @@ export async function folderReach(
       add({
         access: "read-write",
         id: MountedFolder.IdSchema.parse(`grant:${grant.path}`),
-        mountName: "",
         path: grant.path,
       });
     }
     for (const folderPath of await topicFolderPaths(chatId)) {
       add(standingFolder(folderPath));
     }
+    // Folders allowed in Settings › Permissions, for every chat, after the
+    // chat's own so a name it already uses never moves.
+    for (const folder of (await readPermissionSettings()).folders) {
+      if (folder.level === "allow" && (await pathExists(folder.path))) {
+        add(standingFolder(folder.path));
+      }
+    }
   }
 
-  const names = assignMountNames(folders);
-  // Every folder a chat reaches is its to read and write, short of what
-  // effectiveFolderAccess keeps read-only: anything holding the workspace.
-  return Object.fromEntries(
-    folders.map((folder) => {
-      const mountName = names.get(folder.id) ?? folder.id;
-      return [mountName, { ...folder, mountName }];
-    }),
-  );
+  return Object.fromEntries(folders.map((folder) => [folder.path, folder]));
 }
 
 /**
@@ -79,7 +75,6 @@ function standingFolder(folderPath: string): MountedFolder.Type {
   return {
     access: "read-write",
     id: MountedFolder.IdSchema.parse(`reach:${folderPath}`),
-    mountName: "",
     path: AbsolutePathSchema.parse(folderPath),
   };
 }

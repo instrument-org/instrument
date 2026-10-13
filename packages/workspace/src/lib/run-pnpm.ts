@@ -1,5 +1,6 @@
 import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
+import { nodeToolsEnv } from "./tool-isolation";
 import { commandLineToolsEnv } from "./command-line-tools-env";
 import { execaNodeForChat } from "./execa-node-for-chat";
 import { filterShellOutput } from "./filter-shell-output";
@@ -8,7 +9,6 @@ import {
   currentShellOutputSink,
 } from "./shell-commands/output-sink";
 import { watchSubprocessTree } from "./subprocess-tree";
-import { type WorkspaceFsLayout } from "./workspace-fs-layout";
 import { getWorkspaceConfig } from "./workspace-config";
 
 export const PNPM_NAME = "pnpm";
@@ -17,7 +17,6 @@ export async function runPnpmCommand({
   args,
   cwd,
   env,
-  layout,
   pnpmLogLevel,
   signal,
   stdin,
@@ -26,8 +25,6 @@ export async function runPnpmCommand({
   args: string[];
   cwd?: AbsolutePath;
   env?: Record<string, string>;
-  /** What the output's host paths are rewritten against. */
-  layout: WorkspaceFsLayout;
   /** Forwarded to pnpm as `pnpm_config_loglevel`. Only `"error"` is supported (suppresses info noise; not `silent`). */
   pnpmLogLevel?: "error";
   signal?: AbortSignal;
@@ -49,13 +46,15 @@ export async function runPnpmCommand({
         // Keep a native (node-gyp) build from launching the macOS Command Line
         // Tools installer dialog and hanging the tool call.
         ...commandLineToolsEnv(),
-        // just-bash sets HOME=/ when a cwd is given. pnpm uses os.homedir() to
-        // locate its store and cache, so HOME=/ causes it to write to /Library/...
-        // on the host filesystem and record that wrong store path in .modules.yaml.
-        // Subsequent pnpm runs then see a store mismatch and try to purge
-        // node_modules, which fails without a TTY (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY).
-        // Must come after ...env so ctx.env (which contains HOME=/) cannot override it.
+        // pnpm uses os.homedir() to locate its store and cache, so a HOME the
+        // agent exported would record a wrong store path in .modules.yaml, and
+        // the next run would see a store mismatch and try to purge
+        // node_modules, which fails without a TTY
+        // (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY). After ...env so the
+        // shell's HOME cannot override it.
         ...(process.env.HOME && { HOME: process.env.HOME }),
+        // The app's own store, caches and config, never the person's.
+        ...nodeToolsEnv(),
         pnpm_config_reporter: "append-only",
         ...(pnpmLogLevel === "error" ? { pnpm_config_loglevel: "error" } : {}),
       },
@@ -79,7 +78,7 @@ export async function runPnpmCommand({
   await streamed;
   await finishTreeTermination?.();
   const clean = (text: unknown) =>
-    typeof text === "string" ? filterShellOutput(text, layout) : "";
+    typeof text === "string" ? filterShellOutput(text) : "";
   return {
     command: `${PNPM_NAME} ${args.join(" ")}`,
     exitCode: execResult.exitCode ?? 1,

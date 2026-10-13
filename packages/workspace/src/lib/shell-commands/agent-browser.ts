@@ -9,7 +9,6 @@ import { dedent, sleep } from "radashi";
 import { CHAT_FOLDER_NAMES } from "../../constants";
 import { cdpBridgeUrl } from "../../logic/server/cdp-bridge-path";
 import { getWorkspaceServerPort } from "../../logic/server/url";
-import { MOUNT } from "../../mount-points";
 import { type StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
 import { type BrowserConfig } from "../../types";
@@ -29,21 +28,15 @@ import {
 import { agentBrowserGuide } from "../agent-browser-guide";
 import { recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
-import { virtualizeHostPaths } from "../filter-shell-output";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import { askWindow } from "../chat/window-tab";
-import { isAtOrUnder } from "../path-containment";
 import { taskFsLayout } from "../resolve-workspace-file-path";
 import { getDownloadsDir, getScreenshotsDir } from "../chat-dir-utils";
 import { chatDir, resolveChat } from "../record-folders";
 import { sessionRole } from "../chat/children";
 import { heldTabs, updateHeldTabs } from "../held-tabs";
 import { getWorkspaceConfig } from "../workspace-config";
-import {
-  buildWorkspaceFsLayout,
-  classifyVirtualPath,
-  resolveNativeHostPath,
-} from "../workspace-fs-layout";
+import { hostPathOf } from "../workspace-fs-layout";
 import {
   agentBrowserFlagName,
   parseAgentBrowserArgs,
@@ -54,13 +47,7 @@ import {
   FOLLOW_UP_SNAPSHOT_ARGS,
   FOLLOW_UP_WAIT_ARGS,
 } from "./agent-browser-follow-up";
-import {
-  mountLiteralError,
-  privateDirLiteralError,
-  resolveCommandContext,
-  resolvePathArgs,
-  subprocessStdin,
-} from "./utils";
+import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 import { workDir } from "../work-dir";
 
 const AGENT_BROWSER_SKILL_NAME = "agent-browser";
@@ -260,8 +247,8 @@ const WORKSPACE_HELP_MANAGED = dedent`
 
   Inspecting a file you created:
     agent-browser open work/report.html     Task files load in the browser
-    agent-browser open ${MOUNT.task}/work/x.html  Task-relative, ${MOUNT.task}/..., ${MOUNT.folders}/...,
-                                            and file://${MOUNT.task}/... all work
+    agent-browser open /full/path/x.html    A relative path, a full path, or a
+                                            file:// URL of either all work
   Use this to check an HTML deliverable end to end -- rendered layout, interactivity, and console errors -- not just its source.
 
   Reading page content:
@@ -392,6 +379,24 @@ export function isDaemonConfigRace(output: string): boolean {
 }
 
 /**
+ * Whether a file subcommand's operand names a file rather than a selector,
+ * a ref, a URL or a word like `start`: a path spelled as one, or a name
+ * ending in an extension these subcommands write or read.
+ */
+function looksLikeFilePath(value: string): boolean {
+  if (value.includes("://") || /^[@#[-]/.test(value)) {
+    return false;
+  }
+  return (
+    /^(?:\/|\.{1,2}\/)/.test(value) ||
+    (!value.startsWith(".") && value.includes("/")) ||
+    /\.(?:png|jpe?g|webp|pdf|webm|mp4|har|json|zip|cpuprofile|txt|html?)$/i.test(
+      value,
+    )
+  );
+}
+
+/**
  * Subcommands whose operands include a file the browser process reads or
  * writes. Every other subcommand's operands are text the page receives as
  * typed (an `eval` script, a `fill` value, a `wait --fn` body), where a
@@ -410,14 +415,13 @@ const FILE_OPERAND_SUBCOMMANDS = new Set([
 ]);
 
 /**
- * Resolve virtual absolute paths in global flag values and in the operands of
- * subcommands that take a file, then validate and bridge every file operand of
- * `upload`. CDP reports success for missing files, so the wrapper must fail
- * before handing them to the browser process.
+ * Spell the file operands of subcommands that take a file as the host does,
+ * and check every file operand of `upload` exists. CDP reports success for
+ * missing files, so the wrapper must fail before handing them to the browser
+ * process.
  */
 export async function resolveAgentBrowserPathArgs(
   args: string[],
-  chatId: ChatId,
   ctx: {
     cwd: string;
     fs: {
@@ -432,40 +436,32 @@ export async function resolveAgentBrowserPathArgs(
       ? subArgs.slice(1).map(({ index }) => index)
       : [],
   );
+  const fileOperands = new Set(
+    subcommand !== undefined && FILE_OPERAND_SUBCOMMANDS.has(subcommand)
+      ? subArgs
+          .slice(1)
+          .filter(({ value }) => looksLikeFilePath(value))
+          .map(({ index }) => index)
+      : [],
+  );
+  // The daemon outlives the shell's `cd` and resolves a relative path
+  // against the folder it was launched in, so a file operand goes to it
+  // absolute.
   const resolved = args.map((arg, index) =>
     textOperands.has(index)
       ? arg
-      : (resolvePathArgs([arg], chatId, ctx)[0] ?? arg),
+      : fileOperands.has(index)
+        ? hostPathOf(ctx.fs.resolvePath(ctx.cwd, arg))
+        : (hostPathArgs([arg])[0] ?? arg),
   );
   if (subcommand !== "upload") {
     return { args: resolved };
   }
 
-  const layout = buildWorkspaceFsLayout({ taskHostRoot: workDir(chatId) });
-  for (const { index, value } of subArgs.slice(2)) {
-    const virtualPath = ctx.fs.resolvePath(ctx.cwd, value);
-
-    if (isAtOrUnder(MOUNT.folders, virtualPath)) {
-      return { error: mountLiteralError("Upload") };
-    }
-
-    if (classifyVirtualPath(layout, virtualPath)?.masked !== undefined) {
-      return { error: privateDirLiteralError("Upload") };
-    }
-
-    if (!isAtOrUnder(MOUNT.task, virtualPath)) {
-      return {
-        error:
-          `Upload file "${virtualPath}" is outside ${MOUNT.task}. ` +
-          `Copy the file into the task first and use a task-relative path.`,
-      };
-    }
-
-    if (!(await ctx.fs.exists(virtualPath))) {
+  for (const { value } of subArgs.slice(2)) {
+    if (!(await ctx.fs.exists(ctx.fs.resolvePath(ctx.cwd, value)))) {
       return { error: `Upload file not found: "${value}".` };
     }
-
-    resolved[index] = resolveNativeHostPath(workDir(chatId), virtualPath);
   }
   return { args: resolved };
 }
@@ -630,7 +626,6 @@ export function createAgentBrowserCommand({
     }
     const bridgedArgs = await resolveAgentBrowserPathArgs(
       navigationArgs.args,
-      chatId,
       ctx,
     );
     if ("error" in bridgedArgs) {
@@ -642,7 +637,7 @@ export function createAgentBrowserCommand({
     }
     const resolvedArgs = bridgedArgs.args;
 
-    // just-bash sets HOME=/ which is read-only. Most agent-browser writes are
+    // The home folder is read-only to native commands. Most agent-browser writes are
     // already redirected via dedicated env vars (socket dir, screenshot dir,
     // download path); this is a per-task sink for anything that falls back
     // to $HOME, and holds the managed config and provider plugin script.
@@ -707,10 +702,6 @@ export function createAgentBrowserCommand({
     const screenshotDir = getScreenshotsDir(workDir(chatId));
     const downloadPath = getDownloadsDir(workDir(chatId));
     const agentBrowserStateDir = screenshotDir;
-    // Relative so agent-browser outputs screenshot paths the agent sees as
-    // relative to its cwd (e.g. "work/screenshots/shot.png"), not host
-    // absolute.
-    const screenshotDirRelative = path.relative(taskCwd, screenshotDir);
 
     const spawnEnv = {
       ...env,
@@ -742,7 +733,9 @@ export function createAgentBrowserCommand({
       AGENT_BROWSER_RESTORE_CHECK_TEXT: undefined,
       AGENT_BROWSER_RESTORE_CHECK_URL: undefined,
       AGENT_BROWSER_RESTORE_SAVE: undefined,
-      AGENT_BROWSER_SCREENSHOT_DIR: screenshotDirRelative,
+      // Absolute: the daemon resolves a relative one against the folder it
+      // was launched in, which a later `cd` does not move.
+      AGENT_BROWSER_SCREENSHOT_DIR: screenshotDir,
       AGENT_BROWSER_SESSION: undefined,
       AGENT_BROWSER_SESSION_NAME: undefined,
       AGENT_BROWSER_SOCKET_DIR,
@@ -775,8 +768,7 @@ export function createAgentBrowserCommand({
       }
     }
 
-    const scrub = (text: string) =>
-      virtualizeHostPaths(agentSpellingOfFileUrls(text, layout), layout);
+    const scrub = (text: string) => agentSpellingOfFileUrls(text, layout);
 
     const exitCode = result.exitCode ?? 1;
 
@@ -998,6 +990,9 @@ async function spawnAgentBrowser({
       cancelSignal,
       cwd,
       env,
+      // The env is built whole; nothing else of the app's own reaches the
+      // CLI.
+      extendEnv: false,
       input,
       reject: false,
       // Keep the final newline; the interpreter concatenates each command's

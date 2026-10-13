@@ -53,7 +53,6 @@ export {
 } from "./lib/usage-summary-compute";
 export { viewContextModelNote } from "./lib/view-context-model-text";
 export { readWebSearchResults } from "./lib/web-search-results";
-export { MOUNT } from "./mount-points";
 export { FileUpload } from "./schemas/file-upload";
 export { MountedFolder } from "./schemas/mounted-folder";
 export { AbsolutePathSchema, RelativePathSchema } from "./schemas/paths";

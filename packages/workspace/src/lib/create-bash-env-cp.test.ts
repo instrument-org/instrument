@@ -35,7 +35,6 @@ async function run(access: MountedFolder.Access, command: string) {
       Docs: {
         access,
         id: MountedFolder.IdSchema.parse("docs-id"),
-        mountName: "Docs",
         path: ChatDirSchema.parse(attachedDir),
       },
     },
@@ -67,11 +66,12 @@ describe.each<MountedFolder.Access>(["read-only", "read-write"])(
   "cp -R of a %s mount holding symlinks",
   (access) => {
     it("copies everything but the links and names them", async () => {
-      const result = await run(access, "cp -R /mnt/Docs work/copy");
+      const result = await run(access, `cp -R ${attachedDir} work/copy`);
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toMatchInlineSnapshot(`
-        "cp: cannot copy '/mnt/Docs': copied all but 2 entries: /mnt/Docs/link.txt: EPERM: operation not permitted, symlink '/work/copy/link.txt'; /mnt/Docs/sub/up: EPERM: operation not permitted, symlink '/work/copy/sub/up'
+      expect(result.stderr.replaceAll(attachedDir, "<docs>"))
+        .toMatchInlineSnapshot(`
+        "cp: cannot copy '<docs>': copied all but 2 entries: <docs>/link.txt: EPERM: operation not permitted, symlink '/work/copy/link.txt'; <docs>/sub/up: EPERM: operation not permitted, symlink '/work/copy/sub/up'
         "
       `);
       const copied = path.join(taskRoot, "work", "copy");
@@ -90,7 +90,7 @@ describe.each<MountedFolder.Access>(["read-only", "read-write"])(
 
     it("copies a subtree with no links in it cleanly", async () => {
       await fs.rm(path.join(attachedDir, "sub", "up"));
-      const result = await run(access, "cp -R /mnt/Docs/sub work/sub");
+      const result = await run(access, `cp -R ${attachedDir}/sub work/sub`);
 
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");

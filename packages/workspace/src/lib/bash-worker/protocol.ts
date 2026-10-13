@@ -19,6 +19,7 @@ export const WORKER_CONFIG_KEYS = [
   "chatsDir",
   "chatTemplateDir",
   "macHelperBinPath",
+  "nativeSandbox",
   "nodeExecEnv",
   "pnpmBinPath",
   "preparedSkillsDir",
@@ -26,6 +27,7 @@ export const WORKER_CONFIG_KEYS = [
   "rootDir",
   "systemSkillsDir",
   "legacyTasksDir",
+  "toolBinDir",
   "uvBinPath",
   "uvDataDir",
 ] as const satisfies readonly (keyof WorkspaceConfig)[];
@@ -51,11 +53,18 @@ export type FromWorker =
       properties?: ExceptionProperties;
       type: "capture-exception";
     }
-  | { id: number; mountPath: string; type: "skill-mutation" }
+  | { id: number; skillPath: string; type: "skill-mutation" }
+  /** A permission ask, raised on main where the app hears the chat's record change. */
+  | {
+      asker: { chatId: string; partId?: string; sessionId: string };
+      kind: "app" | "folder";
+      target: string;
+      type: "ask";
+    }
   | { id: number; result: WireResult; type: "result" }
   | { id: number; seq: number; text: string; type: "chunk" }
   | { pid: number; state: "settled" | "started"; type: "tree" }
-  /** A `js-exec` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
+  /** A `node` script's `tools.<slug>.<tool>()`, made on main where app credentials are. */
   | { argsJson: string; callId: number; id: number; path: string; type: "tool" }
   | { requestId: number; chatId: ChatId; type: "venv" };
 

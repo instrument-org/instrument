@@ -56,6 +56,11 @@ beforeEach(async () => {
   await grantFolder({ chatId, path: photosDir, source: "attached" });
 });
 
+/** A file in the granted folder, at the path the agent reaches it by. */
+function photo(name: string) {
+  return path.join(photosDir, name);
+}
+
 function makeExecuteArgs(
   input: Parameters<typeof GenerateImage.execute>[0]["input"],
 ) {
@@ -87,7 +92,7 @@ function sentSourceImageFormats() {
 }
 
 describe("GenerateImage source images", () => {
-  it("accepts a source image from a read-only mount and echoes its mount path", async () => {
+  it("accepts a source image from a granted folder and echoes its path", async () => {
     await fs.writeFile(
       path.join(photosDir, "cat.png"),
       Buffer.from(PNG_BASE64, "base64"),
@@ -99,7 +104,7 @@ describe("GenerateImage source images", () => {
         explanation: "remix",
         filePath: "output/remix",
         prompt: "A stylized version of the cat",
-        sourceImages: ["/mnt/Photos/cat.png"],
+        sourceImages: [photo("cat.png")],
       }),
     );
 
@@ -107,7 +112,7 @@ describe("GenerateImage source images", () => {
     expect(output.state).toBe("success");
     if (output.state === "success") {
       expect(output.sourceImages).toEqual([
-        { filePath: "/mnt/Photos/cat.png", modifiedAt: expect.any(Number) },
+        { filePath: photo("cat.png"), modifiedAt: expect.any(Number) },
       ]);
       expect(output.images[0]?.filePath).toBe("output/remix.png");
     }
@@ -183,7 +188,7 @@ describe("GenerateImage source images", () => {
         explanation: "remix",
         filePath: "output/remix",
         prompt: "A stylized version of the photo",
-        sourceImages: ["/mnt/Photos/IMG_4021.heic"],
+        sourceImages: [photo("IMG_4021.heic")],
       }),
     );
 
@@ -191,19 +196,19 @@ describe("GenerateImage source images", () => {
     expect(sentSourceImageFormats()).toEqual(["png"]);
   }, 30_000);
 
-  it("errors cleanly when a mount source image does not exist", async () => {
+  it("errors cleanly when a source image in a folder does not exist", async () => {
     const result = await runTool(
       GenerateImage,
       makeExecuteArgs({
         explanation: "remix",
         filePath: "output/remix",
         prompt: "x",
-        sourceImages: ["/mnt/Photos/missing.png"],
+        sourceImages: [photo("missing.png")],
       }),
     );
 
     expect(result._unsafeUnwrapErr().message).toBe(
-      "Source image not found: /mnt/Photos/missing.png",
+      `Source image not found: ${photo("missing.png")}`,
     );
   });
 
@@ -216,41 +221,22 @@ describe("GenerateImage source images", () => {
         explanation: "remix",
         filePath: "output/remix",
         prompt: "x",
-        sourceImages: ["/mnt/Photos/cat.png"],
+        sourceImages: [photo("cat.png")],
       }),
     );
 
     expect(result._unsafeUnwrapErr().message).toBe(
-      "Source image /mnt/Photos/cat.png is not readable as an image. It may be truncated, or it may not be the format its name claims.",
+      `Source image ${photo("cat.png")} is not readable as an image. It may be truncated, or it may not be the format its name claims.`,
     );
   });
 
-  it("steers a real host path to the folder's mount path", async () => {
-    await fs.writeFile(
-      path.join(photosDir, "cat.png"),
-      Buffer.from(PNG_BASE64, "base64"),
-    );
-
-    const result = await runTool(
-      GenerateImage,
-      makeExecuteArgs({
-        explanation: "remix",
-        filePath: "output/remix",
-        prompt: "x",
-        sourceImages: [path.join(photosDir, "cat.png")],
-      }),
-    );
-
-    expect(result._unsafeUnwrapErr().message).toContain('"/mnt/Photos/..."');
-  });
-
-  // Everything below the path resolve assumes a task-relative path, so a mount
-  // path has to be refused rather than joined onto the task directory.
-  it("refuses to generate into a mount path", async () => {
+  // Everything below the path resolve assumes a task-relative path, so a path in a
+  // folder has to be refused rather than joined onto the task directory.
+  it("refuses to generate into a folder", async () => {
     const result = await runTool(GenerateImage, {
       ...makeExecuteArgs({
         explanation: "write into the folder",
-        filePath: "/mnt/Photos/generated",
+        filePath: photo("generated"),
         prompt: "A cat",
       }),
     });

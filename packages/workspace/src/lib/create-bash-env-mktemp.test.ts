@@ -16,6 +16,7 @@ import { createBashEnv } from "./create-bash-env";
 const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
+let taskRoot: string;
 let chatId: ChatId;
 
 async function run(command: string, { chat = false } = {}) {
@@ -29,7 +30,7 @@ async function run(command: string, { chat = false } = {}) {
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-mktemp-"));
-  const taskRoot = path.join(tmpDir, "tasks", "test");
+  taskRoot = path.join(tmpDir, "tasks", "test");
   await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
 });
@@ -42,7 +43,9 @@ describe("mktemp in the agent's shells", () => {
   it("names a file in the task's temp dir in a task's shell", async () => {
     const result = await run('f=$(mktemp) && test -f "$f" && echo "$f"');
     expect(result).toMatchObject({ exitCode: 0, stderr: "" });
-    expect(result.stdout.trim()).toMatch(/^\/task\/\.tmp\/tmp\.\w{10}$/);
+    expect(result.stdout.trim()).toMatch(
+      new RegExp(`^${taskRoot}/\\.tmp/tmp\\.\\w{10}$`),
+    );
   });
 
   it("names a file in the chat's shell too", async () => {
@@ -50,6 +53,8 @@ describe("mktemp in the agent's shells", () => {
       chat: true,
     });
     expect(result).toMatchObject({ exitCode: 0, stderr: "" });
-    expect(result.stdout.trim()).toMatch(/^\/task\/\.tmp\/tmp\.\w{10}$/);
+    expect(result.stdout.trim()).toMatch(
+      new RegExp(`^${taskRoot}/\\.tmp/tmp\\.\\w{10}$`),
+    );
   });
 });

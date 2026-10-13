@@ -1,4 +1,3 @@
-import { MOUNT } from "../mount-points";
 import {
   AGENT_BROWSER_CORE_GUIDE,
   AGENT_BROWSER_CORE_REFERENCES,
@@ -30,7 +29,7 @@ Read this first. The guide after it is agent-browser's own, and where the two di
 
 ## Files
 
-- Open a file by the path you would give any other tool: \`agent-browser open work/report.html\`, or \`${MOUNT.task}/...\` and \`${MOUNT.folders}/...\`. A host path, or a \`file://\` URL outside these folders, is refused.
+- Open a file by the path you would give any other tool: \`agent-browser open work/report.html\`, or the full path of a file in one of your folders. A \`file://\` URL outside your folders is refused.
 - An HTML file you made is done only once it is loaded and checked: \`open\` it, then \`get text body\`, \`errors\`, \`screenshot\`, and \`a11y\`. Check that computed values appear as text, that controls do what they claim, that \`errors\` is empty, and that \`a11y\` reports nothing critical or serious.
 - Save a file a page offers with \`agent-browser download @ref <name>\`, which puts it in the task; a plain \`click\` on a download link can save it to the user's Downloads folder instead.
 - Screenshots without a path go to \`work/screenshots/\`. Full-page screenshots (\`screenshot --full\`) are unavailable; capture successive viewports or \`pdf\` the page.

@@ -112,7 +112,6 @@ function leave(command: string) {
           reject(new Error("aborted"));
         });
       }),
-    chatId: CHAT_ID,
   });
   const promoted = promoteBackgroundProcess({
     handle,
@@ -138,27 +137,27 @@ function stillRunning() {
 
 describe("task stop, for what a task left running", () => {
   it("stops the one process named and leaves the rest", async () => {
-    const scan = leave("rg -l vault /mnt/Home | head -200");
+    const scan = leave("rg -l vault /Users/sam | head -200");
     const server = leave("node work/server.js");
 
     const result = await runStop([CHILD_ID, scan.id], context);
 
     expect(shown(result.stdout)).toMatchInlineSnapshot(`
-      "Stopped bg_N \`rg -l vault /mnt/Home | head -200\` (1 second).
+      "Stopped bg_N \`rg -l vault /Users/sam | head -200\` (1 second).
       "
     `);
     expect(stillRunning()).toEqual([server.id]);
   });
 
   it("stops everything with --all", async () => {
-    leave("rg -l vault /mnt/Home | head -200");
+    leave("rg -l vault /Users/sam | head -200");
     leave("node work/server.js");
 
     const result = await runStop([CHILD_ID, "--all"], context);
 
     expect(shown(result.stdout)).toMatchInlineSnapshot(`
       "<id> is not running.
-      Stopped bg_N \`rg -l vault /mnt/Home | head -200\` (1 second).
+      Stopped bg_N \`rg -l vault /Users/sam | head -200\` (1 second).
       Stopped bg_N \`node work/server.js\` (1 second).
       "
     `);

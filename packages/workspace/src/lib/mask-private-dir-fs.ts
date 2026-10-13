@@ -37,7 +37,7 @@ export function maskedEntryOf(
  * dir too (see {@link MaskedEntry}).
  *
  * The mask is a decorator on the mount rather than an empty filesystem mounted
- * over `/task/.instrument`, because `MountableFs` refuses to mount inside an
+ * over the private dir, because `MountableFs` refuses to mount inside an
  * existing mount, and the mount has to stay mounted at its root.
  *
  * Filtering by path spelling is only safe because of where this sits: every
@@ -51,7 +51,7 @@ export function maskedEntryOf(
  * every mount behaves. App code reaches these files through real `node:fs`, so
  * the mask is agent-only.
  *
- * This is friction, not a boundary: it covers what routes through the virtual
+ * This is friction, not a boundary: it covers what routes through the shell's
  * filesystem, and a native interpreter runs as a real subprocess whose cwd is
  * the real task dir, so a script opening `.instrument/state.json` at runtime
  * still reads it. See

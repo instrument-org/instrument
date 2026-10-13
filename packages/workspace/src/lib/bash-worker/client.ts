@@ -12,6 +12,9 @@ import {
 } from "../shell-commands/output-sink";
 import { terminateSubprocessTree } from "../subprocess-tree";
 import { getWorkspaceConfig } from "../workspace-config";
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { StoreId } from "../../schemas/store-id";
+import { recordAsk } from "../permissions/asks";
 import { recordWorkspaceSkillMutation } from "../workspace-skill-index";
 import {
   fromWireError,
@@ -39,7 +42,7 @@ interface PendingExec {
    * command sees the turn and output sink it would have seen on this thread.
    */
   inContext: <R>(callback: () => R) => R;
-  /** Makes a `js-exec` script's app tool calls for the task the shell belongs to. */
+  /** Makes a `node` script's app tool calls for the task the shell belongs to. */
   invokeTool: AppToolInvoker;
   /** The main-thread shell proxied commands run in, built on first use. */
   mainBash?: Promise<BashRunner>;
@@ -257,9 +260,28 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
       }
       return;
     }
+    case "ask": {
+      const chatId = ChatIdSchema.safeParse(message.asker.chatId);
+      const sessionId = StoreId.SessionSchema.safeParse(
+        message.asker.sessionId,
+      );
+      const partId = StoreId.PartSchema.safeParse(message.asker.partId);
+      if (chatId.success && sessionId.success) {
+        await recordAsk(
+          {
+            chatId: chatId.data,
+            ...(partId.success && { partId: partId.data }),
+            sessionId: sessionId.data,
+          },
+          message.kind,
+          message.target,
+        );
+      }
+      return;
+    }
     case "skill-mutation": {
       instance.pending.get(message.id)?.inContext(() => {
-        recordWorkspaceSkillMutation(message.mountPath);
+        recordWorkspaceSkillMutation(message.skillPath);
       });
       return;
     }
@@ -370,7 +392,7 @@ async function runProxiedCall(
   }
 }
 
-/** Makes one `js-exec` app tool call for the worker, in the exec's async context. */
+/** Makes one `node` script's app tool call for the worker, in the exec's async context. */
 async function runProxiedTool(
   instance: WorkerInstance,
   message: Extract<FromWorker, { type: "tool" }>,

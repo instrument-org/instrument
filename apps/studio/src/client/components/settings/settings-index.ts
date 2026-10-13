@@ -120,6 +120,19 @@ export const SETTINGS_INDEX = [
     title: "Usage",
   },
   {
+    detail: "Which folders and places on this computer the agent may use.",
+    id: "permissions",
+    page: true,
+    tab: "Permissions",
+    title: "Permissions",
+  },
+  {
+    detail: "Use any folder that isn't marked Not allowed, without asking.",
+    id: "use-folders-without-asking",
+    tab: "Permissions",
+    title: "Use folders without asking",
+  },
+  {
     detail: "Ask for a skill that teaches a new way of working.",
     id: "new-skill",
     tab: "Skills",
@@ -210,6 +223,9 @@ export const SETTINGS_PAGES: Record<
   },
   Memory: {
     detail: `What ${APP_NAME} remembers about you, which you can search, forget, or add to from another AI.`,
+  },
+  Permissions: {
+    detail: `Which folders and places on this computer ${APP_NAME} may use.`,
   },
   Providers: {
     detail: `The AI models ${APP_NAME} can use: your ChatGPT or Claude plan, or a provider you add with your own key.`,

@@ -16,6 +16,12 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 
+import { inheritedEnv } from "../../packages/workspace/src/lib/native-env.ts";
+import {
+  nodeToolsEnvFor,
+  uvToolsEnvFor,
+} from "../../packages/workspace/src/lib/tool-isolation-env.ts";
+
 const MARKER = "sandbox-bakeoff-planted-secret";
 const mac = process.platform === "darwin";
 
@@ -60,6 +66,13 @@ const registry = path.resolve(
   flags.registry ?? path.join(import.meta.dirname, "../../registry"),
 );
 
+/**
+ * Where the app's own pnpm, npm, node-gyp and uv keep their stores, caches and
+ * config: outside the fixture home, the way the app keeps them beside its
+ * own data rather than in the person's.
+ */
+const appData = ensure(path.join(path.dirname(home), "app-data"));
+
 /** The policy every candidate approximates, all in the fixture home. */
 const inHome = (...names: string[]) =>
   names.map((name) => path.join(home, name));
@@ -73,24 +86,10 @@ const policy = {
     ".docker/config.json",
     ...(mac ? ["Library/Keychains"] : []),
   ),
-  // Tool caches and stores, writable whatever else is closed.
-  caches: inHome(
-    ".cache",
-    ".npm",
-    ".local/share/uv",
-    ".local/share/pnpm",
-    ".local/state",
-    "Library/Caches",
-    "Library/pnpm",
-  ),
-  // Tool settings, readable but not writable.
-  settings: inHome(
-    ".npmrc",
-    ".gitconfig",
-    ".config/git",
-    ".config/uv",
-    ".config/pip",
-  ),
+  // The app's own tool folders, and the system's caches, writable whatever
+  // else is closed. The person's own tool caches and settings are not.
+  caches: [appData, ...(mac ? inHome("Library/Caches") : [])],
+  settings: [] as string[],
   granted,
   home,
   tmp,
@@ -459,7 +458,9 @@ type Job = {
   escaped?: (run: ExecResult, cwd: string) => boolean;
   files?: Record<string, string>;
   id: string;
-  kind: "escape" | "workload";
+  kind: "escape" | "isolation" | "workload";
+  /** Whether the job passed, where an exit code alone cannot say. */
+  passed?: (run: ExecResult, cwd: string) => string | undefined;
   /** Runs outside the sandbox before the job, in its folder. */
   before?: (cwd: string) => void;
   script: (cwd: string) => string;
@@ -582,6 +583,21 @@ const jobs: Job[] = [
     kind: "escape",
     script: () => "cat made-outside",
   },
+  {
+    before: plantTheirSetup,
+    id: "tool-isolation",
+    kind: "isolation",
+    passed: theirSetupUntouched,
+    script: () =>
+      [
+        `printf '{"name":"t","private":true}' > package.json`,
+        `${PNPM} is-number`,
+        `node -e "require('is-number')"`,
+        UV_VENV,
+        "uv pip install -q --python .venv six",
+        `.venv/bin/python -c "import six"`,
+      ].join(" && "),
+  },
   ...(mac
     ? [
         {
@@ -596,6 +612,101 @@ const jobs: Job[] = [
       ]
     : []),
 ];
+
+/**
+ * A person's own setup, hostile to ours: config that would send an install
+ * to a registry that does not answer, startup hooks that leave a mark when
+ * they run, and look-alike binaries ahead on the PATH. The job passes only
+ * if our tools ignore all of it and leave the person's caches as they were.
+ */
+const BOGUS = "http://127.0.0.1:9";
+const RAN = path.join(home, "their-setup-ran");
+const theirs = {
+  bin: path.join(home, ".npm-global/bin"),
+  hooks: path.join(home, "hooks"),
+  /** The folders our tools must leave as they found them. */
+  watched: inHome(
+    ".npm",
+    ".cache",
+    ".local/share/pnpm",
+    ".local/bin",
+    ".pnpm-home",
+    ...(mac ? ["Library/Caches/uv", "Library/Caches/pnpm", "Library/pnpm"] : []),
+  ),
+};
+let theirListing = "";
+
+function listing(): string {
+  const lines: string[] = [];
+  const walk = (dir: string) => {
+    if (!existsSync(dir)) {
+      return;
+    }
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      lines.push(full);
+      if (entry.isDirectory()) {
+        walk(full);
+      }
+    }
+  };
+  for (const dir of theirs.watched) {
+    walk(dir);
+  }
+  return lines.sort().join("\n");
+}
+
+function plantTheirSetup(cwd: string) {
+  const write = (file: string, text: string, mode?: number) => {
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, text, mode === undefined ? {} : { mode });
+  };
+  rmSync(RAN, { force: true });
+  write(path.join(home, ".npmrc"), `registry=${BOGUS}/\nignore-scripts=false\n`);
+  write(path.join(home, ".config/pnpm/rc"), `registry=${BOGUS}/\n`);
+  write(
+    path.join(home, ".config/uv/uv.toml"),
+    `index-url = "${BOGUS}/simple"\n`,
+  );
+  write(path.join(path.dirname(cwd), "uv.toml"), `index-url = "${BOGUS}/simple"\n`);
+  for (const pipConf of [
+    path.join(home, ".config/pip/pip.conf"),
+    path.join(home, ".pip/pip.conf"),
+    ...(mac ? [path.join(home, "Library/Application Support/pip/pip.conf")] : []),
+  ]) {
+    write(pipConf, `[global]\nindex-url = ${BOGUS}/simple\n`);
+  }
+  const mark = `require("fs").appendFileSync(${JSON.stringify(RAN)}, "node\\n");`;
+  write(path.join(theirs.hooks, "preload.cjs"), mark);
+  write(
+    path.join(theirs.hooks, "sitecustomize.py"),
+    `open(${JSON.stringify(RAN)}, "a").write("python\\n")\n`,
+  );
+  for (const name of ["pnpm", "node", "uv", "python3", "python"]) {
+    write(
+      path.join(theirs.bin, name),
+      `#!/bin/sh\necho "${name}" >> ${shellQuote(RAN)}\nexit 1\n`,
+      0o755,
+    );
+  }
+  theirListing = listing();
+}
+
+function theirSetupUntouched(run: ExecResult): string | undefined {
+  if (run.code !== 0) {
+    return firstError(run.output) || `exit ${run.code}`;
+  }
+  if (existsSync(RAN)) {
+    return `their setup ran: ${readFileSync(RAN, "utf8").trim().replaceAll("\n", ", ")}`;
+  }
+  const now = listing();
+  if (now !== theirListing) {
+    const before = new Set(theirListing.split("\n"));
+    const added = now.split("\n").filter((line) => line && !before.has(line));
+    return `wrote into their folders: ${added.slice(0, 3).map((line) => line.replace(home, "~")).join(", ")}`;
+  }
+  return undefined;
+}
 
 /** Plants the fixture home: a secret, a dotfile, and the folders a home has. */
 function plantHome() {
@@ -648,25 +759,39 @@ async function median(
   return Math.round(times.toSorted((a, b) => a - b)[Math.floor(n / 2)] ?? 0);
 }
 
-const env: NodeJS.ProcessEnv = {
+/**
+ * Spawned the way the app spawns a native command: the host's environment
+ * through the app's allowlist, here with the person's hostile setup in it,
+ * then the app's own tool folders and binaries first on the PATH.
+ */
+const which = (name: string) =>
+  path.dirname(
+    spawnSync("sh", ["-c", `command -v ${name}`], { encoding: "utf8" })
+      .stdout.trim() || `/usr/bin/${name}`,
+  );
+const theirEnv: NodeJS.ProcessEnv = {
   ...process.env,
+  NODE_OPTIONS: `--require ${path.join(theirs.hooks, "preload.cjs")}`,
+  NODE_PATH: theirs.hooks,
+  PATH: `${theirs.bin}:${process.env.PATH ?? ""}`,
+  PNPM_HOME: path.join(home, ".pnpm-home"),
+  PYTHONPATH: theirs.hooks,
+  PYTHONSTARTUP: path.join(theirs.hooks, "sitecustomize.py"),
+};
+const env: NodeJS.ProcessEnv = {
+  ...inheritedEnv(theirEnv),
   CI: "1",
   HOME: home,
-  // pnpm 11 finds its store from PNPM_HOME, not HOME, so it is named outright.
-  pnpm_config_store_dir: path.join(
-    home,
-    mac ? "Library/pnpm/store" : ".local/share/pnpm/store",
-  ),
+  PATH: [
+    which("pnpm"),
+    which("uv"),
+    path.dirname(process.execPath),
+    theirEnv.PATH,
+  ].join(":"),
+  ...nodeToolsEnvFor(path.join(appData, "node-tools")),
+  ...uvToolsEnvFor(path.join(appData, "uv")),
+  pnpm_config_update_notifier: "false",
 };
-for (const key of Object.keys(env)) {
-  if (
-    key.startsWith("XDG_") ||
-    key === "UV_CACHE_DIR" ||
-    key === "PIP_CACHE_DIR"
-  ) {
-    delete env[key];
-  }
-}
 
 plantHome();
 const runner = await makeRunner(flags.runner, policy);
@@ -684,9 +809,18 @@ for (const job of jobs.filter((j) => !only || only.includes(j.id))) {
   const started = performance.now();
   const run = await runner.exec(job.script(cwd), cwd, env);
   const seconds = Math.round((performance.now() - started) / 100) / 10;
-  const ok = job.escaped ? !job.escaped(run, cwd) : run.code === 0;
+  const failure = job.passed?.(run, cwd);
+  const ok = job.passed
+    ? failure === undefined
+    : job.escaped
+      ? !job.escaped(run, cwd)
+      : run.code === 0;
   const result = {
-    error: ok && job.kind === "workload" ? "" : firstError(run.output),
+    error: job.passed
+      ? (failure ?? "")
+      : ok && job.kind === "workload"
+        ? ""
+        : firstError(run.output),
     exit: run.code,
     id: job.id,
     kind: job.kind,
@@ -701,7 +835,9 @@ const spawnMs = {
   none: await median(await makeRunner("none", policy), env),
   runner: await median(runner, env),
 };
-const workloads = results.filter((r) => r.kind === "workload");
+const workloads = results.filter(
+  (r) => r.kind === "workload" || r.kind === "isolation",
+);
 const escapes = results.filter((r) => r.kind === "escape");
 const summary = {
   escapesBlocked: `${escapes.filter((r) => r.ok).length}/${escapes.length}`,

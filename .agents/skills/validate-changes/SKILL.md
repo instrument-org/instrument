@@ -48,14 +48,14 @@ Root-level checks (`pnpm exec turbo run check:types check:lint`) are in the root
 
 ## Rung 2: the sandbox shell
 
-Boots the same `just-bash` sandbox the agent gets (same virtual FS, same command
+Boots the same `just-bash` sandbox the agent gets (same mounted filesystem, same command
 shims, same network policy) without Studio.
 
 ```bash
 pnpm --filter @instrument-org/workspace run --silent script:run-bash -- "<command>"
 ```
 
-Full options, mounts, and what the sandbox provides: `run-bash` skill.
+Full options, folders, and what the sandbox provides: `run-bash` skill.
 
 ## Rung 3: a real agent, on real models
 

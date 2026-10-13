@@ -127,8 +127,8 @@ describe("shouldContinueAfterHandingOff", () => {
           assistant(
             text("Making it now."),
             bash(
-              "task new --name 'cat.md' --folder /mnt/Home/Desktop <<'EOF'\nWrite cat.md.\nEOF",
-              'Created cat-md ("cat.md"). macOS is asking the user whether Instrument may use "/mnt/Home/Desktop", and the task starts once they answer: tell them to answer the system\'s dialog.\n',
+              "task new --name 'cat.md' --folder /Users/sam/Desktop <<'EOF'\nWrite cat.md.\nEOF",
+              'Created cat-md ("cat.md"). macOS is asking the user whether Instrument may use "/Users/sam/Desktop", and the task starts once they answer: tell them to answer the system\'s dialog.\n',
             ),
           ),
         ],
@@ -205,7 +205,7 @@ describe("shouldContinueAfterHandingOff", () => {
       shouldContinueAfterHandingOff({
         messages: [
           user(text("what is in my downloads?")),
-          assistant(bash("ls /mnt/Home/Downloads", "a.pdf\nb.pdf\n")),
+          assistant(bash("ls /Users/sam/Downloads", "a.pdf\nb.pdf\n")),
         ],
       }),
     ).resolves.toBe(true);
@@ -213,7 +213,7 @@ describe("shouldContinueAfterHandingOff", () => {
       shouldContinueAfterHandingOff({
         messages: [
           user(text("what is in my downloads?")),
-          assistant(bash("ls /mnt/Home/Downloads", "a.pdf\nb.pdf\n")),
+          assistant(bash("ls /Users/sam/Downloads", "a.pdf\nb.pdf\n")),
           assistant(text("Two PDFs.")),
         ],
       }),
@@ -269,7 +269,6 @@ describe("instrumentAgent", () => {
         TOOL_NAMES.generateImage,
         TOOL_NAMES.loadSkill,
         TOOL_NAMES.readFile,
-        TOOL_NAMES.requestFolder,
         TOOL_NAMES.webFetch,
         TOOL_NAMES.webSearch,
         TOOL_NAMES.writeFile,
@@ -282,7 +281,9 @@ describe("instrumentAgent", () => {
       "A task is you, continuing in the background with this conversation in hand",
     );
     expect(prompt).toContain("task new --name '<title>' [--tab <id>]");
-    expect(prompt).toContain("task folder --add");
+    expect(prompt).toContain(
+      "this same folder, and the same folders and apps at the same paths",
+    );
   });
 
   it("names no flag or mount the task command does not have", () => {

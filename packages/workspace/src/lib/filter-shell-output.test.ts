@@ -1,98 +1,21 @@
-import os from "node:os";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
-  AbsolutePathSchema,
-  type ChatDir,
-  ChatDirSchema,
-} from "../schemas/paths";
-import {
   filterShellOutput,
-  redactTaskDir,
   shouldFilterDebuggerMessage,
-  virtualizeHostPaths,
 } from "./filter-shell-output";
-import { type WorkspaceFsLayout } from "./workspace-fs-layout";
-
-/** A shell's layout: the task folder, and any folders mounted beside it. */
-function layoutOf(
-  dir: ChatDir,
-  mounts: Record<string, string> = {},
-): WorkspaceFsLayout {
-  return {
-    folders: Object.entries(mounts).map(([mountPoint, hostRoot]) => ({
-      hostRoot: AbsolutePathSchema.parse(hostRoot),
-      maskedEntries: [],
-      mountPoint,
-      readOnly: true,
-    })),
-    skills: [],
-    task: {
-      hostRoot: dir,
-      maskedEntries: [],
-      mountPoint: "/task",
-      readOnly: false,
-    },
-  };
-}
 
 describe("filterShellOutput", () => {
-  const dir = ChatDirSchema.parse("/absolute/path/to/my task");
+  it("respells drive paths and leaves every other backslash", () => {
+    const output = String.raw`Converted -> C:\work\output\rainbow.pdf
+saved D:/photos/a.png and E:\
+a\b\c regex \d+\s {"x":"line\nline"} output\smiley.png`;
 
-  it("replaces absolute path with relative path", () => {
-    const output = `$ pnpm lint
+    const result = filterShellOutput(output, { rewriteSeparators: true });
 
-> instrument-template-basic@0.0.0 lint ${dir}
-> eslint .
-
-
-${dir}/scripts/interleave-demo.ts
-   6:1  warning  Unexpected console statement  no-console
-
-✖ 1 problems (0 errors, 1 warnings)`;
-
-    const result = filterShellOutput(output, layoutOf(dir));
-
-    expect(result).toMatchInlineSnapshot(`
-      "$ pnpm lint
-
-      > instrument-template-basic@0.0.0 lint .
-      > eslint .
-
-
-      ./scripts/interleave-demo.ts
-         6:1  warning  Unexpected console statement  no-console
-
-      ✖ 1 problems (0 errors, 1 warnings)"
-    `);
-  });
-
-  it("replaces multiple occurrences of absolute path", () => {
-    const output = `${dir}/file1.ts
-${dir}/file2.ts
-${dir}/file3.ts`;
-
-    const result = filterShellOutput(output, layoutOf(dir));
-
-    expect(result).toMatchInlineSnapshot(`
-      "./file1.ts
-      ./file2.ts
-      ./file3.ts"
-    `);
-  });
-
-  it("normalizes backslash paths in output", () => {
-    const output = String.raw`Converted -> output\smiley.png
-${dir}\output\rainbow.pdf`;
-
-    const result = filterShellOutput(output, layoutOf(dir), {
-      rewriteSeparators: true,
-    });
-
-    expect(result).toMatchInlineSnapshot(`
-      "Converted -> output/smiley.png
-      ./output/rainbow.pdf"
-    `);
+    expect(result).toBe(String.raw`Converted -> /c/work/output/rainbow.pdf
+saved /d/photos/a.png and /e
+a\b\c regex \d+\s {"x":"line\nline"} output\smiley.png`);
   });
 
   it("leaves a script's own escape sequences alone on a posix host", () => {
@@ -101,7 +24,6 @@ ${dir}\output\rainbow.pdf`;
     // LaTeX macro. Rewriting them made valid output look corrupted.
     const result = filterShellOutput(
       String.raw`{"body":"line\nline","re":"/a\d+/"}`,
-      layoutOf(dir),
     );
 
     expect(result).toMatchInlineSnapshot(
@@ -109,59 +31,12 @@ ${dir}\output\rainbow.pdf`;
     );
   });
 
-  it("still redacts host paths when the separator rewrite is off, but leaves other backslashes alone", () => {
-    const output = String.raw`${dir}\output\r.pdf matched /a\d+/ and "x\n"`;
+  it("leaves backslashes alone when the separator rewrite is off", () => {
+    const output = String.raw`out\r.pdf matched /a\d+/ and "x\n"`;
 
-    const result = filterShellOutput(output, layoutOf(dir), {
-      rewriteSeparators: false,
-    });
-
-    expect(result).toMatchInlineSnapshot(
-      `".\\output\\r.pdf matched /a\\d+/ and "x\\n""`,
+    expect(filterShellOutput(output, { rewriteSeparators: false })).toBe(
+      output,
     );
-  });
-
-  it("redacts app dir variants case-insensitively", () => {
-    const output = `${dir.toUpperCase()}/output/file.png`;
-
-    const result = filterShellOutput(output, layoutOf(dir));
-
-    expect(result).toMatchInlineSnapshot(`"./output/file.png"`);
-  });
-
-  it("redacts string-escaped Windows task dir paths from printed error objects", () => {
-    // Cast: ChatDirSchema rejects win32 absolute paths when the test runs on
-    // a posix host, but production Windows builds produce exactly this shape.
-    const windowsDir =
-      String.raw`C:\Users\user\AppData\Roaming\Instrument\workspace\tasks\my-task` as ChatDir;
-    // Node prints error objects with escaped backslashes, e.g.
-    // `path: 'C:\\Users\\...'`; that spelling must not leak the host dir.
-    const output = String.raw`Error: ENOENT: no such file or directory {
-  path: 'C:\\Users\\user\\AppData\\Roaming\\Instrument\\workspace\\tasks\\my-task\\attachments\\chart.svg'
-}`;
-
-    // The flag is what a Windows build's default is; this test runs on posix.
-    const result = filterShellOutput(output, layoutOf(windowsDir), {
-      rewriteSeparators: true,
-    });
-
-    expect(result).not.toContain(String.raw`C://Users`);
-    expect(result).toMatchInlineSnapshot(`
-      "Error: ENOENT: no such file or directory {
-        path: './/attachments//chart.svg'
-      }"
-    `);
-  });
-
-  it("redacts the host home dir from runner/cache paths", () => {
-    const home = os.homedir();
-    const output = `Error: ENOENT
-    at async file://${home}/Library/Caches/pnpm/dlx/abc123/jiti-cli.mjs:31:1`;
-
-    const result = filterShellOutput(output, layoutOf(dir));
-
-    expect(result).toBe(`Error: ENOENT
-    at async file://~/Library/Caches/pnpm/dlx/abc123/jiti-cli.mjs:31:1`);
   });
 
   it("handles output without absolute path", () => {
@@ -171,7 +46,7 @@ ${dir}\output\rainbow.pdf`;
 
 ✓ All tests passed`;
 
-    const result = filterShellOutput(output, layoutOf(dir));
+    const result = filterShellOutput(output);
 
     expect(result).toMatchInlineSnapshot(`
       "$ pnpm test
@@ -183,7 +58,7 @@ ${dir}\output\rainbow.pdf`;
   });
 
   it("handles empty output", () => {
-    const result = filterShellOutput("", layoutOf(dir));
+    const result = filterShellOutput("");
 
     expect(result).toMatchInlineSnapshot(`""`);
   });
@@ -225,14 +100,14 @@ ${dir}\output\rainbow.pdf`;
       output: `${"a".repeat(50)}https://user:ghp_secretToken@github.com/o/r.git`,
     },
   ])("redacts credentials in $output", ({ expected, output }) => {
-    expect(filterShellOutput(output, layoutOf(dir))).toBe(expected);
+    expect(filterShellOutput(output)).toBe(expected);
   });
 
   it.each([
     { output: "https://github.com/o/r.git" },
     { output: "Cloning into 'r'... see https://example.com/help@2x.png" },
   ])("leaves $output without userinfo untouched", ({ output }) => {
-    expect(filterShellOutput(output, layoutOf(dir))).toBe(output);
+    expect(filterShellOutput(output)).toBe(output);
   });
 
   it("filters debugger messages from output", () => {
@@ -248,7 +123,7 @@ ${dir}\output\rainbow.pdf`;
     Waiting for the debugger to disconnect...
     Waiting for the debugger to disconnect...`;
 
-    const result = filterShellOutput(output, layoutOf(dir));
+    const result = filterShellOutput(output);
     expect(result).toMatchInlineSnapshot(`
       "
           Error: Tool call execution failed for 'tool-bash': Command failed with exit code 1: pnpm dlx jiti scripts/test-06-dependencies.ts
@@ -261,78 +136,6 @@ ${dir}\output\rainbow.pdf`;
     `);
   });
 });
-
-describe("virtualizeHostPaths", () => {
-  const home = os.homedir();
-  const dir = ChatDirSchema.parse(`${home}/Instrument/tasks/my task`);
-  const layout = layoutOf(dir, {
-    "/mnt/Home/Downloads": `${home}/Downloads`,
-    "/tasks/t1": "/var/folders/dj/abc/T/tasks/t1",
-  });
-
-  it("names each mount by its mount point, the task folder as ., and the rest of home as ~", () => {
-    const text = [
-      `wrote ${home}/Downloads/a.pdf`,
-      `cwd ${dir}/work`,
-      `cache ${home}/Library/Caches/pnpm`,
-    ].join("\n");
-
-    expect(virtualizeHostPaths(text, layout)).toBe(
-      "wrote /mnt/Home/Downloads/a.pdf\ncwd ./work\ncache ~/Library/Caches/pnpm",
-    );
-  });
-
-  it("reads a mount in its /private firmlink spelling", () => {
-    expect(
-      virtualizeHostPaths(
-        "Wrote /private/var/folders/dj/abc/T/tasks/t1/out/r.txt",
-        layout,
-      ),
-    ).toBe("Wrote /tasks/t1/out/r.txt");
-  });
-
-  it("does not read a root inside a longer name", () => {
-    expect(
-      virtualizeHostPaths(
-        `${home}/Downloads2/x and ${home}/Downloads.`,
-        layout,
-      ),
-    ).toBe("~/Downloads2/x and /mnt/Home/Downloads.");
-  });
-
-  it("touches only host paths: leaves backslashes and URL credentials alone", () => {
-    const text = String.raw`re=/a\b/ and https://user:tok@example.com`;
-
-    expect(virtualizeHostPaths(text, layout)).toBe(text);
-  });
-});
-
-describe("redactTaskDir", () => {
-  const dir = ChatDirSchema.parse("/absolute/path/to/my task");
-
-  it("collapses the task dir but leaves an unrelated home path (file-content scope)", () => {
-    const home = os.homedir();
-    const text = `in: ${dir}/attachments  home: ${home}/elsewhere`;
-
-    const result = redactTaskDir(text, dir);
-
-    expect(result).toContain("in: ./attachments");
-    expect(result).toContain(`${home}/elsewhere`);
-    expect(result).not.toContain(dir);
-  });
-
-  it("handles the /private firmlink spelling of the task dir", () => {
-    const varDir = ChatDirSchema.parse("/var/folders/dj/abc/T/tasks/my-task");
-
-    expect(
-      redactTaskDir(
-        "wrote /private/var/folders/dj/abc/T/tasks/my-task/out",
-        varDir,
-      ),
-    ).toBe("wrote ./out");
-  });
-});
-
 describe("shouldFilterDebuggerMessage", () => {
   const originalEnv = process.env.NODE_ENV;
 

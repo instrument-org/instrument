@@ -7,11 +7,9 @@ import { FolderIcon } from "@phosphor-icons/react/Folder";
  * took effect on.
  *
  * A folder taken back is shown, since it is gone for the agent from this
- * message on. The other two changes are not, outside developer mode. A
- * folder granted already shows where it was granted: on the message that
- * sent it, or on the card that asked for it. A rename here is of the mount
- * we assign, not of the user's folder, so reporting one describes something
- * they never did. In developer mode the grants are listed too, since there
+ * message on. A folder granted is not, outside developer mode: it already
+ * shows where it was granted, on the message that sent it or on the card
+ * that asked for it. In developer mode the grants are listed too, since there
  * the note is read to find out what the agent was told.
  */
 export function FolderChangesNote({

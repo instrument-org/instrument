@@ -143,9 +143,6 @@ export const APP_IMPORT_FILE_EVALS = [
   defineEval({
     assertions: [makesAnImportFile, leavesTheWindowsAlone, datesStayCurrent],
     kind: "chat",
-    // Asking the user for a folder waits on a picker no eval answers, until
-    // the run's time cap; the chat chose its way in, and the run is scored.
-    shouldStop: (part) => part.type === "tool-request_folder",
     name: "chat-raycast-snippets-as-an-import-file",
     prompt: [
       "My Raycast snippets didn't come over when I migrated to this Mac. Can you put them back? They all started with x:",

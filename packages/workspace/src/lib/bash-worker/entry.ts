@@ -15,6 +15,7 @@ import { handChat } from "../record-folders";
 import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
 import { setWorkspaceConfig } from "../workspace-config";
+import { setAskForwarder } from "../permissions/asks";
 import { setSkillMutationForwarder } from "../workspace-skill-index";
 import {
   type ExceptionProperties,
@@ -66,10 +67,13 @@ process.on("unhandledRejection", (reason) => {
 
 // State the main thread owns: which turn a skill write belongs to, the process
 // trees to end if this worker dies, and the one creator of each task's venv.
-setSkillMutationForwarder((mountPath) => {
+setAskForwarder(({ asker, kind, target }) => {
+  post({ asker, kind, target, type: "ask" });
+});
+setSkillMutationForwarder((skillPath) => {
   const id = currentExec.getStore();
   if (id !== undefined) {
-    post({ id, mountPath, type: "skill-mutation" });
+    post({ id, skillPath, type: "skill-mutation" });
   }
 });
 setSubprocessTreeObserver({
@@ -189,8 +193,8 @@ function sendChunk(id: number, text: string) {
 }
 
 /**
- * A `js-exec` script's app tool call, made on the main thread. An abort of the
- * script's signal stops it there, as it does a proxied command.
+ * A `node` script's app tool call, made on the main thread. An abort of the
+ * command's signal stops it there, as it does a proxied command.
  */
 function invokeTool({
   argsJson,

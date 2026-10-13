@@ -56,7 +56,7 @@ function run(args: string[], stdin = "") {
   }).execute(
     args,
     createCommandContext({
-      cwd: "/task",
+      cwd: "/Users/sam/chat",
       env: new Map<string, string>(),
       fs: new InMemoryFs(),
       stdin: stdin ? encodeUtf8ToBytes(stdin) : EMPTY_BYTES,

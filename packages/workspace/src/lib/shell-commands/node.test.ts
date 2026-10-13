@@ -4,13 +4,10 @@ import {
   InMemoryFs,
   unsafeBytesFromLatin1,
 } from "just-bash";
-import fs from "node:fs/promises";
-import path from "node:path";
 import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { chatDir } from "../record-folders";
 import { createNodeCommand } from "./node";
 import { taskLayout } from "../../test/helpers/task-layout";
 
@@ -27,7 +24,9 @@ const mockCtx = createCommandContext({
 
 describe("nodeCommand", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
-  const command = createNodeCommand(chatId, taskLayout(chatId));
+  const layout = taskLayout(chatId);
+  const command = createNodeCommand(chatId);
+  const taskPath = layout.task.shellRoot;
 
   afterEach(() => {
     vi.resetAllMocks();
@@ -161,26 +160,26 @@ describe("nodeCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["--env-file=work/.env", "--no-warnings", "work/a.js"],
+      ["--env-file=work/.env", "--no-warnings", "./work/a.js"],
       expect.any(Object),
     );
   });
 
-  it("bridges a /task path in a forwarded flag value", async () => {
+  it("passes an absolute path in a forwarded flag value unchanged", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
     } as never);
 
-    await command.execute(["--env-file=/task/work/.env", "./work/a.js"], {
+    await command.execute([`--env-file=${taskPath}/work/.env`, "./work/a.js"], {
       ...mockCtx,
-      cwd: "/task",
+      cwd: taskPath,
     });
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["--env-file=work/.env", "work/a.js"],
+      [`--env-file=${taskPath}/work/.env`, "./work/a.js"],
       expect.any(Object),
     );
   });
@@ -228,7 +227,7 @@ describe("nodeCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["--check", "work/check.js"],
+      ["--check", "./work/check.js"],
       expect.any(Object),
     );
   });
@@ -244,7 +243,7 @@ describe("nodeCommand", () => {
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["--check", "work/check.js"],
+      ["--check", "./work/check.js"],
       expect.any(Object),
     );
   });
@@ -270,7 +269,7 @@ describe("nodeCommand", () => {
     );
   });
 
-  it("bridges quoted /task paths in a stdin program", async () => {
+  it("passes a stdin program with real paths through unchanged", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({
       all: "",
@@ -279,15 +278,18 @@ describe("nodeCommand", () => {
 
     await command.execute([], {
       ...mockCtx,
-      cwd: "/task",
-      stdin: unsafeBytesFromLatin1('fs.readFileSync("/task/work/a.txt")'),
+      cwd: taskPath,
+      stdin: unsafeBytesFromLatin1(`fs.readFileSync("${taskPath}/work/a.txt")`),
     });
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
       [],
       expect.objectContaining({
-        input: Buffer.from('fs.readFileSync("./work/a.txt")', "latin1"),
+        input: Buffer.from(
+          `fs.readFileSync("${taskPath}/work/a.txt")`,
+          "latin1",
+        ),
       }),
     );
   });
@@ -306,7 +308,7 @@ describe("nodeCommand", () => {
 
     const calledArgs = vi.mocked(execa).mock.calls.at(-1)?.[1];
     expect(calledArgs).toEqual(
-      expect.arrayContaining(["--output", "dist", "--verbose"]),
+      expect.arrayContaining(["--output", "./dist", "--verbose"]),
     );
   });
 
@@ -334,7 +336,7 @@ describe("nodeCommand", () => {
     expect(flagIndex).toBeLessThan(fileIndex);
   });
 
-  it("bridges quoted /task paths inside -e code", async () => {
+  it("passes -e code with real paths through unchanged", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({
       all: "",
@@ -342,65 +344,28 @@ describe("nodeCommand", () => {
     } as never);
 
     await command.execute(
-      ["-e", 'fs.readFileSync("/task/attachments/chart.svg")'],
-      { ...mockCtx, cwd: "/task" },
+      ["-e", `fs.readFileSync("${taskPath}/attachments/chart.svg")`],
+      { ...mockCtx, cwd: taskPath },
     );
 
     expect(vi.mocked(execa)).toHaveBeenCalledWith(
       process.execPath,
-      ["-e", 'fs.readFileSync("./attachments/chart.svg")'],
+      ["-e", `fs.readFileSync("${taskPath}/attachments/chart.svg")`],
       expect.any(Object),
     );
   });
 
-  it("rejects -e code referencing /mnt paths without spawning", async () => {
-    const { execa } = await import("execa");
-
-    const result = await command.execute(
-      ["-e", 'fs.readFileSync("/mnt/Photos/clip.mov")'],
-      mockCtx,
-    );
-
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Run it with `js-exec` instead");
-    expect(result.stderr).toContain("copy the file into the task first");
-    expect(vi.mocked(execa)).not.toHaveBeenCalled();
-  });
-
-  it("blocks a script file that references /mnt without spawning node", async () => {
-    const { execa } = await import("execa");
-    const workDir = path.join(chatDir(chatId), "work");
-    await fs.mkdir(workDir, { recursive: true });
-    const scriptPath = path.join(workDir, "bad.js");
-    await fs.writeFile(
-      scriptPath,
-      'require("fs").readFileSync("/mnt/Photos/x.mov")',
-    );
-
-    try {
-      const result = await command.execute(["work/bad.js"], mockCtx);
-
-      expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain("Run it with `js-exec` instead");
-      expect(result.stderr).toContain("copy the file into the task first");
-      expect(vi.mocked(execa)).not.toHaveBeenCalled();
-    } finally {
-      await fs.rm(scriptPath, { force: true });
-    }
-  });
-
-  it("resolves the script file path without exposing the host dir", async () => {
+  it("passes the script file path unchanged", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockResolvedValueOnce({
       all: "",
       exitCode: 0,
     } as never);
 
-    await command.execute(["/scripts/run.js"], mockCtx);
+    await command.execute([`${taskPath}/scripts/run.js`], mockCtx);
 
     const calledArgs = vi.mocked(execa).mock.calls.at(-1)?.[1];
     assert(Array.isArray(calledArgs), "expected args array");
-    expect(calledArgs[0]).not.toContain(chatDir(chatId));
-    expect(calledArgs[0]).toBe("scripts/run.js");
+    expect(calledArgs[0]).toBe(`${taskPath}/scripts/run.js`);
   });
 });

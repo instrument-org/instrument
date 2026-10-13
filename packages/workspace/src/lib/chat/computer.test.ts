@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { shellPath } from "../workspace-fs-layout";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import {
   accessIn,
@@ -20,24 +21,24 @@ import {
 const home = path.resolve(path.sep, "Users", "casey");
 const documents = path.join(home, "Documents");
 const roots: FolderRoot[] = [
-  { grant: "read-only", mountPoint: "/mnt/Home", root: home },
-  { grant: "read-only", mountPoint: "/mnt/Documents", root: documents },
+  { grant: "read-only", root: home, shellRoot: shellPath(home) },
+  { grant: "read-only", root: documents, shellRoot: shellPath(documents) },
 ];
 
 describe("accessIn", () => {
   it("is the granted folder itself", () => {
     expect(accessIn(roots, documents)).toEqual({
       access: "read-only",
-      mountPath: "/mnt/Documents",
       root: documents,
+      shellPath: shellPath(documents),
     });
   });
 
   it("reaches a file under the grant through it, in the agent's separators", () => {
     expect(accessIn(roots, path.join(documents, "reports", "q3.pdf"))).toEqual({
       access: "read-only",
-      mountPath: "/mnt/Documents/reports/q3.pdf",
       root: documents,
+      shellPath: `${shellPath(documents)}/reports/q3.pdf`,
     });
   });
 
@@ -53,12 +54,18 @@ describe("accessIn", () => {
   it("does not read a sibling sharing the grant's name as a prefix as inside it", () => {
     expect(accessIn(roots, path.join(home, "Documents-old", "a.txt"))).toEqual({
       access: "read-only",
-      mountPath: "/mnt/Home/Documents-old/a.txt",
       root: home,
+      shellPath: `${shellPath(home)}/Documents-old/a.txt`,
     });
     expect(
       accessIn(
-        [{ grant: "read-only", mountPoint: "/mnt/Documents", root: documents }],
+        [
+          {
+            grant: "read-only",
+            root: documents,
+            shellRoot: shellPath(documents),
+          },
+        ],
         path.join(home, "Documents-old", "a.txt"),
       ),
     ).toBeUndefined();

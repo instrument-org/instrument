@@ -7,7 +7,7 @@ import { BUNDLED_SOURCE_IDS, getSkillSources } from "./skills";
 
 /**
  * Copies the skills the app ships into `preparedSkillsDir`, the one folder
- * the `/skills/instrument/` mount reads them from: the app bundle is signed
+ * the bundled skills mount reads them from: the app bundle is signed
  * and replaced whole by the updater, so nothing reads from it in place.
  *
  * Copied fresh at every launch, a few megabytes, so the folder always holds

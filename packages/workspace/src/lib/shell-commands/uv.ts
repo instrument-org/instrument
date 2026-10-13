@@ -7,29 +7,19 @@ import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
 import { getUvBinPath } from "../uv";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
-import {
-  resolveCommandContext,
-  resolvePathArgs,
-  subprocessStdin,
-  unreachablePathArgError,
-} from "./utils";
+import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
 export const UV_COMMAND = {
   description:
-    "Python package and environment manager, backing `python-native` and `pip` with a per-task virtualenv in .venv. The very first native Python use fetches a managed interpreter (one-time); later uses are fast.",
+    "Python package and environment manager, backing `python` and `pip` with a per-task virtualenv in .venv. The very first Python use fetches a managed interpreter (one-time); later uses are fast.",
   name: "uv",
 } as const;
 
-export function createUvCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
+export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
   return defineCommand(UV_COMMAND.name, async (args, ctx) => {
     const blocked = blockedSelfUpdate(args);
     if (blocked) {
       return blocked;
-    }
-
-    const unreachable = unreachablePathArgError(UV_COMMAND.name, args, ctx.cwd);
-    if (unreachable !== undefined) {
-      return { exitCode: 1, stderr: unreachable, stdout: "" };
     }
 
     const { env, taskCwd } = resolveCommandContext(chatId, ctx);
@@ -45,10 +35,9 @@ export function createUvCommand(chatId: ChatId, layout: WorkspaceFsLayout) {
     }
 
     const result = await runUv({
-      args: resolvePathArgs(args, chatId, ctx),
+      args: hostPathArgs(args),
       ctx,
       env,
-      layout,
       taskCwd,
     });
     return result;
@@ -79,14 +68,11 @@ export async function runUv({
   args,
   ctx,
   env,
-  layout,
   taskCwd,
 }: {
   args: string[];
   ctx: CommandContext;
   env: Record<string, string>;
-  /** What the output's host paths are rewritten against. */
-  layout: WorkspaceFsLayout;
   taskCwd: AbsolutePath;
 }) {
   const stdin = subprocessStdin(ctx.stdin);
@@ -99,7 +85,7 @@ export async function runUv({
   return {
     exitCode: result.exitCode ?? 1,
     ...mapStreams(shimOutput(result, UV_COMMAND.name), (text) =>
-      filterShellOutput(text, layout),
+      filterShellOutput(text),
     ),
   };
 }

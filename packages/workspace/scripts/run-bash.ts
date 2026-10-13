@@ -9,10 +9,8 @@
  *   pnpm script:run-bash -- --bail "setup" "verify"    # stop after first failure
  *   pnpm script:run-bash -- --task <id> "ls work/"     # one-shot against existing task dir
  *   pnpm script:run-bash -- --chats-dir /path/to/chats # REPL with custom chats root
- *   pnpm script:run-bash -- --attach /some/dir "ls /mnt" # mount a folder read-only under /mnt
- *   pnpm script:run-bash -- --attach-writable /some/dir "..." # mount it read-write instead
- *   pnpm script:run-bash -- --mount-name Home/Downloads --attach-writable ~/Downloads "ls /mnt/Home"
- *                                                      # mount the next folder under a name given, as a chat's task does
+ *   pnpm script:run-bash -- --attach /some/dir "ls /some/dir" # reach a folder read-only at its own path
+ *   pnpm script:run-bash -- --attach-writable /some/dir "..." # reach it read-write instead
  *
  * Header/metadata always go to stderr so stdout stays clean for agent use.
  */
@@ -25,6 +23,8 @@ import "./lib/define-globals-apply";
 
 import { noopModelCache } from "@instrument-org/ai-gateway";
 import { execa } from "execa";
+import { createRequire } from "node:module";
+import { toolBinDirIn } from "./lib/tool-bin-dir";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -35,7 +35,6 @@ import { CHAT_FOLDER_NAMES } from "../src/constants";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { setBashWorkerFactory } from "../src/lib/bash-worker/client";
 import { createBashEnv } from "../src/lib/create-bash-env";
-import { assignMountNames } from "../src/lib/assign-mount-names";
 import { placeChat, resolveChat } from "../src/lib/record-folders";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { MountedFolder } from "../src/schemas/mounted-folder";
@@ -49,10 +48,8 @@ import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 function parseArgs(argv: string[]) {
   const attach: {
     access: MountedFolder.Access;
-    mountName?: string;
     path: string;
   }[] = [];
-  let mountName: string | undefined;
   let bail = false;
   const commands: string[] = [];
   let chatId: string | undefined;
@@ -67,10 +64,8 @@ function parseArgs(argv: string[]) {
         if (dir) {
           attach.push({
             access: "read-only",
-            ...(mountName ? { mountName } : {}),
             path: path.resolve(dir),
           });
-          mountName = undefined;
         }
 
         break;
@@ -80,16 +75,9 @@ function parseArgs(argv: string[]) {
         if (dir) {
           attach.push({
             access: "read-write",
-            ...(mountName ? { mountName } : {}),
             path: path.resolve(dir),
           });
-          mountName = undefined;
         }
-
-        break;
-      }
-      case "--mount-name": {
-        mountName = remaining.shift();
 
         break;
       }
@@ -148,9 +136,21 @@ setWorkspaceConfig({
   getAIProviderConfigs: () => [],
   modelCache: noopModelCache,
   nodeExecEnv: {},
+  nativeSandbox: true,
+  // The pnpm the app ships, as its JS entry, which the workspace runs with
+  // node: a shell shim from PATH is neither JS nor readable in the sandbox.
   pnpmBinPath: AbsolutePathSchema.parse(
-    await execa({ reject: false })`which pnpm`.then(
-      ({ stdout }) => stdout.trim() || "/usr/bin/pnpm",
+    path.join(
+      path.dirname(
+        createRequire(
+          path.resolve(
+            import.meta.dirname,
+            "../../../apps/studio/package.json",
+          ),
+        ).resolve("pnpm"),
+      ),
+      "bin",
+      "pnpm.mjs",
     ),
   ),
   preparedSkillsDir: AbsolutePathSchema.parse(
@@ -163,6 +163,7 @@ setWorkspaceConfig({
   ),
   chatsDir: AbsolutePathSchema.parse(chatsDir),
   legacyTasksDir: AbsolutePathSchema.parse(path.join(rootDir, "tasks")),
+  toolBinDir: AbsolutePathSchema.parse(toolBinDirIn(rootDir)),
   trashItem: () => Promise.resolve(),
   uvBinPath,
   uvDataDir: AbsolutePathSchema.parse(path.join(rootDir, "uv-data")),
@@ -194,19 +195,10 @@ const attached = args.attach.map((folder, index) => ({
   ...folder,
   id: MountedFolder.IdSchema.parse(`attach-${index}`),
 }));
-const names = assignMountNames(attached);
 const folders = Object.fromEntries(
   attached.map((folder): [string, MountedFolder.Type] => {
-    const mountName = folder.mountName ?? names.get(folder.id) ?? folder.id;
-    return [
-      mountName,
-      {
-        access: folder.access,
-        id: folder.id,
-        mountName,
-        path: AbsolutePathSchema.parse(folder.path),
-      },
-    ];
+    const hostPath = AbsolutePathSchema.parse(folder.path);
+    return [hostPath, { access: folder.access, id: folder.id, path: hostPath }];
   }),
 );
 

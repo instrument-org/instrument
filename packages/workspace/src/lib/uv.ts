@@ -4,6 +4,7 @@ import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { absolutePathJoin } from "./absolute-path-join";
 import { commandLineToolsEnv } from "./command-line-tools-env";
+import { uvToolsEnvFor } from "./tool-isolation-env";
 import { getWorkspaceConfig } from "./workspace-config";
 import { workDir } from "./work-dir";
 
@@ -46,8 +47,7 @@ export function chatVenvPython(chatId: ChatId): AbsolutePath {
  * Env overlay shared by the uv/python/pip commands and merged into the env of
  * the real-binary escape hatches (tsx/node/ffmpeg) so a script that shells out
  * to `python`/`uv` finds them on PATH. Pins uv to isolated, writable dirs under
- * userData (just-bash sets `HOME=/`, which would otherwise send uv writing to
- * the host fs, see run-pnpm.ts) and to a managed CPython so it never silently
+ * userData rather than the person's home, and to a managed CPython so it never silently
  * uses a random host Python. `VIRTUAL_ENV` points uv and the interpreter at the
  * task's `.venv`.
  */
@@ -72,9 +72,9 @@ export function uvSubprocessEnv({
     // installer dialog when the tools are absent.
     ...commandLineToolsEnv(),
     // Redirect heavy model/data caches to an app-managed, writable dir shared
-    // across tasks so big downloads land once and persist. just-bash sets
-    // HOME=/ (read-only), so libraries that cache under `~` would otherwise
-    // fail with EROFS on first download. We target each library's own cache
+    // across tasks so big downloads land once and persist, rather than under
+    // `~`, which the native sandbox keeps read-only outside the chat's
+    // folders. We target each library's own cache
     // var instead of overriding HOME: XDG_CACHE_HOME covers XDG-compliant libs
     // (Whisper's `~/.cache/whisper`, and HuggingFace's fallback when HF_HOME is
     // unset); HF_HOME and U2NET_HOME cover HuggingFace and rembg's `~/.u2net`,
@@ -86,13 +86,7 @@ export function uvSubprocessEnv({
     PATH: pathDirs.join(path.delimiter),
     TERM: "dumb",
     U2NET_HOME: path.join(uvDataDir, "u2net"),
-    UV_CACHE_DIR: path.join(uvDataDir, "cache"),
-    UV_NO_CONFIG: "1",
-    UV_PYTHON_DOWNLOADS: "automatic",
-    UV_PYTHON_INSTALL_DIR: path.join(uvDataDir, "python"),
-    UV_PYTHON_PREFERENCE: "only-managed",
-    UV_TOOL_DIR: path.join(uvDataDir, "tools"),
     VIRTUAL_ENV: venvDir,
-    XDG_CACHE_HOME: path.join(uvDataDir, "cache-home"),
+    ...uvToolsEnvFor(uvDataDir),
   };
 }

@@ -272,51 +272,18 @@ describe("browserFreeReadEnv", () => {
 });
 
 describe("resolveAgentBrowserPathArgs", () => {
-  const chatId = ChatIdSchema.parse("upload-paths");
-  const taskDirPath = `${MOCK_WORKSPACE_DIRS.chats}/upload-paths`;
   let fs = new InMemoryFs();
 
   beforeEach(async () => {
-    createMockChatConfig(chatId);
     fs = new InMemoryFs();
-    await fs.mkdir("/task/attachments", { recursive: true });
-    await fs.mkdir("/task/output", { recursive: true });
-    await fs.mkdir("/task/work", { recursive: true });
-    await fs.writeFile("/task/attachments/back.png", "back");
-    await fs.writeFile("/task/attachments/image.png", "image");
-    await fs.writeFile("/task/output/x.png", "image");
-    await fs.writeFile("/task/work/front.png", "front");
-    await fs.writeFile("/task/work/image.png", "image");
+    await fs.mkdir("/Users/sam/chat/attachments", { recursive: true });
+    await fs.mkdir("/Users/sam/chat/work", { recursive: true });
+    await fs.writeFile("/Users/sam/chat/attachments/back.png", "back");
+    await fs.writeFile("/Users/sam/chat/work/front.png", "front");
+    await fs.writeFile("/Users/sam/chat/work/image.png", "image");
   });
 
-  it.each([
-    {
-      expected: `${taskDirPath}/attachments/image.png`,
-      name: "task-relative path",
-      path: "attachments/image.png",
-    },
-    {
-      expected: `${taskDirPath}/work/image.png`,
-      name: "/task path",
-      path: "/task/work/image.png",
-    },
-  ])(
-    "resolves an upload $name for the native browser",
-    async ({ expected, path }) => {
-      const result = await resolveAgentBrowserPathArgs(
-        ["upload", "@e1", path],
-        chatId,
-        {
-          cwd: "/task",
-          fs,
-        },
-      );
-
-      expect(result).toEqual({ args: ["upload", "@e1", expected] });
-    },
-  );
-
-  it("resolves multiple upload files from the live shell cwd", async () => {
+  it("hands upload files to the daemon absolute, against the shell's cwd", async () => {
     const result = await resolveAgentBrowserPathArgs(
       [
         "--json",
@@ -325,12 +292,9 @@ describe("resolveAgentBrowserPathArgs", () => {
         "front.png",
         "--quiet",
         "../attachments/back.png",
+        "/Users/sam/chat/work/image.png",
       ],
-      chatId,
-      {
-        cwd: "/task/work",
-        fs,
-      },
+      { cwd: "/Users/sam/chat/work", fs },
     );
 
     expect(result).toEqual({
@@ -338,72 +302,30 @@ describe("resolveAgentBrowserPathArgs", () => {
         "--json",
         "upload",
         "@e1",
-        `${taskDirPath}/work/front.png`,
+        "/Users/sam/chat/work/front.png",
         "--quiet",
-        `${taskDirPath}/attachments/back.png`,
+        "/Users/sam/chat/attachments/back.png",
+        "/Users/sam/chat/work/image.png",
       ],
     });
   });
 
   it.each([
-    {
-      cwd: "/task",
-      error: "Copy the file into the task first",
-      name: "folder-mount path",
-      path: "/mnt/Photos/image.png",
-    },
-    {
-      cwd: "/task",
-      error: "outside /task",
-      name: "skills path",
-      path: "/skills/example/SKILL.md",
-    },
-    {
-      cwd: "/task",
-      error: "private .instrument directory",
-      name: "private task path",
-      path: "/task/.instrument/state.json",
-    },
-    {
-      cwd: "/task",
-      error: 'not found: "attachments/missing.png"',
-      name: "missing task file",
-      path: "attachments/missing.png",
-    },
-    {
-      cwd: "/task",
-      error: 'not found: "file:///task/output/x.png"',
-      name: "file URL",
-      path: "file:///task/output/x.png",
-    },
-    {
-      cwd: "/task/work",
-      error: "outside /task",
-      name: "relative escape",
-      path: "../../outside.png",
-    },
-  ])("refuses an upload $name", async ({ cwd, error, path }) => {
-    const result = await resolveAgentBrowserPathArgs(
-      ["upload", "@e1", path],
-      chatId,
-      { cwd, fs },
-    );
+    { name: "missing task file", path: "attachments/missing.png" },
+    { name: "file URL", path: "file:///Users/sam/chat/output/x.png" },
+  ])("refuses an upload of a $name", async ({ path }) => {
+    const result = await resolveAgentBrowserPathArgs(["upload", "@e1", path], {
+      cwd: "/Users/sam/chat",
+      fs,
+    });
 
-    expect(result).toHaveProperty("error");
-    if ("error" in result) {
-      expect(result.error).toContain(error);
-      expect(result.error).not.toContain(taskDirPath);
-    }
+    expect(result).toEqual({ error: `Upload file not found: "${path}".` });
   });
 
   it("leaves non-upload relative arguments unchanged", async () => {
     const result = await resolveAgentBrowserPathArgs(
       ["fill", "@e1", "attachments/image.png"],
-      chatId,
-      {
-        cwd: "/task",
-        fs,
-      },
+      { cwd: "/Users/sam/chat", fs },
     );
 
     expect(result).toEqual({
@@ -422,24 +344,48 @@ describe("resolveAgentBrowserPathArgs", () => {
       name: "a wait function opening with a regex",
     },
   ])("passes $name through as typed", async ({ args }) => {
-    const result = await resolveAgentBrowserPathArgs(args, chatId, {
-      cwd: "/task",
+    const result = await resolveAgentBrowserPathArgs(args, {
+      cwd: "/Users/sam/chat",
       fs,
     });
 
     expect(result).toEqual({ args });
   });
 
-  it("resolves a screenshot path given as a /task path", async () => {
+  it("passes a screenshot path through as written", async () => {
     const result = await resolveAgentBrowserPathArgs(
-      ["screenshot", "/task/work/page.png"],
-      chatId,
-      { cwd: "/task", fs },
+      ["screenshot", "/Users/sam/chat/work/page.png"],
+      { cwd: "/Users/sam/chat", fs },
     );
 
     expect(result).toEqual({
-      args: ["screenshot", `${taskDirPath}/work/page.png`],
+      args: ["screenshot", "/Users/sam/chat/work/page.png"],
     });
+  });
+
+  it.each([
+    [
+      ["screenshot", "shot.png"],
+      ["screenshot", "/Users/sam/chat/work/shot.png"],
+    ],
+    [
+      ["screenshot", ".hero", "a.png"],
+      ["screenshot", ".hero", "/Users/sam/chat/work/a.png"],
+    ],
+    [
+      ["record", "start", "out.webm"],
+      ["record", "start", "/Users/sam/chat/work/out.webm"],
+    ],
+    [
+      ["screenshot", "@e2"],
+      ["screenshot", "@e2"],
+    ],
+  ])("resolves %j's file operands only", async (args, expected) => {
+    const result = await resolveAgentBrowserPathArgs(args, {
+      cwd: "/Users/sam/chat/work",
+      fs,
+    });
+    expect(result).toEqual({ args: expected });
   });
 });
 
@@ -455,9 +401,9 @@ describe("agent-browser routing", () => {
   beforeEach(async () => {
     createMockChatConfig(chatId);
     const fs = new InMemoryFs();
-    await fs.mkdir("/task/attachments", { recursive: true });
-    await fs.writeFile("/task/attachments/image.png", "image");
-    commandCtx = { ...mockCtx, cwd: "/task", fs };
+    await fs.mkdir("/Users/sam/chat/attachments", { recursive: true });
+    await fs.writeFile("/Users/sam/chat/attachments/image.png", "image");
+    commandCtx = { ...mockCtx, cwd: "/Users/sam/chat", fs };
   });
 
   afterEach(() => {
@@ -521,14 +467,14 @@ describe("agent-browser routing", () => {
     expect(env.HOME).not.toBe(os.homedir());
   });
 
-  it("passes upload files to the browser as host-absolute paths", async () => {
+  it("passes upload files to the browser absolute", async () => {
     const { args } = await spawnedWith([
       "upload",
       "@e1",
       "attachments/image.png",
     ]);
 
-    expect(args).toContain(`${taskDirPath}/attachments/image.png`);
+    expect(args).toContain("/Users/sam/chat/attachments/image.png");
   });
 
   it("fails before spawning when an upload file is missing", async () => {

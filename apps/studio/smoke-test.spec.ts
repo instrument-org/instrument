@@ -220,10 +220,7 @@ describe("Studio Smoke Test", () => {
   // suite can see that, because it runs against node_modules. So run those
   // commands through the archive the shipped app loads, under the shipped
   // runtime: sqlite3 needs its worker, a worker thread to load it, and sql.js
-  // to read wasm out of the archive; python3 needs its own worker and the
-  // vendored CPython wasm and stdlib zip; js-exec needs the `run` package and,
-  // with the `typescript` package left out of the build, the runtime's own
-  // `stripTypeScriptTypes` to run TypeScript.
+  // to read wasm out of the archive.
   it("runs bash commands from inside the packaged archive", async () => {
     const executablePath = await resolveExecutablePath(distPath);
     const nodeModules = path.join(asarPath(executablePath), "node_modules");
@@ -242,13 +239,11 @@ describe("Studio Smoke Test", () => {
         const manifest = require(path.join(packageDir, "package.json"));
         const entry = path.join(packageDir, manifest.exports["."].import.default);
         const { Bash } = await import(pathToFileURL(entry).href);
-        const bash = new Bash({ commands: ["sqlite3"], javascript: true, python: true });
+        const bash = new Bash({ commands: ["sqlite3"] });
         const result = await bash.exec(
           "sqlite3 /db 'create table t(a); insert into t values(41); select a+1 from t;'",
         );
-        const python = await bash.exec("python3 -c 'import json; print(json.dumps(6 * 7))'");
-        const jsExec = await bash.exec("js-exec -c 'const n: number = 6 * 7; console.log(n)'");
-        process.stdout.write("SANDBOX_SMOKE " + JSON.stringify({ entry, jsExec, python, result }) + "\\n", () => process.exit(0));
+        process.stdout.write("SANDBOX_SMOKE " + JSON.stringify({ entry, result }) + "\\n", () => process.exit(0));
       })().catch((error) => {
         process.stdout.write("SANDBOX_SMOKE_ERROR " + String(error && error.stack ? error.stack : error) + "\\n");
         process.exit(1);
@@ -271,21 +266,13 @@ describe("Studio Smoke Test", () => {
     }
     const parsed = JSON.parse((line ?? "").slice("SANDBOX_SMOKE ".length)) as {
       entry: string;
-      jsExec: Run;
-      python: Run;
       result: Run;
     };
 
     expect(parsed.entry).toContain("app.asar");
-    for (const [name, run] of Object.entries({
-      "js-exec": parsed.jsExec,
-      python3: parsed.python,
-      sqlite3: parsed.result,
-    })) {
-      expect(run.stderr, `${name} stderr`).toBe("");
-      expect(run.stdout.trim(), `${name} stdout`).toBe("42");
-      expect(run.exitCode, `${name} exit code`).toBe(0);
-    }
+    expect(parsed.result.stderr, "sqlite3 stderr").toBe("");
+    expect(parsed.result.stdout.trim(), "sqlite3 stdout").toBe("42");
+    expect(parsed.result.exitCode, "sqlite3 exit code").toBe(0);
     expect(code).toBe(0);
   }, 120_000);
 

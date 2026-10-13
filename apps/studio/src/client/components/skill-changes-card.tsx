@@ -33,8 +33,8 @@ export function SkillChangesCard({
     ...data.updated.map((name) => ({ name, verb: "Updated" })),
   ].map((entry) => ({
     ...entry,
-    // These names are directories in the writable `/skills` mount, which is
-    // where the agent wrote them and what `editable` marks.
+    // These names are directories in the workspace skills directory, the one
+    // the agent writes skills in and what `editable` marks.
     skill: skills.find((skill) => skill.editable && skill.name === entry.name),
   }));
 

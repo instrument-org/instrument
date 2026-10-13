@@ -1,0 +1,481 @@
+diff --git a/packages/just-bash/src/Bash.ts b/packages/just-bash/src/Bash.ts
+index f93abf9..b3716ae 100644
+--- a/packages/just-bash/src/Bash.ts
++++ b/packages/just-bash/src/Bash.ts
+@@ -81,6 +81,7 @@ import type {
+   BashExecResult,
+   Command,
+   CommandRegistry,
++  ExternalCommandResolver,
+   FeatureCoverageWriter,
+   RuntimeCommand,
+   TraceCallback,
+@@ -205,6 +206,17 @@ export interface BashOptions {
+    * ```
+    */
+   customCommands?: CustomCommand[];
++  /**
++   * Finds a command the shell itself does not know, such as a program on the
++   * host's PATH that the embedder runs as a real process. Asked for a name
++   * with a `/` before the shell reads that file as a script, and for a bare
++   * name once no builtin, function, registered command, or executable on the
++   * shell's PATH answers it, so those keep their names. `type`, `command -v`
++   * and `hash` ask it too, and name the command by the path it returns.
++   * Undefined leaves the name to the shell, which reports it as not found.
++   * Runs as trusted host code, as a custom command does.
++   */
++  resolveExternalCommand?: ExternalCommandResolver;
+   /**
+    * Optional logger for execution tracing.
+    * When provided, logs exec commands (info), stdout (debug), stderr (info), and exit codes (info).
+@@ -326,6 +338,7 @@ export class Bash {
+   private defenseInDepthConfig?: DefenseInDepthConfig | boolean;
+   private coverageWriter?: FeatureCoverageWriter;
+   private jsBootstrapCode?: string;
++  private resolveExternalCommand?: ExternalCommandResolver;
+   private invokeToolFn?: (
+     path: string,
+     argsJson: string,
+@@ -396,6 +409,7 @@ export class Bash {
+ 
+     // Store logger if provided
+     this.logger = options.logger;
++    this.resolveExternalCommand = options.resolveExternalCommand;
+ 
+     // Preserve the historical enabled default. Older supported Nodes use the
+     // strongest scoped controls they expose and report loader-hook capability.
+@@ -818,6 +832,7 @@ export class Bash {
+           const interpreterOptions: InterpreterOptions = {
+             fs: this.fs,
+             commands: this.commands,
++            resolveExternalCommand: this.resolveExternalCommand,
+             limits: this.limits,
+             executionScope,
+             exec: (script, childOptions, childStdinAlreadyAccounted = false) =>
+diff --git a/packages/just-bash/src/index.ts b/packages/just-bash/src/index.ts
+index cc01c6d..20af30a 100644
+--- a/packages/just-bash/src/index.ts
++++ b/packages/just-bash/src/index.ts
+@@ -138,6 +138,8 @@ export type {
+   BashExecResult,
+   Command,
+   CommandContext,
++  ExternalCommand,
++  ExternalCommandResolver,
+   ExecResult,
+   IFileSystem,
+   ResolvedCommandContext,
+diff --git a/packages/just-bash/src/interpreter/builtins/hash.ts b/packages/just-bash/src/interpreter/builtins/hash.ts
+index 94af782..69f5a8e 100644
+--- a/packages/just-bash/src/interpreter/builtins/hash.ts
++++ b/packages/just-bash/src/interpreter/builtins/hash.ts
+@@ -16,6 +16,7 @@
+  */
+ 
+ import type { ExecResult } from "../../types.js";
++import { resolveExternalCommand } from "../command-resolution.js";
+ import { quoteValue } from "../helpers/quoting.js";
+ import { failure, OK, success } from "../helpers/result.js";
+ import type { InterpreterContext } from "../types.js";
+@@ -212,6 +213,14 @@ export async function handleHash(
+       }
+     }
+ 
++    if (!found) {
++      const external = await resolveExternalCommand(ctx, name);
++      if (external) {
++        ctx.state.hashTable.set(name, external.path);
++        found = true;
++      }
++    }
++
+     if (!found) {
+       stderr += `bash: hash: ${name}: not found\n`;
+       hasError = true;
+diff --git a/packages/just-bash/src/interpreter/command-resolution.ts b/packages/just-bash/src/interpreter/command-resolution.ts
+index f90d605..fd97f6c 100644
+--- a/packages/just-bash/src/interpreter/command-resolution.ts
++++ b/packages/just-bash/src/interpreter/command-resolution.ts
+@@ -5,7 +5,13 @@
+  */
+ 
+ import type { IFileSystem } from "../fs/interface.js";
+-import type { Command, CommandRegistry } from "../types.js";
++import { DefenseInDepthBox } from "../security/defense-in-depth-box.js";
++import type {
++  Command,
++  CommandRegistry,
++  ExternalCommandResolver,
++  RuntimeCommand,
++} from "../types.js";
+ import type { InterpreterState } from "./types.js";
+ 
+ /**
+@@ -15,6 +21,38 @@ export interface CommandResolutionContext {
+   fs: IFileSystem;
+   state: InterpreterState;
+   commands: CommandRegistry;
++  resolveExternalCommand?: ExternalCommandResolver;
++}
++
++/**
++ * Ask the embedder's resolver for a command the shell does not know. The
++ * resolver is host code, so it runs trusted, and what it returns runs the way
++ * a registered custom command does.
++ */
++export async function resolveExternalCommand(
++  ctx: CommandResolutionContext,
++  commandName: string,
++): Promise<{ cmd: RuntimeCommand; path: string } | undefined> {
++  const resolver = ctx.resolveExternalCommand;
++  if (!resolver || !commandName) {
++    return undefined;
++  }
++  const external = await DefenseInDepthBox.runTrustedAsync(() =>
++    resolver(commandName, { cwd: ctx.state.cwd, env: ctx.state.env }),
++  );
++  if (!external) {
++    return undefined;
++  }
++  const { command, path } = external;
++  return {
++    cmd: {
++      name: command.name,
++      trusted: command.trusted ?? true,
++      internalIsExtension: true,
++      execute: (args, context) => command.execute(args, context),
++    },
++    path,
++  };
+ }
+ 
+ /**
+@@ -35,9 +73,10 @@ function isTrustedCommandStub(path: string, commandName: string): boolean {
+  * Returns the command and its resolved path, or null if not found.
+  *
+  * Resolution order:
+- * 1. If command contains "/", resolve as a path
++ * 1. If command contains "/", ask the external resolver, then resolve as a path
+  * 2. Search PATH directories for the command file
+  * 3. Fall back to registry lookup (for non-InMemoryFs filesystems like OverlayFs)
++ * 4. Ask the external resolver
+  */
+ export async function resolveCommand(
+   ctx: CommandResolutionContext,
+@@ -46,6 +85,10 @@ export async function resolveCommand(
+ ): Promise<ResolveCommandResult> {
+   // If command contains "/", it's a path - resolve directly
+   if (commandName.includes("/")) {
++    const external = await resolveExternalCommand(ctx, commandName);
++    if (external) {
++      return external;
++    }
+     const resolvedPath = ctx.fs.resolvePath(ctx.state.cwd, commandName);
+     // Check if file exists
+     if (!(await ctx.fs.exists(resolvedPath))) {
+@@ -81,6 +124,14 @@ export async function resolveCommand(
+   if (!pathOverride && ctx.state.hashTable) {
+     const cachedPath = ctx.state.hashTable.get(commandName);
+     if (cachedPath) {
++      // A command the resolver found is remembered by the path it named,
++      // which the shell's filesystem need not hold.
++      if (!ctx.commands.has(commandName)) {
++        const external = await resolveExternalCommand(ctx, commandName);
++        if (external?.path === cachedPath) {
++          return external;
++        }
++      }
+       try {
+         const stat = await ctx.fs.stat(cachedPath);
+         if (!stat.isDirectory) {
+@@ -158,7 +209,7 @@ export async function resolveCommand(
+     }
+   }
+ 
+-  return null;
++  return (await resolveExternalCommand(ctx, commandName)) ?? null;
+ }
+ 
+ /**
+@@ -172,6 +223,9 @@ export async function findCommandInPath(
+ 
+   // If command contains /, it's a path - check if it exists and is executable
+   if (commandName.includes("/")) {
++    if (await resolveExternalCommand(ctx, commandName)) {
++      return [commandName];
++    }
+     const resolvedPath = ctx.fs.resolvePath(ctx.state.cwd, commandName);
+     if (await ctx.fs.exists(resolvedPath)) {
+       try {
+@@ -227,5 +281,10 @@ export async function findCommandInPath(
+     }
+   }
+ 
++  const external = await resolveExternalCommand(ctx, commandName);
++  if (external && !paths.includes(external.path)) {
++    paths.push(external.path);
++  }
++
+   return paths;
+ }
+diff --git a/packages/just-bash/src/interpreter/external-command-resolver.test.ts b/packages/just-bash/src/interpreter/external-command-resolver.test.ts
+new file mode 100644
+index 0000000..ac67e99
+--- /dev/null
++++ b/packages/just-bash/src/interpreter/external-command-resolver.test.ts
+@@ -0,0 +1,106 @@
++import { describe, expect, it } from "vitest";
++import { Bash } from "../Bash.js";
++import { defineCommand } from "../custom-commands.js";
++import { decodeBytesToUtf8 } from "../encoding.js";
++import type { ExternalCommandResolver } from "../types.js";
++
++/** Knows `hostcmd` at `/host/bin/hostcmd` and `/host/bin/tool` by path. */
++function hostResolver(asked: string[] = []): ExternalCommandResolver {
++  const host = defineCommand("hostcmd", async (args, ctx) => ({
++    stdout: `host ${args.join(" ")} cwd=${ctx.cwd} in=${decodeBytesToUtf8(ctx.stdin).trim()}\n`,
++    stderr: "",
++    exitCode: 0,
++  }));
++  return async (name) => {
++    asked.push(name);
++    if (name === "hostcmd") return { command: host, path: "/host/bin/hostcmd" };
++    if (name === "/host/bin/tool" || name === "./tool") {
++      return { command: host, path: "/host/bin/tool" };
++    }
++    // A name the shell already knows, offered anyway: the shell's must win.
++    if (name === "echo" || name === "ls") {
++      return { command: host, path: `/host/bin/${name}` };
++    }
++    return undefined;
++  };
++}
++
++describe("resolveExternalCommand", () => {
++  it("runs a name the shell does not know, with args, cwd and stdin", async () => {
++    const bash = new Bash({
++      cwd: "/tmp",
++      resolveExternalCommand: hostResolver(),
++    });
++    const result = await bash.exec("echo piped | hostcmd a b");
++    expect(result.stdout).toBe("host a b cwd=/tmp in=piped\n");
++    expect(result.exitCode).toBe(0);
++  });
++
++  it("leaves builtins, registered commands and functions their names", async () => {
++    const asked: string[] = [];
++    const bash = new Bash({ resolveExternalCommand: hostResolver(asked) });
++    const result = await bash.exec(
++      "echo hi; f() { echo fn; }; f; ls / >/dev/null; cd /",
++    );
++    expect(result.stdout).toBe("hi\nfn\n");
++    expect(asked).toEqual([]);
++  });
++
++  it("reports a name nobody knows as not found", async () => {
++    const bash = new Bash({ resolveExternalCommand: hostResolver() });
++    const result = await bash.exec("nosuchcmd; echo $?");
++    expect(result.stderr).toBe("bash: nosuchcmd: command not found\n");
++    expect(result.stdout).toBe("127\n");
++  });
++
++  it("is asked for a path before the shell reads the file", async () => {
++    const bash = new Bash({
++      cwd: "/work",
++      files: { "/work/tool": "echo script" },
++      resolveExternalCommand: hostResolver(),
++    });
++    const result = await bash.exec("./tool x; /host/bin/tool y");
++    expect(result.stdout).toBe("host x cwd=/work in=\nhost y cwd=/work in=\n");
++  });
++
++  it("answers command -v, command -V, type and hash", async () => {
++    const bash = new Bash({ resolveExternalCommand: hostResolver() });
++    const result = await bash.exec(
++      [
++        "command -v hostcmd",
++        "command -V hostcmd",
++        "type hostcmd",
++        "type -t hostcmd",
++        "type -P hostcmd",
++        "type -a hostcmd",
++        "command -v /host/bin/tool",
++        "hash hostcmd && hash -t hostcmd",
++        "hostcmd again",
++        "command -v nosuchcmd; echo $?",
++      ].join("\n"),
++    );
++    expect(result.stdout).toBe(
++      [
++        "/host/bin/hostcmd",
++        "hostcmd is /host/bin/hostcmd",
++        "hostcmd is /host/bin/hostcmd",
++        "file",
++        "/host/bin/hostcmd",
++        "hostcmd is /host/bin/hostcmd",
++        "/host/bin/tool",
++        "/host/bin/hostcmd",
++        "host again cwd=/home/user in=",
++        "1",
++        "",
++      ].join("\n"),
++    );
++  });
++
++  it("names a registered command by its own path before the resolver's", async () => {
++    const bash = new Bash({ resolveExternalCommand: hostResolver() });
++    const result = await bash.exec("command -v echo; type ls; type -a ls");
++    expect(result.stdout).toBe(
++      "echo\nls is /usr/bin/ls\nls is /usr/bin/ls\nls is /bin/ls\nls is /host/bin/ls\n",
++    );
++  });
++});
+diff --git a/packages/just-bash/src/interpreter/interpreter.ts b/packages/just-bash/src/interpreter/interpreter.ts
+index 66bde42..ddf91fc 100644
+--- a/packages/just-bash/src/interpreter/interpreter.ts
++++ b/packages/just-bash/src/interpreter/interpreter.ts
+@@ -40,6 +40,7 @@ import {
+ import type {
+   CommandRegistry,
+   ExecResult,
++  ExternalCommandResolver,
+   FeatureCoverageWriter,
+   TraceCallback,
+ } from "../types.js";
+@@ -123,6 +124,8 @@ export type { InterpreterContext, InterpreterState } from "./types.js";
+ export interface InterpreterOptions {
+   fs: IFileSystem;
+   commands: CommandRegistry;
++  /** Finds a command the shell does not know; see `BashOptions`. */
++  resolveExternalCommand?: ExternalCommandResolver;
+   limits: Required<ExecutionLimits>;
+   executionScope: ExecutionScope;
+   exec: (
+@@ -160,6 +163,7 @@ export class Interpreter {
+       state,
+       fs: options.fs,
+       commands: options.commands,
++      resolveExternalCommand: options.resolveExternalCommand,
+       limits: options.limits,
+       executionScope: options.executionScope,
+       execFn: options.exec,
+diff --git a/packages/just-bash/src/interpreter/type-command.ts b/packages/just-bash/src/interpreter/type-command.ts
+index 0f060a8..e3bcc55 100644
+--- a/packages/just-bash/src/interpreter/type-command.ts
++++ b/packages/just-bash/src/interpreter/type-command.ts
+@@ -21,7 +21,12 @@ import {
+ } from "../ast/types.js";
+ import type { IFileSystem } from "../fs/interface.js";
+ import { serializeWord } from "../transform/serialize.js";
+-import type { CommandRegistry, ExecResult } from "../types.js";
++import type {
++  CommandRegistry,
++  ExecResult,
++  ExternalCommandResolver,
++} from "../types.js";
++import { resolveExternalCommand } from "./command-resolution.js";
+ import { result } from "./helpers/result.js";
+ import { SHELL_BUILTINS, SHELL_KEYWORDS } from "./helpers/shell-constants.js";
+ import type { InterpreterState } from "./types.js";
+@@ -33,6 +38,7 @@ export interface TypeCommandContext {
+   state: InterpreterState;
+   fs: IFileSystem;
+   commands: CommandRegistry;
++  resolveExternalCommand?: ExternalCommandResolver;
+ }
+ 
+ /**
+@@ -429,7 +435,10 @@ export async function handleCommandV(
+       // Path containing / - check if file exists and is executable
+       const resolvedPath = ctx.fs.resolvePath(ctx.state.cwd, name);
+       let found = false;
+-      if (await ctx.fs.exists(resolvedPath)) {
++      if (await resolveExternalCommand(ctx, name)) {
++        stdout += verboseDescribe ? `${name} is ${name}\n` : `${name}\n`;
++        found = true;
++      } else if (await ctx.fs.exists(resolvedPath)) {
+         try {
+           const stat = await ctx.fs.stat(resolvedPath);
+           if (!stat.isDirectory) {
+@@ -483,6 +492,13 @@ export async function handleCommandV(
+         stdout += `${foundPath}\n`;
+       }
+     } else {
++      const external = await resolveExternalCommand(ctx, name);
++      if (external) {
++        stdout += verboseDescribe
++          ? `${name} is ${external.path}\n`
++          : `${external.path}\n`;
++        continue;
++      }
+       // Not found - for -V, print error to stderr (matches test at line 237-255)
+       if (verboseDescribe) {
+         stderr += `${name}: not found\n`;
+@@ -505,6 +521,9 @@ export async function findFirstInPath(
+ ): Promise<string | null> {
+   // If name contains /, it's a path - check if it exists and is executable
+   if (name.includes("/")) {
++    if (await resolveExternalCommand(ctx, name)) {
++      return name;
++    }
+     const resolvedPath = ctx.fs.resolvePath(ctx.state.cwd, name);
+     if (await ctx.fs.exists(resolvedPath)) {
+       // Check if it's a directory or not executable
+@@ -568,5 +587,5 @@ export async function findFirstInPath(
+     return `/usr/bin/${name}`;
+   }
+ 
+-  return null;
++  return (await resolveExternalCommand(ctx, name))?.path ?? null;
+ }
+diff --git a/packages/just-bash/src/interpreter/types.ts b/packages/just-bash/src/interpreter/types.ts
+index 97f1792..c0b11c9 100644
+--- a/packages/just-bash/src/interpreter/types.ts
++++ b/packages/just-bash/src/interpreter/types.ts
+@@ -16,6 +16,7 @@ import type {
+   CommandExecOptions,
+   CommandRegistry,
+   ExecResult,
++  ExternalCommandResolver,
+   FeatureCoverageWriter,
+   TraceCallback,
+ } from "../types.js";
+@@ -477,6 +478,8 @@ export interface InterpreterContext {
+   state: InterpreterState;
+   fs: IFileSystem;
+   commands: CommandRegistry;
++  /** Finds a command the shell does not know; see `BashOptions`. */
++  resolveExternalCommand?: ExternalCommandResolver;
+   /** Execution limits configuration */
+   limits: Required<ExecutionLimits>;
+   /** Shared security accounting for this top-level execution and descendants. */
+diff --git a/packages/just-bash/src/types.ts b/packages/just-bash/src/types.ts
+index 0c8c68a..bfc50ee 100644
+--- a/packages/just-bash/src/types.ts
++++ b/packages/just-bash/src/types.ts
+@@ -326,5 +326,25 @@ export interface RuntimeCommand extends Omit<Command, "execute"> {
+ }
+ export type CommandRegistry = Map<string, RuntimeCommand>;
+ 
++/**
++ * A command found outside the shell, and the path `type`, `command -v` and
++ * `hash` name it by.
++ */
++export interface ExternalCommand {
++  command: Command;
++  path: string;
++}
++
++/**
++ * Finds a command the shell itself does not know: a program on the host's
++ * PATH, say. Asked for a name with a `/` before the shell reads that file, and
++ * for a bare name once no builtin, registered command, or executable on the
++ * shell's PATH answers it. Undefined leaves the name to the shell.
++ */
++export type ExternalCommandResolver = (
++  name: string,
++  context: { cwd: string; env: Map<string, string> },
++) => Promise<ExternalCommand | undefined>;
++
+ // Re-export IFileSystem for convenience
+ export type { IFileSystem };

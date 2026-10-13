@@ -20,7 +20,7 @@ import { z } from "zod";
 import { ensureChat } from "../../src/lib/chat/chat-records";
 import { chatDir } from "../../src/lib/record-folders";
 import { Store } from "../../src/lib/store";
-import { MOUNT } from "../../src/mount-points";
+import { shellPath } from "../../src/lib/workspace-fs-layout";
 import { type Session } from "../../src/schemas/session";
 import { StoreId } from "../../src/schemas/store-id";
 import { type Assertion, defineEval } from "../harness";
@@ -95,8 +95,12 @@ const toolsChosen: Assertion = {
       web_fetch: parts.filter((part) => part.type === "tool-web_fetch").length,
       "chat search": count(commands, /(?:^|[\n;&|])\s*chat search\b/g),
       "chat read": count(commands, /(?:^|[\n;&|])\s*chat read\b/g),
-      request_folder: parts.filter(
-        (part) => part.type === "tool-request_folder",
+      "permission asks": parts.filter(
+        (part) =>
+          "output" in part &&
+          JSON.stringify(part.output).includes(
+            "Waiting on the person to allow",
+          ),
       ).length,
     };
     const used = Object.entries(tally)
@@ -375,7 +379,7 @@ async function seedLease() {
     chatId,
     sessionId,
     "assistant",
-    `Sections 1 to 3 are summarized: a 12-month term from Nov 1, $2,450 rent due the 1st with a $75 late fee after the 5th, and a $2,450 deposit back within 21 days. Pets, subletting, and early termination are next.\n\n\`\`\`files\n${MOUNT.folders}/Instrument/Lease/lease-summary.md\n\`\`\``,
+    `Sections 1 to 3 are summarized: a 12-month term from Nov 1, $2,450 rent due the 1st with a $75 late fee after the 5th, and a $2,450 deposit back within 21 days. Pets, subletting, and early termination are next.\n\n\`\`\`files\n${shellPath(path.join(LEASE_DIR(), "lease-summary.md"))}\n\`\`\``,
     new Date(yesterday + 40_000),
   );
   await saveSeeded(

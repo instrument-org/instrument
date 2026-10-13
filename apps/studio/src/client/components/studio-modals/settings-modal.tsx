@@ -7,6 +7,7 @@ import { DebugSection } from "@/client/components/settings/debug-section";
 import { FeaturesSection } from "@/client/components/settings/features-section";
 import { GeneralSection } from "@/client/components/settings/general-section";
 import { MemorySection } from "@/client/components/settings/memory-section";
+import { PermissionsSection } from "@/client/components/settings/permissions-section";
 import { ProvidersSection } from "@/client/components/settings/providers-section";
 import { SkillsSection } from "@/client/components/settings/skills-section";
 import { StorageSection } from "@/client/components/settings/storage-section";
@@ -49,6 +50,7 @@ import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { FlagIcon } from "@phosphor-icons/react/Flag";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { LockKeyIcon } from "@phosphor-icons/react/LockKey";
 import { PulseIcon } from "@phosphor-icons/react/Pulse";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
@@ -494,6 +496,9 @@ function SettingsSectionBody({
     case "Memory": {
       return <MemorySection />;
     }
+    case "Permissions": {
+      return <PermissionsSection />;
+    }
     case "Providers": {
       return <ProvidersSection autoOpenAddProvider={autoAddProvider} />;
     }
@@ -527,6 +532,11 @@ function useNavItems(): NavItem[] {
       icon: FingerprintIcon,
       tab: "Memory",
       title: "Memory",
+    },
+    {
+      icon: LockKeyIcon,
+      tab: "Permissions",
+      title: "Permissions",
     },
     {
       icon: CpuIcon,

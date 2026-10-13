@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import {
   isToolPart,
   pathsNamedInMessage,
@@ -9,6 +10,8 @@ import {
 import { AssistantMessage } from "./assistant-message";
 import { isDataPart, renderDataPart } from "./chat-stream-data-parts";
 import { ChatDevOnly } from "./dev-mode-card";
+import { getToolExplanation } from "../lib/get-tool-explanation";
+import { PermissionAsksForPart } from "./permission-asks";
 import { ToolCall, ToolCallBody } from "./message-part/tool-call";
 import {
   isToolCallVisible,
@@ -42,11 +45,7 @@ export interface RenderPartContext {
 
 /** A call whose card asks the user something, which the chat always shows. */
 function isAskingTheUser(part: SessionMessagePart.ToolPart): boolean {
-  return (
-    part.type === "tool-choose" ||
-    part.type === "tool-connect_app" ||
-    part.type === "tool-request_folder"
-  );
+  return part.type === "tool-choose" || part.type === "tool-connect_app";
 }
 
 /**
@@ -156,8 +155,16 @@ export function renderChatPart({
         (part.type === "tool-connect_app" &&
           part.state === "output-available" &&
           part.output.state === "failure"));
+    const asked = (
+      <PermissionAsksForPart
+        chatId={ctx.chatInfo.id}
+        explanation={getToolExplanation(part)}
+        key={`asks-${part.metadata.id}`}
+        partId={part.metadata.id}
+      />
+    );
     if (isDevOnly && !ctx.isDeveloperMode) {
-      return null;
+      return asked;
     }
     // The chat draws a card that asks the user as the card alone, with no
     // row above it to open or shut it, and only once it has something to
@@ -165,13 +172,17 @@ export function renderChatPart({
     // broken.
     if (ctx.presentation === "chat" && !isDevOnly) {
       return isCardReady(part) ? (
-        <ToolCallBody
-          key={part.metadata.id}
-          onRetry={ctx.onRetry}
-          part={part}
-          chatInfo={ctx.chatInfo}
-        />
-      ) : null;
+        <Fragment key={part.metadata.id}>
+          <ToolCallBody
+            onRetry={ctx.onRetry}
+            part={part}
+            chatInfo={ctx.chatInfo}
+          />
+          {asked}
+        </Fragment>
+      ) : (
+        asked
+      );
     }
     const streaming = ctx.isToolStreaming(part, message);
     // A part can carry a start with no end long after the run that wrote it
@@ -201,10 +212,11 @@ export function renderChatPart({
         chatInfo={ctx.chatInfo}
       />
     );
-    return isDevOnly ? (
-      <ChatDevOnly key={part.metadata.id}>{row}</ChatDevOnly>
-    ) : (
-      row
+    return (
+      <Fragment key={part.metadata.id}>
+        {isDevOnly ? <ChatDevOnly>{row}</ChatDevOnly> : row}
+        {asked}
+      </Fragment>
     );
   }
 

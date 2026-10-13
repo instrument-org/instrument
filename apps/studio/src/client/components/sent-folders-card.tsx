@@ -65,9 +65,7 @@ function SentFolderPreview({
     >
       <MacFolderIcon className="size-8 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col text-left">
-        {/* The stored name is the mount name the agent works through
-            (`Home-Downloads`), which is not what the user picked; the folder's
-            own name and where it lives are. */}
+        {/* The folder's own name and where it lives. */}
         <span className="truncate text-xs font-medium">
           {folderLabel(folder.path)}
         </span>

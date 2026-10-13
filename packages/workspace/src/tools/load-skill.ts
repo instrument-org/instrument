@@ -29,8 +29,7 @@ import {
   truncateSkillContent,
 } from "../lib/skills";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
-import { WORKSPACE_SKILLS_MOUNT } from "../mount-points";
+import { getWorkspaceSkillsDir, shellPath } from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { workDir } from "../lib/work-dir";
@@ -79,7 +78,7 @@ export const LoadSkill = setupTool({
       name: z.string(),
       // Where the skill came from, so the model can say so and knows whether it
       // can edit the skill in place: "workspace" lives in the writable
-      // /skills/workspace mount, the others are read-only where they were discovered.
+      // workspace skills folder, the others are read-only where they were discovered.
       origin: z.enum(SKILL_ORIGINS),
       skillName: z.string(),
       state: z.literal("success"),
@@ -173,7 +172,6 @@ export const LoadSkill = setupTool({
         const { exitCode, stderr, stdout } = await runPnpmCommand({
           args: ["install"],
           cwd: workDir(chatId),
-          layout: buildWorkspaceFsLayout({ taskHostRoot: workDir(chatId) }),
           signal,
           chatId,
         });
@@ -282,12 +280,13 @@ export const LoadSkill = setupTool({
       fileSection = `\n\n${fileSectionText}\n\n${fileListXml}${truncationNote}`;
     }
 
-    const customizeHint = `Copy it into \`${WORKSPACE_SKILLS_MOUNT}/\` to change it.`;
+    const workspaceSkillsPath = shellPath(getWorkspaceSkillsDir());
+    const customizeHint = `Copy it into \`${workspaceSkillsPath}/\` to change it.`;
     const originSection =
       output.origin === "workspace"
-        ? `\n\nThis skill lives at \`${WORKSPACE_SKILLS_MOUNT}/${output.skillName}\`; edit it there to change the skill for future tasks (the \`${CHAT_FOLDER_NAMES.work}/\` copy is only for this task).`
+        ? `\n\nThis skill lives at \`${workspaceSkillsPath}/${output.skillName}\`; edit it there to change the skill for future tasks (the \`${CHAT_FOLDER_NAMES.work}/\` copy is only for this task).`
         : output.origin === "in-repo"
-          ? `\n\nThis skill lives in this project at \`.agents/skills/${output.skillName}\`, outside the writable \`${WORKSPACE_SKILLS_MOUNT}/\` mount, so you cannot edit it in place from here. ${customizeHint}`
+          ? `\n\nThis skill lives in this project at \`.agents/skills/${output.skillName}\`, outside the workspace's skills folder (\`${workspaceSkillsPath}/\`), so you cannot edit it in place from here. ${customizeHint}`
           : output.origin === "instrument"
             ? `\n\nThis skill is provided by ${APP_NAME} and is read-only. ${customizeHint}`
             : `\n\nThis skill comes from a skills folder elsewhere on this machine and is read-only. ${customizeHint}`;

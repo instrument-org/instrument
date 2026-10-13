@@ -1,3 +1,4 @@
+import os from "node:os";
 import {
   Bash,
   type Command,
@@ -13,7 +14,6 @@ import {
 import ms from "ms";
 import { dedent } from "radashi";
 
-import { MOUNT } from "../mount-points";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { type StoreId } from "../schemas/store-id";
 import { TOOL_NAMES } from "../tools/name";
@@ -43,11 +43,14 @@ import {
   FFPROBE_COMMAND,
 } from "./shell-commands/ffprobe";
 import { createGitCommand, GIT_COMMAND } from "./shell-commands/git";
-import { createJsExecCommand, JS_EXEC_COMMAND } from "./shell-commands/js-exec";
-import { JS_EXEC_BOOTSTRAP } from "./shell-commands/js-exec-bootstrap";
 import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
 import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
+import { withNativeReach } from "./native-sandbox";
+import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
+import { asksWritten } from "./permissions/asks";
+import { chatRules, nativeReachFor } from "./permissions/chat-rules";
+import { type Rules } from "./permissions/rules";
 import { getWorkspaceConfig } from "./workspace-config";
 import {
   CALENDAR_COMMAND,
@@ -81,10 +84,8 @@ import {
 import {
   createPython3Command,
   createPythonCommand,
-  createPythonNativeCommand,
   PYTHON3_COMMAND,
   PYTHON_COMMAND,
-  PYTHON_NATIVE_COMMAND,
 } from "./shell-commands/python";
 import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
 import { createTabCommand } from "./shell-commands/tab";
@@ -96,6 +97,7 @@ import {
   createValidateSkillCommand,
   VALIDATE_SKILL_COMMAND,
 } from "./shell-commands/validate-skill";
+import { createPathProgramResolver } from "./shell-commands/path-program";
 import { createWhichCommand } from "./shell-commands/which";
 import {
   buildBashFs,
@@ -156,17 +158,6 @@ const SANDBOX_MAX_TRAVERSAL = 300_000;
  */
 const HOME_MAX_TRAVERSAL = 20_000;
 
-/**
- * How long one run of a sandboxed script runtime (`python`, `js-exec`) may
- * take, against just-bash's 30 second default. Those runtimes are where a
- * script over a folder mount runs, and a parse of a large tree is minutes
- * of work rather than seconds. A call that outlives its `yieldMs` is promoted
- * to a background process like any other, so the cap only has to bound a
- * runaway; anything longer belongs to the native interpreters, which have no
- * cap beyond the background age limit.
- */
-const SANDBOX_SCRIPT_TIMEOUT_MS = ms("30 minutes");
-
 function stubCommand(
   name: string,
   message = "this command is non-functional in the sandboxed environment",
@@ -191,7 +182,7 @@ function stubCommand(
 // just-bash reports, which it types as plain `string`; the constructor's own
 // type parameter still holds these entries to real command names.
 const BROKEN_COMMANDS: ReadonlySet<string> = new Set<CommandName>([
-  "which", // always errors in this environment; replaced with a stub below
+  "which", // searches only the shell's own PATH; replaced below
   // Writes under /tmp, which no mount covers, so every call fails. Every
   // shell gets ours (shell-commands/mktemp.ts) instead.
   "mktemp",
@@ -350,13 +341,14 @@ const DESCRIBED_COMMANDS: Record<string, string> = {
 };
 
 /**
- * What a custom command is built from: the task, and the layout of the shell
- * it runs in, which every native hatch writes its output's host paths back
- * against and `git` also reaches folder mounts through.
+ * What a custom command is built from: the task, the layout of the shell
+ * it runs in, which says what each folder it reaches is, and what answers a
+ * script's app tool calls.
  */
 interface CustomCommandContext {
   layout: WorkspaceFsLayout;
   chatId: ChatId;
+  invokeTool: AppToolInvoker;
 }
 
 interface CustomCommandDef {
@@ -426,7 +418,7 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   },
   {
     description: NODE_COMMAND.description,
-    factory: ({ layout, chatId }) => createNodeCommand(chatId, layout),
+    factory: ({ chatId, invokeTool }) => createNodeCommand(chatId, invokeTool),
     listInDescription: true,
     name: NODE_COMMAND.name,
   },
@@ -460,13 +452,6 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     name: OSASCRIPT_COMMAND.name,
     platforms: ["darwin"],
   },
-  {
-    description: JS_EXEC_COMMAND.description,
-    factory: () => createJsExecCommand(),
-    listInDescription: true,
-    name: JS_EXEC_COMMAND.name,
-  },
-
   {
     description: PNPM_COMMAND.description,
     factory: ({ layout, chatId }) => createPnpmCommand(chatId, layout),
@@ -509,12 +494,6 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     // Alias of python; omitted from the description to avoid redundancy.
     listInDescription: false,
     name: PYTHON3_COMMAND.name,
-  },
-  {
-    description: PYTHON_NATIVE_COMMAND.description,
-    factory: ({ layout, chatId }) => createPythonNativeCommand(chatId, layout),
-    listInDescription: true,
-    name: PYTHON_NATIVE_COMMAND.name,
   },
   {
     description: PIP_COMMAND.description,
@@ -578,7 +557,6 @@ const CHAT_COMMAND_LINES = [
   `  ${CHAT_COMMAND.name} - ${CHAT_COMMAND.description}`,
   `  ${MEMORY_COMMAND.name} - ${MEMORY_COMMAND.description}`,
   `  ${TAB_COMMAND.name} - ${TAB_COMMAND.description}`,
-  `  (In the chat, the workspace's apps are at \`${MOUNT.apps}\`.)`,
 ];
 
 export function createBashDescription() {
@@ -606,19 +584,19 @@ export function createBashDescription() {
   const specializedCommands = [...described, ...customLines].join("\n");
 
   return dedent`
-    Execute bash commands in the task directory.
+    Execute bash commands in this conversation's folder.
 
-    IMPORTANT: Folders on the user's computer appear as mounts under \`${MOUNT.folders}/\`, each read-only or read-and-write; the folders list in your context says which. A write into a read-only one fails with EROFS. A write into a read-and-write one lands on the user's real files immediately, so treat \`rm\` there as permanent. The shell builtins, \`rg\`, \`${PYTHON_COMMAND.name}\`, and \`${JS_EXEC_COMMAND.name}\` read mount paths directly. The native hatches (\`${PYTHON_NATIVE_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, \`${PNPM_COMMAND.name}\`, \`${UV_COMMAND.name}\`) cannot resolve one: for those, copy the file into the task first (e.g. \`cp '${MOUNT.folders}/<folder>/file' attachments/\`), work on the copy, and \`mv\` the result back if it belongs in the folder.
+    IMPORTANT: Files are at their real paths on the user's computer, and your working directory is this conversation's folder. The folders list in your context says which of the user's folders you reach; every command reads and writes them where they sit, native ones included. A change there lands on the user's real files immediately, so treat \`rm\` there as permanent. "Operation not permitted" means the person keeps that place closed or wants to be asked first; the message says which and what to do.
 
-    IMPORTANT: Two Pythons. \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) is the default: CPython 3.13 with the whole standard library, running inside the sandbox, so it opens \`${MOUNT.folders}/...\` and \`${MOUNT.task}/...\` paths exactly as written and needs no copying. It has no packages of its own, cannot start processes, and reads a file whole (8 MB at most). \`${PYTHON_NATIVE_COMMAND.name}\` is the real interpreter in the task's virtualenv: it runs anything \`${PIP_COMMAND.name}\` installed and any native binary, but sees only the task folder. \`${PYTHON_COMMAND.name}\` runs there on its own for a program that imports a package \`${PIP_COMMAND.name}\` installed and for a loaded skill's script under work/skills/, so write \`${PYTHON_COMMAND.name}\`, and name \`${PYTHON_NATIVE_COMMAND.name}\` only for a native binary, a process, or a file over 8 MB. JavaScript is the other way around: \`${NODE_COMMAND.name}\` is the default (real process, task packages, task folder only) and \`${JS_EXEC_COMMAND.name}\` is the sandboxed one for reading folder mounts with built-ins only. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible. Inside code run by the native hatches, use task-relative paths (\`work/data.csv\`): command-line path ARGUMENTS are translated, and quoted \`${MOUNT.task}/...\` strings in inline code (-e/-c/heredoc programs) are bridged too, but \`${MOUNT.folders}/...\` never is, and paths inside script FILES on disk are never translated.
+    IMPORTANT: \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) is the real interpreter in this conversation's virtualenv, and \`${NODE_COMMAND.name}\` is a real Node with this conversation's packages. Both run whatever was installed, can start processes, and read the user's folders where they sit. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
 
-    IMPORTANT: Not a persistent terminal -- each call starts fresh from the task root (\`${MOUNT.task}\`, your working directory), so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`). Only \`${MOUNT.task}\`, the \`${MOUNT.folders}\` mounts your context lists, and \`${MOUNT.skills}\` exist; any other path, one named in the conversation included, is out of reach, so name it in a needs fence rather than looking for it, and writing anywhere else (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files, or \`${MKTEMP_COMMAND.name}\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+    IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory, so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`) inside it. Writing outside the folders you reach (e.g. \`/tmp\`) fails -- use \`work/\` for scratch files, or \`${MKTEMP_COMMAND.name}\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
     A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
     Those three are ordinary commands, so they compose: \`${FG_COMMAND.name} bg_1 | rg -i error\` filters before you pay for the output, \`${FG_COMMAND.name} bg_1 && ${PNPM_COMMAND.name} test\` runs only on success, and \`${KILL_COMMAND.name} bg_1 bg_2; ${JOBS_COMMAND.name}\` cleans up and confirms in one call.
     A background process is stopped once it has run for ${ms(MAX_RUNNING_AGE_MS, { long: true })}, whatever it is doing. \`${JOBS_COMMAND.name}\` reports that as \`stopped (${ms(MAX_RUNNING_AGE_MS)} cap)\` rather than as a failure or a kill; start it again if the work still needs it.
-    Only output written by real binaries (\`${PNPM_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${PYTHON_NATIVE_COMMAND.name}\`, \`${UV_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, ...) streams while a process runs; a long shell pipeline of builtins, or a \`${PYTHON_COMMAND.name}\`/\`${JS_EXEC_COMMAND.name}\` run, reports its output only when it finishes.
+    Only output written by real binaries (\`${PNPM_COMMAND.name}\`, \`${NODE_COMMAND.name}\`, \`${PYTHON_COMMAND.name}\`, \`${UV_COMMAND.name}\`, \`${FFMPEG_COMMAND.name}\`, ...) streams while a process runs; a long shell pipeline of builtins reports its output only when it finishes.
 
     \`curl\` reaches the internet and this computer's own network alike: \`localhost\`, a server you started (\`curl http://127.0.0.1:<port>/\`; pick an explicit port when you start it so you know which one to call), and devices on the user's local network such as \`192.168.x.x\` or \`name.local\` hosts.
 
@@ -636,9 +614,11 @@ export function createBashDescription() {
 
     TIP: Heredoc pipes/redirects go on the \`<<EOF\` line, not after \`EOF\`: \`cmd <<'EOF' | jq\` (not \`cmd <<'EOF'\` ... \`EOF\` ... \`| jq\`).
 
-    Available commands (this is the complete set of unix builtins; if a command is not listed here it is NOT available, so use one of these or a specialized command below instead of assuming): ${namedOnly.join(", ")}
+    Available commands (the complete set of unix builtins): ${namedOnly.join(", ")}
 
-    IMPORTANT: Specialized commands below (e.g. ${FFMPEG_COMMAND.name}, ${FFPROBE_COMMAND.name}) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/${FFMPEG_COMMAND.name}, but that path does NOT exist; ignore it. These binaries are also on PATH inside ${NODE_COMMAND.name} and ${PYTHON_NATIVE_COMMAND.name} scripts, so a script may shell out to \`${FFMPEG_COMMAND.name}\`/\`${FFPROBE_COMMAND.name}\` directly.
+    Any other program on the computer's PATH runs too, held to the same rules as the specialized commands below; \`which <name>\` says whether one is there.
+
+    IMPORTANT: Specialized commands below (e.g. ${FFMPEG_COMMAND.name}, ${FFPROBE_COMMAND.name}) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/${FFMPEG_COMMAND.name}, but that path does NOT exist; ignore it. These binaries are also on PATH inside ${NODE_COMMAND.name} and ${PYTHON_COMMAND.name} scripts, so a script may shell out to \`${FFMPEG_COMMAND.name}\`/\`${FFPROBE_COMMAND.name}\` directly.
 
     Specialized commands:
     ${specializedCommands}
@@ -665,23 +645,23 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * What a shell built with these options mounts. The single source of truth
- * for what the agent can see in it: the writable task directory mounted at
- * /task (the working directory), any folders the chat reaches under /mnt, each
- * read-only or writable, and for the chat its tasks and apps. The bash
- * native-binary path bridge, rg, du, and the output a promoted command
- * streams all take it from here so they agree on virtual<->real mapping.
+ * What a shell built with these options mounts, each folder at its real path:
+ * the chat's own folder (the working directory), the folders the chat
+ * reaches, the skills, and for the chat its apps, held to the chat's rules.
+ * rg, du, and the output a promoted command streams all take it from here.
  */
-export function shellLayout({
+function shellLayout({
   folders,
   role,
   chatId,
-}: Pick<BashEnvOptions, "folders" | "role" | "chatId">) {
+  rules,
+}: Pick<BashEnvOptions, "folders" | "role" | "chatId"> & { rules?: Rules }) {
   return buildWorkspaceFsLayout({
     // The chat authors apps, so it gets their folders; a task reaches
     // the apps it was handed through the command alone.
     apps: role === "chat",
     folders,
+    rules,
     taskHostRoot: workDir(chatId),
   });
 }
@@ -711,20 +691,31 @@ export async function createLocalBashEnv({
   invokeTool = appToolHook,
 }: BashEnvOptions & {
   /**
-   * Answers a `js-exec` script's `tools.<slug>.<tool>()`; the bash worker
+   * Answers a `node` script's `tools.<slug>.<tool>()`; the bash worker
    * sets one that makes the call on the main thread, where credentials are.
    */
   invokeTool?: AppToolInvoker;
   /** Replaces each of `MAIN_THREAD_COMMANDS`; set by the bash worker. */
   standIn?: (name: string) => Command;
 }) {
-  const layout = shellLayout({ folders, role, chatId });
+  // Read as they stand when the shell is made, which is once per bash call.
+  const rules = await chatRules({
+    chatId,
+    folders,
+    partId: callPartId,
+    sessionId,
+  });
+  const layout = shellLayout({ folders, role, chatId, rules });
   // The working folder walks at the sandbox's budget, and the home folder at
   // its own, smaller one.
   const homeWalkBudget = createWalkBudget(HOME_MAX_TRAVERSAL);
+  // Refusals heard during one exec, told to the agent after its output with
+  // the host path spelled out, which an error from a script worker loses.
+  const refusals = new Set<string>();
   const fs = await buildBashFs(layout, {
     homeWalkBudget,
     maxFileReadSize: SANDBOX_MAX_BYTES,
+    onRefusal: (refusal) => refusals.add(refusal),
   });
 
   const allowedCommands = [
@@ -737,7 +728,7 @@ export async function createLocalBashEnv({
   // thing on the user's screen is the chat's `tab`: a task's reply is read
   // by the chat, and a pane of the task's own has nobody looking.
   const nativeCommands = customCommandDefs().map((cmd) =>
-    cmd.factory({ layout, chatId }),
+    cmd.factory({ chatId, invokeTool, layout }),
   );
   const nativeCommandNames = customCommandDefs().map((cmd) => cmd.name);
   const specializedCommands = [
@@ -796,6 +787,7 @@ export async function createLocalBashEnv({
           ...SESSION_COMMAND_DEFS.map((cmd) => cmd.name),
           ...specializedCommandNames,
         ]),
+        chatId,
       ),
       ...STATIC_STUB_COMMANDS,
     ].map((command) =>
@@ -803,23 +795,20 @@ export async function createLocalBashEnv({
         ? standIn(command.name)
         : command,
     ),
-    cwd: MOUNT.task,
+    cwd: layout.task.shellRoot,
     executionLimits: {
       maxArrayElements: SANDBOX_MAX_RECORDS,
       maxAwkIterations: SANDBOX_MAX_RECORDS,
       maxCommandCount: SANDBOX_MAX_COMMANDS,
-      maxJsTimeoutMs: SANDBOX_SCRIPT_TIMEOUT_MS,
       maxLoopIterations: SANDBOX_MAX_COMMANDS,
       maxOutputSize: SANDBOX_MAX_BYTES,
-      maxPythonTimeoutMs: SANDBOX_SCRIPT_TIMEOUT_MS,
       maxQueryElements: SANDBOX_MAX_RECORDS,
       maxSedIterations: SANDBOX_MAX_RECORDS,
       maxStringLength: SANDBOX_MAX_BYTES,
       maxTraversalEntries: SANDBOX_MAX_TRAVERSAL,
       maxTraversalWork: SANDBOX_MAX_TRAVERSAL,
     },
-    // `curl`, `js-exec`'s `fetch` and `python`'s `jb_http` reach every
-    // address the native interpreters can, the local network and loopback
+    // `curl` reaches every address the native interpreters can, the local network and loopback
     // included. The workspace server on loopback needs a per-launch key the
     // sandbox never sees, so reaching it gets a 401 and nothing more.
     network: {
@@ -828,25 +817,26 @@ export async function createLocalBashEnv({
       denyPrivateRanges: false,
       maxResponseSize: SANDBOX_MAX_BYTES,
     },
-    // Seed with process.env so PATH and other system vars are available to
-    // commands that pass ctx.env explicitly (e.g. pnpm, tsx). pnpm shim files
-    // also use sed, uname, etc when on unix systems.
+    // The shell's own PATH names no folder it mounts. The home folder is
+    // mounted at its real path, so the host's PATH would put a binary there
+    // (a pnpm or nvm shim under ~/Library or ~/.local) ahead of the command
+    // registered by the same name, and read it as a shell script. The host's
+    // PATH is searched only once the shell's commands pass on a name
+    // (`resolveExternalCommand`), and the native commands get it from
+    // resolveCommandContext and the shims themselves.
     env: {
+      // The home the rules hold, so `~` in the shell is the folder its
+      // native commands call home, rather than just-bash's default of `/`.
+      HOME: shellPath(rules.home),
       NO_COLOR: "1",
+      PATH: SHELL_PATH,
       TZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      ...(process.env.PATH && { PATH: process.env.PATH }),
+      USER: os.userInfo().username,
     },
     fs,
-    // The WebAssembly script runtimes: CPython under `python`/`python3` and
-    // QuickJS under `js-exec`, each reading the virtual filesystem above
-    // directly. The custom commands of the same names registered above wrap
-    // them (`ctx.origCommand`) to explain their failures and to route a
-    // skill's script to the native interpreter. `javascript` also registers
-    // a `node` stub, which the native `node` command shadows, and runs the
-    // bootstrap inside QuickJS before every script to give its Node shims
-    // Node's shapes.
-    javascript: { bootstrap: JS_EXEC_BOOTSTRAP, invokeTool },
-    python: true,
+    // A name no builtin or command of ours answers runs the program by that
+    // name on the computer's PATH, as a native command.
+    resolveExternalCommand: createPathProgramResolver(chatId),
   });
 
   // Order matters: the alias runs first so the recorded command list names
@@ -854,6 +844,35 @@ export async function createLocalBashEnv({
   bash.registerTransformPlugin(waitAliasPlugin);
   bash.registerTransformPlugin(commandOrderPlugin);
   bash.registerTransformPlugin(resetEachCommand(homeWalkBudget));
+
+  // Every native command this shell spawns is held to the same rules.
+  const reach = nativeReachFor(layout.rules, layout);
+  const exec = bash.exec.bind(bash);
+  bash.exec = async (...execArgs) => {
+    refusals.clear();
+    let result: Awaited<ReturnType<typeof exec>>;
+    try {
+      result = await withNativeReach(reach, () => exec(...execArgs));
+    } catch (error) {
+      // A write outside every mount throws out of the whole call rather
+      // than failing its command; what the rules said still goes with it.
+      await asksWritten();
+      if (refusals.size > 0 && error instanceof Error) {
+        error.message = `${error.message}\n${[...refusals].join("\n")}`;
+      }
+      throw error;
+    }
+    await asksWritten();
+    if (refusals.size === 0) {
+      return result;
+    }
+    const notes = [...refusals].join("\n");
+    const stderr =
+      result.stderr === "" || result.stderr.endsWith("\n")
+        ? result.stderr
+        : `${result.stderr}\n`;
+    return { ...result, stderr: `${stderr}${notes}\n` };
+  };
 
   return bash;
 }

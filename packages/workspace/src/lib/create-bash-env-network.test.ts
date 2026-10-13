@@ -101,15 +101,6 @@ describe("bash sandbox networking on this computer", () => {
     expect(result.exitCode).toBe(0);
   });
 
-  it("reaches a loopback server with js-exec's fetch", async () => {
-    const result = await run(
-      `js-exec -c 'const r = await fetch("${serviceUrl}/"); console.log(await r.text())'`,
-    );
-
-    expect(result.stdout.trim()).toBe("pool temperature 28C");
-    expect(result.exitCode).toBe(0);
-  });
-
   it("drops the Authorization header on a redirect to another origin", async () => {
     elsewhereAuthorization = "unset";
     const result = await run(

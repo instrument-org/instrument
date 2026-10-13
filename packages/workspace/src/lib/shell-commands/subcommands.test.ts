@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import { defineSubcommands, subcommand } from "./subcommands";
 
-const shell = { cwd: "/task", fs: new InMemoryFs(), stdin: EMPTY_BYTES };
+const shell = {
+  cwd: "/Users/sam/chat",
+  fs: new InMemoryFs(),
+  stdin: EMPTY_BYTES,
+};
 
 /** A command whose one subcommand prints what it was handed. */
 const run = defineSubcommands<undefined>({

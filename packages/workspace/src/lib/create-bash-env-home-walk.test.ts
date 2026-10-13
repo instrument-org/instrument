@@ -30,7 +30,6 @@ function shell() {
       Home: {
         access: "read-only",
         id: MountedFolder.IdSchema.parse("home-id"),
-        mountName: "Home",
         path: ChatDirSchema.parse(path.join(tmpDir, "Home")),
       },
     },
@@ -73,12 +72,15 @@ afterAll(async () => {
 
 describe("walks over the home folder", () => {
   it("stop at the home folder's budget, pointing at rg", async () => {
-    const result = await run("find /mnt/Home -name nothing-here");
+    const result = await run(
+      `find ${path.join(tmpDir, "Home")} -name nothing-here`,
+    );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(
-      "stopped walking /mnt/Home after 20,000 entries",
-    );
+    // just-bash redacts host paths in a thrown error, so the folder is
+    // named `<path>`.
+    expect(result.stderr).toContain("stopped walking");
+    expect(result.stderr).toContain("after 20,000 entries");
     expect(result.stderr).toContain("rg --files");
   });
 
@@ -91,10 +93,12 @@ describe("walks over the home folder", () => {
 
   it("start over with each call into the same shell", async () => {
     const bash = await shell();
-    const first = await bash.exec("find /mnt/Home/wide -name f1");
+    const first = await bash.exec(
+      `find ${path.join(tmpDir, "Home", "wide")} -name f1`,
+    );
     expect(first.stderr).toContain("stopped walking");
 
-    const next = await bash.exec("ls /mnt/Home");
+    const next = await bash.exec(`ls ${path.join(tmpDir, "Home")}`);
     expect(next.stdout).toContain("wide");
   });
 });

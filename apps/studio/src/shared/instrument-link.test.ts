@@ -137,17 +137,17 @@ describe("instrumentUrlOf", () => {
 describe("filePathOfInstrumentLink", () => {
   it.each([
     [
-      "instrument://file//mnt/Journal/2026-09-23.md",
-      "/mnt/Journal/2026-09-23.md",
+      "instrument://file//Users/sam/Journal/2026-09-23.md",
+      "/Users/sam/Journal/2026-09-23.md",
     ],
     [
-      "instrument://file/mnt/Journal/2026-09-23.md",
-      "/mnt/Journal/2026-09-23.md",
+      "instrument://file/Users/sam/Journal/2026-09-23.md",
+      "/Users/sam/Journal/2026-09-23.md",
     ],
-    ["instrument://File/mnt/My%20Notes/a.md", "/mnt/My Notes/a.md"],
+    ["instrument://File/Users/sam/My%20Notes/a.md", "/Users/sam/My Notes/a.md"],
     ["instrument://file/", undefined],
     ["instrument://chat/ses_01", undefined],
-    ["https://file/mnt/a.md", undefined],
+    ["https://file/Users/sam/a.md", undefined],
   ])("%s", (url, path) => {
     expect(filePathOfInstrumentLink(url)).toBe(path);
   });

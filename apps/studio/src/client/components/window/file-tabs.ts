@@ -1,5 +1,4 @@
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
-import { MOUNT } from "@instrument-org/workspace/client";
 
 import { isInside, segmentsOf } from "./host-path";
 import { type ComputerTab, matchScreen } from "./window-href";
@@ -19,32 +18,19 @@ export function computerTabOf(href: string): ComputerTab | undefined {
 }
 
 /**
- * The virtual path the agent reaches a path on the Mac by, when a granted
- * folder covers it: through the deepest such folder. What the screen tells
- * the conversation about a file the person has open, and nothing the person
- * sees.
+ * The path the agent reaches a path on the Mac by, when a granted folder
+ * covers it: the path itself. What the screen tells the conversation about a
+ * file the person has open, and nothing the person sees.
  */
-export function mountOfHostPath(
+export function reachablePath(
   hostPath: string,
-  folders: Record<string, { mountName: string; path: string }>,
+  folders: Record<string, { path: string }>,
 ): string | undefined {
-  let best: undefined | { mountName: string; path: string };
-  for (const folder of Object.values(folders)) {
-    if (
-      isInside(hostPath, folder.path) &&
-      (best === undefined || folder.path.length > best.path.length)
-    ) {
-      best = folder;
-    }
-  }
-  if (!best) {
-    return;
-  }
-  // Back into the paths the agent works in, which are POSIX wherever the
-  // computer's own are not: the names below the grant are what carries over,
-  // never the separator they were written with.
-  const below = segmentsOf(hostPath.slice(best.path.length));
-  return [`${MOUNT.folders}/${best.mountName}`, ...below].join("/");
+  return Object.values(folders).some((folder) =>
+    isInside(hostPath, folder.path),
+  )
+    ? hostPath
+    : undefined;
 }
 
 /**

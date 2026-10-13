@@ -33,6 +33,7 @@ export namespace SessionMessageDataPart {
     "appEvent",
     "asks",
     "folderChanges",
+    "permissionAnswer",
     "attachments",
     "backgroundProcesses",
     "browserStatus",
@@ -57,24 +58,20 @@ export namespace SessionMessageDataPart {
 
   export type Name = z.output<typeof NameSchema>;
 
-  // Folders granted in the chat, taken back, or moved to a new mount since
-  // the session last heard -- attached to the user message that starts the
-  // next turn so the model knows of a folder granted mid-conversation and
-  // stops relying on a mount that has gone or moved. The standing folder
+  // Folders granted in the chat or taken back since the session last heard --
+  // attached to the user message that starts the next turn so the model knows
+  // of a folder granted mid-conversation and stops relying on one that has
+  // gone. The standing folder
   // list lives in the session context, which is written once and rebuilt at
   // most hourly, so this is what gets a change to the model the same turn.
   const FolderChangesDataPartSchema = z.object({
     added: z.array(
       z.object({
         access: MountedFolder.AccessSchema,
-        name: z.string(),
         path: z.string(),
       }),
     ),
-    removed: z.array(z.object({ name: z.string(), path: z.string() })),
-    renamed: z.array(
-      z.object({ newName: z.string(), oldName: z.string(), path: z.string() }),
-    ),
+    removed: z.array(z.object({ path: z.string() })),
   });
 
   export type FolderChangesDataPart = z.output<
@@ -262,7 +259,7 @@ export namespace SessionMessageDataPart {
    * Places in files the user marked and what they want changed at each,
    * gathered on the file before sending and carried beside their words, so
    * the request reads as a list of targets rather than quotes pasted into
-   * the message. Each names the file by its path (and the virtual path the
+   * the message. Each names the file by its path (and the path the
    * agent reaches it by, when a granted folder covers it), where in the file
    * in a reader's words, the words or source at that place, and what the
    * user typed for it, which may be nothing.
@@ -524,8 +521,24 @@ export namespace SessionMessageDataPart {
   export type AppEventDataPart = z.output<typeof AppEventDataPartSchema>;
 
   /**
+   * The person's answer to a card the agent's work raised: a folder that asks
+   * first, or an app it may not use. Like an app event, it wakes the session
+   * that ran into it, or joins its turn if it is still going.
+   */
+  export const PermissionAnswerDataPartSchema = z.object({
+    answer: z.enum(["allowed", "always", "declined"]),
+    kind: z.enum(["app", "folder"]),
+    /** The folder's path, or the app's name. */
+    target: z.string(),
+  });
+
+  export type PermissionAnswerDataPart = z.output<
+    typeof PermissionAnswerDataPartSchema
+  >;
+
+  /**
    * What the user was looking at when they sent the message: the folder open
-   * in the window's folder view and what was selected in it, as virtual paths.
+   * in the window's folder view and what was selected in it.
    * Event cadence, written by the surface that sent the message and only when
    * it had a folder on screen.
    */
@@ -621,7 +634,7 @@ export namespace SessionMessageDataPart {
     /**
      * Files and folders the person picked to go with the message by name,
      * from a menu or a button over them, rather than by having them on
-     * screen: each by its path, and the virtual path the agent reaches it by
+     * screen: each by its path, and the path the agent reaches it by
      * when a granted folder covers it.
      */
     chosen: z
@@ -637,7 +650,7 @@ export namespace SessionMessageDataPart {
     /** A file open on This Mac, as the person writes its path. */
     file: z
       .object({
-        /** The virtual path the agent reaches it by, when a granted folder covers it. */
+        /** The path the agent reaches it by, when a granted folder covers it. */
         mount: z.string().optional(),
         name: z.string(),
         path: z.string(),
@@ -650,7 +663,7 @@ export namespace SessionMessageDataPart {
         access: z.enum(["read-only", "read-write"]).optional(),
         /** As the person writes it: `~/Documents/Instrument`. */
         display: z.string(),
-        /** The virtual path the agent reaches it by; absent means it cannot read it. */
+        /** The path the agent reaches it by; absent means it cannot read it. */
         mount: z.string().optional(),
         /** The names selected in it, a folder's with a trailing slash. */
         selected: z.array(z.string()).default([]),
@@ -806,7 +819,7 @@ export namespace SessionMessageDataPart {
       z.object({
         about: z.string().optional(),
         emoji: z.string().optional(),
-        /** Where the topic's folders are mounted in the chat, as `/mnt/<name>`. */
+        /** The paths of the topic's folders in the chat. */
         folders: z.array(z.string()).optional(),
         /** The topic's instructions as they stood when the message was sent. */
         instructions: z.string().optional(),
@@ -885,6 +898,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.appEvent]: AppEventDataPartSchema,
     [NameSchema.enum.asks]: AsksDataPartSchema,
     [NameSchema.enum.folderChanges]: FolderChangesDataPartSchema,
+    [NameSchema.enum.permissionAnswer]: PermissionAnswerDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,

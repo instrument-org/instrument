@@ -2,7 +2,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { CHAT_FOLDER_NAMES } from "../constants";
-import { MOUNT } from "../mount-points";
 import { type ChatId } from "../schemas/chat-id";
 import { truncateWithoutSplitting } from "./sanitize-model-text";
 import { workDir } from "./work-dir";
@@ -10,8 +9,8 @@ import { workDir } from "./work-dir";
 /**
  * Where a task's handoff notes live, named once for both halves of the handoff.
  *
- * The agent is told to write here and the assembler reads from here, from this
- * one constant, because the first version of this feature let each side decide
+ * The agent is told to write here, relative to this conversation's folder, and
+ * the assembler reads from here, from this one constant, because the first version of this feature let each side decide
  * for itself and they did not agree. Told only that its working directory
  * outlives the conversation, an agent wrote `work/handoff-notes.md` on one run
  * and `work/handoff.md` on the next, and nothing downstream could look for a
@@ -20,10 +19,7 @@ import { workDir } from "./work-dir";
  * Under `work/`: these are the agent's own working
  * record, not a deliverable the user asked for.
  */
-const HANDOFF_NOTES_RELATIVE_PATH = `${CHAT_FOLDER_NAMES.work}/handoff-notes.md`;
-
-/** The path as the agent sees it, for prompts and notices. */
-export const HANDOFF_NOTES_PATH = `${MOUNT.task}/${HANDOFF_NOTES_RELATIVE_PATH}`;
+export const HANDOFF_NOTES_RELATIVE_PATH = `${CHAT_FOLDER_NAMES.work}/handoff-notes.md`;
 
 /**
  * Characters of notes carried into a request after a rollover.
@@ -57,7 +53,7 @@ export function contextRolloverNotice(notes: string | undefined): string {
       "<context-rollover>",
       preamble,
       "",
-      `No handoff notes were found at ${HANDOFF_NOTES_PATH}. Treat what is in this window as the remainder of the task rather than the whole of it, and write your notes there before the room runs out again.`,
+      `No handoff notes were found at ${HANDOFF_NOTES_RELATIVE_PATH}. Treat what is in this window as the remainder of the task rather than the whole of it, and write your notes there before the room runs out again.`,
       "</context-rollover>",
     ].join("\n");
   }
@@ -66,11 +62,11 @@ export function contextRolloverNotice(notes: string | undefined): string {
     "<context-rollover>",
     preamble,
     "",
-    `These are the handoff notes you left at ${HANDOFF_NOTES_PATH}. They are your own account of the work above, and the only one still in front of you, so treat what they say about the task as established rather than something to rediscover:`,
+    `These are the handoff notes you left at ${HANDOFF_NOTES_RELATIVE_PATH}. They are your own account of the work above, and the only one still in front of you, so treat what they say about the task as established rather than something to rediscover:`,
     "",
     notes,
     "",
-    `Keep them current at ${HANDOFF_NOTES_PATH} as the task moves.`,
+    `Keep them current at ${HANDOFF_NOTES_RELATIVE_PATH} as the task moves.`,
     "</context-rollover>",
   ].join("\n");
 }

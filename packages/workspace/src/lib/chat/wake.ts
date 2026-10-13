@@ -38,6 +38,10 @@ import { type ChatId } from "../../schemas/chat-id";
 /** What a wake carries: the part that starts the chat's turn. */
 export type WakePart =
   | { data: SessionMessageDataPart.AppEventDataPart; type: "data-appEvent" }
+  | {
+      data: SessionMessageDataPart.PermissionAnswerDataPart;
+      type: "data-permissionAnswer";
+    }
   | { data: SessionMessageDataPart.TaskEventDataPart; type: "data-taskEvent" };
 
 type TaskEvent = SessionMessageDataPart.TaskEventDataPart["events"][number];
@@ -172,6 +176,24 @@ export async function wakeChatForApp(
       getWorkspaceConfig().captureException(baseline.error);
     }
   }
+}
+
+/**
+ * Wakes the session that ran into a folder or an app with the person's
+ * answer to its card, or joins that session's turn at its next step when it
+ * is still going: a task's own session when a task asked, the chat's when
+ * the chat did.
+ */
+export async function wakeSessionForPermission(
+  part: Extract<WakePart, { type: "data-permissionAnswer" }>,
+  workspaceRef: WorkspaceActorRef,
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<void> {
+  if (!resolveChat(chatId) || !(await chatModelURI(chatId))) {
+    return;
+  }
+  await wakeWith(chatId, part, workspaceRef, sessionId);
 }
 
 async function checkOverdue(workspaceRef: WorkspaceActorRef) {
@@ -440,6 +462,8 @@ async function wakeWith(
   chatId: ChatId,
   part: WakePart,
   workspaceRef: WorkspaceActorRef,
+  /** The session to wake: a task that asked, else the chat's own. */
+  askingSessionId?: StoreId.Session,
 ) {
   const modelURI = await chatModelURI(chatId);
   if (!modelURI) {
@@ -447,7 +471,7 @@ async function wakeWith(
       `Chat ${chatId} has no model to wake with; it has never been messaged.`,
     );
   }
-  const sessionId = sessionOfChat(chatId);
+  const sessionId = askingSessionId ?? sessionOfChat(chatId);
   if (!sessionId) {
     throw new Error(`${chatId} is not a chat.`);
   }

@@ -11,7 +11,7 @@ import {
 } from "@/client/components/ui/message-scroller";
 import { Spinner } from "@/client/components/ui/spinner";
 import { ChatSessionProvider } from "@/client/hooks/use-chat-session";
-import { isOutputFolder } from "@/client/lib/path-utils";
+import { folderLabel, isOutputFolder } from "@/client/lib/path-utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { catalogEffort } from "@instrument-org/ai-gateway/client";
@@ -263,7 +263,9 @@ function TaskBrief({
           title={`${folder.path} · ${folder.access}`}
         >
           <MacFolderIcon className="size-4 shrink-0" />
-          <span className="truncate font-medium">{folder.mountName}</span>
+          <span className="truncate font-medium">
+            {folderLabel(folder.path)}
+          </span>
           <span className="text-muted-foreground">
             {folder.access === "read-write" ? "read, write" : "read"}
           </span>

@@ -7,6 +7,8 @@ import {
   consumeSkillChanges,
 } from "../lib/workspace-skill-index";
 import { grantFolder } from "../lib/chat/grants";
+import { chatDir } from "../lib/record-folders";
+import { getWorkspaceSkillsDir } from "../lib/workspace-skills-dir";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
@@ -86,7 +88,7 @@ describe("WriteFile - path policy", () => {
     mockFs.restore();
   });
 
-  it("writes /task/... virtual paths to the real task location", async () => {
+  it("writes the chat's own folder by its full path", async () => {
     mockFs({ [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} } });
 
     const result = await runTool(
@@ -94,7 +96,7 @@ describe("WriteFile - path policy", () => {
       makeExecuteArgs({
         content: "report",
         explanation: "test",
-        filePath: "/task/output/report.md",
+        filePath: `${chatDir(chatId)}/output/report.md`,
       }),
     );
     expect(result._unsafeUnwrap().filePath).toBe("./output/report.md");
@@ -115,7 +117,7 @@ describe("WriteFile - path policy", () => {
       ...makeExecuteArgs({
         content: "---\ndescription: Brief\n---\n\nBody.\n",
         explanation: "test",
-        filePath: "/skills/workspace/brief/SKILL.md",
+        filePath: `${getWorkspaceSkillsDir()}/brief/SKILL.md`,
       }),
       sessionId,
     });
@@ -128,7 +130,7 @@ describe("WriteFile - path policy", () => {
     });
   });
 
-  it("writes into a read-write mount at its real location", async () => {
+  it("writes into a granted folder by its full path", async () => {
     mockFs({
       "/ext/Docs": {},
       [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} },
@@ -139,7 +141,7 @@ describe("WriteFile - path policy", () => {
       ...makeExecuteArgs({
         content: "written by the agent",
         explanation: "test",
-        filePath: "/mnt/Docs/report.md",
+        filePath: "/ext/Docs/report.md",
       }),
     });
 

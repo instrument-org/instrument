@@ -87,7 +87,10 @@ describe("ensureManagedPython", () => {
     await expect(ensureManagedPython()).resolves.toBeUndefined();
 
     expect(execa).toHaveBeenCalledTimes(2);
-    const [file, args, options] = vi.mocked(execa).mock.lastCall ?? [];
+    // execa's overloads type the mock's calls as its no-argument form, so the
+    // call is read as the (file, args, options) form uv is run with.
+    const [file, args, options] = (vi.mocked(execa).mock.lastCall ??
+      []) as unknown as [string?, string[]?, { env?: Record<string, string> }?];
     expect([file, ...(args ?? [])].join(" ")).toMatch(
       /python install --no-bin --no-registry 3\.12$/,
     );

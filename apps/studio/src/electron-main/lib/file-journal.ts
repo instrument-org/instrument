@@ -121,18 +121,34 @@ async function isFreeFor(place: string, identity: Identity) {
 /**
  * Where a thing just moved to the Trash landed, found by its identity among
  * the Trash's own entries: moving to the Trash on one disk keeps it, so it is
- * found whatever name the Trash gave it. Null when the Trash cannot be read,
- * which macOS can refuse an app without Full Disk Access.
+ * found whatever name the Trash gave it. On Windows the Recycle Bin's record
+ * of where it came from has to agree too, since Node reads an NTFS file id as
+ * a rounded number that two files can share. Null when the Trash cannot be
+ * read, which macOS can refuse an app without Full Disk Access.
  */
 export async function findInTrash(
   identity: Identity,
-  trashFolders = trashFoldersFor(identity),
+  {
+    from,
+    platform = process.platform,
+    folders = trashFoldersFor({ from, identity, platform }),
+  }: {
+    folders?: Promise<string[]>;
+    /** Where it was before it was trashed. */
+    from: string;
+    platform?: NodeJS.Platform;
+  },
 ): Promise<null | string> {
-  for (const folder of await trashFolders) {
+  for (const folder of await folders) {
     try {
       for (const name of await fs.readdir(folder)) {
         const candidate = path.join(folder, name);
-        if (sameIdentity(await identityOf(candidate), identity)) {
+        if (
+          sameIdentity(await identityOf(candidate), identity) &&
+          (platform !== "win32" ||
+            (await recycledFrom(candidate))?.toLowerCase() ===
+              from.toLowerCase())
+        ) {
           return candidate;
         }
       }
@@ -144,22 +160,127 @@ export async function findInTrash(
 }
 
 /** The Trash folders that could hold something from the disk `identity` is on. */
-async function trashFoldersFor(identity: Identity) {
-  const home = path.join(os.homedir(), ".Trash");
-  const folders = [home];
-  // A disk other than the home one keeps its own Trash at its root.
-  const homeIdentity = await identityOf(os.homedir());
-  if (homeIdentity?.dev !== identity.dev) {
-    try {
-      const uid = os.userInfo().uid;
-      for (const volume of await fs.readdir("/Volumes")) {
-        folders.push(path.join("/Volumes", volume, ".Trashes", String(uid)));
+async function trashFoldersFor({
+  from,
+  identity,
+  platform,
+}: {
+  from: string;
+  identity: Identity;
+  platform: NodeJS.Platform;
+}) {
+  switch (platform) {
+    case "darwin": {
+      const folders = [path.join(os.homedir(), ".Trash")];
+      // A disk other than the home one keeps its own Trash at its root.
+      const homeIdentity = await identityOf(os.homedir());
+      if (homeIdentity?.dev !== identity.dev) {
+        try {
+          const uid = os.userInfo().uid;
+          for (const volume of await fs.readdir("/Volumes")) {
+            folders.push(
+              path.join("/Volumes", volume, ".Trashes", String(uid)),
+            );
+          }
+        } catch {
+          // No volumes to look in.
+        }
       }
-    } catch {
-      // No volumes to look in.
+      return folders;
+    }
+    case "win32": {
+      // Each drive keeps a Recycle Bin at its root, with a folder for each
+      // account; only this account's can be read.
+      const bin = path.join(path.parse(from).root, "$Recycle.Bin");
+      try {
+        return (await fs.readdir(bin)).map((account) =>
+          path.join(bin, account),
+        );
+      } catch {
+        return [];
+      }
+    }
+    default: {
+      // The freedesktop Trash: the home one, and for another disk the one at
+      // the top of that disk.
+      const dataHome =
+        process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local/share");
+      const folders = [path.join(dataHome, "Trash", "files")];
+      if ((await identityOf(dataHome))?.dev !== identity.dev) {
+        const top = await topOfDisk(path.dirname(from), identity.dev);
+        const uid = os.userInfo().uid;
+        folders.push(
+          path.join(top, ".Trash", String(uid), "files"),
+          path.join(top, `.Trash-${uid}`, "files"),
+        );
+      }
+      return folders;
     }
   }
-  return folders;
+}
+
+/** The highest folder above `folder` that is still on the disk `dev`. */
+async function topOfDisk(folder: string, dev: number) {
+  let top = folder;
+  while (
+    path.dirname(top) !== top &&
+    (await identityOf(path.dirname(top)))?.dev === dev
+  ) {
+    top = path.dirname(top);
+  }
+  return top;
+}
+
+/**
+ * Where a Recycle Bin item came from, by the `$I` record the bin keeps beside
+ * its `$R` file: a header, then the path in UTF-16, counted in version 2
+ * (Windows 10 and later) or in a fixed 260-character field in version 1.
+ */
+async function recycledFrom(recycled: string) {
+  const record = recordOf(recycled, "win32");
+  if (record === null) {
+    return null;
+  }
+  try {
+    const bytes = await fs.readFile(record);
+    const text =
+      bytes.readBigUInt64LE(0) === 2n
+        ? bytes.subarray(28, 28 + 2 * bytes.readUInt32LE(24))
+        : bytes.subarray(24, 24 + 520);
+    return text.toString("utf16le").replace(/\0.*$/s, "");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The file the Trash keeps about a trashed item, to list it and to put it
+ * back: a `.trashinfo` in the freedesktop Trash, a `$I` record in the Recycle
+ * Bin. The Finder keeps its own, which is left to it.
+ */
+function recordOf(trashed: string, platform: NodeJS.Platform) {
+  const name = path.basename(trashed);
+  switch (platform) {
+    case "darwin": {
+      return null;
+    }
+    case "win32": {
+      return name.startsWith("$R")
+        ? path.join(path.dirname(trashed), `$I${name.slice(2)}`)
+        : null;
+    }
+    default: {
+      const files = path.dirname(trashed);
+      return path.basename(files) === "files"
+        ? path.join(path.dirname(files), "info", `${name}.trashinfo`)
+        : null;
+    }
+  }
+}
+
+/** What the platform calls the Trash. */
+function trashNameOn(platform: NodeJS.Platform) {
+  return platform === "win32" ? "Recycle Bin" : "Trash";
 }
 
 export class UndoRefusedError extends Error {}
@@ -176,7 +297,10 @@ const nameOf = (at: string) => `“${path.basename(at)}”`;
  */
 export async function undoEntry(
   entry: JournalEntry,
-  { trash }: { trash: (at: string) => Promise<void> },
+  {
+    platform = process.platform,
+    trash,
+  }: { platform?: NodeJS.Platform; trash: (at: string) => Promise<void> },
 ): Promise<null | string> {
   switch (entry.kind) {
     case "rename": {
@@ -221,12 +345,14 @@ export async function undoEntry(
     case "trash": {
       if (entry.trashed === null) {
         throw new UndoRefusedError(
-          `Put ${nameOf(entry.from)} back from the Trash in the Finder.`,
+          platform === "darwin"
+            ? `Put ${nameOf(entry.from)} back from the Trash in the Finder.`
+            : `Put ${nameOf(entry.from)} back from the ${trashNameOn(platform)}.`,
         );
       }
       if (!sameIdentity(await identityOf(entry.trashed), entry.identity)) {
         throw new UndoRefusedError(
-          `${nameOf(entry.from)} is no longer in the Trash.`,
+          `${nameOf(entry.from)} is no longer in the ${trashNameOn(platform)}.`,
         );
       }
       if (!(await isFreeFor(entry.from, entry.identity))) {
@@ -240,6 +366,12 @@ export async function undoEntry(
         );
       }
       await fs.rename(entry.trashed, entry.from);
+      const record = recordOf(entry.trashed, platform);
+      if (record !== null) {
+        // It is back either way; a record left behind would only list it in
+        // the Trash as something that can no longer be put back.
+        await fs.rm(record, { force: true }).catch(() => undefined);
+      }
       return entry.from;
     }
   }

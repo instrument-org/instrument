@@ -671,6 +671,7 @@ export function ComputerPage({
     // What went, by the journal entries that bring each back: the toast's
     // Undo is about these whatever is done after them.
     const undoable: string[] = [];
+    let moved = 0;
     try {
       // One at a time, so a failure stops short of the rest rather than
       // leaving which of them went to chance.
@@ -678,6 +679,7 @@ export function ComputerPage({
         const { journalId } = await rpcClient.files.trash.call({
           path: hostPath,
         });
+        moved += 1;
         if (journalId !== null) {
           undoable.push(journalId);
         }
@@ -699,19 +701,24 @@ export function ComputerPage({
       );
     } finally {
       reread();
-      if (undoable.length > 0) {
+      if (moved > 0) {
         const [only] = hostPaths;
         toast(
-          undoable.length === 1 && only
+          moved === 1 && only
             ? `Moved “${segmentsOf(only).at(-1) ?? only}” to the ${getTrashTerminology()}`
-            : `Moved ${undoable.length} items to the ${getTrashTerminology()}`,
+            : `Moved ${moved} items to the ${getTrashTerminology()}`,
           {
-            action: {
-              label: "Undo",
-              onClick: () => {
-                void undoTrash(undoable);
-              },
-            },
+            // Offered only when the app found every one of them in the Trash
+            // and so can put them all back.
+            action:
+              undoable.length === moved
+                ? {
+                    label: "Undo",
+                    onClick: () => {
+                      void undoTrash(undoable);
+                    },
+                  }
+                : undefined,
           },
         );
       }
@@ -2089,9 +2096,7 @@ function FolderMenuItems({
               ) : (
                 <AppWindowIcon className="size-4" />
               )}
-              <span>
-                {opensOutside === "file" ? openLabel : "Open"}
-              </span>
+              <span>{opensOutside === "file" ? openLabel : "Open"}</span>
             </Item>
           )}
           <Item onClick={onOpenInNewTab}>

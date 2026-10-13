@@ -187,19 +187,22 @@ const trash = base
         message: error instanceof Error ? error.message : undefined,
       });
     }
-    // The Trash keeps no record of where a thing came from that an app can
-    // read, so where it landed is found by its identity now, while it is
-    // still the newest thing there.
+    // Where it landed is found by its identity now, while it is still the
+    // newest thing there.
     if (!identity) {
       return { journalId: null };
     }
+    const trashed = await findInTrash(identity, { from: input.path });
     const entry = getFileJournal().record({
       from: input.path,
       identity,
       kind: "trash",
-      trashed: await findInTrash(identity),
+      trashed,
     });
-    return { journalId: entry.id };
+    // One that was not found is still journaled, so undoing from the keyboard
+    // stops at it and says where to look rather than taking back something
+    // older, but there is no Undo to offer for it.
+    return { journalId: trashed === null ? null : entry.id };
   });
 
 /**

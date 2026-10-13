@@ -89,6 +89,8 @@ declare namespace NodeJS {
       WIN_TIMESTAMP_URL: string | undefined;
       XDG_CURRENT_DESKTOP: string | undefined;
       XDG_DATA_DIRS: string | undefined;
+      /** Where Linux keeps a person's data, the Trash among it; `~/.local/share` when unset. */
+      XDG_DATA_HOME: string | undefined;
       /**
        * Set by the session manager. The second Wayland signal, for a launch
        * context that carries it while dropping `WAYLAND_DISPLAY`.

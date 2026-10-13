@@ -70,7 +70,9 @@ export function nameOf(hostPath: string) {
 
 /** Every name along a path, in order, whichever way the path is spelled. */
 export function segmentsOf(hostPath: string) {
-  return hostPath.split(/[/\\]/).filter(Boolean);
+  return hostPath
+    .split(isWindowsPath(hostPath) ? /[/\\]/ : "/")
+    .filter(Boolean);
 }
 
 /**
@@ -80,5 +82,14 @@ export function segmentsOf(hostPath: string) {
  * paths reach the window from the workspace already spelled its way.
  */
 export function separatorOf(hostPath: string) {
-  return hostPath.includes("\\") ? "\\" : "/";
+  return isWindowsPath(hostPath) && hostPath.includes("\\") ? "\\" : "/";
+}
+
+/**
+ * Whether a path is spelled the Windows way, from a drive (`C:\`) or a
+ * network share (`\\server\share`). Only there is a backslash a separator;
+ * on a Mac or Linux it is a character a name can hold.
+ */
+function isWindowsPath(hostPath: string) {
+  return /^(?:[A-Za-z]:(?:[/\\]|$)|\\\\)/.test(hostPath);
 }

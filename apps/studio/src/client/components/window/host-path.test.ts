@@ -17,6 +17,8 @@ describe("separatorOf", () => {
     ["/Users/sam/Desktop", "/"],
     ["C:\\Users\\sam\\Desktop", "\\"],
     ["C:\\", "\\"],
+    ["\\\\server\\share", "\\"],
+    ["/Users/sam/a\\b.txt", "/"],
   ])("reads %s as %s", (hostPath, separator) => {
     expect(separatorOf(hostPath)).toBe(separator);
   });
@@ -27,6 +29,7 @@ describe("folderOf", () => {
     ["/Users/sam/Desktop/notes.txt", "/Users/sam/Desktop"],
     ["/notes.txt", "/"],
     ["C:\\Users\\sam\\Desktop\\notes.txt", "C:\\Users\\sam\\Desktop"],
+    ["/Users/sam/a\\b.txt", "/Users/sam"],
   ])("puts %s in %s", (hostPath, folder) => {
     expect(folderOf(hostPath)).toBe(folder);
   });
@@ -89,6 +92,9 @@ describe("nameOf", () => {
     ["C:\\Users\\sam\\Documents\\New folder", "New folder"],
     ["C:\\Users\\sam\\Documents\\notes - Copy.txt", "notes - Copy.txt"],
     ["\\\\server\\share\\Reports\\", "Reports"],
+    // A backslash is a character a name can hold on a Mac or Linux.
+    ["/Users/sam/a\\b.txt", "a\\b.txt"],
+    ["/Users/sam/back\\slash/", "back\\slash"],
   ])("calls %s %s", (hostPath, name) => {
     expect(nameOf(hostPath)).toBe(name);
   });
@@ -100,6 +106,8 @@ describe("segmentsOf", () => {
     ["C:\\Users\\sam\\Desktop", ["C:", "Users", "sam", "Desktop"]],
     ["C:\\", ["C:"]],
     ["/", []],
+    ["/Users/sam/a\\b.txt", ["Users", "sam", "a\\b.txt"]],
+    ["\\\\server\\share\\Reports", ["server", "share", "Reports"]],
   ])("reads %s", (hostPath, segments) => {
     expect(segmentsOf(hostPath)).toEqual(segments);
   });

@@ -760,6 +760,9 @@ top = os.path.join(staging, entries[0]) if len(entries) == 1 else staging
 os.rename(top, dest)
 if top != staging:
     os.rmdir(staging)
+# The archive's folder carries the build's epoch-0 time, so it is stamped with
+# the install time: "the newest preview" is decided by that time.
+os.utime(dest, None)
 # Chromium's setuid sandbox helper has to be owned by root and setuid, which
 # an archive cannot carry; without it the app refuses to start.
 sandbox = os.path.join(dest, "chrome-sandbox")

@@ -1,4 +1,4 @@
-import { definePlugin, defineRule } from "@oxlint/plugins";
+import { definePlugin, defineRule, type ESTree } from "@oxlint/plugins";
 
 /**
  * Bans that describe the shape of the running app. Each one names the
@@ -167,9 +167,126 @@ const noShellOpenPath = defineRule({
   },
 });
 
+/**
+ * Words and keys that belong to one operating system: its file manager and
+ * its places, its stores, and how its keys are written. Text that writes one
+ * itself shows it on every system, so each is defined in
+ * `shared/os-conventions.ts` and read from there for the system the app runs
+ * on.
+ *
+ * `Library` counts only where it can be the Mac's folder, so not after a
+ * capitalized name ("Skill Library").
+ */
+const osWord =
+  /\b(?:Finder|Quick\s+Look|Recycle\s+Bin|(?:File|Windows)\s+Explorer|Keychain|System\s+(?:Settings|Preferences)|AppData|[Tt]his\s+(?:Mac|PC))\b|(?<![A-Z]\w*\s+)\bLibrary\b|[⌘⌥⌃⇧↩⌫]/u;
+
+/** A path names a place on disk; it is never prose, even when it reads `Library`. */
+const pathLike = /^(?:~|\.{1,2})?\/|^[A-Za-z]:\\|^\\\\|^\S*\w[\\/]\w\S*$/;
+
+const comparisons = new Set(["!=", "!==", "==", "==="]);
+const logger = /^(?:console|log|\w*[Ll]ogger)$/;
+
+/** Node types a string passes through on its way into a call. */
+const passThrough = new Set([
+  "BinaryExpression",
+  "ConditionalExpression",
+  "LogicalExpression",
+  "ParenthesizedExpression",
+  "TemplateLiteral",
+]);
+
+/**
+ * Whether the string at `node` is code rather than text a person reads: a
+ * module path, a key, a type, a value compared against, or a log line. An
+ * error's message is read as text, since many reach the person.
+ */
+function isCode(node: ESTree.Node): boolean {
+  const { parent } = node;
+  switch (parent?.type) {
+    case undefined: {
+      return false;
+    }
+    case "BinaryExpression": {
+      if (comparisons.has(parent.operator)) {
+        return true;
+      }
+      break;
+    }
+    case "ExportAllDeclaration":
+    case "ExportNamedDeclaration":
+    case "ImportDeclaration":
+    case "ImportExpression":
+    case "SwitchCase":
+    case "TSEnumMember":
+    case "TSLiteralType":
+    case "TSTemplateLiteralType": {
+      return true;
+    }
+    case "MethodDefinition":
+    case "Property":
+    case "PropertyDefinition":
+    case "TSPropertySignature": {
+      if (parent.key === node && !parent.computed) {
+        return true;
+      }
+      break;
+    }
+  }
+  let carried: ESTree.Node = node;
+  while (carried.parent && passThrough.has(carried.parent.type)) {
+    carried = carried.parent;
+  }
+  const holder = carried.parent;
+  return (
+    holder?.type === "CallExpression" &&
+    holder.callee.type === "MemberExpression" &&
+    holder.callee.object.type === "Identifier" &&
+    logger.test(holder.callee.object.name)
+  );
+}
+
+const noOsWords = defineRule({
+  create(context) {
+    // A template is checked a piece of text at a time, but whether it is
+    // code is a question about the whole template.
+    const check = (node: ESTree.Node, text: string, whole = node) => {
+      const word = osWord.exec(text)?.[0];
+      if (word && !pathLike.test(text) && !isCode(whole)) {
+        context.report({
+          data: { word: word.replaceAll(/\s+/g, " ") },
+          messageId: "osWord",
+          node,
+        });
+      }
+    };
+    return {
+      JSXText(node) {
+        check(node, node.value);
+      },
+      Literal(node) {
+        if (typeof node.value === "string") {
+          check(node, node.value);
+        }
+      },
+      TemplateElement(node) {
+        check(node, node.value.cooked ?? node.value.raw, node.parent);
+      },
+    };
+  },
+  meta: {
+    messages: {
+      osWord:
+        "“{{word}}” belongs to one operating system, so this text says it on all of them. Read the word for the system the app runs on from shared/os-conventions.ts, adding it there if it is new. Text only ever shown on one system keeps it under `// oxlint-disable-next-line studio/no-os-words -- <where it shows>`.",
+    },
+    schema: [],
+    type: "problem",
+  },
+});
+
 export default definePlugin({
   meta: { name: "studio" },
   rules: {
+    "no-os-words": noOsWords,
     "no-raw-anchor": noRawAnchor,
     "no-raw-webview": noRawWebview,
     "no-router-link": noRouterLink,

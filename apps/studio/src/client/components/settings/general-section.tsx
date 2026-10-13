@@ -951,6 +951,7 @@ function Notifications() {
   );
 }
 
+// oxlint-disable studio/no-os-words -- shown only on macOS, the one system that asks before an app may notify
 /**
  * Notifications before macOS lets the app show any: what they are for and
  * the one thing that gets them going, asking macOS the first time and
@@ -998,6 +999,7 @@ function NotificationsPermission({
     </Card>
   );
 }
+// oxlint-enable studio/no-os-words
 
 /**
  * Split the log into lines tagged by severity.

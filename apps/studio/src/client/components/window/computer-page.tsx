@@ -1855,6 +1855,7 @@ export function ComputerPage({
   );
 }
 
+// oxlint-disable studio/no-os-words -- shown only on macOS, the one system with iCloud Drive's app folders
 /**
  * Under the top of iCloud Drive while macOS keeps its app folders from
  * Instrument. The first read asks for the iCloud Drive permission, and macOS
@@ -1884,6 +1885,7 @@ function ICloudAccessBanner() {
     </div>
   );
 }
+// oxlint-enable studio/no-os-words
 
 /** What a row's menus do, by the menu's own components; see `FolderMenu`. */
 type FolderMenuActions = {
@@ -2364,7 +2366,8 @@ function NotPermitted({
           </p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
             {isSystem
-              ? "Open the folder in the system’s own panel to read it now, or allow it under Files and Folders in System Settings."
+              ? // oxlint-disable-next-line studio/no-os-words -- a system refusal is macOS privacy, so only a Mac shows it
+                "Open the folder in the system’s own panel to read it now, or allow it under Files and Folders in System Settings."
               : "Its permissions keep this account out. Whoever owns it can change them."}
           </p>
         </div>
@@ -2385,6 +2388,7 @@ function NotPermitted({
               size="sm"
               variant="outline"
             >
+              {/* oxlint-disable-next-line studio/no-os-words -- a system refusal is macOS privacy, so only a Mac shows it */}
               Open System Settings
             </Button>
           </div>

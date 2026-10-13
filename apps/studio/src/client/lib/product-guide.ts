@@ -34,6 +34,7 @@ function settingsSection() {
   const lines = [
     "## Settings",
     "",
+    // oxlint-disable-next-line studio/no-os-words -- tells the agent each system's key
     `Link a page or a row as \`[Label](${APP_NAME_SLUG}://settings/<name>)\`, with the name in backticks below. Settings opens at it, and a row is scrolled to and lit. Settings opens with ⌘, on a Mac (Ctrl+, elsewhere).`,
     "",
   ];

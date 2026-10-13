@@ -1,3 +1,4 @@
+import { osConventionsFor } from "@/shared/os-conventions";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -278,11 +279,6 @@ function recordOf(trashed: string, platform: NodeJS.Platform) {
   }
 }
 
-/** What the platform calls the Trash. */
-function trashNameOn(platform: NodeJS.Platform) {
-  return platform === "win32" ? "Recycle Bin" : "Trash";
-}
-
 export class UndoRefusedError extends Error {}
 
 const nameOf = (at: string) => `“${path.basename(at)}”`;
@@ -346,13 +342,14 @@ export async function undoEntry(
       if (entry.trashed === null) {
         throw new UndoRefusedError(
           platform === "darwin"
-            ? `Put ${nameOf(entry.from)} back from the Trash in the Finder.`
-            : `Put ${nameOf(entry.from)} back from the ${trashNameOn(platform)}.`,
+            ? // oxlint-disable-next-line studio/no-os-words -- this branch runs only on macOS
+              `Put ${nameOf(entry.from)} back from the Trash in the Finder.`
+            : `Put ${nameOf(entry.from)} back from the ${osConventionsFor(platform).trash}.`,
         );
       }
       if (!sameIdentity(await identityOf(entry.trashed), entry.identity)) {
         throw new UndoRefusedError(
-          `${nameOf(entry.from)} is no longer in the ${trashNameOn(platform)}.`,
+          `${nameOf(entry.from)} is no longer in the ${osConventionsFor(platform).trash}.`,
         );
       }
       if (!(await isFreeFor(entry.from, entry.identity))) {

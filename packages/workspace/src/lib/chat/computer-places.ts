@@ -226,18 +226,16 @@ async function drivePlaces(home: string): Promise<ComputerPlace[]> {
     // A and B are the floppy letters, which a machine with no floppy can
     // still answer for slowly.
     const letters = "CDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-    const [drives, names] = await Promise.all([
-      present(
-        letters.map(
-          (letter): ComputerPlace => ({
-            kind: "drive",
-            name: `${letter}:`,
-            path: `${letter}:\\`,
-          }),
-        ),
+    const drives = await present(
+      letters.map(
+        (letter): ComputerPlace => ({
+          kind: "drive",
+          name: `${letter}:`,
+          path: `${letter}:\\`,
+        }),
       ),
-      windowsDriveNames(),
-    ]);
+    );
+    const names = await windowsDriveNames(drives.map((drive) => drive.path));
     return drives.map((drive) => ({
       ...drive,
       name: names[drive.path] ?? drive.name,
@@ -255,15 +253,17 @@ async function drivePlaces(home: string): Promise<ComputerPlace[]> {
 }
 
 /**
- * What File Explorer calls each drive, by its root, as the app reads it from
- * the system; nothing when the app gives no way to ask or the asking fails,
- * and each drive then goes by its letter.
+ * What File Explorer calls each drive at `roots`, by its root, as far as the
+ * app has read it from the system by now; nothing when the app gives no way
+ * to ask or the asking fails, and each drive then goes by its letter.
  */
-async function windowsDriveNames(): Promise<Record<string, string>> {
+async function windowsDriveNames(
+  roots: string[],
+): Promise<Record<string, string>> {
   const ask = hasWorkspaceConfig()
     ? getWorkspaceConfig().driveNames
     : undefined;
-  return (await ask?.().catch(() => undefined)) ?? {};
+  return (await ask?.(roots).catch(() => undefined)) ?? {};
 }
 
 /** The folders in a folder, each where it really is, as disks. */

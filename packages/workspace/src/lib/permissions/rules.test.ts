@@ -124,20 +124,27 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
     );
   });
 
-  it("lets an Always allow outrank a not now", () => {
-    const allowedLater = rulesFor({
-      denials: [`${home}/Desktop/Trip`],
-      home,
-      settings: {
-        ...settings,
+  // Always on a card for Desktop sets the place; for a folder in it, or on
+  // a place of several folders, it writes a folder rule.
+  it.each([
+    [
+      "a folder rule",
+      {
         folders: [
           {
             addedAt: new Date(0),
             level: "allow",
-            path: AbsolutePathSchema.parse(`${home}/Desktop`),
-          },
+            path: AbsolutePathSchema.parse(`${home}/Desktop/Trip`),
+          } as const,
         ],
       },
+    ],
+    ["the place", { places: { desktop: "allow" } } as const],
+  ])("lets an Always allow on %s outrank a not now", (_on, always) => {
+    const allowedLater = rulesFor({
+      denials: [`${home}/Desktop/Trip`],
+      home,
+      settings: { ...settings, ...always },
     });
     expect(
       reachOf(allowedLater, `${home}/Desktop/Trip/a.png`, "read").level,

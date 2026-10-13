@@ -158,19 +158,32 @@ export function rulesFor({
     rules.push({ level: "allow", path: allowed, source: "grant" });
   }
   // An Always allow for the folder or one holding it, given in Settings or
-  // from any chat's card, outranks a chat's earlier "Not now".
-  const alwaysAllowed = settings.folders
-    .filter((folder) => folder.level === "allow")
-    .map((folder) => folder.path);
+  // from any chat's card, outranks a chat's earlier "Not now". A card's
+  // Always on a place that is one folder (Documents) sets the place.
+  const alwaysAllowed = rules.filter(
+    (rule) =>
+      rule.level === "allow" &&
+      (rule.source === "folder" || rule.source === "place"),
+  );
   for (const denied of denials) {
-    if (
-      alwaysAllowed.some((allowed) => hostPathWithin(allowed, denied) !== null)
-    ) {
+    if (alwaysAllowed.some((allowed) => ruleHolds(allowed, denied))) {
       continue;
     }
     rules.push({ denied: true, level: "never", path: denied, source: "grant" });
   }
   return { home, rules, withoutAsking: settings.withoutAsking };
+}
+
+/**
+ * Whether `rule` holds `hostPath`: the path is its folder or in it, or for
+ * a rule standing for every hidden entry, one of those entries or in one.
+ */
+function ruleHolds(rule: Rule, hostPath: string): boolean {
+  const within = hostPathWithin(rule.path, hostPath);
+  if (within === null) {
+    return false;
+  }
+  return !rule.dotEntries || within.startsWith("/.");
 }
 
 /** The startup places and built-in places in one home folder. */

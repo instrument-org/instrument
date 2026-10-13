@@ -350,7 +350,12 @@ export function renderDataPart({
     }
     case "data-taskEvent": {
       // The conversation was woken by it; what it says about it is its reply.
-      if (ctx.presentation === "chat") {
+      // A note the app's quit left wakes nothing, so no reply follows it and
+      // it is the only word in the chat that a task was cut off.
+      if (
+        ctx.presentation === "chat" &&
+        !part.data.events.some((event) => event.stoppedBy === "app")
+      ) {
         return ctx.isDeveloperMode ? (
           <ChatDevOnly key={part.metadata.id}>
             <TaskEventNote data={part.data} />

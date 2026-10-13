@@ -115,3 +115,51 @@ describe("a file-changes part from before the fence", () => {
     expect(render(part, new Set(["output/chart.png"]))).toBeNull();
   });
 });
+
+/**
+ * A task event in the chat is the cause of the reply that follows it, so it
+ * stays a developer-mode row there; the quit's note starts no reply, so it
+ * is the only word a person gets that a task was cut off.
+ */
+describe("a task event in the chat", () => {
+  const partWith = (stoppedBy?: "app" | "user") =>
+    ({
+      data: {
+        events: [
+          {
+            sessionId,
+            status: "done",
+            ...(stoppedBy && { stoppedBy }),
+            title: "Audit the vault",
+          },
+        ],
+      },
+      metadata: {
+        createdAt: new Date(0),
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-taskEvent",
+    }) as unknown as SessionMessagePart.DataPart;
+  const rendered = (stoppedBy?: "app" | "user") =>
+    renderDataPart({
+      browserStatusContextAdded: false,
+      ctx: {
+        isDeveloperMode: false,
+        presentation: "chat",
+      } as unknown as RenderPartContext,
+      part: partWith(stoppedBy),
+    });
+
+  it.each([undefined, "user"] as const)(
+    "hides one stopped by %s outside developer mode",
+    (stoppedBy) => {
+      expect(rendered(stoppedBy)).toBeNull();
+    },
+  );
+
+  it("shows the app's quit to everyone", () => {
+    expect(rendered("app")).not.toBeNull();
+  });
+});

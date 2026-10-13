@@ -34,7 +34,10 @@ node "$LINUX_HOST" install-preview --host "$HOST" --run <run-id>
 node "$LINUX_HOST" start --host "$HOST" --target preview [--name <preview-name>]
 node "$LINUX_HOST" tunnel --host "$HOST" --target preview --local-port 49173
 node "$LINUX_HOST" stop --host "$HOST" --target preview
+node "$LINUX_HOST" remove-preview --host "$HOST" --all-but-latest      # or --name <a>,<b>
 ```
+
+`remove-preview` deletes superseded previews and their data (a running one is skipped) and reports the free space left; the VM's disk is small.
 
 `install-preview` takes the run's `tar.gz` for the host's architecture (the AppImage needs FUSE), cached locally by artifact id, unpacks it under `~/.local/share/instrument-previews/<name>`, and makes Chromium's `chrome-sandbox` root-owned and setuid through `sudo -n`, without which the app will not start (`sandboxReady` says whether that worked). `start` runs the named preview, or the newest, as a transient user unit with its own CDP port, so it inherits the desktop session the way the installed unit does. It runs as `instrument-preview-<name>` with its own user data, and `window.__studioDrive` is attached, so route helpers work. Every build is a first launch, since the run number is part of its name; for another first launch, build again. `stop` sends SIGTERM to the app's main process only, as quitting would, and kills what is left after ten seconds. Never stop it with `systemctl --user stop` alone: signaling every process in the unit at once kills the GPU process mid-teardown, Chromium exits with `GPU process isn't usable`, and the main thread spins at full CPU until systemd's 90-second SIGKILL. That is a product bug a logout or shutdown also hits, not a quirk of the tooling.
 

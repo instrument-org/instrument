@@ -196,6 +196,21 @@ async function main() {
       report(installPreview(host, run));
       break;
     }
+    case "remove-preview": {
+      const names = takeFlag("--name", "");
+      const keepLatest = argv.includes("--all-but-latest");
+      if (keepLatest) argv.splice(argv.indexOf("--all-but-latest"), 1);
+      assertNoArguments();
+      const list = names.split(",").filter(Boolean);
+      if (list.some((name) => !PREVIEW_NAME_PATTERN.test(name))) {
+        fail("Invalid preview name.");
+      }
+      if (list.length === 0 && !keepLatest) {
+        fail("Pass --name <preview>[,<preview>…] or --all-but-latest.");
+      }
+      report(runPowerShellJson(host, removePreviewScript(list, keepLatest)));
+      break;
+    }
     case "purge-recycled": {
       const folder = takeFlag("--path");
       assertNoArguments();
@@ -315,7 +330,7 @@ async function main() {
     }
     default: {
       fail(
-        `Unknown command ${JSON.stringify(command)}. Use install-preview, profile, purge-recycled, seed, start, status, stop, or tunnel.`,
+        `Unknown command ${JSON.stringify(command)}. Use install-preview, profile, purge-recycled, remove-preview, seed, start, status, stop, or tunnel.`,
       );
     }
   }
@@ -479,6 +494,34 @@ do {
   Start-Sleep -Milliseconds 500
 } while ((Get-Date) -lt $deadline)
 throw "The preview's CDP did not become ready on port $($target.cdpPort) within ${timeoutSeconds} seconds."`;
+}
+
+/**
+ * PowerShell that uninstalls previews silently and deletes their data: the
+ * named ones, or every one but the most recently installed. A running preview
+ * is left alone. Each build installs and keeps data under its own name, so a
+ * test host gains about a gigabyte per build until they are removed.
+ */
+function removePreviewScript(names, keepLatest) {
+  const literal = names.map((name) => `'${name}'`).join(",");
+  return `$ErrorActionPreference = 'Stop'
+$programs = Join-Path $env:LOCALAPPDATA 'Programs'
+$dirs = @(Get-ChildItem -LiteralPath $programs -Directory -Filter 'instrument-preview-*' | Sort-Object LastWriteTime -Descending)
+$names = @(${literal || "@()"})
+if (${keepLatest ? "$true" : "$false"}) { $names = @($dirs | Select-Object -Skip 1 | ForEach-Object { $_.Name.Substring('instrument-preview-'.Length) }) }
+$removed = @(); $skipped = @()
+foreach ($name in $names) {
+  $dir = Join-Path $programs "instrument-preview-$name"
+  if (-not (Test-Path -LiteralPath $dir)) { $skipped += "$name (not installed)"; continue }
+  if (Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($dir + '\\', [StringComparison]::OrdinalIgnoreCase) }) { $skipped += "$name (running)"; continue }
+  $uninstaller = Get-ChildItem -LiteralPath $dir -Filter 'Uninstall*.exe' | Select-Object -First 1
+  if ($uninstaller) { Start-Process -FilePath $uninstaller.FullName -ArgumentList '/S' -Wait }
+  if (Test-Path -LiteralPath $dir) { Remove-Item -LiteralPath $dir -Recurse -Force }
+  $data = Join-Path $env:APPDATA "Instrument Preview ($name)"
+  if (Test-Path -LiteralPath $data) { Remove-Item -LiteralPath $data -Recurse -Force }
+  $removed += $name
+}
+[ordered]@{ removed = $removed; skipped = $skipped; freeGB = [int]((Get-PSDrive C).Free / 1GB) } | ConvertTo-Json -Compress`;
 }
 
 /** PowerShell that stops every installed preview, whichever build it is. */

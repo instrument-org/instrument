@@ -336,6 +336,49 @@ async function main() {
   }
 
   switch (command) {
+    case "remove-preview": {
+      const names = takeFlag("--name", "");
+      const keepLatest = argv.includes("--all-but-latest");
+      if (keepLatest) argv.splice(argv.indexOf("--all-but-latest"), 1);
+      assertNoArguments();
+      const list = names.split(",").filter(Boolean);
+      if (list.some((name) => !PREVIEW_NAME_PATTERN.test(name))) {
+        fail("Invalid preview name.");
+      }
+      if (list.length === 0 && !keepLatest) {
+        fail("Pass --name <preview>[,<preview>…] or --all-but-latest.");
+      }
+      report(
+        runPythonJson(
+          host,
+          `import json, os, shutil
+root = os.path.expanduser("${PREVIEWS_DIR}")
+folders = sorted((entry for entry in os.listdir(root) if os.path.isdir(os.path.join(root, entry))), key=lambda entry: os.path.getmtime(os.path.join(root, entry)), reverse=True) if os.path.isdir(root) else []
+names = folders[1:] if ${keepLatest ? "True" : "False"} else ${JSON.stringify(list)}
+running = set()
+for pid in filter(str.isdigit, os.listdir("/proc")):
+    try:
+        running.add(os.readlink("/proc/%s/exe" % pid))
+    except OSError:
+        pass
+removed, skipped = [], []
+for name in names:
+    folder = os.path.join(root, name)
+    if not os.path.isdir(folder):
+        skipped.append(name + " (not installed)")
+        continue
+    if any(path.startswith(folder + "/") for path in running):
+        skipped.append(name + " (running)")
+        continue
+    shutil.rmtree(folder, ignore_errors=True)
+    shutil.rmtree(os.path.expanduser("~/.config/Instrument Preview (%s)" % name), ignore_errors=True)
+    removed.append(name)
+free = shutil.disk_usage(os.path.expanduser("~")).free // (1 << 30)
+print(json.dumps({"removed": removed, "skipped": skipped, "freeGB": free}))`,
+        ),
+      );
+      return;
+    }
     case "install-preview": {
       const run = takeFlag("--run");
       assertNoArguments();
@@ -412,7 +455,7 @@ async function main() {
     }
     default: {
       fail(
-        `Unknown command ${JSON.stringify(command)}. Use install-preview, profile, start, status, stop, or tunnel.`,
+        `Unknown command ${JSON.stringify(command)}. Use install-preview, profile, remove-preview, start, status, stop, or tunnel.`,
       );
     }
   }

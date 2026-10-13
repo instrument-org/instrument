@@ -32,7 +32,10 @@ If the profile or either scheduled task is missing, read [references/host-enroll
   node "$WINDOWS_HOST" tunnel --host "$HOST" --target preview
   node "$WINDOWS_HOST" stop --host "$HOST" --target preview
   node "$WINDOWS_HOST" purge-recycled --host "$HOST" --path 'C:\Users\<user>\<your test folder>'
+  node "$WINDOWS_HOST" remove-preview --host "$HOST" --all-but-latest    # or --name <a>,<b>
   ```
+
+  Each build installs and keeps data under its own name, about a gigabyte apiece, so `remove-preview` uninstalls superseded ones silently and deletes their data (a running one is skipped) and reports the free space left.
 
   `tunnel` without `--local-port` takes the first free port from the conventional one up (another host's tunnel may hold it) and names it in its first line; wait for that line before probing. `status` lists installed previews and which is running. `purge-recycled` empties from the Recycle Bin only what was deleted from inside the named folder, without Explorer's confirmation, so a test that deletes files cleans up after itself; it refuses a drive root or the home folder. `install-preview` fetches the run's installer (cached locally by artifact id), copies it over and installs it silently, beside Instrument, as `Instrument Preview (<name>)` in `%LOCALAPPDATA%\Programs\instrument-preview-<name>`, with its own user data. `start` launches the named preview, or the most recently installed, without a console window on the desktop. `window.__studioDrive` is attached, so route helpers work. Every build is a first launch, since the run number is part of its name; for another first launch, build again. A preview's output folder is still `Documents\Instrument`, shared with the installed app. Its main log is `%APPDATA%\Instrument Preview (<name>)\logs\main.log`, with `last-crash.log` beside `logs\`. A fresh preview starts with Developer Mode on. Google sign-in leaves Brave in front of the app, with a "Signed in" tab open, so the app window is covered until it is brought back (`desk.mjs ... bring_to_front`), and a covered window draws nothing.
 

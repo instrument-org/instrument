@@ -57,5 +57,5 @@ it("never asks for the home folder whole", () => {
     },
     spell: (hostPath) => hostPath,
   });
-  expect(refusal).toMatch(/needs the person's yes first\.$/);
+  expect(refusal).toMatch(/which no card can open whole\./);
 });

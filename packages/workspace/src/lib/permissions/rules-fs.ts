@@ -52,12 +52,10 @@ export function ruleRefusal({
     rule: reach.rule,
   });
   // The home folder or the disk whole is never the thing to ask for.
-  if (
-    !asks ||
-    !rules.asker ||
-    folder === rules.home ||
-    isClosedDiskRoot(folder)
-  ) {
+  if (folder === rules.home || isClosedDiskRoot(folder)) {
+    return `${spell(hostPath)} is directly in ${spell(folder)}, which no card can open whole. Work in this conversation's folder, or a folder the person names.`;
+  }
+  if (!asks || !rules.asker) {
     return `${spell(hostPath)} needs the person's yes first.`;
   }
   raiseAsk(rules.asker, "folder", folder);

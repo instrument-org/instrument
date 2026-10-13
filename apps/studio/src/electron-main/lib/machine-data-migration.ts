@@ -11,7 +11,7 @@ import {
   openElsewhereBy,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
-  settleWorkspaceId,
+  settleWorkspace,
   workspaceMachineDirOf,
   workspacePrivateDir,
   writeJsonAtomic,
@@ -71,7 +71,7 @@ const SQLITE_FILES = ["", "-journal", "-shm", "-wal"];
 
 /**
  * Takes what is this computer's own out of the resolved workspace folder and
- * into its machine folder, `<userData>/workspace-storage/<workspace id>/`:
+ * into its machine folder, `<userData>/workspaces-data/<local id>/`:
  * secrets encrypted with this computer's key, the Chromium profiles and
  * browser history, the window's state, the folder rules (whose paths are this
  * computer's), installed app servers and the index. What follows the person
@@ -96,18 +96,14 @@ export function moveMachineData({
   workspace: ResolvedWorkspace;
 }): { done: string[]; machineDir: string } {
   const done: string[] = [];
-  let id: string;
+  let machineDir = workspaceMachineDirOf(userDataDir, workspace.id);
   try {
-    id = settleWorkspaceId({ userDataDir, workspacePath: workspace.path });
+    machineDir = settleWorkspace({ userDataDir, workspace });
   } catch (error) {
-    // A workspace whose identity cannot be written keeps its data under the
-    // id it has, or under its registry id, until one can.
-    id = readWorkspaceIdentity(workspace.path).id ?? workspace.id;
-    done.push(
-      `could not settle the workspace's id (${String(error)}); using ${id}`,
-    );
+    // The folder is named by the local id either way; what failed is
+    // recording whose it is, which the next boot does.
+    done.push(`could not settle the workspace's id: ${String(error)}`);
   }
-  const machineDir = workspaceMachineDirOf(userDataDir, id);
 
   try {
     if (

@@ -28,7 +28,7 @@ export function workspaceDataDir(): string {
 
 /**
  * This computer's folder for the resolved workspace,
- * `<userData>/workspace-storage/<workspace id>/`: what is secret, means
+ * `<userData>/workspaces-data/<local id>/`: what is secret, means
  * something only here, or is rebuilt here, none of which travels with it.
  */
 export function workspaceMachineDir(): string {

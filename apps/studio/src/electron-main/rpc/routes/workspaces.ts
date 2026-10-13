@@ -212,20 +212,20 @@ const remove = devOnly
     // ends too, unless another workspace holds the same one (a workspace made
     // with the sign-in copied shares its session), which would be signed out
     // with it.
-    const token = readBearerTokenIn(keysDirOf(userDataDir(), listing.path));
+    const token = readBearerTokenIn(keysDirOf(userDataDir(), listing));
     const sharedWith = listings.some(
       (other) =>
         other !== listing &&
-        readBearerTokenIn(keysDirOf(userDataDir(), other.path)) === token,
+        readBearerTokenIn(keysDirOf(userDataDir(), other)) === token,
     );
     if (token !== null && !sharedWith) {
       await revokeSession(token).catch((error: unknown) => {
         logger.warn("Could not end the deleted workspace's session", error);
       });
     }
-    // Read before the folder goes, since its id is in the folder. Its keys
-    // and browser profiles go to the Trash with it.
-    const ownMachineDir = machineDirOwnedBy(userDataDir(), listing.path);
+    // Read before the folder goes, since the id that says the machine folder
+    // is its own is in it. Its keys and browser profiles go to the Trash too.
+    const ownMachineDir = machineDirOwnedBy(userDataDir(), listing);
     await shell.trashItem(listing.path);
     if (ownMachineDir !== undefined) {
       await shell.trashItem(ownMachineDir);

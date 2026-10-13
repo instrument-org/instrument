@@ -16,10 +16,10 @@ import {
   openElsewhereBy,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
-  settleWorkspaceId,
+  LOCAL_ID_LENGTH,
+  settleWorkspace,
   updateRegistry,
   type WorkspaceIdentity,
-  workspaceMachineDirOf,
   workspacePrivateDir,
   writeJsonAtomic,
   writeWorkspaceIdentity,
@@ -103,10 +103,10 @@ export function createWorkspace({
     };
   });
   // Outside the registry's lock, which settling the id takes.
-  const machineDir = workspaceMachineDirOf(
+  const machineDir = settleWorkspace({
     userDataDir,
-    settleWorkspaceId({ userDataDir, workspacePath: dir }),
-  );
+    workspace: { id, path: dir },
+  });
   if (copySignInsFrom) {
     copySignIns(copySignInsFrom, machineDir);
   }
@@ -114,14 +114,17 @@ export function createWorkspace({
 }
 
 /**
- * Where a workspace's sign-ins are: in its machine folder, or for one no
- * build that keeps machine data apart has opened yet, still in its settings
- * folder.
+ * Where a registered workspace's sign-ins are: in its machine folder, or for
+ * one no build that keeps machine data apart has opened yet, still in its
+ * settings folder.
  */
-export function keysDirOf(userDataDir: string, workspacePath: string): string {
-  const machineDir = machineDirOwnedBy(userDataDir, workspacePath);
+export function keysDirOf(
+  userDataDir: string,
+  workspace: { id: string; path: string },
+): string {
+  const machineDir = machineDirOwnedBy(userDataDir, workspace);
   return machineDir === undefined
-    ? workspaceSettingsDirOf(workspacePath)
+    ? workspaceSettingsDirOf(workspace.path)
     : path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.keys);
 }
 
@@ -160,7 +163,7 @@ export function listWorkspaces({
       openElsewhereBy:
         entryPath === resolvedPath
           ? null
-          : openElsewhereBy(openMarkDirOf(userDataDir, entry.path)),
+          : openElsewhereBy(openMarkDirOf(userDataDir, entry)),
       path: entry.path,
     };
   });
@@ -191,7 +194,7 @@ export function listWorkspaces({
       isRegistered: false,
       isResolved: false,
       lastOpenedAt: null,
-      openElsewhereBy: openElsewhereBy(openMarkDirOf(userDataDir, dir)),
+      openElsewhereBy: openElsewhereBy(workspacePrivateDir(dir)),
       path: dir,
     })),
   ];
@@ -317,14 +320,17 @@ function copySignIns(fromDir: string, machineDir: string) {
 }
 
 /**
- * Where a workspace's open mark is: its machine folder, or for one no build
- * that keeps machine data apart has opened, the `.instrument/` an older build
- * running on it marks.
+ * Where a registered workspace's open mark is: its machine folder, or for one
+ * no build that keeps machine data apart has opened, the `.instrument/` an
+ * older build running on it marks.
  */
-function openMarkDirOf(userDataDir: string, workspacePath: string): string {
+function openMarkDirOf(
+  userDataDir: string,
+  workspace: { id: string; path: string },
+): string {
   return (
-    machineDirOwnedBy(userDataDir, workspacePath) ??
-    workspacePrivateDir(workspacePath)
+    machineDirOwnedBy(userDataDir, workspace) ??
+    workspacePrivateDir(workspace.path)
   );
 }
 
@@ -354,11 +360,13 @@ function populateWorkspace({
   });
 }
 
+/** A local id from a name, kept short since it names the machine folder. */
 function slugify(name: string) {
   return (
     name
       .toLowerCase()
       .replaceAll(/[^a-z0-9]+/g, "-")
+      .slice(0, LOCAL_ID_LENGTH)
       .replaceAll(/^-|-$/g, "") || "workspace"
   );
 }

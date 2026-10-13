@@ -107,7 +107,7 @@
 // `workspaceConfig.chatsDir` to the `ELECTRON_USER_DATA_DIR` it sets.
 
 import { execFileSync, spawn } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
@@ -279,14 +279,26 @@ const SIGN_IN_FILES = ["session-dev.json", "providers.json"];
 
 /**
  * The app's folder on this computer for the workspace at `workspaceDir`, where
- * its keys, browser profiles and window state are: `workspace-storage/<id>/`
- * in the application data, by the id in the workspace's own workspace.json
- * (workspaceMachineDirOf in Studio). Undefined until the workspace has one.
+ * its keys, browser profiles and window state are: `workspaces-data/<local
+ * id>/` in the application data, by the id the registry there gives it
+ * (workspaceMachineDirOf in Studio). Undefined while it is not registered.
  */
 function workspaceMachineDir(userDataDir, workspaceDir) {
-  const { id } = readIdentity(workspaceDir);
-  return typeof id === "string"
-    ? path.join(userDataDir, "workspace-storage", id)
+  let registry;
+  try {
+    registry = JSON.parse(
+      readFileSync(path.join(userDataDir, "workspaces.json"), "utf8"),
+    );
+  } catch {
+    registry = { workspaces: [] };
+  }
+  const entry = (registry.workspaces ?? []).find(
+    (candidate) =>
+      typeof candidate?.path === "string" &&
+      path.resolve(userDataDir, candidate.path) === path.resolve(workspaceDir),
+  );
+  return typeof entry?.id === "string"
+    ? path.join(userDataDir, "workspaces-data", entry.id)
     : undefined;
 }
 
@@ -308,10 +320,17 @@ function readIdentity(workspaceDir) {
  * them there (format 1), and in its settings folder before.
  */
 function keysDirOf(userDataDir, workspaceDir) {
-  const machineDir = workspaceMachineDir(userDataDir, workspaceDir);
-  return machineDir && readIdentity(workspaceDir).formatVersion >= 1
+  const machineDir = movedMachineDir(userDataDir, workspaceDir);
+  return machineDir
     ? path.join(machineDir, "keys")
     : path.join(workspaceDir, ".instrument", "settings");
+}
+
+/** The workspace's machine folder, once the app has moved its data there. */
+function movedMachineDir(userDataDir, workspaceDir) {
+  return readIdentity(workspaceDir).formatVersion >= 1
+    ? workspaceMachineDir(userDataDir, workspaceDir)
+    : undefined;
 }
 
 /**
@@ -352,15 +371,12 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
   const identity = path.join(privateDir, "workspace.json");
   mkdirSync(privateDir, { recursive: true });
   if (!existsSync(identity)) {
-    // Its own id from the start, so the sign-ins below have a machine folder
-    // to go in before the app first opens it; the app keeps an id it finds.
     writeFileSync(
       identity,
       `${JSON.stringify(
         {
           color: "purple",
           createdBy: { kind: "agent", purpose },
-          id: randomUUID(),
           name: `Clean room: ${name}`,
           settingsVersion: 1,
         },
@@ -375,13 +391,17 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
     );
   }
 
-  const machineDir = workspaceMachineDir(devUserDataDir(), dir);
-  if (withSignIns && machineDir) {
+  if (withSignIns) {
+    // Into the settings folder until the app has opened the clean room once,
+    // and moves them on into its machine folder itself.
     const from = keysDirOf(
       devUserDataDir(),
       path.join(devUserDataDir(), "workspace"),
     );
-    const keysDir = path.join(machineDir, "keys");
+    const machineDir = movedMachineDir(devUserDataDir(), dir);
+    const keysDir = keysDirOf(devUserDataDir(), dir);
+    // Beside the keys in the settings folder, above them in a machine folder.
+    const stateFile = path.join(machineDir ?? keysDir, "state.json");
     mkdirSync(keysDir, { recursive: true });
     let copied = 0;
     for (const file of SIGN_IN_FILES) {
@@ -393,7 +413,7 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
     }
     if (copied > 0) {
       writeFileSync(
-        path.join(machineDir, "state.json"),
+        stateFile,
         `${JSON.stringify({ hasCompletedProviderSetup: true })}\n`,
       );
     }

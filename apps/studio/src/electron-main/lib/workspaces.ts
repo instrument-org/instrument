@@ -15,9 +15,10 @@ import { z } from "zod";
  * what the app keeps for it that travels with it under `.instrument/` (its
  * identity, its preferences). What is this computer's own about it (keys,
  * Chromium profiles, window state, folder rules) is in its machine folder,
- * `<userData>/workspace-storage/<workspace id>/`, under the id in its
- * `workspace.json`. The machine keeps a list of them in `workspaces.json` at
- * the root of userData, with the one to open next.
+ * `<userData>/workspaces-data/<local id>/`, named by the short id this
+ * machine's registry gives it. The machine keeps a list of them in
+ * `workspaces.json` at the root of userData, with the one to open next and
+ * the id each one carries in its own `workspace.json`.
  *
  * Everything here is synchronous and never throws, because it runs in
  * `setup-environment.ts` before any store opens: a damaged registry has to
@@ -33,15 +34,19 @@ const DEFAULT_WORKSPACE_DIR_NAME = "workspace";
 const WORKSPACES_DIR_NAME = "workspaces";
 
 /**
- * Where this computer keeps each workspace's own data, one folder per
- * workspace id. Not `workspaces/`, which holds whole workspaces made from the
- * dev panel: one folder name meaning two kinds of thing would let a listing
- * or a delete take the wrong one.
+ * Where this computer keeps each workspace's own data, one folder per local
+ * id. Short, since a Chromium profile's deepest paths inside it come close to
+ * Windows' 260 characters. Not `workspaces/`, which holds whole workspaces
+ * made from the dev panel: one folder name meaning two kinds of thing would
+ * let a listing or a delete take the wrong one.
  */
-const WORKSPACE_STORAGE_DIR_NAME = "workspace-storage";
+const WORKSPACES_DATA_DIR_NAME = "workspaces-data";
 
 const REGISTRY_FILENAME = "workspaces.json";
 const IDENTITY_FILENAME = "workspace.json";
+
+/** How long a local id made from a name may be, since it names a folder. */
+export const LOCAL_ID_LENGTH = 32;
 
 const WORKSPACE_COLORS = [
   "gray",
@@ -55,6 +60,14 @@ const WORKSPACE_COLORS = [
 ] as const;
 
 export const WorkspaceColorSchema = z.enum(WORKSPACE_COLORS);
+
+/**
+ * An id that names a folder: letters, digits, `-` and `_`, so one read from a
+ * file can never point outside the folder it is joined to.
+ */
+const FolderSafeIdSchema = z.string().regex(/^[\dA-Za-z][\w-]{0,63}$/);
+
+const WorkspaceIdSchema = FolderSafeIdSchema;
 
 const WorkspaceCreatorSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("person") }),
@@ -76,15 +89,11 @@ export const WorkspaceIdentitySchema = z.object({
   formatVersion: z.number().int().nonnegative().catch(0),
   /**
    * The workspace's own id, a ULID minted the first time a build that keeps
-   * its machine data apart opens it, and what that data is kept under. It
-   * names a folder, so anything but letters, digits, `-` and `_` reads as
-   * none and a new one is minted.
+   * its machine data apart opens it, and the same on every computer it is
+   * opened on. Each computer's registry records it beside the local id it
+   * names that computer's folder for the workspace by.
    */
-  id: z
-    .string()
-    .regex(/^[\dA-Za-z][\w-]{0,63}$/)
-    .optional()
-    .catch(undefined),
+  id: WorkspaceIdSchema.optional().catch(undefined),
   /** The layout version the last finished sweep of `migrateWorkspaceLayout` left. */
   layoutVersion: z.number().int().nonnegative().optional().catch(undefined),
   /** Set once that sweep has taken in a 1.x `projects/` folder. */
@@ -95,9 +104,12 @@ export const WorkspaceIdentitySchema = z.object({
 });
 
 const RegistryEntrySchema = z.object({
-  id: z.string().min(1),
+  /** This machine's short id for it, which also names its machine folder. */
+  id: FolderSafeIdSchema,
   lastOpenedAt: z.number().optional(),
   path: z.string().min(1),
+  /** The id in the workspace's own `workspace.json`, once a build has settled one. */
+  workspaceId: WorkspaceIdSchema.optional().catch(undefined),
 });
 
 const RegistrySchema = z.object({
@@ -198,6 +210,7 @@ export function resolveWorkspace({
         fs.mkdirSync(chosen.path, { recursive: true });
       }
       const entry: RegistryEntry = {
+        ...current.workspaces.find((other) => other.id === chosen.id),
         id: chosen.id,
         lastOpenedAt: now,
         path: chosen.path,
@@ -230,92 +243,100 @@ export function updateRegistry(
   userDataDir: string,
   change: (registry: WorkspaceRegistry) => WorkspaceRegistry,
 ): WorkspaceRegistry {
-  return withRegistryLock(userDataDir, () => {
-    const { registry, unreadable } = readRegistryFile(userDataDir);
-    if (unreadable) {
-      // Kept rather than overwritten: it may list workspaces outside
-      // `workspaces/`, which nothing else would find again.
-      fs.copyFileSync(
-        registryPath(userDataDir),
-        `${registryPath(userDataDir)}.unreadable-${Date.now().toString()}`,
-      );
-    }
-    const next = normalize(change(registry), userDataDir);
-    writeJsonAtomic(registryPath(userDataDir), {
-      ...next,
-      workspaces: next.workspaces.map((entry) => ({
-        ...entry,
-        path: storedPath(entry.path, userDataDir),
-      })),
-    });
-    return next;
-  });
+  return withRegistryLock(userDataDir, () =>
+    changeRegistry(userDataDir, change),
+  );
 }
 
 /**
- * The machine folder of the workspace at `workspacePath`, when it has one: it
- * has an id, and that id's folder says it belongs to this workspace.
- * Undefined for a workspace no build that keeps machine data apart has opened
- * yet, and for a copy of another still carrying its original's id.
+ * The machine folder of a registered workspace, when it has one: the folder
+ * its local id names says it belongs to the id in the workspace's own
+ * `workspace.json`. Undefined for a workspace no build that keeps machine
+ * data apart has opened yet.
  */
 export function machineDirOwnedBy(
   userDataDir: string,
-  workspacePath: string,
+  workspace: { id: string; path: string },
 ): string | undefined {
-  const { id } = readWorkspaceIdentity(workspacePath);
-  if (id === undefined) {
-    return undefined;
-  }
-  const machineDir = workspaceMachineDirOf(userDataDir, id);
-  const owner = readOwner(userDataDir, machineDir);
-  return owner !== undefined && samePath(owner, workspacePath)
+  const machineDir = workspaceMachineDirOf(userDataDir, workspace.id);
+  const owner = readOwner(machineDir);
+  return owner !== undefined &&
+    owner === readWorkspaceIdentity(workspace.path).id
     ? machineDir
     : undefined;
 }
 
 /**
- * The workspace's id from its `workspace.json`, settled before its machine
- * folder is first used. Minted where it has none, and minted again for a copy
- * of a workspace whose folder is still there with the same id, so the copy
- * starts with machine data of its own (signed out, a fresh browser) rather
- * than sharing the original's keys and profiles. A workspace whose folder
- * moved finds its id's folder recorded for a path that no longer holds it,
- * and takes it over. Under the registry's lock, so two processes opening one
- * workspace at once settle on one id.
+ * Settle the workspace's id and its machine folder before the folder is
+ * first used, and answer the folder. The id in its `workspace.json` is minted
+ * where neither it nor the registry has one, and minted again for a copy of a
+ * workspace another entry still holds with the same id, so the copy starts
+ * with machine data of its own (signed out, a fresh browser) rather than
+ * sharing the original's keys and profiles. The registry entry records it, so
+ * the workspace is known by it on every computer that opens it. A machine
+ * folder another workspace left under the same local id (one deleted outside
+ * the app, its id since reused) is set aside beside it, never handed over.
+ * Under the registry's lock, so two processes opening one workspace at once
+ * settle on one id.
  */
-export function settleWorkspaceId({
+export function settleWorkspace({
   newId = ulid,
   userDataDir,
-  workspacePath,
+  workspace,
 }: {
   newId?: () => string;
   userDataDir: string;
-  workspacePath: string;
+  workspace: { id: string; path: string };
 }): string {
   return withRegistryLock(userDataDir, () => {
-    const identity = readWorkspaceIdentity(workspacePath);
-    if (identity.id !== undefined) {
-      const machineDir = workspaceMachineDirOf(userDataDir, identity.id);
-      const owner = readOwner(userDataDir, machineDir);
-      if (owner !== undefined && samePath(owner, workspacePath)) {
-        return identity.id;
-      }
-      if (
-        owner === undefined ||
-        readWorkspaceIdentity(owner).id !== identity.id
-      ) {
-        writeOwner(userDataDir, machineDir, workspacePath);
-        return identity.id;
-      }
-    }
-    const id = newId();
-    writeWorkspaceIdentity(workspacePath, { ...identity, id });
-    writeOwner(
-      userDataDir,
-      workspaceMachineDirOf(userDataDir, id),
-      workspacePath,
+    const { registry } = readRegistryFile(userDataDir);
+    const identity = readWorkspaceIdentity(workspace.path);
+    const entry = registry.workspaces.find(
+      (other) => other.id === workspace.id,
     );
-    return id;
+    let workspaceId = identity.id ?? entry?.workspaceId;
+    const copied =
+      workspaceId !== undefined &&
+      registry.workspaces.some(
+        (other) =>
+          other.id !== workspace.id &&
+          other.workspaceId === workspaceId &&
+          !samePath(other.path, workspace.path) &&
+          readWorkspaceIdentity(other.path).id === workspaceId,
+      );
+    if (workspaceId === undefined || copied) {
+      workspaceId = newId();
+    }
+    if (identity.id !== workspaceId) {
+      writeWorkspaceIdentity(workspace.path, { ...identity, id: workspaceId });
+    }
+    if (entry && entry.workspaceId !== workspaceId) {
+      const recorded = workspaceId;
+      changeRegistry(userDataDir, (current) => ({
+        ...current,
+        workspaces: current.workspaces.map((other) =>
+          other.id === workspace.id
+            ? { ...other, workspaceId: recorded }
+            : other,
+        ),
+      }));
+    }
+
+    const machineDir = workspaceMachineDirOf(userDataDir, workspace.id);
+    const owner = readOwner(machineDir);
+    if (owner !== undefined && owner !== workspaceId) {
+      const aside = `${machineDir}.${owner}`;
+      fs.renameSync(
+        machineDir,
+        fs.existsSync(aside) ? `${aside}.${Date.now().toString()}` : aside,
+      );
+    }
+    if (owner !== workspaceId) {
+      writeJsonAtomic(path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.owner), {
+        workspaceId,
+      });
+    }
+    return machineDir;
   });
 }
 
@@ -341,15 +362,16 @@ export function workspaceLayoutMarks(workspacePath: string): LayoutMarkStore {
 }
 
 /**
- * This computer's folder for the workspace with this id: what is secret,
- * means something only here, or is rebuilt here (`WORKSPACE_MACHINE_ENTRIES`),
- * none of which travels with the workspace folder.
+ * This computer's folder for the workspace with this local id (its registry
+ * id): what is secret, means something only here, or is rebuilt here
+ * (`WORKSPACE_MACHINE_ENTRIES`), none of which travels with the workspace
+ * folder.
  */
 export function workspaceMachineDirOf(
   userDataDir: string,
-  workspaceId: string,
+  localId: string,
 ): string {
-  return path.join(userDataDir, WORKSPACE_STORAGE_DIR_NAME, workspaceId);
+  return path.join(userDataDir, WORKSPACES_DATA_DIR_NAME, localId);
 }
 
 export function workspacePrivateDir(workspacePath: string): string {
@@ -390,8 +412,12 @@ function chooseWorkspace({
       const known = current.workspaces.find(
         (entry) => path.resolve(entry.path) === path.resolve(pin),
       );
+      const moved = known ? undefined : movedTo(current, pin);
       return toResolved(
-        known ?? { id: idForPath(current, pin), path: path.resolve(pin) },
+        known ??
+          (moved
+            ? { ...moved, path: path.resolve(pin) }
+            : { id: idForPath(current, pin), path: path.resolve(pin) }),
         true,
       );
     }
@@ -418,19 +444,37 @@ function chooseWorkspace({
   return fallback;
 }
 
-/** A registry id for a folder named from outside: its name, made unique. */
+/**
+ * A registry id for a folder named from outside: its name, made unique. Kept
+ * short, since it names the workspace's machine folder.
+ */
 function idForPath(registry: WorkspaceRegistry, workspacePath: string) {
   const base =
     path
       .basename(workspacePath)
       .toLowerCase()
       .replaceAll(/[^a-z0-9]+/g, "-")
+      .slice(0, LOCAL_ID_LENGTH)
       .replaceAll(/^-|-$/g, "") || "workspace";
   let id = base;
   for (let n = 2; registry.workspaces.some((entry) => entry.id === id); n++) {
     id = `${base}-${n.toString()}`;
   }
   return id;
+}
+
+/**
+ * The entry of a workspace whose folder is gone and whose id the folder at
+ * `workspacePath` carries: the same workspace, moved, which keeps its local id
+ * and with it its machine folder.
+ */
+function movedTo(registry: WorkspaceRegistry, workspacePath: string) {
+  const { id } = readWorkspaceIdentity(workspacePath);
+  return id === undefined
+    ? undefined
+    : registry.workspaces.find(
+        (entry) => entry.workspaceId === id && !isDirectory(entry.path),
+      );
 }
 
 function isDirectory(dir: string) {
@@ -509,6 +553,31 @@ function readRegistryFile(userDataDir: string): {
     ),
     unreadable,
   };
+}
+
+/** The registry change of `updateRegistry`, for a caller already holding its lock. */
+function changeRegistry(
+  userDataDir: string,
+  change: (registry: WorkspaceRegistry) => WorkspaceRegistry,
+): WorkspaceRegistry {
+  const { registry, unreadable } = readRegistryFile(userDataDir);
+  if (unreadable) {
+    // Kept rather than overwritten: it may list workspaces outside
+    // `workspaces/`, which nothing else would find again.
+    fs.copyFileSync(
+      registryPath(userDataDir),
+      `${registryPath(userDataDir)}.unreadable-${Date.now().toString()}`,
+    );
+  }
+  const next = normalize(change(registry), userDataDir);
+  writeJsonAtomic(registryPath(userDataDir), {
+    ...next,
+    workspaces: next.workspaces.map((entry) => ({
+      ...entry,
+      path: storedPath(entry.path, userDataDir),
+    })),
+  });
+  return next;
 }
 
 function registryPath(userDataDir: string) {
@@ -652,36 +721,16 @@ function openPidPath(markDir: string) {
   return path.join(markDir, WORKSPACE_MACHINE_ENTRIES.openMark);
 }
 
-/** The workspace folder a machine folder's record says it belongs to. */
-function readOwner(
-  userDataDir: string,
-  machineDir: string,
-): string | undefined {
+/** The workspace id a machine folder's record says it belongs to. */
+function readOwner(machineDir: string): string | undefined {
   const parsed = z
-    .object({ path: z.string().min(1) })
+    .object({ workspaceId: WorkspaceIdSchema })
     .safeParse(
       readJson(path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.owner)),
     );
-  return parsed.success
-    ? path.resolve(userDataDir, parsed.data.path)
-    : undefined;
+  return parsed.success ? parsed.data.workspaceId : undefined;
 }
 
 function samePath(a: string, b: string) {
   return path.resolve(a) === path.resolve(b);
-}
-
-/**
- * Record which workspace folder a machine folder belongs to, relative to
- * userData when it is inside it, as the registry stores it, so a copied
- * application-data directory finds its own workspace there.
- */
-function writeOwner(
-  userDataDir: string,
-  machineDir: string,
-  workspacePath: string,
-) {
-  writeJsonAtomic(path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.owner), {
-    path: storedPath(path.resolve(workspacePath), userDataDir),
-  });
 }

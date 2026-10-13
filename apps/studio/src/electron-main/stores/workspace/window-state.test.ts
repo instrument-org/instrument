@@ -34,7 +34,7 @@ vi.mock("electron", () => ({
 }));
 
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
-  workspaceWindowDir: () => "/machine/workspace-storage/01WORKSPACE/window",
+  workspaceWindowDir: () => "/machine/workspaces-data/default/window",
 }));
 
 vi.mock("electron-store", () => ({

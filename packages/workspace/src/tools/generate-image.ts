@@ -15,7 +15,7 @@ import { findAvailableName } from "../lib/find-available-name";
 import { formatBytes } from "../lib/format-bytes";
 import { generateImageStream } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
-import { chatReach } from "../lib/permissions/chat-rules";
+import { sessionLayout } from "../lib/session-layout";
 import { pathExists } from "../lib/path-exists";
 import { prepareSourceImage } from "../lib/prepare-source-image";
 import {
@@ -23,7 +23,6 @@ import {
   resolveWritableToolPath,
 } from "../lib/resolve-agent-path";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { RelativePathSchema } from "../schemas/paths";
@@ -142,10 +141,7 @@ export const GenerateImage = setupTool({
     })}
   `,
   async *execute({ input, partId, model, sessionId, signal, chatId }) {
-    const layout = buildWorkspaceFsLayout({
-      ...(await chatReach(chatId, sessionId, partId)),
-      taskHostRoot: workDir(chatId),
-    });
+    const layout = await sessionLayout({ chatId, partId, sessionId });
     const filePathResult = resolveWritableToolPath({
       inputPath: input.filePath,
       layout,

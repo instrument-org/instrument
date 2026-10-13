@@ -53,7 +53,6 @@ import { CHAT_FOLDER_NAMES } from "../constants";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
 import { asksWritten } from "./permissions/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
-import { type Rules } from "./permissions/rules";
 import { getWorkspaceConfig } from "./workspace-config";
 import {
   CALENDAR_COMMAND,
@@ -109,14 +108,10 @@ import { FFMPEG_PATH, FFPROBE_PATH } from "./ffmpeg";
 import { gitBinaryPath } from "./git";
 import { RG_DISK_PATH } from "./ripgrep";
 import { chatVenvPython, getUvBinPath } from "./uv";
-import {
-  buildBashFs,
-  buildWorkspaceFsLayout,
-  type WorkspaceFsLayout,
-} from "./workspace-fs-layout";
+import { buildBashFs, type WorkspaceFsLayout } from "./workspace-fs-layout";
 import { type ChatId } from "../schemas/chat-id";
 import { createWalkBudget, type WalkBudget } from "./walk-budget";
-import { workDir } from "./work-dir";
+import { roleLayout } from "./session-layout";
 
 /**
  * FS reads, HTTP bodies, maxStringLength, and what one pipeline may carry
@@ -694,28 +689,6 @@ const MAIN_THREAD_COMMANDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * What a shell built with these options mounts, each folder at its real path:
- * the chat's own folder (the working directory), the folders the chat
- * reaches, the skills, and for the chat its apps, held to the chat's rules.
- * rg, du, and the output a promoted command streams all take it from here.
- */
-function shellLayout({
-  folders,
-  role,
-  chatId,
-  rules,
-}: Pick<BashEnvOptions, "folders" | "role" | "chatId"> & { rules?: Rules }) {
-  return buildWorkspaceFsLayout({
-    // The chat authors apps, so it gets their folders; a task reaches
-    // the apps it was handed through the command alone.
-    apps: role === "chat",
-    folders,
-    rules,
-    taskHostRoot: workDir(chatId),
-  });
-}
-
-/**
  * The agent's shell: in the bash worker when the host set one up (see
  * `bashWorkerEnabled`), otherwise on this thread.
  */
@@ -754,7 +727,9 @@ export async function createLocalBashEnv({
     partId: callPartId,
     sessionId,
   });
-  const layout = shellLayout({ folders, role, chatId, rules });
+  // What the shell mounts, held to the chat's rules. rg, du, agent-browser
+  // and the output a promoted command streams all take it from here.
+  const layout = roleLayout({ chatId, folders, role, rules });
   // The working folder walks at the sandbox's budget, and the home folder at
   // its own, smaller one.
   const homeWalkBudget = createWalkBudget(HOME_MAX_TRAVERSAL);
@@ -805,7 +780,7 @@ export async function createLocalBashEnv({
     customCommands: [
       // The tabs the chat or task holds, opening its own behind whatever the
       // user has up.
-      createAgentBrowserCommand({ sessionId, chatId }),
+      createAgentBrowserCommand({ chatId, layout, sessionId }),
       // Registered after the bundled commands, which is what lets it shadow
       // just-bash's own `rg`. The built-in is a TypeScript reimplementation;
       // the real binary is orders of magnitude faster on a large tree and does

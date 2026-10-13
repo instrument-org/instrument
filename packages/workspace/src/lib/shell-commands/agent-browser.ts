@@ -30,13 +30,12 @@ import { recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import { askWindow } from "../chat/window-tab";
-import { taskFsLayout } from "../resolve-workspace-file-path";
 import { getDownloadsDir, getScreenshotsDir } from "../chat-dir-utils";
 import { chatDir, resolveChat } from "../record-folders";
 import { sessionRole } from "../chat/children";
 import { heldTabs, updateHeldTabs } from "../held-tabs";
 import { getWorkspaceConfig } from "../workspace-config";
-import { hostPathOf } from "../workspace-fs-layout";
+import { hostPathOf, type WorkspaceFsLayout } from "../workspace-fs-layout";
 import {
   agentBrowserFlagName,
   parseAgentBrowserArgs,
@@ -571,11 +570,14 @@ interface SpawnAgentBrowserOptions {
 }
 
 export function createAgentBrowserCommand({
-  sessionId,
   chatId,
+  layout,
+  sessionId,
 }: {
-  sessionId: StoreId.Session;
   chatId: ChatId;
+  /** The layout of the shell it runs in, which its paths resolve against. */
+  layout: WorkspaceFsLayout;
+  sessionId: StoreId.Session;
 }) {
   return defineCommand(AGENT_BROWSER_COMMAND.name, async (args, ctx) => {
     const workspaceConfig = getWorkspaceConfig();
@@ -611,7 +613,6 @@ export function createAgentBrowserCommand({
 
     const { env, taskCwd } = resolveCommandContext(chatId, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
-    const layout = await taskFsLayout(chatId);
     const navigationArgs = await rewriteNavigationArgToFileUrl(
       strippedArgs,
       layout,

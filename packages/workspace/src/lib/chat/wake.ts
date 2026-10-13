@@ -19,7 +19,7 @@ import {
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
 import { resolveChat, sessionOfChat } from "../record-folders";
-import { taskFsLayout } from "../resolve-workspace-file-path";
+import { sessionLayout } from "../session-layout";
 import { Store } from "../store";
 import { chatModelURI, recordChatActivity } from "../chat-settings";
 import { getUsageSummary } from "../usage-summary";
@@ -587,7 +587,7 @@ export async function chatSpellingOfUrl(
   if (!isLocalAddress(url)) {
     return url;
   }
-  const layout = await taskFsLayout(chatId);
+  const layout = await sessionLayout({ chatId });
   const agentPath = agentPathOfFileUrl(layout, url);
   if (agentPath === null) {
     return agentSpellingOfFileUrls(url, layout);

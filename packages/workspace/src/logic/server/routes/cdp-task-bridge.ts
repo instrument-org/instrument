@@ -5,7 +5,7 @@ import { WebSocket } from "ws";
 import { isLocalAddress } from "../../../lib/local-page-address";
 import { resolveChat } from "../../../lib/record-folders";
 import { askWindow, requestWindowTab } from "../../../lib/chat/window-tab";
-import { taskFsLayout } from "../../../lib/resolve-workspace-file-path";
+import { sessionLayout } from "../../../lib/session-layout";
 import { heldTabs, updateHeldTabs } from "../../../lib/held-tabs";
 import { getBrowserSessionDir } from "../../../lib/chat-dir-utils";
 import { publisher } from "../../../rpc/publisher";
@@ -275,7 +275,7 @@ export function handleTaskCdpClient(
       onDetach: () => {
         forget(tab.tabId);
       },
-      readLayout: () => taskFsLayout(chatId),
+      readLayout: () => sessionLayout({ chatId, sessionId }),
       send,
       sessionId: `session-${tab.tabId}`,
       targetId: tab.targetId,
@@ -358,7 +358,7 @@ export function handleTaskCdpClient(
       // Asked of an address before any tab is at it, so no page is current.
       const gate = createLocalFileGate({
         currentUrl: noPageYet,
-        readLayout: () => taskFsLayout(chatId),
+        readLayout: () => sessionLayout({ chatId, sessionId }),
       });
       if (!(await gate.mayOpen(address))) {
         send({ error: notYourFile(address), id });

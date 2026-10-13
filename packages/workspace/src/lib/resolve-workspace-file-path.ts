@@ -1,12 +1,7 @@
 import { type AbsolutePath, type WorkspaceFilePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
-import { chatReach } from "./permissions/chat-rules";
 import { resolveExistingFilePath } from "./resolve-agent-path";
-import {
-  buildWorkspaceFsLayout,
-  type WorkspaceFsLayout,
-} from "./workspace-fs-layout";
-import { workDir } from "./work-dir";
+import { sessionLayout } from "./session-layout";
 
 /**
  * Host path for a file a task can reach: task-relative, or an absolute path in
@@ -45,22 +40,11 @@ export async function resolveWorkspaceFilePaths({
   filePaths: readonly WorkspaceFilePath[];
   chatId: ChatId;
 }): Promise<Map<WorkspaceFilePath, AbsolutePath | null>> {
-  const layout = await taskFsLayout(chatId);
+  const layout = await sessionLayout({ chatId });
   return new Map(
     filePaths.map((filePath) => {
       const resolved = resolveExistingFilePath({ inputPath: filePath, layout });
       return [filePath, resolved.isErr() ? null : resolved.value.absolutePath];
     }),
   );
-}
-
-/**
- * The filesystem a task's agent sees, as it stands now: its own folder and
- * the folders attached to it.
- */
-export async function taskFsLayout(chatId: ChatId): Promise<WorkspaceFsLayout> {
-  return buildWorkspaceFsLayout({
-    ...(await chatReach(chatId)),
-    taskHostRoot: workDir(chatId),
-  });
 }

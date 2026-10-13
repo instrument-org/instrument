@@ -8,16 +8,13 @@ import { z } from "zod";
 
 import { CHAT_FOLDER_NAMES, TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { executeError } from "../lib/execute-error";
-import { chatReach } from "../lib/permissions/chat-rules";
+import { sessionLayout } from "../lib/session-layout";
 import { pathExists } from "../lib/path-exists";
-import { sessionRole } from "../lib/chat/children";
 import { resolveWritableToolPath } from "../lib/resolve-agent-path";
-import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { writeFileWithDir } from "../lib/write-file-with-dir";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { ReadFile } from "./read-file";
-import { workDir } from "../lib/work-dir";
 
 const INPUT_PARAMS = {
   content: "content",
@@ -51,11 +48,7 @@ export const WriteFile = setupTool({
     - Writing to an existing path overwrites it, so read it with \`${ReadFile.name}\` first when you have not seen its current contents.
     - Never use this tool to re-emit content you already produced or read from disk, including to move a file somewhere the user can see it. That wastes tokens and corrupts bytes (line endings, whitespace, base64-ish or minified content). Copy or move it instead: \`cp work/foo.html <folder>/foo.html\`.  `,
   execute: async ({ input, partId, sessionId, signal, chatId }) => {
-    const layout = buildWorkspaceFsLayout({
-      apps: sessionRole(chatId, sessionId) === "chat",
-      ...(await chatReach(chatId, sessionId, partId)),
-      taskHostRoot: workDir(chatId),
-    });
+    const layout = await sessionLayout({ chatId, partId, sessionId });
     const pathResult = resolveWritableToolPath({
       inputPath: input.filePath,
       layout,

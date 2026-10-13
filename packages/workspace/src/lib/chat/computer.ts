@@ -9,13 +9,8 @@ import { type ChatId } from "../../schemas/chat-id";
 import { getMimeType } from "../get-mime-type";
 import { pathIsWithin } from "../path-is-within";
 import { type ReadRefusal, readRefusalOf } from "../read-refusal";
-import { chatDir } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
-import {
-  buildWorkspaceFsLayout,
-  effectiveFolderAccess,
-  type WorkspaceFsLayout,
-} from "../workspace-fs-layout";
+import { effectiveFolderAccess, shellPath } from "../workspace-fs-layout";
 import {
   type FinderEntry,
   finderEntriesOf,
@@ -487,38 +482,16 @@ async function exists(hostPath: string) {
 }
 
 /**
- * The chat's own view of the filesystem: its folder and the folders it
- * reaches. Beside the layout, the same folders as host roots with the grant
- * each carries, which is what a folder's access is judged from.
- */
-async function chatView(chatId: ChatId) {
-  const taskHostRoot = chatDir(chatId);
-  const folders = await folderReach(chatId);
-  const layout = buildWorkspaceFsLayout({ folders, taskHostRoot });
-  return { layout, roots: reachableRoots(layout, folders) };
-}
-
-/**
  * What a chat can reach outside its own folder, each resolved to a host
- * root: the folders `folderReach` answers.
+ * root with the grant it carries, which is what a folder's access is judged
+ * from: the folders `folderReach` answers.
  */
-function reachableRoots(
-  layout: WorkspaceFsLayout,
-  folders: Record<string, MountedFolder.Type>,
-): FolderRoot[] {
-  const grants = new Map(
-    Object.values(folders).map((folder) => [
-      path.resolve(folder.path),
-      folder.access,
-    ]),
-  );
-  return layout.folders.map((folder) => {
-    const root = path.resolve(folder.hostRoot);
-    return {
-      // A folder with no grant behind it is one the layout holds read-only.
-      grant: grants.get(root) ?? (folder.readOnly ? "read-only" : "read-write"),
-      shellRoot: folder.shellRoot,
-      root,
-    };
-  });
+async function chatView(chatId: ChatId): Promise<{ roots: FolderRoot[] }> {
+  return {
+    roots: Object.values(await folderReach(chatId)).map((folder) => ({
+      grant: folder.access,
+      shellRoot: shellPath(folder.path),
+      root: path.resolve(folder.path),
+    })),
+  };
 }

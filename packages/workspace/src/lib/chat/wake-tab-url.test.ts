@@ -8,9 +8,9 @@ import { chatSpellingOfUrl } from "./wake";
 const chatId = ChatIdSchema.parse("chat-tabs");
 const chatRoot = "/work/chats/chat-tabs";
 
-vi.mock(import("../resolve-workspace-file-path"), async (importOriginal) => ({
+vi.mock(import("../session-layout"), async (importOriginal) => ({
   ...(await importOriginal()),
-  taskFsLayout: () =>
+  sessionLayout: () =>
     Promise.resolve(
       buildWorkspaceFsLayout({ taskHostRoot: ChatDirSchema.parse(chatRoot) }),
     ),

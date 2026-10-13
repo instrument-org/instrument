@@ -25,7 +25,6 @@ import {
 } from "../lib/image-preview";
 import { imageViewSize, PREVIEW_LIMITS } from "../lib/image-view-size";
 import { listFiles } from "../lib/list-files";
-import { sessionRole } from "../lib/chat/children";
 import { pathExists } from "../lib/path-exists";
 import {
   canDecodeMedia,
@@ -44,10 +43,9 @@ import {
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { FFPROBE_COMMAND } from "../lib/shell-commands/ffprobe";
 import { systemNote } from "../lib/system-note";
-import { buildWorkspaceFsLayout } from "../lib/workspace-fs-layout";
 import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
-import { chatReach } from "../lib/permissions/chat-rules";
+import { sessionLayout } from "../lib/session-layout";
 import { workDir } from "../lib/work-dir";
 
 const DEFAULT_READ_LIMIT = 2000;
@@ -498,11 +496,7 @@ export const ReadFile = setupTool({
   `,
   execute: async ({ input, partId, model, sessionId, signal, chatId }) => {
     const region = input.region;
-    const layout = buildWorkspaceFsLayout({
-      apps: sessionRole(chatId, sessionId) === "chat",
-      ...(await chatReach(chatId, sessionId, partId)),
-      taskHostRoot: workDir(chatId),
-    });
+    const layout = await sessionLayout({ chatId, partId, sessionId });
     const pathResult = resolveExistingFilePath({
       inputPath: input.filePath,
       layout,

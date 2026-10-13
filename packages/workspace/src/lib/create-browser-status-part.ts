@@ -3,7 +3,7 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { BLANK_PAGE_URL } from "./browser-state";
 import { agentSpellingOfFileUrls } from "./local-page-address";
-import { taskFsLayout } from "./resolve-workspace-file-path";
+import { sessionLayout } from "./session-layout";
 import { heldTabs } from "./held-tabs";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -21,7 +21,7 @@ export async function createBrowserStatusPart({
   try {
     // The model hears a page on this computer by its own path for it, never
     // by where the file sits on the person's disk.
-    const layout = await taskFsLayout(chatId);
+    const layout = await sessionLayout({ chatId, sessionId });
     const spell = (url: string) => agentSpellingOfFileUrls(url, layout);
     const held = await heldTabsStatus({ sessionId, chatId }, spell);
     return held !== null && held.length > 0

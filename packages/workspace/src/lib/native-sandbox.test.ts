@@ -42,7 +42,7 @@ function reachOver(home: string, rules: Rule[]): NativeReach {
 }
 
 describe("seatbeltProfile", () => {
-  it("closes home to changes, then applies rules shallow to deep", () => {
+  it("closes the disk and home to changes, then applies rules shallow to deep", () => {
     const profile = seatbeltProfile(
       reachOver("/nope/home", [
         { level: "allow", path: "/nope/home/Documents/Acme", source: "grant" },
@@ -58,12 +58,15 @@ describe("seatbeltProfile", () => {
           (line) =>
             !line.includes("/.cache") &&
             !line.includes("Library/") &&
+            !line.includes("/var/folders") &&
             !/\/\.(npm|local|config|gitconfig)/.test(line),
         ),
     ).toMatchInlineSnapshot(`
       [
         "(version 1)",
         "(allow default)",
+        "(deny file-write* (subpath "/"))",
+        "(allow file-write* (subpath "/dev"))",
         "(deny file-write* (subpath "/nope/home"))",
         "(deny file-read* file-write* (subpath "/nope/home/Documents"))",
         "(deny file-read* file-write* (regex #"^/nope/home/\\.[^/]+(/|$)"))",
@@ -73,6 +76,8 @@ describe("seatbeltProfile", () => {
         "(allow file-read-metadata (literal "/nope/home"))",
         "(allow file-read-metadata (literal "/nope/home/Documents"))",
         "(allow file-read-metadata (literal "/nope/home/Library"))",
+        "(allow file-read-metadata (literal "/private"))",
+        "(allow file-read-metadata (literal "/private/var"))",
         "(deny file-write* (literal "/nope"))",
         "(deny file-write* (literal "/nope/home"))",
         "(deny file-write* (require-all (require-any (regex #"/\\.git/hooks(/|$)") (regex #"/\\.gitconfig(/|$)") (regex #"/\\.vscode(/|$)")) ))",

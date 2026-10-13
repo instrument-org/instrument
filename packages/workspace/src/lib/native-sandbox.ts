@@ -100,10 +100,33 @@ export function withNativeReach<T>(reach: NativeReach, run: () => T): T {
 }
 
 /**
+ * Where a process keeps what it writes besides files: the terminal, the
+ * null device, its own descriptors. Changing a disk's device takes an
+ * administrator, so the folder as a whole is open.
+ */
+const DEVICES = "/dev";
+
+/**
+ * The per-user cache folder macOS gives every program
+ * (`DARWIN_USER_CACHE_DIR`), beside the temp folder it also gives
+ * (`/var/folders/<id>/T`), and written to by the frameworks a native tool
+ * loads. Undefined anywhere the temp folder is not laid out that way.
+ */
+function darwinUserCacheDir(): string | undefined {
+  if (process.platform !== "darwin") {
+    return undefined;
+  }
+  const temp = resolveReal(os.tmpdir());
+  return path.basename(temp) === "T"
+    ? path.join(path.dirname(temp), "C")
+    : undefined;
+}
+
+/**
  * A Seatbelt profile from the rules. Allow-by-default keeps every system
  * directory, device and service a binary expects where it was; then, ordered
- * shallow to deep because Seatbelt lets the last matching rule win, nothing in
- * the home folder may be changed, and each rule opens or closes its folder.
+ * shallow to deep because Seatbelt lets the last matching rule win, nothing on
+ * the disk may be changed, and each rule opens or closes its folder.
  * So a folder allowed inside a place that asks is open, and a folder closed
  * inside it is closed again, the same as `reachOf` decides.
  *
@@ -123,6 +146,9 @@ export function seatbeltProfile(
     rank: number;
     text: string;
   }[] = [
+    { depth: 0, rank: -1, text: '(deny file-write* (subpath "/"))' },
+    // Again at the home folder, so a folder allowed above it (a temp folder
+    // holding a test's planted home) opens nothing in it.
     {
       depth: depthOf(home),
       rank: -1,
@@ -172,7 +198,10 @@ export function seatbeltProfile(
       })),
     );
   const tools = toolPlaces(home);
+  const userCache = darwinUserCacheDir();
   entries.push(
+    ...opens([DEVICES], "file-write*"),
+    ...opens(userCache ? [userCache] : [], "file-read* file-write*"),
     ...opens(tools.caches, "file-read* file-write*"),
     ...opens(tools.settings, "file-read*"),
     ...opens(reach.readOnly, "file-read*"),

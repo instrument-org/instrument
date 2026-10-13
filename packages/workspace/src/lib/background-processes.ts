@@ -266,6 +266,33 @@ export async function killBackgroundProcess({
 }
 
 /**
+ * Stops what a session has running in the background, every process or the
+ * one named, keeping each record so `jobs` says who stopped it: the chat's
+ * agent through `task stop`, or the person stopping a task, which ends what
+ * the task runs with its turn. A stop somebody asked for wakes nothing.
+ */
+export async function stopRunningProcesses({
+  by,
+  id,
+  sessionId,
+}: {
+  by: StoppedBy;
+  id?: string;
+  sessionId: StoreId.Session;
+}) {
+  const running = listBackgroundProcesses(sessionId).filter(
+    (process) =>
+      process.status === "running" && (id === undefined || process.id === id),
+  );
+  return await Promise.all(
+    running.map(async (process) => ({
+      killed: await killBackgroundProcess({ by, id: process.id, sessionId }),
+      process,
+    })),
+  );
+}
+
+/**
  * Kills everything one session started, without touching another session's
  * processes even when they belong to the same task. For a subagent session
  * ending, since nothing will poll it again. The id counter is left alone.

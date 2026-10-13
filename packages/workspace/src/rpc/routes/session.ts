@@ -2,7 +2,9 @@ import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { call, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
+import { stopRunningProcesses } from "../../lib/background-processes";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
+import { sessionOfChat } from "../../lib/record-folders";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
 import { recordChatActivity } from "../../lib/chat-settings";
@@ -105,8 +107,9 @@ const run = base
 /**
  * Stops a record's agents: a chat's, which is its own conversation and every
  * task it started; or with `sessionId`, that one session alone, a task's
- * from its row or page, or the chat's own turn from its composer, which
- * leaves its tasks working.
+ * from its row or page, with everything it has running in the background,
+ * or the chat's own turn from its composer, which leaves its tasks working
+ * and its processes running.
  */
 const stop = base
   .input(
@@ -115,7 +118,17 @@ const stop = base
       sessionId: StoreId.SessionSchema.optional(),
     }),
   )
-  .handler(({ context, input }) => {
+  .handler(async ({ context, input }) => {
+    // A task the person stops ends what it runs in the background too, as
+    // the agent's `task stop --all` does, and before its turn, so the note
+    // its stop leaves names nothing as still running. A job handed to the
+    // task is the task's, so this reaches it.
+    if (
+      input.sessionId !== undefined &&
+      input.sessionId !== sessionOfChat(input.id)
+    ) {
+      await stopRunningProcesses({ by: "user", sessionId: input.sessionId });
+    }
     // The user's stop, which the task's page ends on. One task stopped
     // while the chat carries on is written into the chat as a note that
     // starts no turn; the chat's own session tells it nothing, since only a

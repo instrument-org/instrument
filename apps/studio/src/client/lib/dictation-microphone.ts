@@ -31,9 +31,13 @@ export function resolveMicrophone(
     return { missing: false };
   }
   const inputs = pickableInputs(devices);
+  // By id first, so two devices with one name resolve to the one picked;
+  // never by an empty label, which every device has before access is granted.
   const match =
     inputs.find((device) => device.deviceId === chosen.deviceId) ??
-    inputs.find((device) => device.label === chosen.label);
+    (chosen.label
+      ? inputs.find((device) => device.label === chosen.label)
+      : undefined);
   return match
     ? { deviceId: match.deviceId, missing: false }
     : { missing: true };

@@ -34,6 +34,24 @@ describe("resolveMicrophone", () => {
   ])("%s", (_case, chosen, expected) => {
     expect(resolveMicrophone(chosen, devices)).toEqual(expected);
   });
+
+  it("never matches a device by an empty label", () => {
+    expect(
+      resolveMicrophone({ deviceId: "gone", label: "" }, [
+        { deviceId: "a1", label: "" },
+      ]),
+    ).toEqual({ missing: true });
+  });
+
+  it("prefers the exact id among devices that share a label", () => {
+    const twins = [
+      { deviceId: "left", label: "USB Audio" },
+      { deviceId: "right", label: "USB Audio" },
+    ];
+    expect(
+      resolveMicrophone({ deviceId: "right", label: "USB Audio" }, twins),
+    ).toEqual({ deviceId: "right", missing: false });
+  });
 });
 
 describe("pickableInputs", () => {

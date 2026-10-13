@@ -12,7 +12,7 @@ import nodePath from "node:path";
 
 import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import { type MountedFolder } from "../schemas/mounted-folder";
-import { ruleRefusal, rulesFs } from "./permissions/rules-fs";
+import { type Listings, ruleRefusal, rulesFs } from "./permissions/rules-fs";
 import { reachOf, type Rule, type Rules } from "./permissions/rules";
 import {
   type AbsolutePath,
@@ -124,6 +124,7 @@ export async function buildBashFs(
   layout: WorkspaceFsLayout,
   {
     homeWalkBudget,
+    listings = { count: 0 },
     maxFileReadSize,
     onRefusal,
   }: {
@@ -132,6 +133,11 @@ export async function buildBashFs(
      * folder) against a budget of their own; see `WalkBudget`.
      */
     homeWalkBudget?: WalkBudget;
+    /**
+     * The listings the command running now has made, which the shell starts
+     * over as each command starts.
+     */
+    listings?: Listings;
     maxFileReadSize: number;
     /** Hears each time the rules refuse the agent a path. */
     onRefusal?: (refusal: string) => void;
@@ -167,6 +173,7 @@ export async function buildBashFs(
           }),
           followsLinks: true,
           hostRoot: "/",
+          listings,
           onRefusal,
           rules,
           spell: shellPath,
@@ -237,6 +244,7 @@ export async function buildBashFs(
     mounted = rulesFs({
       delegate: mounted,
       hostRoot: mount.hostRoot,
+      listings,
       onRefusal,
       rules,
       spell: (hostPath) => shellPath(hostPath),

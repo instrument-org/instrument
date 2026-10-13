@@ -109,6 +109,17 @@ export function closedNote(reach: Reach, shown: string): string {
 }
 
 /**
+ * How many folders the command running now has listed, shared by every
+ * folder's filesystem in one shell, which starts it over as each command
+ * starts. The first is the folder the command was asked to list; a later
+ * one is a walk passing through, which raises no card for every closed
+ * folder it meets.
+ */
+export interface Listings {
+  count: number;
+}
+
+/**
  * Wrap a folder mount so the rules decide what in it the agent may read and
  * change. Listings and file contents are reads; stat and exists answer, so a
  * listing of the folder around a closed one still shows it. Paths arrive
@@ -118,6 +129,7 @@ export function rulesFs({
   delegate,
   followsLinks = false,
   hostRoot,
+  listings = { count: 0 },
   onRefusal,
   rules,
   spell,
@@ -129,6 +141,7 @@ export function rulesFs({
    */
   followsLinks?: boolean;
   hostRoot: string;
+  listings?: Listings;
   /**
    * Hears each refusal, since an error that crosses just-bash's sanitizer
    * loses its path and the agent would never learn which one was refused.
@@ -144,7 +157,6 @@ export function rulesFs({
     const real = followsLinks ? canonicalizeThroughMissing(host) : null;
     return real === null || real === host ? [host] : [host, real];
   };
-  let listings = 0;
   const isHidden = (mountPath: string) =>
     hostsOf(mountPath).some(
       (host) => reachOf(rules, host, "read").level === "hidden",
@@ -234,11 +246,8 @@ export function rulesFs({
       if (key === "readdir" || key === "readdirWithFileTypes") {
         return async (...args: unknown[]) => {
           const dir = String(args[0]);
-          // The first listing a shell makes is the folder it was asked to
-          // list; a later one is a walk passing through, which raises no
-          // card for every closed folder it meets.
-          const named = listings === 0;
-          listings++;
+          const named = listings.count === 0;
+          listings.count++;
           check("read", key, dir, named);
           const listed = await call(...args);
           // The app's internals are left out of a listing, the way a missing

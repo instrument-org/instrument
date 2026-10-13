@@ -50,6 +50,7 @@ import { withNativeReach } from "./native-sandbox";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
 import { asksWritten } from "./permissions/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
+import { type Listings } from "./permissions/rules-fs";
 import { getWorkspaceConfig } from "./workspace-config";
 import {
   CALENDAR_COMMAND,
@@ -723,8 +724,10 @@ export async function createLocalBashEnv({
   // Refusals heard during one exec, told to the agent after its output with
   // the host path spelled out, which an error from a script worker loses.
   const refusals = new Set<string>();
+  const listings: Listings = { count: 0 };
   const fs = await buildBashFs(layout, {
     homeWalkBudget,
+    listings,
     maxFileReadSize: SANDBOX_MAX_BYTES,
     onRefusal: (refusal) => refusals.add(refusal),
   });
@@ -825,7 +828,12 @@ export async function createLocalBashEnv({
     fs,
     // The shell's filesystem is the real disk, so each of our commands is
     // described by the program it runs, or as part of the shell.
-    registeredCommandPath: (name) => commandProgram(chatId, name),
+    // The shell asks this as each of our commands and its builtins starts,
+    // so a folder the command lists first is the one it was asked for.
+    registeredCommandPath: (name) => {
+      listings.count = 0;
+      return commandProgram(chatId, name);
+    },
     // A name no builtin or command of ours answers runs the program by that
     // name on the computer's PATH, as a native command.
     resolveExternalCommand: createPathProgramResolver(chatId),

@@ -279,6 +279,9 @@ const ENFORCEMENT_INTERVAL_MS = 15_000;
 /** After a stop is issued, how long to wait for the session to actually end. */
 const STOP_GRACE_MS = 60_000;
 
+/** How long a `stopChat` follow-up waits, once its moment comes, before pressing Stop. */
+const STOP_CHAT_AFTER_MS = 3000;
+
 /**
  * How long every task in a chat's tree has to sit idle before the run
  * is called finished.
@@ -475,6 +478,13 @@ type FollowUp = FollowUpTiming &
          */
         stopTask: string;
       }
+    | {
+        /**
+         * The user pressing Stop beside Send in place of a message: the
+         * chat's own turn ends, and its tasks keep working.
+         */
+        stopChat: true;
+      }
   );
 
 interface FollowUpTiming {
@@ -485,9 +495,11 @@ interface FollowUpTiming {
    * at the moment its next call is in flight. For a message that has to land
    * inside foreground work rather than between turns. Sent when the turn ends
    * instead, should it end first; `duringWorkMissed` in the run's metrics
-   * counts those.
+   * counts those. With `command`, the call in flight has to be a `bash` call
+   * whose command matches it, for a message that has to land inside one
+   * command in particular when a step makes several calls at once.
    */
-  duringWork?: { afterToolCalls: number };
+  duringWork?: { afterToolCalls: number; command?: RegExp };
   settled?: boolean;
 }
 
@@ -722,9 +734,23 @@ export async function runEvals(
       // who is waiting for one to be in flight after enough of them.
       const ownToolsDone = new Set<string>();
       const ownToolsStarted = new Set<string>();
+      // The commands of the run's own `bash` calls in flight, by call.
+      const ownCommandsInFlight = new Map<string, string>();
       let workWaiter:
-        | { afterCalls: number; baseline: number; resolve: () => void }
+        | {
+            afterCalls: number;
+            baseline: number;
+            command?: RegExp;
+            resolve: () => void;
+          }
         | undefined;
+      const workWaiterMet = () =>
+        workWaiter !== undefined &&
+        ownToolsDone.size - workWaiter.baseline >= workWaiter.afterCalls &&
+        (workWaiter.command === undefined ||
+          [...ownCommandsInFlight.values()].some((command) =>
+            workWaiter?.command?.test(command),
+          ));
       let duringWorkMissed = 0;
       // See `EvalCase.marks`. Each is timed from when its message is sent.
       const marks: {
@@ -856,16 +882,16 @@ export async function runEvals(
                 part.state === "output-error"
               ) {
                 ownToolsDone.add(part.toolCallId);
+                ownCommandsInFlight.delete(part.toolCallId);
               } else if (
                 part.state === "input-available" &&
                 !ownToolsStarted.has(part.toolCallId)
               ) {
                 ownToolsStarted.add(part.toolCallId);
-                if (
-                  workWaiter &&
-                  ownToolsDone.size - workWaiter.baseline >=
-                    workWaiter.afterCalls
-                ) {
+                if (part.type === "tool-bash" && part.input?.command) {
+                  ownCommandsInFlight.set(part.toolCallId, part.input.command);
+                }
+                if (workWaiter && workWaiterMet()) {
                   workWaiter.resolve();
                   workWaiter = undefined;
                 }
@@ -1049,15 +1075,20 @@ export async function runEvals(
           break;
         }
         if (followUp.duringWork !== undefined) {
-          const { afterToolCalls } = followUp.duringWork;
+          const { afterToolCalls, command } = followUp.duringWork;
           const inFlight = new Promise<"in flight">((resolve) => {
             workWaiter = {
               afterCalls: afterToolCalls,
               baseline: toolsAtLastSend,
+              ...(command ? { command } : {}),
               resolve: () => {
                 resolve("in flight");
               },
             };
+            // A call already in flight as the wait begins counts.
+            if (workWaiterMet()) {
+              resolve("in flight");
+            }
           });
           const first = await Promise.race([inFlight, turn]);
           workWaiter = undefined;
@@ -1094,6 +1125,19 @@ export async function runEvals(
               { context },
             );
           }
+          lastSentAt = Date.now();
+          continue;
+        }
+        if ("stopChat" in followUp) {
+          // A person presses Stop on a command they have watched start, not
+          // on one still being written.
+          await new Promise((resolve) =>
+            setTimeout(resolve, STOP_CHAT_AFTER_MS),
+          );
+          write(
+            `${evalPrefix(label)}${c.dim}Stop: the chat's turn${c.reset}\n`,
+          );
+          await call(sessionRoute.stop, { id, sessionId }, { context });
           lastSentAt = Date.now();
           continue;
         }

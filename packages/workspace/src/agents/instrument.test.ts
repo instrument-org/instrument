@@ -183,6 +183,38 @@ describe("shouldContinueAfterHandingOff", () => {
     ).resolves.toBe(false);
   });
 
+  // Asked what happened after a stop, the reply tells of the task started
+  // before it, and a second step read as a promise would start it again.
+  it("does not read an account of a task already started as a promise", async () => {
+    await expect(
+      shouldContinueAfterHandingOff({
+        messages: [
+          user(text("what happened?")),
+          assistant(
+            text(
+              "I started the background task (t1), and you stopped it before it finished. I can restart the task if you want.",
+            ),
+          ),
+        ],
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it("does not give a reply that ends asking the user a second step", async () => {
+    await expect(
+      shouldContinueAfterHandingOff({
+        messages: [
+          user(text("what happened?")),
+          assistant(
+            text(
+              "You stopped the task before it finished. Want me to start the task again?",
+            ),
+          ),
+        ],
+      }),
+    ).resolves.toBe(false);
+  });
+
   it("does not give a wake's one-line reply a second step for naming the task", async () => {
     await expect(
       shouldContinueAfterHandingOff({

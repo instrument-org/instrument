@@ -12,7 +12,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { type DictationSurface } from "@/shared/dictation";
 import { safe } from "@orpc/client";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 /** A recording stops itself here. */
 const DICTATION_MAX_MS = 10 * 60 * 1000;
@@ -87,6 +87,9 @@ export function useDictation({
   const [phase, setPhase] = useState<DictationPhase>({ kind: "idle" });
   const [elapsedMs, setElapsedMs] = useState(0);
   const [levels, setLevels] = useState(silentLevels);
+  // Each dictation's toasts are its own, so one box starting or landing never
+  // takes away another's Try Again and strands its recording.
+  const toastId = `dictation:${surface}:${useId()}`;
 
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
@@ -135,7 +138,7 @@ export function useDictation({
       description: notice.description,
       // A toast that holds a recording stays until it is answered.
       ...(notice.keepsRecording && { duration: Number.POSITIVE_INFINITY }),
-      id: `dictation:${surface}`,
+      id: toastId,
     };
     if (notice.tone === "info") {
       toast.info(notice.title, options);
@@ -170,7 +173,7 @@ export function useDictation({
     }
     if (result.ok) {
       kept.current = undefined;
-      toast.dismiss(`dictation:${surface}`);
+      toast.dismiss(toastId);
       if (finish(result.text, deliver)) {
         onLanded?.();
       }
@@ -254,8 +257,6 @@ export function useDictation({
       openLogin({ instrumentOnly: true, reason: "dictation" });
       return;
     }
-    kept.current = undefined;
-    toast.dismiss(`dictation:${surface}`);
     const current: Session = {
       deliver,
       ended: false,
@@ -273,6 +274,9 @@ export function useDictation({
         report(problem);
       }
     };
+
+    kept.current = undefined;
+    toast.dismiss(toastId);
 
     // macOS asks once; until then getUserMedia would fail without asking.
     const [, access] = await safe(rpcClient.mac.microphone.status.call());

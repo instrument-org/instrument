@@ -4,7 +4,11 @@ import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { filterShellOutput } from "./filter-shell-output";
 import { inheritedEnv } from "./native-env";
-import { withInstallerClosed } from "./native-sandbox";
+import { chatNativeReach } from "./chat-native-reach";
+import {
+  NativeSandboxUnavailableError,
+  wrapNativeCommand,
+} from "./native-sandbox";
 import { getUvBinPath, uvSubprocessEnv } from "./uv";
 
 export async function runUvCommand({
@@ -28,15 +32,28 @@ export async function runUvCommand({
   chatId: ChatId;
 }) {
   const { UV_EXCLUDE_NEWER, ...pinnedEnv } = uvSubprocessEnv({ chatId });
-  // Outside the rules, as the app's own install, but never able to open the
-  // Command Line Tools installer: a build backend uv runs may clear its env.
-  const spawned = withInstallerClosed(getUvBinPath(), args);
+  // Held to the chat's reach like any command of its own: uv runs the
+  // chat's virtualenv interpreter to read it, and that interpreter, with the
+  // `.pth` files beside it, is the chat's to change.
+  let spawned: ReturnType<typeof wrapNativeCommand>;
+  try {
+    spawned = wrapNativeCommand(
+      getUvBinPath(),
+      args,
+      (await chatNativeReach(chatId)) ?? null,
+    );
+  } catch (error) {
+    if (error instanceof NativeSandboxUnavailableError) {
+      return { combined: error.message, exitCode: 126, stdout: "" };
+    }
+    throw error;
+  }
   const result = await execa(spawned.file, spawned.args, {
     all: true,
     cancelSignal: signal,
     cwd,
     env: {
-      ...inheritedEnv(),
+      ...inheritedEnv(process.env, spawned.reach),
       ...(lockfilePinned ? pinnedEnv : { ...pinnedEnv, UV_EXCLUDE_NEWER }),
     },
     extendEnv: false,

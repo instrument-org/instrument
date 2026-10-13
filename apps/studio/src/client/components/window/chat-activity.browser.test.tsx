@@ -95,6 +95,31 @@ describe("ChatActivity", () => {
     expect(onOpen).toHaveBeenCalledWith(packing);
   });
 
+  it("says why a finished task failed, and nothing under one that is done", async () => {
+    listed.tasks = [
+      PACKING,
+      {
+        id: tram,
+        standing: {
+          kind: "failed",
+          line: "The app closed while counting the stops",
+        },
+        title: "Tram 28 history",
+        updatedAt: new Date(2026, 9, 5, 14, 30),
+      },
+    ];
+    await renderInBrowser(
+      <ChatActivity chatId={CHAT_ID} onOpen={vi.fn()} tasks={[]} />,
+    );
+    await userEvent.click(page.getByRole("button", { name: "2 tasks" }));
+    await expect
+      .element(page.getByText("The app closed while counting the stops"))
+      .toBeVisible();
+    await expect
+      .element(page.getByText("Made packing-list.md"))
+      .not.toBeInTheDocument();
+  });
+
   it("draws nothing for a chat that filed no task", async () => {
     listed.tasks = [];
     const { container } = await renderInBrowser(

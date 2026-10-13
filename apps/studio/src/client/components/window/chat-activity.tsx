@@ -194,7 +194,15 @@ function TaskRows({
               }}
               title={task.title}
               trailing={taskTimeLabel(task.updatedAt, now)}
-            />
+            >
+              {/* A task that did not finish says why, in the red the Tasks
+                  screen gives the same line. */}
+              {task.standing.kind === "failed" && (
+                <span className="min-w-0 truncate text-error-700 dark:text-error-300">
+                  {task.standing.line}
+                </span>
+              )}
+            </Row>
           ))}
         </>
       )}
@@ -218,7 +226,7 @@ function Row({
   title,
   trailing,
 }: {
-  /** The line under the title: a running task's step. */
+  /** The line under the title: a running task's step, or why one failed. */
   children?: ReactNode;
   isQuiet?: boolean;
   mark: ReactNode;

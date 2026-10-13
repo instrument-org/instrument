@@ -14,7 +14,9 @@ import { workDir } from "../work-dir";
 /**
  * Arguments for a native subprocess. Paths pass through as written; on
  * Windows an absolute path in the shell's spelling (`/c/Users/sam`, bare or as
- * a `--flag=` value) becomes the host's (`C:\\Users\\sam`).
+ * a `--flag=` value) becomes the host's (`C:\\Users\\sam`). A drive letter
+ * alone (`/c`, `/d/`) is left as it is: it is far more often one of
+ * Windows' switches (`cmd /c`, `dir /s`) than a drive's root.
  */
 export function hostPathArgs(args: string[]): string[] {
   if (process.platform !== "win32") {
@@ -23,7 +25,7 @@ export function hostPathArgs(args: string[]): string[] {
   return args.map((arg) => {
     const eq = arg.startsWith("-") ? arg.indexOf("=") : -1;
     const value = arg.slice(eq + 1);
-    return /^\/[a-z](?:\/|$)/i.test(value)
+    return /^\/[a-z]\/./i.test(value)
       ? `${arg.slice(0, eq + 1)}${hostPathOf(value)}`
       : arg;
   });

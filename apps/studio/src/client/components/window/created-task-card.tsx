@@ -1,5 +1,5 @@
 import { useOpenGestures } from "@/client/hooks/use-open-target";
-import { cn, isMacOS } from "@/client/lib/utils";
+import { cn, commandKeyHeld } from "@/client/lib/utils";
 import { useChatSession } from "@/client/hooks/use-chat-session";
 import { rpcClient } from "@/client/rpc/client";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
@@ -50,7 +50,7 @@ export function CreatedTaskCard({ chatId }: { chatId: string }) {
   // tab of the task's own; a plain click takes the tab on screen.
   const gestures = useOpenGestures({ href, kind: "screen" });
   const open = (event: MouseEvent<HTMLButtonElement>) => {
-    if (isMacOS() ? event.metaKey : event.ctrlKey) {
+    if (commandKeyHeld(event)) {
       gestures.separate?.run();
       return;
     }

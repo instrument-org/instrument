@@ -30,7 +30,7 @@ export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
     fileMenu,
     createEditMenu(),
     createOtherWindowViewMenu(),
-    createWindowMenu(),
+    ...createWindowMenu(),
     createHelpMenu(),
     ...(isDeveloperMode() ? createDevToolsMenu() : []),
   ];
@@ -69,14 +69,19 @@ export function createOtherWindowViewMenu({
         },
       },
       {
-        ...WINDOW_MENU_SHORTCUTS.zoomIn,
+        accelerator: resolveAccelerator(
+          WINDOW_MENU_SHORTCUTS.zoomIn.accelerator,
+          { isMac: process.platform === "darwin" },
+        ),
         click: () => {
           zoom("zoomIn");
         },
+        label: WINDOW_MENU_SHORTCUTS.zoomIn.label,
       },
       {
-        // Ctrl+= is what Windows users physically press to zoom in; Electron only
-        // matches CmdOrCtrl+Plus on macOS, so this hidden duplicate covers it.
+        // ⌘=, the key pressed to zoom in without Shift, where the row above
+        // shows ⌘+. Off the Mac the row above is Ctrl+= already, and this
+        // repeats it.
         accelerator: "CmdOrCtrl+=",
         click: () => {
           zoom("zoomIn");

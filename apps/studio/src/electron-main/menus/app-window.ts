@@ -4,6 +4,7 @@ import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { resolveAccelerator } from "@/shared/shortcuts";
 import {
   WINDOW_MENU_SHORTCUTS,
+  WINDOW_SHORTCUT_ALIASES,
   WINDOW_SHORTCUTS,
   type WindowShortcutId,
 } from "@/shared/window-shortcuts";
@@ -111,28 +112,19 @@ const PLACE_CHORDS: WindowChord[] = [
 
 /**
  * Down and up the inbox from the chat on screen, in the order the list
- * shows. Alt with the command key, since Alt and an arrow alone moves the
- * caret by a word in the composer.
+ * shows, on the keys each system steps between conversations with
+ * (`window-shortcuts.ts`).
  */
 const CHAT_CHORDS: WindowChord[] = [chord("nextChat"), chord("previousChat")];
 
 /**
- * The chords the tab bar answers to, on whichever screen is up: next and previous by Ctrl+Tab and by Cmd+Shift+bracket, a tab by
- * place with Cmd+1 through Cmd+8, and the last with Cmd+9, as browsers do.
+ * The chords the tab bar answers to, on whichever screen is up: next and
+ * previous by Ctrl+Tab (and by this system's own second chord, below), a tab
+ * by place with Cmd+1 through Cmd+8, and the last with Cmd+9, as browsers do.
  */
 const TAB_SWITCH_CHORDS: WindowChord[] = [
   chord("nextTab"),
-  {
-    ...chord("nextTab"),
-    accelerator: "CmdOrCtrl+Shift+]",
-    visible: false,
-  },
   chord("previousTab"),
-  {
-    ...chord("previousTab"),
-    accelerator: "CmdOrCtrl+Shift+[",
-    visible: false,
-  },
   ...Array.from({ length: 9 }, (_, index) => ({
     ...(index === 8
       ? WINDOW_MENU_SHORTCUTS.lastTab
@@ -153,13 +145,34 @@ const TAB_SWITCH_CHORDS: WindowChord[] = [
  */
 const HISTORY_CHORDS: WindowChord[] = [chord("back"), chord("forward")];
 
+/**
+ * This system's second chords for a command (`WINDOW_SHORTCUT_ALIASES`),
+ * answered like the rest and drawn in the menu only as hidden rows, which a
+ * focused page guest still reaches.
+ */
+function aliasChords(...ids: WindowShortcutId[]): WindowChord[] {
+  return WINDOW_SHORTCUT_ALIASES.flatMap(({ accelerator, id }) => {
+    const own = IS_MAC ? accelerator.darwin : accelerator.default;
+    return own && ids.includes(id)
+      ? [{ ...chord(id), accelerator: own, visible: false }]
+      : [];
+  });
+}
+
+const TAB_ALIAS_CHORDS = aliasChords("closeTab");
+const TAB_SWITCH_ALIAS_CHORDS = aliasChords("nextTab", "previousTab");
+const VIEW_ALIAS_CHORDS = aliasChords("reloadPage");
+
 const WINDOW_CHORDS = [
   ...FILE_CHORDS,
   ...VIEW_CHORDS,
+  ...VIEW_ALIAS_CHORDS,
   ...PLACE_CHORDS,
   ...TAB_CHORDS,
+  ...TAB_ALIAS_CHORDS,
   ...CHAT_CHORDS,
   ...TAB_SWITCH_CHORDS,
+  ...TAB_SWITCH_ALIAS_CHORDS,
   ...HISTORY_CHORDS,
 ];
 
@@ -199,6 +212,7 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
       ...menuItems(FILE_CHORDS.slice(1)),
       { type: "separator" },
       ...menuItems(TAB_CHORDS),
+      ...menuItems(TAB_ALIAS_CHORDS),
       { ...WINDOW_MENU_SHORTCUTS.closeWindow, role: "close" as const },
     ],
   };
@@ -211,9 +225,10 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
   const tabMenu: MenuItemConstructorOptions = {
     label: "Tabs",
     submenu: [
-      ...menuItems(TAB_SWITCH_CHORDS.slice(0, 4)),
+      ...menuItems(TAB_SWITCH_CHORDS.slice(0, 2)),
+      ...menuItems(TAB_SWITCH_ALIAS_CHORDS),
       { type: "separator" },
-      ...menuItems(TAB_SWITCH_CHORDS.slice(4)),
+      ...menuItems(TAB_SWITCH_CHORDS.slice(2)),
     ],
   };
 
@@ -249,6 +264,7 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
     ...shared,
     submenu: [
       ...menuItems(VIEW_CHORDS),
+      ...menuItems(VIEW_ALIAS_CHORDS),
       { type: "separator" },
       ...menuItems(PLACE_CHORDS),
       { type: "separator" },
@@ -268,7 +284,7 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
     chatsMenu,
     tabMenu,
     historyMenu,
-    createWindowMenu(),
+    ...createWindowMenu(),
     createHelpMenu({
       reportProblem: () => {
         BrowserWindow.getFocusedWindow()?.webContents.focus();

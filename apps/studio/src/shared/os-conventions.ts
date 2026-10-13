@@ -46,6 +46,8 @@ export interface OsConventions {
   computerKind: string;
   /** Files' keys, where the system's file manager decides them. */
   files: {
+    /** The modifier held with ↑ to go to the folder above: ⌘ in the Finder, Alt elsewhere. */
+    parentFolderKey: "altKey" | "metaKey";
     /**
      * The key that renames what is selected. Where it is Return, Return
      * opens what cannot be renamed; where it is F2, Enter opens.
@@ -74,6 +76,8 @@ export interface OsConventions {
   passwordStore: null | string;
   /** A look at a file without opening it, as a menu row and as the look's name. */
   quickLook: string;
+  /** The Return or Enter key as a hint writes it: the symbol on a Mac's key, the word elsewhere. */
+  returnKey: string;
   /** The menu row that selects a file or folder in the system's file manager. */
   showInFileManager: string;
   /** The computer in running text: "runs on this Mac". */
@@ -88,9 +92,10 @@ export const OS_CONVENTIONS = {
     commandKey: "ctrlKey",
     computer: "This Computer",
     computerKind: "computer",
-    // GNOME Files and Dolphin rename on F2 and open on Enter, as File
-    // Explorer does.
+    // GNOME Files and Dolphin rename on F2, open on Enter and go up on Alt+↑,
+    // as File Explorer does.
     files: {
+      parentFolderKey: "altKey",
       renameKey: "F2",
       trashKey: { key: "Delete", withCommandKey: false },
     },
@@ -109,6 +114,7 @@ export const OS_CONVENTIONS = {
     },
     passwordStore: null,
     quickLook: "Preview",
+    returnKey: "Enter",
     showInFileManager: "Show in File Manager",
     thisComputer: "this computer",
     trash: "Trash",
@@ -118,8 +124,10 @@ export const OS_CONVENTIONS = {
     commandKey: "metaKey",
     computer: "This Mac",
     computerKind: "Mac",
-    // Return renames in the Finder; ⌘⌫ is its Move to Trash.
+    // Return renames in the Finder, ⌘↑ goes to the enclosing folder, and ⌘⌫
+    // is its Move to Trash.
     files: {
+      parentFolderKey: "metaKey",
       renameKey: "Enter",
       trashKey: { key: "Backspace", withCommandKey: true },
     },
@@ -130,6 +138,7 @@ export const OS_CONVENTIONS = {
     modifierKeys: { alt: "⌥", command: "⌘", control: "⌃", shift: "⇧" },
     passwordStore: "Keychain",
     quickLook: "Quick Look",
+    returnKey: "↩",
     showInFileManager: "Show in Finder",
     thisComputer: "this Mac",
     trash: "Trash",
@@ -140,6 +149,7 @@ export const OS_CONVENTIONS = {
     computer: "This PC",
     computerKind: "PC",
     files: {
+      parentFolderKey: "altKey",
       renameKey: "F2",
       trashKey: { key: "Delete", withCommandKey: false },
     },
@@ -155,6 +165,7 @@ export const OS_CONVENTIONS = {
     },
     passwordStore: null,
     quickLook: "Preview",
+    returnKey: "Enter",
     showInFileManager: "Show in File Explorer",
     thisComputer: "this PC",
     trash: "Recycle Bin",

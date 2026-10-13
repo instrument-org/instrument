@@ -43,6 +43,7 @@ import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
+import { osConventions } from "@/client/lib/utils";
 import {
   bareAddress,
   isSearchWords,
@@ -808,7 +809,7 @@ function ResultRows({ rows }: { rows: Row[] }) {
                   {row.chord === undefined ? (
                     // Return runs the row picked, so it says so.
                     <CommandShortcut className="hidden in-data-[selected=true]:inline">
-                      ↩
+                      {osConventions().returnKey}
                     </CommandShortcut>
                   ) : (
                     <CommandShortcut>

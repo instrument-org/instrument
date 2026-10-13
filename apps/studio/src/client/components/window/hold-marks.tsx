@@ -14,7 +14,7 @@ import {
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { iconHostOf, useIconlessHosts } from "@/client/lib/favicon-url";
 import { type OpenTarget } from "@/client/lib/open-target";
-import { cn, isMacOS } from "@/client/lib/utils";
+import { cn, commandKeyHeld } from "@/client/lib/utils";
 import { type MouseEvent, type ReactNode, type SyntheticEvent } from "react";
 
 import { AppIcon } from "./app-icon";
@@ -280,5 +280,5 @@ function stopHere(event: SyntheticEvent) {
 
 /** Whether a click asks for a tab of its own: the platform's one modifier for it, since Ctrl and a click is the secondary click on macOS. */
 function wantsNewTab(event: { ctrlKey: boolean; metaKey: boolean }) {
-  return isMacOS() ? event.metaKey : event.ctrlKey;
+  return commandKeyHeld(event);
 }

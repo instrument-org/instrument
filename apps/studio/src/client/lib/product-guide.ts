@@ -101,11 +101,12 @@ function shortcutsSection() {
     ).toSorted((a, b) => a.label.localeCompare(b.label))) {
       const mac = formatAcceleratorFor({
         accelerator: entry.accelerator,
-        isMac: true,
+        os: "mac",
       }).join("");
+      // Windows and Linux write every chord here alike, which a test holds.
       const other = formatAcceleratorFor({
         accelerator: entry.accelerator,
-        isMac: false,
+        os: "windows",
       }).join("+");
       lines.push(`- ${entry.label}: ${mac} / ${other}`);
     }

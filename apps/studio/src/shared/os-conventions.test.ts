@@ -22,6 +22,7 @@ describe("OS_CONVENTIONS", () => {
           "computerKind": "computer",
           "fileManager": "File Manager",
           "files": {
+            "parentFolderKey": "altKey",
             "renameKey": "F2",
             "trashKey": {
               "key": "Delete",
@@ -39,6 +40,7 @@ describe("OS_CONVENTIONS", () => {
           },
           "passwordStore": null,
           "quickLook": "Preview",
+          "returnKey": "Enter",
           "showInFileManager": "Show in File Manager",
           "thisComputer": "this computer",
           "trash": "Trash",
@@ -50,6 +52,7 @@ describe("OS_CONVENTIONS", () => {
           "computerKind": "Mac",
           "fileManager": "Finder",
           "files": {
+            "parentFolderKey": "metaKey",
             "renameKey": "Enter",
             "trashKey": {
               "key": "Backspace",
@@ -67,6 +70,7 @@ describe("OS_CONVENTIONS", () => {
           },
           "passwordStore": "Keychain",
           "quickLook": "Quick Look",
+          "returnKey": "↩",
           "showInFileManager": "Show in Finder",
           "thisComputer": "this Mac",
           "trash": "Trash",
@@ -78,6 +82,7 @@ describe("OS_CONVENTIONS", () => {
           "computerKind": "PC",
           "fileManager": "File Explorer",
           "files": {
+            "parentFolderKey": "altKey",
             "renameKey": "F2",
             "trashKey": {
               "key": "Delete",
@@ -95,6 +100,7 @@ describe("OS_CONVENTIONS", () => {
           },
           "passwordStore": null,
           "quickLook": "Preview",
+          "returnKey": "Enter",
           "showInFileManager": "Show in File Explorer",
           "thisComputer": "this PC",
           "trash": "Recycle Bin",

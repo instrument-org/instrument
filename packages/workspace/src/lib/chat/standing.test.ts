@@ -216,6 +216,44 @@ describe("taskStanding", () => {
     });
   });
 
+  it("reads a task whose request timed out as failed, saying it timed out", async () => {
+    const chatId = freshChat();
+    const sessionId = await withSession(chatId);
+    await Store.saveMessageWithParts(
+      assistant(sessionId, [activity("Reading the vault")], {
+        finishReason: "tool-calls",
+      }),
+      chatId,
+    );
+    await Store.saveMessageWithParts(
+      assistant(
+        sessionId,
+        [
+          (ids) => ({
+            metadata: { ...partMetadata(ids), stepCount: 3 },
+            type: "step-start",
+          }),
+        ],
+        {
+          error: { kind: "aborted", message: "Aborted", reason: "timeout" },
+          finishReason: "aborted",
+        },
+      ),
+      chatId,
+    );
+
+    const standing = await taskStanding({
+      isRunning: false,
+      sessionId,
+      chatId,
+    });
+
+    expect(standing).toEqual({
+      kind: "failed",
+      line: "Timed out while reading the vault",
+    });
+  });
+
   it("says what a task stopped in the middle of when the stop landed on a tool call", async () => {
     const chatId = freshChat();
     const sessionId = await withSession(chatId);

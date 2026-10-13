@@ -52,7 +52,7 @@ export interface TaskStanding {
 /**
  * Where a task stands, in the four words the list can say it in. A turn that
  * did not finish on its own and was nobody's decision is `failed`: a model
- * error, or the app quitting while the task worked.
+ * error, a request that timed out, or the app quitting while the task worked.
  */
 export const TaskStandingKindSchema = z.enum([
   "done",
@@ -65,11 +65,11 @@ type TaskStandingKind = z.output<typeof TaskStandingKindSchema>;
 
 /**
  * How a turn that ended before the agent wrote any words ended. That happens
- * three ways, each of which leaves the last assistant message text-less: the
- * step limit, a model error, or a stop, whether the user's or the
- * chat's, which lands either in the message the model was streaming
- * or in the tool call it was waiting on. The line names the one it was and,
- * for a stop, what the task was in the middle of. Read by the task list and
+ * four ways, each of which leaves the last assistant message text-less: the
+ * step limit, a model error, a request that timed out, or a stop, whether the
+ * user's or the chat's, which lands either in the message the model was
+ * streaming or in the tool call it was waiting on. The line names the one it
+ * was and, for a timeout or a stop, what the task was in the middle of. Read by the task list and
  * by the note that wakes the chat, so the two say the same thing.
  */
 export async function endedWithoutWords(ref: SessionRef): Promise<TaskEnding> {
@@ -186,6 +186,15 @@ async function endingIn(
     return { failed: true, line: describeMessageError(error).summary };
   }
   const step = await latestStep(ref);
+  // A request let go for going quiet past its timeout ended the turn the way
+  // a model error does: nobody decided it, and sending the task on picks it
+  // up again.
+  if (error?.reason === "timeout") {
+    return {
+      failed: true,
+      line: step ? `Timed out while ${asClause(step)}` : "Timed out",
+    };
+  }
   return {
     failed: false,
     line: step ? `Stopped while ${asClause(step)}` : "Stopped",

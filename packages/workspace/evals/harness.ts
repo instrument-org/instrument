@@ -53,6 +53,7 @@ import { type Choose } from "../src/tools/choose";
 import { type AppFixture, seedConnectedApps } from "./lib/connected-app";
 import { createStandInWindow } from "./lib/stand-in-window";
 import { startRun } from "./lib/start-run";
+import { timeOutTaskTurn } from "./lib/time-out-task";
 import {
   buildProviderConfigs,
   c,
@@ -487,6 +488,15 @@ type FollowUp = FollowUpTiming &
          * chat's own turn ends, and its tasks keep working.
          */
         stopChat: true;
+      }
+    | {
+        /**
+         * One of the chat's tasks, by its handle, losing its model: every
+         * request its running turn makes from here goes past its chunk
+         * timeout, until the retries run out and the turn ends on the
+         * timeout. Waits for the task the way `stopTask` does.
+         */
+        timeOutTask: string;
       }
   );
 
@@ -1087,7 +1097,9 @@ export async function runEvals(
         const taskToStop =
           "stopTask" in followUp
             ? await taskOnceStarted(id, followUp.stopTask, turn)
-            : undefined;
+            : "timeOutTask" in followUp
+              ? await taskOnceStarted(id, followUp.timeOutTask, turn)
+              : undefined;
         const timedFrom = Math.max(
           lastSentAt,
           taskToStop?.createdAt.getTime() ?? 0,
@@ -1138,6 +1150,23 @@ export async function runEvals(
               sessionRoute.stop,
               { id, sessionId: taskToStop.id },
               { context },
+            );
+          }
+          lastSentAt = Date.now();
+          continue;
+        }
+        if ("timeOutTask" in followUp) {
+          write(
+            `${evalPrefix(label)}${c.dim}Time out: ${followUp.timeOutTask}${taskToStop ? "" : " (no such task)"}${c.reset}\n`,
+          );
+          if (taskToStop) {
+            const { timeouts } = await timeOutTaskTurn(
+              actor,
+              { chatId: id, sessionId: taskToStop.id },
+              Date.now() + (remainingMs() ?? DEFAULT_MAX_RUN_SECONDS * 1000),
+            );
+            write(
+              `${evalPrefix(label)}${c.dim}Timed out ${String(timeouts)} requests of ${followUp.timeOutTask}${c.reset}\n`,
             );
           }
           lastSentAt = Date.now();

@@ -17,6 +17,9 @@
  * - **It leaves a task the user stopped alone.** Stop on t1 writes the chat
  *   a note saying the user stopped it and starts no turn, and nothing is
  *   started again.
+ * - **It picks up a task whose model timed out.** Every request t1 makes
+ *   goes past its timeout until its turn ends: the chat is told it timed out,
+ *   as an error rather than the user's stop, and sends it on or offers to.
  * - **It leaves the work alone when asked what happened.** The user stops
  *   the chat's own turn mid-command, then its task, then asks what
  *   happened: the chat explains, and runs none of the stopped work again,
@@ -356,6 +359,99 @@ const restartedNothing: Assertion = {
   text: "started none of the stopped work again",
 };
 
+/**
+ * The chat's turn t1's timed-out request woke: its reply, and the commands it
+ * ran, from the note on.
+ */
+function afterTheTimeout(sessions: Session.WithMessagesAndParts[]) {
+  const chat = sessions[0];
+  const messages = chat?.messages ?? [];
+  const woke = messages.findIndex((message) =>
+    message.parts.some(
+      (part) =>
+        part.type === "data-taskEvent" &&
+        part.data.events.some((event) => event.ended?.startsWith("Timed out")),
+    ),
+  );
+  if (!chat || woke === -1) {
+    return undefined;
+  }
+  const after = messages.slice(woke + 1);
+  return {
+    commands: commandsIn([{ ...chat, messages: after }]),
+    reply: after
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : [],
+        ),
+      )
+      .join("\n"),
+  };
+}
+
+/**
+ * The setup held: t1's turn ended on a request that timed out, and the chat
+ * was woken with a note that says it timed out, as an error rather than the
+ * user's stop.
+ */
+const notedTheTimeout: Assertion = {
+  check: async (ctx: Context) => {
+    const text = "t1 timed out and the chat was told so, as an error";
+    const events = (ctx.sessions[0]?.messages ?? []).flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === "data-taskEvent" ? part.data.events : [],
+      ),
+    );
+    const timedOut = events.find((event) =>
+      event.ended?.startsWith("Timed out"),
+    );
+    // Read from the note, not t1's row: a later turn, as a retry is, can be
+    // stopped for its own reasons, the run's caps among them.
+    return (
+      timedOut?.status === "error" && timedOut.stoppedBy === undefined
+        ? pass
+        : fail
+    )(
+      text,
+      `notes: ${events.map((event) => `${event.status} "${event.ended ?? event.summary ?? ""}"${event.stoppedBy ? ` by ${event.stoppedBy}` : ""}`).join("; ") || "(none)"}`,
+    );
+  },
+  text: "t1 timed out and the chat was told so, as an error",
+};
+
+/**
+ * Woken by the timeout, the chat sent the task on, started it again, or told
+ * the user it failed and offered to; it never read the timeout as the user's
+ * stop.
+ */
+const retriedOrOfferedTo: Assertion = {
+  check: (ctx: Context) => {
+    const text =
+      "picked the timed-out task up again or offered to, not as a stop";
+    const after = afterTheTimeout(ctx.sessions);
+    if (!after) {
+      return fail(text, "no timeout note");
+    }
+    const retried = after.commands.some((command) =>
+      /(?:^|[\n;&|])\s*task (?:new|send)\b/.test(command),
+    );
+    const offered =
+      /\b(?:try(?:ing)? (?:it )?again|retry|re-?run|restart|resume|pick (?:it |that )?(?:back )?up|send it (?:back|again)|start (?:it )?(?:over|again))\b/i.test(
+        after.reply,
+      );
+    const readAsStop =
+      /\b(?:you stopped|stopped by you|by the user|you(?:'ve)? cancel)/i.test(
+        after.reply,
+      );
+    return ((retried || offered) && !readAsStop ? pass : fail)(
+      text,
+      `${after.commands.filter((command) => /\btask\b/.test(command)).join(" | ") || "no task command"}; reply: ${after.reply.slice(0, 300) || "(none)"}`,
+    );
+  },
+  text: "picked the timed-out task up again or offered to, not as a stop",
+};
+
 export const TASK_SESSION_EVALS = [
   defineEval({
     assertions: [
@@ -409,6 +505,14 @@ export const TASK_SESSION_EVALS = [
     followUps: [{ afterMs: 20_000, stopTask: "t1" }],
     kind: "chat",
     name: "task-session-user-stop",
+    prompt:
+      "Start a background task for this, please: write twenty haiku about tea, one at a time, checking each one's syllable counts before the next, and save them as tea-haiku.md in the workspace folder.",
+  }),
+  defineEval({
+    assertions: [notedTheTimeout, retriedOrOfferedTo],
+    followUps: [{ afterMs: 25_000, timeOutTask: "t1" }],
+    kind: "chat",
+    name: "task-session-timed-out",
     prompt:
       "Start a background task for this, please: write twenty haiku about tea, one at a time, checking each one's syllable counts before the next, and save them as tea-haiku.md in the workspace folder.",
   }),

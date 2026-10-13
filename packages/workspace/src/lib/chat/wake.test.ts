@@ -149,6 +149,90 @@ describe("a stopped task", () => {
   });
 });
 
+describe("a task whose request timed out", () => {
+  // A timeout is nobody's decision: the chat reads it as a failure it can
+  // send the task on from, not as the user's stop.
+  it("wakes the chat with a failure that says it timed out", async () => {
+    const { chatId, taskSession } = await chatWithTask();
+    const now = new Date();
+    const labeled = StoreId.newMessageId();
+    await Store.saveMessageWithParts(
+      {
+        id: labeled,
+        metadata: {
+          createdAt: now,
+          finishReason: "tool-calls",
+          modelId: "glm-5.3-flash",
+          providerId: "openai-compatible",
+          sessionId: taskSession,
+        },
+        parts: [
+          {
+            input: {
+              activity: "Reading the vault",
+              command: "ls vault",
+              explanation: "List the vault",
+              yieldMs: 30_000,
+            },
+            metadata: {
+              createdAt: now,
+              endedAt: now,
+              id: StoreId.newPartId(),
+              messageId: labeled,
+              sessionId: taskSession,
+            },
+            output: {
+              command: "ls vault",
+              commands: ["ls vault"],
+              durationMs: 0,
+              exitCode: 0,
+              omittedBytes: 0,
+              output: "notes.md",
+            },
+            state: "output-available",
+            toolCallId: "call_1",
+            type: "tool-bash",
+          },
+        ],
+        role: "assistant",
+      },
+      chatId,
+    );
+    const cutOff = StoreId.newMessageId();
+    await Store.saveMessageWithParts(
+      {
+        id: cutOff,
+        metadata: {
+          createdAt: now,
+          error: { kind: "aborted", message: "Aborted", reason: "timeout" },
+          finishReason: "aborted",
+          modelId: "glm-5.3-flash",
+          providerId: "openai-compatible",
+          sessionId: taskSession,
+        },
+        parts: [],
+        role: "assistant",
+      },
+      chatId,
+    );
+
+    publisher.publish("session.done", { id: chatId, sessionId: taskSession });
+
+    await vi.waitFor(() => {
+      expect(wakesOf(chatId)).toHaveLength(1);
+    }, 5000);
+    const [event] = wakesOf(chatId);
+    expect(event).toMatchObject({
+      ended: "Timed out while reading the vault",
+      status: "error",
+    });
+    expect(event).not.toHaveProperty("stoppedBy");
+    expect(
+      await taskStanding({ chatId, isRunning: false, sessionId: taskSession }),
+    ).toEqual({ kind: "failed", line: "Timed out while reading the vault" });
+  });
+});
+
 describe("a wake on its way", () => {
   // A wake writes its note before it has the chat's model to start a turn
   // with, which can take a few tries. The chat is at work all that time, and

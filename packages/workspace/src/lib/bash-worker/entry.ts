@@ -34,6 +34,19 @@ if (!port) {
   throw new Error("The bash worker entry must run in a worker thread.");
 }
 
+// A worker's copy of the environment matches names by case, even on Windows,
+// which spells the search path `Path`. Every reader here asks for `PATH`, and
+// without it a native command's PATH would hold only the app's own folders.
+if (process.platform === "win32" && process.env.PATH === undefined) {
+  const spelled = Object.keys(process.env).find(
+    (name) => name.toUpperCase() === "PATH",
+  );
+  if (spelled) {
+    process.env.PATH = process.env[spelled];
+    delete process.env[spelled];
+  }
+}
+
 const runs = new Map<number, AbortController>();
 const calls = new Map<
   number,

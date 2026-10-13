@@ -176,8 +176,7 @@ export function ChatWindow({
   // Whether the thing up is drawn large; only a grown window has the room.
   const [isViewOpen, setViewOpen] = useState(false);
   const showsItem = isExpanded && isViewOpen && up !== undefined;
-  const isWorking =
-    chat === undefined ? sentWords !== undefined : chat.state === "working";
+  const isWorking = chat === undefined ? sentWords !== undefined : chat.working;
   const taskTitles = useTaskTitles();
 
   // The tab peeked at in the small window: a look, kept here and nowhere

@@ -792,6 +792,8 @@ describe("listChats", () => {
     const [busy] = await listChats();
     expect(busy?.state).toBe("waiting");
     expect(busy?.latest?.text).toBe("Which one?");
+    // What it says is the question; what still moves is said apart from it.
+    expect([chat?.working, busy?.working]).toEqual([false, true]);
   });
 
   it("is working while its own agent is alive, saying what it is doing", async () => {

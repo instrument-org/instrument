@@ -183,6 +183,7 @@ function chat(overrides: Partial<Chat> = {}): Chat {
     unread: false,
     unreadByUser: false,
     updatedAt: MOVED_AT.getTime(),
+    working: overrides.state === "working",
     ...overrides,
   };
 }

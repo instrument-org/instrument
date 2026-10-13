@@ -127,6 +127,12 @@ export const ChatSchema = z.object({
   unreadByUser: z.boolean(),
   /** When anything last happened in it, in ms. */
   updatedAt: z.number(),
+  /**
+   * Whether anything of the chat's still moves, by the same rule, whatever
+   * `state` says: a card can wait on the user while a task of its works.
+   * What reads the chat as settled or busy reads this, not `state`.
+   */
+  working: z.boolean(),
 });
 
 export type Chat = z.output<typeof ChatSchema>;
@@ -508,6 +514,7 @@ async function chatFor(
     ask: anyAsk,
     ownWorking,
     state,
+    working,
   } = stateOf(chatId, digest, filed, await openAsks(chatId));
   const ask = state === "working" ? undefined : anyAsk;
 
@@ -572,6 +579,7 @@ async function chatFor(
       digest.lastReplyAt ?? 0,
       latest?.at ?? 0,
     ),
+    working,
   };
 }
 

@@ -4,7 +4,11 @@ import { z } from "zod";
 
 import { type ChatGrant } from "../../schemas/chat-settings";
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { canonicalizeThroughMissing, hostPathWithin } from "../host-path";
+import {
+  canonicalizeThroughMissing,
+  hostPathWithin,
+  withoutDataVolume,
+} from "../host-path";
 import { readJsonRecord, updateJsonRecord } from "../json-record-file";
 import { type Asker } from "./asks";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -276,14 +280,16 @@ export function levelWithoutAsking<L extends Access>(
  * anything asks.
  *
  * "Use folders without asking" turns an ask into an allow, but for the
- * passwords place's. Nothing turns a never into anything else.
+ * passwords place's. Nothing turns a never into anything else. A path on
+ * macOS's Data volume meets the rules as the rest of the system spells it.
  */
 export function reachOf(
   rules: Rules,
   hostPath: string,
   op: "read" | "write",
 ): Reach {
-  const target = fold(path.resolve(hostPath));
+  const resolved = withoutDataVolume(path.resolve(hostPath));
+  const target = fold(resolved);
   let best: undefined | { depth: number; rule: Rule };
   for (const { depth, prefix, root, rule } of compiled(rules)) {
     let held: number | undefined;
@@ -314,7 +320,7 @@ export function reachOf(
     op === "write" &&
     best?.rule.level === "allow" &&
     best.depth < homeDepth(rules) &&
-    hostPathWithin(rules.home, hostPath) !== null
+    hostPathWithin(rules.home, resolved) !== null
   ) {
     best = undefined;
   }

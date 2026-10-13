@@ -50,6 +50,28 @@ describe.runIf(process.platform === "darwin")("reachOf on a Mac", () => {
     expect(reachOf(rules, target, op).level).toBe(level);
   });
 
+  it.each([
+    ["read", `/System/Volumes/Data${home}/.ssh/id_ed25519`, "ask"],
+    [
+      "read",
+      `/system/volumes/data${home}/Documents/Clients/Other/a.pdf`,
+      "ask",
+    ],
+    [
+      "read",
+      `/System/Volumes/Data${home}/Documents/Clients/Acme/Payroll/june.csv`,
+      "never",
+    ],
+    [
+      "write",
+      `/System/Volumes/Data${home}/Documents/Clients/Acme/brief.md`,
+      "allow",
+    ],
+    ["write", `/System/Volumes/Data${home}/notes.md`, "ask"],
+  ] as const)("%s %s by its Data-volume path is %s", (op, target, level) => {
+    expect(reachOf(rules, target, op).level).toBe(level);
+  });
+
   it("turns asks into allows without asking but sign-ins', never never", () => {
     const relaxed = { ...rules, withoutAsking: true };
     expect(reachOf(relaxed, `${home}/Desktop/a.png`, "write").level).toBe(

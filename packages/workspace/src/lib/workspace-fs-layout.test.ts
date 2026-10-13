@@ -134,6 +134,25 @@ describe("buildBashFs", () => {
     expect(result.stdout).toBe("");
   });
 
+  // macOS reaches its Data volume at / through firmlinks, which realpath
+  // leaves alone, so the same file has a second spelling.
+  it.runIf(process.platform === "darwin")(
+    "refuses to read what the rules close by its Data-volume path",
+    async () => {
+      const bash = await makeBash([
+        {
+          level: "never",
+          path: path.join(docs, "readme.txt"),
+          source: "folder",
+        },
+      ]);
+      const real = await fs.realpath(path.join(docs, "readme.txt"));
+      const result = await bash.exec(`cat '/System/Volumes/Data${real}'`);
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stdout).toBe("");
+    },
+  );
+
   // A folder has to reach the real disk. OverlayFs would accept every
   // one of these writes into an in-memory layer that is dropped when the bash
   // call ends, so each case asserts against the host filesystem rather than the

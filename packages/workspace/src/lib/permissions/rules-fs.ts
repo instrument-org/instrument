@@ -2,7 +2,11 @@ import { type IFileSystem } from "just-bash";
 import { existsSync } from "node:fs";
 import nodePath from "node:path";
 
-import { canonicalizeThroughMissing, hostPathWithin } from "../host-path";
+import {
+  canonicalizeThroughMissing,
+  hostPathWithin,
+  withoutDataVolume,
+} from "../host-path";
 import { accountCanWrite, systemOwnedNote } from "./account-can-write";
 import { raiseAsk, waitingNote } from "./asks";
 import { isClosedDiskRoot } from "../disk-root";
@@ -19,7 +23,7 @@ import { folderToAskFor, type Reach, reachOf, type Rules } from "./rules";
 export function ruleRefusal({
   afterAsk,
   asks = true,
-  hostPath,
+  hostPath: given,
   isDirectory = false,
   onDisk = false,
   op,
@@ -53,6 +57,7 @@ export function ruleRefusal({
   rules: Rules;
   spell: (hostPath: string) => string;
 }): string | undefined {
+  const hostPath = withoutDataVolume(given);
   const reach = decided ?? reachOf(rules, hostPath, op);
   if (reach.level === "allow" || reach.level === "hidden") {
     return undefined;

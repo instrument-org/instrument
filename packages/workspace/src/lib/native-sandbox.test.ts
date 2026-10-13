@@ -397,6 +397,11 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
       0,
     ],
     ["refuses a closed folder", ["cat", path.join(closed, "key")], 1],
+    [
+      "refuses a closed folder by its Data-volume path",
+      ["cat", `/System/Volumes/Data${path.join(closed, "key")}`],
+      1,
+    ],
     ["refuses a place that asks", ["cat", path.join(asks, "other.txt")], 1],
     ["refuses a hidden folder", ["cat", path.join(home, ".hidden", "x")], 1],
     [

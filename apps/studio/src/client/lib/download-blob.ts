@@ -1,6 +1,6 @@
-import { type ViewerFile } from "../atoms/task-file-viewer";
+import { type ViewerFile } from "../atoms/viewer-file";
 
-export function downloadTaskFile({
+export function downloadBlob({
   blob,
   filename,
 }: ViewerFile & {

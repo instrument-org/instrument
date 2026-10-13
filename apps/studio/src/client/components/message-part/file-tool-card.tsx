@@ -1,6 +1,6 @@
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 
-import { useShowTaskFile } from "../../hooks/use-show-task-file";
+import { useShowChatFile } from "../../hooks/use-show-chat-file";
 import { getLanguageFromFilePath } from "../../lib/file-extension-to-language";
 import { filenameFromFilePath } from "../../lib/path-utils";
 import { CodeBlock } from "../code-block";
@@ -36,7 +36,7 @@ export function FileToolCard({
 
   const filename = filenameFromFilePath(filePath);
   const detectedLanguage = language ?? getLanguageFromFilePath(filePath);
-  const showTaskFile = useShowTaskFile();
+  const showChatFile = useShowChatFile();
 
   const cleanedContent =
     !isStreaming && content.endsWith("\n") ? content.slice(0, -1) : content;
@@ -45,7 +45,7 @@ export function FileToolCard({
     if (modifiedAt === undefined) {
       return;
     }
-    showTaskFile(filePath);
+    showChatFile(filePath);
   };
 
   if (!content) {

@@ -41,11 +41,11 @@ vi.mock("./files-grid", () => ({
   FilesGrid: ({
     files,
   }: {
-    files: { hostPath: string; taskFile?: { filePath: string } }[];
+    files: { hostPath: string; chatFile?: { filePath: string } }[];
   }) => (
     <ul>
       {files.map((file) => (
-        <li key={file.hostPath}>{file.taskFile?.filePath}</li>
+        <li key={file.hostPath}>{file.chatFile?.filePath}</li>
       ))}
     </ul>
   ),

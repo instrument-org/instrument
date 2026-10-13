@@ -1,4 +1,4 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { trackSelfFileDrag } from "@/client/lib/self-file-drag";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
@@ -44,7 +44,7 @@ interface Gesture {
 }
 
 /**
- * Props that make an element a handle for dragging a task file out to the
+ * Props that make an element a handle for dragging a chat file out to the
  * desktop, the way a file in Finder or File Explorer drags.
  *
  * Spread onto whatever the user would grab. `draggable` is false outside

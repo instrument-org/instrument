@@ -1,11 +1,11 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import {
   FILE_MISSING_LABEL,
   useFilePresence,
 } from "@/client/hooks/use-file-presence";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
-import { useShowTaskFile } from "@/client/hooks/use-show-task-file";
+import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { getFileKindLabel, isMediaFile } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
@@ -28,7 +28,7 @@ import { FolderRowCard } from "./file-preview-card";
 import { FilesGrid, ROW_CARD_GRID } from "./files-grid";
 import { FilesLayoutContext } from "./files-layout-context";
 import { MacFolderIcon } from "./icons/mac-folder";
-import { MarkdownTaskContext } from "./markdown-task-context";
+import { MarkdownChatContext } from "./markdown-chat-context";
 import { MessageCard } from "./message-card";
 
 /**
@@ -39,7 +39,7 @@ import { MessageCard } from "./message-card";
  * This is the agent's own presentation, so it is not the change list. It shows
  * what the agent named and nothing it did not, wherever the file lives -- which
  * is the point, now that a shared folder is somewhere the agent can write and
- * the task-directory watcher cannot see.
+ * a watcher on the chat's folder cannot see.
  *
  * Every card is drawn from its path and the id of the reply that named it,
  * without asking disk whether the file is there. A transcript is a record of
@@ -62,7 +62,7 @@ export function AgentFilesBlock({
   className?: string;
   content: string;
 }) {
-  const { isStreaming } = useContext(MarkdownTaskContext);
+  const { isStreaming } = useContext(MarkdownChatContext);
 
   // A fence still arriving ends mid-path: the model has typed `work/ch` of
   // `work/chart.png`, and an optimistic card would be drawn and replaced on
@@ -118,9 +118,9 @@ export function FilePathsGrid({
   paths: string[];
   pendingFilePath?: string;
 }) {
-  const { assetVersion, chatId } = useContext(MarkdownTaskContext);
+  const { assetVersion, chatId } = useContext(MarkdownChatContext);
   const layout = useContext(FilesLayoutContext);
-  const showTaskFile = useShowTaskFile();
+  const showChatFile = useShowChatFile();
   const [folderPaths, filePaths] = fork(paths, isFolderPath);
   // The reply names files as the task knows them; the screen shows them by
   // where they are. A file the task cannot reach, or one not yet translated,
@@ -154,7 +154,7 @@ export function FilePathsGrid({
       file={{
         name: nameOfPath(path),
         open: () => {
-          showTaskFile(path);
+          showChatFile(path);
         },
       }}
       key={path}
@@ -172,7 +172,7 @@ export function FilePathsGrid({
     return {
       filename: nameOfPath(filePath),
       hostPath,
-      taskFile: { filePath, chatId },
+      chatFile: { filePath, chatId },
       url: getComputerFileUrl({ hostPath, version: assetVersion }),
     };
   };
@@ -191,7 +191,7 @@ export function FilePathsGrid({
               <FolderLine
                 key={path}
                 onClick={() => {
-                  showTaskFile(path);
+                  showChatFile(path);
                 }}
                 path={path}
               />
@@ -200,7 +200,7 @@ export function FilePathsGrid({
                 file={fileOf(path)}
                 key={path}
                 onClick={() => {
-                  showTaskFile(path);
+                  showChatFile(path);
                 }}
                 path={path}
               />
@@ -220,7 +220,7 @@ export function FilePathsGrid({
               <div data-slot="files-grid-card" key={path}>
                 <FolderRowCard
                   onClick={() => {
-                    showTaskFile(path);
+                    showChatFile(path);
                   }}
                   path={path}
                 />

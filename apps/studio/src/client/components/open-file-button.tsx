@@ -1,4 +1,4 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { type FileOpenControl } from "@/client/hooks/use-file-open-control";
 import { cn } from "@/client/lib/utils";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
@@ -11,7 +11,7 @@ import { ButtonGroup } from "./ui/button-group";
 
 type FileRef = Pick<ViewerFile, "hostPath">;
 
-export function OpenTaskFileButton({
+export function OpenFileButton({
   className,
   control,
   dropdownClassName,

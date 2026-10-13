@@ -9,7 +9,7 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import { AgentFilesBlock } from "./agent-files-block";
 import { AssistantMessage } from "./assistant-message";
-import { MarkdownTaskContext } from "./markdown-task-context";
+import { MarkdownChatContext } from "./markdown-chat-context";
 
 vi.mock("@/client/hooks/use-host-paths", () => ({
   useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
@@ -99,9 +99,9 @@ test("a message file named in a files fence draws as the card", async () => {
   );
   const screen = await renderInBrowser(
     <div style={{ width: 560 }}>
-      <MarkdownTaskContext value={{ isStreaming: false, chatId }}>
+      <MarkdownChatContext value={{ isStreaming: false, chatId }}>
         <AgentFilesBlock content={"work/text-to-sam.md\n"} />
-      </MarkdownTaskContext>
+      </MarkdownChatContext>
     </div>,
   );
 

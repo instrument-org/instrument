@@ -2,13 +2,13 @@ import { type ChatId } from "@instrument-org/workspace/client";
 import { createContext } from "react";
 
 /**
- * Carries the ambient task context down to the module-scope components a
+ * Carries the ambient chat context down to the module-scope components a
  * Markdown node renders through, so a file reference can place the file on
- * the computer and build its file-action menu. Absent outside a task chat (a
+ * the computer and build its file-action menu. Absent outside a chat (a
  * previewed Markdown file, reasoning), which is what those components degrade
  * against.
  */
-export const MarkdownTaskContext = createContext<{
+export const MarkdownChatContext = createContext<{
   // What this text's file references are a reference *as of*, passed to
   // `getComputerFileUrl` as the version. A message part's id, so two replies
   // naming one rewritten path do not share a URL and therefore do not share

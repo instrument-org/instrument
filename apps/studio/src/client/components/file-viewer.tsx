@@ -1,5 +1,5 @@
 import { fileViewerWrapLinesAtom } from "@/client/atoms/file-viewer-wrap-lines";
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import {
@@ -66,7 +66,7 @@ import { ImageViewer } from "./image-viewer";
 import { MarkdownDocument } from "./markdown-outline";
 import { MessageCard } from "./message-card";
 import { OpenInAppMenuItems } from "./open-in-app";
-import { OpenTaskFileButton } from "./open-task-file-button";
+import { OpenFileButton } from "./open-file-button";
 import { SessionMarkdown } from "./session-markdown";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
@@ -214,7 +214,7 @@ function MarkdownPreview({ url }: { url: string }) {
     );
   }
 
-  // The file's own pictures and nothing else: a `.md` in the task folder is a
+  // The file's own pictures and nothing else: a `.md` in the chat's folder is a
   // file someone else may have written -- a cloned repo, an attachment, agent
   // output -- and an `<img>` naming a host is a request the moment the preview
   // renders. A relative source names no host, so it is resolved against this
@@ -917,7 +917,7 @@ export function FileViewer({
         </ToolbarTooltip>
       )}
       {!isInRow && (
-        <OpenTaskFileButton
+        <OpenFileButton
           className={fileViewerHeaderActionClassName}
           control={openControl}
           dropdownClassName={fileViewerHeaderOpenWithTriggerClassName}

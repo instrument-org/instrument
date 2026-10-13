@@ -10,8 +10,8 @@ import { FileViewer } from "./file-viewer";
 vi.mock("../hooks/use-file-open-control", () => ({
   useFileOpenControl: () => ({}),
 }));
-vi.mock("./open-task-file-button", () => ({
-  OpenTaskFileButton: () => null,
+vi.mock("./open-file-button", () => ({
+  OpenFileButton: () => null,
 }));
 // Zoom needs browser layout; these checks exercise preview loading and failure.
 vi.mock("../hooks/use-image-panzoom", () => ({
@@ -45,7 +45,7 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
-// A `.md` that arrived in the task folder: one image of every kind the agent's
+// A `.md` that arrived in the chat's folder: one image of every kind the agent's
 // own markdown would be allowed to fetch, plus the embedded one that stays and
 // the chart the file wrote beside itself.
 const MARKDOWN_FILE = [
@@ -80,14 +80,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// A `.md` in the task folder is a file someone else may have written -- a
+// A `.md` in the chat's folder is a file someone else may have written -- a
 // cloned repo, an attachment, agent output -- and an `<img>` naming a host is
 // fetched the moment the preview renders, with no click in between.
 describe("FileViewer markdown preview", () => {
   // The file's own chart is the one thing here that is not a request of the
   // author's choosing: the path names no origin, so resolved against the
   // document it lands where the file itself was read from. It sits in
-  // `output/`, so a join from the task root would have drawn the wrong URL.
+  // `output/`, so a join from the chat's folder would have drawn the wrong URL.
   it("draws the file's own images and nothing it names a host for", async () => {
     const { container } = renderMarkdownFile();
     await screen.findByText("Notes");

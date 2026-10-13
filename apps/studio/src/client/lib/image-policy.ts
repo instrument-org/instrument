@@ -148,7 +148,7 @@ export const UNTRUSTED_FILE_IMAGE_KINDS = [
 ] as const satisfies readonly ImageSourceKind[];
 
 /**
- * The same file, when it sits in the task's own folder and its reader resolves
+ * The same file, when it sits in the chat's own folder and its reader resolves
  * a relative source against it.
  *
  * Prose no more trusted than the above -- a `.md` in a task is as likely to

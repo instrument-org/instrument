@@ -1,4 +1,4 @@
-import { type ViewerFile } from "@/client/atoms/task-file-viewer";
+import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibility";
 import { useFileOpenControl } from "@/client/hooks/use-file-open-control";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
@@ -10,7 +10,7 @@ import {
 } from "./document-viewers/viewer-error";
 import { FileTypeIcon } from "./extend/file-system";
 import { FileActionsMenuItems } from "./file-actions-menu";
-import { OpenTaskFileButton } from "./open-task-file-button";
+import { OpenFileButton } from "./open-file-button";
 import { Button } from "./ui/button";
 import {
   ContextMenu,
@@ -51,7 +51,7 @@ export function FilePreviewFallback({
         <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       </div>
       {canOpen ? (
-        <OpenTaskFileButton
+        <OpenFileButton
           control={openControl}
           file={file}
           iconClassName="size-5"

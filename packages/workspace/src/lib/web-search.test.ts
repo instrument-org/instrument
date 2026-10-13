@@ -429,7 +429,7 @@ describe("webSearch", () => {
 
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(results.at(-1)?._unsafeUnwrap()).toMatchObject({
-        costDollars: 0.007,
+        kind: "excerpts",
       });
     });
 

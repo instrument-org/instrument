@@ -276,6 +276,7 @@ export const workspaceMachine = setup({
       getAIProviderConfigs: GetProviderConfigs;
       getUser?: WorkspaceConfig["getUser"];
       indexesDir?: string;
+      workspaceMachineDir?: string;
       modelCache: ModelCache;
       nativeSandbox?: WorkspaceConfig["nativeSandbox"];
       nodeExecEnv: Record<string, string>;
@@ -319,6 +320,11 @@ export const workspaceMachine = setup({
       ...(input.knownFolders ? { knownFolders: input.knownFolders } : {}),
       ...(input.indexesDir && {
         indexesDir: AbsolutePathSchema.parse(input.indexesDir),
+      }),
+      ...(input.workspaceMachineDir && {
+        workspaceMachineDir: AbsolutePathSchema.parse(
+          input.workspaceMachineDir,
+        ),
       }),
       modelCache: input.modelCache,
       ...(input.nativeSandbox && {

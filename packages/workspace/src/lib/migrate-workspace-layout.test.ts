@@ -4,7 +4,10 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { migrateLegacyTasks } from "./migrate-legacy-tasks";
-import { migrateWorkspaceLayout } from "./migrate-workspace-layout";
+import {
+  type LayoutMarks,
+  migrateWorkspaceLayout,
+} from "./migrate-workspace-layout";
 
 // The tasks here are 1.x-shaped on purpose, which is what the adoption into
 // chats looks for; it has tests of its own, and would move them out from under
@@ -19,9 +22,12 @@ const NOTHING_ADOPTED = {
 };
 
 let rootDir: string;
+// The workspace's marks, as the app keeps them in its workspace.json.
+let marks: LayoutMarks;
 
 beforeEach(() => {
   rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "migrate-layout-"));
+  marks = {};
   vi.mocked(migrateLegacyTasks).mockReset().mockReturnValue(NOTHING_ADOPTED);
 });
 
@@ -71,12 +77,21 @@ function writeTaskSettings(chatId: string, settings: Record<string, unknown>) {
   );
 }
 
-const MARKER = [".instrument", ".legacy-projects-migrated"];
-const LAYOUT_MARKER = [".instrument", ".layout-version"];
+function migrate() {
+  return migrateWorkspaceLayout({
+    marks: {
+      read: () => marks,
+      write: (change) => {
+        marks = { ...marks, ...change };
+      },
+    },
+    rootDir,
+  });
+}
 
 describe("migrateWorkspaceLayout", () => {
-  it("no-ops when there is no legacy projects/ dir, but still records the marker", () => {
-    const result = migrateWorkspaceLayout({ rootDir });
+  it("no-ops when there is no legacy projects/ dir, but still records the mark", () => {
+    const result = migrate();
     expect(result).toEqual({
       conflictedTaskIds: [],
       legacyTasks: {
@@ -89,9 +104,9 @@ describe("migrateWorkspaceLayout", () => {
       removedBrowserProfileCloneCount: 0,
     });
     expect(exists("tasks")).toBe(false);
-    // Fresh install: the marker is dropped on first boot so a later project in
+    // Fresh install: the mark is set on first boot so a later project in
     // projects/ is never seen by a re-run.
-    expect(exists(...MARKER)).toBe(true);
+    expect(marks.legacyProjectsMigrated).toBe(true);
   });
 
   it("moves tasks and renames db + state files", () => {
@@ -106,11 +121,11 @@ describe("migrateWorkspaceLayout", () => {
       `{"name":"My Task"}`,
     );
 
-    const result = migrateWorkspaceLayout({ rootDir });
+    const result = migrate();
 
     expect(result.movedTaskCount).toBe(1);
     expect(result.conflictedTaskIds).toEqual([]);
-    expect(exists(...MARKER)).toBe(true);
+    expect(marks.legacyProjectsMigrated).toBe(true);
 
     // legacy dir gone
     expect(exists("projects")).toBe(false);
@@ -138,7 +153,7 @@ describe("migrateWorkspaceLayout", () => {
     fs.mkdirSync(chatDir, { recursive: true });
     fs.writeFileSync(path.join(chatDir, "instrument.json"), `{"name":"Abc"}`);
 
-    migrateWorkspaceLayout({ rootDir });
+    migrate();
 
     expect(readSettings("abc").name).toBe("Abc");
     expect(exists("tasks", "abc", "instrument.json")).toBe(false);
@@ -149,7 +164,7 @@ describe("migrateWorkspaceLayout", () => {
     fs.mkdirSync(chatDir, { recursive: true });
     fs.writeFileSync(path.join(chatDir, "settings.json"), `{"name":"Abc"}`);
 
-    migrateWorkspaceLayout({ rootDir });
+    migrate();
 
     expect(readSettings("abc").name).toBe("Abc");
     expect(exists("tasks", "abc", "settings.json")).toBe(false);
@@ -170,7 +185,7 @@ describe("migrateWorkspaceLayout", () => {
       const workedAt = new Date("2026-03-04T05:06:07.000Z");
       fs.utimesSync(dbPath, madeAt, workedAt);
 
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
 
       // birthtime is not settable, so only the mtime-derived stamp is asserted
       // here: it is the one that orders the list.
@@ -181,7 +196,7 @@ describe("migrateWorkspaceLayout", () => {
     it("falls back to the task folder for a task that never opened a db", () => {
       writeTaskSettings("abc", { name: "Abc" });
 
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
 
       const folderMtime = fs
         .statSync(path.join(rootDir, "tasks", "abc"))
@@ -200,7 +215,7 @@ describe("migrateWorkspaceLayout", () => {
         "db",
       );
 
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
 
       expect(readSettings("abc")).toEqual({
         createdAt: "2020-01-01T00:00:00.000Z",
@@ -215,7 +230,7 @@ describe("migrateWorkspaceLayout", () => {
         name: "Abc",
       });
 
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
 
       expect(readSettings("abc").lastActivityAt).toBe(
         "2021-01-01T00:00:00.000Z",
@@ -229,7 +244,7 @@ describe("migrateWorkspaceLayout", () => {
         id: "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV",
       });
 
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
 
       expect(readSettings("my-project").lastActivityAt).toBeUndefined();
     });
@@ -239,7 +254,7 @@ describe("migrateWorkspaceLayout", () => {
       fs.mkdirSync(privateDir, { recursive: true });
       fs.writeFileSync(path.join(privateDir, "settings.json"), "{ not json");
 
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
 
       expect(read("tasks", "abc", ".instrument", "settings.json")).toBe(
         "{ not json",
@@ -254,7 +269,7 @@ describe("migrateWorkspaceLayout", () => {
       "sessions.db-wal": "wal",
     });
 
-    migrateWorkspaceLayout({ rootDir });
+    migrate();
 
     expect(read("tasks", "abc", ".instrument", "task.db")).toBe("main");
     expect(read("tasks", "abc", ".instrument", "task.db-wal")).toBe("wal");
@@ -264,8 +279,8 @@ describe("migrateWorkspaceLayout", () => {
   it("is idempotent — a second run no-ops", () => {
     writeLegacyTask("abc", { "sessions.db": "db" });
 
-    const first = migrateWorkspaceLayout({ rootDir });
-    const second = migrateWorkspaceLayout({ rootDir });
+    const first = migrate();
+    const second = migrate();
 
     expect(first.movedTaskCount).toBe(1);
     expect(second.movedTaskCount).toBe(0);
@@ -279,7 +294,7 @@ describe("migrateWorkspaceLayout", () => {
     fs.mkdirSync(migratedPrivate, { recursive: true });
     fs.writeFileSync(path.join(migratedPrivate, "task.db"), "current-db");
 
-    const result = migrateWorkspaceLayout({ rootDir });
+    const result = migrate();
 
     expect(result.conflictedTaskIds).toEqual(["abc"]);
     expect(result.movedTaskCount).toBe(0);
@@ -292,38 +307,38 @@ describe("migrateWorkspaceLayout", () => {
     );
   });
 
-  it("runs the legacy projects/ move at most once (marker gated)", () => {
+  it("runs the legacy projects/ move at most once (mark gated)", () => {
     writeLegacyTask("abc", { "sessions.db": "db" });
-    migrateWorkspaceLayout({ rootDir });
+    migrate();
 
-    // projects/ is now the live feature dir; marker must block a re-run.
+    // projects/ is now the live feature dir; the mark must block a re-run.
     writeLegacyTask("def", { "sessions.db": "db2" });
-    const result = migrateWorkspaceLayout({ rootDir });
+    const result = migrate();
 
     expect(result.movedTaskCount).toBe(0);
     expect(exists("tasks", "def")).toBe(false);
     expect(read("projects", "def", ".instrument", "sessions.db")).toBe("db2");
   });
 
-  it("never moves a real project folder, even with the marker absent", () => {
-    // The regression: a populated projects/ with no marker yet. The content
-    // guard must keep the real project in place regardless of the marker.
+  it("never moves a real project folder, even with the mark absent", () => {
+    // The regression: a populated projects/ with no mark yet. The content
+    // guard must keep the real project in place regardless of the mark.
     writeProjectFolder("My Project", "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV");
 
-    const result = migrateWorkspaceLayout({ rootDir });
+    const result = migrate();
 
     expect(result.movedTaskCount).toBe(0);
     expect(result.conflictedTaskIds).toEqual([]);
     expect(exists("projects", "My Project", "AGENTS.md")).toBe(true);
     expect(exists("tasks", "My Project")).toBe(false);
-    expect(exists(...MARKER)).toBe(true);
+    expect(marks.legacyProjectsMigrated).toBe(true);
   });
 
   it("drains legacy tasks but leaves project folders in projects/", () => {
     writeLegacyTask("legacy-task", { "sessions.db": "db" });
     writeProjectFolder("My Project", "prj_01ARZ3NDEKTSV4RRFFQ69G5FAV");
 
-    const result = migrateWorkspaceLayout({ rootDir });
+    const result = migrate();
 
     expect(result.movedTaskCount).toBe(1);
     expect(read("tasks", "legacy-task", ".instrument", "task.db")).toBe("db");
@@ -337,7 +352,7 @@ describe("migrateWorkspaceLayout", () => {
     fs.writeFileSync(path.join(taskRoot, "package.json"), `{"name":"task"}`);
     fs.writeFileSync(path.join(taskRoot, "output", "report.md"), "out");
 
-    migrateWorkspaceLayout({ rootDir });
+    migrate();
 
     expect(read("tasks", "abc", "package.json")).toBe(`{"name":"task"}`);
     expect(exists("tasks", "abc", "work", "package.json")).toBe(false);
@@ -356,7 +371,7 @@ describe("migrateWorkspaceLayout", () => {
     );
     fs.writeFileSync(path.join(workDir, "draft.md"), "scratch");
 
-    migrateWorkspaceLayout({ rootDir });
+    migrate();
 
     expect(read("tasks", "abc", "package.json")).toBe(`{"name":"task"}`);
     expect(read("tasks", "abc", "pnpm-workspace.yaml")).toBe(
@@ -379,7 +394,7 @@ describe("migrateWorkspaceLayout", () => {
       "img",
     );
 
-    migrateWorkspaceLayout({ rootDir });
+    migrate();
 
     expect(read("tasks", "abc", ".state", "agent-browser", "shot.png")).toBe(
       "img",
@@ -393,7 +408,7 @@ describe("migrateWorkspaceLayout", () => {
     fs.writeFileSync(path.join(clone, "Cookies"), "sqlite");
     fs.writeFileSync(path.join(tmpDir, "scratch.csv"), "a,b");
 
-    migrateWorkspaceLayout({ rootDir });
+    migrate();
 
     expect(
       exists("tasks", "abc", ".tmp", "agent-browser-profile-abc-123"),
@@ -426,9 +441,9 @@ describe("migrateWorkspaceLayout", () => {
         "task.db-wal": "wal",
       });
 
-      migrateWorkspaceLayout({ rootDir });
-      fs.writeFileSync(path.join(rootDir, ...LAYOUT_MARKER), "0");
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
+      marks = { ...marks, layoutVersion: 0 };
+      migrate();
 
       expect(chatFiles("2026-10-01-chat")).toEqual([
         "chat.db",
@@ -452,7 +467,7 @@ describe("migrateWorkspaceLayout", () => {
         "task.db": "main",
       });
 
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
 
       expect(chatFiles("2026-10-01-chat")).toEqual(["chat.db", "chat.db-wal"]);
     });
@@ -463,7 +478,7 @@ describe("migrateWorkspaceLayout", () => {
         "task.db": "stale",
       });
 
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
 
       expect(read("chats", "2026-10-01-chat", ".instrument", "chat.db")).toBe(
         "current",
@@ -483,7 +498,7 @@ describe("migrateWorkspaceLayout", () => {
       fs.mkdirSync(windowPrivate, { recursive: true });
       fs.writeFileSync(path.join(windowPrivate, "task.db"), "tabs");
 
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
 
       expect(fs.readdirSync(windowPrivate)).toEqual(["chat.db"]);
     });
@@ -502,16 +517,16 @@ describe("migrateWorkspaceLayout", () => {
       fs.mkdirSync(leftOver, { recursive: true });
       fs.writeFileSync(path.join(leftOver, "task.db"), "fork");
 
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
 
       expect(fs.readdirSync(leftOver)).toEqual(["task.db"]);
     });
   });
 
-  describe("layout version marker", () => {
-    it("records the marker, then skips the per-task sweep while it is current", () => {
-      migrateWorkspaceLayout({ rootDir });
-      expect(exists(...LAYOUT_MARKER)).toBe(true);
+  describe("layout version mark", () => {
+    it("records the mark, then skips the per-task sweep while it is current", () => {
+      migrate();
+      expect(marks.layoutVersion).toBeDefined();
 
       // A legacy-shaped task appearing after the sweep (e.g. hand-copied into
       // tasks/) is left alone until the layout version is bumped.
@@ -519,7 +534,7 @@ describe("migrateWorkspaceLayout", () => {
       fs.mkdirSync(chatDir, { recursive: true });
       fs.writeFileSync(path.join(chatDir, "instrument.json"), `{"name":"Abc"}`);
 
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
 
       expect(exists("tasks", "abc", "instrument.json")).toBe(true);
       expect(exists("tasks", "abc", ".instrument", "settings.json")).toBe(
@@ -527,48 +542,48 @@ describe("migrateWorkspaceLayout", () => {
       );
     });
 
-    it("re-runs the sweep when the marker holds a stale version", () => {
-      migrateWorkspaceLayout({ rootDir });
-      fs.writeFileSync(path.join(rootDir, ...LAYOUT_MARKER), "0");
+    it("re-runs the sweep when the mark holds a stale version", () => {
+      migrate();
+      marks = { ...marks, layoutVersion: 0 };
       const chatDir = path.join(rootDir, "tasks", "abc");
       fs.mkdirSync(chatDir, { recursive: true });
       fs.writeFileSync(path.join(chatDir, "instrument.json"), `{"name":"Abc"}`);
 
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
 
       expect(readSettings("abc").name).toBe("Abc");
       expect(exists("tasks", "abc", "instrument.json")).toBe(false);
     });
 
-    it("adopts 1.x tasks only on a sweep, so a boot with a current marker skips it", () => {
-      migrateWorkspaceLayout({ rootDir });
-      migrateWorkspaceLayout({ rootDir });
+    it("adopts 1.x tasks only on a sweep, so a boot with a current mark skips it", () => {
+      migrate();
+      migrate();
 
       expect(migrateLegacyTasks).toHaveBeenCalledTimes(1);
     });
 
-    it("leaves the marker unwritten while a 1.x task is left over, so the next boot retries it", () => {
+    it("leaves the mark unwritten while a 1.x task is left over, so the next boot retries it", () => {
       vi.mocked(migrateLegacyTasks).mockReturnValueOnce({
         ...NOTHING_ADOPTED,
         leftOver: 1,
       });
 
-      migrateWorkspaceLayout({ rootDir });
-      expect(exists(...LAYOUT_MARKER)).toBe(false);
+      migrate();
+      expect(marks.layoutVersion).toBeUndefined();
 
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
       expect(migrateLegacyTasks).toHaveBeenCalledTimes(2);
-      expect(exists(...LAYOUT_MARKER)).toBe(true);
+      expect(marks.layoutVersion).toBeDefined();
     });
 
-    it("sweeps tasks the legacy projects/ move brought in even when the marker is current", () => {
-      migrateWorkspaceLayout({ rootDir });
-      // A lost legacy marker re-runs pass 1; the tasks it moves in are
-      // legacy-shaped and must be normalized despite the current layout marker.
-      fs.rmSync(path.join(rootDir, ...MARKER));
+    it("sweeps tasks the legacy projects/ move brought in even when the mark is current", () => {
+      migrate();
+      // A lost legacy mark re-runs pass 1; the tasks it moves in are
+      // legacy-shaped and must be normalized despite the current layout mark.
+      marks = { ...marks, legacyProjectsMigrated: undefined };
       writeLegacyTask("def", { "sessions.db": "db2" });
 
-      migrateWorkspaceLayout({ rootDir });
+      migrate();
 
       expect(read("tasks", "def", ".instrument", "task.db")).toBe("db2");
     });
@@ -581,7 +596,7 @@ describe("migrateWorkspaceLayout", () => {
     fs.writeFileSync(path.join(taskRoot, "user-provided", "upload.txt"), "up");
     fs.writeFileSync(path.join(taskRoot, "agent-retrieved", "page.html"), "pg");
 
-    migrateWorkspaceLayout({ rootDir });
+    migrate();
 
     expect(read("tasks", "abc", "attachments", "upload.txt")).toBe("up");
     expect(read("tasks", "abc", "attachments", "page.html")).toBe("pg");

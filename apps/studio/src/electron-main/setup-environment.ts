@@ -6,6 +6,7 @@ import fixPath from "fix-path";
 import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
+import { machineDir } from "./lib/get-workspace-folder";
 import {
   LAUNCH_OVERRIDES_FILENAME,
   readLaunchOverrides,
@@ -19,6 +20,7 @@ import {
   migrateMachineSettings,
   migrateWorkspaceSettings,
 } from "./lib/settings-migration";
+import { moveMachineData } from "./lib/machine-data-migration";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
 import {
   markWorkspaceOpen,
@@ -73,12 +75,13 @@ initializeElectronLogging();
 installAISDKWarningLogger();
 
 /**
- * Settles which workspace this process runs and brings its settings up to this
- * build, before any store opens: every workspace store reads its folder from
- * the resolved workspace when it is first asked for.
+ * Settles which workspace this process runs, brings its settings up to this
+ * build, and moves what is this computer's own into its machine folder, before
+ * any store opens: every workspace store reads its folder from the resolved
+ * workspace when it is first asked for.
  */
 function openWorkspace() {
-  const userDataDir = app.getPath("userData");
+  const userDataDir = machineDir();
   const { problems, workspace } = resolveWorkspace({
     pin: process.env.INSTRUMENT_WORKSPACE,
     userDataDir,
@@ -86,7 +89,6 @@ function openWorkspace() {
   for (const problem of problems) {
     logger.warn(problem);
   }
-  setResolvedWorkspace(workspace);
   logger.info(
     `Workspace ${workspace.id}${workspace.pinned ? " (pinned)" : ""}: ${workspace.path}`,
   );
@@ -102,11 +104,19 @@ function openWorkspace() {
     logger.info(`Settings migration: ${step}`);
   }
 
-  markWorkspaceOpen(workspace.path);
+  // After the settings migration, which brings what predates workspaces into
+  // the folder this takes it from.
+  const moved = moveMachineData({ userDataDir, workspace });
+  for (const step of moved.done) {
+    logger.info(`Machine data: ${step}`);
+  }
+  setResolvedWorkspace({ ...workspace, machineDir: moved.machineDir });
+
+  markWorkspaceOpen(moved.machineDir);
   // On process exit rather than `will-quit`: the quit teardown ends in
   // `app.exit`, which skips `will-quit`.
   process.on("exit", () => {
-    releaseOpenMark(workspace.path);
+    releaseOpenMark(moved.machineDir);
   });
 }
 

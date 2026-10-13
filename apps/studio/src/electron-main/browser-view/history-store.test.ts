@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
-  getWorkspaceFolder: () => "/unused",
+  workspaceBrowserDir: () => "/unused",
 }));
 
 import { createHistoryStore } from "./history-store";

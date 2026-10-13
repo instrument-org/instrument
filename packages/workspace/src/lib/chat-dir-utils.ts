@@ -1,12 +1,16 @@
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
+
 import { CHAT_DB_FILE_NAME, CHAT_FOLDER_NAMES } from "../constants";
 import { type AbsolutePath, type ChatDir } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { getWorkspaceConfig } from "./workspace-config";
+import { workspaceMachineDir } from "./workspace-machine-dir";
 
+/** The in-app browser's Chromium profile, on this computer's side of the workspace. */
 export function getBrowserSessionDir(): AbsolutePath {
   return absolutePathJoin(
-    getWorkspaceConfig().rootDir,
-    CHAT_FOLDER_NAMES.private,
+    workspaceMachineDir(),
+    WORKSPACE_MACHINE_ENTRIES.browser,
     CHAT_FOLDER_NAMES.browserSession,
   );
 }

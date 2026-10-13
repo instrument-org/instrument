@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { workspaceSettingsDirOf } from "./settings-migration";
 import {
   createWorkspace,
+  keysDirOf,
   listWorkspaces,
   registerStray,
   unregisterWorkspace,
@@ -13,9 +14,15 @@ import {
 } from "./workspace-management";
 import {
   defaultWorkspacePath,
+  machineDirOwnedBy,
+  markWorkspaceOpen,
   readRegistry,
+  readWorkspaceIdentity,
+  releaseOpenMark,
   type ResolvedWorkspace,
+  settleWorkspaceId,
   updateRegistry,
+  workspaceMachineDirOf,
   workspacePrivateDir,
   writeWorkspaceIdentity,
 } from "./workspaces";
@@ -31,15 +38,23 @@ beforeEach(() => {
     path: defaultWorkspacePath(userDataDir),
     pinned: false,
   };
-  fs.mkdirSync(workspaceSettingsDirOf(resolved.path), { recursive: true });
 });
 
 afterEach(() => {
   fs.rmSync(userDataDir, { force: true, recursive: true });
 });
 
-function settingsOf(dir: string) {
-  return fs.readdirSync(workspaceSettingsDirOf(dir)).toSorted();
+function entriesOf(dir: string) {
+  return fs.readdirSync(dir).toSorted();
+}
+
+/** The machine folder the workspace at `dir` settled on. */
+function machineDirOf(dir: string) {
+  const machineDir = machineDirOwnedBy(userDataDir, dir);
+  if (machineDir === undefined) {
+    throw new Error(`${dir} has no machine folder`);
+  }
+  return machineDir;
 }
 
 describe("createWorkspace", () => {
@@ -52,15 +67,24 @@ describe("createWorkspace", () => {
       userDataDir,
     });
     expect(id).toBe("byok-only");
-    expect(settingsOf(dir)).toEqual(["preferences.json"]);
+    expect(entriesOf(workspacePrivateDir(dir))).toEqual([
+      "preferences.json",
+      "workspace.json",
+    ]);
     expect(
       JSON.parse(
         fs.readFileSync(
-          path.join(workspaceSettingsDirOf(dir), "preferences.json"),
+          path.join(workspacePrivateDir(dir), "preferences.json"),
           "utf8",
         ),
       ),
     ).toEqual({ developerMode: true });
+    // Already in the current format, with an id of its own and a machine
+    // folder holding nothing but the record of whose it is.
+    const identity = readWorkspaceIdentity(dir);
+    expect(identity.formatVersion).toBe(1);
+    expect(identity.id).toMatch(/^[\dA-Z]{26}$/);
+    expect(entriesOf(machineDirOf(dir))).toEqual(["workspace-folder.json"]);
     expect(readRegistry(userDataDir).workspaces.map((w) => w.id)).toEqual([
       "default",
       "byok-only",
@@ -68,7 +92,8 @@ describe("createWorkspace", () => {
   });
 
   it("copies only the sign-in stores when asked", () => {
-    const from = workspaceSettingsDirOf(resolved.path);
+    const from = path.join(userDataDir, "keys-of-the-open-workspace");
+    fs.mkdirSync(from, { recursive: true });
     for (const file of [
       "session-dev.json",
       "providers.json",
@@ -81,18 +106,25 @@ describe("createWorkspace", () => {
     }
     const { path: dir } = createWorkspace({
       color: "blue",
-      copySignInsFrom: resolved.path,
+      copySignInsFrom: from,
       developerMode: false,
       name: "Second account",
       userDataDir,
     });
     // Not the ChatGPT account: two holders of its rotating refresh token sign
     // each other out.
-    expect(settingsOf(dir)).toEqual([
-      "preferences.json",
+    expect(entriesOf(path.join(machineDirOf(dir), "keys"))).toEqual([
       "providers.json",
       "session-dev.json",
-      "state.json",
+    ]);
+    expect(
+      JSON.parse(
+        fs.readFileSync(path.join(machineDirOf(dir), "state.json"), "utf8"),
+      ),
+    ).toEqual({ hasCompletedProviderSetup: true });
+    expect(entriesOf(workspacePrivateDir(dir))).toEqual([
+      "preferences.json",
+      "workspace.json",
     ]);
   });
 
@@ -132,6 +164,7 @@ describe("listWorkspaces", () => {
     writeWorkspaceIdentity(stray, {
       color: "red",
       createdBy: { kind: "person" },
+      formatVersion: 0,
       name: "Stray",
       settingsVersion: 1,
     });
@@ -165,6 +198,86 @@ describe("listWorkspaces", () => {
       "kept",
       "stray",
     ]);
+  });
+});
+
+describe("where a workspace's own data is", () => {
+  it("finds the sign-ins in the machine folder, or the settings folder of one not yet moved", () => {
+    const { path: moved } = createWorkspace({
+      color: "gray",
+      copySignInsFrom: null,
+      developerMode: true,
+      name: "Moved",
+      userDataDir,
+    });
+    expect(keysDirOf(userDataDir, moved)).toBe(
+      path.join(machineDirOf(moved), "keys"),
+    );
+    expect(keysDirOf(userDataDir, resolved.path)).toBe(
+      workspaceSettingsDirOf(resolved.path),
+    );
+  });
+
+  it("reports a workspace another process holds open by its machine folder's mark", () => {
+    const { path: dir } = createWorkspace({
+      color: "gray",
+      copySignInsFrom: null,
+      developerMode: true,
+      name: "Busy",
+      userDataDir,
+    });
+    fs.writeFileSync(
+      path.join(machineDirOf(dir), "open.pid"),
+      process.ppid.toString(),
+    );
+    const busy = () =>
+      listWorkspaces({ resolved, userDataDir }).find(
+        (listing) => listing.path === dir,
+      )?.openElsewhereBy;
+    expect(busy()).toBe(process.ppid);
+
+    fs.rmSync(path.join(machineDirOf(dir), "open.pid"));
+    markWorkspaceOpen(machineDirOf(dir));
+    expect(busy()).toBeNull();
+    releaseOpenMark(machineDirOf(dir));
+  });
+
+  it("gives a copy of a workspace an id and machine folder of its own", () => {
+    const { path: original } = createWorkspace({
+      color: "gray",
+      copySignInsFrom: null,
+      developerMode: true,
+      name: "Original",
+      userDataDir,
+    });
+    const copy = path.join(userDataDir, "elsewhere", "copy");
+    fs.cpSync(original, copy, { recursive: true });
+    expect(machineDirOwnedBy(userDataDir, copy)).toBeUndefined();
+
+    const copyId = settleWorkspaceId({ userDataDir, workspacePath: copy });
+
+    expect(copyId).not.toBe(readWorkspaceIdentity(original).id);
+    expect(machineDirOf(copy)).toBe(workspaceMachineDirOf(userDataDir, copyId));
+    expect(machineDirOf(original)).not.toBe(machineDirOf(copy));
+  });
+
+  it("keeps the id and machine folder of a workspace whose folder moved", () => {
+    const { path: before } = createWorkspace({
+      color: "gray",
+      copySignInsFrom: null,
+      developerMode: true,
+      name: "Wanderer",
+      userDataDir,
+    });
+    const machineDir = machineDirOf(before);
+    const after = path.join(userDataDir, "elsewhere", "wanderer");
+    fs.mkdirSync(path.dirname(after), { recursive: true });
+    fs.renameSync(before, after);
+
+    const id = settleWorkspaceId({ userDataDir, workspacePath: after });
+
+    expect(workspaceMachineDirOf(userDataDir, id)).toBe(machineDir);
+    expect(machineDirOf(after)).toBe(machineDir);
   });
 });
 

@@ -167,9 +167,11 @@ describe("settings migration", () => {
           ...(flavor === "dev" ? ["providers.json", "session-dev.json"] : []),
         ].toSorted(),
       );
+      // The machine data move, which runs next, brings it to format 1.
       expect(readWorkspaceIdentity(defaultWorkspacePath(userDataDir))).toEqual({
         color: "gray",
         createdBy: { kind: "person" },
+        formatVersion: 0,
         name: "Default",
         settingsVersion: 2,
       });
@@ -276,6 +278,7 @@ describe("drafts into folders", () => {
     writeWorkspaceIdentity(workspace(), {
       color: "gray",
       createdBy: { kind: "person" },
+      formatVersion: 0,
       name: "Mine",
       settingsVersion: 1,
     });

@@ -1,5 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
+import { workspaceDataDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { APP_FLAVOR } from "@instrument-org/shared";
@@ -17,7 +17,10 @@ export type AgentCompletionNotificationMode = z.output<
   typeof AgentCompletionNotificationModeSchema
 >;
 
-/** What a person chose for this workspace. Machine-wide choices are in `machine/preferences.ts`. */
+/**
+ * What a person chose for this workspace, kept in it so the choices travel
+ * with it. Machine-wide choices are in `machine/preferences.ts`.
+ */
 export const WorkspacePreferencesSchema = z.object({
   agentCompletionNotifications:
     AgentCompletionNotificationModeSchema.catch("unfocused"),
@@ -40,7 +43,7 @@ export const getWorkspacePreferences = (): Store<WorkspacePreferences> => {
   if (STORE === null) {
     const defaults = WorkspacePreferencesSchema.parse({});
     STORE = new Store<WorkspacePreferences>({
-      cwd: workspaceSettingsDir(),
+      cwd: workspaceDataDir(),
       defaults,
       deserialize: (value) => {
         const parsed = WorkspacePreferencesSchema.safeParse(JSON.parse(value));

@@ -36,6 +36,7 @@ import { skillWriteTrackingFs } from "./skill-write-tracking-fs";
 import { type WalkBudget } from "./walk-budget";
 import { BUNDLED_SOURCE_IDS, getSkillSources } from "./skills";
 import { getWorkspaceConfig } from "./workspace-config";
+import { workspaceMachineDir } from "./workspace-machine-dir";
 export { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
 /**
@@ -752,7 +753,8 @@ export function hostPathOf(shellSpelled: string): string {
  * The rules the layout is held to: the chat's, or where none were given an
  * allow for each folder it reaches, plus the app's own over its folders. The
  * workspace is missing to the agent but for the chat's folder, the skills it
- * reads and the apps it writes; the chat's internals are missing inside it.
+ * reads and the apps it writes; the chat's internals are missing inside it,
+ * and so is this computer's folder for the workspace.
  */
 function layoutRules(
   layout: Omit<WorkspaceFsLayout, "rules"> & { rules?: Rules },
@@ -773,6 +775,9 @@ function layoutRules(
   });
   const own: Rule[] = [
     system("hidden", getWorkspaceConfig().rootDir),
+    // The keys, browser profiles and folder rules this computer keeps for
+    // the workspace, outside it.
+    system("hidden", workspaceMachineDir()),
     system("allow", layout.chat.hostRoot),
     ...layout.chat.maskedEntries.map((entry) =>
       system("hidden", nodePath.join(layout.chat.hostRoot, entry)),

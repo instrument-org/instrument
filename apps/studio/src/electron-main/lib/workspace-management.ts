@@ -1,6 +1,8 @@
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 
+import { WORKSPACE_FORMAT_VERSION } from "./machine-data-migration";
 import {
   CURRENT_SETTINGS_VERSION,
   workspaceSettingsDirOf,
@@ -10,11 +12,15 @@ import {
   DEFAULT_WORKSPACE_ID,
   defaultWorkspacePath,
   hasWorkspaceIdentity,
+  machineDirOwnedBy,
   openElsewhereBy,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
+  settleWorkspaceId,
   updateRegistry,
   type WorkspaceIdentity,
+  workspaceMachineDirOf,
+  workspacePrivateDir,
   writeJsonAtomic,
   writeWorkspaceIdentity,
 } from "./workspaces";
@@ -67,7 +73,7 @@ export function createWorkspace({
   userDataDir,
 }: {
   color: WorkspaceIdentity["color"];
-  /** A workspace folder whose sign-ins to copy, or none to start signed out. */
+  /** A keys folder whose sign-ins to copy, or none to start signed out. */
   copySignInsFrom: null | string;
   developerMode: boolean;
   name: string;
@@ -90,13 +96,33 @@ export function createWorkspace({
     }
     dir = path.join(createdWorkspacesDir(userDataDir), id);
     fs.mkdirSync(dir, { recursive: true });
-    populateWorkspace({ color, copySignInsFrom, developerMode, dir, name });
+    populateWorkspace({ color, developerMode, dir, name });
     return {
       ...current,
       workspaces: [...current.workspaces, { id, path: dir }],
     };
   });
+  // Outside the registry's lock, which settling the id takes.
+  const machineDir = workspaceMachineDirOf(
+    userDataDir,
+    settleWorkspaceId({ userDataDir, workspacePath: dir }),
+  );
+  if (copySignInsFrom) {
+    copySignIns(copySignInsFrom, machineDir);
+  }
   return { id, path: dir };
+}
+
+/**
+ * Where a workspace's sign-ins are: in its machine folder, or for one no
+ * build that keeps machine data apart has opened yet, still in its settings
+ * folder.
+ */
+export function keysDirOf(userDataDir: string, workspacePath: string): string {
+  const machineDir = machineDirOwnedBy(userDataDir, workspacePath);
+  return machineDir === undefined
+    ? workspaceSettingsDirOf(workspacePath)
+    : path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.keys);
 }
 
 /**
@@ -132,7 +158,9 @@ export function listWorkspaces({
       isResolved: entryPath === resolvedPath,
       lastOpenedAt: entry.lastOpenedAt ?? null,
       openElsewhereBy:
-        entryPath === resolvedPath ? null : openElsewhereBy(entry.path),
+        entryPath === resolvedPath
+          ? null
+          : openElsewhereBy(openMarkDirOf(userDataDir, entry.path)),
       path: entry.path,
     };
   });
@@ -163,7 +191,7 @@ export function listWorkspaces({
       isRegistered: false,
       isResolved: false,
       lastOpenedAt: null,
-      openElsewhereBy: openElsewhereBy(dir),
+      openElsewhereBy: openElsewhereBy(openMarkDirOf(userDataDir, dir)),
       path: dir,
     })),
   ];
@@ -267,44 +295,60 @@ function isDirectory(dir: string) {
   }
 }
 
+/**
+ * Copy the sign-ins in a keys folder into a new workspace's machine folder,
+ * which then counts its providers as set up.
+ */
+function copySignIns(fromDir: string, machineDir: string) {
+  const keysDir = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.keys);
+  let copied = 0;
+  for (const file of SIGN_IN_FILES) {
+    if (fs.existsSync(path.join(fromDir, file))) {
+      fs.mkdirSync(keysDir, { recursive: true });
+      fs.copyFileSync(path.join(fromDir, file), path.join(keysDir, file));
+      copied++;
+    }
+  }
+  if (copied > 0) {
+    writeJsonAtomic(path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.state), {
+      hasCompletedProviderSetup: true,
+    });
+  }
+}
+
+/**
+ * Where a workspace's open mark is: its machine folder, or for one no build
+ * that keeps machine data apart has opened, the `.instrument/` an older build
+ * running on it marks.
+ */
+function openMarkDirOf(userDataDir: string, workspacePath: string): string {
+  return (
+    machineDirOwnedBy(userDataDir, workspacePath) ??
+    workspacePrivateDir(workspacePath)
+  );
+}
+
 function populateWorkspace({
   color,
-  copySignInsFrom,
   developerMode,
   dir,
   name,
 }: {
   color: WorkspaceIdentity["color"];
-  copySignInsFrom: null | string;
   developerMode: boolean;
   dir: string;
   name: string;
 }) {
-  const settingsDir = workspaceSettingsDirOf(dir);
-  writeJsonAtomic(path.join(settingsDir, "preferences.json"), {
+  writeJsonAtomic(path.join(workspacePrivateDir(dir), "preferences.json"), {
     developerMode,
   });
-  if (copySignInsFrom) {
-    const fromDir = workspaceSettingsDirOf(copySignInsFrom);
-    let copied = 0;
-    for (const file of SIGN_IN_FILES) {
-      if (fs.existsSync(path.join(fromDir, file))) {
-        fs.copyFileSync(path.join(fromDir, file), path.join(settingsDir, file));
-        copied++;
-      }
-    }
-    if (copied > 0) {
-      writeJsonAtomic(path.join(settingsDir, "state.json"), {
-        hasCompletedProviderSetup: true,
-      });
-    }
-  }
 
-  // Already at the current settings version: there is nothing legacy in a
-  // workspace made by this build.
+  // Already at the current settings version and format: there is nothing
+  // legacy in a workspace made by this build.
   writeWorkspaceIdentity(dir, {
     color,
     createdBy: { kind: "person" },
+    formatVersion: WORKSPACE_FORMAT_VERSION,
     name,
     settingsVersion: CURRENT_SETTINGS_VERSION,
   });

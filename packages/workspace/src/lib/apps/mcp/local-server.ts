@@ -1,3 +1,4 @@
+import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import { execa } from "execa";
 import { err, ok, type Result } from "neverthrow";
 import fs from "node:fs/promises";
@@ -8,6 +9,7 @@ import { absolutePathJoin } from "../../absolute-path-join";
 import { commandLineToolsEnv } from "../../command-line-tools-env";
 import { getWorkspaceConfig } from "../../workspace-config";
 import { type LocalMcpAppManifest } from "../manifest";
+import { workspaceMachineDir } from "../../workspace-machine-dir";
 
 /** How a local server is started: what to run, with what, in what environment. */
 export interface LocalServerLaunch {
@@ -16,10 +18,10 @@ export interface LocalServerLaunch {
   env: Record<string, string>;
 }
 
-// Installed servers live beside the apps folder rather than inside it. The
-// folder is the app's record and the agent writes it; a package's own code is
-// neither, and the agent has no mount here.
-const SERVERS_DIR_NAME = ".app-servers";
+// Installed servers live on this computer's side of the workspace rather than
+// in the apps folder. The folder is the app's record and the agent writes it; a
+// package's own code is neither, it is built for this computer, and the agent
+// has no mount here.
 
 // What the last install put in a server's directory, so an unchanged package
 // spec starts the server without going to the registry again.
@@ -205,7 +207,11 @@ async function installNodePackage({
 
 /** Where one app's installed server lives. */
 function localServerDir(slug: string): AbsolutePath {
-  return absolutePathJoin(getWorkspaceConfig().rootDir, SERVERS_DIR_NAME, slug);
+  return absolutePathJoin(
+    workspaceMachineDir(),
+    WORKSPACE_MACHINE_ENTRIES.appServers,
+    slug,
+  );
 }
 
 function message(error: unknown): string {

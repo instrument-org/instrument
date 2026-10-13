@@ -89,6 +89,7 @@ export {
 export { installAISDKWarningLogger } from "./lib/log-ai-sdk-warnings";
 export { findAvailableName } from "./lib/find-available-name";
 export {
+  type LayoutMarkStore,
   migrateWorkspaceLayout,
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";

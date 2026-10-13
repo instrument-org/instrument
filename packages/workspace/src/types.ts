@@ -193,6 +193,15 @@ export interface WorkspaceConfig {
    */
   indexesDir?: AbsolutePath;
   /**
+   * This computer's own folder for the workspace, outside it: the folder
+   * rules (`permissions.json`), the in-app browser's profile, the apps'
+   * installed servers, and the app's keys and window state, none of which
+   * travels with the workspace. The agent never reaches it. Absent (tests,
+   * scripts), the workspace's own `.instrument/` stands in for it
+   * (`workspaceMachineDir()`).
+   */
+  workspaceMachineDir?: AbsolutePath;
+  /**
    * Replace a provider config's credential if it has already expired,
    * resolving once the replacement is in or the wait gave up. The model proxy
    * awaits it for the config a request names before reading the configs, so

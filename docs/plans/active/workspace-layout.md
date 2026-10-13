@@ -16,7 +16,8 @@ Related: [choose-where-instrument-keeps-files.md](choose-where-instrument-keeps-
 | The app's part of that folder | `workspaceDataDir`: `<workspace>/.instrument/` | never shown |
 | This computer's data | machine: `machineDir` (Electron's userData), `stores/machine` | never shown |
 | What can always be rebuilt | `runtimeDir`: `<machine>/runtime/` | never shown |
-| A chat's working directory | `workDir(chatId)`: `<machine>/workspaces/<workspace id>/work/<chat id>/` | the chat's files |
+| This computer's data for one workspace | `workspaceMachineDir`: `<machine>/workspace-storage/<workspace id>/` | never shown |
+| A chat's working directory | `workDir(chatId)`: `<machine>/workspace-storage/<workspace id>/work/<chat id>/` | the chat's files |
 
 No "vault" anywhere. `packages/workspace` keeps its name for now; renaming it (to `agent`) is a separate, mechanical change.
 
@@ -28,6 +29,7 @@ No "vault" anywhere. `packages/workspace` keeps its name for now; renaming it (t
   .instrument/                                 hidden (dot on macOS and Linux, hidden attribute on Windows)
     workspace.json                             id, name, color, format version, migration markers
     preferences.json                           what follows the person: default model, theme, …
+    features.json  bookmarks.json              the person's flags and bookmarks
     chats/<id>/
       chat.db                                  the conversation, its tasks' sessions included
       settings.json                            model, grants, where the person left off
@@ -46,12 +48,14 @@ No "vault" anywhere. `packages/workspace` keeps its name for now; renaming it (t
     config/                                    where programs keep their settings
     skills/<name>/                             the skills the app ships, read-only
     environments/<lockfile hash>/              one per skill dependency set, read-only
-  workspaces/<workspace id>/                   this machine's data for one workspace
-    keys/                                      provider keys, app sign-ins, ChatGPT and Claude accounts
-    browser/                                   app and in-app browser sessions, history
+  workspace-storage/<workspace id>/            this machine's data for one workspace
+    keys/                                      provider keys, the account sign-in, ChatGPT accounts, app credentials and connections
+    browser/                                   app and in-app browser sessions, history, page pictures, downloads
     permissions.json                           folder rules (paths are this machine's)
     window/                                    window and layout state
     index/                                     search index
+    app-servers/                               connected apps' local servers, as installed
+    state.json                                 whether this machine's providers are set up
     work/<chat id>/                            each chat's work folder
   (Chromium's own Cache, Cookies, GPUCache, … as today)
 ```
@@ -87,7 +91,7 @@ Everything else there (other chats, their work folders, `chat.db`, `settings.jso
 Each phase ends with types, lint and the related tests green, and is committed on the branch before the next starts.
 
 1. **`runtime/`.** Move the managed Python, uv and node-tools caches and config, the `bin/` links and the prepared skills under `runtime/`. Old copies are deleted on boot; they are rebuilt on use.
-2. **Machine data per workspace.** Studio's workspace stores split: secrets (provider configs, app credentials and OAuth, ChatGPT account and plan), browser sessions and history, window and layout state, downloads, connection state and permissions move to `workspaces/<workspace id>/`; what follows the person stays in the workspace. Marker dotfiles fold into `workspace.json`.
+2. **Machine data per workspace.** Studio's workspace stores split: secrets (provider configs, app credentials and OAuth, ChatGPT account and plan), browser sessions and history, window and layout state, downloads, connection state and permissions move to `workspace-storage/<workspace id>/`; what follows the person stays in the workspace. Marker dotfiles fold into `workspace.json`. The folder is not `workspaces/`, which already holds whole workspaces made from the dev panel: one name for two kinds of folder would let a listing or a delete take the wrong one. The id is the one in `workspace.json`, a ULID minted on first open; the registry's ids stay the machine's handles for pins and the dev panel. The Claude account stays machine-wide, as it was; the window's own record folder (`.instrument/window/`) moves with the other records in phase 3.
 3. **Records apart from work.** `chats/<id>/` holds `chat.db`, `settings.json` and `attachments/` only (no `.instrument/` inside it, no `tasks/`, no template). `workDir(chatId)` moves to the machine. Existing chats migrate: their old folder's working contents move to the new work folder, so relative links keep resolving against it, with the record folder as the fallback for `attachments/`. Masking, the per-chat package template, and `tasks/` handling are deleted.
 4. **The agent's environment.** The variables, the prompt's folder section rewritten, `.venv` and `node_modules` that follow the folder, the pnpm package-root guard removed, the sandbox rule set above.
 5. **Skills in place.** `load_skill` stops copying; one environment per skill lockfile hash, built by the app in `runtime/environments/`; Python picks it by the script's location. Node skills need their files beside `node_modules`, so a Node skill's environment holds one built copy per skill version, shared by every chat.

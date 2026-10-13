@@ -1,6 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
-import { workspacePrivateDir } from "@/electron-main/lib/workspaces";
+import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import { EventPublisher } from "@orpc/server";
 import fs from "node:fs";
 import path from "node:path";
@@ -457,9 +456,7 @@ let opened: HistoryStore | undefined;
 
 /** The history of the workspace this process runs, opened on first use. */
 export function getHistoryStore(): HistoryStore {
-  opened ??= createHistoryStore(
-    path.join(workspacePrivateDir(getWorkspaceFolder()), "history.db"),
-  );
+  opened ??= createHistoryStore(path.join(workspaceBrowserDir(), "history.db"));
   return opened;
 }
 

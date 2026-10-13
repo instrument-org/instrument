@@ -1,5 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
+import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import Store from "electron-store";
 import { z } from "zod";
 
@@ -40,7 +40,7 @@ export const getDownloadsStore = (): Store<Downloads> => {
   if (STORE === null) {
     const defaults = DownloadsSchema.parse({});
     STORE = new Store<Downloads>({
-      cwd: workspaceSettingsDir(),
+      cwd: workspaceBrowserDir(),
       defaults,
       deserialize: (value) => {
         const parsed = DownloadsSchema.safeParse(JSON.parse(value));

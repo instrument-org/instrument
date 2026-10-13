@@ -19,7 +19,7 @@ const read = (file: string): unknown =>
   JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
 
 it("writes each key to its file on flush, and reads them back in a new store", () => {
-  const store = createKeptStateStore(dir);
+  const store = createKeptStateStore(() => dir);
   store.set("layout", "app-tabs.v2", { tabs: [] });
   store.set("drafts", "drafts.v2", [{ id: "d" }]);
   store.set("view", "zoom.v1", 1.25);
@@ -35,7 +35,7 @@ it("writes each key to its file on flush, and reads them back in a new store", (
     ]
   `);
   expect(read("view.json")).toEqual({ "zoom.v1": 1.25 });
-  expect(createKeptStateStore(dir).snapshot()).toEqual({
+  expect(createKeptStateStore(() => dir).snapshot()).toEqual({
     bookmarks: {},
     drafts: { "drafts.v2": [{ id: "d" }] },
     layout: { "app-tabs.v2": { tabs: [] } },
@@ -43,8 +43,30 @@ it("writes each key to its file on flush, and reads them back in a new store", (
   });
 });
 
+it("writes each file into the folder named for it, making the folder", () => {
+  const travels = path.join(dir, "workspace");
+  const stays = path.join(dir, "machine");
+  const dirOf = (file: string) => (file === "bookmarks" ? travels : stays);
+  const store = createKeptStateStore(dirOf);
+  store.set("bookmarks", "bookmarks.v1", [{ url: "https://example.com" }]);
+  store.set("layout", "app-tabs.v2", { tabs: [] });
+  store.set("view", "zoom.v1", 1.25);
+
+  store.flush();
+
+  expect(fs.readdirSync(travels)).toEqual(["bookmarks.json"]);
+  expect(fs.readdirSync(stays).toSorted()).toEqual([
+    "layout.json",
+    "view.json",
+  ]);
+  expect(createKeptStateStore(dirOf).snapshot()).toMatchObject({
+    bookmarks: { "bookmarks.v1": [{ url: "https://example.com" }] },
+    view: { "zoom.v1": 1.25 },
+  });
+});
+
 it("rewrites only the files that changed", () => {
-  const store = createKeptStateStore(dir);
+  const store = createKeptStateStore(() => dir);
   store.set("drafts", "drafts.v2", []);
   store.flush();
   store.set("view", "zoom.v1", 2);
@@ -58,7 +80,7 @@ it("rewrites only the files that changed", () => {
 });
 
 it("removes a key set to undefined", () => {
-  const store = createKeptStateStore(dir);
+  const store = createKeptStateStore(() => dir);
   store.set("view", "zoom.v1", 2);
   store.set("view", "pane-share.v1", 0.5);
   store.set("view", "zoom.v1", undefined);
@@ -77,14 +99,14 @@ it.each([
     JSON.stringify({ "zoom.v1": 1.5 }),
   );
 
-  expect(createKeptStateStore(dir).snapshot()).toMatchObject({
+  expect(createKeptStateStore(() => dir).snapshot()).toMatchObject({
     layout: {},
     view: { "zoom.v1": 1.5 },
   });
 });
 
 it("leaves no temporary file behind", () => {
-  const store = createKeptStateStore(dir);
+  const store = createKeptStateStore(() => dir);
   store.set("bookmarks", "bookmarks.v1", []);
   store.flush();
 

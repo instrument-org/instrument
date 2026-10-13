@@ -19,8 +19,9 @@ import {
 } from "./workspaces";
 
 /**
- * Brings settings written before workspaces existed into the shape this build
- * reads: machine stores at the root of userData, workspace stores under
+ * Brings settings written before workspaces existed into the shape the
+ * machine data move (`machine-data-migration.ts`), which runs next, takes
+ * from: machine stores at the root of userData, workspace stores under
  * `<workspace>/.instrument/settings/`.
  *
  * The machine half runs on every boot and does nothing once its files exist.
@@ -108,10 +109,6 @@ const MOVED_FILES = ["chatgpt-account.json", "chatgpt-account.json.enc"];
  * so a boot that finds it knows the last take-in stopped partway.
  */
 const TAKE_IN_MARKER = ".take-in-unfinished";
-
-export function appSessionDirOf(workspacePath: string): string {
-  return path.join(workspacePrivateDir(workspacePath), "app-session");
-}
 
 /** Take the machine keys out of the legacy root files, which stay for the workspace half. */
 export function migrateMachineSettings(userDataDir: string): string[] {
@@ -268,10 +265,20 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/**
+ * Where a workspace's page pictures were kept before its machine data moved
+ * out (`machine-data-migration.ts`), which is where the legacy take-in puts
+ * them on their way.
+ */
 export function pageThumbnailsDirOf(workspacePath: string): string {
   return path.join(workspacePrivateDir(workspacePath), "page-thumbnails");
 }
 
+/**
+ * Where a workspace's stores were kept before its machine data moved out
+ * (`machine-data-migration.ts`): the steps here bring them up to date there,
+ * and that move then takes each to where it now lives.
+ */
 export function workspaceSettingsDirOf(workspacePath: string): string {
   return path.join(workspacePrivateDir(workspacePath), "settings");
 }

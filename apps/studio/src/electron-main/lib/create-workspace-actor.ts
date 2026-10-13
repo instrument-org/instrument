@@ -16,7 +16,7 @@ import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-fo
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import createBashWorker from "@instrument-org/workspace/bash-worker?nodeWorker";
 import {
   attachChats,
@@ -47,8 +47,11 @@ import { createAppsConfig, rememberAppsDir } from "./apps";
 import { getBinDirectoryPath } from "./setup-bin-directory";
 import { captureServerException } from "./capture-server-exception";
 import { logger } from "./electron-logger";
-import { getWorkspaceFolder } from "./get-workspace-folder";
-import { workspacePrivateDir } from "./workspaces";
+import {
+  getWorkspaceFolder,
+  workspaceMachineDir,
+} from "./get-workspace-folder";
+import { workspaceLayoutMarks, workspacePrivateDir } from "./workspaces";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
 import { getRegistryDir } from "./registry-dir";
@@ -80,7 +83,10 @@ export function createWorkspaceActor() {
   // them. Idempotent; a failure must not block boot.
   try {
     const migrationStartedAt = performance.now();
-    const migration = migrateWorkspaceLayout({ rootDir });
+    const migration = migrateWorkspaceLayout({
+      marks: workspaceLayoutMarks(rootDir),
+      rootDir,
+    });
     logger.info(
       `Workspace layout migration: ${Math.round(performance.now() - migrationStartedAt)}ms`,
     );
@@ -138,8 +144,8 @@ export function createWorkspaceActor() {
   const actor = createActor(workspaceMachine, {
     input: {
       aiGatewayApp,
-      // The workspace's own record, beside its browser history, so it moves
-      // and goes with the workspace.
+      // The workspace's own record, in its `.instrument/`, so it moves and
+      // goes with the workspace.
       aiUsageFile: path.join(workspacePrivateDir(rootDir), "ai-usage.db"),
       apps: createAppsConfig(),
       appVersion: app.getVersion(),
@@ -157,9 +163,15 @@ export function createWorkspaceActor() {
       macHelperBinPath: macHelperBinPath(),
       getAIProviderConfigs,
       getUser: getSignedInUser,
-      // Beside the other per-machine state rather than in the workspace: the
+      // In the workspace's machine folder rather than in the workspace: the
       // index is derived, and a workspace may sit in a synced folder.
-      indexesDir: path.join(app.getPath("userData"), "indexes"),
+      indexesDir: path.join(
+        workspaceMachineDir(),
+        WORKSPACE_MACHINE_ENTRIES.index,
+      ),
+      // Where the folder rules, the browser profile and the apps' servers
+      // are, which the agent never reaches.
+      workspaceMachineDir: workspaceMachineDir(),
       knownFolders: {
         desktop: app.getPath("desktop"),
         documents: app.getPath("documents"),

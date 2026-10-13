@@ -1,6 +1,7 @@
 import {
   getWorkspaceFolder,
-  workspaceSettingsDir,
+  workspaceDataDir,
+  workspaceWindowDir,
 } from "@/electron-main/lib/get-workspace-folder";
 import {
   isKeptFile,
@@ -34,21 +35,21 @@ export interface KeptBacking {
 }
 
 /**
- * The windows' kept state over a folder of JSON files, one object of keys
- * per file in `KEPT_FILES`, except a file with a backing of its own. Read
- * whole on first use; a write lands in memory at once and on disk a beat
- * later, each file replaced by rename so a crash mid-write leaves the old
- * file rather than half of the new one.
+ * The windows' kept state as JSON files, one object of keys per file in
+ * `KEPT_FILES`, each in the folder `dirOf` names for it, except a file with a
+ * backing of its own. Read whole on first use; a write lands in memory at
+ * once and on disk a beat later, each file replaced by rename so a crash
+ * mid-write leaves the old file rather than half of the new one.
  */
 export function createKeptStateStore(
-  dir: string,
+  dirOf: (file: KeptFile) => string,
   backings: Partial<Record<KeptFile, KeptBacking>> = {},
 ) {
   let files: Map<KeptFile, Record<string, unknown>> | null = null;
   const dirty = new Set<KeptFile>();
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const pathOf = (file: KeptFile) => path.join(dir, `${file}.json`);
+  const pathOf = (file: KeptFile) => path.join(dirOf(file), `${file}.json`);
 
   const loaded = () => {
     if (files) {
@@ -67,7 +68,6 @@ export function createKeptStateStore(
     if (dirty.size === 0) {
       return;
     }
-    fs.mkdirSync(dir, { recursive: true });
     for (const file of dirty) {
       const backing = backings[file];
       if (backing) {
@@ -77,6 +77,7 @@ export function createKeptStateStore(
       const target = pathOf(file);
       const temporary = `${target}.${process.pid}.tmp`;
       try {
+        fs.mkdirSync(dirOf(file), { recursive: true });
         fs.writeFileSync(
           temporary,
           `${JSON.stringify(loaded().get(file) ?? {}, null, 2)}\n`,
@@ -161,12 +162,21 @@ function readObject(file: string): Record<string, unknown> {
 
 let STORE: null | ReturnType<typeof createKeptStateStore> = null;
 
+/**
+ * Bookmarks are things the person made, so they travel with the workspace;
+ * where they left off and how they like things laid out are this computer's,
+ * whose screens and paths they are measured against.
+ */
 function getStore() {
-  STORE ??= createKeptStateStore(workspaceSettingsDir(), {
-    drafts: createDraftsFolder(
-      path.join(getWorkspaceFolder(), DRAFTS_DIR_NAME),
-    ),
-  });
+  STORE ??= createKeptStateStore(
+    (file) =>
+      file === "bookmarks" ? workspaceDataDir() : workspaceWindowDir(),
+    {
+      drafts: createDraftsFolder(
+        path.join(getWorkspaceFolder(), DRAFTS_DIR_NAME),
+      ),
+    },
+  );
   return STORE;
 }
 

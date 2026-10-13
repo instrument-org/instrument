@@ -1,5 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
-import { workspaceSettingsDir } from "@/electron-main/lib/get-workspace-folder";
+import { workspaceDataDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { FeatureNameSchema } from "@/shared/features";
 import Store from "electron-store";
@@ -46,7 +46,7 @@ export const getFeaturesStore = (): Store<FeaturesStore> => {
   if (FEATURES_STORE === null) {
     const defaultFeatures = allFeaturesOff();
     FEATURES_STORE = new Store<FeaturesStore>({
-      cwd: workspaceSettingsDir(),
+      cwd: workspaceDataDir(),
       defaults: defaultFeatures,
       deserialize: (value) => {
         try {

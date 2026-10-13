@@ -39,6 +39,7 @@ export async function installPythonSkill({
       skillDir,
     ],
     cwd: dir,
+    lockfilePinned: true,
     signal,
     chatId,
   });
@@ -57,6 +58,7 @@ export async function installPythonSkill({
   const installResult = await runUvCommand({
     args: ["pip", "install", "--python", python, "--requirement", "-"],
     cwd: dir,
+    lockfilePinned: true,
     signal,
     stdin: exportResult.stdout,
     chatId,

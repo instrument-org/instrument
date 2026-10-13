@@ -226,15 +226,15 @@ async function drivePlaces(home: string): Promise<ComputerPlace[]> {
     // A and B are the floppy letters, which a machine with no floppy can
     // still answer for slowly.
     const letters = "CDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-    const drives = await present(
-      letters.map(
-        (letter): ComputerPlace => ({
-          kind: "drive",
-          name: `${letter}:`,
-          path: `${letter}:\\`,
-        }),
-      ),
+    const found = await Promise.all(
+      letters.map(async (letter): Promise<ComputerPlace | undefined> => {
+        const root = `${letter}:\\`;
+        return (await hasDrive(root))
+          ? { kind: "drive", name: `${letter}:`, path: root }
+          : undefined;
+      }),
     );
+    const drives = found.filter((drive) => drive !== undefined);
     const names = await windowsDriveNames(drives.map((drive) => drive.path));
     return drives.map((drive) => ({
       ...drive,
@@ -250,6 +250,44 @@ async function drivePlaces(home: string): Promise<ComputerPlace[]> {
     { kind: "drive", name: "Root", path: path.parse(home).root },
     ...mounted.flat(),
   ];
+}
+
+/** How long a drive's root has to answer before it is listed unanswered. */
+const DRIVE_ANSWER_MS = 500;
+
+/**
+ * Each drive root still being checked, so a root that never answers holds
+ * one of the file system's threads however many times the places are asked
+ * for, rather than one more each time.
+ */
+const checkingDrives = new Map<string, Promise<boolean>>();
+
+/**
+ * Whether a Windows drive letter has a disk behind it. A letter with nothing
+ * behind it says so at once, so one that has not answered in a moment has
+ * something there that is slow to: a mapped drive whose server is gone, or a
+ * disc spinning up. That one is listed, the way File Explorer lists a
+ * mapped drive it cannot reach, and the sidebar does not wait on it.
+ */
+async function hasDrive(root: string): Promise<boolean> {
+  let check = checkingDrives.get(root);
+  if (!check) {
+    check = isDirectory(root).finally(() => {
+      checkingDrives.delete(root);
+    });
+    checkingDrives.set(root, check);
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const unanswered = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => {
+      resolve(true);
+    }, DRIVE_ANSWER_MS);
+  });
+  try {
+    return await Promise.race([check, unanswered]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**

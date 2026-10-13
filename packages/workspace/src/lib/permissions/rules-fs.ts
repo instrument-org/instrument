@@ -1,7 +1,7 @@
 import { type IFileSystem } from "just-bash";
 import nodePath from "node:path";
 
-import { canonicalizeThroughMissing } from "../host-path";
+import { canonicalizeThroughMissing, hostPathWithin } from "../host-path";
 import { accountCanWrite, systemOwnedNote } from "./account-can-write";
 import { raiseAsk, waitingNote } from "./asks";
 import { isClosedDiskRoot } from "../disk-root";
@@ -105,6 +105,20 @@ export function rulesFs({
     hostsOf(mountPath).some(
       (host) => reachOf(rules, host, "read").level === "hidden",
     );
+  // A hidden folder on the way to one the agent reaches (the workspace on
+  // the way to the chat's folder) answers stat and exists, as the folders
+  // above a mount do, so `cd` can pass through it. Its listing stays
+  // missing.
+  const leadsOn = (mountPath: string) =>
+    hostsOf(mountPath).some((host) =>
+      rules.rules.some((rule) => {
+        if (rule.level === "hidden" || rule.dotEntries) {
+          return false;
+        }
+        const within = hostPathWithin(host, rule.path);
+        return within !== null && within !== "/";
+      }),
+    );
   const check = (
     op: "read" | "write",
     syscall: string,
@@ -155,11 +169,12 @@ export function rulesFs({
         Reflect.apply(value, target, args);
       if (key === "exists") {
         return async (mountPath: string) =>
-          !isHidden(mountPath) && (await call(mountPath)) === true;
+          (!isHidden(mountPath) || leadsOn(mountPath)) &&
+          (await call(mountPath)) === true;
       }
       if (key === "stat" || key === "lstat" || key === "realpath") {
         return async (...args: unknown[]) => {
-          if (isHidden(String(args[0]))) {
+          if (isHidden(String(args[0])) && !leadsOn(String(args[0]))) {
             check("read", key, String(args[0]));
           }
           return call(...args);

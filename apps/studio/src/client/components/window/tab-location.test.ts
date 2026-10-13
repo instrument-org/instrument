@@ -107,8 +107,8 @@ describe("locationCrumbs", () => {
       ),
     ).toMatchInlineSnapshot(`
       [
-        "iCloud Drive -> /files?path=&root=%2FUsers%2Fcasey%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs",
-        "Obsidian -> /files?path=&root=%2FUsers%2Fcasey%2FLibrary%2FMobile%20Documents%2Fcom~apple~CloudDocs%2FObsidian",
+        "iCloud Drive -> /files?path=&root=%2FUsers%2Fcasey%2FLibrary%2FMobile+Documents%2Fcom%7Eapple%7ECloudDocs",
+        "Obsidian -> /files?path=&root=%2FUsers%2Fcasey%2FLibrary%2FMobile+Documents%2Fcom%7Eapple%7ECloudDocs%2FObsidian",
         "Vault",
       ]
     `);

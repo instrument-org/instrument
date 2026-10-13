@@ -323,6 +323,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * with its base until it diverges, so this costs seconds and little space.
  */
 async function resetVm(host, base, vm) {
+  if (base === vm)
+    fail(
+      `--vm must name the clone, not the base: resetting ${vm} would delete the clean copy.`,
+    );
   if (vmStatus(base) !== "stopped")
     fail(`${base} must stay stopped; it is the clean copy.`);
   // The clone is thrown away, so it is powered off rather than shut down.
@@ -330,6 +334,8 @@ async function resetVm(host, base, vm) {
     utm("stop", vm, "--force");
     for (let i = 0; i < 12 && vmStatus(vm) !== "stopped"; i++)
       await sleep(2500);
+    if (vmStatus(vm) !== "stopped")
+      fail(`${vm} did not stop within 30 seconds, so it was not deleted.`);
   }
   if (!/not found|Error/u.test(vmStatus(vm))) utm("delete", vm);
   const cloned = utm("clone", base, "--name", vm);

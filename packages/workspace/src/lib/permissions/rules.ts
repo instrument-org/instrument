@@ -313,6 +313,11 @@ function homeDepth(rules: Rules): number {
 
 function namesDangerous(foldedPath: string): boolean {
   const slashed = foldedPath.replaceAll(path.sep, "/");
+  // A repository's .git folder itself: moved or replaced, its hooks would
+  // sit outside the name that closes them.
+  if (slashed.endsWith("/.git")) {
+    return true;
+  }
   return DANGEROUS_NAMES.some((name) => {
     const folded = fold(name);
     return slashed.endsWith(`/${folded}`) || slashed.includes(`/${folded}/`);

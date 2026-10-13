@@ -144,11 +144,26 @@ export function startupPaths(home = os.homedir()): string[] {
 
 /**
  * Names that make a folder run code when it is opened or used: a repository's
- * hooks, a git config, an editor's tasks. Changing one inside a folder the
- * person allowed would run code the next time they work in it, so they are
- * kept from changes anywhere but the chat's own folder.
+ * hooks and submodules, a git config, an editor's tasks, a folder's shell
+ * setup (direnv), and the settings, commands and servers another coding agent
+ * loads from it. Changing one inside a folder the person allowed would run
+ * code the next time they work in it, so they are kept from changes anywhere
+ * but the chat's own folder.
  */
-export const DANGEROUS_NAMES = [".git/hooks", ".gitconfig", ".vscode"];
+export const DANGEROUS_NAMES = [
+  ".git/hooks",
+  ".gitconfig",
+  ".gitmodules",
+  ".vscode",
+  ".idea",
+  ".envrc",
+  ".mcp.json",
+  ".claude/settings.json",
+  ".claude/settings.local.json",
+  ".claude/commands",
+  ".claude/agents",
+  ".codex",
+];
 
 /**
  * A place as paths on this computer. `homeDotEntries` stands for every

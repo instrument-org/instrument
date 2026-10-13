@@ -43,10 +43,14 @@ const appEnv: NodeJS.ProcessEnv = process.env;
  * person's, so only the system's own caches stay open here, for the
  * frameworks a native tool loads.
  */
-const TOOL_CACHES = [
-  // The system's own caches, which frameworks a native tool loads write to.
-  "Library/Caches",
-];
+const TOOL_CACHES =
+  process.platform === "darwin"
+    ? [
+        // The system's own caches, which frameworks a native tool loads
+        // write to.
+        "Library/Caches",
+      ]
+    : [];
 const TOOL_SETTINGS: string[] = [];
 
 /** The places native tools keep as their own, in `home`. */
@@ -286,14 +290,18 @@ export function seatbeltProfile(
     );
   }
   // A name that runs code when its folder is used stays closed to changes
-  // everywhere but the app's own folders.
+  // everywhere but the app's own folders, and a repository's .git folder
+  // stays where it is: renamed, its hooks would be outside the name that
+  // closes them, and could be written and moved back.
   const ownFolders = reach.readWrite.flatMap(spellings);
+  const notOwn = ownFolders
+    .map((own) => `(require-not (subpath ${sbplString(own)}))`)
+    .join(" ");
   texts.push(
     `(deny file-write* (require-all (require-any ${DANGEROUS_NAMES.map(
       (name) => `(regex #"/${regexEscape(name)}(/|$)")`,
-    ).join(" ")}) ${ownFolders
-      .map((own) => `(require-not (subpath ${sbplString(own)}))`)
-      .join(" ")}))`,
+    ).join(" ")}) ${notOwn}))`,
+    `(deny file-write-unlink (require-all (regex #"/\\.git$") ${notOwn}))`,
   );
   // No Apple Events and no opening apps: a command could otherwise have
   // another app do what the profile keeps it from, outside any sandbox.
@@ -389,7 +397,13 @@ export function wrapNativeCommand(
   }
   if (bwrapAvailable()) {
     return {
-      args: [...bwrapArgs(reach), "--", ...closingInheritedFds(), file, ...args],
+      args: [
+        ...bwrapArgs(reach),
+        "--",
+        ...closingInheritedFds(),
+        file,
+        ...args,
+      ],
       file: BWRAP,
       reach,
     };
@@ -494,7 +508,10 @@ export function bwrapArgs(reach: NativeReach): string[] {
   // used, so the ones already at the top of each allowed folder of the
   // person's are bound read-only by name.
   for (const rule of rules) {
-    if (rule.level !== "allow" || rule.source === "system") {
+    if (
+      levelWithoutAsking(rule.level, rule, withoutAsking) !== "allow" ||
+      rule.source === "system"
+    ) {
       continue;
     }
     for (const name of DANGEROUS_NAMES) {
@@ -518,6 +535,9 @@ export function bwrapArgs(reach: NativeReach): string[] {
     // the session's init still holding what it inherited.
     "--unshare-pid",
     "--die-with-parent",
+    // Its own session, so a command cannot push keystrokes into the
+    // terminal the app was started from (TIOCSTI).
+    "--new-session",
   ];
   const ordered = entries.toSorted(
     (a, b) => a.depth - b.depth || a.rank - b.rank,

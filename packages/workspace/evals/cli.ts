@@ -3,9 +3,12 @@ import "../scripts/lib/test-node-env";
 import "../scripts/lib/define-globals-apply";
 
 import { REASONING_EFFORTS } from "@instrument-org/ai-gateway";
+import { execa } from "execa";
+import os from "node:os";
 import path from "node:path";
 import readline from "node:readline/promises";
 import { parseArgs } from "node:util";
+import { list, sum } from "radashi";
 import { z } from "zod";
 
 import { EVALS } from "./cases";
@@ -534,6 +537,10 @@ switch (subcommand) {
       write("\n");
     }
 
+    if (repeat > 1 && process.env.INSTRUMENT_EVAL_TRIAL === undefined) {
+      process.exit(await runTrialsApart());
+    }
+
     sweepOldRuns();
     const { runs, workspaceRootDir } = await runEvals(filteredEvals, {
       concurrency,
@@ -569,6 +576,94 @@ switch (subcommand) {
       process.exit(exitCodeFor(rollup));
     }
   }
+}
+
+/**
+ * `--repeat` runs each trial as a run of its own, in a child process with a
+ * home of its own. The product reads the home from HOME, once per process, so
+ * trials in one process share every file a case plants and every file a run
+ * writes, and a case that checks a file's time reads another trial's. Each
+ * child prints its own narration and results; this adds a line per trial and
+ * the total.
+ */
+async function runTrialsApart(): Promise<number> {
+  const baseHome =
+    process.env.INSTRUMENT_EVAL_HOME ??
+    path.join(os.tmpdir(), "instrument-eval-home");
+  const script = process.argv[1] ?? "";
+  const args = withoutOptions(process.argv.slice(2), [
+    "--concurrency",
+    "--repeat",
+  ]).filter((arg) => arg !== "--json" && arg !== "--yes" && arg !== "-y");
+  const perTrial = Math.max(1, Math.ceil(concurrency / repeat));
+  const trials = await Promise.all(
+    list(1, repeat).map(async (trial) => {
+      const child = await execa(
+        process.execPath,
+        [
+          ...process.execArgv,
+          script,
+          ...args,
+          "--repeat",
+          "1",
+          "--concurrency",
+          String(perTrial),
+          "--json",
+          "--yes",
+        ],
+        {
+          env: {
+            ...process.env,
+            INSTRUMENT_EVAL_HOME: `${baseHome}-trial-${trial}`,
+            INSTRUMENT_EVAL_TRIAL: String(trial),
+          },
+          reject: false,
+          stderr: "inherit",
+          stdin: "ignore",
+        },
+      );
+      const report = child.stdout
+        .split("\n")
+        .find((line) => line.startsWith("{"));
+      // The child's own `--json` report, written by this same CLI.
+      const rollup = report ? (JSON.parse(report) as Rollup) : undefined;
+      return { exitCode: child.exitCode ?? 1, rollup, trial };
+    }),
+  );
+  const passed = sum(trials, (each) => each.rollup?.assertions.passed ?? 0);
+  const total = sum(trials, (each) => each.rollup?.assertions.total ?? 0);
+  write(
+    [
+      "",
+      `${c.dim}┌─ Trials ────────────────────────────────────────────${c.reset}`,
+      ...trials.map(({ rollup, trial }) =>
+        rollup
+          ? `${c.dim}│${c.reset}  trial ${trial}: ${rollup.assertions.passed}/${rollup.assertions.total} assertions passed`
+          : `${c.dim}│${c.reset}  trial ${trial}: ${c.yellow}no report${c.reset}`,
+      ),
+      `${c.dim}│${c.reset}  all: ${passed}/${total} assertions passed`,
+      `${c.dim}└─────────────────────────────────────────────────────${c.reset}`,
+      "",
+    ].join("\n"),
+  );
+  return trials.some((each) => each.exitCode !== 0) ? 1 : 0;
+}
+
+/** `args` with each of `names` and its value left out, in either spelling. */
+function withoutOptions(args: string[], names: string[]): string[] {
+  const kept: string[] = [];
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index] ?? "";
+    if (names.includes(arg)) {
+      index++;
+      continue;
+    }
+    if (names.some((name) => arg.startsWith(`${name}=`))) {
+      continue;
+    }
+    kept.push(arg);
+  }
+  return kept;
 }
 
 /**

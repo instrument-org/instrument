@@ -1,0 +1,72 @@
+import { describe, expect, it } from "vitest";
+
+import { isPathLike, typedPathOf } from "./typed-path";
+
+describe("typedPathOf", () => {
+  it.each([
+    ["/Users/casey/Documents/", "/Users/casey/Documents", false],
+    ["/", "/", false],
+    ["/r/rust", "/r/rust", true],
+    ["/Users/casey/Bob's Files", "/Users/casey/Bob's Files", false],
+    ["~", "~", false],
+    ["~/Acme Corp/", "~/Acme Corp", false],
+    ["'/Users/casey/a b.pdf'", "/Users/casey/a b.pdf", false],
+    ["/Users/casey/My\\ File.pdf", "/Users/casey/My File.pdf", false],
+    ["file:///~/testing123fake", "~/testing123fake", false],
+    ["file:///Users/casey/a%20b.html", "/Users/casey/a b.html", false],
+  ])("reads %j on a Mac as %j", (words, shown, alsoSearch) => {
+    expect(typedPathOf(words, "darwin")).toMatchObject({
+      alsoSearch,
+      shown,
+      typed: words.trim(),
+    });
+  });
+
+  it.each([
+    ["C:\\Users\\casey", "C:\\Users\\casey"],
+    ["C:\\", "C:\\"],
+    ["c:/Users/casey/", "c:/Users/casey"],
+    ['"C:\\Users\\casey\\a b.txt"', "C:\\Users\\casey\\a b.txt"],
+    ["~\\Documents", "~\\Documents"],
+    ["\\\\server\\share", "\\\\server\\share"],
+    ["/c/Users/casey", "/c/Users/casey"],
+    ["/tmp/out.log", "/tmp/out.log"],
+    ["file:///C:/Users/casey/a%20b.html", "C:\\Users\\casey\\a b.html"],
+    ["file://server/share/x", "\\\\server\\share\\x"],
+  ])("reads %j on Windows as %j", (words, shown) => {
+    expect(typedPathOf(words, "win32")?.shown).toBe(shown);
+  });
+
+  it.each([
+    ["/r/rust", true],
+    ["/c/Users/casey", false],
+    ["C:\\Users", false],
+  ])("offers %j on Windows as a search too: %s", (words, alsoSearch) => {
+    expect(typedPathOf(words, "win32")?.alsoSearch).toBe(alsoSearch);
+  });
+
+  it.each([
+    ["/Users/casey", "win32"],
+    ["~\\Documents", "darwin"],
+    ["C:\\Users", "darwin"],
+    ["documents/tax.pdf", "darwin"],
+    ["https://example.com", "darwin"],
+    ["weather tomorrow", "linux"],
+    ['""', "darwin"],
+  ] as const)("finds no path in %j on %s", (words, platform) => {
+    expect(typedPathOf(words, platform)).toBeUndefined();
+  });
+});
+
+describe("isPathLike", () => {
+  it.each([
+    ["~/Documents", true],
+    ["C:\\Users", true],
+    ["\\\\srv\\share", true],
+    ["file:///etc/hosts", true],
+    ["weather tomorrow", false],
+    ["github.com", false],
+  ])("%j → %s", (words, expected) => {
+    expect(isPathLike(words)).toBe(expected);
+  });
+});

@@ -11,10 +11,13 @@ import {
 import { PageFavicon } from "@/client/components/favicon";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
-import { FileTypeIcon } from "@/client/components/extend/file-system";
+import {
+  FileSystemFolderGlyph,
+  FileTypeIcon,
+} from "@/client/components/extend/file-system";
 import { useSettingsTabs } from "@/client/components/settings/use-settings-tabs";
 import { folderOf, homeRelative } from "@/client/components/window/host-path";
-import { fileHref } from "@/shared/computer-href";
+import { fileHref, folderHref } from "@/shared/computer-href";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { useTheme } from "@/client/components/theme-provider";
 import {
@@ -42,6 +45,13 @@ import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
+import {
+  locateTypedPath,
+  type MissedPath,
+  missedPathNotice,
+  shownTypedPath,
+  typedPathHere,
+} from "@/client/lib/locate-typed-path";
 import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { osConventions } from "@/client/lib/utils";
@@ -83,6 +93,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
 import { unique } from "radashi";
 import { type ReactNode, useDeferredValue, useRef, useState } from "react";
+import { displayHostPath } from "@instrument-org/shared";
 import { toast } from "@/client/lib/toast";
 
 const fuzzy = new uFuzzy({ intraMode: 1 });
@@ -123,6 +134,12 @@ type Item = {
   icon: ReactNode;
   id: string;
   label: string;
+  /**
+   * Whether the row puts the menu away itself, once it knows it has gone
+   * somewhere: a path is looked for first, and the menu stays with the words
+   * when nothing is there.
+   */
+  leavesItself?: true;
   ranges: null | number[];
   run: () => void;
   type: "item";
@@ -371,7 +388,113 @@ export function useCommandMenuRows({
   );
 
   const isSearch = words !== "" && !isBang;
-  const site = isSearch ? siteFromWords(words) : undefined;
+  const typedPath = isSearch ? typedPathHere(words) : undefined;
+  const site = isSearch && !typedPath ? siteFromWords(words) : undefined;
+  // A path pressed Return on that led nowhere, kept for as long as the words
+  // are still the ones that led there.
+  const [missedAt, setMissedAt] = useState<
+    undefined | { outcome: MissedPath; typed: string }
+  >();
+  // A path still being looked for, once the look has gone on long enough
+  // to say so.
+  const [looking, setLooking] = useState<string>();
+  const missed =
+    typedPath !== undefined && missedAt?.typed === typedPath.typed
+      ? missedAt.outcome
+      : undefined;
+  // Where a typed path goes once the menu is out of the way: a folder, or a
+  // place the system would not let the app read, to the folder view, which
+  // says so and is where it is undone; a file to its own view.
+  const openTypedPath = async () => {
+    if (!typedPath) {
+      return;
+    }
+    if (looking === typedPath.typed) {
+      return;
+    }
+    const located = await locateTypedPath(typedPath, {
+      onSlow: () => {
+        setLooking(typedPath.typed);
+      },
+    });
+    setLooking(undefined);
+    if (located.kind === "failed" || located.kind === "missing") {
+      setMissedAt({ outcome: located, typed: typedPath.typed });
+      return;
+    }
+    done(() => {
+      openScreen(
+        located.kind === "file"
+          ? fileHref(located.path)
+          : folderHref(located.path),
+      );
+    })();
+  };
+  const webSearchItem: Item = {
+    icon: <MagnifyingGlassIcon />,
+    id: "web-search",
+    label: `Search the web for “${words}”`,
+    ranges: null,
+    run: () => {
+      openPage(webSearchUrl(words));
+    },
+    type: "item",
+  };
+  const nearest = missed?.kind === "missing" ? missed.nearest : undefined;
+  const pathSection: { items: Item[]; label: string }[] =
+    typedPath === undefined
+      ? []
+      : missed
+        ? [
+            {
+              // The first takes the place of the path's own row under the
+              // same value, so the pick stays on the row Return now runs.
+              items: [
+                ...(nearest === undefined
+                  ? []
+                  : [
+                      {
+                        detail: "Closest folder",
+                        icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
+                        id: "nearest-folder",
+                        label: displayHostPath(nearest, window.api.homeDir),
+                        ranges: null,
+                        run: () => {
+                          openScreen(folderHref(nearest));
+                        },
+                        type: "item" as const,
+                      },
+                    ]),
+                webSearchItem,
+              ].map((item, index) =>
+                index === 0 ? { ...item, id: "open-path" } : item,
+              ),
+              label: missedPathNotice(missed),
+            },
+          ]
+        : [
+            {
+              items: [
+                {
+                  detail:
+                    looking === typedPath.typed
+                      ? "Looking…"
+                      : `Open on ${osConventions().computer}`,
+                  icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
+                  id: "open-path",
+                  label: shownTypedPath(typedPath),
+                  leavesItself: true,
+                  ranges: null,
+                  run: () => {
+                    void openTypedPath();
+                  },
+                  type: "item",
+                },
+                ...(typedPath.alsoSearch ? [webSearchItem] : []),
+              ],
+              label: "Open",
+            },
+          ];
   const chatMatches = isSearch
     ? nameMatch(byLastUserMessage(chats), (chat) => [chat.title], words)
     : [];
@@ -515,6 +638,7 @@ export function useCommandMenuRows({
     active &&
     isSearch &&
     site === undefined &&
+    typedPath === undefined &&
     words.length >= MEANING_MIN_LENGTH &&
     !hasNameMatches;
   const chatsByMeaning = useChatSearchFallback({
@@ -542,6 +666,7 @@ export function useCommandMenuRows({
           },
         ]
       : [
+          ...pathSection,
           ...(site
             ? [
                 {
@@ -564,23 +689,7 @@ export function useCommandMenuRows({
             : []),
           ...named,
           ...(site === undefined && isSearchWords(words)
-            ? [
-                {
-                  items: [
-                    {
-                      icon: <MagnifyingGlassIcon />,
-                      id: "web-search",
-                      label: `Search the web for “${words}”`,
-                      ranges: null,
-                      run: () => {
-                        openPage(webSearchUrl(words));
-                      },
-                      type: "item" as const,
-                    },
-                  ],
-                  label: "Web",
-                },
-              ]
+            ? [{ items: [webSearchItem], label: "Web" }]
             : []),
           {
             items: chatsByMeaning.chats.map((chat) => chatItem(chat, null)),
@@ -640,7 +749,10 @@ export function useCommandMenuRows({
       ? []
       : [
           { label: section.label, type: "header" },
-          ...section.items.map((item) => ({ ...item, run: done(item.run) })),
+          ...section.items.map((item) => ({
+            ...item,
+            run: item.leavesItself ? item.run : done(item.run),
+          })),
           ...(section.looking ? [{ type: "looking" as const }] : []),
         ],
   );

@@ -1,3 +1,4 @@
+import { isPathLike } from "@/client/lib/typed-path";
 import uFuzzy from "@leeoniya/ufuzzy";
 
 /** A page the field can offer again: one the browser showed, or a bookmark. */
@@ -139,25 +140,10 @@ export function isSearchWords(words: string): boolean {
   if (words === "" || words.length > 200) {
     return false;
   }
-  if (
-    pathFromWords(words) !== undefined ||
-    /^[a-z][a-z0-9+.-]*:\/\//i.test(words)
-  ) {
+  if (isPathLike(words) || /^[a-z][a-z0-9+.-]*:\/\//i.test(words)) {
     return false;
   }
   return /\s/.test(words) || !/[/\\?#@]|:\d/.test(words);
-}
-
-/**
- * Typed words that are a place on the computer: a path from the root, from
- * the home folder as `~`, or from a drive letter, the way the field shows one.
- * A trailing slash says nothing about a folder the field will open anyway.
- */
-export function pathFromWords(words: string): string | undefined {
-  if (!/^(?:~(?:\/|$)|\/|[A-Z]:[\\/])/i.test(words)) {
-    return;
-  }
-  return words.length > 1 ? words.replace(/[\\/]+$/, "") || words[0] : words;
 }
 
 /**

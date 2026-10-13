@@ -1,6 +1,12 @@
 import { renderWithProviders } from "@/tests/render";
 import { installWindowStubs } from "@/tests/window-stubs";
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import * as React from "react";
 import {
   afterEach,
@@ -146,6 +152,67 @@ describe("FileSystem", () => {
         "page.html: HTML Document",
         "song.mp3: Audio",
         "task.txt: Plain Text",
+      ]
+    `);
+  });
+
+  // The file type filter offers the kinds the Kind column shows, one each,
+  // and a kind picked there takes every file of that kind.
+  it("filters by the kinds the list names", () => {
+    // The type list keeps its highlighted row in view, and jsdom has no
+    // scrolling.
+    Element.prototype.scrollIntoView = () => {};
+    onTestFinished(() => {
+      Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+    });
+    renderWithProviders(
+      <FileSystem
+        defaultView="list"
+        items={[
+          { contentType: "text/plain", kind: "file", path: "task.txt" },
+          { contentType: "text/plain", kind: "file", path: "2024" },
+          { contentType: "text/html", kind: "file", path: "page.html" },
+          { contentType: "audio/mpeg", kind: "file", path: "song.mp3" },
+          { contentType: "audio/wav", kind: "file", path: "voice.wav" },
+          {
+            contentType: "application/octet-stream",
+            kind: "file",
+            path: "blob",
+          },
+        ]}
+      />,
+    );
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Filter" }), {
+      button: 0,
+      pointerType: "mouse",
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "File type" }));
+    const kinds = screen.getByRole("listbox", { name: "Suggestions" });
+
+    expect(
+      within(kinds)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toMatchInlineSnapshot(`
+      [
+        "Plain Text",
+        "Audio",
+        "Document",
+        "HTML Document",
+      ]
+    `);
+
+    fireEvent.click(within(kinds).getByRole("option", { name: "Audio" }));
+
+    // Read off the page, since the open menu hides the list from roles.
+    expect(
+      [...document.querySelectorAll("[data-file-system-name]")].map(
+        (name) => name.textContent,
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "song.mp3",
+        "voice.wav",
       ]
     `);
   });

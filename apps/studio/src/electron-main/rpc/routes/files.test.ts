@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-import { type JournalEntry } from "@/electron-main/lib/file-journal";
+import {
+  identityOf,
+  type JournalEntry,
+} from "@/electron-main/lib/file-journal";
+import { getFileJournal } from "@/electron-main/stores/machine/file-journal";
 
 import { type InitialRPCContext } from "../context";
 import { files } from "./files";
@@ -146,4 +150,79 @@ it("names the journal entry an undo took back", async () => {
   await expect(
     call(files.undo, { journalId: undone.journalId }, options),
   ).rejects.toThrow("There is nothing to undo");
+});
+
+/** Journals a move of `notes.txt` in `dir` to the Trash, landing wherever `trashed` puts it. */
+async function journalTrash(
+  trashed: (notes: string) => Promise<null | string>,
+) {
+  const notes = path.join(dir, "notes.txt");
+  await fs.writeFile(notes, "notes");
+  const identity = await identityOf(notes);
+  if (!identity) throw new Error("notes.txt is not there");
+  getFileJournal().record({
+    from: notes,
+    identity,
+    kind: "trash",
+    trashed: await trashed(notes),
+  });
+  return notes;
+}
+
+// Without Full Disk Access a Mac never lets the app find what it trashed, so
+// the move can never be undone here: it says where to look once, and the
+// next undo takes back the action before it.
+it("drops a move to the Trash it can never put back once it has said why", async () => {
+  const made = await call(files.newFolder, { parent: dir }, options);
+  await journalTrash(async (notes) => {
+    await fs.rm(notes);
+    return null;
+  });
+
+  await expect(call(files.undo, undefined, options)).rejects.toThrow(
+    "Put “notes.txt” back from the",
+  );
+  expect(await call(files.undo, undefined, options)).toMatchObject({
+    kind: "new-folder",
+  });
+  await expect(fs.stat(made.path)).rejects.toThrow();
+});
+
+it("passes over a move to the Trash put back by hand to the action before it", async () => {
+  const made = await call(files.newFolder, { parent: dir }, options);
+  const notes = await journalTrash(async () =>
+    path.join(dir, "trash", "notes.txt"),
+  );
+
+  expect(await call(files.undo, undefined, options)).toMatchObject({
+    kind: "new-folder",
+  });
+  await expect(fs.stat(made.path)).rejects.toThrow();
+  expect(await fs.readFile(notes, "utf8")).toBe("notes");
+  await expect(call(files.undo, undefined, options)).rejects.toThrow(
+    "There is nothing to undo",
+  );
+});
+
+it("keeps a move to the Trash whose name is taken until the way is clear", async () => {
+  await fs.mkdir(path.join(dir, "trash"));
+  const notes = await journalTrash(async (from) => {
+    const trashed = path.join(dir, "trash", "notes.txt");
+    await fs.rename(from, trashed);
+    await fs.writeFile(from, "someone else's");
+    return trashed;
+  });
+
+  for (const attempt of [1, 2]) {
+    await expect(
+      call(files.undo, undefined, options),
+      `attempt ${attempt}`,
+    ).rejects.toThrow("Something named “notes.txt” is already there.");
+  }
+  await fs.rm(notes);
+  expect(await call(files.undo, undefined, options)).toMatchObject({
+    kind: "trash",
+    path: notes,
+  });
+  expect(await fs.readFile(notes, "utf8")).toBe("notes");
 });

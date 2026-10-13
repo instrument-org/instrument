@@ -51,7 +51,10 @@ describe("undoing a rename", () => {
       to: at("plans.txt"),
     };
 
-    expect(await undo(entry)).toBe(at("notes.txt"));
+    expect(await undo(entry)).toEqual({
+      already: false,
+      path: at("notes.txt"),
+    });
     expect(await listed()).toEqual(["notes.txt"]);
     expect(await fs.readFile(at("notes.txt"), "utf8")).toBe("kept");
   });
@@ -67,6 +70,7 @@ describe("undoing a rename", () => {
     };
 
     await expect(undo(entry)).rejects.toThrow(UndoRefusedError);
+    await expect(undo(entry)).rejects.toMatchObject({ permanent: false });
     expect(await fs.readFile(at("notes.txt"), "utf8")).toBe("someone else's");
     expect(await fs.readFile(at("plans.txt"), "utf8")).toBe("renamed");
   });
@@ -87,7 +91,10 @@ describe("undoing a rename", () => {
         kind: "rename",
         to: at("plans.txt"),
       }),
-    ).rejects.toThrow("has been moved or replaced");
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("has been moved or replaced"),
+      permanent: true,
+    });
     expect(await listed()).toEqual(["plans.txt"]);
     await fs.rm(movedAway);
   });
@@ -103,7 +110,7 @@ describe("undoing what was made", () => {
         kind: "duplicate",
         made: at("notes copy.txt"),
       }),
-    ).toBeNull();
+    ).toEqual({ already: false, path: null });
     expect(trash).toHaveBeenCalledWith(at("notes copy.txt"));
   });
 
@@ -128,7 +135,10 @@ describe("undoing what was made", () => {
         kind: "new-folder",
         made: at("untitled folder"),
       }),
-    ).rejects.toThrow("has something in it now");
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("has something in it now"),
+      permanent: false,
+    });
     expect(await fs.readFile(at("untitled folder/draft.txt"), "utf8")).toBe(
       "work",
     );
@@ -179,6 +189,68 @@ describe("undoing a move to the Trash", () => {
       ).rejects.toThrow(reason);
     },
   );
+
+  it("takes one put back by hand as already undone", async () => {
+    await fs.writeFile(at("notes.txt"), "put back by hand");
+
+    expect(
+      await undo({
+        from: at("notes.txt"),
+        identity: await identity("notes.txt"),
+        kind: "trash",
+        trashed: at(".trash/notes.txt 12.00.00"),
+      }),
+    ).toEqual({ already: true, path: at("notes.txt") });
+    expect(await fs.readFile(at("notes.txt"), "utf8")).toBe("put back by hand");
+  });
+
+  // A refusal nothing will lift lets the journal drop the entry once it has
+  // said why; one the person can clear keeps it to try again.
+  it.each([
+    [
+      "the Trash could not be read",
+      true,
+      async () => ({ from: at("notes.txt"), trashed: null }),
+    ],
+    [
+      "it has left the Trash",
+      true,
+      async () => {
+        await fs.rm(at(".trash/notes.txt 12.00.00"));
+        return {
+          from: at("notes.txt"),
+          trashed: at(".trash/notes.txt 12.00.00"),
+        };
+      },
+    ],
+    [
+      "the folder it was in is gone",
+      true,
+      async () => ({
+        from: at("gone/notes.txt"),
+        trashed: at(".trash/notes.txt 12.00.00"),
+      }),
+    ],
+    [
+      "something has taken its name",
+      false,
+      async () => {
+        await fs.writeFile(at("notes.txt"), "someone else's");
+        return {
+          from: at("notes.txt"),
+          trashed: at(".trash/notes.txt 12.00.00"),
+        };
+      },
+    ],
+  ])("refuses when %s, for good: %s", async (_case, permanent, place) => {
+    await fs.writeFile(at("notes.txt"), "trashed");
+    const before = await identity("notes.txt");
+    await moveToTrash(at("notes.txt"));
+
+    await expect(
+      undo({ ...(await place()), identity: before, kind: "trash" }),
+    ).rejects.toMatchObject({ permanent });
+  });
 
   it("names the Recycle Bin on Windows when what was trashed has left it", async () => {
     await expect(

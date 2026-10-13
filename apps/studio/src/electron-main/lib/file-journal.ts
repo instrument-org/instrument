@@ -445,17 +445,35 @@ async function isStillTrashed(
   return record !== null && samePlace(record.from, from, platform);
 }
 
-export class UndoRefusedError extends Error {}
+/**
+ * Why an entry cannot be taken back. A `permanent` refusal is one nothing the
+ * person can do will lift, the thing having gone from where the entry left
+ * it, so the entry can go once it has said why; any other waits for the
+ * person to clear the way and try again.
+ */
+export class UndoRefusedError extends Error {
+  readonly permanent: boolean;
+
+  constructor(message: string, { permanent }: { permanent: boolean }) {
+    super(message);
+    this.permanent = permanent;
+  }
+}
 
 const nameOf = (at: string) => `“${path.basename(at)}”`;
+
+/** What taking an entry back did. */
+export type Undone = {
+  /** Whether it was already back, put there by hand, so nothing was done. */
+  already: boolean;
+  /** Where the thing is now, or null for something taken back by being removed. */
+  path: null | string;
+};
 
 /**
  * Takes one entry back, or refuses with what is in the way. Nothing here
  * deletes anything that is not provably what the entry made: a duplicate goes
  * to the Trash rather than away, and a folder is removed only while empty.
- *
- * Returns the path the thing is at once taken back, or null for something
- * taken back by being removed.
  */
 export async function undoEntry(
   entry: JournalEntry,
@@ -463,34 +481,38 @@ export async function undoEntry(
     platform = process.platform,
     trash,
   }: { platform?: NodeJS.Platform; trash: (at: string) => Promise<void> },
-): Promise<null | string> {
+): Promise<Undone> {
   switch (entry.kind) {
     case "rename": {
       if (!sameIdentity(await identityOf(entry.to), entry.identity)) {
         throw new UndoRefusedError(
           `${nameOf(entry.to)} has been moved or replaced since it was renamed.`,
+          { permanent: true },
         );
       }
       if (!(await isFreeFor(entry.from, entry.identity))) {
         throw new UndoRefusedError(
           `Something named ${nameOf(entry.from)} is already there.`,
+          { permanent: false },
         );
       }
       await fs.rename(entry.to, entry.from);
-      return entry.from;
+      return { already: false, path: entry.from };
     }
     case "duplicate":
       if (!sameIdentity(await identityOf(entry.made), entry.identity)) {
         throw new UndoRefusedError(
           `${nameOf(entry.made)} has been moved or replaced since it was made.`,
+          { permanent: true },
         );
       }
       await trash(entry.made);
-      return null;
+      return { already: false, path: null };
     case "new-folder": {
       if (!sameIdentity(await identityOf(entry.made), entry.identity)) {
         throw new UndoRefusedError(
           `${nameOf(entry.made)} has been moved or replaced since it was made.`,
+          { permanent: true },
         );
       }
       try {
@@ -500,32 +522,40 @@ export async function undoEntry(
       } catch {
         throw new UndoRefusedError(
           `${nameOf(entry.made)} has something in it now.`,
+          { permanent: false },
         );
       }
-      return null;
+      return { already: false, path: null };
     }
     case "trash": {
+      if (sameIdentity(await identityOf(entry.from), entry.identity)) {
+        return { already: true, path: entry.from };
+      }
       if (entry.trashed === null) {
         throw new UndoRefusedError(
           platform === "darwin"
             ? // oxlint-disable-next-line studio/no-os-words -- this branch runs only on macOS
               `Put ${nameOf(entry.from)} back from the Trash in the Finder.`
             : `Put ${nameOf(entry.from)} back from the ${osConventionsFor(platform).trash}.`,
+          { permanent: true },
         );
       }
       if (!(await isStillTrashed(entry.trashed, entry, platform))) {
         throw new UndoRefusedError(
           `${nameOf(entry.from)} is no longer in the ${osConventionsFor(platform).trash}.`,
+          { permanent: true },
         );
       }
       if (!(await isFreeFor(entry.from, entry.identity))) {
         throw new UndoRefusedError(
           `Something named ${nameOf(entry.from)} is already there.`,
+          { permanent: false },
         );
       }
       if ((await identityOf(path.dirname(entry.from))) === null) {
         throw new UndoRefusedError(
           `The folder ${nameOf(entry.from)} was in is gone.`,
+          { permanent: true },
         );
       }
       await fs.rename(entry.trashed, entry.from);
@@ -535,7 +565,7 @@ export async function undoEntry(
         // the Trash as something that can no longer be put back.
         await fs.rm(record, { force: true }).catch(() => undefined);
       }
-      return entry.from;
+      return { already: false, path: entry.from };
     }
   }
 }

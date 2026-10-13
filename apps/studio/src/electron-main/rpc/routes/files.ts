@@ -202,7 +202,7 @@ const trash = base
       trashed,
     });
     // One that was not found is still journaled, so undoing from the keyboard
-    // stops at it and says where to look rather than taking back something
+    // says once where to look rather than quietly taking back something
     // older, but there is no Undo to offer for it.
     return { journalId: trashed === null ? null : entry.id };
   });
@@ -234,8 +234,12 @@ async function record(
 /**
  * Takes back the newest action in the journal: a rename, a duplicate, a new
  * folder, or a move to the Trash. One that cannot be taken back safely is
- * refused with the reason and stays in the journal, so nothing older is
- * undone out of order behind it.
+ * refused with the reason. While the person can still clear the way
+ * (something has taken its name, a new folder has been filled) it stays in
+ * the journal, so nothing older is undone out of order behind it; one that
+ * can never be taken back is dropped once it has said why, so the next undo
+ * reaches the action before it. A move to the Trash already put back by hand
+ * is dropped quietly, and the action before it is taken back instead.
  *
  * `journalId` takes back that one entry instead, as the Undo on the toast an
  * action raised does: it is about those items whatever was done since, and
@@ -260,43 +264,52 @@ const undo = base
   )
   .handler(async ({ errors, input }) => {
     const journal = getFileJournal();
-    const entry =
-      input?.journalId === undefined
-        ? journal.latest()
-        : journal.byId(input.journalId);
-    if (!entry) {
-      throw errors.NOTHING_TO_UNDO();
-    }
-    try {
-      const restored = await undoEntry(entry, {
-        trash: (at) => shell.trashItem(at),
-      });
-      journal.remove(entry.id);
-      if (entry.kind === "rename") {
-        followMove(entry.to, entry.from);
+    // Each pass drops an entry, so this ends when the journal does.
+    for (;;) {
+      const entry =
+        input?.journalId === undefined
+          ? journal.latest()
+          : journal.byId(input.journalId);
+      if (!entry) {
+        throw errors.NOTHING_TO_UNDO();
       }
-      const isFolder =
-        restored !== null &&
-        (await fs.lstat(restored).then(
-          (stats) => stats.isDirectory(),
-          () => false,
-        ));
-      return {
-        isFolder,
-        journalId: entry.id,
-        kind: entry.kind,
-        path: restored,
-      };
-    } catch (error) {
-      // A refusal is the undo's answer (the file changed since, say); any
-      // other failure is a fault worth seeing, though the person is told
-      // the same thing either way.
-      if (!(error instanceof UndoRefusedError)) {
-        captureServerException(error, { scopes: ["studio"] });
+      try {
+        const undone = await undoEntry(entry, {
+          trash: (at) => shell.trashItem(at),
+        });
+        journal.remove(entry.id);
+        if (undone.already && input?.journalId === undefined) {
+          continue;
+        }
+        if (entry.kind === "rename") {
+          followMove(entry.to, entry.from);
+        }
+        const isFolder =
+          undone.path !== null &&
+          (await fs.lstat(undone.path).then(
+            (stats) => stats.isDirectory(),
+            () => false,
+          ));
+        return {
+          isFolder,
+          journalId: entry.id,
+          kind: entry.kind,
+          path: undone.path,
+        };
+      } catch (error) {
+        // A refusal is the undo's answer (the file changed since, say); any
+        // other failure is a fault worth seeing, though the person is told
+        // the same thing either way.
+        if (!(error instanceof UndoRefusedError)) {
+          captureServerException(error, { scopes: ["studio"] });
+        } else if (error.permanent) {
+          journal.remove(entry.id);
+        }
+        throw errors.CANNOT_UNDO({
+          message:
+            error instanceof UndoRefusedError ? error.message : undefined,
+        });
       }
-      throw errors.CANNOT_UNDO({
-        message: error instanceof UndoRefusedError ? error.message : undefined,
-      });
     }
   });
 

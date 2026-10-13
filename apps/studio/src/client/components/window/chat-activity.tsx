@@ -17,6 +17,7 @@ import { type ReactNode, useState } from "react";
 
 import { useChatTasks } from "./child-tasks-query";
 import { type Chat } from "./chats";
+import { taskStoppedLine } from "./task-stopped-line";
 import { taskTimeLabel } from "./task-time";
 import { useNow } from "./use-now";
 
@@ -208,7 +209,7 @@ function TaskRows({
           {atWork.length > 0 && <div className="my-1 h-px bg-border" />}
           <Heading>Finished</Heading>
           {finished.map((task) => {
-            const stopped = stoppedLine(task.stoppedBy);
+            const stopped = taskStoppedLine(task.stoppedBy);
             return (
               <Row
                 isQuiet
@@ -245,25 +246,6 @@ function TaskRows({
       )}
     </div>
   );
-}
-
-/**
- * Who stopped a finished task, in the words its own page ends on; none for
- * one that ended on its own. The app's closing is not here: that reads as a
- * failure, with its own line.
- */
-function stoppedLine(stoppedBy: ChatTask["stoppedBy"]) {
-  switch (stoppedBy) {
-    case "user": {
-      return "You stopped this task";
-    }
-    case "chat": {
-      return "The chat stopped this task";
-    }
-    default: {
-      return undefined;
-    }
-  }
 }
 
 function Heading({ children }: { children: string }) {

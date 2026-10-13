@@ -96,6 +96,10 @@
     {
       "name": "external commands",
       "diff": "external-commands-3.6.0.diff"
+    },
+    {
+      "name": "ls -l",
+      "diff": "ls-long-format-3.6.0.diff"
     }
   ]
 }

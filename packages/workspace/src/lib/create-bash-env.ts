@@ -1,4 +1,5 @@
 import os from "node:os";
+import path from "node:path";
 import {
   Bash,
   type Command,
@@ -60,10 +61,12 @@ import {
 import {
   createShortcutsCommand,
   SHORTCUTS_COMMAND,
+  SHORTCUTS_PATH,
 } from "./shell-commands/shortcuts";
 import {
   createOsascriptCommand,
   OSASCRIPT_COMMAND,
+  OSASCRIPT_PATH,
 } from "./shell-commands/osascript";
 import {
   createPip3Command,
@@ -99,6 +102,11 @@ import {
 } from "./shell-commands/validate-skill";
 import { createPathProgramResolver } from "./shell-commands/path-program";
 import { createWhichCommand } from "./shell-commands/which";
+import { AGENT_BROWSER_PATH } from "./agent-browser";
+import { FFMPEG_PATH, FFPROBE_PATH } from "./ffmpeg";
+import { gitBinaryPath } from "./git";
+import { RG_DISK_PATH } from "./ripgrep";
+import { chatVenvPython, getUvBinPath } from "./uv";
 import {
   buildBashFs,
   buildWorkspaceFsLayout,
@@ -517,6 +525,44 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
   },
 ];
 
+/**
+ * The program each of our commands runs, which `type`, `command -v`, `hash`
+ * and `which` name it by. A command not listed runs inside the shell, or
+ * runs a program only as part of what it does (`pip` is `uv pip`, `npx` is
+ * `pnpm dlx`), and is described as a shell builtin.
+ */
+const COMMAND_PROGRAMS: Record<string, (chatId: ChatId) => string | undefined> =
+  {
+    [AGENT_BROWSER_COMMAND.name]: () => AGENT_BROWSER_PATH,
+    [CALENDAR_COMMAND.name]: () => getWorkspaceConfig().macHelperBinPath,
+    [FFMPEG_COMMAND.name]: () => FFMPEG_PATH,
+    [FFPROBE_COMMAND.name]: () => FFPROBE_PATH,
+    [GIT_COMMAND.name]: () => gitBinaryPath(),
+    [NODE_COMMAND.name]: () => process.execPath,
+    [OSASCRIPT_COMMAND.name]: () => OSASCRIPT_PATH,
+    [PNPM_COMMAND.name]: () => getWorkspaceConfig().pnpmBinPath,
+    [PYTHON_COMMAND.name]: chatVenvPython,
+    [PYTHON3_COMMAND.name]: chatVenvPython,
+    [RG_COMMAND.name]: () => RG_DISK_PATH,
+    [SHORTCUTS_COMMAND.name]: () => SHORTCUTS_PATH,
+    [UV_COMMAND.name]: () => getUvBinPath(),
+  };
+
+/** The program one of our commands runs, in the shell's spelling. */
+function commandProgram(chatId: ChatId, name: string): string | undefined {
+  let program: string | undefined;
+  try {
+    program = COMMAND_PROGRAMS[name]?.(chatId);
+  } catch {
+    // A program this platform cannot carry (dugite's git elsewhere) runs
+    // nothing, so there is nothing to name.
+    return undefined;
+  }
+  return program !== undefined && path.isAbsolute(program)
+    ? shellPath(program)
+    : undefined;
+}
+
 /** The custom commands this platform has, read per call so a test can pin one. */
 function customCommandDefs(): CustomCommandDef[] {
   return ALL_CUSTOM_COMMAND_DEFS.filter(
@@ -619,7 +665,7 @@ export function createBashDescription() {
 
     Any other program on the computer's PATH runs too, held to the same rules as the specialized commands below; \`which <name>\` says whether one is there.
 
-    IMPORTANT: Specialized commands below (e.g. ${FFMPEG_COMMAND.name}, ${FFPROBE_COMMAND.name}) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/${FFMPEG_COMMAND.name}, but that path does NOT exist; ignore it. These binaries are also on PATH inside ${NODE_COMMAND.name} and ${PYTHON_COMMAND.name} scripts, so a script may shell out to \`${FFMPEG_COMMAND.name}\`/\`${FFPROBE_COMMAND.name}\` directly.
+    IMPORTANT: Specialized commands below (e.g. ${FFMPEG_COMMAND.name}, ${FFPROBE_COMMAND.name}) are invoked by bare name only -- never by an absolute path. These binaries are also on PATH inside ${NODE_COMMAND.name} and ${PYTHON_COMMAND.name} scripts, so a script may shell out to \`${FFMPEG_COMMAND.name}\`/\`${FFPROBE_COMMAND.name}\` directly.
 
     Specialized commands:
     ${specializedCommands}
@@ -731,7 +777,6 @@ export async function createLocalBashEnv({
   const nativeCommands = customCommandDefs().map((cmd) =>
     cmd.factory({ chatId, invokeTool, layout }),
   );
-  const nativeCommandNames = customCommandDefs().map((cmd) => cmd.name);
   const specializedCommands = [
     ...(role === "chat"
       ? [
@@ -749,19 +794,6 @@ export async function createLocalBashEnv({
     createAppCommand({ chatId }),
     ...nativeCommands,
   ];
-  const specializedCommandNames = [
-    ...(role === "chat"
-      ? [
-          TASK_COMMAND.name,
-          CHAT_COMMAND.name,
-          MEMORY_COMMAND.name,
-          TAB_COMMAND.name,
-        ]
-      : []),
-    APP_COMMAND.name,
-    ...nativeCommandNames,
-  ];
-
   const bash = new Bash({
     commands: allowedCommands,
     customCommands: [
@@ -780,16 +812,7 @@ export async function createLocalBashEnv({
       ...SESSION_COMMAND_DEFS.map((cmd) =>
         cmd.factory({ remainingYieldMs, sessionId }),
       ),
-      createWhichCommand(
-        new Set([
-          AGENT_BROWSER_COMMAND.name,
-          RG_COMMAND.name,
-          ...allowedCommands,
-          ...SESSION_COMMAND_DEFS.map((cmd) => cmd.name),
-          ...specializedCommandNames,
-        ]),
-        chatId,
-      ),
+      createWhichCommand(chatId),
       ...STATIC_STUB_COMMANDS,
     ].map((command) =>
       standIn && MAIN_THREAD_COMMANDS.has(command.name)
@@ -835,6 +858,9 @@ export async function createLocalBashEnv({
       USER: os.userInfo().username,
     },
     fs,
+    // The shell's filesystem is the real disk, so each of our commands is
+    // described by the program it runs, or as part of the shell.
+    registeredCommandPath: (name) => commandProgram(chatId, name),
     // A name no builtin or command of ours answers runs the program by that
     // name on the computer's PATH, as a native command.
     resolveExternalCommand: createPathProgramResolver(chatId),

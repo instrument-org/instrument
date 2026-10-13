@@ -8,6 +8,7 @@ import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { createBashEnv } from "./create-bash-env";
+import { RG_DISK_PATH } from "./ripgrep";
 
 /**
  * A name no builtin or command of ours answers runs the program by that name
@@ -96,7 +97,6 @@ describe.skipIf(process.platform === "win32")("programs on PATH", () => {
         "command -v path-echo",
         "type path-echo",
         "hash path-echo && hash -t path-echo",
-        "which ls rg",
         "which nonexistentcmd123; echo $?",
         "command -v nonexistentcmd123; echo $?",
       ].join("\n"),
@@ -107,10 +107,55 @@ describe.skipIf(process.platform === "win32")("programs on PATH", () => {
       program,
       `path-echo is ${program}`,
       program,
+      "1",
+      "1",
+      "",
+    ]);
+  });
+
+  it("names a builtin as part of the shell, though a program by its name is on PATH", async () => {
+    const result = await run(
+      [
+        "which ls",
+        "command -v ls",
+        "type ls",
+        "type -t ls",
+        "hash ls && hash -t ls; echo $?",
+        "type file",
+      ].join("\n"),
+    );
+    expect(result.stdout.split("\n")).toEqual([
       "ls",
-      "rg",
+      "ls",
+      "ls is a shell builtin",
+      "builtin",
       "1",
-      "1",
+      "file is a shell builtin",
+      "",
+    ]);
+  });
+
+  it("names the program one of our commands runs", async () => {
+    const venvPython = path.join(taskRoot, ".venv", "bin", "python");
+    const result = await run(
+      [
+        "which python3",
+        "command -v python3",
+        "type python3",
+        "type -t python3",
+        "hash python3 && hash -t python3",
+        "which rg",
+        "which node",
+      ].join("\n"),
+    );
+    expect(result.stdout.split("\n")).toEqual([
+      venvPython,
+      venvPython,
+      `python3 is ${venvPython}`,
+      "file",
+      venvPython,
+      RG_DISK_PATH,
+      process.execPath,
       "",
     ]);
   });

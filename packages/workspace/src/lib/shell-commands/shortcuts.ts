@@ -15,7 +15,7 @@ export const SHORTCUTS_COMMAND = {
 } as const;
 
 /** Ships with every Mac since Monterey. */
-const SHORTCUTS_PATH = "/usr/bin/shortcuts";
+export const SHORTCUTS_PATH = "/usr/bin/shortcuts";
 
 /** The flags whose value is a file: an input to the shortcut, or where its result goes. */
 const PATH_FLAGS = new Set(["-i", "--input-path", "-o", "--output-path"]);

@@ -1,0 +1,302 @@
+diff --git a/packages/just-bash/src/commands/ls/ls.real-stat.test.ts b/packages/just-bash/src/commands/ls/ls.real-stat.test.ts
+new file mode 100644
+index 0000000..0deaa32
+--- /dev/null
++++ b/packages/just-bash/src/commands/ls/ls.real-stat.test.ts
+@@ -0,0 +1,44 @@
++import * as fs from "node:fs";
++import * as os from "node:os";
++import * as path from "node:path";
++import { afterEach, beforeEach, describe, expect, it } from "vitest";
++import { Bash } from "../../Bash.js";
++import { ReadWriteFs } from "../../fs/read-write-fs/read-write-fs.js";
++
++describe.skipIf(process.platform === "win32")("ls -l over a real disk", () => {
++  let root: string;
++
++  beforeEach(() => {
++    root = fs.mkdtempSync(path.join(os.tmpdir(), "ls-real-stat-"));
++    fs.writeFileSync(path.join(root, "run.sh"), "echo hi\n", { mode: 0o755 });
++    fs.chmodSync(path.join(root, "run.sh"), 0o755);
++    const old = new Date(2020, 0, 2, 12, 30);
++    fs.utimesSync(path.join(root, "run.sh"), old, old);
++  });
++
++  afterEach(() => {
++    fs.rmSync(root, { force: true, recursive: true });
++  });
++
++  it("shows each entry's mode, owner, size and time as the disk has them", async () => {
++    const bash = new Bash({ cwd: "/", fs: new ReadWriteFs({ root }) });
++    const result = await bash.exec("ls -la /; ls -l /run.sh");
++    const owner = os.userInfo().username;
++    const lines = result.stdout.split("\n");
++    expect(lines[1]).toMatch(
++      new RegExp(
++        `^drwx[-rwx]{6} 1 ${owner} \\S+ +\\d+ \\w{3} [ \\d]\\d [ \\d:]{5} \\.$`,
++      ),
++    );
++    expect(lines).toEqual(
++      expect.arrayContaining([
++        expect.stringMatching(
++          new RegExp(`^-rwxr-xr-x 1 ${owner} \\S+ +8 Jan  2  2020 run\\.sh$`),
++        ),
++      ]),
++    );
++    expect(lines.at(-2)).toMatch(
++      new RegExp(`^-rwxr-xr-x 1 ${owner} \\S+ +8 Jan  2  2020 /run\\.sh$`),
++    );
++  });
++});
+diff --git a/packages/just-bash/src/commands/ls/ls.ts b/packages/just-bash/src/commands/ls/ls.ts
+index e289fce..24d0bdd 100644
+--- a/packages/just-bash/src/commands/ls/ls.ts
++++ b/packages/just-bash/src/commands/ls/ls.ts
+@@ -126,6 +126,36 @@ function formatDate(date: Date): string {
+   return `${month} ${day}  ${year}`;
+ }
+ 
++// The permission string ls -l shows for a mode, such as "drwxr-xr-x"
++function formatMode(stat: FsStat): string {
++  const type = stat.isDirectory ? "d" : stat.isSymbolicLink ? "l" : "-";
++  const triplet = (shift: number, special: number, mark: string) => {
++    const bits = stat.mode >> shift;
++    const read = bits & 4 ? "r" : "-";
++    const write = bits & 2 ? "w" : "-";
++    const run = bits & 1;
++    const exec =
++      stat.mode & special ? (run ? mark : mark.toUpperCase()) : run ? "x" : "-";
++    return `${read}${write}${exec}`;
++  };
++  return `${type}${triplet(6, 0o4000, "s")}${triplet(3, 0o2000, "s")}${triplet(0, 0o1000, "t")}`;
++}
++
++// One ls -l line: mode, owner and group where the filesystem knows them,
++// size, and modification time, from the entry's stat
++function formatLongLine(
++  stat: FsStat,
++  name: string,
++  humanReadable: boolean,
++): string {
++  const size = stat.size ?? 0;
++  const sizeStr = humanReadable
++    ? formatHumanSize(size).padStart(5)
++    : String(size).padStart(5);
++  const dateStr = formatDate(stat.mtime ?? new Date(0));
++  return `${formatMode(stat)} 1 ${stat.owner ?? "user"} ${stat.group ?? "user"} ${sizeStr} ${dateStr} ${name}`;
++}
++
+ // Classify suffix for ls -F: / directory, @ symlink, * executable
+ function classifySuffix(stat: FsStat): string {
+   if (stat.isDirectory) return "/";
+@@ -236,18 +266,11 @@ export const lsCommand: RuntimeCommand = {
+         try {
+           const stat = await ctx.fs.stat(fullPath);
+           if (longFormat) {
+-            const mode = stat.isDirectory ? "drwxr-xr-x" : "-rw-r--r--";
+             const suffix = classifyFiles
+               ? classifySuffix(await ctx.fs.lstat(fullPath))
+               : "";
+-            const size = stat.size ?? 0;
+-            const sizeStr = humanReadable
+-              ? formatHumanSize(size).padStart(5)
+-              : String(size).padStart(5);
+-            const mtime = stat.mtime ?? new Date(0);
+-            const dateStr = formatDate(mtime);
+             output.stdout.append(
+-              `${mode} 1 user user ${sizeStr} ${dateStr} ${path}${suffix}\n`,
++              `${formatLongLine(stat, path, humanReadable)}${suffix}\n`,
+             );
+           } else {
+             const suffix = classifyFiles
+@@ -495,14 +518,8 @@ async function listPath(
+         ? classifySuffix(await ctx.fs.lstat(fullPath))
+         : "";
+       if (longFormat) {
+-        const size = stat.size ?? 0;
+-        const sizeStr = humanReadable
+-          ? formatHumanSize(size).padStart(5)
+-          : String(size).padStart(5);
+-        const mtime = stat.mtime ?? new Date(0);
+-        const dateStr = formatDate(mtime);
+         output.stdout.append(
+-          `-rw-r--r-- 1 user user ${sizeStr} ${dateStr} ${path}${fileSuffix}\n`,
++          `${formatLongLine(stat, path, humanReadable)}${fileSuffix}\n`,
+         );
+         return 0;
+       }
+@@ -581,7 +598,14 @@ async function listPath(
+ 
+       // Add special entries first
+       for (const entry of specialEntries) {
+-        listing.append(`drwxr-xr-x 1 user user     0 Jan  1 00:00 ${entry}\n`);
++        const special = await ctx.fs
++          .stat(entry === "." ? fullPath : ctx.fs.resolvePath(fullPath, ".."))
++          .catch(() => undefined);
++        listing.append(
++          special
++            ? `${formatLongLine(special, entry, humanReadable)}\n`
++            : `drwxr-xr-x 1 user user     0 Jan  1 00:00 ${entry}\n`,
++        );
+       }
+ 
+       // Parallelize stat calls for regular entries
+@@ -598,19 +622,12 @@ async function listPath(
+               fullPath === "/" ? `/${entry}` : `${fullPath}/${entry}`;
+             try {
+               const entryStat = await ctx.fs.stat(entryPath);
+-              const mode = entryStat.isDirectory ? "drwxr-xr-x" : "-rw-r--r--";
+               const suffix = classifyFiles
+                 ? classifySuffix(await ctx.fs.lstat(entryPath))
+                 : "";
+-              const size = entryStat.size ?? 0;
+-              const sizeStr = humanReadable
+-                ? formatHumanSize(size).padStart(5)
+-                : String(size).padStart(5);
+-              const mtime = entryStat.mtime ?? new Date(0);
+-              const dateStr = formatDate(mtime);
+               return {
+                 name: entry,
+-                line: `${mode} 1 user user ${sizeStr} ${dateStr} ${entry}${suffix}\n`,
++                line: `${formatLongLine(entryStat, entry, humanReadable)}${suffix}\n`,
+               };
+             } catch {
+               return {
+diff --git a/packages/just-bash/src/fs/interface.ts b/packages/just-bash/src/fs/interface.ts
+index 5ad0acc..08cbf30 100644
+--- a/packages/just-bash/src/fs/interface.ts
++++ b/packages/just-bash/src/fs/interface.ts
+@@ -84,6 +84,9 @@ export interface FsStat {
+   mode: number;
+   size: number;
+   mtime: Date;
++  /** The names of the file's owner and group, where the backend knows them. */
++  owner?: string;
++  group?: string;
+   /** Stable filesystem identity when the backend can expose it safely. */
+   dev?: number | bigint;
+   ino?: number | bigint;
+diff --git a/packages/just-bash/src/fs/overlay-fs/overlay-fs.ts b/packages/just-bash/src/fs/overlay-fs/overlay-fs.ts
+index 7619608..58ac492 100644
+--- a/packages/just-bash/src/fs/overlay-fs/overlay-fs.ts
++++ b/packages/just-bash/src/fs/overlay-fs/overlay-fs.ts
+@@ -45,6 +45,7 @@ import {
+   isPathWithinRoot,
+   isSameOrDescendantPath,
+   normalizePath,
++  ownerNames,
+   resolveCanonicalPath,
+   resolveCanonicalPathNoSymlinks,
+   sanitizeFsError,
+@@ -709,6 +710,7 @@ export class OverlayFs implements IFileSystem {
+         mtime: lstatResult.mtime,
+         dev: lstatResult.dev,
+         ino: lstatResult.ino,
++        ...ownerNames(lstatResult),
+       };
+     } catch (e) {
+       if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+@@ -781,6 +783,7 @@ export class OverlayFs implements IFileSystem {
+         mtime: stat.mtime,
+         dev: stat.dev,
+         ino: stat.ino,
++        ...ownerNames(stat),
+       };
+     } catch (e) {
+       if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+diff --git a/packages/just-bash/src/fs/read-write-fs/read-write-fs.ts b/packages/just-bash/src/fs/read-write-fs/read-write-fs.ts
+index f1b5501..cf24b98 100644
+--- a/packages/just-bash/src/fs/read-write-fs/read-write-fs.ts
++++ b/packages/just-bash/src/fs/read-write-fs/read-write-fs.ts
+@@ -36,6 +36,7 @@ import { resolvePath as resolveVPath } from "../path-utils.js";
+ import {
+   isPathWithinRoot,
+   normalizePath,
++  ownerNames,
+   resolveCanonicalPath,
+   resolveCanonicalPathNoSymlinks,
+   sanitizeFsError,
+@@ -604,6 +605,7 @@ export class ReadWriteFs implements IFileSystem {
+         dev: stat.dev,
+         ino: stat.ino,
+         identity: `real:${stat.dev}:${stat.ino}`,
++        ...ownerNames(stat),
+       };
+     } catch (e) {
+       const err = e as NodeJS.ErrnoException;
+@@ -634,6 +636,7 @@ export class ReadWriteFs implements IFileSystem {
+         dev: stat.dev,
+         ino: stat.ino,
+         identity: `real:${stat.dev}:${stat.ino}`,
++        ...ownerNames(stat),
+       };
+     } catch (e) {
+       const err = e as NodeJS.ErrnoException;
+diff --git a/packages/just-bash/src/fs/real-fs-utils.ts b/packages/just-bash/src/fs/real-fs-utils.ts
+index 961e18c..ddb40c0 100644
+--- a/packages/just-bash/src/fs/real-fs-utils.ts
++++ b/packages/just-bash/src/fs/real-fs-utils.ts
+@@ -11,6 +11,7 @@
+  */
+ 
+ import * as fs from "node:fs";
++import * as os from "node:os";
+ import * as nodePath from "node:path";
+ 
+ // Re-export path utilities used by callers that import from real-fs-utils.
+@@ -264,3 +265,55 @@ export function sanitizeFsError(
+   const code = err.code || "EIO";
+   throw new Error(`${code}: ${operation} '${virtualPath}'`);
+ }
++
++/** Ids to names from a system database such as /etc/passwd, read once. */
++const accountNames = new Map<string, Map<number, string>>();
++
++function namesIn(database: string): Map<number, string> {
++  let names = accountNames.get(database);
++  if (!names) {
++    names = new Map();
++    try {
++      for (const line of fs.readFileSync(database, "utf8").split("\n")) {
++        const [name, , id] = line.split(":");
++        if (name && !name.startsWith("#") && id && /^\d+$/.test(id)) {
++          names.set(Number(id), name);
++        }
++      }
++    } catch {
++      // No database to read; every id shows as its number.
++    }
++    accountNames.set(database, names);
++  }
++  return names;
++}
++
++/** This process's account name, which a directory service may hold apart from /etc/passwd. */
++function ownAccountName(): string | undefined {
++  try {
++    return os.userInfo().username;
++  } catch {
++    return undefined;
++  }
++}
++
++/**
++ * The names `ls -l` shows for a real file's owner and group: this process's
++ * own account by its name, the others from the system's user and group
++ * databases, and an id neither names as its number. None on Windows, whose
++ * files carry no POSIX owner.
++ */
++export function ownerNames(stat: { uid: number; gid: number }): {
++  owner?: string;
++  group?: string;
++} {
++  if (process.platform === "win32") {
++    return {};
++  }
++  const owner =
++    (stat.uid === process.getuid?.() ? ownAccountName() : undefined) ??
++    namesIn("/etc/passwd").get(stat.uid) ??
++    String(stat.uid);
++  const group = namesIn("/etc/group").get(stat.gid) ?? String(stat.gid);
++  return { group, owner };
++}

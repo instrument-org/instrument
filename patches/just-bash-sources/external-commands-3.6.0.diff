@@ -1,16 +1,18 @@
 diff --git a/packages/just-bash/src/Bash.ts b/packages/just-bash/src/Bash.ts
-index f93abf9..b3716ae 100644
+index f93abf9..723b5cb 100644
 --- a/packages/just-bash/src/Bash.ts
 +++ b/packages/just-bash/src/Bash.ts
-@@ -81,6 +81,7 @@ import type {
+@@ -81,7 +81,9 @@ import type {
    BashExecResult,
    Command,
    CommandRegistry,
 +  ExternalCommandResolver,
    FeatureCoverageWriter,
++  RegisteredCommandPath,
    RuntimeCommand,
    TraceCallback,
-@@ -205,6 +206,17 @@ export interface BashOptions {
+ } from "./types.js";
+@@ -205,6 +207,31 @@ export interface BashOptions {
     * ```
     */
    customCommands?: CustomCommand[];
@@ -25,59 +27,128 @@ index f93abf9..b3716ae 100644
 +   * Runs as trusted host code, as a custom command does.
 +   */
 +  resolveExternalCommand?: ExternalCommandResolver;
++  /**
++   * Names the program a registered command runs, for `type`, `command -v`
++   * and `hash`, or undefined for one that runs inside the shell. Setting it
++   * says the filesystem is a real disk, whose PATH directories hold real
++   * programs rather than stubs of the registered commands. A registered
++   * command then resolves by name ahead of the hash table and PATH, and is
++   * described by the program this names or else as a shell builtin rather
++   * than at a stub path; a bare name the shell does not know asks
++   * `resolveExternalCommand` before PATH is searched; and an executable a
++   * PATH search or the hash table finds is offered to
++   * `resolveExternalCommand` by its path before the shell reads it as a
++   * script.
++   */
++  registeredCommandPath?: RegisteredCommandPath;
    /**
     * Optional logger for execution tracing.
     * When provided, logs exec commands (info), stdout (debug), stderr (info), and exit codes (info).
-@@ -326,6 +338,7 @@ export class Bash {
+@@ -326,6 +353,8 @@ export class Bash {
    private defenseInDepthConfig?: DefenseInDepthConfig | boolean;
    private coverageWriter?: FeatureCoverageWriter;
    private jsBootstrapCode?: string;
 +  private resolveExternalCommand?: ExternalCommandResolver;
++  private registeredCommandPath?: RegisteredCommandPath;
    private invokeToolFn?: (
      path: string,
      argsJson: string,
-@@ -396,6 +409,7 @@ export class Bash {
+@@ -396,6 +425,8 @@ export class Bash {
  
      // Store logger if provided
      this.logger = options.logger;
 +    this.resolveExternalCommand = options.resolveExternalCommand;
++    this.registeredCommandPath = options.registeredCommandPath;
  
      // Preserve the historical enabled default. Older supported Nodes use the
      // strongest scoped controls they expose and report loader-hook capability.
-@@ -818,6 +832,7 @@ export class Bash {
+@@ -818,6 +849,8 @@ export class Bash {
            const interpreterOptions: InterpreterOptions = {
              fs: this.fs,
              commands: this.commands,
 +            resolveExternalCommand: this.resolveExternalCommand,
++            registeredCommandPath: this.registeredCommandPath,
              limits: this.limits,
              executionScope,
              exec: (script, childOptions, childStdinAlreadyAccounted = false) =>
 diff --git a/packages/just-bash/src/index.ts b/packages/just-bash/src/index.ts
-index cc01c6d..20af30a 100644
+index cc01c6d..fb5ac40 100644
 --- a/packages/just-bash/src/index.ts
 +++ b/packages/just-bash/src/index.ts
-@@ -138,6 +138,8 @@ export type {
-   BashExecResult,
+@@ -139,6 +139,9 @@ export type {
    Command,
    CommandContext,
+   ExecResult,
 +  ExternalCommand,
 +  ExternalCommandResolver,
-   ExecResult,
    IFileSystem,
++  RegisteredCommandPath,
    ResolvedCommandContext,
+ } from "./types.js";
+diff --git a/packages/just-bash/src/interpreter/builtin-dispatch.ts b/packages/just-bash/src/interpreter/builtin-dispatch.ts
+index 55e9890..037ab74 100644
+--- a/packages/just-bash/src/interpreter/builtin-dispatch.ts
++++ b/packages/just-bash/src/interpreter/builtin-dispatch.ts
+@@ -857,8 +857,10 @@ export async function executeExternalCommand(
+     );
+   }
+   const { cmd, path: cmdPath } = resolved;
+-  // Add to hash table for PATH caching (only for non-path commands)
+-  if (!commandName.includes("/")) {
++  // Add to hash table for PATH caching (only for non-path commands). A
++  // registered command with no program of its own is named by its bare name
++  // and is not remembered, as bash does not hash a builtin.
++  if (!commandName.includes("/") && cmdPath.includes("/")) {
+     if (!ctx.state.hashTable) {
+       ctx.state.hashTable = new Map();
+     }
 diff --git a/packages/just-bash/src/interpreter/builtins/hash.ts b/packages/just-bash/src/interpreter/builtins/hash.ts
-index 94af782..69f5a8e 100644
+index 94af782..38a5ad7 100644
 --- a/packages/just-bash/src/interpreter/builtins/hash.ts
 +++ b/packages/just-bash/src/interpreter/builtins/hash.ts
-@@ -16,6 +16,7 @@
+@@ -16,8 +16,13 @@
   */
  
  import type { ExecResult } from "../../types.js";
-+import { resolveExternalCommand } from "../command-resolution.js";
++import {
++  registeredCommandProgram,
++  resolveExternalCommand,
++} from "../command-resolution.js";
  import { quoteValue } from "../helpers/quoting.js";
  import { failure, OK, success } from "../helpers/result.js";
++import { findFirstInPath } from "../type-command.js";
  import type { InterpreterContext } from "../types.js";
-@@ -212,6 +213,14 @@ export async function handleHash(
+ 
+ export async function handleHash(
+@@ -200,6 +205,27 @@ export async function handleHash(
+       continue;
+     }
+ 
++    // Over a real disk a registered command is remembered by the program it
++    // runs, and one with none, like a builtin, is not remembered at all;
++    // any other name by what PATH runs.
++    if (ctx.registeredCommandPath) {
++      if (ctx.commands.has(name)) {
++        const program = registeredCommandProgram(ctx, name);
++        if (program) {
++          ctx.state.hashTable.set(name, program);
++        }
++        continue;
++      }
++      const onPath = await findFirstInPath(ctx, name);
++      if (onPath) {
++        ctx.state.hashTable.set(name, onPath);
++      } else {
++        stderr += `bash: hash: ${name}: not found\n`;
++        hasError = true;
++      }
++      continue;
++    }
++
+     // Search PATH for the command
+     let found = false;
+     for (const dir of pathDirs) {
+@@ -212,6 +238,14 @@ export async function handleHash(
        }
      }
  
@@ -93,10 +164,10 @@ index 94af782..69f5a8e 100644
        stderr += `bash: hash: ${name}: not found\n`;
        hasError = true;
 diff --git a/packages/just-bash/src/interpreter/command-resolution.ts b/packages/just-bash/src/interpreter/command-resolution.ts
-index f90d605..fd97f6c 100644
+index f90d605..7008371 100644
 --- a/packages/just-bash/src/interpreter/command-resolution.ts
 +++ b/packages/just-bash/src/interpreter/command-resolution.ts
-@@ -5,7 +5,13 @@
+@@ -5,7 +5,14 @@
   */
  
  import type { IFileSystem } from "../fs/interface.js";
@@ -106,16 +177,18 @@ index f90d605..fd97f6c 100644
 +  Command,
 +  CommandRegistry,
 +  ExternalCommandResolver,
++  RegisteredCommandPath,
 +  RuntimeCommand,
 +} from "../types.js";
  import type { InterpreterState } from "./types.js";
  
  /**
-@@ -15,6 +21,38 @@ export interface CommandResolutionContext {
+@@ -15,6 +22,53 @@ export interface CommandResolutionContext {
    fs: IFileSystem;
    state: InterpreterState;
    commands: CommandRegistry;
 +  resolveExternalCommand?: ExternalCommandResolver;
++  registeredCommandPath?: RegisteredCommandPath;
 +}
 +
 +/**
@@ -147,10 +220,24 @@ index f90d605..fd97f6c 100644
 +    },
 +    path,
 +  };
++}
++
++/**
++ * The program a registered command runs, asked of the embedder's
++ * `registeredCommandPath`, which is host code and so runs trusted.
++ */
++export function registeredCommandProgram(
++  ctx: CommandResolutionContext,
++  commandName: string,
++): string | undefined {
++  const describe = ctx.registeredCommandPath;
++  return describe
++    ? DefenseInDepthBox.runTrusted(() => describe(commandName))
++    : undefined;
  }
  
  /**
-@@ -35,9 +73,10 @@ function isTrustedCommandStub(path: string, commandName: string): boolean {
+@@ -35,9 +89,13 @@ function isTrustedCommandStub(path: string, commandName: string): boolean {
   * Returns the command and its resolved path, or null if not found.
   *
   * Resolution order:
@@ -159,10 +246,13 @@ index f90d605..fd97f6c 100644
   * 2. Search PATH directories for the command file
   * 3. Fall back to registry lookup (for non-InMemoryFs filesystems like OverlayFs)
 + * 4. Ask the external resolver
++ *
++ * Over a real disk (`registeredCommandPath` set) a bare name resolves as
++ * {@link resolveOnRealDisk} says instead.
   */
  export async function resolveCommand(
    ctx: CommandResolutionContext,
-@@ -46,6 +85,10 @@ export async function resolveCommand(
+@@ -46,6 +104,10 @@ export async function resolveCommand(
  ): Promise<ResolveCommandResult> {
    // If command contains "/", it's a path - resolve directly
    if (commandName.includes("/")) {
@@ -173,7 +263,15 @@ index f90d605..fd97f6c 100644
      const resolvedPath = ctx.fs.resolvePath(ctx.state.cwd, commandName);
      // Check if file exists
      if (!(await ctx.fs.exists(resolvedPath))) {
-@@ -81,6 +124,14 @@ export async function resolveCommand(
+@@ -77,10 +139,22 @@ export async function resolveCommand(
+     }
+   }
+ 
++  if (ctx.registeredCommandPath) {
++    return resolveOnRealDisk(ctx, commandName, pathOverride);
++  }
++
+   // Check hash table first (unless pathOverride is set, which bypasses cache)
    if (!pathOverride && ctx.state.hashTable) {
      const cachedPath = ctx.state.hashTable.get(commandName);
      if (cachedPath) {
@@ -188,16 +286,83 @@ index f90d605..fd97f6c 100644
        try {
          const stat = await ctx.fs.stat(cachedPath);
          if (!stat.isDirectory) {
-@@ -158,7 +209,7 @@ export async function resolveCommand(
+@@ -158,9 +232,75 @@ export async function resolveCommand(
      }
    }
  
--  return null;
 +  return (await resolveExternalCommand(ctx, commandName)) ?? null;
++}
++
++/**
++ * A bare name over a real disk, whose PATH directories hold real programs
++ * rather than stubs of the registered commands: a registered command by its
++ * name, then the hash table, the external resolver, and PATH. A file the
++ * hash table or PATH names is offered to the resolver by its path before it
++ * is read as a script, since it may be a program the shell cannot read.
++ */
++async function resolveOnRealDisk(
++  ctx: CommandResolutionContext,
++  commandName: string,
++  pathOverride?: string,
++): Promise<ResolveCommandResult> {
++  const cmd = ctx.commands.get(commandName);
++  if (cmd) {
++    return {
++      cmd,
++      path: registeredCommandProgram(ctx, commandName) ?? commandName,
++    };
++  }
++  const cachedPath = pathOverride
++    ? undefined
++    : ctx.state.hashTable?.get(commandName);
++  if (cachedPath) {
++    const cached = await executableAt(ctx, cachedPath);
++    if (cached) {
++      return cached;
++    }
++    ctx.state.hashTable?.delete(commandName);
++  }
++  const external = await resolveExternalCommand(ctx, commandName);
++  if (external) {
++    return external;
++  }
++  const pathEnv = pathOverride ?? ctx.state.env.get("PATH") ?? "/usr/bin:/bin";
++  for (const dir of pathEnv.split(":")) {
++    if (!dir) continue;
++    const resolvedDir = dir.startsWith("/")
++      ? dir
++      : ctx.fs.resolvePath(ctx.state.cwd, dir);
++    const found = await executableAt(ctx, `${resolvedDir}/${commandName}`);
++    if (found) {
++      return found;
++    }
++  }
+   return null;
  }
  
++/**
++ * The executable file at `path`: the external resolver's command when it
++ * takes the path, a script for the shell to read otherwise.
++ */
++async function executableAt(
++  ctx: CommandResolutionContext,
++  path: string,
++): Promise<ResolveCommandResult> {
++  try {
++    const stat = await ctx.fs.stat(path);
++    if (stat.isDirectory || (stat.mode & 0o111) === 0) {
++      return null;
++    }
++  } catch {
++    return null;
++  }
++  return (await resolveExternalCommand(ctx, path)) ?? { script: true, path };
++}
++
  /**
-@@ -172,6 +223,9 @@ export async function findCommandInPath(
+  * Find all paths for a command in PATH (for `which -a`).
+  */
+@@ -172,6 +312,9 @@ export async function findCommandInPath(
  
    // If command contains /, it's a path - check if it exists and is executable
    if (commandName.includes("/")) {
@@ -207,23 +372,57 @@ index f90d605..fd97f6c 100644
      const resolvedPath = ctx.fs.resolvePath(ctx.state.cwd, commandName);
      if (await ctx.fs.exists(resolvedPath)) {
        try {
-@@ -227,5 +281,10 @@ export async function findCommandInPath(
+@@ -194,6 +337,16 @@ export async function findCommandInPath(
+   const pathEnv = ctx.state.env.get("PATH") || "/usr/bin:/bin";
+   const pathDirs = pathEnv.split(":");
+ 
++  // Over a real disk the resolver's program is the one a bare name runs, so
++  // it comes first, and a PATH directory holds no stubs.
++  const onRealDisk = ctx.registeredCommandPath !== undefined;
++  if (onRealDisk) {
++    const external = await resolveExternalCommand(ctx, commandName);
++    if (external) {
++      paths.push(external.path);
++    }
++  }
++
+   for (const dir of pathDirs) {
+     if (!dir) continue;
+     // Resolve relative PATH entries relative to cwd
+@@ -206,6 +359,7 @@ export async function findCommandInPath(
+     // continuing to require a real executable for every user-controlled PATH
+     // directory so a same-basename script is never mistaken for a builtin.
+     if (
++      !onRealDisk &&
+       isTrustedCommandStub(fullPath, commandName) &&
+       ctx.commands.has(commandName)
+     ) {
+@@ -223,7 +377,18 @@ export async function findCommandInPath(
+         continue;
+       }
+       // Return the original path format (relative if relative was given)
+-      paths.push(dir.startsWith("/") ? fullPath : `${dir}/${commandName}`);
++      const found = dir.startsWith("/") ? fullPath : `${dir}/${commandName}`;
++      // The resolver's program, listed first, may be this one.
++      if (!onRealDisk || !paths.includes(found)) {
++        paths.push(found);
++      }
++    }
++  }
++
++  if (!onRealDisk) {
++    const external = await resolveExternalCommand(ctx, commandName);
++    if (external && !paths.includes(external.path)) {
++      paths.push(external.path);
      }
    }
  
-+  const external = await resolveExternalCommand(ctx, commandName);
-+  if (external && !paths.includes(external.path)) {
-+    paths.push(external.path);
-+  }
-+
-   return paths;
- }
 diff --git a/packages/just-bash/src/interpreter/external-command-resolver.test.ts b/packages/just-bash/src/interpreter/external-command-resolver.test.ts
 new file mode 100644
-index 0000000..ac67e99
+index 0000000..529e9a7
 --- /dev/null
 +++ b/packages/just-bash/src/interpreter/external-command-resolver.test.ts
-@@ -0,0 +1,106 @@
+@@ -0,0 +1,239 @@
 +import { describe, expect, it } from "vitest";
 +import { Bash } from "../Bash.js";
 +import { defineCommand } from "../custom-commands.js";
@@ -330,40 +529,178 @@ index 0000000..ac67e99
 +    );
 +  });
 +});
++
++describe("registeredCommandPath", () => {
++  const python = defineCommand("py", async (args) => ({
++    stdout: `py ${args.join(" ")}\n`,
++    stderr: "",
++    exitCode: 0,
++  }));
++  const programs = (name: string) =>
++    name === "py" ? "/opt/venv/bin/python" : undefined;
++
++  function realDisk(files: Record<string, string> = {}) {
++    const asked: string[] = [];
++    const resolver = hostResolver(asked);
++    const bash = new Bash({
++      customCommands: [python],
++      cwd: "/home/user",
++      env: { PATH: "/usr/local/bin:/usr/bin:/bin" },
++      files,
++      registeredCommandPath: programs,
++      resolveExternalCommand: async (name, context) =>
++        name === "/usr/local/bin/hosttool"
++          ? resolver("hostcmd", context)
++          : resolver(name, context),
++    });
++    return { asked, bash };
++  }
++
++  it("describes a command with no program as a shell builtin", async () => {
++    const { bash } = realDisk();
++    const result = await bash.exec(
++      [
++        "type ls",
++        "type -t ls",
++        "type -p ls; echo p=$?",
++        "command -v ls",
++        "command -V ls",
++        "hash ls && hash -t ls",
++      ].join("\n"),
++    );
++    expect(result.stdout).toBe(
++      [
++        "ls is a shell builtin",
++        "builtin",
++        "p=0",
++        "ls",
++        "ls is a shell builtin",
++        "",
++      ].join("\n"),
++    );
++    expect(result.stderr).toBe("bash: hash: ls: not found\n");
++  });
++
++  it("describes a command by the program it runs, and still runs the command", async () => {
++    const { bash } = realDisk();
++    const result = await bash.exec(
++      [
++        "type py",
++        "type -t py",
++        "type -p py",
++        "command -v py",
++        "command -V py",
++        "hash py && hash -t py",
++        "py run",
++      ].join("\n"),
++    );
++    expect(result.stdout).toBe(
++      [
++        "py is /opt/venv/bin/python",
++        "file",
++        "/opt/venv/bin/python",
++        "/opt/venv/bin/python",
++        "py is /opt/venv/bin/python",
++        "/opt/venv/bin/python",
++        "py run",
++        "",
++      ].join("\n"),
++    );
++  });
++
++  it("asks registeredCommandPath as trusted host code", async () => {
++    const bash = new Bash({
++      customCommands: [python],
++      defenseInDepth: true,
++      // Host code may read what a script may not, such as the environment.
++      registeredCommandPath: (name) =>
++        name === "py" && process.env.HOME !== ""
++          ? "/opt/venv/bin/python"
++          : undefined,
++    });
++    const result = await bash.exec("command -v py");
++    expect(result.stdout).toBe("/opt/venv/bin/python\n");
++  });
++
++  it("keeps a registered command's name over a program of that name on PATH", async () => {
++    const { asked, bash } = realDisk({
++      "/usr/local/bin/ls": "echo shadow",
++    });
++    const result = await bash.exec(
++      "chmod +x /usr/local/bin/ls; ls / >/dev/null && echo kept; type -a ls",
++    );
++    expect(result.stdout).toBe(
++      "kept\nls is a shell builtin\nls is /host/bin/ls\nls is /usr/local/bin/ls\n",
++    );
++    expect(asked).toEqual(["ls"]);
++  });
++
++  it("asks the resolver for a name before PATH, and offers it a PATH file by its path", async () => {
++    const { bash } = realDisk({
++      "/usr/local/bin/hostcmd": "echo script",
++      "/usr/local/bin/hosttool": "echo script",
++      "/usr/local/bin/plain": "echo plain script",
++    });
++    const result = await bash.exec(
++      [
++        "chmod +x /usr/local/bin/hostcmd /usr/local/bin/hosttool /usr/local/bin/plain",
++        "hostcmd a",
++        "hosttool b",
++        "plain",
++        "command -v hostcmd plain",
++      ].join("\n"),
++    );
++    expect(result.stdout).toBe(
++      [
++        "host a cwd=/home/user in=",
++        "host b cwd=/home/user in=",
++        "plain script",
++        "/host/bin/hostcmd",
++        "/usr/local/bin/plain",
++        "",
++      ].join("\n"),
++    );
++  });
++});
 diff --git a/packages/just-bash/src/interpreter/interpreter.ts b/packages/just-bash/src/interpreter/interpreter.ts
-index 66bde42..ddf91fc 100644
+index 66bde42..157f0cc 100644
 --- a/packages/just-bash/src/interpreter/interpreter.ts
 +++ b/packages/just-bash/src/interpreter/interpreter.ts
-@@ -40,6 +40,7 @@ import {
+@@ -40,7 +40,9 @@ import {
  import type {
    CommandRegistry,
    ExecResult,
 +  ExternalCommandResolver,
    FeatureCoverageWriter,
++  RegisteredCommandPath,
    TraceCallback,
  } from "../types.js";
-@@ -123,6 +124,8 @@ export type { InterpreterContext, InterpreterState } from "./types.js";
+ import { expandAlias as expandAliasHelper } from "./alias-expansion.js";
+@@ -123,6 +125,10 @@ export type { InterpreterContext, InterpreterState } from "./types.js";
  export interface InterpreterOptions {
    fs: IFileSystem;
    commands: CommandRegistry;
 +  /** Finds a command the shell does not know; see `BashOptions`. */
 +  resolveExternalCommand?: ExternalCommandResolver;
++  /** Names the program a registered command runs; see `BashOptions`. */
++  registeredCommandPath?: RegisteredCommandPath;
    limits: Required<ExecutionLimits>;
    executionScope: ExecutionScope;
    exec: (
-@@ -160,6 +163,7 @@ export class Interpreter {
+@@ -160,6 +166,8 @@ export class Interpreter {
        state,
        fs: options.fs,
        commands: options.commands,
 +      resolveExternalCommand: options.resolveExternalCommand,
++      registeredCommandPath: options.registeredCommandPath,
        limits: options.limits,
        executionScope: options.executionScope,
        execFn: options.exec,
 diff --git a/packages/just-bash/src/interpreter/type-command.ts b/packages/just-bash/src/interpreter/type-command.ts
-index 0f060a8..e3bcc55 100644
+index 0f060a8..537f936 100644
 --- a/packages/just-bash/src/interpreter/type-command.ts
 +++ b/packages/just-bash/src/interpreter/type-command.ts
-@@ -21,7 +21,12 @@ import {
+@@ -21,7 +21,16 @@ import {
  } from "../ast/types.js";
  import type { IFileSystem } from "../fs/interface.js";
  import { serializeWord } from "../transform/serialize.js";
@@ -372,20 +709,81 @@ index 0f060a8..e3bcc55 100644
 +  CommandRegistry,
 +  ExecResult,
 +  ExternalCommandResolver,
++  RegisteredCommandPath,
 +} from "../types.js";
-+import { resolveExternalCommand } from "./command-resolution.js";
++import {
++  registeredCommandProgram,
++  resolveExternalCommand,
++} from "./command-resolution.js";
  import { result } from "./helpers/result.js";
  import { SHELL_BUILTINS, SHELL_KEYWORDS } from "./helpers/shell-constants.js";
  import type { InterpreterState } from "./types.js";
-@@ -33,6 +38,7 @@ export interface TypeCommandContext {
+@@ -33,6 +42,24 @@ export interface TypeCommandContext {
    state: InterpreterState;
    fs: IFileSystem;
    commands: CommandRegistry;
 +  resolveExternalCommand?: ExternalCommandResolver;
++  registeredCommandPath?: RegisteredCommandPath;
++}
++
++/**
++ * What a registered command is over a real disk (`registeredCommandPath`
++ * set): the program it runs, `null` for one that runs inside the shell, or
++ * undefined where the shell is not over a real disk or the name is not
++ * registered, and PATH answers as it always has.
++ */
++function registeredProgram(
++  ctx: TypeCommandContext,
++  name: string,
++): string | null | undefined {
++  if (!ctx.registeredCommandPath || !ctx.commands.has(name)) {
++    return undefined;
++  }
++  return registeredCommandProgram(ctx, name) ?? null;
  }
  
  /**
-@@ -429,7 +435,10 @@ export async function handleCommandV(
+@@ -216,10 +243,38 @@ export async function handleType(
+       }
+     }
+ 
++    // A registered command over a real disk is the program it runs, or else
++    // part of the shell.
++    const program = registeredProgram(ctx, name);
++    if (program !== undefined && (showAll || !foundAny)) {
++      if (program === null) {
++        if (typeOnly) {
++          stdout += "builtin\n";
++        } else if (!pathOnly) {
++          stdout += `${name} is a shell builtin\n`;
++        }
++      } else {
++        if (pathOnly) {
++          stdout += `${program}\n`;
++        } else if (typeOnly) {
++          stdout += "file\n";
++        } else {
++          stdout += `${name} is ${program}\n`;
++        }
++        anyFileFound = true;
++      }
++      foundAny = true;
++      if (!showAll) {
++        continue;
++      }
++    }
++
+     // Check PATH for external command(s)
+     if (showAll) {
+       // Show all file paths
+-      const allPaths = await findCommandInPath(name);
++      const allPaths = (await findCommandInPath(name)).filter(
++        (found) => found !== program,
++      );
+       for (const pathResult of allPaths) {
+         if (pathOnly) {
+           stdout += `${pathResult}\n`;
+@@ -429,7 +484,10 @@ export async function handleCommandV(
        // Path containing / - check if file exists and is executable
        const resolvedPath = ctx.fs.resolvePath(ctx.state.cwd, name);
        let found = false;
@@ -397,21 +795,38 @@ index 0f060a8..e3bcc55 100644
          try {
            const stat = await ctx.fs.stat(resolvedPath);
            if (!stat.isDirectory) {
-@@ -483,6 +492,13 @@ export async function handleCommandV(
+@@ -455,6 +513,15 @@ export async function handleCommandV(
+         }
+         exitCode = 1;
+       }
++    } else if (registeredProgram(ctx, name) !== undefined) {
++      const program = registeredProgram(ctx, name);
++      if (verboseDescribe) {
++        stdout += program
++          ? `${name} is ${program}\n`
++          : `${name} is a shell builtin\n`;
++      } else {
++        stdout += `${program ?? name}\n`;
++      }
+     } else if (ctx.commands.has(name)) {
+       // Search PATH for the command file (registered commands exist in both /usr/bin and /bin)
+       const pathEnv = ctx.state.env.get("PATH") ?? "/usr/bin:/bin";
+@@ -483,6 +550,14 @@ export async function handleCommandV(
          stdout += `${foundPath}\n`;
        }
      } else {
-+      const external = await resolveExternalCommand(ctx, name);
-+      if (external) {
-+        stdout += verboseDescribe
-+          ? `${name} is ${external.path}\n`
-+          : `${external.path}\n`;
++      // Over a real disk a name the shell does not know is what PATH runs.
++      const found = ctx.registeredCommandPath
++        ? await findFirstInPath(ctx, name)
++        : (await resolveExternalCommand(ctx, name))?.path;
++      if (found) {
++        stdout += verboseDescribe ? `${name} is ${found}\n` : `${found}\n`;
 +        continue;
 +      }
        // Not found - for -V, print error to stderr (matches test at line 237-255)
        if (verboseDescribe) {
          stderr += `${name}: not found\n`;
-@@ -505,6 +521,9 @@ export async function findFirstInPath(
+@@ -505,6 +580,9 @@ export async function findFirstInPath(
  ): Promise<string | null> {
    // If name contains /, it's a path - check if it exists and is executable
    if (name.includes("/")) {
@@ -421,7 +836,33 @@ index 0f060a8..e3bcc55 100644
      const resolvedPath = ctx.fs.resolvePath(ctx.state.cwd, name);
      if (await ctx.fs.exists(resolvedPath)) {
        // Check if it's a directory or not executable
-@@ -568,5 +587,5 @@ export async function findFirstInPath(
+@@ -528,6 +606,14 @@ export async function findFirstInPath(
+     return null;
+   }
+ 
++  // Over a real disk the resolver's program is the one a bare name runs.
++  if (ctx.registeredCommandPath) {
++    const external = await resolveExternalCommand(ctx, name);
++    if (external) {
++      return external.path;
++    }
++  }
++
+   // Search PATH directories
+   const pathEnv = ctx.state.env.get("PATH") ?? "/usr/bin:/bin";
+   const pathDirs = pathEnv.split(":");
+@@ -555,6 +641,10 @@ export async function findFirstInPath(
+     }
+   }
+ 
++  if (ctx.registeredCommandPath) {
++    return null;
++  }
++
+   // Fallback: check if command exists in registry
+   // This handles virtual filesystems where commands are registered but
+   // not necessarily present as individual files in /usr/bin
+@@ -568,5 +658,5 @@ export async function findFirstInPath(
      return `/usr/bin/${name}`;
    }
  
@@ -429,31 +870,35 @@ index 0f060a8..e3bcc55 100644
 +  return (await resolveExternalCommand(ctx, name))?.path ?? null;
  }
 diff --git a/packages/just-bash/src/interpreter/types.ts b/packages/just-bash/src/interpreter/types.ts
-index 97f1792..c0b11c9 100644
+index 97f1792..01af56a 100644
 --- a/packages/just-bash/src/interpreter/types.ts
 +++ b/packages/just-bash/src/interpreter/types.ts
-@@ -16,6 +16,7 @@ import type {
+@@ -16,7 +16,9 @@ import type {
    CommandExecOptions,
    CommandRegistry,
    ExecResult,
 +  ExternalCommandResolver,
    FeatureCoverageWriter,
++  RegisteredCommandPath,
    TraceCallback,
  } from "../types.js";
-@@ -477,6 +478,8 @@ export interface InterpreterContext {
+ import type { ProcessSubstitutionEntry } from "./process-substitution.js";
+@@ -477,6 +479,10 @@ export interface InterpreterContext {
    state: InterpreterState;
    fs: IFileSystem;
    commands: CommandRegistry;
 +  /** Finds a command the shell does not know; see `BashOptions`. */
 +  resolveExternalCommand?: ExternalCommandResolver;
++  /** Names the program a registered command runs; see `BashOptions`. */
++  registeredCommandPath?: RegisteredCommandPath;
    /** Execution limits configuration */
    limits: Required<ExecutionLimits>;
    /** Shared security accounting for this top-level execution and descendants. */
 diff --git a/packages/just-bash/src/types.ts b/packages/just-bash/src/types.ts
-index 0c8c68a..bfc50ee 100644
+index 0c8c68a..e0e5cb4 100644
 --- a/packages/just-bash/src/types.ts
 +++ b/packages/just-bash/src/types.ts
-@@ -326,5 +326,25 @@ export interface RuntimeCommand extends Omit<Command, "execute"> {
+@@ -326,5 +326,32 @@ export interface RuntimeCommand extends Omit<Command, "execute"> {
  }
  export type CommandRegistry = Map<string, RuntimeCommand>;
  
@@ -476,6 +921,13 @@ index 0c8c68a..bfc50ee 100644
 +  name: string,
 +  context: { cwd: string; env: Map<string, string> },
 +) => Promise<ExternalCommand | undefined>;
++
++/**
++ * The program a registered command runs, by the path `type`, `command -v`
++ * and `hash` name it by, or undefined for a command that runs inside the
++ * shell.
++ */
++export type RegisteredCommandPath = (name: string) => string | undefined;
 +
  // Re-export IFileSystem for convenience
  export type { IFileSystem };

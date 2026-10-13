@@ -48,7 +48,7 @@ describe("createBashDescription", () => {
 
       Any other program on the computer's PATH runs too, held to the same rules as the specialized commands below; \`which <name>\` says whether one is there.
 
-      IMPORTANT: Specialized commands below (e.g. ffmpeg, ffprobe) are invoked by bare name only -- never by an absolute path. \`which\`/\`command -v\`/\`type\` may report a path like /usr/bin/ffmpeg, but that path does NOT exist; ignore it. These binaries are also on PATH inside node and python scripts, so a script may shell out to \`ffmpeg\`/\`ffprobe\` directly.
+      IMPORTANT: Specialized commands below (e.g. ffmpeg, ffprobe) are invoked by bare name only -- never by an absolute path. These binaries are also on PATH inside node and python scripts, so a script may shell out to \`ffmpeg\`/\`ffprobe\` directly.
 
       Specialized commands:
         jq - Parse and manipulate JSON

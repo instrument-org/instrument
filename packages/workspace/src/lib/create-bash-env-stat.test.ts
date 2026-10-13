@@ -91,3 +91,20 @@ describe("stat -c format directives", () => {
     expect(result.exitCode).toBe(0);
   });
 });
+
+describe.skipIf(process.platform === "win32")("ls -l", () => {
+  it("shows a real file's mode, owner, size and time", async () => {
+    const note = path.join(tmpDir, "tasks", "test", "work", "note.md");
+    const old = new Date(2020, 0, 2, 12, 30);
+    await fs.chmod(note, 0o750);
+    await fs.utimes(note, old, old);
+
+    const result = await run("ls -l work/note.md");
+
+    expect(result.stdout).toMatch(
+      new RegExp(
+        `^-rwxr-x--- 1 ${os.userInfo().username} \\S+ +8 Jan  2  2020 work/note\\.md\\n$`,
+      ),
+    );
+  });
+});

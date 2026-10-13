@@ -33,7 +33,7 @@ export const OSASCRIPT_COMMAND = {
  * Events it sends are attributed to the app, which is what the system asks the
  * user about.
  */
-const OSASCRIPT_PATH = "/usr/bin/osascript";
+export const OSASCRIPT_PATH = "/usr/bin/osascript";
 
 /**
  * Apps a script cannot reach by name, by the bundle id that reaches them.

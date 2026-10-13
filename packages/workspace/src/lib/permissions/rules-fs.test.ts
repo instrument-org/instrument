@@ -69,6 +69,27 @@ it("lets cd pass through a hidden folder to a folder inside it the agent reaches
   expect(await fs.exists("/ws/chats/b/secret.txt")).toBe(false);
 });
 
+it("checks a hard link's source as a change, since writing the link writes it", async () => {
+  const fs = rulesFs({
+    delegate: new InMemoryFs({
+      "/repo/.claude/settings.json": "{}",
+      "/repo/notes.md": "n",
+    }),
+    hostRoot: "/Users/sam",
+    rules: {
+      home: "/Users/sam",
+      rules: [{ level: "allow", path: "/Users/sam/repo", source: "grant" }],
+      withoutAsking: false,
+    },
+    spell: (hostPath) => hostPath,
+  });
+
+  await expect(
+    fs.link("/repo/.claude/settings.json", "/repo/h"),
+  ).rejects.toThrow(/EACCES/);
+  await expect(fs.link("/repo/notes.md", "/repo/n")).resolves.toBeUndefined();
+});
+
 it("says why each kind of closed path is closed", () => {
   const rules: [string, Rule | undefined][] = [
     [

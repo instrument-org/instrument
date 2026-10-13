@@ -302,13 +302,14 @@ export function seatbeltProfile(
   // A name that runs code when its folder is used stays closed to changes
   // everywhere but the app's own folders, and a repository's .git folder
   // stays where it is: renamed, its hooks would be outside the name that
-  // closes them, and could be written and moved back.
+  // closes them, and could be written and moved back. Nor can such a name be
+  // hard linked to elsewhere, where writing the link would change it.
   const ownFolders = reach.readWrite.flatMap(spellings);
   const notOwn = ownFolders
     .map((own) => `(require-not (subpath ${sbplString(own)}))`)
     .join(" ");
   texts.push(
-    `(deny file-write* (require-all (require-any ${DANGEROUS_NAMES.map(
+    `(deny file-write* file-link (require-all (require-any ${DANGEROUS_NAMES.map(
       (name) => `(regex #"/${regexEscape(name)}(/|$)")`,
     ).join(" ")}) ${notOwn}))`,
     `(deny file-write-unlink (require-all (regex #"/\\.git$") ${notOwn}))`,

@@ -249,8 +249,15 @@ export function rulesFs({
       if (key === "cp" || key === "mv" || key === "link" || key === "symlink") {
         return async (...args: unknown[]) => {
           const [first, second] = args.map(String);
+          // A move takes its source away, and a hard link is its source
+          // under another name, so writing one writes the other: both
+          // change the source. A copy and a symbolic link only read it.
           if (key !== "symlink") {
-            check(key === "mv" ? "write" : "read", key, first ?? "");
+            check(
+              key === "mv" || key === "link" ? "write" : "read",
+              key,
+              first ?? "",
+            );
           }
           check("write", key, second ?? "");
           return call(...args);

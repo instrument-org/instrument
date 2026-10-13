@@ -92,7 +92,7 @@ describe("seatbeltProfile", () => {
         "(allow file-read-metadata (literal "/private/var"))",
         "(deny file-write* (literal "/nope"))",
         "(deny file-write* (literal "/nope/home"))",
-        "(deny file-write* (require-all (require-any (regex #"/\\.git/hooks(/|$)") (regex #"/\\.gitconfig(/|$)") (regex #"/\\.gitmodules(/|$)") (regex #"/\\.vscode(/|$)") (regex #"/\\.idea(/|$)") (regex #"/\\.envrc(/|$)") (regex #"/\\.mcp\\.json(/|$)") (regex #"/\\.claude/settings\\.json(/|$)") (regex #"/\\.claude/settings\\.local\\.json(/|$)") (regex #"/\\.claude/commands(/|$)") (regex #"/\\.claude/agents(/|$)") (regex #"/\\.codex(/|$)")) ))",
+        "(deny file-write* file-link (require-all (require-any (regex #"/\\.git/hooks(/|$)") (regex #"/\\.gitconfig(/|$)") (regex #"/\\.gitmodules(/|$)") (regex #"/\\.vscode(/|$)") (regex #"/\\.idea(/|$)") (regex #"/\\.envrc(/|$)") (regex #"/\\.mcp\\.json(/|$)") (regex #"/\\.claude/settings\\.json(/|$)") (regex #"/\\.claude/settings\\.local\\.json(/|$)") (regex #"/\\.claude/commands(/|$)") (regex #"/\\.claude/agents(/|$)") (regex #"/\\.codex(/|$)")) ))",
         "(deny file-write-unlink (require-all (regex #"/\\.git$") ))",
         "(deny appleevent-send)",
         "(deny lsopen)",
@@ -128,7 +128,7 @@ describe("a read-only folder inside a place that opens without asking", () => {
         "(allow file-read-metadata (literal "/nope/home/Library"))",
         "(allow file-read-metadata (literal "/nope/home/Library/App"))",
         "(allow file-read-metadata (literal "/nope/home/Library/App/uv"))",
-        "(deny file-write* (require-all (require-any (regex #"/\\.git/hooks(/|$)") (regex #"/\\.gitconfig(/|$)") (regex #"/\\.gitmodules(/|$)") (regex #"/\\.vscode(/|$)") (regex #"/\\.idea(/|$)") (regex #"/\\.envrc(/|$)") (regex #"/\\.mcp\\.json(/|$)") (regex #"/\\.claude/settings\\.json(/|$)") (regex #"/\\.claude/settings\\.local\\.json(/|$)") (regex #"/\\.claude/commands(/|$)") (regex #"/\\.claude/agents(/|$)") (regex #"/\\.codex(/|$)")) (require-not (subpath "/nope/home/Library/App/uv/cache"))))",
+        "(deny file-write* file-link (require-all (require-any (regex #"/\\.git/hooks(/|$)") (regex #"/\\.gitconfig(/|$)") (regex #"/\\.gitmodules(/|$)") (regex #"/\\.vscode(/|$)") (regex #"/\\.idea(/|$)") (regex #"/\\.envrc(/|$)") (regex #"/\\.mcp\\.json(/|$)") (regex #"/\\.claude/settings\\.json(/|$)") (regex #"/\\.claude/settings\\.local\\.json(/|$)") (regex #"/\\.claude/commands(/|$)") (regex #"/\\.claude/agents(/|$)") (regex #"/\\.codex(/|$)")) (require-not (subpath "/nope/home/Library/App/uv/cache"))))",
         "(deny file-write-unlink (require-all (regex #"/\\.git$") (require-not (subpath "/nope/home/Library/App/uv/cache"))))",
       ]
     `);
@@ -495,6 +495,17 @@ describe.runIf(seatbeltAvailable())("a wrapped command on this Mac", () => {
     );
     const result = await execa(spawned.file, spawned.args, { reject: false });
     expect(result.exitCode).not.toBe(0);
+  });
+
+  it("refuses a hard link to a name that runs code", async () => {
+    mkdirSync(path.join(granted, ".claude"), { recursive: true });
+    writeFileSync(path.join(granted, ".claude", "settings.json"), "{}");
+    const result = await run("/bin/ln", [
+      path.join(granted, ".claude", "settings.json"),
+      path.join(granted, "h"),
+    ]);
+    expect(result.exitCode).not.toBe(0);
+    expect(existsSync(path.join(granted, "h"))).toBe(false);
   });
 
   it("still writes a repository's other files in a granted folder", async () => {

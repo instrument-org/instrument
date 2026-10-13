@@ -4,7 +4,7 @@ import {
 } from "@/shared/os-conventions";
 import { z } from "zod";
 
-import { runHelper } from "./file-open-target/helper-process";
+import { powerShellArgs, runHelper } from "./file-open-target/helper-process";
 
 /** `Win32_LogicalDisk.DriveType`, as the kind of disk each number stands for. */
 const DRIVE_KINDS: Record<number, WindowsDriveKind | undefined> = {
@@ -85,7 +85,7 @@ export function windowsDriveNames(): Promise<Record<string, string>> {
 async function askWindows(): Promise<Record<string, string>> {
   try {
     const stdout = await runHelper({
-      args: ["-NoProfile", "-NonInteractive", "-Command", SCRIPT],
+      args: powerShellArgs(SCRIPT),
       file: "powershell",
     });
     const trimmed = stdout.trim();

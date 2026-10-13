@@ -4,7 +4,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { storeFileOpenNativeImage } from "../app-protocol";
-import { runThrottledHelper } from "./helper-process";
+import { powerShellArgs, runThrottledHelper } from "./helper-process";
 import { type ResolvedApp } from "./types";
 
 const Win32ResultSchema = z.object({
@@ -53,7 +53,7 @@ if (-not $name) { $name = [IO.Path]::GetFileNameWithoutExtension($exe) }
 @{ appName = $name; exePath = $exe } | ConvertTo-Json -Compress
 `;
   const stdout = await runThrottledHelper({
-    args: ["-NoProfile", "-NonInteractive", "-Command", script],
+    args: powerShellArgs(script),
     file: "powershell",
   });
   const trimmed = stdout.trim();

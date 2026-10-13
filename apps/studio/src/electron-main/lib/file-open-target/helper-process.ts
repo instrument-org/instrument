@@ -14,6 +14,20 @@ const MAX_CONCURRENT_LOOKUPS = 2;
 let activeLookups = 0;
 const lookupQueue: (() => void)[] = [];
 
+/**
+ * The arguments that run `script` in Windows PowerShell with what it writes
+ * in UTF-8. Redirected, PowerShell 5.1 writes in the console's OEM code page,
+ * which garbles a name with an accent or in another script.
+ */
+export function powerShellArgs(script: string): string[] {
+  return [
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    `[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false\n${script}`,
+  ];
+}
+
 // Runs a helper process directly. Used by the platform resolvers whose
 // interpreter is cheap enough to start once per request.
 export async function runHelper({

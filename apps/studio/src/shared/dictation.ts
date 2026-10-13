@@ -64,7 +64,9 @@ export type DictationFailure =
   /** The API won't take this recording or language: it isn't worth retrying. */
   | { kind: "rejected" }
   | { kind: "signed-out" }
-  | { kind: "too-large" };
+  | { kind: "too-large" }
+  /** The API can't read the recording's audio format. */
+  | { kind: "unsupported-audio" };
 
 export type DictationResult =
   | { durationSeconds: number; ok: true; text: string }

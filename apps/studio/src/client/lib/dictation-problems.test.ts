@@ -25,6 +25,7 @@ describe("describeDictationProblem", () => {
     "signed-out",
     "too-large",
     "too-short",
+    "unsupported-audio",
   ];
 
   it("says every problem in a toast, keeping the recording only where a retry is offered", () => {
@@ -63,6 +64,7 @@ describe("describeDictationProblem", () => {
         "signed-out": "error: Couldn't transcribe that / Your recording is safe, and it goes through once you log in to Instrument. [sign-in]",
         "too-large": "error: Couldn't transcribe that / That recording is too long to send. Try a shorter one.",
         "too-short": "info: Didn't quite catch that / Talk for a little longer before you press Stop.",
+        "unsupported-audio": "error: Couldn't transcribe that / Dictation couldn't read the audio in that recording. Try recording it again.",
       }
     `);
   });

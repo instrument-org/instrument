@@ -179,6 +179,15 @@ export function describeDictationProblem(
         tone: "error",
       };
     }
+    case "unsupported-audio": {
+      return {
+        description:
+          "Dictation couldn't read the audio in that recording. Try recording it again.",
+        keepsRecording: false,
+        title: "Couldn't transcribe that",
+        tone: "error",
+      };
+    }
     case "too-short": {
       return {
         description: "Talk for a little longer before you press Stop.",

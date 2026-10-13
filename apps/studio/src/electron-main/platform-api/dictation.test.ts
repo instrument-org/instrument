@@ -139,7 +139,7 @@ describe("transcribeDictation", () => {
     [413, { error: "Recording too large" }, { kind: "too-large" }],
     [400, { error: "No audio" }, { kind: "no-audio" }],
     [400, { error: "Unsupported language" }, { kind: "rejected" }],
-    [415, { error: "Unsupported audio type" }, { kind: "rejected" }],
+    [415, { error: "Unsupported audio type" }, { kind: "unsupported-audio" }],
     [500, "not json", { kind: "server" }],
   ])("maps a %i response to a failure", async (status, body, failure) => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(

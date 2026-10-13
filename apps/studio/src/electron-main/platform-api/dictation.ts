@@ -59,7 +59,10 @@ function failureOf(status: number, body: string): DictationFailure {
   if (status === 400 && error === "No audio") {
     return { kind: "no-audio" };
   }
-  if (status === 400 || status === 415) {
+  if (status === 415) {
+    return { kind: "unsupported-audio" };
+  }
+  if (status === 400) {
     return { kind: "rejected" };
   }
   return { kind: "server" };

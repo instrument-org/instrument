@@ -231,21 +231,26 @@ export async function wakeChatForApp(
 }
 
 /**
- * Wakes the session that ran into a folder or an app with the person's
- * answer to its card, or joins that session's turn at its next step when it
- * is still going: a task's own session when a task asked, the chat's when
- * the chat did.
+ * Wakes every session that ran into a folder or an app with the person's
+ * answer to its card, or joins each one's turn at its next step when it is
+ * still going: a task's own session for each task that asked, the chat's
+ * when the chat did. The wakes run side by side, so one that fails does not
+ * hold back the others.
  */
 export async function wakeSessionForPermission(
   part: Extract<WakePart, { type: "data-permissionAnswer" }>,
   workspaceRef: WorkspaceActorRef,
   chatId: ChatId,
-  sessionId: StoreId.Session,
+  askingSessionIds: StoreId.Session[],
 ): Promise<void> {
   if (!resolveChat(chatId) || !(await chatModelURI(chatId))) {
     return;
   }
-  await wakeWith(chatId, part, workspaceRef, sessionId);
+  await Promise.all(
+    askingSessionIds.map((sessionId) =>
+      wakeWith(chatId, part, workspaceRef, sessionId),
+    ),
+  );
 }
 
 /**

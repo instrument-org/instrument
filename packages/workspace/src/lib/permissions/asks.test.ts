@@ -33,9 +33,8 @@ it("asks once for a folder a call runs into, under that call", async () => {
   const asks = await openAsks(chatId);
   expect(asks).toEqual([
     expect.objectContaining({
+      askers: [{ partId, sessionId }],
       kind: "folder",
-      partId,
-      sessionId,
       target: path.join(home, "Documents", "Clients"),
     }),
   ]);

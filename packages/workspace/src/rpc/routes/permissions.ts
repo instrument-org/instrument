@@ -255,9 +255,10 @@ const liveAsks = base
 
 /**
  * The person's answer to an ask: allowed in this chat, allowed always, or
- * not now. A folder may be answered with a different one picked in the
- * system's panel. The session that asked is woken with the answer, or hears
- * it at its next step if its turn is still going.
+ * not now, which the chat keeps whoever asked. A folder may be answered with
+ * a different one picked in the system's panel. Every session that asked is
+ * woken with the answer, or hears it at its next step if its turn is still
+ * going.
  */
 const answer = base
   .input(
@@ -317,7 +318,7 @@ const answer = base
       },
       context.workspaceRef,
       input.id,
-      ask.sessionId,
+      ask.askers.map((asker) => asker.sessionId),
     );
   });
 

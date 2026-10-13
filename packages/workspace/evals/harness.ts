@@ -922,12 +922,17 @@ export async function runEvals(
                 `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} for ${ask.kind} ${ask.target}${declines ? "; declining" : picked ? `; picking ${picked}` : allows ? "; allowing" : ""}${c.reset}\n`,
               );
               if (declines || picked || allows) {
-                // Answered once the asking session's turn is over, as a
+                // Answered once the asking sessions' turns are over, as a
                 // person reading the card would, so the answer arrives as a
                 // wake rather than mid-turn.
                 void (async () => {
                   const until = Date.now() + ANSWER_AFTER_TURN_MAX_MS;
-                  while (isWorking(id, ask.sessionId) && Date.now() < until) {
+                  while (
+                    ask.askers.some((asker) =>
+                      isWorking(id, asker.sessionId),
+                    ) &&
+                    Date.now() < until
+                  ) {
                     await new Promise((resolve) =>
                       setTimeout(resolve, TREE_POLL_MS),
                     );

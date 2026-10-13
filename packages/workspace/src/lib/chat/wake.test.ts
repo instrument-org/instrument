@@ -182,7 +182,7 @@ describe("a wake on its way", () => {
       },
       workspaceRef,
       chatId,
-      sessionId,
+      [sessionId],
     );
     await vi.waitFor(async () => {
       const messages = await Store.getMessagesWithParts({ chatId, sessionId });

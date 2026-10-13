@@ -22,9 +22,9 @@ import { ToolCard, ToolCardSection } from "./message-part/tool-card";
 
 type Decision = "allowed" | "always" | "declined";
 type Ask = {
+  askers: { partId?: string | undefined }[];
   id: string;
   kind: "folder" | "app";
-  partId?: string | undefined;
   target: string;
 };
 
@@ -92,17 +92,17 @@ function signInLine(target: string): string | undefined {
   return SIGN_IN_LINES[inHome];
 }
 
-/** The explanation the tool call with this part id gave for itself. */
+/** The explanation a call that raised the ask, found in these messages, gave for itself. */
 function explanationOf(
   messages: readonly SessionMessage.WithParts[],
-  partId: string | undefined,
+  ask: Ask,
 ): string | undefined {
-  if (partId === undefined) {
-    return undefined;
-  }
   for (const message of messages) {
     for (const part of message.parts) {
-      if (isToolPart(part) && part.metadata.id === partId) {
+      if (
+        isToolPart(part) &&
+        ask.askers.some((asker) => asker.partId === part.metadata.id)
+      ) {
         return getToolExplanation(part);
       }
     }
@@ -121,8 +121,8 @@ function readablePath(target: string): string {
 }
 
 /**
- * The chat's open asks that the tool part with this id raised, drawn in full
- * under it.
+ * The chat's open asks that the tool part with this id raised, alone or with
+ * other sessions that ran into the same thing, drawn in full under it.
  */
 export function PermissionAsksForPart({
   chatId,
@@ -134,7 +134,9 @@ export function PermissionAsksForPart({
   explanation: string | undefined;
   partId: string;
 }) {
-  const asks = useAsks(chatId)?.filter((ask) => ask.partId === partId);
+  const asks = useAsks(chatId)?.filter((ask) =>
+    ask.askers.some((asker) => asker.partId === partId),
+  );
   if (!asks?.length) {
     return null;
   }
@@ -171,8 +173,8 @@ export function PermissionAsksFoot({
         <PermissionAskCard
           ask={ask}
           chatId={chatId}
-          compact={ask.partId !== undefined}
-          explanation={explanationOf(messages, ask.partId)}
+          compact={ask.askers.some((asker) => asker.partId !== undefined)}
+          explanation={explanationOf(messages, ask)}
           key={ask.id}
         />
       ))}

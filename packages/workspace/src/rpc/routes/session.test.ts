@@ -31,6 +31,7 @@ import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { publisher } from "../publisher";
+import { permissions } from "./permissions";
 import { session } from "./session";
 
 vi.mock(import("../../lib/session-store-storage"));
@@ -101,6 +102,14 @@ async function notesIn(chatId: ChatId) {
     .flatMap((part) =>
       part.type === "data-taskEvent" ? part.data.events : [],
     );
+}
+
+/** The sessions a wake was sent to since the `before`th event, in order. */
+function wokenSince(before: number) {
+  return sent
+    .slice(before)
+    .filter((event) => event.type === "addMessage")
+    .map((event) => event.value.sessionId);
 }
 
 /** A chat someone has written in, with one task. */
@@ -248,17 +257,23 @@ describe("session.stop", () => {
 
     expect(
       (await openAsks(chatId)).map((ask) => ({
-        asker: ask.sessionId === own ? "chat" : "task",
+        asker: ask.askers.map((asker) =>
+          asker.sessionId === own ? "chat" : "task",
+        ),
         target: ask.target,
       })),
     ).toMatchInlineSnapshot(`
       [
         {
-          "asker": "chat",
+          "asker": [
+            "chat",
+          ],
           "target": "Notes",
         },
         {
-          "asker": "chat",
+          "asker": [
+            "chat",
+          ],
           "target": "/Users/me/Pantry",
         },
       ]
@@ -266,6 +281,55 @@ describe("session.stop", () => {
     expect(
       sent.slice(sentBefore).filter((event) => event.type === "addMessage"),
     ).toEqual([]);
+  });
+
+  // An ask of the chat's that joined a task's card is the chat's as much as
+  // the task's: stopping the task leaves the card up for the chat, and its
+  // answer reaches the chat alone rather than starting the stopped task.
+  it("keeps a card the chat also asked on when the task is stopped, and its answer wakes only the chat", async () => {
+    const { chatId, own, task } = await chatWithTask();
+    await recordAsk({ chatId, sessionId: task }, "folder", "/Users/me/Pantry");
+    await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+
+    await call(
+      session.stop,
+      { id: chatId, sessionId: task },
+      { context: context() },
+    );
+    const cards = await openAsks(chatId);
+    expect(
+      cards.map((card) => card.askers.map((asker) => asker.sessionId)),
+    ).toEqual([[own]]);
+
+    const sentBefore = sent.length;
+    await call(
+      permissions.answer,
+      { askId: cards[0]?.id ?? "", decision: "allowed", id: chatId },
+      { context: context() },
+    );
+    expect(wokenSince(sentBefore)).toEqual([own]);
+    expect(await openAsks(chatId)).toEqual([]);
+  });
+
+  it("closes a card once the last session that asked on it is stopped, waking nothing", async () => {
+    const { chatId, own, task } = await chatWithTask();
+    await recordAsk({ chatId, sessionId: task }, "folder", "/Users/me/Pantry");
+    await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+    const sentBefore = sent.length;
+
+    await call(
+      session.stop,
+      { id: chatId, sessionId: task },
+      { context: context() },
+    );
+    await call(
+      session.stop,
+      { id: chatId, sessionId: own },
+      { context: context() },
+    );
+
+    expect(await openAsks(chatId)).toEqual([]);
+    expect(wokenSince(sentBefore)).toEqual([]);
   });
 
   // A Stop before the turn began leaves only the message no turn took up,

@@ -25,10 +25,9 @@ function showAsk(target: string) {
     [
       {
         askedAt: new Date(0),
+        askers: [{ partId, sessionId: StoreId.newSessionId() }],
         id: "ask-1",
         kind: "folder",
-        partId,
-        sessionId: StoreId.newSessionId(),
         target,
       },
     ],

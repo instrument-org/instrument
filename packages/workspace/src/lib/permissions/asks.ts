@@ -34,8 +34,9 @@ export function setAskForwarder(next: typeof forwardAsk): void {
 
 /**
  * Records that the agent ran into a folder or an app the person has not
- * answered for, so the chat shows the card. One ask per thing: running into
- * it again while the card is up raises nothing new.
+ * answered for, so the chat shows the card. One card per thing: running into
+ * it again while the card is up raises nothing new, and another session
+ * that does joins the card, to be woken with its answer too.
  */
 export function raiseAsk(
   asker: Asker,
@@ -75,23 +76,34 @@ export async function recordAsk(
   kind: PermissionAsk["kind"],
   target: string,
 ): Promise<void> {
+  const joining = {
+    ...(asker.partId && { partId: asker.partId }),
+    sessionId: asker.sessionId,
+  };
   await updateChatState(chatDir(asker.chatId), (state) => {
     const asks = state.permissionAsks ?? [];
-    if (asks.some((ask) => ask.kind === kind && ask.target === target)) {
+    const open = asks.find((ask) => ask.kind === kind && ask.target === target);
+    if (!open) {
+      return {
+        permissionAsks: [
+          ...asks,
+          {
+            askedAt: getCurrentDate(),
+            askers: [joining],
+            id: ulid(),
+            kind,
+            target,
+          },
+        ],
+      };
+    }
+    if (open.askers.some((on) => on.sessionId === asker.sessionId)) {
       return {};
     }
     return {
-      permissionAsks: [
-        ...asks,
-        {
-          askedAt: getCurrentDate(),
-          id: ulid(),
-          kind,
-          ...(asker.partId && { partId: asker.partId }),
-          sessionId: asker.sessionId,
-          target,
-        },
-      ],
+      permissionAsks: asks.map((ask) =>
+        ask === open ? { ...ask, askers: [...ask.askers, joining] } : ask,
+      ),
     };
   });
 }
@@ -117,25 +129,28 @@ export async function closeAsk(
 }
 
 /**
- * Takes off the chat the asks a session the person stopped had raised, or
- * with no session every ask of the chat's, answering none: the Stop ends
- * what the session waited on them for, and an answer would start it again.
- * A later ask for the same thing, by any session, raises a card of its own.
+ * Takes a session the person stopped off the cards it asked on, or with no
+ * session every session off every card of the chat's, answering none: the
+ * Stop ends what the session waited on them for, and an answer would start
+ * it again. A card another session still waits on stays up for that one,
+ * and one nobody is left on goes. A later ask for the same thing, by any
+ * session, raises a card of its own.
  */
 export async function closeAsksOf(
   chatId: ChatId,
   sessionId: StoreId.Session | undefined,
 ): Promise<void> {
-  const raisedBy = (ask: PermissionAsk) =>
-    sessionId === undefined || ask.sessionId === sessionId;
+  const stays = (asker: PermissionAsk["askers"][number]) =>
+    sessionId !== undefined && asker.sessionId !== sessionId;
   // Most stops find nothing to close, and are not worth a write.
-  if (!(await openAsks(chatId)).some(raisedBy)) {
+  if ((await openAsks(chatId)).every((ask) => ask.askers.every(stays))) {
     return;
   }
   await updateChatState(chatDir(chatId), (state) => ({
-    permissionAsks: (state.permissionAsks ?? []).filter(
-      (ask) => !raisedBy(ask),
-    ),
+    permissionAsks: (state.permissionAsks ?? []).flatMap((ask) => {
+      const askers = ask.askers.filter(stays);
+      return askers.length ? [{ ...ask, askers }] : [];
+    }),
   }));
 }
 

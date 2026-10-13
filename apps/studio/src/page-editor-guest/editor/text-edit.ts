@@ -51,6 +51,7 @@ export function createTextEdit(ed: Editor): TextEditApi {
     if (srcInner !== null && !/grid|table/.test(display)) {
       rich = mountRich(el, srcInner, {
         at,
+        keys: ed.keys,
         layer: ui.layer,
         onDone: () => {
           commitEdit();
@@ -92,9 +93,10 @@ export function createTextEdit(ed: Editor): TextEditApi {
       seg: v.seg,
       srcInner,
     };
+    const { keys } = ed;
     find(ui.hint, ".keys").innerHTML = rich
-      ? "<kbd>⇧↵</kbd> new line <kbd>⌘B</kbd> <kbd>⌘I</kbd> <kbd>⌘K</kbd> <kbd>Esc</kbd> done"
-      : "<kbd>↵</kbd> or <kbd>Esc</kbd> done";
+      ? `<kbd>${keys.newLine}</kbd> new line <kbd>${keys.bold}</kbd> <kbd>${keys.italic}</kbd> <kbd>${keys.link}</kbd> <kbd>Esc</kbd> done`
+      : `<kbd>${keys.submit}</kbd> or <kbd>Esc</kbd> done`;
     ui.hint.hidden = false;
     ed.selection.setHover(null);
     ed.toolbar.render();

@@ -20,6 +20,7 @@ describe("OS_CONVENTIONS", () => {
           "commandKey": "ctrlKey",
           "computer": "This Computer",
           "computerKind": "computer",
+          "deleteKey": "Del",
           "fileManager": "File Manager",
           "files": {
             "parentFolderKey": "altKey",
@@ -50,6 +51,7 @@ describe("OS_CONVENTIONS", () => {
           "commandKey": "metaKey",
           "computer": "This Mac",
           "computerKind": "Mac",
+          "deleteKey": "⌫",
           "fileManager": "Finder",
           "files": {
             "parentFolderKey": "metaKey",
@@ -80,6 +82,7 @@ describe("OS_CONVENTIONS", () => {
           "commandKey": "ctrlKey",
           "computer": "This PC",
           "computerKind": "PC",
+          "deleteKey": "Del",
           "fileManager": "File Explorer",
           "files": {
             "parentFolderKey": "altKey",

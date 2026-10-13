@@ -26,14 +26,14 @@ export function createToolbar(ed: Editor): ToolbarApi {
       tb.hidden = true;
       return;
     }
-    let html = `<button type="button" class="tb-name" data-act="crumbs" data-tip="Select a parent · Esc or ⌘↑">${esc(i.name)}${I.chevron}</button>`;
+    let html = `<button type="button" class="tb-name" data-act="crumbs" data-tip="Select a parent · Esc or ${ed.keys.selectParent}">${esc(i.name)}${I.chevron}</button>`;
     if (i.blocked) {
       html += `<span class="tb-reason">${I.lock}${esc(REASONS[i.blocked.reason])}</span>`;
       html += `<button type="button" class="tb-ask solo" data-act="ask" data-tip="${esc(noteFor(i.blocked))}">${I.ask}<span>Ask</span></button>`;
     } else {
       html += '<span class="tb-sep"></span>';
       if (i.kind === "text" && i.textOk) {
-        html += `<button type="button" data-act="edit" data-tip="Edit text · double-click or ↵">${I.edit}<span>Edit</span></button>`;
+        html += `<button type="button" data-act="edit" data-tip="Edit text · double-click or ${ed.keys.submit}">${I.edit}<span>Edit</span></button>`;
       }
       if (i.kind === "image" && i.imageOk) {
         html += `<button type="button" data-act="replace" data-tip="Replace image">${I.image}<span>Replace</span></button>`;
@@ -45,8 +45,8 @@ export function createToolbar(ed: Editor): ToolbarApi {
         struct.ok
           ? ""
           : ` aria-disabled="true" data-off="${esc(structWhy(struct, act))}"`;
-      html += `<button type="button" class="tb-icon" data-act="duplicate" data-tip="Duplicate · ⌘D"${off("duplicate")}>${I.dup}</button>`;
-      html += `<button type="button" class="tb-icon" data-act="delete" data-tip="Delete · ⌫"${off("delete")}>${I.trash}</button>`;
+      html += `<button type="button" class="tb-icon" data-act="duplicate" data-tip="Duplicate · ${ed.keys.duplicate}"${off("duplicate")}>${I.dup}</button>`;
+      html += `<button type="button" class="tb-icon" data-act="delete" data-tip="Delete · ${ed.keys.delete}"${off("delete")}>${I.trash}</button>`;
       html += '<span class="tb-sep"></span>';
       html += `<button type="button" class="tb-ask" data-act="ask" data-tip="Ask about this">${I.ask}<span>Ask</span></button>`;
     }

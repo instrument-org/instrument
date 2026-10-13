@@ -49,15 +49,6 @@
       }
     },
     {
-      // A known gap rather than an exception: the page editor's guest page
-      // writes its keys the Mac way on every system (⌘Z, ⌥↑), since nothing
-      // tells it which system it runs on. Drop this once something does.
-      "files": ["src/page-editor-guest/**"],
-      "rules": {
-        "studio/no-os-words": "off"
-      }
-    },
-    {
       "files": ["src/client/**", "src/shared/**"],
       "rules": {
         "no-restricted-imports": [

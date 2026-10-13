@@ -188,6 +188,7 @@ export interface ReorderGesture {
  */
 export function reorderGesture<T>({
   gripHtml,
+  gripTitle,
   host,
   items,
   onCancel,
@@ -199,6 +200,7 @@ export function reorderGesture<T>({
   vertical,
 }: {
   gripHtml: string;
+  gripTitle: string;
   host: HTMLElement;
   items: T[];
   onCancel: () => void;
@@ -218,7 +220,7 @@ export function reorderGesture<T>({
       const g = document.createElement("button");
       g.type = "button";
       g.className = `grip ${vertical ? "v" : "h"}`;
-      g.title = "Drag to reorder (⌥↑ / ⌥↓)";
+      g.title = gripTitle;
       g.innerHTML = gripHtml;
       p.append(g);
     }

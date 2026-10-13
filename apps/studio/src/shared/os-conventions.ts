@@ -44,6 +44,11 @@ export interface OsConventions {
   computer: string;
   /** The kind of computer, in "Places on your Mac". */
   computerKind: string;
+  /**
+   * The key that deletes what is selected, as a hint writes it: the Mac's ⌫,
+   * the Delete key elsewhere.
+   */
+  deleteKey: string;
   /** Files' keys, where the system's file manager decides them. */
   files: {
     /** The modifier held with ↑ to go to the folder above: ⌘ in the Finder, Alt elsewhere. */
@@ -92,6 +97,7 @@ export const OS_CONVENTIONS = {
     commandKey: "ctrlKey",
     computer: "This Computer",
     computerKind: "computer",
+    deleteKey: "Del",
     // GNOME Files and Dolphin rename on F2, open on Enter and go up on Alt+↑,
     // as File Explorer does.
     files: {
@@ -124,6 +130,7 @@ export const OS_CONVENTIONS = {
     commandKey: "metaKey",
     computer: "This Mac",
     computerKind: "Mac",
+    deleteKey: "⌫",
     // Return renames in the Finder, ⌘↑ goes to the enclosing folder, and ⌘⌫
     // is its Move to Trash.
     files: {
@@ -148,6 +155,7 @@ export const OS_CONVENTIONS = {
     commandKey: "ctrlKey",
     computer: "This PC",
     computerKind: "PC",
+    deleteKey: "Del",
     files: {
       parentFolderKey: "altKey",
       renameKey: "F2",

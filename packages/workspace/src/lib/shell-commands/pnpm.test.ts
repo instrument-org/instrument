@@ -120,6 +120,7 @@ describe("createPnpmCommand", () => {
       ["exec", "esbuild", "--version"],
       expect.any(Object),
       expect.any(String),
+      undefined,
     );
   });
 
@@ -294,6 +295,7 @@ describe("createPnpmCommand", () => {
         expectedArgs,
         expect.any(Object),
         expect.any(String),
+        undefined,
       );
     },
   );

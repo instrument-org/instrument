@@ -252,6 +252,8 @@ const undo = base
       kind: z.enum(["duplicate", "new-folder", "rename", "trash"]),
       /** Whether what was put back is a folder. */
       isFolder: z.boolean(),
+      /** The entry taken back, so whatever offered to undo it can go. */
+      journalId: z.string(),
       /** Where the thing is now, for whatever was put back rather than removed. */
       path: z.string().nullable(),
     }),
@@ -279,7 +281,12 @@ const undo = base
           (stats) => stats.isDirectory(),
           () => false,
         ));
-      return { isFolder, kind: entry.kind, path: restored };
+      return {
+        isFolder,
+        journalId: entry.id,
+        kind: entry.kind,
+        path: restored,
+      };
     } catch (error) {
       // A refusal is the undo's answer (the file changed since, say); any
       // other failure is a fault worth seeing, though the person is told

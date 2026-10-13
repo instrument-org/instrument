@@ -102,6 +102,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { ORPCError } from "@orpc/client";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import ms from "ms";
@@ -129,6 +130,7 @@ import {
   parentFolderOf,
   segmentsOf,
 } from "./host-path";
+import { dropUndoOffer, holdUndoOffer, withdrawUndoOffer } from "./undo-offers";
 
 /**
  * How many folders' layouts are kept. Past it the one left alone longest goes
@@ -703,34 +705,58 @@ export function ComputerPage({
       reread();
       if (moved > 0) {
         const [only] = hostPaths;
-        toast(
+        // Offered only when the app found every one of them in the Trash
+        // and so can put them all back.
+        const canUndo = undoable.length === moved;
+        const toastId = toast(
           moved === 1 && only
             ? `Moved “${segmentsOf(only).at(-1) ?? only}” to the ${getTrashTerminology()}`
             : `Moved ${moved} items to the ${getTrashTerminology()}`,
           {
-            // Offered only when the app found every one of them in the Trash
-            // and so can put them all back.
-            action:
-              undoable.length === moved
-                ? {
-                    label: "Undo",
-                    onClick: () => {
-                      void undoTrash(undoable);
-                    },
-                  }
-                : undefined,
+            action: canUndo
+              ? {
+                  label: "Undo",
+                  onClick: () => {
+                    void undoTrash(undoable);
+                  },
+                }
+              : undefined,
+            onAutoClose: ({ id }) => {
+              dropUndoOffer(id);
+            },
+            onDismiss: ({ id }) => {
+              dropUndoOffer(id);
+            },
           },
         );
+        if (canUndo) {
+          holdUndoOffer(toastId, undoable);
+        }
       }
     }
   };
   // The toast's Undo: each of them back, the last trashed first, stopping at
-  // the first that cannot come back and saying why.
+  // the first that cannot come back and saying why. One already put back
+  // another way, by ⌘Z say, is passed over quietly.
   const undoTrash = async (journalIds: string[]) => {
     let first: null | RPCOutput["files"]["undo"] = null;
     try {
       for (const journalId of journalIds.toReversed()) {
-        first = await rpcClient.files.undo.call({ journalId });
+        const undone = await rpcClient.files.undo
+          .call({ journalId })
+          .catch((error: unknown) => {
+            if (
+              error instanceof ORPCError &&
+              error.code === "NOTHING_TO_UNDO"
+            ) {
+              return null;
+            }
+            throw error;
+          });
+        if (undone) {
+          withdrawUndoOffer(undone.journalId);
+          first = undone;
+        }
       }
     } catch (error) {
       fileActionFailed("Couldn't put that back", error);
@@ -1098,6 +1124,7 @@ export function ComputerPage({
       void rpcClient.files.undo
         .call()
         .then((undone) => {
+          withdrawUndoOffer(undone.journalId);
           reread();
           selectUndone(undone);
         })

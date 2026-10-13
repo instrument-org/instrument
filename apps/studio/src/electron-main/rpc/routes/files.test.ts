@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
+import { type JournalEntry } from "@/electron-main/lib/file-journal";
+
 import { type InitialRPCContext } from "../context";
 import { files } from "./files";
 
@@ -16,6 +18,19 @@ vi.mock("@/electron-main/lib/mac-native", () => ({
   resolveAlias: (filePath: string) =>
     Promise.resolve(aliasTargets.get(filePath)),
 }));
+// The journal kept in memory rather than in the machine's store.
+vi.mock("@/electron-main/stores/machine/file-journal", async () => {
+  const { createFileJournal } =
+    await import("@/electron-main/lib/file-journal");
+  let entries: JournalEntry[] = [];
+  const journal = createFileJournal({
+    read: () => entries,
+    write: (next) => {
+      entries = next;
+    },
+  });
+  return { getFileJournal: () => journal };
+});
 
 // Neither route reads its context, and the base it is built on is mocked
 // out, so an empty one stands in for the window's.
@@ -114,4 +129,21 @@ it("reads and writes the file a Finder alias leads to", async () => {
 
   expect(await fs.readFile(target, "utf8")).toBe("# notes!");
   expect(await fs.readFile(alias, "utf8")).toBe("book\0\0\0\0mark");
+});
+
+// The toast that offered an Undo has to go once its entry is taken back by
+// any route, ⌘Z included, so the undo says which entry it was.
+it("names the journal entry an undo took back", async () => {
+  const made = await call(files.newFolder, { parent: dir }, options);
+
+  const undone = await call(files.undo, undefined, options);
+
+  expect(undone).toMatchObject({
+    journalId: expect.any(String),
+    kind: "new-folder",
+  });
+  await expect(fs.stat(made.path)).rejects.toThrow();
+  await expect(
+    call(files.undo, { journalId: undone.journalId }, options),
+  ).rejects.toThrow("There is nothing to undo");
 });

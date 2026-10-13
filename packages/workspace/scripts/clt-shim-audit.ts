@@ -480,7 +480,7 @@ for (const mode of args.modes) {
     applyCommandLineToolsEnv();
     if (process.env.DEVELOPER_DIR === MISSING_DEVELOPER_DIR) {
       process.stdout.write(
-        `guard engaged: DEVELOPER_DIR=${process.env.DEVELOPER_DIR} CC=${process.env.CC} CXX=${process.env.CXX}\n`,
+        `guard engaged: DEVELOPER_DIR=${MISSING_DEVELOPER_DIR} CC=${process.env.CC ?? "unset"} CXX=${process.env.CXX ?? "unset"}\n`,
       );
     } else {
       failures++;

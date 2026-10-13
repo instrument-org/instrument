@@ -91,8 +91,11 @@ function planLine(
       ? `You're on the ${plan.name} plan.`
       : "You have a subscription.";
   }
-  if (status.plan === "trial" && status.trial.state !== "ended") {
+  if (status.plan === "trial" && status.trial.state === "active") {
     return "You're on the free trial.";
+  }
+  if (status.plan === "trial" && status.trial.state === "available") {
+    return "Your free trial starts with your first message.";
   }
   return `Choose a plan to use ${APP_NAME}'s AI.`;
 }

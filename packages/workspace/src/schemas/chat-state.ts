@@ -57,10 +57,10 @@ export const PermissionAskSchema = z.object({
 
 export type PermissionAsk = z.output<typeof PermissionAskSchema>;
 
-// Where the user left off in a chat. Read on open, and across chats only for
-// the open asks the chat list says a chat waits on -- which is what separates
-// it from the settings around it, and why it is one nested key rather than a
-// flat spread.
+// Where the user left off in a chat. Read on open, and across chats only by
+// the chat list for its open asks, through `openAsks` -- which is what
+// separates it from the settings around it, and why it is one nested key
+// rather than a flat spread.
 export const StoredChatStateSchema = z
   .object({
     // The apps whose guide this chat has read, so `app request` hands the

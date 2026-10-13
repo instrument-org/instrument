@@ -25,8 +25,8 @@ import { getChatPrivateDir } from "./chat-dir-utils";
  *   reads it for every chat in the workspace.
  * - `state` is where the user left off *inside* one chat -- its browser tabs
  *   and the session driving each. Read when a chat is open, and across chats
- *   only by the chat list, for the cards open in each; nothing will ever
- *   index it.
+ *   only by the chat list, for the cards open in each, through `openAsks`;
+ *   nothing will ever index it.
  *
  * Two views over one file rather than two files: see the finding on the task
  * list following file timestamps for why they were split and why that reason

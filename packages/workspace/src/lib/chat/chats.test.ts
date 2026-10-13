@@ -199,6 +199,27 @@ async function agentSays(
   return messageId;
 }
 
+/** A note the app writes as a user message, which the user never typed. */
+async function noteSays(
+  sessionId: StoreId.Session,
+  minute: number,
+  part: (
+    metadata: ReturnType<typeof partMetadata>,
+  ) => SessionMessage.UserWithParts["parts"][number],
+) {
+  const messageId = StoreId.newMessageId();
+  const saved = await Store.saveMessageWithParts(
+    {
+      id: messageId,
+      metadata: { createdAt: at(minute), sessionId },
+      parts: [part(partMetadata({ messageId, sessionId }))],
+      role: "user",
+    },
+    chatFor(sessionId),
+  );
+  expect(saved.isOk()).toBe(true);
+}
+
 function partMetadata(ids: {
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
@@ -831,6 +852,97 @@ describe("listChats", () => {
       alive.value = new Set([sessionId]);
       const [spokenPast] = await listChats();
       expect(spokenPast?.state).toBe("working");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is idle after a relaunch past the note the quit left, and waits only on a card still open", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const chatId = await freshChat();
+      const sessionId = await session(chatId, "Groceries", 1);
+      await userSays(chatId, sessionId, "make me a grocery list", 1);
+      await agentSays(chatId, sessionId, "A task is on it.", {
+        commands: ["task new 'Count the lines'"],
+        minute: 2,
+      });
+      await noteSays(sessionId, 3, (metadata) => ({
+        data: {
+          events: [
+            {
+              ended: "The app closed while counting",
+              handle: "t1",
+              sessionId: StoreId.newSessionId(),
+              status: "done",
+              stoppedBy: "app",
+              title: "Count the lines",
+            },
+          ],
+        },
+        metadata,
+        type: "data-taskEvent",
+      }));
+
+      vi.setSystemTime(at(3).getTime() + 5000);
+      const [relaunched] = await listChats();
+      expect(relaunched?.state).toBe("idle");
+      // What the line says "Done" by once the chat is at rest.
+      expect(relaunched?.lastStep?.at).toBe(at(2).getTime());
+
+      // A card raised before the quit still waits on the user: the note is
+      // not the user speaking past it.
+      vi.setSystemTime(at(2).getTime() + 30_000);
+      await recordAsk(
+        { chatId: chatFor(sessionId), sessionId },
+        "folder",
+        path.join(os.homedir(), "Pantry"),
+      );
+      vi.setSystemTime(at(3).getTime() + 5000);
+      const [carded] = await listChats();
+      expect(carded?.state).toBe("waiting");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("works through the turn a background job's wake starts, then settles", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const chatId = await freshChat();
+      const sessionId = await session(chatId, "Documents", 1);
+      await userSays(chatId, sessionId, "what's in my Documents folder?", 1);
+      await agentSays(chatId, sessionId, "Still listing it.", {
+        commands: ["ls ~/Documents"],
+        minute: 2,
+      });
+      await noteSays(sessionId, 3, (metadata) => ({
+        data: {
+          events: [
+            {
+              command: "ls ~/Documents",
+              durationMs: 40_000,
+              exitCode: 0,
+              id: "bg_1",
+              logFilePath: ".instrument/processes/bg_1.log",
+              status: "exited",
+            },
+          ],
+        },
+        metadata,
+        type: "data-jobEvent",
+      }));
+
+      vi.setSystemTime(at(3).getTime() + 1000);
+      const [woken] = await listChats();
+      expect(woken?.state).toBe("working");
+
+      await agentSays(chatId, sessionId, "Your Documents folder holds Taxes.", {
+        minute: 4,
+      });
+      vi.setSystemTime(at(4).getTime() + 1000);
+      const [settled] = await listChats();
+      expect(settled?.state).toBe("idle");
     } finally {
       vi.useRealTimers();
     }

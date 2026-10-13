@@ -15,7 +15,7 @@
  * It lives here rather than in the renderer because `show` and the pane state
  * ask it too, and a grammar with two implementations is a grammar that drifts.
  */
-export function isAddressableTaskFilePath(path: string): boolean {
+export function isAddressableChatFilePath(path: string): boolean {
   return !path.includes("\\") && !path.split("/").includes("..");
 }
 

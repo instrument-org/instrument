@@ -27,22 +27,22 @@ const model = createMockAIGatewayModel();
  * while every doubled test keeps passing.
  */
 describe("bash background processes, end to end", () => {
-  let taskDirPath: string;
+  let chatRoot: string;
   let chatId: ChatId;
   let sessionId: StoreId.Session;
 
   beforeEach(async () => {
     const tasksDir = await fs.mkdtemp(path.join(os.tmpdir(), "bg-e2e-"));
     // The task id is the directory name, so it must look like one.
-    taskDirPath = path.join(tasksDir, `01k${"e2e".padEnd(23, "0")}`);
-    await fs.mkdir(path.join(taskDirPath, "work"), { recursive: true });
-    chatId = createMockChatConfigForDir(taskDirPath);
+    chatRoot = path.join(tasksDir, `01k${"e2e".padEnd(23, "0")}`);
+    await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
+    chatId = createMockChatConfigForDir(chatRoot);
     sessionId = StoreId.newSessionId();
   });
 
   afterEach(async () => {
     await killSessionBackgroundProcesses(sessionId);
-    await fs.rm(path.dirname(taskDirPath), { force: true, recursive: true });
+    await fs.rm(path.dirname(chatRoot), { force: true, recursive: true });
   });
 
   function toolOptions<TInput>(input: TInput) {
@@ -71,7 +71,7 @@ describe("bash background processes, end to end", () => {
 
   it("promotes a command that outlives its yield and streams its output", async () => {
     await fs.writeFile(
-      path.join(taskDirPath, "work", "tick.js"),
+      path.join(chatRoot, "work", "tick.js"),
       'setInterval(() => console.log("tick"), 100);\n',
       "utf8",
     );
@@ -101,7 +101,7 @@ describe("bash background processes, end to end", () => {
   // exactly where it would go missing.
   it("reports a promoted process under the explanation its call gave", async () => {
     await fs.writeFile(
-      path.join(taskDirPath, "work", "serve.js"),
+      path.join(chatRoot, "work", "serve.js"),
       "setInterval(() => {}, 1000);\n",
       "utf8",
     );
@@ -127,7 +127,7 @@ describe("bash background processes, end to end", () => {
 
   it("captures output a killed process writes while shutting down", async () => {
     await fs.writeFile(
-      path.join(taskDirPath, "work", "graceful.js"),
+      path.join(chatRoot, "work", "graceful.js"),
       [
         'process.on("SIGTERM", () => {',
         '  console.log("shutting down");',
@@ -154,9 +154,9 @@ describe("bash background processes, end to end", () => {
   it.runIf(process.platform !== "win32")(
     "does not return from a kill until descendants are gone",
     async () => {
-      const childPidPath = path.join(taskDirPath, "work", "child.pid");
+      const childPidPath = path.join(chatRoot, "work", "child.pid");
       await fs.writeFile(
-        path.join(taskDirPath, "work", "parent.js"),
+        path.join(chatRoot, "work", "parent.js"),
         [
           'const { spawn } = require("node:child_process");',
           'const fs = require("node:fs");',
@@ -221,7 +221,7 @@ describe("bash background processes, end to end", () => {
     // reports. A promoted call reports the streamed copy instead, so redaction
     // has to hold on the way through the sink as well.
     await fs.writeFile(
-      path.join(taskDirPath, "work", "leaky.js"),
+      path.join(chatRoot, "work", "leaky.js"),
       [
         `setTimeout(() => {`,
         `  console.log("remote: https://user:tok3n@example.com/repo.git");`,
@@ -256,12 +256,12 @@ describe("bash background processes, end to end", () => {
 
   it("appends final shell output when a pipeline transforms live output", async () => {
     await fs.writeFile(
-      path.join(taskDirPath, "work", "producer.js"),
+      path.join(chatRoot, "work", "producer.js"),
       'setTimeout(() => process.stdout.write("lower\\n"), 700);\n',
       "utf8",
     );
     await fs.writeFile(
-      path.join(taskDirPath, "work", "uppercase.js"),
+      path.join(chatRoot, "work", "uppercase.js"),
       "process.stdin.on('data', (chunk) => process.stdout.write(chunk.toString().toUpperCase()));\n",
       "utf8",
     );

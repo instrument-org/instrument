@@ -17,7 +17,7 @@ import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
 import { reachOf } from "./permissions/rules";
 import { ruleRefusal } from "./permissions/rules-fs";
-import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
+import { resolvePathWithinChatDir } from "./resolve-path-within-chat-dir";
 import {
   classifyHostPath,
   resolveHostPath,
@@ -113,7 +113,7 @@ export async function getSimilarPathSuggestions({
 }
 
 /**
- * Resolve a read-path input against the workspace layout. Accepts task-relative
+ * Resolve a read-path input against the workspace layout. Accepts relative
  * paths and absolute paths in the shell's spelling inside any mounted folder:
  * the chat's own, a folder it reaches, or a skill source. Any other absolute
  * path is an error that steers the agent toward a relative path or a folder
@@ -121,10 +121,10 @@ export async function getSimilarPathSuggestions({
  *
  * Returns `{ absolutePath, displayPath, mount }`:
  * - `absolutePath` — real host path; use for all file I/O.
- * - `displayPath` — what to echo back to the agent: task-relative for the task
+ * - `displayPath` — what to echo back to the agent: relative for the chat's folder
  *   (./work/...), the absolute path in the shell's spelling everywhere else.
- * - `mount` — the non-task mount that owns the path, or null when the path is in
- *   the task.
+ * - `mount` — the mount other than the chat's that owns the path, or null when the
+ *   path is in the chat's folder.
  */
 export function resolveAgentPath(options: {
   inputPath?: string;
@@ -136,7 +136,7 @@ export function resolveAgentPath(options: {
   if (!inputPath?.trim()) {
     if (!isRequired) {
       return ok({
-        absolutePath: layout.task.hostRoot,
+        absolutePath: layout.chat.hostRoot,
         displayPath: "./",
         mount: null,
       });
@@ -183,8 +183,8 @@ export function resolveExistingFilePath(options: {
 
 /**
  * Resolve a raw agent-provided path to a validated absolute path within the
- * task directory, plus the normalized display path. Rewrites sloppy input
- * ("work/x") into task-relative form and rejects traversal out of the task, including Windows-style "./subdir\\..\\.." on all platforms.
+ * chat's folder, plus the normalized display path. Rewrites sloppy input
+ * ("work/x") into relative form and rejects traversal out of the chat's folder, including Windows-style "./subdir\\..\\.." on all platforms.
  *
  * This is the relative-only resolver: absolute paths never reach it from
  * resolveAgentPath/resolveWritableToolPath, which pre-handle them against the
@@ -197,15 +197,15 @@ export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
   }
   const displayPath = fixedPathResult.value;
 
-  const absolutePath = resolvePathWithinTaskDir({
-    dir: layout.task.hostRoot,
+  const absolutePath = resolvePathWithinChatDir({
+    dir: layout.chat.hostRoot,
     filePath: displayPath,
   });
   if (!absolutePath) {
-    return executeError(`Path escapes the task directory: ${inputPath}`);
+    return executeError(`Path escapes the chat's folder: ${inputPath}`);
   }
 
-  const masked = classifyHostPath(layout, absolutePath, layout.task)?.masked;
+  const masked = classifyHostPath(layout, absolutePath, layout.chat)?.masked;
   if (masked !== undefined) {
     return maskedEntryError(displayPath, masked);
   }
@@ -214,15 +214,15 @@ export function resolveToolPath(layout: WorkspaceFsLayout, inputPath: string) {
 }
 
 /**
- * Resolve a write-path input against the workspace layout. Task-relative paths
+ * Resolve a write-path input against the workspace layout. Relative paths
  * and absolute paths in a writable mount (the workspace skills, a folder the
  * user granted write access) resolve normally; read-only mounts are rejected
- * with copy-into-task guidance instead of silently landing somewhere else.
- * Whether a non-task mount is writable is decided by its readOnly flag, never
+ * with copy-into-the-chat's-folder guidance instead of silently landing somewhere else.
+ * Whether a mount other than the chat's is writable is decided by its readOnly flag, never
  * by a per-mount special case here.
  *
  * `mount` in the result is the mount that owns the path, or null for a path
- * inside the task.
+ * inside the chat's folder.
  */
 export function resolveWritableToolPath(options: {
   inputPath: string;
@@ -254,8 +254,8 @@ export function resolveWritableToolPath(options: {
     );
   }
   // The owning mount rides along so a caller whose output contract is
-  // task-relative can refuse a path in another folder rather than silently
-  // resolving it against the task directory.
+  // relative to the chat's folder can refuse a path in another folder rather than silently
+  // resolving it against the chat's folder.
   return ok({ absolutePath, displayPath, mount });
 }
 
@@ -334,11 +334,11 @@ function resolveAbsolutePath(layout: WorkspaceFsLayout, shellAbsPath: string) {
     return maskedEntryError(normalizePath(shellAbsPath), found.masked);
   }
 
-  if (mount === layout.task) {
-    // Normalize a full path in the chat's folder into the same task-relative
+  if (mount === layout.chat) {
+    // Normalize a full path in the chat's folder into the same relative
     // form as relative input so display paths stay consistent across tools.
     const relative = relativeWithin(
-      layout.task.shellRoot,
+      layout.chat.shellRoot,
       normalizePath(shellAbsPath),
     );
     return ok({

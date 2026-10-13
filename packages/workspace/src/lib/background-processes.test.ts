@@ -86,7 +86,7 @@ function controllableRun({
  * on. Separate sessions keep the module-level registry from leaking ids between
  * tests.
  *
- * The task directory is cleared because the mock workspace is a fixed path: logs
+ * The chat's folder is cleared because the mock workspace is a fixed path: logs
  * written by an earlier run would otherwise still be there, and ids are handed out
  * from what is on disk, so every run would start further along than the last.
  */

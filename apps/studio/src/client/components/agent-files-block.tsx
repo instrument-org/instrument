@@ -10,7 +10,7 @@ import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { getFileKindLabel, isMediaFile } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
 import {
-  isAddressableTaskFilePath,
+  isAddressableChatFilePath,
   isFolderPath,
   isMessageDocument,
   type MessageDraft,
@@ -324,7 +324,7 @@ function FolderLine({ onClick, path }: { onClick: () => void; path: string }) {
 // reading as a bug in the file itself.
 function isDrawablePath(path: string): boolean {
   return (
-    isAddressableTaskFilePath(path) &&
+    isAddressableChatFilePath(path) &&
     (path.includes("/") || /\.[a-z0-9]{1,8}$/i.test(path))
   );
 }

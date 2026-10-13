@@ -14,7 +14,7 @@ const isWindows = process.platform === "win32";
 const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
 
 describe("chatVenvDir", () => {
-  it("resolves to .venv at the task root", () => {
+  it("resolves to .venv at the root of the chat's folder", () => {
     expect(chatVenvDir(chatId).replaceAll("\\", "/")).toBe(
       "/tmp/workspace/chats/test/.venv",
     );
@@ -60,7 +60,7 @@ describe("uvSubprocessEnv", () => {
     expect(withPythonVersionNote("error: other\n")).toBe("error: other\n");
   });
 
-  it("points VIRTUAL_ENV at the task venv", () => {
+  it("points VIRTUAL_ENV at the chat's venv", () => {
     expect(env.VIRTUAL_ENV).toBe(chatVenvDir(chatId));
   });
 

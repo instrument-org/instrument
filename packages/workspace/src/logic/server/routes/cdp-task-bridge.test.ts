@@ -51,7 +51,7 @@ vi.mock("../../../lib/session-layout", async () => {
       layoutsReadFor.push(chatId);
       return Promise.resolve(
         buildWorkspaceFsLayout({
-          taskHostRoot: ChatDirSchema.parse("/tmp/tasks/read-the-pages"),
+          chatHostRoot: ChatDirSchema.parse("/tmp/tasks/read-the-pages"),
         }),
       );
     },

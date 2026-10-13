@@ -202,7 +202,7 @@ describe("sweepInterruptedToolCalls", () => {
     expect(part).toMatchObject({ state: "output-error" });
   });
 
-  it("sweeps every session in the task", async () => {
+  it("sweeps every session in the chat", async () => {
     const rootMessage = assistantMessage();
     const childMessage = assistantMessage(StoreId.newSessionId());
     await seed(rootMessage, [toolPart(rootMessage, "input-available")]);

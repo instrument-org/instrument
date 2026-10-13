@@ -29,9 +29,9 @@ describe("bash attaches the agent-browser skill", () => {
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "bash-browser-skill-"));
-    const taskDirPath = path.join(root, "tasks", `01k${"abs".padEnd(23, "0")}`);
-    await fs.mkdir(path.join(taskDirPath, "work"), { recursive: true });
-    chatId = createMockChatConfigForDir(taskDirPath, { model });
+    const chatRoot = path.join(root, "tasks", `01k${"abs".padEnd(23, "0")}`);
+    await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
+    chatId = createMockChatConfigForDir(chatRoot, { model });
     sessionId = StoreId.newSessionId();
   });
 

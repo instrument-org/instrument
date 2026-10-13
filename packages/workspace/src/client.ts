@@ -21,7 +21,7 @@ export { jobEventModelNote } from "./lib/job-event-model-text";
 export { maxStepsModelNote } from "./lib/max-steps-model-text";
 export { messageGapModelNote } from "./lib/message-gap-model-text";
 export { modelChangeSincePreviousTurn } from "./lib/model-change";
-export { normalizeTaskFilePath } from "./lib/normalize-task-file-path";
+export { normalizeChatFilePath } from "./lib/normalize-chat-file-path";
 export type {
   ComputerFolder,
   ComputerListing,
@@ -43,12 +43,12 @@ export { pathsNamedInMessage } from "./lib/paths-named-in-message";
 export { replyExcerpt, replyModelNote } from "./lib/reply-model-text";
 export { systemNoteBody } from "./lib/system-note";
 export { taskEventModelNote } from "./lib/task-event-model-text";
-export { isTaskFileHref, taskFilePathFromHref } from "./lib/task-file-href";
+export { isChatFileHref, chatFilePathFromHref } from "./lib/chat-file-href";
 export {
-  isAddressableTaskFilePath,
+  isAddressableChatFilePath,
   isFolderPath,
   nameOfPath,
-} from "./lib/task-file-path";
+} from "./lib/chat-file-path";
 export {
   getUsageSummaryFromMessages,
   type UsageSummary,

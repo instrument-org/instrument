@@ -11,7 +11,7 @@ import {
   createPnxCommand,
   PNPM_COMMAND,
 } from "./pnpm";
-import { taskLayout } from "../../test/helpers/task-layout";
+import { chatLayout } from "../../test/helpers/chat-layout";
 
 vi.mock(import("../execa-node-for-chat"));
 
@@ -24,7 +24,7 @@ const mockCtx = createCommandContext({
 
 describe("createPnpmCommand", () => {
   const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
-  const command = createPnpmCommand(chatId, taskLayout(chatId));
+  const command = createPnpmCommand(chatId, chatLayout(chatId));
 
   // The agent runs pnpm from `work/`; seed a manifest at the cwd so the manifest
   // guard passes. The dedicated guard test below uses a fresh, empty fs.
@@ -52,7 +52,7 @@ describe("createPnpmCommand", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
-      `\`cd ${taskLayout(chatId).task.shellRoot} && pnpm add lodash\``,
+      `\`cd ${chatLayout(chatId).chat.shellRoot} && pnpm add lodash\``,
     );
   });
 
@@ -228,7 +228,7 @@ describe("createPnpmCommand", () => {
       stdout: "1\n",
     });
 
-    const npxCommand = createNpxCommand(chatId, taskLayout(chatId));
+    const npxCommand = createNpxCommand(chatId, chatLayout(chatId));
     const result = await npxCommand.execute(
       ["-y", "node", "-e", "console.log(1)"],
       {
@@ -285,7 +285,7 @@ describe("createPnpmCommand", () => {
         stdout: "hello",
       });
 
-      const dlxCommand = createCommand(chatId, taskLayout(chatId));
+      const dlxCommand = createCommand(chatId, chatLayout(chatId));
       const result = await dlxCommand.execute(args, mockCtx);
 
       expect(result.exitCode).toBe(0);

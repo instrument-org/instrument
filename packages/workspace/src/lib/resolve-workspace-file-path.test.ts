@@ -15,17 +15,17 @@ describe("resolveWorkspaceFilePath", () => {
   let photosRoot: string;
   let root: string;
   let chatId: ChatId;
-  let taskRoot: string;
+  let chatRoot: string;
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-workspace-path-"));
-    taskRoot = path.join(root, "tasks", "resolve-path-task");
+    chatRoot = path.join(root, "tasks", "resolve-path-task");
     photosRoot = path.join(root, "Photos");
-    chatId = createMockChatConfigForDir(taskRoot);
+    chatId = createMockChatConfigForDir(chatRoot);
 
-    await fs.mkdir(taskRoot, { recursive: true });
+    await fs.mkdir(chatRoot, { recursive: true });
     await fs.mkdir(photosRoot);
-    await fs.writeFile(path.join(taskRoot, "notes.txt"), "task file");
+    await fs.writeFile(path.join(chatRoot, "notes.txt"), "chat file");
     await fs.writeFile(path.join(photosRoot, "cat.png"), "mounted file");
 
     await grantFolder({ chatId, path: photosRoot, source: "attached" });
@@ -39,12 +39,12 @@ describe("resolveWorkspaceFilePath", () => {
     [
       "notes.txt",
       (): string => "notes.txt",
-      (): string => path.join(taskRoot, "notes.txt"),
+      (): string => path.join(chatRoot, "notes.txt"),
     ],
     [
       "./notes.txt",
       (): string => "./notes.txt",
-      (): string => path.join(taskRoot, "notes.txt"),
+      (): string => path.join(chatRoot, "notes.txt"),
     ],
     [
       "a file in a granted folder by its full path",

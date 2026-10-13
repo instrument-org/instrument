@@ -35,11 +35,11 @@ beforeAll(async () => {
   root = await fs.realpath(
     await fs.mkdtemp(path.join(os.tmpdir(), "bash-mktemp-")),
   );
-  const taskRoot = path.join(root, "tasks", "test");
+  const chatRoot = path.join(root, "tasks", "test");
   systemTemp = path.join(root, "system-temp");
-  await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
+  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
   await fs.mkdir(systemTemp);
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
   // Stands for the system's temp folder, which the tests otherwise leave
   // unmounted.
   savedTmpdir = process.env.TMPDIR;

@@ -24,7 +24,7 @@ export function fixRelativePath(path: string): null | RelativePath {
 
 // Substring checks miss a `..` that is not followed by a forward slash: `".."`
 // itself, and `"..\\x"` on Windows where the backslash is a separator. Split on
-// both separators and reject the segment, matching `RelativeTaskPathSchema`.
+// both separators and reject the segment, matching `RelativeChatPathSchema`.
 function hasParentSegment(path: string): boolean {
   return path.split(/[/\\]/).includes("..");
 }

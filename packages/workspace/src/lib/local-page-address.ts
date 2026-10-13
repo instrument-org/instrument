@@ -74,7 +74,7 @@ export function agentSpellingOfFileUrls(
   text: string,
   layout: WorkspaceFsLayout,
 ): string {
-  const folders = [layout.task, ...otherFolders(layout)].toSorted(
+  const folders = [layout.chat, ...otherFolders(layout)].toSorted(
     (a, b) => b.hostRoot.length - a.hostRoot.length,
   );
   let result = withoutPageEditParam(text);

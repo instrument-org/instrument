@@ -8,7 +8,7 @@ import {
 } from "../schemas/paths";
 import { normalizePath } from "./normalize-path";
 
-export function resolvePathWithinTaskDir({
+export function resolvePathWithinChatDir({
   dir,
   filePath,
 }: {

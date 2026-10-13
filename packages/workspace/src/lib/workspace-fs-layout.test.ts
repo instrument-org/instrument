@@ -44,15 +44,15 @@ vi.mock("./permissions/asks", async (importOriginal) => ({
 describe("buildBashFs", () => {
   let tmpDir: string;
   let docs: string;
-  let taskDir: string;
+  let chatRoot: string;
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(
       path.join(os.tmpdir(), `${APP_NAME_SLUG}-bash-fs-test-`),
     );
     docs = path.join(tmpDir, "Docs");
-    taskDir = path.join(tmpDir, "task");
-    await fs.mkdir(taskDir);
+    chatRoot = path.join(tmpDir, "task");
+    await fs.mkdir(chatRoot);
     await fs.mkdir(docs);
     await fs.writeFile(path.join(docs, "readme.txt"), "hello docs");
   });
@@ -73,12 +73,12 @@ describe("buildBashFs", () => {
       ...(rules.length > 0 && {
         rules: { home: os.homedir(), rules, withoutAsking: false },
       }),
-      taskHostRoot: ChatDirSchema.parse(taskDir),
+      chatHostRoot: ChatDirSchema.parse(chatRoot),
     });
     const bashFs = await buildBashFs(layout, {
       maxFileReadSize: 1024 * 1024,
     });
-    return new Bash({ cwd: layout.task.shellRoot, fs: bashFs });
+    return new Bash({ cwd: layout.chat.shellRoot, fs: bashFs });
   }
 
   // just-bash raises some filesystem refusals as thrown errors rather than exit
@@ -86,14 +86,14 @@ describe("buildBashFs", () => {
   // the private contents must not reach stdout, so both collapse to "".
   async function stdoutOf(bash: Bash, command: string) {
     try {
-      const result = await bash.exec(command.replaceAll("<task>", taskDir));
+      const result = await bash.exec(command.replaceAll("<chat>", chatRoot));
       return result.stdout;
     } catch {
       return "";
     }
   }
 
-  it("writes relative paths into the real task dir", async () => {
+  it("writes relative paths into the real chat folder", async () => {
     const bash = await makeBash();
     const result = await bash.exec("echo hi > notes.txt");
     expect(result.exitCode).toBe(0);
@@ -215,7 +215,7 @@ describe("buildBashFs", () => {
   });
 
   it.each([
-    ["absolute", `cat <task>/.instrument/state.json`],
+    ["absolute", `cat <chat>/.instrument/state.json`],
     ["traversal", "cat work/../.instrument/state.json"],
     ["from a subdirectory", "cd work && cat ../.instrument/state.json"],
     ["assembled at runtime", 'd=.instrument; f=state.json; cat "$d/$f"'],
@@ -223,7 +223,7 @@ describe("buildBashFs", () => {
     ["via find", "find . -name state.json -exec cat {} +"],
     // A case-insensitive disk (macOS, Windows) opens the same directory.
     ["uppercase", "cat .INSTRUMENT/state.json"],
-    ["mixed-case", `cat <task>/.Instrument/state.json`],
+    ["mixed-case", `cat <chat>/.Instrument/state.json`],
   ])(
     "masks the private dir against a %s reference",
     async (_label, command) => {
@@ -255,7 +255,7 @@ describe("buildBashFs", () => {
     expect(await stdoutOf(bash, "cat leak.json")).not.toContain("secret");
   });
 
-  it("keeps the private dir out of task-root listings", async () => {
+  it("keeps the private dir out of listings of the chat's folder", async () => {
     await fs.mkdir(path.join(tmpDir, "task", ".instrument"), {
       recursive: true,
     });
@@ -325,10 +325,10 @@ describe("buildBashFs", () => {
 
     it("stops a walk of the disk at the home folder's budget", async () => {
       const layout = buildWorkspaceFsLayout({
-        taskHostRoot: ChatDirSchema.parse(taskDir),
+        chatHostRoot: ChatDirSchema.parse(chatRoot),
       });
       const bash = new Bash({
-        cwd: layout.task.shellRoot,
+        cwd: layout.chat.shellRoot,
         fs: await buildBashFs(layout, {
           homeWalkBudget: createWalkBudget(50),
           maxFileReadSize: 1024 * 1024,
@@ -371,7 +371,7 @@ describe("buildBashFs", () => {
           path: AbsolutePathSchema.parse(gone),
         },
       },
-      taskHostRoot: ChatDirSchema.parse(taskDir),
+      chatHostRoot: ChatDirSchema.parse(chatRoot),
     });
     await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 });
     expect(existsSync(gone)).toBe(false);
@@ -403,10 +403,10 @@ describe("buildBashFs skills mount", () => {
 
   async function makeBash() {
     const layout = buildWorkspaceFsLayout({
-      taskHostRoot: ChatDirSchema.parse(path.join(tmpDir, "task")),
+      chatHostRoot: ChatDirSchema.parse(path.join(tmpDir, "task")),
     });
     const bashFs = await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 });
-    return new Bash({ cwd: layout.task.shellRoot, fs: bashFs });
+    return new Bash({ cwd: layout.chat.shellRoot, fs: bashFs });
   }
 
   const WORKSPACE_SKILLS = () => getWorkspaceSkillsDir();
@@ -568,7 +568,7 @@ describe("classifyHostPath", () => {
           path: AbsolutePathSchema.parse(home),
         },
       },
-      taskHostRoot: ChatDirSchema.parse(task),
+      chatHostRoot: ChatDirSchema.parse(task),
     });
   }
 
@@ -652,7 +652,7 @@ describe.runIf(process.platform !== "win32")("outsideFolderRefusal", () => {
 
   function layoutWith(level: "allow" | "ask") {
     return buildWorkspaceFsLayout({
-      taskHostRoot: ChatDirSchema.parse(path.join(tmpDir, "chat")),
+      chatHostRoot: ChatDirSchema.parse(path.join(tmpDir, "chat")),
       rules: {
         asker: {
           chatId: ChatIdSchema.parse("outside-folder-test"),
@@ -726,7 +726,7 @@ describe("shellPath on Windows", () => {
 
   it("refuses a path on no drive without resolving it", () => {
     const layout = buildWorkspaceFsLayout({
-      taskHostRoot: ChatDirSchema.parse(
+      chatHostRoot: ChatDirSchema.parse(
         path.join(os.tmpdir(), "chats", "no-drive"),
       ),
     });

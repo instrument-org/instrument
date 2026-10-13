@@ -327,7 +327,10 @@ describe("resolveAgentBrowserPathArgs", () => {
   });
 
   it.each([
-    { name: "missing task file", path: "attachments/missing.png" },
+    {
+      name: "missing file in the chat's folder",
+      path: "attachments/missing.png",
+    },
     { name: "file URL", path: "file:///Users/sam/chat/output/x.png" },
   ])("refuses an upload of a $name", async ({ path }) => {
     const result = await resolveAgentBrowserPathArgs(["upload", "@e1", path], {
@@ -409,7 +412,7 @@ describe("agent-browser routing", () => {
   const chatId = ChatIdSchema.parse("routing");
   const sessionId = StoreId.newSessionId();
   const command = commandFor(chatId, sessionId);
-  const taskDirPath = `${MOCK_WORKSPACE_DIRS.chats}/routing`;
+  const chatRoot = `${MOCK_WORKSPACE_DIRS.chats}/routing`;
   let commandCtx = mockCtx;
 
   // Per test, not once at collection: the config is a process singleton, so a
@@ -557,10 +560,10 @@ describe("agent-browser routing", () => {
     },
   );
 
-  it("keeps the in-app browser's downloads inside the task", async () => {
+  it("keeps the in-app browser's downloads inside the chat's folder", async () => {
     const { env } = await spawnedWith(["open", "https://example.com"]);
 
-    expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBe(`${taskDirPath}/downloads`);
+    expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBe(`${chatRoot}/downloads`);
   });
 
   it("keeps the host environment away from the in-app browser", async () => {

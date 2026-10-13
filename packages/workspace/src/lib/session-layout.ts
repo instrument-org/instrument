@@ -36,7 +36,7 @@ export function roleLayout({
     apps: role === "chat",
     folders,
     rules,
-    taskHostRoot: workDir(chatId),
+    chatHostRoot: workDir(chatId),
   });
 }
 

@@ -116,10 +116,10 @@ export function createPnpmCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
           stdout: "",
         };
       }
-      const { env: execEnv, taskCwd } = resolveCommandContext(chatId, ctx);
+      const { env: execEnv, hostCwd } = resolveCommandContext(chatId, ctx);
       const execResult = await runPnpmCommand({
         args: ["exec", ...args.slice(1)],
-        cwd: taskCwd,
+        cwd: hostCwd,
         env: execEnv,
         signal: ctx.signal,
         stdin: subprocessStdin(ctx.stdin),
@@ -173,9 +173,9 @@ export function createPnpmCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
     };
 
     // The shell's cwd as a host path.
-    const { taskCwd: cwd } = resolveCommandContext(chatId, ctx);
+    const { hostCwd: cwd } = resolveCommandContext(chatId, ctx);
 
-    // The manifest is at the task root, which is also where the agent starts,
+    // The manifest is at the root of the chat's folder, which is also where the agent starts,
     // so reaching this means it ran the command from somewhere else. Fail fast
     // with guidance instead of pnpm's opaque
     // ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND.
@@ -257,10 +257,10 @@ function createDlxAliasCommand(
       return aliasResult;
     }
 
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const result = await runPnpmCommand({
       args: ["dlx", ...normalizedArgs],
-      cwd: taskCwd,
+      cwd: hostCwd,
       env,
       pnpmLogLevel: "error",
       signal: ctx.signal,

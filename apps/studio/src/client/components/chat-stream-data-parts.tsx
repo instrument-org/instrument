@@ -2,7 +2,7 @@ import {
   backgroundProcessesModelNote,
   browserStatusModelNote,
   dateChangeModelNote,
-  isAddressableTaskFilePath,
+  isAddressableChatFilePath,
   jobEventModelNote,
   maxStepsModelNote,
   messageGapModelNote,
@@ -258,7 +258,7 @@ export function renderDataPart({
           (file) =>
             file.status !== "deleted" &&
             file.filePath.startsWith("output/") &&
-            isAddressableTaskFilePath(file.filePath) &&
+            isAddressableChatFilePath(file.filePath) &&
             pathsAlreadyShown?.has(file.filePath) !== true,
         )
         .map((file) => file.filePath);

@@ -48,10 +48,10 @@ async function run(command: string) {
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "find-unreadable-"));
-  const taskRoot = path.join(tmpDir, "tasks", "test");
+  const chatRoot = path.join(tmpDir, "tasks", "test");
   attachedDir = path.join(tmpDir, "Home");
   lockedDir = path.join(attachedDir, ".Trash");
-  await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
+  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
   await fs.mkdir(path.join(attachedDir, "Documents"), { recursive: true });
   await fs.mkdir(lockedDir, { recursive: true });
   await fs.writeFile(path.join(lockedDir, "old.md"), "gone\n");
@@ -60,7 +60,7 @@ beforeEach(async () => {
     "# notes\n",
   );
   await fs.chmod(lockedDir, 0o000);
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot), { model });
 });
 
 afterEach(async () => {

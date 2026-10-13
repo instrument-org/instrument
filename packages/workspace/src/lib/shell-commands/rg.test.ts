@@ -18,7 +18,7 @@ const model = createMockAIGatewayModel();
 const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
-let taskRoot: string;
+let chatRoot: string;
 let attachedDir: string;
 let chatId: ReturnType<typeof ChatIdSchema.parse>;
 
@@ -42,23 +42,23 @@ async function run(command: string, attach: boolean | string = false) {
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "rg-command-"));
-  taskRoot = path.join(tmpDir, "tasks", "test");
+  chatRoot = path.join(tmpDir, "tasks", "test");
   attachedDir = path.join(tmpDir, "Docs");
-  await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
-  await fs.mkdir(path.join(taskRoot, ".instrument"), { recursive: true });
+  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
+  await fs.mkdir(path.join(chatRoot, ".instrument"), { recursive: true });
   await fs.mkdir(attachedDir, { recursive: true });
 
   await fs.writeFile(
-    path.join(taskRoot, "work", "a.ts"),
+    path.join(chatRoot, "work", "a.ts"),
     "const NEEDLE = 1;\n",
   );
   await fs.writeFile(
-    path.join(taskRoot, ".instrument", "state.json"),
+    path.join(chatRoot, ".instrument", "state.json"),
     '{"host":"NEEDLE"}',
   );
   await fs.writeFile(path.join(attachedDir, "note.md"), "NEEDLE attached\n");
 
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot), { model });
 });
 
 afterEach(async () => {
@@ -97,7 +97,7 @@ describe("rg command", () => {
     expect(result.stdout.trim()).toBe("1");
   });
 
-  it("searches piped input rather than the task folder", async () => {
+  it("searches piped input rather than the chat's folder", async () => {
     const result = await run(
       "printf '%s\\n' apple banana apricot | rg --color=never ap",
     );
@@ -105,7 +105,7 @@ describe("rg command", () => {
     expect(result.stdout).toBe("apple\napricot\n");
   });
 
-  it("reports no match on piped input instead of matching a task file", async () => {
+  it("reports no match on piped input instead of matching a file in the chat's folder", async () => {
     const result = await run("printf 'haystack\\n' | rg --color=never NEEDLE");
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
@@ -113,7 +113,7 @@ describe("rg command", () => {
 
   // Guards the `stdinConnected` half of the local just-bash patch: a pipe that
   // carried nothing is still a pipe, so ripgrep reads it and matches nothing
-  // rather than walking the task folder as if it had been run bare.
+  // rather than walking the chat's folder as if it had been run bare.
   it.each([
     ["a producer that printed nothing", "printf '' | rg --color=never NEEDLE"],
     ["a producer that failed", "false | rg --color=never NEEDLE"],
@@ -161,7 +161,7 @@ describe("rg command", () => {
   });
 
   it("refuses an explicit path into the private dir", async () => {
-    const result = await run(`rg NEEDLE ${taskRoot}/.instrument/state.json`);
+    const result = await run(`rg NEEDLE ${chatRoot}/.instrument/state.json`);
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr + result.stdout).toContain("not accessible");
   });
@@ -196,9 +196,9 @@ describe("rg command", () => {
   // each path as printed, so a search root named any other way than the
   // working directory walks straight past an exclusion anchored there.
   it.each([
-    "rg --hidden NEEDLE TASK",
-    "rg --hidden NEEDLE TASK/",
-    "cd work && rg --hidden NEEDLE TASK",
+    "rg --hidden NEEDLE CHAT",
+    "rg --hidden NEEDLE CHAT/",
+    "cd work && rg --hidden NEEDLE CHAT",
     "cd work && rg -uu NEEDLE ..",
     "cd work && rg -uu NEEDLE ../",
     "cd work && rg --hidden --no-ignore NEEDLE ./..",
@@ -208,12 +208,12 @@ describe("rg command", () => {
     "cd work && rg -uu NEEDLE ../../test",
     "cd work && rg -uu NEEDLE -- ..",
     "cd work && rg -uu -g '**' NEEDLE ..",
-    "cd work && rg -uu --iglob '*.JSON' --iglob '*.ts' NEEDLE TASK",
+    "cd work && rg -uu --iglob '*.JSON' --iglob '*.ts' NEEDLE CHAT",
     "cd work && rg -uu --files ..",
-    "cd work && rg -uu --files TASK",
-    "cd work && rg -uu --files TASK work ..",
+    "cd work && rg -uu --files CHAT",
+    "cd work && rg -uu --files CHAT work ..",
   ])("keeps the private dir out of `%s`", async (command) => {
-    const result = await run(command.replaceAll("TASK", `'${taskRoot}'`));
+    const result = await run(command.replaceAll("CHAT", `'${chatRoot}'`));
 
     expect(result.stdout).not.toContain("state.json");
     expect(result.stdout).toContain("a.ts");
@@ -230,7 +230,7 @@ describe("rg command", () => {
   // A search root spelled with glob metacharacters is named literally by the
   // glob that anchors the exclusion there.
   it("keeps the private dir out of a root spelled with glob metacharacters", async () => {
-    await fs.mkdir(path.join(taskRoot, "work", "[x]*{y}?"));
+    await fs.mkdir(path.join(chatRoot, "work", "[x]*{y}?"));
 
     const result = await run("cd work && rg -uu NEEDLE '[x]*{y}?/../..'");
 
@@ -321,7 +321,7 @@ describe("rg command", () => {
 
   it("leaves backslashes in matched lines alone", async () => {
     await fs.writeFile(
-      path.join(taskRoot, "work", "escapes.ts"),
+      path.join(chatRoot, "work", "escapes.ts"),
       String.raw`const NEEDLE = { re: /a\d+/, nl: "x\n" };` + "\n",
     );
 

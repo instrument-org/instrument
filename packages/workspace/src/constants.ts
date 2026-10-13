@@ -15,7 +15,7 @@ export const CHAT_FOLDER_NAMES = {
   private: PRIVATE_FOLDER_NAME,
   screenshots: "screenshots",
   skills: "skills",
-  // Subprocess temp dir (TMPDIR/TEMP/TMP), inside the task so tempfile spill
+  // Subprocess temp dir (TMPDIR/TEMP/TMP), inside the chat's folder so tempfile spill
   // and mktemp scratch land here instead of the host temp dir. Dot-prefixed
   // because what accumulates is interpreter caches rather than anything the
   // user would recognize, and the file index excludes it on that basis.

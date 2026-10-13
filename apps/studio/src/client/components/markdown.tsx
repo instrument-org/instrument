@@ -15,9 +15,9 @@ import { APP_NAME_SLUG, APP_PROTOCOL } from "@instrument-org/shared";
 import {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
-  isAddressableTaskFilePath,
-  isTaskFileHref,
-  taskFilePathFromHref,
+  isAddressableChatFilePath,
+  isChatFileHref,
+  chatFilePathFromHref,
   type ChatId,
 } from "@instrument-org/workspace/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
@@ -415,7 +415,7 @@ const TaskFileLink = ({
   href: string;
 }) => {
   const { chatId } = useContext(MarkdownTaskContext);
-  const filePath = taskFilePathFromHref(href);
+  const filePath = chatFilePathFromHref(href);
   const filename = filePath.split("/").at(-1) ?? filePath;
   const showTaskFile = useShowTaskFile();
   // A window with tabs gives the file a tab of its own on a middle or
@@ -426,7 +426,7 @@ const TaskFileLink = ({
   // Where the file is on the computer, which the drag and the menu act on.
   // Before the guard below, so the chip that turns out not to name a task file
   // still asks in the same order every render.
-  const isAddressable = isAddressableTaskFilePath(filePath);
+  const isAddressable = isAddressableChatFilePath(filePath);
   const hostPath = useHostPaths(chatId, isAddressable ? [filePath] : [])[
     filePath
   ];
@@ -691,7 +691,7 @@ const MarkdownLink = ({
     }
   }
 
-  if (isTaskFileHref(href)) {
+  if (isChatFileHref(href)) {
     return (
       <TaskFileLink className={className} href={href}>
         {children}
@@ -965,7 +965,7 @@ const resolveImageSource = (
  * of a URL means re-deriving something we were handed.
  */
 const taskFilePathFromImageSrc = (src: string | undefined) =>
-  src && !isAbsoluteImageSrc(src) && isAddressableTaskFilePath(src)
+  src && !isAbsoluteImageSrc(src) && isAddressableChatFilePath(src)
     ? src
     : undefined;
 

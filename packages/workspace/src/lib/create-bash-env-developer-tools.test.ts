@@ -41,9 +41,9 @@ beforeAll(async () => {
   tmpDir = await fs.realpath(
     await fs.mkdtemp(path.join(os.tmpdir(), "bash-developer-tools-")),
   );
-  const taskRoot = path.join(tmpDir, "chats", "test");
+  const chatRoot = path.join(tmpDir, "chats", "test");
   binDir = path.join(tmpDir, "bin");
-  await fs.mkdir(taskRoot, { recursive: true });
+  await fs.mkdir(chatRoot, { recursive: true });
   await fs.mkdir(binDir);
   await fs.writeFile(
     path.join(binDir, "fakecc"),
@@ -58,7 +58,7 @@ beforeAll(async () => {
   );
   process.env.PATH = `${binDir}${path.delimiter}${original.PATH ?? ""}`;
   process.env.DEVELOPER_DIR = MISSING_DEVELOPER_DIR;
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
 });
 
 afterAll(async () => {

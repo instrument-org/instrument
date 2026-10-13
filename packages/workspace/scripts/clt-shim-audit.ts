@@ -245,7 +245,7 @@ async function probeBoundary(logPath: string) {
   return failed;
 }
 
-/** Runs the two installs `load_skill` runs, against a throwaway task dir. */
+/** Runs the two installs `load_skill` runs, against a throwaway chat folder. */
 async function installSkill({
   registrySkillsDir,
   skillName,

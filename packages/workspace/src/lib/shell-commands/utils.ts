@@ -117,12 +117,12 @@ export function resolveCommandContext(
   return {
     // Overlay the uv/python env so the real-binary escape hatches (tsx, node,
     // ffmpeg, uv, python, pip) all resolve `uv`/`python` on PATH and share the
-    // task venv. uvSubprocessEnv wins (PATH/VIRTUAL_ENV) over the bash env.
+    // chat's venv. uvSubprocessEnv wins (PATH/VIRTUAL_ENV) over the bash env.
     // gitSubprocessEnv comes last and is handed the env it has to correct, so
     // it can drop every GIT_* the agent exported into the bash env rather than
     // only overriding the ones it sets. It extends the PATH uv just built.
     env: withGitEnv(shellEnv),
-    taskCwd: AbsolutePathSchema.parse(
+    hostCwd: AbsolutePathSchema.parse(
       hostPathOf(ctx.fs.resolvePath(ctx.cwd, ".")),
     ),
   };

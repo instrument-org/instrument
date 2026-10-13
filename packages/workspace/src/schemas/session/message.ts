@@ -415,7 +415,7 @@ export namespace SessionMessage {
 
             const attachmentText = dedent`
                   <uploaded_files>
-                  The user uploaded these files with this message. They are now available in the task at the paths listed below. Assume they are directly relevant to the user's request.
+                  The user uploaded these files with this message. They are now available in the chat's folder at the paths listed below. Assume they are directly relevant to the user's request.
                   ${attachmentDescriptions}
                   </uploaded_files>
                 `;

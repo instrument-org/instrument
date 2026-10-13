@@ -52,7 +52,7 @@ const GeneratedImageFileSchema = z.object({
 const PARTIAL_THROTTLE_MS = 400;
 
 const SourceImageFileSchema = z.object({
-  // Task-relative, or an absolute path in another folder; those cannot be
+  // Relative to the chat's folder, or an absolute path in another folder; those cannot be
   // served by the task asset server, so the UI falls back to a name-only chip
   // for them.
   filePath: z.string(),
@@ -150,10 +150,10 @@ export const GenerateImage = setupTool({
       yield err(filePathResult.error);
       return;
     }
-    // Everything below resolves against the task directory and the tool's
-    // output contract is a task-relative path, so a path in another folder
-    // would land in a shadow tree inside the task rather than in that folder. Generate
-    // into the task and move the result instead.
+    // Everything below resolves against the chat's folder and the tool's
+    // output contract is a path relative to it, so a path in another folder
+    // would land in a shadow tree inside the chat's folder rather than in that folder. Generate
+    // into the chat's folder and move the result instead.
     if (filePathResult.value.mount) {
       yield executeError(
         `Images cannot be generated directly into "${filePathResult.value.displayPath}". ` +
@@ -192,7 +192,7 @@ export const GenerateImage = setupTool({
       const resolvedSources = [];
       for (const inputPath of input.sourceImages) {
         // Sources are reads in our own process (not a native subprocess), so
-        // they resolve like read_file: task paths or paths in other folders, with
+        // they resolve like read_file: paths in the chat's folder or in other folders, with
         // the same symlink containment.
         const pathResult = resolveExistingFilePath({ inputPath, layout });
         if (pathResult.isErr()) {

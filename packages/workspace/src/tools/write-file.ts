@@ -34,7 +34,7 @@ export const WriteFile = setupTool({
   name: "write_file",
   outputSchema: z.object({
     content: z.string(),
-    // Task-relative, or the absolute path in a writable folder.
+    // Relative to the chat's folder, or the absolute path in a writable folder.
     filePath: z.string(),
     isNewFile: z.boolean(),
     modifiedAt: z.number(),

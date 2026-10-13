@@ -46,11 +46,11 @@ export function createMacHelperCommand(
         stdout: "",
       };
     }
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const result = await execShim(
       binPath,
       command.name === CONTACTS_COMMAND.name ? ["contacts", ...args] : args,
-      { cancelSignal: ctx.signal, cwd: taskCwd, env, stdin: "ignore" },
+      { cancelSignal: ctx.signal, cwd: hostCwd, env, stdin: "ignore" },
     );
     return {
       exitCode: result.exitCode ?? 1,

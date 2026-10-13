@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { isAddressableTaskFilePath } from "./task-file-path";
+import { isAddressableChatFilePath } from "./chat-file-path";
 
-describe("isAddressableTaskFilePath", () => {
+describe("isAddressableChatFilePath", () => {
   it.each([
     ["work/report.html", true],
     ["/Users/someone/Documents/report.html", true],
@@ -10,6 +10,6 @@ describe("isAddressableTaskFilePath", () => {
     ["/tasks/../etc/passwd", false],
     [String.raw`work\report.html`, false],
   ])("%s → %s", (path, addressable) => {
-    expect(isAddressableTaskFilePath(path)).toBe(addressable);
+    expect(isAddressableChatFilePath(path)).toBe(addressable);
   });
 });

@@ -8,8 +8,8 @@ import { uvToolsEnvFor } from "./tool-isolation-env";
 import { getWorkspaceConfig } from "./workspace-config";
 import { workDir } from "./work-dir";
 
-// Per-task virtualenv, at the task root so it ships with the task and stays
-// isolated from other tasks. The root is also the agent's working directory,
+// The chat's virtualenv, at the root of its folder so it ships with the chat
+// and stays isolated from other chats. The root is also the agent's working directory,
 // which is where uv and python look for a venv when nothing points them at one.
 const VENV_DIR_NAME = ".venv";
 

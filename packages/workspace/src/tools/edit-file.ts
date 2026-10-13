@@ -752,7 +752,7 @@ export const EditFile = setupTool({
   name: "edit_file",
   outputSchema: z.object({
     diff: z.string().optional(),
-    // Task-relative, or the absolute path in a writable folder.
+    // Relative to the chat's folder, or the absolute path in a writable folder.
     filePath: z.string(),
     modifiedAt: z.number(),
   }),

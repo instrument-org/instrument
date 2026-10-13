@@ -23,7 +23,7 @@ const sessionId = StoreId.newSessionId();
 const WIDE_FILES = 21_000;
 
 let tmpDir: string;
-let taskRoot: string;
+let chatRoot: string;
 let homeDir: string;
 let wideDir: string;
 let chatId: ChatId;
@@ -53,7 +53,7 @@ async function run(command: string, { chat = false } = {}) {
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-du-"));
-  taskRoot = path.join(tmpDir, "tasks", "test");
+  chatRoot = path.join(tmpDir, "tasks", "test");
   homeDir = path.join(tmpDir, "Home");
   wideDir = path.join(tmpDir, "Wide");
 
@@ -69,13 +69,13 @@ beforeAll(async () => {
     "z".repeat(50_000),
   );
 
-  await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
-  await fs.writeFile(path.join(taskRoot, "work", "small.txt"), "s".repeat(10));
-  await fs.mkdir(path.join(taskRoot, CHAT_FOLDER_NAMES.private), {
+  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
+  await fs.writeFile(path.join(chatRoot, "work", "small.txt"), "s".repeat(10));
+  await fs.mkdir(path.join(chatRoot, CHAT_FOLDER_NAMES.private), {
     recursive: true,
   });
   await fs.writeFile(
-    path.join(taskRoot, CHAT_FOLDER_NAMES.private, "chat.db"),
+    path.join(chatRoot, CHAT_FOLDER_NAMES.private, "chat.db"),
     Buffer.alloc(5_000_000),
   );
 
@@ -86,7 +86,7 @@ beforeAll(async () => {
     ),
   );
 
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
 });
 
 afterAll(async () => {
@@ -137,8 +137,8 @@ describe("du", () => {
   });
 
   it("neither lists nor counts the task's private dir", async () => {
-    const listing = await run(`du -ab '${taskRoot}'`);
-    const total = await run(`du -sb '${taskRoot}'`);
+    const listing = await run(`du -ab '${chatRoot}'`);
+    const total = await run(`du -sb '${chatRoot}'`);
 
     expect(listing.stdout).not.toMatch(/\.instrument/i);
     expect(Number(total.stdout.split("\t")[0])).toBeLessThan(1_000_000);
@@ -148,7 +148,7 @@ describe("du", () => {
     [CHAT_FOLDER_NAMES.private],
     [CHAT_FOLDER_NAMES.private.toUpperCase()],
   ])("reports the task's %s as absent", async (name) => {
-    const target = `${taskRoot}/${name}`;
+    const target = `${chatRoot}/${name}`;
     const result = await run(`du -sb '${target}'`);
 
     expect(result.exitCode).toBe(1);

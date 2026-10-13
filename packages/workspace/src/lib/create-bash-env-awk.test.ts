@@ -23,9 +23,9 @@ let chatId: ChatId;
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "bash-awk-"));
-  const taskRoot = path.join(tmpDir, "tasks", "test");
-  await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  const chatRoot = path.join(tmpDir, "tasks", "test");
+  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
 });
 
 afterEach(async () => {

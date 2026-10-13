@@ -71,7 +71,7 @@ export function agentBrowserCommandDescription() {
 // --auto-connect, --provider, --profile, --state, --restore*) is refused as a
 // reach for a browser outside the app (see isExternalBrowserInvocation).
 export const BLOCKED_FLAGS = new Set([
-  "--config", // A managed empty config is injected so task-local agent-browser.json (agent-writable, can register plugins) is never discovered.
+  "--config", // A managed empty config is injected so an agent-browser.json in the chat's folder (agent-writable, can register plugins) is never discovered.
   "--namespace", // Would move daemon/restore state outside the workspace-owned namespace.
   "--session", // Harness injects this; derived from our session id.
   "--session-name", // Upstream's alias for --session.
@@ -245,7 +245,7 @@ const WORKSPACE_HELP_MANAGED = dedent`
        run snapshot -i yourself only for what that leaves out
 
   Inspecting a file you created:
-    agent-browser open work/report.html     Task files load in the browser
+    agent-browser open work/report.html     Chat files load in the browser
     agent-browser open /full/path/x.html    A relative path, a full path, or a
                                             file:// URL of either all work
   Use this to check an HTML deliverable end to end -- rendered layout, interactivity, and console errors -- not just its source.
@@ -611,7 +611,7 @@ export function createAgentBrowserCommand({
     const isInfoOnly = invocation.kind === "info";
     const browserFreeRead = invocation.kind === "read";
 
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     const strippedArgs = stripHarnessControlledFlags(args);
     const navigationArgs = await rewriteNavigationArgToFileUrl(
       strippedArgs,
@@ -640,7 +640,7 @@ export function createAgentBrowserCommand({
 
     // The home folder is read-only to native commands. Most agent-browser writes are
     // already redirected via dedicated env vars (socket dir, screenshot dir,
-    // download path); this is a per-task sink for anything that falls back
+    // download path); this is a per-chat sink for anything that falls back
     // to $HOME, and holds the managed config and provider plugin script.
     const homeDir = absolutePathJoin(
       chatDir(chatId),
@@ -745,12 +745,12 @@ export function createAgentBrowserCommand({
       // packaged builds that is the Electron binary, which this var makes
       // behave as plain node. Inert for the Rust CLI and for Chrome.
       ELECTRON_RUN_AS_NODE: pluginRegistry ? "1" : undefined,
-      // A per-task sink instead of the host home.
+      // A per-chat sink instead of the host home.
       HOME: homeDir,
     };
 
     const spawnOptions = {
-      cwd: taskCwd,
+      cwd: hostCwd,
       env: browserFreeRead ? browserFreeReadEnv(spawnEnv) : spawnEnv,
       managedConfigPath: isInfoOnly ? undefined : configPath,
       stateDir: agentBrowserStateDir,

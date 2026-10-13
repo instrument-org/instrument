@@ -23,18 +23,18 @@ const model = createMockAIGatewayModel();
  * inside a real `bash` call, against a real subprocess.
  */
 describe("background job commands", () => {
-  let taskDirPath: string;
+  let chatRoot: string;
   let chatId: ChatId;
   let sessionId: StoreId.Session;
 
   beforeEach(async () => {
     const tasksDir = await fs.mkdtemp(path.join(os.tmpdir(), "bg-cmd-"));
-    taskDirPath = path.join(tasksDir, `01k${"cmd".padEnd(23, "0")}`);
-    await fs.mkdir(path.join(taskDirPath, "work"), { recursive: true });
-    chatId = createMockChatConfigForDir(taskDirPath);
+    chatRoot = path.join(tasksDir, `01k${"cmd".padEnd(23, "0")}`);
+    await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
+    chatId = createMockChatConfigForDir(chatRoot);
     sessionId = StoreId.newSessionId();
     await fs.writeFile(
-      path.join(taskDirPath, "work", "tick.js"),
+      path.join(chatRoot, "work", "tick.js"),
       'setInterval(() => console.log("tick"), 100);\n',
       "utf8",
     );
@@ -42,7 +42,7 @@ describe("background job commands", () => {
 
   afterEach(async () => {
     await killSessionBackgroundProcesses(sessionId);
-    await fs.rm(path.dirname(taskDirPath), { force: true, recursive: true });
+    await fs.rm(path.dirname(chatRoot), { force: true, recursive: true });
   });
 
   async function bash(command: string, yieldMs = 30_000) {

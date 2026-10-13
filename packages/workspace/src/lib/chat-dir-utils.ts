@@ -53,8 +53,8 @@ export function getChatPrivateDir(dir: ChatDir): AbsolutePath {
 }
 
 // Scratch: source, scripts, and intermediate files the agent writes. Holds no
-// package of its own, so what lands here resolves the task's dependencies by
-// walking up to the root like anything else in the task.
+// package of its own, so what lands here resolves the chat's dependencies by
+// walking up to the root like anything else in the chat's folder.
 export function getChatWorkDir(dir: ChatDir): AbsolutePath {
   return absolutePathJoin(dir, CHAT_FOLDER_NAMES.work);
 }

@@ -211,7 +211,7 @@ export function createOsascriptCommand(
       isScript[index] ? [addressAppsById(arg)] : hostPathArgs([arg]),
     );
 
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
     // A script piped in is ASCII where it names an app, so the rewrite reads
     // it as the latin1 bytes it arrives as and leaves every other byte be.
     const stdin = piped
@@ -220,7 +220,7 @@ export function createOsascriptCommand(
 
     const result = await execShim(OSASCRIPT_PATH, hostArgs, {
       cancelSignal: ctx.signal,
-      cwd: taskCwd,
+      cwd: hostCwd,
       env: {
         ...getWorkspaceConfig().nodeExecEnv,
         ...env,

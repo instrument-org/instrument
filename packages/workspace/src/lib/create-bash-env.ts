@@ -786,7 +786,7 @@ export async function createLocalBashEnv({
         ? standIn(command.name)
         : command,
     ),
-    cwd: layout.task.shellRoot,
+    cwd: layout.chat.shellRoot,
     executionLimits: {
       maxArrayElements: SANDBOX_MAX_RECORDS,
       maxAwkIterations: SANDBOX_MAX_RECORDS,

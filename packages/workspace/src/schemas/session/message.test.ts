@@ -795,7 +795,7 @@ describe("SessionMessage.toModelMessages", () => {
     const note = JSON.stringify(
       await SessionMessage.toModelMessages(messages, TOOLS_FOR_MODEL_OUTPUT),
     );
-    expect(note).toContain("now available in the task");
+    expect(note).toContain("now available in the chat's folder");
     expect(note).not.toContain("--file");
   });
 

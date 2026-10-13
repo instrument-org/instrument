@@ -151,7 +151,7 @@ describe("changedMessageBatches", () => {
     await batches.return();
   });
 
-  it("watches every session in the task when no sessionId is given", async () => {
+  it("watches every session in the chat when no sessionId is given", async () => {
     const controller = new AbortController();
     // Omitting sessionId scopes to the whole task (e.g. a usage rollup).
     const batches = changedMessageBatches({ id: chatId }, controller.signal);

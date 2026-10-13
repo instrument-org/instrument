@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { isTaskFileHref, taskFilePathFromHref } from "./task-file-href";
+import { isChatFileHref, chatFilePathFromHref } from "./chat-file-href";
 
-describe("isTaskFileHref", () => {
+describe("isChatFileHref", () => {
   it.each([
     ["output/chart.png", true],
     ["./output/chart.png", true],
@@ -14,17 +14,17 @@ describe("isTaskFileHref", () => {
     ["mailto:someone@example.com", false],
     ["data:text/plain,hi", false],
   ])("%s -> %s", (href, expected) => {
-    expect(isTaskFileHref(href)).toBe(expected);
+    expect(isChatFileHref(href)).toBe(expected);
   });
 });
 
-describe("taskFilePathFromHref", () => {
+describe("chatFilePathFromHref", () => {
   it("drops the agent-facing ./ prefix", () => {
-    expect(taskFilePathFromHref("./output/chart.png")).toBe("output/chart.png");
+    expect(chatFilePathFromHref("./output/chart.png")).toBe("output/chart.png");
   });
 
   it("decodes an escaped space", () => {
-    expect(taskFilePathFromHref("output/my%20chart.png")).toBe(
+    expect(chatFilePathFromHref("output/my%20chart.png")).toBe(
       "output/my chart.png",
     );
   });
@@ -32,14 +32,14 @@ describe("taskFilePathFromHref", () => {
   // A percent sign is a legal filename character, so a link to one is not
   // malformed markdown -- it is just not percent-encoding.
   it("keeps a raw percent sign", () => {
-    expect(taskFilePathFromHref("output/100%.png")).toBe("output/100%.png");
+    expect(chatFilePathFromHref("output/100%.png")).toBe("output/100%.png");
   });
 
   it("keeps a truncated escape sequence", () => {
-    expect(taskFilePathFromHref("output/100%2.png")).toBe("output/100%2.png");
+    expect(chatFilePathFromHref("output/100%2.png")).toBe("output/100%2.png");
   });
 
   it("decodes an escaped separator into a path segment", () => {
-    expect(taskFilePathFromHref("output/a%2Fb.png")).toBe("output/a/b.png");
+    expect(chatFilePathFromHref("output/a%2Fb.png")).toBe("output/a/b.png");
   });
 });

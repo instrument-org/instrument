@@ -12,7 +12,7 @@ vi.mock(import("../session-layout"), async (importOriginal) => ({
   ...(await importOriginal()),
   sessionLayout: () =>
     Promise.resolve(
-      buildWorkspaceFsLayout({ taskHostRoot: ChatDirSchema.parse(chatRoot) }),
+      buildWorkspaceFsLayout({ chatHostRoot: ChatDirSchema.parse(chatRoot) }),
     ),
 }));
 

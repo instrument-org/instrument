@@ -912,7 +912,7 @@ describe("ReadFile", () => {
       }
     });
 
-    it("reads a task file addressed by its full path", async () => {
+    it("reads a file in the chat's folder addressed by its full path", async () => {
       const value = (
         await runTool(TOOLS.ReadFile, {
           ...baseInput,
@@ -969,16 +969,16 @@ describe("ReadFile", () => {
 
 describe("ReadFile Unicode path fallbacks", () => {
   let tmpDir: string;
-  let taskRoot: string;
+  let chatRoot: string;
   let tmpTaskConfig: ChatId;
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(
       path.join(os.tmpdir(), `${APP_NAME_SLUG}-read-unicode-`),
     );
-    taskRoot = path.join(tmpDir, "test");
-    await fs.mkdir(taskRoot, { recursive: true });
-    tmpTaskConfig = createMockChatConfigForDir(taskRoot, { model });
+    chatRoot = path.join(tmpDir, "test");
+    await fs.mkdir(chatRoot, { recursive: true });
+    tmpTaskConfig = createMockChatConfigForDir(chatRoot, { model });
   });
 
   afterEach(async () => {
@@ -988,7 +988,7 @@ describe("ReadFile Unicode path fallbacks", () => {
   it("reads a macOS screenshot with U+202F narrow no-break space before AM/PM", async () => {
     const diskName = `Screenshot 2025-01-01 at 9.00\u202FAM.png`;
     const inputName = `Screenshot 2025-01-01 at 9.00 AM.png`;
-    await fs.writeFile(path.join(taskRoot, diskName), "fake-png-data");
+    await fs.writeFile(path.join(chatRoot, diskName), "fake-png-data");
 
     const value = (
       await runTool(TOOLS.ReadFile, {

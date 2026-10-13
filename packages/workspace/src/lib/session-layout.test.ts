@@ -58,7 +58,7 @@ describe("sessionLayout", () => {
       apps: layout.apps?.hostRoot === getWorkspaceConfig().appsDir,
       asks: layout.rules.asker !== undefined,
     }).toEqual(expected);
-    expect(layout.task.hostRoot).toBe(chatRoot);
+    expect(layout.chat.hostRoot).toBe(chatRoot);
     expect(layout.folders.map((folder) => folder.hostRoot)).toEqual([docs]);
     expect(layout.skills.length).toBeGreaterThan(0);
   });

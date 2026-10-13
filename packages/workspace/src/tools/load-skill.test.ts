@@ -926,7 +926,7 @@ describe("LoadSkill", () => {
 
       This skill declares Node.js dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then run \`cd work/skills/claude/third-party && pnpm install\` yourself if you trust it.
 
-      This skill declares Python dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then install its locked dependencies into the task's \`.venv\` yourself if you trust it.
+      This skill declares Python dependencies, but Instrument did not install them because the skill comes from a third-party skills folder on this machine. Review the skill first, then install its locked dependencies into the chat's \`.venv\` yourself if you trust it.
 
       Everything below is the text of the skill "third-party".
 

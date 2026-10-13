@@ -9,7 +9,7 @@ import { chatVenvDir, chatVenvPython } from "./uv";
 vi.mock(import("./run-uv"));
 
 describe("installPythonSkill", () => {
-  it("installs locked project dependencies into the task venv", async () => {
+  it("installs locked project dependencies into the chat's venv", async () => {
     const { runUvCommand } = await import("./run-uv");
     vi.mocked(runUvCommand)
       .mockResolvedValueOnce({ combined: "", exitCode: 0, stdout: "" })

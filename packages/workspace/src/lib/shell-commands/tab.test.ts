@@ -12,7 +12,7 @@ import { createTabCommand } from "./tab";
 
 const chatId = ChatIdSchema.parse("tab-command-chat");
 const layout = buildWorkspaceFsLayout({
-  taskHostRoot: ChatDirSchema.parse("/work/chats/tab-command-chat"),
+  chatHostRoot: ChatDirSchema.parse("/work/chats/tab-command-chat"),
 });
 
 // A page tab, by the session id the window's page tabs carry, and the
@@ -75,7 +75,7 @@ function run(options: { timeoutMs?: number }, ...args: string[]) {
   return createTabCommand({ chatId, layout, ...options }).execute(
     args,
     createCommandContext({
-      cwd: layout.task.shellRoot,
+      cwd: layout.chat.shellRoot,
       env: new Map<string, string>(),
       fs: fsTree,
       stdin: EMPTY_BYTES,

@@ -26,7 +26,7 @@ const sessionId = StoreId.newSessionId();
 
 let tmpDir: string;
 let attachedDir: string;
-let taskRoot: string;
+let chatRoot: string;
 let chatId: ChatId;
 
 async function run(access: MountedFolder.Access, command: string) {
@@ -46,16 +46,16 @@ async function run(access: MountedFolder.Access, command: string) {
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "cp-symlinks-"));
-  taskRoot = path.join(tmpDir, "tasks", "test");
+  chatRoot = path.join(tmpDir, "tasks", "test");
   attachedDir = path.join(tmpDir, "Docs");
-  await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
+  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
   await fs.mkdir(path.join(attachedDir, "sub"), { recursive: true });
   await fs.writeFile(path.join(attachedDir, "readme.txt"), "hello docs");
   await fs.writeFile(path.join(attachedDir, "sub", "deep.txt"), "deep");
   await fs.symlink("readme.txt", path.join(attachedDir, "link.txt"));
   await fs.symlink("../readme.txt", path.join(attachedDir, "sub", "up"));
   await fs.writeFile(path.join(attachedDir, "zed.txt"), "zed");
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot), { model });
 });
 
 afterEach(async () => {
@@ -74,7 +74,7 @@ describe.each<MountedFolder.Access>(["read-only", "read-write"])(
         "cp: cannot copy '<docs>': copied all but 2 entries: <docs>/link.txt: EPERM: operation not permitted, symlink '/work/copy/link.txt'; <docs>/sub/up: EPERM: operation not permitted, symlink '/work/copy/sub/up'
         "
       `);
-      const copied = path.join(taskRoot, "work", "copy");
+      const copied = path.join(chatRoot, "work", "copy");
       await expect(
         fs.readFile(path.join(copied, "readme.txt"), "utf8"),
       ).resolves.toBe("hello docs");
@@ -95,7 +95,7 @@ describe.each<MountedFolder.Access>(["read-only", "read-write"])(
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");
       await expect(
-        fs.readFile(path.join(taskRoot, "work", "sub", "deep.txt"), "utf8"),
+        fs.readFile(path.join(chatRoot, "work", "sub", "deep.txt"), "utf8"),
       ).resolves.toBe("deep");
     });
   },

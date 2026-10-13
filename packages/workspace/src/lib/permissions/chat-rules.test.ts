@@ -20,7 +20,7 @@ const chatRoot = ChatDirSchema.parse(
 );
 const reach = nativeReachFor(
   { home: os.homedir(), rules: [], withoutAsking: false },
-  buildWorkspaceFsLayout({ taskHostRoot: chatRoot }),
+  buildWorkspaceFsLayout({ chatHostRoot: chatRoot }),
 );
 const uvData = getWorkspaceConfig().uvDataDir;
 const pythons = path.join(uvData, "python");

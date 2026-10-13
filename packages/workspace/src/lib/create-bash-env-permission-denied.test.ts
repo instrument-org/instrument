@@ -39,18 +39,18 @@ let chatId: ChatId;
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "permission-denied-"));
-  const taskRoot = path.join(tmpDir, "tasks", "test");
+  const chatRoot = path.join(tmpDir, "tasks", "test");
   docs = path.join(tmpDir, "Docs");
   elsewhere = path.join(tmpDir, "Elsewhere");
   closed = path.join(tmpDir, "Closed");
-  await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
+  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
   await fs.mkdir(path.join(docs, "locked"), { recursive: true });
   await fs.writeFile(path.join(docs, "locked", "secret.txt"), "secret\n");
   await fs.mkdir(elsewhere);
   await fs.writeFile(path.join(elsewhere, "open.txt"), "open\n");
   await fs.mkdir(closed);
   await fs.mkdir(path.join(docs, "asks"));
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot));
   // Settings live in the workspace's root, which the mock chats share across
   // test files, so this file keeps its own.
   setWorkspaceConfig({

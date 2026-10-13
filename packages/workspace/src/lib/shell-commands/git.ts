@@ -202,7 +202,7 @@ export function createGitCommand({
       return fail(rejection);
     }
 
-    const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+    const { env, hostCwd } = resolveCommandContext(chatId, ctx);
 
     // What git may do in a folder is what the rules let the agent do there:
     // where they keep changes out, git may only read; see `readsOnly`.
@@ -235,7 +235,7 @@ export function createGitCommand({
       );
     }
 
-    const escape = findEscapingPathValue(resolvedArgs, taskCwd, layout);
+    const escape = findEscapingPathValue(resolvedArgs, hostCwd, layout);
     if (escape) {
       return fail(
         `${escape} points outside this conversation's folder and every folder you reach. ` +
@@ -252,7 +252,7 @@ export function createGitCommand({
       ],
       {
         cancelSignal: ctx.signal,
-        cwd: taskCwd,
+        cwd: hostCwd,
         // Isolation from the user's git config and credentials comes from
         // gitSubprocessEnv, which resolveCommandContext applies to every hatch.
         env,
@@ -302,7 +302,7 @@ function findEscapingPathValue(
   layout: WorkspaceFsLayout,
 ): string | undefined {
   const roots = [
-    layout.task.hostRoot,
+    layout.chat.hostRoot,
     ...otherFolders(layout).map((folder) => folder.hostRoot),
   ];
   const escapes = (value: string, from: string) => {

@@ -323,7 +323,7 @@ function resolveOperand(
   // its own as far as the layout knows.
   // Its mounts are listed as its children when they sit directly inside it;
   // anything deeper is left to just-bash, which knows the whole tree.
-  const inside = [layout.task, ...otherFolders(layout), ...layout.temp].filter(
+  const inside = [layout.chat, ...otherFolders(layout), ...layout.temp].filter(
     (mount) => relativeWithin(path, mount.shellRoot) !== null,
   );
   // A folder outside every mount that holds none is measured on the disk,

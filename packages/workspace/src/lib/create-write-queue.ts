@@ -10,7 +10,7 @@
  * error anywhere. Queuing on the file makes the read and the write one step.
  *
  * Keys are plain strings and each queue owns its own map, so a caller picks
- * whatever identifies the thing it is writing -- a task id, a task directory --
+ * whatever identifies the thing it is writing -- a session id, a chat's folder --
  * without the two stores being able to reach each other's locks.
  *
  * In-process only, which is the whole of it while one main process owns the

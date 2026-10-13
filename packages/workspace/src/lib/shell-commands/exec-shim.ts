@@ -253,7 +253,7 @@ export function mapStreams(
  * The message is sanitized before it goes out. execa opens `shortMessage` with
  * `Command failed with <code>: <resolved binary> <args>`, and the resolved
  * binary is a real host path (the bundled dugite git, the app's ffmpeg) that
- * the sandbox otherwise never shows -- `filterShellOutput` masks the task dir
+ * the sandbox otherwise never shows -- `filterShellOutput` masks the chat's folder
  * and the home dir, neither of which covers a path inside an installed app
  * bundle. That opening line is dropped and any remaining mention of the binary
  * becomes the command name, leaving the part that actually diagnoses the

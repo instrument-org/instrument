@@ -109,7 +109,7 @@ export const LoadSkill = setupTool({
 
     The skill will inject detailed instructions and workflows into the conversation context.
 
-    Note: skills with declared Node.js or Python dependencies install them automatically after being copied into the task.
+    Note: skills with declared Node.js or Python dependencies install them automatically after being copied into the chat's folder.
   `.trim(),
   execute: async ({ input, signal, chatId }) => {
     const workspaceConfig = getWorkspaceConfig();
@@ -263,7 +263,7 @@ export const LoadSkill = setupTool({
       const fileSectionText = [
         `The skill files below are copied into your task and are yours to edit.`,
         `For an operation a script already covers, read it and run it with \`${NODE_COMMAND.name}\` (TypeScript) or \`python\` (Python) rather than rewriting it.`,
-        `Run a script by its full path from the task root (e.g. \`${NODE_COMMAND.name} ${skillRoot}/scripts/<script>.ts ${CHAT_FOLDER_NAMES.attachments}/in --output ${CHAT_FOLDER_NAMES.work}/out\` or \`python ${skillRoot}/scripts/<script>.py ${CHAT_FOLDER_NAMES.attachments}/in --output ${CHAT_FOLDER_NAMES.work}/out\`); do NOT \`cd\` into the skill folder to run it, or \`${CHAT_FOLDER_NAMES.attachments}/\` and \`${CHAT_FOLDER_NAMES.work}/\` won't be where your relative paths point.`,
+        `Run a script by its full path from the chat's folder (e.g. \`${NODE_COMMAND.name} ${skillRoot}/scripts/<script>.ts ${CHAT_FOLDER_NAMES.attachments}/in --output ${CHAT_FOLDER_NAMES.work}/out\` or \`python ${skillRoot}/scripts/<script>.py ${CHAT_FOLDER_NAMES.attachments}/in --output ${CHAT_FOLDER_NAMES.work}/out\`); do NOT \`cd\` into the skill folder to run it, or \`${CHAT_FOLDER_NAMES.attachments}/\` and \`${CHAT_FOLDER_NAMES.work}/\` won't be where your relative paths point.`,
         `For work the scripts don't cover -- especially content, layout, or anything generative -- write your own code against the skill's preinstalled libraries (see its recipes) instead of bending a script's flags to fit.`,
       ].join(" ");
 
@@ -298,7 +298,7 @@ export const LoadSkill = setupTool({
           const installHint =
             installResult.runtime === "node"
               ? `run \`cd ${skillRoot} && ${PNPM_COMMAND.name} install\``
-              : "install its locked dependencies into the task's `.venv`";
+              : "install its locked dependencies into the chat's `.venv`";
           return [
             `This skill declares ${installResult.runtime === "node" ? "Node.js" : "Python"} dependencies, but ${APP_NAME} did not install them because the skill comes from a third-party skills folder on this machine.`,
             `Review the skill first, then ${installHint} yourself if you trust it.`,
@@ -324,7 +324,7 @@ export const LoadSkill = setupTool({
               `Do not run \`${PNPM_COMMAND.name} add\` for packages this skill already provides.`,
             ].join(" ")
           : [
-              `The skill's locked Python dependencies were installed in the task's \`.venv\`.`,
+              `The skill's locked Python dependencies were installed in the chat's \`.venv\`.`,
               `Run its Python scripts with \`python\`; do not install packages the skill already provides.`,
               `Those are its required dependencies only: a package its instructions say to \`pip install\` for one use is not installed until you install it.`,
             ].join(" ");

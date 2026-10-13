@@ -30,10 +30,10 @@ async function run(command: string) {
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "stat-directives-"));
-  const taskRoot = path.join(tmpDir, "tasks", "test");
-  await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
-  await fs.writeFile(path.join(taskRoot, "work", "note.md"), "# notes\n");
-  chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot), { model });
+  const chatRoot = path.join(tmpDir, "tasks", "test");
+  await fs.mkdir(path.join(chatRoot, "work"), { recursive: true });
+  await fs.writeFile(path.join(chatRoot, "work", "note.md"), "# notes\n");
+  chatId = createMockChatConfigForDir(ChatDirSchema.parse(chatRoot), { model });
 });
 
 afterEach(async () => {

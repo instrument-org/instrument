@@ -85,7 +85,7 @@ function createManualModelStream() {
 }
 
 describe("sessionMachine", () => {
-  const taskFolder = "pj-test";
+  const chatFolder = "pj-test";
 
   /**
    * Runs the session as a chat's, where a question waits on the user; a
@@ -93,10 +93,10 @@ describe("sessionMachine", () => {
    */
   function answersAsChat() {
     vi.spyOn(recordFolders, "resolveChat").mockImplementation((id) =>
-      id === taskFolder ? ChatIdSchema.parse(taskFolder) : undefined,
+      id === chatFolder ? ChatIdSchema.parse(chatFolder) : undefined,
     );
     vi.spyOn(children, "sessionRole").mockImplementation((id) =>
-      id === taskFolder ? "chat" : undefined,
+      id === chatFolder ? "chat" : undefined,
     );
   }
   const defaultSessionId = StoreId.newSessionId();
@@ -310,7 +310,7 @@ describe("sessionMachine", () => {
     });
 
     const testTaskConfig = createMockChatConfig(
-      ChatIdSchema.parse(taskFolder),
+      ChatIdSchema.parse(chatFolder),
       {
         aiSDKModel: aiSDKModel ?? mockLanguageModel,
         imageModel,
@@ -424,7 +424,7 @@ describe("sessionMachine", () => {
         "package.json": "{}",
       },
       [MOCK_WORKSPACE_DIRS.chats]: {
-        [taskFolder]: {
+        [chatFolder]: {
           "image.png": mockFs.load(
             path.resolve(
               import.meta.dirname,

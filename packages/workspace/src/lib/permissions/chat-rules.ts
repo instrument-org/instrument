@@ -116,7 +116,7 @@ export function nativeReachFor(
       uvPythonInstallDir(uvDataDir),
     ],
     readWrite: [
-      layout.task.hostRoot,
+      layout.chat.hostRoot,
       uvDataDir,
       nodeToolsDir(),
       ...(layout.apps ? [layout.apps.hostRoot] : []),

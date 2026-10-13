@@ -18,7 +18,7 @@ export async function installPythonSkill({
   skillDir: AbsolutePath;
   chatId: ChatId;
 }): Promise<PythonSkillInstallResult> {
-  // The task root, so uv discovers the venv where it now lives rather than
+  // The chat's folder, so uv discovers the venv where it now lives rather than
   // relying on VIRTUAL_ENV alone.
   const dir = workDir(chatId);
   const python = chatVenvPython(chatId);

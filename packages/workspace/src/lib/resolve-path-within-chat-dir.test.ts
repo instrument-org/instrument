@@ -2,9 +2,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { RelativePathSchema, ChatDirSchema } from "../schemas/paths";
-import { resolvePathWithinTaskDir } from "./resolve-path-within-task-dir";
+import { resolvePathWithinChatDir } from "./resolve-path-within-chat-dir";
 
-describe("resolvePathWithinTaskDir", () => {
+describe("resolvePathWithinChatDir", () => {
   const dir = ChatDirSchema.parse(path.join("/tmp", "task"));
 
   it.each([
@@ -29,7 +29,7 @@ describe("resolvePathWithinTaskDir", () => {
       label: "nested filename starting with two dots",
     },
   ])("resolves $label paths inside dir", ({ expected, filePath }) => {
-    expect(resolvePathWithinTaskDir({ dir, filePath })).toBe(expected);
+    expect(resolvePathWithinChatDir({ dir, filePath })).toBe(expected);
   });
 
   it.each([
@@ -50,6 +50,6 @@ describe("resolvePathWithinTaskDir", () => {
       label: "the dir's own parent",
     },
   ])("rejects $label", ({ filePath }) => {
-    expect(resolvePathWithinTaskDir({ dir, filePath })).toBeNull();
+    expect(resolvePathWithinChatDir({ dir, filePath })).toBeNull();
   });
 });

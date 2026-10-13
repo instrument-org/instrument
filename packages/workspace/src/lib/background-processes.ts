@@ -73,7 +73,7 @@ export interface BackgroundProcessInfo {
    */
   explanation?: string;
   id: string;
-  /** Task-relative; holds output up to the per-process disk quota. */
+  /** Relative to the chat's folder; holds output up to the per-process disk quota. */
   logFilePath: RelativePath;
   /** Output omitted after the process log reached its disk quota. */
   logOmittedBytes: number;

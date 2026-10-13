@@ -197,26 +197,35 @@ const RUNS_CODE_OUTSIDE = [
 ];
 
 /**
- * The same, matched with the script's string literals emptied, since these
- * are words a note or a message may well hold.
+ * The same, matched with the script's string literals blanked, since these
+ * are words a note or a message may well hold. Each takes in what the
+ * command acts on, a string, a name or a bracketed expression, so the
+ * refusal quotes the construct whole.
  */
 const REACHES_OUTSIDE_IN_CODE = [
   /\bopen\s+for\s+access\b/i,
   /\bwrite\b[^\n]*\bto\b/i,
   // Mail's `read status` is a property, not Standard Additions' `read`.
-  /\bread\s+(?!status\b)\S/i,
+  /\bread\s+(?!status\b)(?:(?:POSIX\s+file|file|alias)\s+)?(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)?|\w+|\S)/i,
   /\bincludeStandardAdditions\b/,
   // An app named by a variable or an expression, which scriptTargets cannot
   // hold to the allowed apps.
-  /(?<!current\s)\bapp(?:lication)?\s+(?!id\s*["']|["'])[\w(]/i,
-  /\bApplication\s*\(\s*(?!["'])[^)\s]/,
+  /(?<!current\s)\bapp(?:lication)?\s+(?!id\s*["']|["'])(?:id\s+)?(?:\([^)\n]*\)?|\w+)/i,
+  /\bApplication\s*\(\s*(?!["'])[^)\s][^)\n]*\)?/,
 ];
 
-/** A script with every string literal's contents removed. */
+/**
+ * A script with every string literal's contents blanked to spaces, its
+ * quotes and line breaks left in place, so a match in it is at the same
+ * place in the script.
+ */
 function withoutStrings(source: string): string {
   return source.replaceAll(
     /"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g,
-    (literal) => literal.charAt(0).repeat(2),
+    (literal) =>
+      literal.charAt(0) +
+      literal.slice(1, -1).replaceAll(/[^\n]/g, " ") +
+      literal.charAt(0),
   );
 }
 
@@ -230,9 +239,9 @@ export function runsCodeOutside(source: string): string | undefined {
   }
   const code = withoutStrings(source);
   for (const pattern of REACHES_OUTSIDE_IN_CODE) {
-    const found = pattern.exec(code)?.[0];
+    const found = pattern.exec(code);
     if (found) {
-      return found.trim();
+      return source.slice(found.index, found.index + found[0].length).trim();
     }
   }
   return undefined;

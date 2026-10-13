@@ -32,12 +32,12 @@ import { ChatTiles } from "@/client/components/window/chat-tiles";
 import { GroupItem } from "@/client/components/window/group-item";
 import { useWindow, WindowContext } from "@/client/components/window/context";
 import { isPaneOpen } from "@/client/components/window/draft-context";
-import { computerTabOf } from "@/client/components/window/file-tabs";
 import { useGroupTab } from "@/client/components/window/group-tab";
 import { useInboxRoom } from "@/client/components/window/inbox-room";
 import { InboxToggle } from "@/client/components/window/inbox-toggle";
 import { NoChatOpen } from "@/client/components/window/no-chat-open";
 import { RightPane } from "@/client/components/window/right-pane";
+import { useRowSlots } from "@/client/components/window/row-slots";
 import { screenLocation } from "@/client/components/window/screen-presentation";
 import { useShell } from "@/client/components/window/shell-context";
 import { useChatContext } from "@/client/components/window/use-chat-context";
@@ -457,13 +457,7 @@ function RouteScreen({ href }: { href: string }) {
   const { view: screenView, walked: walkedFolder } =
     useAtomValue(tabSurfaceAtom)[tabId] ?? {};
   usePageSlot(null, undefined, false);
-  // The row's head and tail, where a file's viewer puts a toggle for its
-  // panel and its actions.
-  const [rowLead, setRowLead] = useState<HTMLElement | null>(null);
-  const [rowTail, setRowTail] = useState<HTMLElement | null>(null);
-  const [rowField, setRowField] = useState<HTMLElement | null>(null);
-  const computerTab = computerTabOf(href);
-  const isFileScreen = computerTab?.file !== undefined;
+  const { rowProps, slots } = useRowSlots();
   const fromHref = screenLocation(href, {
     appsBySlug,
     chatTitles: shell.chatTitles,
@@ -487,40 +481,16 @@ function RouteScreen({ href }: { href: string }) {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {hasLocationRow && (
-        <TabLocationRow
-          // A folder's Finder puts the toggle for its sidebar at the head of
-          // the row, where a file puts the toggle for its tree.
-          {...(computerTab
-            ? {
-                leading: (
-                  <div
-                    className="flex shrink-0 items-center empty:hidden"
-                    ref={setRowLead}
-                  />
-                ),
-              }
-            : {})}
-          {...(isFileScreen
-            ? {
-                fieldEnd: (
-                  <div
-                    className="flex shrink-0 items-center empty:hidden"
-                    ref={setRowField}
-                  />
-                ),
-                trailing: (
-                  <div
-                    className="flex shrink-0 items-center gap-0.5"
-                    ref={setRowTail}
-                  />
-                ),
-              }
-            : {})}
-          fillsTab
-          location={location}
-        />
+        <TabLocationRow fillsTab location={location} {...rowProps} />
       )}
-      <WindowContext value={{ ...appWindow, rowField, rowLead, rowTail }}>
+      <WindowContext
+        value={{
+          ...appWindow,
+          rowField: slots.field,
+          rowLead: slots.lead,
+          rowTail: slots.tail,
+        }}
+      >
         <FileOpenContext
           value={(path, options) => {
             appWindow.openPath(path, options);

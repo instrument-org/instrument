@@ -12,15 +12,14 @@ import {
   useEffect,
   useEffectEvent,
   useRef,
-  useState,
 } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
 import { WebStart } from "./compose-zero-state";
 import { useWindow, WindowContext } from "./context";
+import { useRowSlots } from "./row-slots";
 import { PageAskButton } from "./file-ask-button";
-import { computerTabOf } from "./file-tabs";
 import { GroupTabContext } from "./group-tab";
 import { segmentsOf } from "./host-path";
 import { screenLocation } from "./screen-presentation";
@@ -74,11 +73,9 @@ export function GroupItem({
   const appsBySlug = useAppsBySlug();
   const appWindow = useWindow();
   const { browser } = appWindow;
-  // A file screen's own controls go into the row as well: the tree's toggle
-  // at its head, the viewer's actions at its end.
-  const [screenLead, setScreenLead] = useState<HTMLDivElement | null>(null);
-  const [screenTail, setScreenTail] = useState<HTMLDivElement | null>(null);
-  const [screenField, setScreenField] = useState<HTMLDivElement | null>(null);
+  // What is up draws its own controls into the row: a page its reload, zoom
+  // and controls, a file screen its tree toggle and actions.
+  const { rowProps, slots } = useRowSlots();
   const Frame = isFramed ? Card : Bare;
   const taskTitles = useTaskTitles();
   // What the screen up says it shows, which the row reads a folder's place off.
@@ -87,18 +84,15 @@ export function GroupItem({
 
   // The page's reload and controls go into the address row, the way they do
   // in the pane beside a chat, rather than into a bar of the page's own.
-  const [reloadSlot, setReloadSlot] = useState<HTMLDivElement | null>(null);
-  const [controlsSlot, setControlsSlot] = useState<HTMLDivElement | null>(null);
-  const [fieldSlot, setFieldSlot] = useState<HTMLDivElement | null>(null);
   const onPageChromeEvent = useEffectEvent(onPageChrome);
   const isPage = up.kind === "page";
   useEffect(() => {
     onPageChromeEvent(
       isPage
-        ? { fieldInto: fieldSlot, into: controlsSlot, reloadInto: reloadSlot }
+        ? { fieldInto: slots.field, into: slots.tail, reloadInto: slots.reload }
         : undefined,
     );
-  }, [isPage, controlsSlot, fieldSlot, reloadSlot]);
+  }, [isPage, slots.field, slots.reload, slots.tail]);
   useEffect(
     () => () => {
       onPageChromeEvent(undefined);
@@ -156,7 +150,7 @@ export function GroupItem({
    * arrows walk the page's own history or the screen's trail, and its field
    * sends a page somewhere else, or takes a screen's tab to a site.
    */
-  const row = (location: TabLocation, { isFileScreen = false } = {}) => {
+  const row = (location: TabLocation) => {
     return (
       <TabLocationRow
         canGoBack={canGoBack}
@@ -175,55 +169,16 @@ export function GroupItem({
         onVisit={(href) => {
           windowTabs.visitHref(up.id, href);
         }}
-        {...(up.kind === "page"
-          ? {
-              fieldEnd: (
-                <div
-                  className="flex shrink-0 items-center empty:hidden"
-                  ref={setFieldSlot}
-                />
-              ),
-              reload: (
-                <div
-                  className="flex shrink-0 items-center empty:hidden"
-                  ref={setReloadSlot}
-                />
-              ),
-              trailing: (
-                <>
-                  {/* A page's file has the file's own Ask among its actions. */}
-                  {before && location.kind === "page" && (
-                    <PageAskButton onAsk={appWindow.focusComposer} />
-                  )}
-                  <div
-                    className="flex shrink-0 items-center gap-0.5"
-                    ref={setControlsSlot}
-                  />
-                </>
-              ),
-            }
-          : isFileScreen
-            ? {
-                fieldEnd: (
-                  <div
-                    className="flex shrink-0 items-center empty:hidden"
-                    ref={setScreenField}
-                  />
-                ),
-                leading: (
-                  <div
-                    className="flex shrink-0 items-center empty:hidden"
-                    ref={setScreenLead}
-                  />
-                ),
-                trailing: (
-                  <div
-                    className="flex shrink-0 items-center gap-0.5"
-                    ref={setScreenTail}
-                  />
-                ),
-              }
-            : {})}
+        {...rowProps}
+        trailing={
+          <>
+            {/* A page's file has the file's own Ask among its actions. */}
+            {before && location.kind === "page" && (
+              <PageAskButton onAsk={appWindow.focusComposer} />
+            )}
+            {rowProps.trailing}
+          </>
+        }
       />
     );
   };
@@ -277,10 +232,7 @@ export function GroupItem({
         }
       : location;
   return (
-    <Frame
-      anchorRef={anchorRef}
-      head={row(shown, { isFileScreen: computerTabOf(up.href) !== undefined })}
-    >
+    <Frame anchorRef={anchorRef} head={row(shown)}>
       <GroupTabContext
         key={up.id}
         value={{
@@ -310,9 +262,9 @@ export function GroupItem({
               }
               appWindow.openScreen(href, options);
             },
-            rowField: screenField,
-            rowLead: screenLead,
-            rowTail: screenTail,
+            rowField: slots.field,
+            rowLead: slots.lead,
+            rowTail: slots.tail,
           }}
         >
           {router ? <RouterProvider router={router} /> : null}

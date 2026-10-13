@@ -1156,13 +1156,7 @@ export function ComputerPage({
         return;
       }
       event.preventDefault();
-      row.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          bubbles: true,
-          cancelable: true,
-          key: event.key,
-        }),
-      );
+      row.dispatchEvent(rowPress(event));
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => {
@@ -2277,6 +2271,29 @@ function relativeHostPath(root: string, hostPath: string) {
   return hostPath.startsWith(base)
     ? hostPath.slice(base.length).split(separator).join("/")
     : null;
+}
+
+/**
+ * A press Quick Look holds, made again for the listing's selected row with
+ * the keys held with it: ↑ with the parent folder's key goes up a folder,
+ * and Shift widens the selection.
+ */
+export function rowPress({
+  altKey,
+  ctrlKey,
+  key,
+  metaKey,
+  shiftKey,
+}: KeyboardEvent): KeyboardEvent {
+  return new KeyboardEvent("keydown", {
+    altKey,
+    bubbles: true,
+    cancelable: true,
+    ctrlKey,
+    key,
+    metaKey,
+    shiftKey,
+  });
 }
 
 // The files routes' errors that come with a sentence written for people. The

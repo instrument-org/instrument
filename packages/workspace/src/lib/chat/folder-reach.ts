@@ -68,9 +68,13 @@ export async function folderReach(
       ...placePaths()
         .filter(
           (place) =>
-            WORK_PLACES.has(place.id) && settings.places[place.id] === "allow",
+            place.id !== "output" &&
+            WORK_PLACES.has(place.id) &&
+            settings.places[place.id] === "allow",
         )
-        .flatMap((place) => place.paths),
+        .flatMap((place) =>
+          place.paths.map((placePath) => AbsolutePathSchema.parse(placePath)),
+        ),
     ];
     for (const folderPath of allowed) {
       if (await pathExists(folderPath)) {

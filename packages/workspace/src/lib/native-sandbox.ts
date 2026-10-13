@@ -1,6 +1,9 @@
 import { execFileSync } from "node:child_process";
 import {
+  accessSync,
   chmodSync,
+  constants,
+  type Dirent,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -13,7 +16,7 @@ import path from "node:path";
 import { APP_NAME } from "@instrument-org/shared";
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import { canonicalizeThroughMissing } from "./host-path";
+import { canonicalizeThroughMissing, hostPathWithin } from "./host-path";
 import {
   accountCanWrite,
   systemOwnedNote,
@@ -480,20 +483,26 @@ export function bwrapAvailable(): boolean {
  * Hidden entries in the home folder have no pattern form here, so the home
  * folder is listed and each one is closed by name.
  */
-export function bwrapArgs(reach: NativeReach): string[] {
+export function bwrapArgs(
+  reach: NativeReach,
+  walk: WalkLimits = WALK_LIMITS,
+): string[] {
   const { home, rules, withoutAsking } = reach.rules;
+  /** "empty" is a read-only empty folder made where nothing is yet. */
+  type Access = "empty" | "none" | "read" | "write";
   const entries: {
-    access: "none" | "read" | "write";
+    access: Access;
     depth: number;
     path: string;
     rank: number;
   }[] = [];
-  const add = (
-    target: string,
-    access: "none" | "read" | "write",
-    rank: number,
-  ) => {
-    entries.push({ access, depth: depthOf(target), path: target, rank });
+  const added = new Set<string>();
+  const add = (target: string, access: Access, rank: number) => {
+    const key = `${access}:${target}`;
+    if (!added.has(key)) {
+      added.add(key);
+      entries.push({ access, depth: depthOf(target), path: target, rank });
+    }
   };
   add(home, "read", -1);
   for (const rule of rules) {
@@ -513,8 +522,22 @@ export function bwrapArgs(reach: NativeReach): string[] {
     add(opened, "read", 3);
   }
   // bubblewrap has no pattern for a name that runs code when its folder is
-  // used, so the ones already at the top of each allowed folder of the
-  // person's are bound read-only by name.
+  // used, so each allowed folder of the person's is searched for the ones
+  // already there and they are bound read-only by name, as is a repository's
+  // hooks folder. A repository's .git, and every folder between a name and
+  // the allowed folder, is bound onto itself: a mount point cannot be renamed
+  // or removed, so the name cannot be carried out from under its bind and
+  // made again unbound, or the folder holding it swapped for a copy.
+  const own = [...tools.caches, ...reach.readWrite].map(resolveReal);
+  const isOwn = (target: string) =>
+    own.some((folder) => hostPathWithin(folder, target) !== null);
+  const stops = new Set([
+    ...own,
+    ...rules.flatMap((rule) =>
+      rule.dotEntries ? [] : [resolveReal(rule.path)],
+    ),
+  ]);
+  const guarded = new Set<string>();
   for (const rule of rules) {
     if (
       levelWithoutAsking(rule.level, rule, withoutAsking) !== "allow" ||
@@ -522,8 +545,42 @@ export function bwrapArgs(reach: NativeReach): string[] {
     ) {
       continue;
     }
-    for (const name of DANGEROUS_NAMES) {
-      add(path.join(rule.path, name), "read", 4);
+    const root = resolveReal(rule.path);
+    const dotEntriesOnly = rule.dotEntries ?? false;
+    const searched = `${dotEntriesOnly ? "." : ""}${root}`;
+    if (isOwn(root) || guarded.has(searched)) {
+      continue;
+    }
+    guarded.add(searched);
+    const found = namesThatRunCode(root, {
+      dotEntriesOnly,
+      limits: walk,
+      stops,
+    });
+    for (const { kind, path: named } of found) {
+      for (
+        let folder = path.dirname(named);
+        folder !== root && folder !== path.dirname(folder);
+        folder = path.dirname(folder)
+      ) {
+        add(folder, "write", 4);
+      }
+      if (kind === "name") {
+        add(named, "read", 4);
+        continue;
+      }
+      add(named, "write", 4);
+      const hooks = path.join(named, "hooks");
+      if (existsSync(hooks)) {
+        add(hooks, "read", 4);
+      } else if (kind === "repo" && canWrite(named)) {
+        // A repository with no hooks folder gets an empty one nothing can
+        // write, so none can be made; bubblewrap leaves the empty folder
+        // behind, as `git init` would have made it. One whose .git this
+        // account cannot write is left as it is, since bubblewrap could not
+        // make the folder to mount on and the command would not start.
+        add(hooks, "empty", 4);
+      }
     }
   }
   const args = [
@@ -555,16 +612,43 @@ export function bwrapArgs(reach: NativeReach): string[] {
     // terminal the app was started from (TIOCSTI).
     "--new-session",
   ];
-  const ordered = entries.toSorted(
+  // Of the entries for one path, the last mounts over the others, so it is
+  // the only one kept: a closed folder's read-only remount, which comes last
+  // of all, would otherwise land on the allow bound over it.
+  const sorted = entries.toSorted(
     (a, b) => a.depth - b.depth || a.rank - b.rank,
   );
+  const lastFor = new Map(sorted.map((entry) => [entry.path, entry]));
+  const ordered = sorted.filter((entry) => lastFor.get(entry.path) === entry);
   // A tool's cache or the chat's own folder that is not there yet is made
   // before it is bound, so a first run on a new computer can write it: an
-  // unbound folder would stay read-only with the home folder around it.
+  // unbound folder would stay read-only with the home folder around it. So
+  // is a folder the person allowed by name before it was made (a card for
+  // the repository `git init` was about to make), where the folder holding
+  // it is there.
   const ours = new Set([...tools.caches, ...reach.readWrite]);
+  const allowedByName = new Set(
+    rules
+      .filter(
+        (rule) =>
+          rule.level === "allow" &&
+          !rule.dotEntries &&
+          (rule.source === "grant" || rule.source === "folder"),
+      )
+      .map((rule) => rule.path),
+  );
+  const remountLater: string[] = [];
   for (const entry of ordered) {
     const real = resolveReal(entry.path);
-    if (!existsSync(real) && ours.has(entry.path)) {
+    if (entry.access === "empty") {
+      args.push("--tmpfs", real, "--remount-ro", real);
+      continue;
+    }
+    if (
+      !existsSync(real) &&
+      (ours.has(entry.path) ||
+        (allowedByName.has(entry.path) && existsSync(path.dirname(real))))
+    ) {
       try {
         mkdirSync(real, { recursive: true });
       } catch {
@@ -590,22 +674,22 @@ export function bwrapArgs(reach: NativeReach): string[] {
           other.path.startsWith(`${entry.path}${path.sep}`),
       );
       // Read-only too, so nothing can be made in it to stand in for what it
-      // closes; one a folder opens inside stays writable until that folder
-      // is bound in, since bubblewrap makes the folder to bind it to.
-      args.push(
-        "--perms",
-        opensInside ? "0111" : "0000",
-        "--tmpfs",
-        real,
-        ...(opensInside ? [] : ["--remount-ro", real]),
-      );
+      // closes and its mode cannot be given back; one a folder opens inside
+      // is made read-only after every bind, since bubblewrap makes the
+      // folder to bind it to, and a remount leaves the binds inside it be.
+      args.push("--perms", opensInside ? "0111" : "0000", "--tmpfs", real);
+      if (opensInside) {
+        remountLater.push("--remount-ro", real);
+      } else {
+        args.push("--remount-ro", real);
+      }
     } else {
       // A file nobody may open, in place of the closed one, so reading it
       // is refused rather than empty.
       args.push("--ro-bind", unreadableFile(), real);
     }
   }
-  return args;
+  return [...args, ...remountLater];
 }
 
 /**
@@ -622,6 +706,107 @@ function unreadableFile(): string {
   }
   chmodSync(file, 0o000);
   return file;
+}
+
+/** How far the search for names that run code goes into one folder. */
+export interface WalkLimits {
+  /** How many folders down a name may sit: 1 is the folder's own. */
+  depth: number;
+  /** How many entries one folder's search lists before it stops. */
+  entries: number;
+}
+
+/**
+ * Three folders down finds a repository in a folder of projects in an
+ * allowed folder (`Documents/code/app/.git`). The entry cap keeps one command's start bounded however big
+ * the folder is; the search goes shallow first, so what it leaves out is
+ * the deepest.
+ */
+const WALK_LIMITS: WalkLimits = { depth: 3, entries: 10_000 };
+
+/** Folders too big to search that no one keeps a repository in. */
+const UNSEARCHED = new Set(["node_modules"]);
+
+/**
+ * The names that run code already in `root`, and the repositories, each
+ * `.git` file or folder, found breadth first down to `limits.depth` and no
+ * further than `limits.entries` listed. Symlinks are not followed, and the
+ * search stops at each of `stops`, a folder some other rule decides.
+ */
+function namesThatRunCode(
+  root: string,
+  {
+    dotEntriesOnly,
+    limits,
+    stops,
+  }: {
+    /** Only the root's hidden entries, for the rule over a home's. */
+    dotEntriesOnly: boolean;
+    limits: WalkLimits;
+    stops: ReadonlySet<string>;
+  },
+): { kind: "gitFile" | "name" | "repo"; path: string }[] {
+  const found: { kind: "gitFile" | "name" | "repo"; path: string }[] = [];
+  const queue = [{ depth: 1, folder: root }];
+  let listed = 0;
+  for (const next of queue) {
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(next.folder, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (listed++ >= limits.entries) {
+        return found;
+      }
+      if (dotEntriesOnly && next.depth === 1 && !entry.name.startsWith(".")) {
+        continue;
+      }
+      const entryPath = path.join(next.folder, entry.name);
+      if (stops.has(entryPath)) {
+        continue;
+      }
+      if (entry.name === ".git") {
+        found.push({
+          kind: entry.isDirectory() ? "repo" : "gitFile",
+          path: entryPath,
+        });
+        continue;
+      }
+      let named = false;
+      for (const name of DANGEROUS_NAMES) {
+        const [first, ...rest] = name.split("/");
+        if (first !== entry.name) {
+          continue;
+        }
+        if (rest.length === 0) {
+          named = true;
+          found.push({ kind: "name", path: entryPath });
+        } else if (existsSync(path.join(next.folder, name))) {
+          found.push({ kind: "name", path: path.join(next.folder, name) });
+        }
+      }
+      if (
+        !named &&
+        entry.isDirectory() &&
+        next.depth < limits.depth &&
+        !UNSEARCHED.has(entry.name)
+      ) {
+        queue.push({ depth: next.depth + 1, folder: entryPath });
+      }
+    }
+  }
+  return found;
+}
+
+function canWrite(target: string): boolean {
+  try {
+    accessSync(target, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function dotEntriesIn(folder: string): string[] {
@@ -669,6 +854,8 @@ const REFUSALS = [
 /** A path the rules kept a native command from, and how it was used. */
 interface Refused {
   hostPath: string;
+  /** Whether the output says the path was a folder being made. */
+  isDirectory: boolean;
   op: "read" | "write";
   reach: Reach;
   rules: Rules;
@@ -708,7 +895,15 @@ export function refusedPathIn(
       const op = line.includes("No such file") ? "read" : "write";
       const decided = reachOf(reach.rules, hostPath, op);
       if (decided.level !== "allow") {
-        return { hostPath, op, reach: decided, rules: reach.rules };
+        return {
+          hostPath,
+          // `mkdir: cannot create directory`, git's `cannot mkdir`, Node's
+          // `EROFS: ..., mkdir`.
+          isDirectory: /\bmkdir\b|create directory/.test(line),
+          op,
+          reach: decided,
+          rules: reach.rules,
+        };
       }
     }
   }
@@ -733,7 +928,7 @@ export function refusalNote(refused: Refused, home = os.homedir()): string {
   const folder = folderToAskFor({
     home,
     hostPath: refused.hostPath,
-    isDirectory: false,
+    isDirectory: refused.isDirectory,
     rule: refused.reach.rule,
   });
   // The home folder or the disk whole is never the thing to ask for.

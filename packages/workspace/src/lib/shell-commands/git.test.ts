@@ -139,8 +139,48 @@ describe("createGitCommand arg policy", () => {
     const result = await command.execute(args, mockCtx);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("points outside this conversation's folder");
+    expect(result.stderr).toContain(
+      "points outside this conversation's folder",
+    );
   });
+
+  it.each([
+    [["init", "newproj"], "newproj needs the person's yes first."],
+    [
+      ["clone", "https://example.com/r.git", "newproj"],
+      "newproj needs the person's yes first.",
+    ],
+    [
+      ["add", "notes.txt"],
+      "notes.txt is directly in ~, which no card can open whole.",
+    ],
+  ])(
+    "asks for a new repository directly in the home folder: %j",
+    async (args, refusal) => {
+      const home = realpathSync(mkdtempSync(path.join(tmpdir(), "git-home-")));
+      const homeCommand = createGitCommand({
+        chatId,
+        layout: {
+          ...layout,
+          rules: {
+            home,
+            rules: [
+              { level: "allow", path: layout.task.hostRoot, source: "system" },
+            ],
+            withoutAsking: false,
+          },
+        },
+      });
+      const named = args.at(-1) ?? "";
+      const result = await homeCommand.execute(
+        [...args.slice(0, -1), path.join(home, named)],
+        mockCtx,
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr.replaceAll(home, "~")).toContain(`~/${refusal}`);
+    },
+  );
 });
 
 // Runs the bundled dugite git for real. No network: `init` + `commit` is enough
@@ -381,7 +421,9 @@ describe("createGitCommand over folder mounts", () => {
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("points outside this conversation's folder");
+    expect(result.stderr).toContain(
+      "points outside this conversation's folder",
+    );
   });
 
   it("refuses a folder that is not attached", async () => {
@@ -391,7 +433,9 @@ describe("createGitCommand over folder mounts", () => {
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("points outside this conversation's folder");
+    expect(result.stderr).toContain(
+      "points outside this conversation's folder",
+    );
   });
 });
 

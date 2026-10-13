@@ -209,12 +209,20 @@ export function createGitCommand({
     const resolvedArgs = hostPathArgs(args);
     let refusal: string | undefined;
     if (layout.rules && !readsOnly(args)) {
-      for (const target of [".", ...args.map(pathValueOf)]) {
+      // The path `init` or `clone` is given is the repository's folder, which
+      // may not be there yet.
+      const subcommand = findSubcommand(args);
+      const makesFolder =
+        subcommand !== undefined &&
+        (subcommand.name === "init" || subcommand.name === "clone");
+      for (const [index, target] of [".", ...args.map(pathValueOf)].entries()) {
         if (!target.startsWith("/") && target !== ".") {
           continue;
         }
         refusal ??= ruleRefusal({
           hostPath: hostPathOf(ctx.fs.resolvePath(ctx.cwd, target)),
+          // Index 0 is the working folder, so an argument sits one later.
+          isDirectory: makesFolder && index - 1 > subcommand.index,
           op: "write",
           rules: layout.rules,
           spell: shellPath,

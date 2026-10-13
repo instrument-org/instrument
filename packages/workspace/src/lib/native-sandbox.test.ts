@@ -23,8 +23,11 @@ import {
   seatbeltProfile,
   wrapNativeCommand,
 } from "./native-sandbox";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { StoreId } from "../schemas/store-id";
 import { inheritedEnv } from "./native-env";
 import { accountCanWrite } from "./permissions/account-can-write";
+import { raiseAsk } from "./permissions/asks";
 import { type Rule } from "./permissions/rules";
 
 // The rules below hold a made-up home, which nothing on this disk lets the
@@ -32,6 +35,11 @@ import { type Rule } from "./permissions/rules";
 vi.mock("./permissions/account-can-write", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./permissions/account-can-write")>()),
   accountCanWrite: vi.fn(() => true),
+}));
+
+vi.mock("./permissions/asks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./permissions/asks")>()),
+  raiseAsk: vi.fn(),
 }));
 
 function reachOver(home: string, rules: Rule[]): NativeReach {
@@ -218,6 +226,46 @@ describe("refusedPathIn", () => {
       refused && refusalNote(refused, "/Users/someone"),
     ).toMatchInlineSnapshot(
       `"~/Documents/Acme/a.csv needs the person's yes first."`,
+    );
+  });
+
+  it.each([
+    [
+      "mkdir: cannot create directory '/Users/someone/newproj': Read-only file system",
+      "~/newproj",
+    ],
+    [
+      "fatal: cannot mkdir /Users/someone/newproj: Read-only file system",
+      "~/newproj",
+    ],
+    [
+      "touch: cannot touch '/Users/someone/newproj/x': Read-only file system",
+      "~/newproj",
+    ],
+    [
+      "touch: cannot touch '/Users/someone/notes.txt': Read-only file system",
+      undefined,
+    ],
+  ])("%s asks for %s", (output, asked) => {
+    vi.mocked(raiseAsk).mockClear();
+    const refused = refusedPathIn(output, {
+      ...reach,
+      rules: {
+        ...reach.rules,
+        asker: {
+          chatId: ChatIdSchema.parse("native-sandbox-test"),
+          sessionId: StoreId.newSessionId(),
+        },
+      },
+    });
+    const note = refused && refusalNote(refused, "/Users/someone");
+    expect(vi.mocked(raiseAsk).mock.calls[0]?.[2]).toBe(
+      asked?.replace("~", "/Users/someone"),
+    );
+    expect(note).toBe(
+      asked
+        ? `Waiting on the person to allow ${asked}. If the rest of the job needs it, end your turn here; you'll be woken with their answer. Run the command again once they allow it.`
+        : "~/notes.txt needs the person's yes first.",
     );
   });
 
@@ -418,6 +466,12 @@ describe.runIf(bwrapAvailable())("a wrapped command on this Linux", () => {
       `echo x > ${path.join(home, "new")}`,
       1,
     ],
+    ["refuses opening up a place that asks", `chmod 755 ${asks}`, 1],
+    [
+      "refuses writing in a place that asks once its mode is changed",
+      `chmod 755 ${asks}; echo x > ${path.join(asks, "y")}`,
+      1,
+    ],
   ])("%s", async (_name, script, exitCode) => {
     const spawned = wrapNativeCommand("/bin/sh", ["-c", script], reach);
     const result = await execa(spawned.file, spawned.args, { reject: false });
@@ -453,10 +507,175 @@ describe("bwrapArgs", () => {
     expect(args).toContain(
       `--perms 0000 --tmpfs ${home}/Secrets --remount-ro ${home}/Secrets`,
     );
-    expect(args).not.toContain(`--remount-ro ${home}/Documents`);
+    // Read-only only once the folder opened inside it is bound in.
+    expect(args.lastIndexOf(`--remount-ro ${home}/Documents`)).toBeGreaterThan(
+      args.indexOf(`--bind ${home}/Documents/Acme`),
+    );
+    expect(args.endsWith(`--remount-ro ${home}/Documents`)).toBe(true);
     expect(args).toMatch(
       new RegExp(`--ro-bind \\S*instrument-closed-\\d+ ${home}/secret.txt`),
     );
     rmSync(home, { force: true, recursive: true });
+  });
+});
+
+describe("bwrapArgs over names that run code", () => {
+  /** A home with `paths` made in it: a trailing slash makes a folder. */
+  function plant(paths: string[]): string {
+    const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
+    for (const each of paths) {
+      const target = path.join(home, each);
+      if (each.endsWith("/")) {
+        mkdirSync(target, { recursive: true });
+      } else {
+        mkdirSync(path.dirname(target), { recursive: true });
+        writeFileSync(target, "");
+      }
+    }
+    return home;
+  }
+
+  /** The binds after the fixed ones, spelled from the home. */
+  function binds(
+    home: string,
+    rules: Rule[],
+    {
+      readWrite = [],
+      walk,
+    }: {
+      readWrite?: string[];
+      walk?: { depth: number; entries: number };
+    } = {},
+  ): string[] {
+    const args = bwrapArgs(
+      { readOnly: [], readWrite, rules: { home, rules, withoutAsking: false } },
+      walk,
+    );
+    const lines: string[] = [];
+    const after = args.slice(args.indexOf("--new-session") + 1);
+    for (const [index, arg] of after.entries()) {
+      const spelled = arg.startsWith(home) ? `~${arg.slice(home.length)}` : arg;
+      const last = lines.at(-1) ?? "";
+      // One mount a line: `--perms` goes with its `--tmpfs`, and so does a
+      // `--remount-ro` right after it.
+      const joins =
+        !arg.startsWith("--") ||
+        (arg === "--remount-ro" &&
+          last.endsWith(` ${(after[index + 1] ?? "").replace(home, "~")}`)) ||
+        (arg === "--tmpfs" && last.split(" ").length === 2);
+      if (joins && lines.length > 0) {
+        lines[lines.length - 1] = `${last} ${spelled}`;
+      } else {
+        lines.push(spelled);
+      }
+    }
+    rmSync(home, { force: true, recursive: true });
+    return lines.filter((line) => line.includes("~/"));
+  }
+
+  const documents = (home: string): Rule[] => [
+    { level: "ask", path: path.join(home, "Documents"), source: "place" },
+    { level: "allow", path: path.join(home, "Documents"), source: "grant" },
+  ];
+
+  it("keeps a repository two folders down in place, with its hooks read-only", () => {
+    const home = plant([
+      "Documents/code/app/.git/hooks/",
+      "Documents/code/app/.git/HEAD",
+      "Documents/code/app/src/main.py",
+    ]);
+    expect(binds(home, documents(home))).toMatchInlineSnapshot(`
+      [
+        "--bind ~/Documents ~/Documents",
+        "--bind ~/Documents/code ~/Documents/code",
+        "--bind ~/Documents/code/app ~/Documents/code/app",
+        "--bind ~/Documents/code/app/.git ~/Documents/code/app/.git",
+        "--ro-bind ~/Documents/code/app/.git/hooks ~/Documents/code/app/.git/hooks",
+      ]
+    `);
+  });
+
+  it("binds names that run code read-only, at the top and deeper", () => {
+    const home = plant([
+      "Documents/.mcp.json",
+      "Documents/site/.envrc",
+      "Documents/site/.claude/settings.json",
+      "Documents/site/.claude/notes.md",
+      "Documents/site/.vscode/tasks.json",
+    ]);
+    expect(binds(home, documents(home))).toMatchInlineSnapshot(`
+      [
+        "--bind ~/Documents ~/Documents",
+        "--ro-bind ~/Documents/.mcp.json ~/Documents/.mcp.json",
+        "--bind ~/Documents/site ~/Documents/site",
+        "--bind ~/Documents/site/.claude ~/Documents/site/.claude",
+        "--ro-bind ~/Documents/site/.envrc ~/Documents/site/.envrc",
+        "--ro-bind ~/Documents/site/.vscode ~/Documents/site/.vscode",
+        "--ro-bind ~/Documents/site/.claude/settings.json ~/Documents/site/.claude/settings.json",
+      ]
+    `);
+  });
+
+  it("gives a repository with no hooks folder an empty one nothing can write", () => {
+    const home = plant(["Documents/app/.git/HEAD"]);
+    expect(binds(home, documents(home))).toMatchInlineSnapshot(`
+      [
+        "--bind ~/Documents ~/Documents",
+        "--bind ~/Documents/app ~/Documents/app",
+        "--bind ~/Documents/app/.git ~/Documents/app/.git",
+        "--tmpfs ~/Documents/app/.git/hooks --remount-ro ~/Documents/app/.git/hooks",
+      ]
+    `);
+  });
+
+  it("leaves the chat's own folder and a folder another rule decides alone", () => {
+    const home = plant([
+      "Documents/chat/.git/hooks/",
+      "Documents/chat/.envrc",
+      "Documents/Payroll/.git/hooks/",
+      "Chat/.git/hooks/",
+    ]);
+    expect(
+      binds(
+        home,
+        [
+          ...documents(home),
+          {
+            level: "never",
+            path: path.join(home, "Documents/Payroll"),
+            source: "folder",
+          },
+          { level: "allow", path: path.join(home, "Chat"), source: "grant" },
+        ],
+        {
+          readWrite: [
+            path.join(home, "Documents/chat"),
+            path.join(home, "Chat"),
+          ],
+        },
+      ).filter((line) => !line.includes("Payroll ")),
+    ).toMatchInlineSnapshot(`
+      [
+        "--bind ~/Documents ~/Documents",
+        "--bind ~/Chat ~/Chat",
+        "--bind ~/Documents/chat ~/Documents/chat",
+      ]
+    `);
+  });
+
+  it.each([
+    ["depth", { depth: 2, entries: 1000 }],
+    ["entry count", { depth: 3, entries: 3 }],
+  ])("stops at its %s cap, deepest first", (_cap, walk) => {
+    const home = plant([
+      "Documents/a/.git/HEAD",
+      "Documents/a/b/x/",
+      "Documents/a/b/.git/HEAD",
+    ]);
+    expect(
+      binds(home, documents(home), { walk }).filter((line) =>
+        line.includes(".git "),
+      ),
+    ).toEqual(["--bind ~/Documents/a/.git ~/Documents/a/.git"]);
   });
 });

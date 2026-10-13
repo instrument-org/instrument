@@ -16,6 +16,7 @@ import { folderToAskFor, reachOf, type Rules } from "./rules";
 export function ruleRefusal({
   asks = true,
   hostPath,
+  isDirectory = false,
   op,
   rules,
   spell,
@@ -26,6 +27,11 @@ export function ruleRefusal({
    */
   asks?: boolean;
   hostPath: string;
+  /**
+   * Whether the path names a folder, such as one being made, which a card
+   * can ask for by itself even directly in the home folder.
+   */
+  isDirectory?: boolean;
   op: "read" | "write";
   rules: Rules;
   spell: (hostPath: string) => string;
@@ -48,7 +54,7 @@ export function ruleRefusal({
   const folder = folderToAskFor({
     home: rules.home,
     hostPath,
-    isDirectory: false,
+    isDirectory,
     rule: reach.rule,
   });
   // The home folder or the disk whole is never the thing to ask for.
@@ -131,7 +137,14 @@ export function rulesFs({
       );
     }
     for (const hostPath of hostsOf(mountPath)) {
-      const refusal = ruleRefusal({ asks, hostPath, op, rules, spell });
+      const refusal = ruleRefusal({
+        asks,
+        hostPath,
+        isDirectory: syscall === "mkdir",
+        op,
+        rules,
+        spell,
+      });
       if (refusal) {
         onRefusal?.(refusal);
         throw Object.assign(

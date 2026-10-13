@@ -1,4 +1,4 @@
-import { APICallError } from "ai";
+import { APICallError, RetryError } from "ai";
 import { z } from "zod";
 
 export const gatewayResponseBodySchema = z
@@ -29,7 +29,15 @@ export const gatewayResponseBodySchema = z
     }),
   );
 
+/**
+ * Whether the gateway said the request can't succeed by asking again. The AI
+ * SDK retries every 429 whatever its body says, and when the retries run out
+ * it throws them wrapped, so the last attempt's answer is read from inside.
+ */
 export function isNonRetryableGatewayError(error: unknown): boolean {
+  if (RetryError.isInstance(error)) {
+    return isNonRetryableGatewayError(error.lastError);
+  }
   if (!APICallError.isInstance(error) || !error.responseBody) {
     return false;
   }

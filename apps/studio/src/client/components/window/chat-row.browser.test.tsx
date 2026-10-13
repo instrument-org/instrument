@@ -2,7 +2,7 @@ import type * as FaviconUrl from "@/client/lib/favicon-url";
 
 import { promptDraftAtom } from "@/client/atoms/prompt-value";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
-import { getRevealInFolderLabel, isMacOS } from "@/client/lib/utils";
+import { isMacOS, osConventions } from "@/client/lib/utils";
 import { renderInBrowser } from "@/tests/render-browser";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { createStore } from "jotai";
@@ -1112,7 +1112,7 @@ describe("the row's actions", () => {
       "Star",
       "Rename",
       "Topics",
-      getRevealInFolderLabel(),
+      osConventions().showInFileManager,
       "Archive",
       "Delete chat…",
     ]);

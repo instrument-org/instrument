@@ -11,7 +11,6 @@ import {
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { useChatTasks } from "@/client/components/window/child-tasks-query";
-import { computerName } from "@/client/components/window/computer-name";
 import { RECENTS_ROOT } from "@/client/components/window/computer-page";
 import { useWindow } from "@/client/components/window/context";
 import {
@@ -38,7 +37,7 @@ import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
 import { displayHostPath, expandHomePath } from "@instrument-org/shared";
@@ -857,7 +856,7 @@ function useRows({
 /** The row that opens a path on the computer, which says it before looking. */
 function pathRow(host: string, openPath: (host: string) => Promise<void>) {
   return {
-    detail: `Open on ${computerName()}`,
+    detail: `Open on ${osConventions().computer}`,
     icon: <FileSystemFolderGlyph className="h-3 w-auto" />,
     id: "path",
     leavesItself: true,

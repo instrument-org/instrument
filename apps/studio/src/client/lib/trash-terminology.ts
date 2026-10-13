@@ -1,7 +1,7 @@
-import { isWindows } from "./utils";
+import { osConventions } from "./utils";
 
 export function getTrashTerminology(): string {
-  return isWindows() ? "Recycle Bin" : "Trash";
+  return osConventions().trash;
 }
 
 export const PROGRESS_MESSAGES = [

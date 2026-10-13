@@ -19,7 +19,7 @@ import {
 } from "@/client/hooks/use-target-agent-activity";
 import { getGuest } from "@/client/lib/browser-pool";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
@@ -32,7 +32,6 @@ import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, Reorder } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { computerName } from "./computer-name";
 import { useComputerVolumes } from "./computer-volumes";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { thumbnailKey } from "./use-page-thumbnail-housekeeping";
@@ -275,7 +274,7 @@ export function ChatTiles({
               />
               <AddTile
                 icon={<DesktopIcon />}
-                label={computerName()}
+                label={osConventions().computer}
                 onSelect={onAddComputer}
               />
             </div>

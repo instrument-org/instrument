@@ -9,7 +9,7 @@ import { useContinueSession } from "@/client/hooks/use-continue-session";
 import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
 import { createMessageOptions } from "@/client/lib/message-sends";
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import { PermissionAsksFoot } from "@/client/components/permission-asks";
 import { rpcClient } from "@/client/rpc/client";
 import { outputFolderHref } from "@/shared/computer-href";
@@ -55,7 +55,6 @@ import {
 } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import { UserMessage } from "../user-message";
-import { computerName } from "../window/computer-name";
 import { WindowContext } from "../window/context";
 import {
   type PendingPrompt,
@@ -332,7 +331,7 @@ export function ChatConversation({
   // the computer each as a tab of their own, and Apps where one is connected.
   const places = appWindow
     ? {
-        computerName: computerName(),
+        computerName: osConventions().computer,
         onOpenApps: () => {
           appWindow.openScreen(APPS_HREF, { ownTab: true });
         },

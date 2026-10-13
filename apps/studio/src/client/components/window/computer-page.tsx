@@ -72,12 +72,7 @@ import {
 import { getFileType, opensInSystemApp } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { getTrashTerminology } from "@/client/lib/trash-terminology";
-import {
-  cn,
-  getFileManagerName,
-  getRevealInFolderLabel,
-  isMacOS,
-} from "@/client/lib/utils";
+import { cn, isMacOS, osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
@@ -1378,7 +1373,7 @@ export function ComputerPage({
         .call({ filepath: hostPathOfItem(item) })
         .catch((error: unknown) => {
           fileActionFailed(
-            `Couldn't show it in ${getFileManagerName()}`,
+            `Couldn't show it in ${osConventions().inFileManager}`,
             error,
           );
         }),
@@ -2134,7 +2129,7 @@ function FolderMenuItems({
           <Separator />
           <Item onClick={onTrash} variant="destructive">
             <TrashIcon className="size-4" />
-            <span>Move to {getTrashTerminology()}</span>
+            <span>Move to {osConventions().trash}</span>
           </Item>
           <Separator />
           {onRename ? (
@@ -2150,7 +2145,7 @@ function FolderMenuItems({
           {file && onQuickLook ? (
             <Item onClick={onQuickLook}>
               <EyeIcon className="size-4" />
-              <span>Quick Look</span>
+              <span>{osConventions().quickLook}</span>
             </Item>
           ) : null}
           {/* Where one thing is has no answer for several. */}
@@ -2166,7 +2161,7 @@ function FolderMenuItems({
               {openIn ? null : (
                 <Item onClick={onReveal}>
                   <RevealInFolderIcon className="size-4" />
-                  <span>{getRevealInFolderLabel()}</span>
+                  <span>{osConventions().showInFileManager}</span>
                 </Item>
               )}
               {pin ? (
@@ -2697,14 +2692,14 @@ function PlaceMenu({
               .call({ filepath: hostPath })
               .catch((error: unknown) => {
                 fileActionFailed(
-                  `Couldn't show it in ${getFileManagerName()}`,
+                  `Couldn't show it in ${osConventions().inFileManager}`,
                   error,
                 );
               })
           }
         >
           <RevealInFolderIcon className="size-4" />
-          <span>{getRevealInFolderLabel()}</span>
+          <span>{osConventions().showInFileManager}</span>
         </ContextMenuItem>
       )}
       <ContextMenuSeparator />

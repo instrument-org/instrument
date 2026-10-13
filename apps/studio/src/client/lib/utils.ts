@@ -1,3 +1,9 @@
+import {
+  type Os,
+  OS_CONVENTIONS,
+  type OsConventions,
+  osOf,
+} from "@/shared/os-conventions";
 import { type ClassValue, clsx } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
 
@@ -17,25 +23,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** What the system's own file manager is called here, for a row that hands a file to it. */
-export function getFileManagerName(): string {
-  if (isMacOS()) {
-    return "Finder";
-  }
-  if (isWindows()) {
-    return "File Explorer";
-  }
-  return "File Manager";
+/** The operating system this window runs on. */
+export function currentOs(): Os {
+  return osOf(window.electron.process.platform);
 }
 
-export function getRevealInFolderLabel(): string {
-  if (isMacOS()) {
-    return "Reveal in Finder";
-  }
-  if (isWindows()) {
-    return "Reveal in File Explorer";
-  }
-  return "Show in file manager";
+/**
+ * The words and keys of the system this window runs on: every name for the
+ * system's own tools and places a screen shows comes from here.
+ */
+export function osConventions(): OsConventions {
+  return OS_CONVENTIONS[currentOs()];
+}
+
+/** Whether a press holds the key the app's commands go on: ⌘ on a Mac, Ctrl elsewhere. */
+export function commandKeyHeld(event: { ctrlKey: boolean; metaKey: boolean }) {
+  return event[osConventions().commandKey];
 }
 
 export function isLinux(): boolean {

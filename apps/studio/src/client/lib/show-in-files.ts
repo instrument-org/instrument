@@ -3,7 +3,7 @@ import { appTabsAtom } from "@/client/components/window/app-tabs";
 import { folderOf, segmentsOf } from "@/client/components/window/host-path";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { addTab } from "@/client/lib/tabs-model";
-import { getFileManagerName, getRevealInFolderLabel } from "@/client/lib/utils";
+import { osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
 import { type ChatId } from "@instrument-org/workspace/client";
@@ -29,7 +29,7 @@ export async function revealInFileManager(hostPath: string) {
     rpcClient.utils.showFileInFolder.call({ filepath: hostPath }),
   );
   if (error) {
-    toast.error(`Couldn't show it in ${getFileManagerName()}`, {
+    toast.error(`Couldn't show it in ${osConventions().inFileManager}`, {
       cause: error,
     });
   }
@@ -81,7 +81,7 @@ export async function showInFolder(
  */
 export function showInFolderLabel(kind: "file" | "folder") {
   if (!hasFilesView()) {
-    return getRevealInFolderLabel();
+    return osConventions().showInFileManager;
   }
   return kind === "file" ? "Show in Folder" : "Open in Files";
 }

@@ -14,6 +14,7 @@ import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
 import { getFileJournal } from "@/electron-main/stores/machine/file-journal";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
+import { copyName, newFolderName, osOf } from "@/shared/os-conventions";
 import { moveSidebarPlaces } from "@/shared/sidebar-places";
 import { resolveThroughAliases } from "@instrument-org/workspace/electron";
 import { eventIterator, ORPCError } from "@orpc/server";
@@ -33,8 +34,8 @@ import { z } from "zod";
  * answers, so `undo` can take it back.
  */
 
-/** The name the Finder gives a new folder, and how it counts the next one. */
-const UNTITLED = "untitled folder";
+/** The system this runs on, whose file manager names new folders and copies. */
+const OS = osOf(process.platform);
 
 /** Whether anything is at a path, without caring why not. */
 function exists(at: string) {
@@ -45,21 +46,22 @@ function exists(at: string) {
 }
 
 /**
- * A path in `parent` named `name`, made unique the way the Finder does: the
- * name, then the name and 2, then 3, up to a bound so a wedged loop cannot run
- * forever.
+ * The first free path in `parent` among the names `nameFor` counts out, the
+ * way the system's file manager counts them (`os-conventions.ts`), up to a
+ * bound so a wedged loop cannot run forever.
  */
-async function freePath(parent: string, name: string, extension = "") {
+async function freePath(
+  parent: string,
+  nameFor: (n: number) => string,
+  extension = "",
+) {
   for (let n = 1; n < 1000; n += 1) {
-    const candidate = path.join(
-      parent,
-      n === 1 ? `${name}${extension}` : `${name} ${n}${extension}`,
-    );
+    const candidate = path.join(parent, `${nameFor(n)}${extension}`);
     if (!(await exists(candidate))) {
       return candidate;
     }
   }
-  throw new Error(`No free name for ${name} in ${parent}`);
+  throw new Error(`No free name for ${nameFor(1)} in ${parent}`);
 }
 
 /**
@@ -93,7 +95,7 @@ const newFolder = base
   .output(z.object({ path: z.string() }))
   .handler(async ({ errors, input }) => {
     try {
-      const made = await freePath(input.parent, UNTITLED);
+      const made = await freePath(input.parent, (n) => newFolderName(OS, n));
       await fs.mkdir(made);
       await record(made, (identity) => ({
         identity,
@@ -145,14 +147,14 @@ const duplicate = base
   .input(z.object({ path: HostPathSchema }))
   .output(z.object({ path: z.string() }))
   .handler(async ({ errors, input }) => {
-    // The Finder's naming: `notes copy.txt`, then `notes copy 2.txt`, with the
-    // extension kept on the end where the Mac expects to find it.
+    // Named the way the system's file manager names a copy, with the
+    // extension kept on the end where every system expects to find it.
     const extension = path.extname(input.path);
     const stem = path.basename(input.path, extension);
     try {
       const copy = await freePath(
         path.dirname(input.path),
-        `${stem} copy`,
+        (n) => copyName(OS, stem, n),
         extension,
       );
       await fs.cp(input.path, copy, { recursive: true });

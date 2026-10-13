@@ -19,9 +19,9 @@ import { Switch } from "@/client/components/ui/switch";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
-import { isLinux, isWindows } from "@/client/lib/utils";
+import { isWindows } from "@/client/lib/utils";
 import { toast } from "@/client/lib/toast";
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -63,13 +63,6 @@ function fromHome(path: string, home: string) {
       : path;
   const parts = rest.split(/[\\/]/).filter((part) => part !== "");
   return parts.join(SEPARATOR);
-}
-
-function computerKind() {
-  if (isWindows()) {
-    return "PC";
-  }
-  return isLinux() ? "computer" : "Mac";
 }
 
 export function PermissionsSection() {
@@ -308,7 +301,7 @@ export function PermissionsSection() {
         <Collapsible className="space-y-2">
           <CollapsibleTrigger className="group flex items-center gap-1 text-sm font-medium text-muted-foreground">
             <CaretRightIcon className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
-            {`Places on your ${computerKind()}`}
+            {`Places on your ${osConventions().computerKind}`}
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="divide-y overflow-hidden rounded-lg border">
@@ -414,20 +407,22 @@ function PlaceRow({
       }
       case "appFiles": {
         return {
-          line: "Library and hidden folders",
+          line: osConventions().appFiles,
           mark: <PlaceIcon className={className} place="apps" />,
           name: "Other apps' files",
         };
       }
       case "passwords": {
         // Asking first covers the sign-in folders alone; the browsers and
-        // the Keychain open only when the whole place is allowed.
+        // the system's password store open only when the whole place is
+        // allowed.
+        const { passwordStore } = osConventions();
         return {
           line:
             place.level === "ask"
-              ? isWindows() || isLinux()
-                ? "Folders like .ssh ask first; your browsers stay closed"
-                : "Folders like .ssh ask first; your browsers and Keychain stay closed"
+              ? passwordStore
+                ? `Folders like .ssh ask first; your browsers and ${passwordStore} stay closed`
+                : "Folders like .ssh ask first; your browsers stay closed"
               : "Keys, sign-ins and browser cookies",
           mark: <KeyIcon className={className} />,
           name: "Passwords and keys",

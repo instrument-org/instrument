@@ -9,6 +9,7 @@ import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
+import { osConventions } from "@/client/lib/utils";
 import { useAtom } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 
@@ -100,7 +101,7 @@ export function LookPanel({
         showCloseButton={false}
       >
         <DialogTitle className="sr-only">
-          {file?.name ?? "Quick Look"}
+          {file?.name ?? osConventions().quickLook}
         </DialogTitle>
         {file && fileUrl !== undefined ? (
           <FileViewer

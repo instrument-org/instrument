@@ -152,7 +152,15 @@ export function FilesScreen({
   /** The layout this step of the tab's history shows the folder in; absent on a direct arrival. */
   view: FileSystemView | undefined;
 }) {
-  const { browser, openPage, openScreen, rowHoldsTools, rowLead, rowTail } =
+  const {
+    browser,
+    openPage,
+    openScreen,
+    rowField,
+    rowHoldsTools,
+    rowLead,
+    rowTail,
+  } =
     useWindow();
   const { allTabs, close, moveToGroup, pageTakesOver, stepVisitOf } =
     useWindowTabs();
@@ -950,6 +958,7 @@ export function FilesScreen({
               <FileViewer
                 actionsInto={rowTail}
                 actionsLead={actionsLead}
+                noteInto={rowField}
                 className={FULL_BLEED}
                 editable
                 file={viewerFile}
@@ -976,6 +985,7 @@ export function FilesScreen({
           <LinkSurface base={folderOf(activeFile.hostPath)}>
             <FileViewer
               actionsInto={rowTail}
+              noteInto={rowField}
               actionsLead={askButton}
               className={FULL_BLEED}
               editable

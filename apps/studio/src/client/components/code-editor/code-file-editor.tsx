@@ -13,7 +13,8 @@ import { rpcClient } from "@/client/rpc/client";
 import { openSearchPanel } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useMarkUpdated } from "@/client/components/updated-note";
 import { toast } from "@/client/lib/toast";
 
 import {
@@ -137,6 +138,13 @@ function LiveCodeDocument({
     session?.setWrapLines(wrapLines);
   }, [session, wrapLines]);
 
+  // Off the session's own deps, so saying the file was updated never starts
+  // the editor over.
+  const markUpdated = useMarkUpdated();
+  const onUpdated = useEffectEvent(() => {
+    markUpdated();
+  });
+
   useEffect(() => {
     const parent = rootRef.current;
     if (!parent) {
@@ -158,6 +166,7 @@ function LiveCodeDocument({
       },
       onExternalChange: (change: CodeExternalChange) => {
         changedAt.current = change.at;
+        onUpdated();
         if (change.overlapped) {
           toast.message("Merged the agent's edit with yours", {
             description:

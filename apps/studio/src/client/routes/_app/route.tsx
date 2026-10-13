@@ -470,6 +470,7 @@ function RouteScreen({ href }: { href: string }) {
   // toggle for its panel and its actions.
   const [rowLead, setRowLead] = useState<HTMLElement | null>(null);
   const [rowTail, setRowTail] = useState<HTMLElement | null>(null);
+  const [rowField, setRowField] = useState<HTMLElement | null>(null);
   const computerTab = computerTabOf(href);
   const fromHref = screenLocation(href, {
     appsBySlug,
@@ -519,6 +520,12 @@ function RouteScreen({ href }: { href: string }) {
             : {})}
           {...(computerTab
             ? {
+                fieldEnd: (
+                  <div
+                    className="flex shrink-0 items-center empty:hidden"
+                    ref={setRowField}
+                  />
+                ),
                 trailing: (
                   <div
                     className="flex shrink-0 items-center gap-0.5"
@@ -534,6 +541,7 @@ function RouteScreen({ href }: { href: string }) {
       <WindowContext
         value={{
           ...appWindow,
+          rowField,
           rowHoldsTools: computerTab !== undefined,
           rowLead,
           rowTail,

@@ -182,6 +182,22 @@ describe("statusLine", () => {
       { text: "Lisbon fares and hotels", tone: "halted" },
     ],
     [
+      "the task the chat stopped last beside a stop mark, not a check",
+      {
+        chat: at("idle", { lastStep: lastStep("Stopping the waiting task") }),
+        listed: [{ ...done(5), stoppedBy: "chat" }],
+      },
+      { text: "Lisbon fares and hotels", tone: "halted" },
+    ],
+    [
+      "that the chat stopped a task named like the chat, rather than that it is done",
+      {
+        chat: at("idle", { lastStep: lastStep("Stopping the waiting task") }),
+        listed: [{ ...done(5, title), stoppedBy: "chat" }],
+      },
+      { text: "The chat stopped its task", tone: "halted" },
+    ],
+    [
       "that the user stopped it, rather than that it is done",
       {
         chat: at("stopped", {

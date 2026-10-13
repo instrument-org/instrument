@@ -207,44 +207,63 @@ function TaskRows({
         <>
           {atWork.length > 0 && <div className="my-1 h-px bg-border" />}
           <Heading>Finished</Heading>
-          {finished.map((task) => (
-            <Row
-              isQuiet
-              key={task.id}
-              mark={
-                task.standing.kind === "failed" ? (
-                  <XIcon className="size-3.5 text-error-700 dark:text-error-300" />
-                ) : task.stoppedBy === "user" ? (
-                  <StopCircleIcon className="size-3.5" />
-                ) : (
-                  <CheckIcon className="size-3.5" />
-                )
-              }
-              onOpen={() => {
-                onOpen(task.id);
-              }}
-              title={task.title}
-              trailing={taskTimeLabel(task.updatedAt, now)}
-            >
-              {/* A task that did not finish says why, in the red the Tasks
-                  screen gives the same line; one the user stopped says so. */}
-              {task.standing.kind === "failed" ? (
-                <span className="min-w-0 truncate text-error-700 dark:text-error-300">
-                  {task.standing.line}
-                </span>
-              ) : (
-                task.stoppedBy === "user" && (
-                  <span className="min-w-0 truncate">
-                    You stopped this task
+          {finished.map((task) => {
+            const stopped = stoppedLine(task.stoppedBy);
+            return (
+              <Row
+                isQuiet
+                key={task.id}
+                mark={
+                  task.standing.kind === "failed" ? (
+                    <XIcon className="size-3.5 text-error-700 dark:text-error-300" />
+                  ) : stopped ? (
+                    <StopCircleIcon className="size-3.5" />
+                  ) : (
+                    <CheckIcon className="size-3.5" />
+                  )
+                }
+                onOpen={() => {
+                  onOpen(task.id);
+                }}
+                title={task.title}
+                trailing={taskTimeLabel(task.updatedAt, now)}
+              >
+                {/* A task that did not finish says why, in the red the Tasks
+                    screen gives the same line; one the user or the chat
+                    stopped says who did. */}
+                {task.standing.kind === "failed" ? (
+                  <span className="min-w-0 truncate text-error-700 dark:text-error-300">
+                    {task.standing.line}
                   </span>
-                )
-              )}
-            </Row>
-          ))}
+                ) : (
+                  stopped && <span className="min-w-0 truncate">{stopped}</span>
+                )}
+              </Row>
+            );
+          })}
         </>
       )}
     </div>
   );
+}
+
+/**
+ * Who stopped a finished task, in the words its own page ends on; none for
+ * one that ended on its own. The app's closing is not here: that reads as a
+ * failure, with its own line.
+ */
+function stoppedLine(stoppedBy: ChatTask["stoppedBy"]) {
+  switch (stoppedBy) {
+    case "user": {
+      return "You stopped this task";
+    }
+    case "chat": {
+      return "The chat stopped this task";
+    }
+    default: {
+      return undefined;
+    }
+  }
 }
 
 function Heading({ children }: { children: string }) {

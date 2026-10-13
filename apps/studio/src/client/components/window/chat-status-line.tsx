@@ -14,7 +14,8 @@ import { type Chat } from "./chats";
 /**
  * What the line under a chat's title says, and in which voice. `stopped` is
  * a task that failed, beside its X; `halted` is a turn the user stopped, the
- * chat's own or a task's, beside a stop mark.
+ * chat's own or a task's, or a task's turn the chat stopped, beside a stop
+ * mark.
  */
 type StatusLine = {
   text: string;
@@ -26,6 +27,9 @@ const WORKING = "Instrument is working";
 
 /** Said once the user stopped the chat's turn, until the next one starts, or a task named like the chat. */
 const HALTED = "You stopped Instrument";
+
+/** Said for a task named like the chat once the chat stopped it. */
+const HALTED_BY_CHAT = "The chat stopped its task";
 
 /**
  * Said with the check once the chat's own work is done. A step's label is
@@ -42,7 +46,8 @@ const DONE = "Done";
  * the user, that it does, behind the amber question, whatever else still
  * runs; and at rest, a check beside the task that finished last or that the
  * chat's own work is done, so the line stays once work is done, or a stop
- * mark when the user stopped the chat's turn. Only labels
+ * mark when the user stopped the chat's turn, or the user or the chat
+ * stopped that task. Only labels
  * of work and task names are said here, never the agent's own words.
  * Pressed, it lists the chat's tasks, the same list the activity at the
  * head's right opens; with no task filed it is only a line. Nothing at all in
@@ -152,10 +157,10 @@ function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
  * by the user: that they stopped it, until the next turn starts. At
  * rest, the task that finished last, while it ended after both the chat's
  * own last step and the user's newest message: its name beside a check, or
- * a stop mark when the user stopped it. Otherwise that the chat's work is
+ * a stop mark when the user or the chat stopped it. Otherwise that the chat's work is
  * done, with a check. Nothing in a chat that has done no work. Never the chat's own title
- * again, right under it: a task named like the chat says it is done, or the
- * step it stopped on when it failed.
+ * again, right under it: a task named like the chat says it is done, who
+ * stopped it, or the step it stopped on when it failed.
  */
 export function statusLine({
   chat,
@@ -215,11 +220,17 @@ export function statusLine({
   const since = Math.max(own?.at ?? 0, chat.lastUserMessageAt);
   if (task && task.updatedAt.getTime() >= since) {
     const failed = task.standing.kind === "failed";
-    // A task the user stopped ended no more on its own than a failed one did.
-    const halted = !failed && task.stoppedBy === "user";
+    // A task the user or the chat stopped ended no more on its own than a
+    // failed one did.
+    const halted = failed
+      ? undefined
+      : task.stoppedBy === "user"
+        ? HALTED
+        : task.stoppedBy === "chat"
+          ? HALTED_BY_CHAT
+          : undefined;
     const text =
-      differs(task.title) ??
-      (failed ? differs(task.step) : halted ? HALTED : DONE);
+      differs(task.title) ?? (failed ? differs(task.step) : (halted ?? DONE));
     return text
       ? { text, tone: failed ? "stopped" : halted ? "halted" : "done" }
       : undefined;

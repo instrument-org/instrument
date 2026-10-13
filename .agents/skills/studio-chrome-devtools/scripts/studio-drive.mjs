@@ -65,6 +65,13 @@
 // `--inspect <port>` also opens the main process's V8 inspector on that port,
 // which is what `main-stalls.mjs` measures the main thread through.
 //
+// `--own-privacy` (macOS) boots an instance macOS answers with its own privacy
+// grants rather than the terminal's, which otherwise hand it Full Disk Access,
+// so a protected folder refuses it and its first read asks the way an
+// installed app's does. The grants are the dev Electron bundle's, not a signed
+// build's, and they outlive the instance: undo one in System Settings or with
+// `tccutil reset All com.github.Electron`. Stopping it is the same as any other.
+//
 // `--workspace <fixture>` boots against a disposable workspace built from a
 // committed fixture (fixtures/workspaces/) instead of the shared dev
 // application-data directory, so a run does not depend on what the developer
@@ -440,7 +447,15 @@ function recordDirs(workspaceDir) {
 
 async function cmdBoot(
   explicitPort,
-  { fresh, hot, inspect, keepTabs, purpose: rawPurpose, withSignIns },
+  {
+    fresh,
+    hot,
+    inspect,
+    keepTabs,
+    ownPrivacy,
+    purpose: rawPurpose,
+    withSignIns,
+  },
 ) {
   const purpose = normalizePurpose(rawPurpose);
   if (WORKSPACE && CLEAN_ROOM) {
@@ -468,6 +483,12 @@ async function cmdBoot(
     // discover it as an app that did or did not restart when it expected.
     // Skipped when the record predates the field, since which mode that
     // instance is in is exactly what it does not say.
+    if (Boolean(existing.ownPrivacy) !== Boolean(ownPrivacy)) {
+      fail(
+        `The running instance on port ${existing.port} was booted ${existing.ownPrivacy ? "with" : "without"} --own-privacy.\n` +
+          `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot it the other way.`,
+      );
+    }
     if (existing.hot !== undefined && existing.hot !== hot) {
       console.error(
         `studio-drive: reusing the instance on port ${existing.port}, which was booted ` +
@@ -551,6 +572,7 @@ async function cmdBoot(
         ].join(path.delimiter),
         REMOTE_DEBUGGING_PORT: String(port),
         STUDIO_DRIVE_COLOR: color,
+        STUDIO_OWN_PRIVACY: ownPrivacy ? "1" : undefined,
         STUDIO_DRIVE_PURPOSE: purpose,
         // A seeded workspace has no provider credentials and must not: they
         // cannot be committed. Without this the app opens the onboarding window
@@ -577,6 +599,7 @@ async function cmdBoot(
     hot: Boolean(hot),
     ...(inspect && { inspectPort: Number(inspect) }),
     logFile,
+    ...(ownPrivacy && { ownPrivacy: true }),
     pid: child.pid,
     port,
     purpose,
@@ -858,6 +881,7 @@ try {
           hot: argv.includes("--hot"),
           inspect: flag(argv, "--inspect"),
           keepTabs: argv.includes("--keep-tabs"),
+          ownPrivacy: argv.includes("--own-privacy"),
           purpose: flag(argv, "--purpose"),
           withSignIns: argv.includes("--with-sign-ins"),
         }),

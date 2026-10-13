@@ -93,6 +93,8 @@ node $DRIVE boot --purpose "first chat" --clean-room first-chat --with-sign-ins
 node $DRIVE rpc workspaces.current '{}' --clean-room first-chat
 ```
 
+An instance started from a terminal answers to the terminal's macOS privacy grants, so it usually has Full Disk Access and never sees a protected folder refuse it or ask. `boot --own-privacy` (macOS) starts Electron through a launcher that makes it responsible for its own grants, so Documents asks on first read and a Full Disk Access folder (`~/Library/Mail`) comes back refused, the way an installed app's would. Electron stays in the instance's process group, so `stop` ends it like any other. The grants belong to the dev Electron bundle (`com.github.Electron`), not a signed build, and they outlive the instance: an answer given to a prompt holds for every later `--own-privacy` run until `tccutil reset All com.github.Electron` clears it. Reading a protected folder from one opens a system prompt on the developer's screen, so say so before a run that will.
+
 Reach for a fixture when the run needs known content, a clean room when it needs an empty workspace that can talk to a model, and `ELECTRON_USER_DATA_DIR=<empty dir>` when it needs a first launch on a fresh machine. Never switch the developer's instance (`workspaces.switch`) to get isolation: that restarts the window they are using.
 
 ## A sequence: `run`

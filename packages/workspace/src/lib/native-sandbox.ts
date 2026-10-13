@@ -50,7 +50,7 @@ const TOOL_CACHES = [
 const TOOL_SETTINGS: string[] = [];
 
 /** The places native tools keep as their own, in `home`. */
-export function toolPlaces(home = os.homedir()): {
+function toolPlaces(home = os.homedir()): {
   caches: string[];
   settings: string[];
 } {
@@ -63,7 +63,7 @@ export function toolPlaces(home = os.homedir()): {
  * The paths a native command may not read or write when nothing narrower
  * applies: the passwords and sign-ins place, as the built-in rules spell it.
  */
-export function credentialPlaces(home = os.homedir()): string[] {
+function credentialPlaces(home = os.homedir()): string[] {
   const passwords = placePaths(home).find((place) => place.id === "passwords");
   return [
     ...(passwords?.paths ?? []),

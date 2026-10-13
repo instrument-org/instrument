@@ -509,6 +509,7 @@ function RouteScreen({ href }: { href: string }) {
           rowField: slots.field,
           rowHoldsTools: computerTab !== undefined,
           rowLead: slots.lead,
+          rowReload: slots.reload,
           rowTail: slots.tail,
         }}
       >

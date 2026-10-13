@@ -272,6 +272,7 @@ export function GroupItem({
             },
             rowField: slots.field,
             rowLead: slots.lead,
+            rowReload: slots.reload,
             rowTail: slots.tail,
           }}
         >

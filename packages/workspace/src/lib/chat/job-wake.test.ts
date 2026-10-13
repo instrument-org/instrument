@@ -313,7 +313,11 @@ describe("a chat with a command's wake on its way", () => {
     await vi.waitFor(() => {
       expect(wakesOf(owner.sessionId)).toHaveLength(1);
     }, 5000);
-    expect(hasPendingJobWake(owner.chatId)).toBe(false);
+    // The send is seen before its delivery ends, which still writes the
+    // chat's activity after it; the wake is on its way until that is done.
+    await vi.waitFor(() => {
+      expect(hasPendingJobWake(owner.chatId)).toBe(false);
+    });
   });
 
   // Past the debounce the process is marked told, so the unread news no
@@ -351,7 +355,11 @@ describe("a chat with a command's wake on its way", () => {
     await vi.waitFor(() => {
       expect(wakesOf(owner.sessionId)).toHaveLength(1);
     }, 5000);
-    expect(hasPendingJobWake(owner.chatId)).toBe(false);
+    // The send is seen before its delivery ends, which still writes the
+    // chat's activity after it; the wake is on its way until that is done.
+    await vi.waitFor(() => {
+      expect(hasPendingJobWake(owner.chatId)).toBe(false);
+    });
   });
 
   it("is not one when the turn ends on nothing unread, or on the user's Stop", async () => {

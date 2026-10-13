@@ -71,7 +71,7 @@ export function LoadProgress({ isLoading }: { isLoading: boolean }) {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-x-3 bottom-0 h-0.5 origin-left rounded-full bg-primary opacity-0"
+      className="pointer-events-none absolute inset-x-3 bottom-0 h-px origin-left rounded-full bg-foreground/30 opacity-0"
       ref={lineRef}
     />
   );

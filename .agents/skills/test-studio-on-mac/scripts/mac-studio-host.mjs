@@ -341,10 +341,31 @@ async function resetVm(host, base, vm) {
       ["-o", "BatchMode=yes", "-o", "ConnectTimeout=3", host, "echo up"],
       { encoding: "utf8" },
     );
-    if (probe.stdout.trim() === "up") return { base, host, ready: true, vm };
+    if (probe.stdout.trim() === "up") {
+      quietDesktop(host);
+      return { base, host, ready: true, vm };
+    }
     await sleep(5000);
   }
   fail(`${vm} started but ${host} did not answer SSH within three minutes.`);
+}
+
+/**
+ * Keeps the clone's desktop drivable for a long run: the base's screen saver
+ * starts after about 20 idle minutes and covers privacy prompts, and a click
+ * on the wallpaper slides every window away to show the desktop.
+ */
+function quietDesktop(host) {
+  spawnSync(
+    "ssh",
+    [
+      "-o",
+      "BatchMode=yes",
+      host,
+      "defaults -currentHost write com.apple.screensaver idleTime -int 0; defaults write com.apple.WindowManager EnableStandardClickToShowDesktop -bool false; killall WindowManager 2>/dev/null; true",
+    ],
+    { encoding: "utf8" },
+  );
 }
 
 // Last, so every constant above is defined before main reads it.

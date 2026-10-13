@@ -15,6 +15,7 @@ import {
 import { updateChatSettings } from "../../lib/chat-settings";
 import { hasPendingJobWake, startJobWake } from "../../lib/chat/job-wake";
 import { startChatWake } from "../../lib/chat/wake";
+import { openAsks, recordAsk } from "../../lib/permissions/asks";
 import { sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
 import {
@@ -222,6 +223,45 @@ describe("session.stop", () => {
       expect(await notesIn(chatId)).toHaveLength(1);
     });
     expect((await notesIn(chatId))[0]).not.toHaveProperty("running");
+  });
+
+  // A card left open after its session stopped would keep the chat waiting,
+  // and answering it would start that session again. The chat's own card
+  // stays, and a later ask of its own for the same thing is a card of its
+  // own rather than folded into the one that went.
+  it("closes the cards a stopped task raised, waking nothing", async () => {
+    const { chatId, own, task } = await chatWithTask();
+    await recordAsk({ chatId, sessionId: task }, "folder", "/Users/me/Pantry");
+    await recordAsk({ chatId, sessionId: own }, "app", "Notes");
+    const sentBefore = sent.length;
+
+    await call(
+      session.stop,
+      { id: chatId, sessionId: task },
+      { context: context() },
+    );
+    await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+
+    expect(
+      (await openAsks(chatId)).map((ask) => ({
+        asker: ask.sessionId === own ? "chat" : "task",
+        target: ask.target,
+      })),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "asker": "chat",
+          "target": "Notes",
+        },
+        {
+          "asker": "chat",
+          "target": "/Users/me/Pantry",
+        },
+      ]
+    `);
+    expect(
+      sent.slice(sentBefore).filter((event) => event.type === "addMessage"),
+    ).toEqual([]);
   });
 
   it("leaves the chat's own processes running when the person stops its turn", async () => {

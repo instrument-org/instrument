@@ -52,8 +52,8 @@ export function raiseAsk(
   const written = outside
     .runInAsyncScope(() => recordAsk(asker, kind, target))
     .finally(() => {
-    pending.delete(written);
-  });
+      pending.delete(written);
+    });
   pending.add(written);
 }
 
@@ -114,6 +114,29 @@ export async function closeAsk(
     return { permissionAsks: asks.filter((ask) => ask.id !== askId) };
   });
   return closed;
+}
+
+/**
+ * Takes off the chat the asks a session the person stopped had raised, or
+ * with no session every ask of the chat's, answering none: the Stop ends
+ * what the session waited on them for, and an answer would start it again.
+ * A later ask for the same thing, by any session, raises a card of its own.
+ */
+export async function closeAsksOf(
+  chatId: ChatId,
+  sessionId: StoreId.Session | undefined,
+): Promise<void> {
+  const raisedBy = (ask: PermissionAsk) =>
+    sessionId === undefined || ask.sessionId === sessionId;
+  // Most stops find nothing to close, and are not worth a write.
+  if (!(await openAsks(chatId)).some(raisedBy)) {
+    return;
+  }
+  await updateChatState(chatDir(chatId), (state) => ({
+    permissionAsks: (state.permissionAsks ?? []).filter(
+      (ask) => !raisedBy(ask),
+    ),
+  }));
 }
 
 /** What the agent reads when it runs into something the person must allow. */

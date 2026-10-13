@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { stopRunningProcesses } from "../../lib/background-processes";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
+import { closeAsksOf } from "../../lib/permissions/asks";
 import { sessionOfChat } from "../../lib/record-folders";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
@@ -118,7 +119,7 @@ const stop = base
       sessionId: StoreId.SessionSchema.optional(),
     }),
   )
-  .handler(({ context, input }) => {
+  .handler(async ({ context, input }) => {
     // A task the person stops ends what it runs in the background too, as
     // the agent's `task stop --all` does. A job handed to the task is the
     // task's, so this reaches it. A process can take seconds to go, so the
@@ -144,6 +145,10 @@ const stop = base
         ...(input.sessionId ? { sessionId: input.sessionId } : {}),
       },
     });
+    // What the stopped sessions were waiting on the person to allow goes
+    // with them, unanswered, so it neither keeps the chat waiting nor starts
+    // them again when answered.
+    await closeAsksOf(input.id, input.sessionId);
   });
 
 const toMarkdown = base

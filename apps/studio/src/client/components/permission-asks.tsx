@@ -2,6 +2,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { getToolExplanation } from "@/client/lib/get-tool-explanation";
 import { folderLabel, displayPath } from "@/client/lib/path-utils";
 import { toast } from "@/client/lib/toast";
+import { osConventions } from "@/client/lib/utils";
 import {
   type ChatId,
   isToolPart,
@@ -268,7 +269,7 @@ function PermissionAskCard({
           </p>
         ) : reach.data?.reachesEveryFile ? (
           <p className="mt-1 text-xs text-muted-foreground">
-            {`Allowing ${name} lets Instrument reach every file on your Mac.`}
+            {`Allowing ${name} lets Instrument reach every file on your ${osConventions().computerKind}.`}
           </p>
         ) : null}
         <div className="mt-3 flex flex-wrap gap-2">

@@ -743,17 +743,26 @@ const markdownUrlTransform: UrlTransform = (url, key, node) => {
   }
   const filePath = key === "href" ? filePathOfInstrumentLink(url) : undefined;
   if (filePath !== undefined) {
-    return filePath;
+    return shellSpelledDrive(filePath);
   }
   if (!/^file:/i.test(url)) {
     return defaultUrlTransform(url);
   }
   try {
-    return new URL(url).pathname;
+    return shellSpelledDrive(new URL(url).pathname);
   } catch {
     return "";
   }
 };
+
+// A file URL to a Windows file keeps the drive as its path's first segment,
+// `/C:/Users/sam/a.md`, which no folder a conversation reaches is named by:
+// those go by the shell's spelling of the drive, `/c/Users/sam/a.md`.
+const shellSpelledDrive = (path: string) =>
+  path.replace(
+    /^\/([A-Za-z]):(?=\/|$)/,
+    (_, drive: string) => `/${drive.toLowerCase()}`,
+  );
 
 // What a chip prints beside its label: the host for a URL, the path itself for
 // a path. A source too long to read inline (a rejected `data:` URI, mostly)

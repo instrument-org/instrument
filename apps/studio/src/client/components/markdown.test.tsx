@@ -159,6 +159,20 @@ describe("Markdown links", () => {
     );
   });
 
+  // A Windows file URL keeps its drive as the path's first segment
+  // (`/C:/Users/...`), which names nothing; the conversation's folders are
+  // reached by the shell's spelling of a drive, `/c/Users/...`.
+  it.each([
+    "file:///C:/Users/sam/show/2024",
+    "instrument://file/C:/Users/sam/show/2024",
+  ])("opens a link to a Windows file by its shell path: %s", (href) => {
+    renderMarkdown(`[Open the file](${href})`);
+
+    expect(screen.getByRole("button", { name: "Open the file" }).title).toBe(
+      "/c/Users/sam/show/2024",
+    );
+  });
+
   it("opens a task-relative link", () => {
     renderMarkdown("Wrote [`notes.md`](output/notes.md).");
 

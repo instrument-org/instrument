@@ -19,14 +19,18 @@ export type DictationSurface = z.output<typeof DictationSurfaceSchema>;
 export const DICTATION_LANGUAGES = [
   { code: "en", name: "English" },
   { code: "es", name: "Spanish" },
+  { code: "es-419", name: "Spanish (Latin America)" },
   { code: "fr", name: "French" },
+  { code: "fr-CA", name: "French (Canada)" },
   { code: "de", name: "German" },
-  { code: "it", name: "Italian" },
   { code: "pt", name: "Portuguese" },
+  { code: "pt-BR", name: "Portuguese (Brazil)" },
+  { code: "it", name: "Italian" },
   { code: "nl", name: "Dutch" },
   { code: "ja", name: "Japanese" },
-  { code: "ru", name: "Russian" },
   { code: "hi", name: "Hindi" },
+  { code: "ru", name: "Russian" },
+  { code: "multi", name: "Several languages" },
 ] as const;
 
 export const DictationLanguageSchema = z.enum(
@@ -53,8 +57,12 @@ export type DictationFailure =
   | { kind: "allowance-reached"; resetsAt?: string }
   | { kind: "canceled" }
   | { kind: "connection" }
+  /** The API heard no audio in the recording. */
+  | { kind: "no-audio" }
   | { kind: "rate-limited" }
   | { kind: "server" }
+  /** The API won't take this recording or language: it isn't worth retrying. */
+  | { kind: "rejected" }
   | { kind: "signed-out" }
   | { kind: "too-large" };
 

@@ -63,7 +63,7 @@ describe("transcribeDictation", () => {
     });
 
     const [url, init] = fetchSpy.mock.calls[0] ?? [];
-    expect(String(url)).toMatch(/\/dictation\?language=fr$/);
+    expect(url).toEqual(expect.stringMatching(/\/dictation\?language=fr$/));
     expect(init?.body).toBe(audio);
     expect(init?.method).toBe("POST");
     expect(init?.headers).toMatchInlineSnapshot(`
@@ -95,7 +95,9 @@ describe("transcribeDictation", () => {
 
     await transcribeDictation({ audio, surface: "composer" });
 
-    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/\/dictation$/);
+    expect(fetchSpy.mock.calls[0]?.[0]).toEqual(
+      expect.stringMatching(/\/dictation$/),
+    );
   });
 
   it.each([
@@ -133,6 +135,11 @@ describe("transcribeDictation", () => {
       { error: { code: "upstream-failed", message: "Nope", retryable: true } },
       { kind: "server" },
     ],
+    [502, { error: "Transcription failed" }, { kind: "server" }],
+    [413, { error: "Recording too large" }, { kind: "too-large" }],
+    [400, { error: "No audio" }, { kind: "no-audio" }],
+    [400, { error: "Unsupported language" }, { kind: "rejected" }],
+    [415, { error: "Unsupported audio type" }, { kind: "rejected" }],
     [500, "not json", { kind: "server" }],
   ])("maps a %i response to a failure", async (status, body, failure) => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(

@@ -20,11 +20,15 @@ const TranscriptSchema = z.object({
   text: z.string(),
 });
 
-const TypedErrorSchema = z.object({
-  error: z.object({
-    code: z.string(),
-    resetsAt: z.string().optional(),
-  }),
+/** The API answers in one of two shapes: a typed error, or a plain message. */
+const ErrorSchema = z.object({
+  error: z.union([
+    z.string(),
+    z.object({
+      code: z.string(),
+      resetsAt: z.string().optional(),
+    }),
+  ]),
 });
 
 function failed(failure: DictationFailure): DictationResult {
@@ -33,6 +37,13 @@ function failed(failure: DictationFailure): DictationResult {
 
 /** What a refused request means for the person, from its status and the typed error body. */
 function failureOf(status: number, body: string): DictationFailure {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    parsed = undefined;
+  }
+  const error = ErrorSchema.safeParse(parsed).data?.error;
   if (status === 401) {
     return { kind: "signed-out" };
   }
@@ -40,20 +51,16 @@ function failureOf(status: number, body: string): DictationFailure {
     return { kind: "too-large" };
   }
   if (status === 429) {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(body);
-    } catch {
-      parsed = undefined;
-    }
-    const typed = TypedErrorSchema.safeParse(parsed);
-    if (
-      typed.success &&
-      typed.data.error.code === "dictation-allowance-reached"
-    ) {
-      return { kind: "allowance-reached", resetsAt: typed.data.error.resetsAt };
-    }
-    return { kind: "rate-limited" };
+    return typeof error === "object" &&
+      error.code === "dictation-allowance-reached"
+      ? { kind: "allowance-reached", resetsAt: error.resetsAt }
+      : { kind: "rate-limited" };
+  }
+  if (status === 400 && error === "No audio") {
+    return { kind: "no-audio" };
+  }
+  if (status === 400 || status === 415) {
+    return { kind: "rejected" };
   }
   return { kind: "server" };
 }

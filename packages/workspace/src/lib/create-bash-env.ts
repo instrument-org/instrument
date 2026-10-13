@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -48,6 +49,7 @@ import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
 import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import { withNativeReach } from "./native-sandbox";
+import { CHAT_FOLDER_NAMES } from "../constants";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
 import { asksWritten } from "./permissions/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
@@ -794,6 +796,10 @@ export async function createLocalBashEnv({
     createAppCommand({ chatId }),
     ...nativeCommands,
   ];
+  // The scratch folder native commands get as TMPDIR, made here so a
+  // script that writes "$TMPDIR/x" before anything else has somewhere to go.
+  const tmpDir = path.join(layout.task.hostRoot, CHAT_FOLDER_NAMES.tmp);
+  mkdirSync(tmpDir, { recursive: true });
   const bash = new Bash({
     commands: allowedCommands,
     customCommands: [
@@ -851,8 +857,11 @@ export async function createLocalBashEnv({
       HOME: shellPath(rules.home),
       NO_COLOR: "1",
       PATH: SHELL_PATH,
-      // Git Bash's, where /tmp is the temp folder.
-      ...(process.platform === "win32" && { TEMP: "/tmp", TMP: "/tmp" }),
+      // The same scratch folder every native command gets, so a path built
+      // from it means the same thing in the shell and in a script.
+      TEMP: shellPath(tmpDir),
+      TMP: shellPath(tmpDir),
+      TMPDIR: shellPath(tmpDir),
       TZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
       USER: os.userInfo().username,
     },

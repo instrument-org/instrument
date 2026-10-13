@@ -57,4 +57,16 @@ describe("mktemp in the agent's shells", () => {
       new RegExp(`^${taskRoot}/\\.tmp/tmp\\.\\w{10}$`),
     );
   });
+
+  it("sets TMPDIR, TMP and TEMP to the same folder", async () => {
+    const result = await run(
+      'echo hi > "$TMPDIR/x" && cat "$TMPDIR/x" && echo "$TMPDIR $TMP $TEMP"',
+    );
+    const folder = path.join(taskRoot, ".tmp");
+    expect(result).toMatchObject({
+      exitCode: 0,
+      stderr: "",
+      stdout: `hi\n${folder} ${folder} ${folder}\n`,
+    });
+  });
 });

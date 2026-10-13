@@ -13,9 +13,7 @@ export const MKTEMP_COMMAND = {
  * Where a template-less `mktemp` puts things: the `tmp` folder of the folder the
  * call starts in, which is the chat's own and the directory the subprocess
  * hatches get as TMPDIR, so a path from here means the same thing to the shell
- * and to python, ffmpeg, or a script. `/tmp` is not writable: it is outside the
- * folders the agent reaches, so a file written there would have nowhere to live
- * once the call ended.
+ * and to python, ffmpeg, or a script, and the shell's own TMPDIR.
  */
 const TMP_FOLDER = CHAT_FOLDER_NAMES.tmp;
 

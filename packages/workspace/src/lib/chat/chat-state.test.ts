@@ -9,6 +9,7 @@ const resting = {
   ownAsking: false,
   pendingWake: false,
   spokeAt: 1,
+  stopped: false,
   tasks: [],
   turnStarting: false,
 };
@@ -89,6 +90,21 @@ describe("chatStateOf", () => {
     [
       "an ask over an error",
       { askedAt: 5, failed: true },
+      { ownWorking: false, state: "waiting", working: false },
+    ],
+    [
+      "a turn the user stopped",
+      { stopped: true },
+      { ownWorking: false, state: "stopped", working: false },
+    ],
+    [
+      "a task still at work after the user stopped the chat's turn",
+      { stopped: true, tasks: [{}] },
+      { ownWorking: false, state: "working", working: true },
+    ],
+    [
+      "a card still open after the user stopped the turn",
+      { askedAt: 5, stopped: true },
       { ownWorking: false, state: "waiting", working: false },
     ],
   ])("%s", (_name, over, expected) => {

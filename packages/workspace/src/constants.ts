@@ -85,6 +85,13 @@ export const INTERRUPTED_TOOL_CALL_ERROR_TEXT =
   "This action was interrupted when the app closed.";
 
 /**
+ * What a tool call reads when a stop with no other reason ended it, which on
+ * a chat's own session is the user's Stop. Matched by what reads the chat's
+ * turn as stopped by the user rather than finished.
+ */
+export const STOPPED_TOOL_CALL_ERROR_TEXT = "This action was stopped by you.";
+
+/**
  * What a chat is called until it is named: its session's title, and its
  * settings' name, until the first exchange retitles it.
  */

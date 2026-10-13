@@ -948,6 +948,92 @@ describe("listChats", () => {
     }
   });
 
+  it("says the user stopped its turn, mid-call or mid-reply, until the next one starts", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const chatId = await freshChat();
+      const sessionId = await session(chatId, "Documents", 1);
+      await userSays(chatId, sessionId, "what's in my Documents?", 1);
+      const callId = StoreId.newMessageId();
+      const call = await Store.saveMessageWithParts(
+        {
+          id: callId,
+          metadata: {
+            createdAt: at(2),
+            finishReason: "tool-calls",
+            finishedAt: at(2),
+            modelId: "glm-5.3-flash",
+            providerId: "openai-compatible",
+            sessionId,
+          },
+          parts: [
+            {
+              errorText: "This action was stopped by you.",
+              input: {
+                command: "ls ~/Documents",
+                explanation: "Listing Documents",
+                yieldMs: 1000,
+              },
+              metadata: {
+                ...partMetadata({ messageId: callId, sessionId }),
+                endedAt: at(2),
+              },
+              state: "output-error",
+              toolCallId: "call_ls",
+              type: "tool-bash",
+            },
+          ],
+          role: "assistant",
+        },
+        chatFor(sessionId),
+      );
+      expect(call.isOk()).toBe(true);
+
+      vi.setSystemTime(at(2).getTime() + 60_000);
+      const [midCall] = await listChats();
+      expect(midCall?.state).toBe("stopped");
+
+      // The next turn starting is what ends it.
+      await userSays(chatId, sessionId, "try Desktop instead", 3);
+      vi.setSystemTime(at(3).getTime() + 1000);
+      const [next] = await listChats();
+      expect(next?.state).toBe("working");
+
+      // A reply cut off as it was written is the user's stop too, not an
+      // error.
+      const replyId = StoreId.newMessageId();
+      const reply = await Store.saveMessageWithParts(
+        {
+          id: replyId,
+          metadata: {
+            createdAt: at(4),
+            error: { kind: "aborted", message: "Aborted" },
+            finishReason: "aborted",
+            finishedAt: at(4),
+            modelId: "glm-5.3-flash",
+            providerId: "openai-compatible",
+            sessionId,
+          },
+          parts: [
+            {
+              metadata: partMetadata({ messageId: replyId, sessionId }),
+              text: "Your Desktop holds",
+              type: "text",
+            },
+          ],
+          role: "assistant",
+        },
+        chatFor(sessionId),
+      );
+      expect(reply.isOk()).toBe(true);
+      vi.setSystemTime(at(4).getTime() + 60_000);
+      const [midReply] = await listChats();
+      expect(midReply?.state).toBe("stopped");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("reads a reply that is only the files it handed over by what it wrote", async () => {
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Compare");

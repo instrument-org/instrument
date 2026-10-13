@@ -43,7 +43,7 @@ export interface Filterable {
   root?: undefined | { parts: { text?: string; type: string }[] };
   /** Whether the user starred it: a mark of the user's own, kept wherever the chat is. */
   starred: boolean;
-  state: "failed" | "idle" | "waiting" | "working";
+  state: "failed" | "idle" | "stopped" | "waiting" | "working";
   title: string;
   topics: string[];
   /** Whether it carries the unread mark: something in it not yet looked at. */

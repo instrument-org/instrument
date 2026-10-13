@@ -6,6 +6,7 @@ import {
 import { parallel, unique } from "radashi";
 import { z } from "zod";
 
+import { STOPPED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { publisher } from "../../rpc/publisher";
 import { type PermissionAsk } from "../../schemas/chat-state";
 import { type Session } from "../../schemas/session";
@@ -16,6 +17,7 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
+import { isToolPart } from "../is-tool-part";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { openAsks } from "../permissions/asks";
 import { sessionOfChat } from "../record-folders";
@@ -115,10 +117,11 @@ export const ChatSchema = z.object({
    * an ask, or its own last turn ended on one, whatever else still moves,
    * unless the user has sent a message since; working while the chat's own
    * agent is alive or a task filed from it is moving; failed while its last
-   * turn ended in an error and nothing has been said since; idle otherwise.
-   * See `chatStateOf`.
+   * turn ended in an error and nothing has been said since; stopped while
+   * its last turn ended on the user's Stop and nothing has been sent since;
+   * idle otherwise. See `chatStateOf`.
    */
-  state: z.enum(["failed", "idle", "waiting", "working"]),
+  state: z.enum(["failed", "idle", "stopped", "waiting", "working"]),
   title: z.string(),
   /**
    * Whether the agent has named the chat. Until it has, `title` is the
@@ -385,6 +388,8 @@ interface ChatDigest {
   lastStep?: { at: number; text: string };
   /** The step the chat's current turn is on, from its own calls since the user's newest message. */
   stepInTurn?: string;
+  /** Whether the chat's last turn ended on the user's Stop, with nothing sent after it. */
+  stopped: boolean;
 }
 
 /**
@@ -648,15 +653,30 @@ function digestOf(
   const lastStep = lastStepIn(messages);
   const lastMessageAt = messages.at(-1)?.metadata.createdAt.getTime();
   const lastReplyAt = replies.at(-1)?.metadata.finishedAt?.getTime();
-  // The last thing the agent did ended in an error, after the user's
-  // newest message: a turn that never got its reply out. A retry that went
-  // on to answer, or anything the user sends after, leaves it behind.
-  const failed =
+  // How the last thing the agent did ended, after the user's newest message.
+  // In an error: a turn that never got its reply out. On the user's Stop: its
+  // reply cut off as it was written, or a call it was making ended by the
+  // stop. A retry that went on to answer, or anything sent after, leaves
+  // either behind.
+  const endsLastTurn =
     lastAssistant !== undefined &&
     messages.lastIndexOf(lastAssistant) >
-      (lastUser ? messages.lastIndexOf(lastUser) : -1) &&
+      (lastUser ? messages.lastIndexOf(lastUser) : -1);
+  const aborted = lastAssistant?.metadata.error?.kind === "aborted";
+  const failed =
+    endsLastTurn &&
+    !aborted &&
     (lastAssistant.metadata.error !== undefined ||
       lastAssistant.metadata.finishReason === "error");
+  const stopped =
+    endsLastTurn &&
+    (aborted ||
+      lastAssistant.parts.some(
+        (part) =>
+          isToolPart(part) &&
+          part.state === "output-error" &&
+          part.errorText === STOPPED_TOOL_CALL_ERROR_TEXT,
+      ));
   return {
     calledApps: commands.flatMap(appSlugsIn),
     ...(lastAssistant && {
@@ -689,6 +709,7 @@ function digestOf(
     }),
     ...(lastStep && { lastStep }),
     ...(stepInTurn !== undefined && { stepInTurn }),
+    stopped,
   };
 }
 
@@ -990,6 +1011,7 @@ function stateOf(
       ownAsking: digest.ownAsk !== undefined,
       pendingWake: hasPendingWake(chatId),
       spokeAt: digest.lastUserMessageAt ?? 0,
+      stopped: digest.stopped,
       tasks: running,
       turnStarting: turnIsStarting(digest),
     }),

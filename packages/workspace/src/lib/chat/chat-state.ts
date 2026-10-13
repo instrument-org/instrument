@@ -1,5 +1,5 @@
 /** Where a chat stands, as its row and its line say it. */
-export type ChatState = "failed" | "idle" | "waiting" | "working";
+export type ChatState = "failed" | "idle" | "stopped" | "waiting" | "working";
 
 /**
  * Where a chat stands, from what is known of it this moment: its own agent,
@@ -17,7 +17,8 @@ export type ChatState = "failed" | "idle" | "waiting" | "working";
  * a turn, and the chat says that turn's work until it ends and the ask is
  * all that is left. A message is written before the agent it starts is
  * running, so a turn starting counts as the chat's own work, and a wake
- * waiting out its debounce is work about to happen.
+ * waiting out its debounce is work about to happen. At rest, a turn the user
+ * stopped says so until the next turn starts.
  */
 export function chatStateOf({
   askedAt,
@@ -26,6 +27,7 @@ export function chatStateOf({
   ownAsking,
   pendingWake,
   spokeAt,
+  stopped,
   tasks,
   turnStarting,
 }: {
@@ -39,6 +41,8 @@ export function chatStateOf({
   pendingWake: boolean;
   /** When the user last sent a message, in ms. */
   spokeAt: number;
+  /** The chat's last turn ended on the user's Stop. */
+  stopped: boolean;
   tasks: { waiting?: string }[];
   turnStarting: boolean;
 }): { ownWorking: boolean; state: ChatState; working: boolean } {
@@ -55,6 +59,8 @@ export function chatStateOf({
           ? "waiting"
           : failed
             ? "failed"
-            : "idle";
+            : stopped
+              ? "stopped"
+              : "idle";
   return { ownWorking, state, working };
 }

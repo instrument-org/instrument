@@ -145,6 +145,16 @@ describe("statusLine", () => {
       { chat: at("failed"), listed: [] },
       { text: "Stopped on an error", tone: "failed" },
     ],
+    [
+      "that the user stopped it, rather than that it is done",
+      {
+        chat: at("stopped", {
+          lastStep: lastStep("Listing the Documents folder"),
+        }),
+        listed: [done(1)],
+      },
+      { text: "You stopped Instrument", tone: "halted" },
+    ],
   ])("says %s", (_, input, expected) => {
     expect(statusLine(input)).toEqual(expected);
   });

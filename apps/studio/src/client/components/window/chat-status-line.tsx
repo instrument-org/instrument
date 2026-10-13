@@ -3,6 +3,7 @@ import { cn } from "@/client/lib/utils";
 import { type StoreId } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
+import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 
@@ -10,14 +11,21 @@ import { ChatTasksPopover } from "./chat-activity";
 import { useChatTasks } from "./child-tasks-query";
 import { type Chat } from "./chats";
 
-/** What the line under a chat's title says, and in which voice. */
+/**
+ * What the line under a chat's title says, and in which voice. `stopped` is
+ * a task that failed, beside its X; `halted` is the chat's own turn the user
+ * stopped, beside a stop mark.
+ */
 type StatusLine = {
   text: string;
-  tone: "done" | "failed" | "run" | "stopped" | "wait";
+  tone: "done" | "failed" | "halted" | "run" | "stopped" | "wait";
 };
 
 /** Said while the chat works and nothing has named the step yet. */
 const WORKING = "Instrument is working";
+
+/** Said once the user stopped the chat's turn, until the next one starts. */
+const HALTED = "You stopped Instrument";
 
 /**
  * Said with the check once the chat's own work is done. A step's label is
@@ -33,7 +41,8 @@ const DONE = "Done";
  * this is the chat's only loading state; while a card or a question waits on
  * the user, that it does, behind the amber question, whatever else still
  * runs; and at rest, a check beside the task that finished last or that the
- * chat's own work is done, so the line stays once work is done. Only labels
+ * chat's own work is done, so the line stays once work is done, or a stop
+ * mark when the user stopped the chat's turn. Only labels
  * of work and task names are said here, never the agent's own words.
  * Pressed, it lists the chat's tasks, the same list the activity at the
  * head's right opens; with no task filed it is only a line. Nothing at all in
@@ -61,7 +70,9 @@ export function ChatStatusLine({
           line.tone === "run" && "brand-shiny-text",
           line.tone === "wait" && "text-foreground/80",
           line.tone === "failed" && "text-error-700 dark:text-error-300",
-          (line.tone === "done" || line.tone === "stopped") &&
+          (line.tone === "done" ||
+            line.tone === "halted" ||
+            line.tone === "stopped") &&
             "text-muted-foreground",
         )}
       >
@@ -125,6 +136,11 @@ function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
     case "done": {
       return <CheckIcon className="size-3.5 shrink-0 text-muted-foreground" />;
     }
+    case "halted": {
+      return (
+        <StopCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
+    }
   }
 }
 
@@ -132,7 +148,8 @@ function StatusMark({ tone }: { tone: StatusLine["tone"] }) {
  * Where the chat's work stands, as one line, said only in labels of work and
  * task names. Running: the step the chat's record names (the chat's own turn
  * first, then a task at work), or the plain line. Stalled, which the record
- * says over anything still running: what the user is waited on for. At
+ * says over anything still running: what the user is waited on for. Stopped
+ * by the user: that they stopped it, until the next turn starts. At
  * rest, whichever came later of the chat's own last step and the task that
  * finished last: the task's name, or that the chat's work is done, with a
  * check. Nothing in a chat that has done no work. Never the chat's own title
@@ -168,6 +185,9 @@ export function statusLine({
   }
   if (chat.state === "failed") {
     return { text: "Stopped on an error", tone: "failed" };
+  }
+  if (chat.state === "stopped") {
+    return { text: HALTED, tone: "halted" };
   }
   const own = chat.lastStep;
   const task = listed

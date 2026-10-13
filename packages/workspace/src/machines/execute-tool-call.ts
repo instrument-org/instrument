@@ -2,7 +2,10 @@ import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { assign, fromPromise, log, setup } from "xstate";
 
 import { getCurrentDate } from "../lib/get-current-date";
-import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../constants";
+import {
+  INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+  STOPPED_TOOL_CALL_ERROR_TEXT,
+} from "../constants";
 import { isToolPart } from "../lib/is-tool-part";
 import { runToolCall } from "../lib/run-tool-call";
 import { Store } from "../lib/store";
@@ -21,7 +24,7 @@ export type StopReason = "manual" | "quit" | "superseded";
 type CancellationReason = "timeout" | "unknown" | StopReason;
 
 const STOPPED_BECAUSE: Record<CancellationReason, string> = {
-  manual: "This action was stopped by you.",
+  manual: STOPPED_TOOL_CALL_ERROR_TEXT,
   // The words the next launch's sweep writes on a call the quit left in
   // flight, so a call reads the same whichever of the two settled it.
   quit: INTERRUPTED_TOOL_CALL_ERROR_TEXT,

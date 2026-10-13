@@ -3,7 +3,7 @@ import {
   SETTINGS_PAGES,
   type SettingsEntry,
 } from "@/client/components/settings/settings-index";
-import { formatAcceleratorFor } from "@/client/lib/format-accelerator";
+import { formatAcceleratorFor } from "@/shared/format-accelerator";
 import { SCREENS } from "@/shared/instrument-screens";
 import {
   SHORTCUT_GUIDE_ENTRIES,

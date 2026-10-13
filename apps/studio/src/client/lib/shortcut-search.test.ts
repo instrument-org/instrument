@@ -1,4 +1,4 @@
-import { formatAcceleratorFor } from "@/client/lib/format-accelerator";
+import { formatAcceleratorFor } from "@/shared/format-accelerator";
 import {
   SHORTCUT_GUIDE_ENTRIES,
   SHORTCUT_GUIDE_GROUPS,

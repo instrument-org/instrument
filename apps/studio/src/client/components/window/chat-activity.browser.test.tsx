@@ -122,6 +122,18 @@ describe("ChatActivity", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  it("keeps every other task's stop while one task's stop is on its way", async () => {
+    stopSessions.mockReturnValue(new Promise(() => {}));
+    await inHead(800);
+    await userEvent.click(
+      page.getByRole("button", { name: "3 tasks working" }),
+    );
+    const stops = page.getByRole("button", { name: "Stop this task" });
+    await userEvent.click(stops.first());
+    await expect.element(stops.first()).toBeDisabled();
+    await expect.element(stops.nth(1)).toBeEnabled();
+  });
+
   it("says the user stopped a task, rather than drawing it done", async () => {
     listed.tasks = [
       {

@@ -181,7 +181,11 @@ function TaskRows({
             task.stoppable && (
               <StopProcessButton
                 className="size-6"
-                disabled={stop.isPending}
+                // Only the task whose stop is on its way: the rest stay
+                // stoppable while it goes.
+                disabled={
+                  stop.isPending && stop.variables?.sessionId === task.id
+                }
                 label="Stop this task"
                 onClick={() => {
                   stop.mutate({ id: chatId, sessionId: task.id });

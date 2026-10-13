@@ -8,12 +8,15 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   killSessionBackgroundProcesses,
   listBackgroundProcesses,
+  processStopsSettled,
   promoteBackgroundProcess,
   startBackgroundRun,
 } from "../../lib/background-processes";
 import { updateChatSettings } from "../../lib/chat-settings";
-import { startJobWake } from "../../lib/chat/job-wake";
+import { hasPendingJobWake, startJobWake } from "../../lib/chat/job-wake";
+import { startChatWake } from "../../lib/chat/wake";
 import { sessionOfChat } from "../../lib/record-folders";
+import { Store } from "../../lib/store";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -24,6 +27,7 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
+import { publisher } from "../publisher";
 import { session } from "./session";
 
 vi.mock(import("../../lib/session-store-storage"));
@@ -34,6 +38,15 @@ vi.mock(import("../../lib/chat/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
   isWorking: vi.fn(() => false),
 }));
+
+// Watched, so a case can let a process go once the task's note waits for it.
+vi.mock(import("../../lib/background-processes"), async (importOriginal) => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    processStopsSettled: vi.fn(original.processStopsSettled),
+  };
+});
 
 vi.mock(import("@instrument-org/ai-gateway"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -61,13 +74,29 @@ beforeAll(() => {
     rootDir: WorkspaceDirSchema.parse(root),
   });
   startJobWake(workspaceRef);
+  startChatWake(workspaceRef);
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(
     owners.splice(0).map((id) => killSessionBackgroundProcesses(id)),
   );
 });
+
+/** The task events of the notes written into `chatId`'s own session. */
+async function notesIn(chatId: ChatId) {
+  const messages = await Store.getMessagesWithParts({
+    chatId,
+    sessionId: sessionOfChat(chatId) ?? StoreId.newSessionId(),
+  });
+  return messages
+    ._unsafeUnwrap()
+    .flatMap((message) => message.parts)
+    .flatMap((part) =>
+      part.type === "data-taskEvent" ? part.data.events : [],
+    );
+}
 
 /** A chat someone has written in, with one task. */
 async function chatWithTask() {
@@ -89,15 +118,23 @@ async function chatWithTask() {
   return { chatId, own, task };
 }
 
-/** A command that outlived its call and runs until something stops it. */
-function running(owner: { chatId: ChatId; sessionId: StoreId.Session }) {
+/**
+ * A command that outlived its call and runs until something stops it, going
+ * once `gone` settles after it is told to, or at once.
+ */
+function running(
+  owner: { chatId: ChatId; sessionId: StoreId.Session },
+  gone: Promise<void> = Promise.resolve(),
+) {
   const handle = startBackgroundRun({
     callerSignal: new AbortController().signal,
     command: "sleep 300",
     run: ({ signal }) =>
       new Promise((_resolve, reject) => {
         signal.addEventListener("abort", () => {
-          reject(new Error("aborted"));
+          void gone.then(() => {
+            reject(new Error("aborted"));
+          });
         });
       }),
   });
@@ -109,10 +146,11 @@ function running(owner: { chatId: ChatId; sessionId: StoreId.Session }) {
 }
 
 describe("session.stop", () => {
-  it("ends the processes a task has running when the person stops it, before its turn, and starts no turn", async () => {
+  it("ends the processes a task has running when the person stops it, and starts no turn", async () => {
     const { chatId, task } = await chatWithTask();
     const job = running({ chatId, sessionId: task });
     const sentBefore = sent.length;
+    const published = vi.spyOn(publisher, "publish");
 
     await call(
       session.stop,
@@ -120,20 +158,70 @@ describe("session.stop", () => {
       { context: context() },
     );
 
-    expect(
-      listBackgroundProcesses(task).find((process) => process.id === job),
-    ).toMatchObject({ status: "killed", stoppedBy: "user" });
+    await vi.waitFor(() => {
+      expect(
+        listBackgroundProcesses(task).find((process) => process.id === job),
+      ).toMatchObject({ status: "killed", stoppedBy: "user" });
+    });
     expect(sent.slice(sentBefore)).toEqual([
       expect.objectContaining({
         type: "stopSessions",
         value: expect.objectContaining({ sessionId: task }),
       }),
     ]);
-    // Past the debounce a wake for the job's ending would wait out.
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // A stop somebody asked for is no news: the job's ending settles nothing
+    // a wake would wait out.
     expect(
-      sent.slice(sentBefore).filter((event) => event.type === "addMessage"),
+      published.mock.calls.filter(
+        ([topic]) => topic === "backgroundProcess.settled",
+      ),
     ).toEqual([]);
+    expect(hasPendingJobWake(chatId)).toBe(false);
+  });
+
+  // A process can take seconds to go, which the person's Stop does not wait
+  // out; the task's note does, so it names nothing as still running.
+  it("stops a task's turn before what it runs has gone, and its note waits for that", async () => {
+    const { chatId, task } = await chatWithTask();
+    let letGo = () => {};
+    const job = running(
+      { chatId, sessionId: task },
+      new Promise((resolve) => {
+        letGo = resolve;
+      }),
+    );
+
+    await call(
+      session.stop,
+      { id: chatId, sessionId: task },
+      { context: context() },
+    );
+    expect(sent.at(-1)).toMatchObject({
+      type: "stopSessions",
+      value: { sessionId: task },
+    });
+    expect(
+      listBackgroundProcesses(task).find((process) => process.id === job)
+        ?.status,
+    ).toBe("running");
+
+    // The task's turn ends while the process is still going, which goes only
+    // once the note waits for it.
+    const waits = vi.mocked(processStopsSettled);
+    const settled = waits.getMockImplementation();
+    waits.mockImplementationOnce((sessionId) => {
+      letGo();
+      return settled?.(sessionId) ?? Promise.resolve();
+    });
+    publisher.publish("session.done", {
+      id: chatId,
+      notice: { by: "user", wakesChat: true },
+      sessionId: task,
+    });
+    await vi.waitFor(async () => {
+      expect(await notesIn(chatId)).toHaveLength(1);
+    });
+    expect((await notesIn(chatId))[0]).not.toHaveProperty("running");
   });
 
   it("leaves the chat's own processes running when the person stops its turn", async () => {

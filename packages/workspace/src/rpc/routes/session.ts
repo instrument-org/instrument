@@ -118,16 +118,19 @@ const stop = base
       sessionId: StoreId.SessionSchema.optional(),
     }),
   )
-  .handler(async ({ context, input }) => {
+  .handler(({ context, input }) => {
     // A task the person stops ends what it runs in the background too, as
-    // the agent's `task stop --all` does, and before its turn, so the note
-    // its stop leaves names nothing as still running. A job handed to the
-    // task is the task's, so this reaches it.
+    // the agent's `task stop --all` does. A job handed to the task is the
+    // task's, so this reaches it. A process can take seconds to go, so the
+    // turn is not kept waiting on it; the note the stop leaves the chat waits
+    // instead (`wake.ts`), so it names nothing as still running.
     if (
       input.sessionId !== undefined &&
       input.sessionId !== sessionOfChat(input.id)
     ) {
-      await stopRunningProcesses({ by: "user", sessionId: input.sessionId });
+      stopRunningProcesses({ by: "user", sessionId: input.sessionId }).catch(
+        context.workspaceConfig.captureException,
+      );
     }
     // The user's stop, which the task's page ends on. One task stopped
     // while the chat carries on is written into the chat as a note that

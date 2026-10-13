@@ -26,6 +26,7 @@ import { getUsageSummary } from "../usage-summary";
 import { getCurrentDate } from "../get-current-date";
 import { isToolPart } from "../is-tool-part";
 import { closeAgentBrowserSessionsForSessions } from "../agent-browser-cleanup";
+import { processStopsSettled } from "../background-processes";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   isWorking,
@@ -453,7 +454,10 @@ async function onSessionDone(
   }
   const ref = { sessionId, chatId };
   // Read as the turn ends rather than at delivery, a debounce later: a process
-  // that exits in between was the task's own doing and is not news.
+  // that exits in between was the task's own doing and is not news. A stop of
+  // its processes already under way, as the person's Stop of the task sends
+  // beside the turn's, is waited out first, so what it ends is not named.
+  await processStopsSettled(sessionId);
   const running = leftRunning(sessionId);
   // What the task's agent said, never what the chat said before it.
   const said = await lastAssistantText(ref);

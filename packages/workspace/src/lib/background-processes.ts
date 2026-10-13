@@ -265,13 +265,17 @@ export async function killBackgroundProcess({
   };
 }
 
+/** Each session's stops of its background processes still under way. */
+const stopsUnderWay = new Map<StoreId.Session, Promise<void>>();
+
 /**
  * Stops what a session has running in the background, every process or the
  * one named, keeping each record so `jobs` says who stopped it: the chat's
  * agent through `task stop`, or the person stopping a task, which ends what
  * the task runs with its turn. A stop somebody asked for wakes nothing.
+ * Counted under way from the call, for `processStopsSettled`.
  */
-export async function stopRunningProcesses({
+export function stopRunningProcesses({
   by,
   id,
   sessionId,
@@ -284,12 +288,33 @@ export async function stopRunningProcesses({
     (process) =>
       process.status === "running" && (id === undefined || process.id === id),
   );
-  return await Promise.all(
+  const stopped = Promise.all(
     running.map(async (process) => ({
       killed: await killBackgroundProcess({ by, id: process.id, sessionId }),
       process,
     })),
   );
+  const settled = Promise.allSettled([
+    stopsUnderWay.get(sessionId),
+    stopped,
+  ]).then(() => {
+    if (stopsUnderWay.get(sessionId) === settled) {
+      stopsUnderWay.delete(sessionId);
+    }
+  });
+  stopsUnderWay.set(sessionId, settled);
+  return stopped;
+}
+
+/**
+ * Waits out every stop of a session's background processes already under
+ * way, so what it has running is read once they have gone: a process can
+ * take seconds to go after it is told to.
+ */
+export async function processStopsSettled(
+  sessionId: StoreId.Session,
+): Promise<void> {
+  await stopsUnderWay.get(sessionId);
 }
 
 /**

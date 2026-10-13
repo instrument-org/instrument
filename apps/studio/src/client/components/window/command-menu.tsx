@@ -1,5 +1,5 @@
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
-import { openSettings, type SettingsTab } from "@/client/atoms/settings-modal";
+import { openSettings } from "@/client/atoms/settings-modal";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import {
@@ -12,6 +12,7 @@ import { PageFavicon } from "@/client/components/favicon";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
+import { useSettingsTabs } from "@/client/components/settings/use-settings-tabs";
 import { folderOf, homeRelative } from "@/client/components/window/host-path";
 import { fileHref } from "@/shared/computer-href";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
@@ -320,15 +321,9 @@ export function useCommandMenuRows({
   }
 
   // Each tab of Settings by name, found by typing it and never listed
-  // before, so the empty menu stays short. General is the Settings row
-  // itself; the tabs for building the app only show in developer mode.
-  const settingsTabs: SettingsTab[] = [
-    "Providers",
-    "Skills",
-    "Memory",
-    "Storage",
-    ...(developerMode ? (["Features", "Debug"] as const) : []),
-  ];
+  // before, so the empty menu stays short: the tabs the Settings sidebar
+  // lists, but General, which is the Settings row itself.
+  const settingsTabs = useSettingsTabs().filter((tab) => tab !== "General");
   const settingsRows = settingsTabs.map((tab) => ({
     icon: <GearIcon />,
     id: `settings-${tab}`,

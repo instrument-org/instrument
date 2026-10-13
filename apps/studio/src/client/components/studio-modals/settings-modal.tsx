@@ -13,11 +13,13 @@ import { SkillsSection } from "@/client/components/settings/skills-section";
 import { StorageSection } from "@/client/components/settings/storage-section";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import {
+  SETTINGS_PAGES,
   type SettingsEntry,
   type SettingsMatch,
   settingsTargetOf,
 } from "@/client/components/settings/settings-index";
 import { useSettingsSearch } from "@/client/components/settings/use-settings-search";
+import { useSettingsTabs } from "@/client/components/settings/use-settings-tabs";
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
@@ -37,11 +39,9 @@ import {
 } from "@/client/components/ui/sidebar";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
-import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { flashJumpTarget } from "@/client/lib/flash-jump-target";
-import { cn, isLinux } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
+import { cn } from "@/client/lib/utils";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
@@ -53,7 +53,6 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { LockKeyIcon } from "@phosphor-icons/react/LockKey";
 import { PulseIcon } from "@phosphor-icons/react/Pulse";
 import { XIcon } from "@phosphor-icons/react/X";
-import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import {
   type CSSProperties,
@@ -515,72 +514,24 @@ function SettingsSectionBody({
   }
 }
 
-function useNavItems(): NavItem[] {
-  const isDeveloperMode = useDeveloperMode();
-  const { data: invalidFolders } = useQuery(
-    rpcClient.workspace.storage.invalidFolders.list.queryOptions(),
-  );
-  const hasUnrecognizedFolders = (invalidFolders?.length ?? 0) > 0;
+/** Each tab's mark in the sidebar. */
+const NAV_ICONS: Record<SettingsTab, React.ElementType> = {
+  Debug: CodeIcon,
+  Features: FlagIcon,
+  General: FadersHorizontalIcon,
+  Memory: FingerprintIcon,
+  Permissions: LockKeyIcon,
+  Providers: CpuIcon,
+  Skills: CubeIcon,
+  Storage: HardDrivesIcon,
+  Usage: PulseIcon,
+};
 
-  return [
-    {
-      icon: FadersHorizontalIcon,
-      tab: "General",
-      title: "General",
-    },
-    {
-      icon: FingerprintIcon,
-      tab: "Memory",
-      title: "Memory",
-    },
-    {
-      icon: LockKeyIcon,
-      tab: "Permissions",
-      title: "Permissions",
-    },
-    {
-      icon: CpuIcon,
-      tab: "Providers",
-      title: "Providers",
-    },
-    {
-      icon: PulseIcon,
-      tab: "Usage",
-      title: "Usage",
-    },
-    {
-      icon: CubeIcon,
-      tab: "Skills",
-      title: "Skills",
-    },
-    ...(hasUnrecognizedFolders
-      ? [
-          {
-            icon: HardDrivesIcon,
-            tab: "Storage" as const,
-            title: "Storage",
-          },
-        ]
-      : []),
-    ...(isDeveloperMode
-      ? [
-          {
-            icon: FlagIcon,
-            isDeveloperMode: true,
-            tab: "Features" as const,
-            title: "Features",
-          },
-        ]
-      : []),
-    ...(isDeveloperMode && isLinux()
-      ? [
-          {
-            icon: CodeIcon,
-            isDeveloperMode: true,
-            tab: "Debug" as const,
-            title: "Debug",
-          },
-        ]
-      : []),
-  ];
+function useNavItems(): NavItem[] {
+  return useSettingsTabs().map((tab) => ({
+    icon: NAV_ICONS[tab],
+    isDeveloperMode: SETTINGS_PAGES[tab].developerOnly === true,
+    tab,
+    title: tab,
+  }));
 }

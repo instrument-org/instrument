@@ -392,12 +392,12 @@ function newSessionId() {
   let time = Date.now();
   let timePart = "";
   for (let i = 0; i < 10; i++) {
-    timePart = alphabet[time % 32] + timePart;
+    timePart = alphabet.charAt(time % 32) + timePart;
     time = Math.floor(time / 32);
   }
   const randomPart = Array.from(
     crypto.getRandomValues(new Uint8Array(16)),
-    (byte) => alphabet[byte % 32],
+    (byte) => alphabet.charAt(byte % 32),
   ).join("");
   return `ses_${timePart}${randomPart}`;
 }

@@ -181,6 +181,7 @@ describe("task stop, for what a task left running", () => {
         value: {
           id: CHAT_ID,
           notice: { by: "chat", wakesChat: false },
+          reason: "chat",
           sessionId: CHILD_ID,
         },
       },

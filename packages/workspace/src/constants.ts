@@ -85,9 +85,10 @@ export const INTERRUPTED_TOOL_CALL_ERROR_TEXT =
   "This action was interrupted when the app closed.";
 
 /**
- * What a tool call reads when a stop with no other reason ended it, which on
- * a chat's own session is the user's Stop. Matched by what reads the chat's
- * turn as stopped by the user rather than finished.
+ * What a tool call reads when the user's Stop, or the chat's `task stop` on
+ * a task, ended it. Matched by what reads the chat's turn as stopped by the
+ * user rather than finished. The person reads it; the model reads words of
+ * its own in its place (`SessionMessage.toUIMessages`).
  */
 export const STOPPED_TOOL_CALL_ERROR_TEXT = "This action was stopped by you.";
 

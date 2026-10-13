@@ -15,15 +15,18 @@ import { type ChatId } from "../schemas/chat-id";
 import { getToolByType } from "../tools/all";
 
 /**
- * Why a run was stopped: the user stopped it, the user wrote again while
- * the conversation was still replying, which starts the reply over, or the
- * app is quitting.
+ * Why a run was stopped: the user stopped it, the chat stopped one of its
+ * tasks with `task stop`, the user wrote again while the conversation was
+ * still replying, which starts the reply over, or the app is quitting.
  */
-export type StopReason = "manual" | "quit" | "superseded";
+export type StopReason = "chat" | "manual" | "quit" | "superseded";
 
 type CancellationReason = "timeout" | "unknown" | StopReason;
 
 const STOPPED_BECAUSE: Record<CancellationReason, string> = {
+  // The person reads the same words for the chat's stop as for their own;
+  // the part's `stoppedBy` keeps which it was for the model.
+  chat: STOPPED_TOOL_CALL_ERROR_TEXT,
   manual: STOPPED_TOOL_CALL_ERROR_TEXT,
   // The words the next launch's sweep writes on a call the quit left in
   // flight, so a call reads the same whichever of the two settled it.
@@ -76,6 +79,7 @@ export async function saveStoppedToolCallPart(
         metadata: {
           ...current.metadata,
           endedAt: getCurrentDate(),
+          ...(input.reason === "chat" ? { stoppedBy: "chat" } : {}),
         },
         state: "output-error",
       } as SessionMessagePart.Type;

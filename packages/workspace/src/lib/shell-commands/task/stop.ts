@@ -142,6 +142,7 @@ async function stopTurn(task: ChatTask, context: TaskCommandContext) {
     value: {
       id: task.chatId,
       notice: { by: "chat", wakesChat: false },
+      reason: "chat",
       sessionId: task.id,
     },
   });

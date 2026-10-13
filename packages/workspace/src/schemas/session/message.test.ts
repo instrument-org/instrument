@@ -720,6 +720,81 @@ describe("SessionMessage.toModelMessages", () => {
     `);
   });
 
+  // The stored words are the person's; the model is told who stopped the
+  // call and that the stop stands, or it runs the call again on the next
+  // message whatever that message says.
+  it.each([
+    {
+      errorText: "This action was stopped by you.",
+      stoppedBy: undefined,
+      text: "The user stopped this. Do not run it again unless they ask.",
+    },
+    {
+      errorText: "This action was stopped by you.",
+      stoppedBy: "chat" as const,
+      text: "The conversation that started this task stopped this. Do not run it again unless it asks.",
+    },
+    {
+      errorText: "This action was stopped because it took too long.",
+      stoppedBy: undefined,
+      text: "This action was stopped because it took too long.",
+    },
+  ])(
+    "tells the model of a stopped call as $text",
+    async ({ errorText, stoppedBy, text }) => {
+      const { sessionId } = baseMetadata();
+      const assistantMessageId = StoreId.newMessageId();
+      const messages: SessionMessage.WithParts[] = [
+        {
+          id: assistantMessageId,
+          metadata: {
+            aiGatewayModel: undefined,
+            createdAt: mockDate,
+            finishReason: "tool-calls",
+            modelId: "gpt-4o",
+            providerId: "openai",
+            sessionId,
+          },
+          parts: [
+            {
+              callProviderMetadata: undefined,
+              errorText,
+              input: { command: "sleep 60", yieldMs: 30_000 },
+              metadata: {
+                createdAt: mockDate,
+                endedAt: mockDate,
+                id: StoreId.newPartId(),
+                messageId: assistantMessageId,
+                sessionId,
+                ...(stoppedBy ? { stoppedBy } : {}),
+              },
+              state: "output-error",
+              toolCallId: StoreId.ToolCallSchema.parse("call_stop"),
+              type: "tool-bash",
+            },
+          ],
+          role: "assistant",
+        },
+      ];
+
+      const result = await SessionMessage.toModelMessages(
+        messages,
+        TOOLS_FOR_MODEL_OUTPUT,
+      );
+
+      expect(
+        result.flatMap((message): unknown[] =>
+          typeof message.content === "string" ? [] : message.content,
+        ),
+      ).toContainEqual(
+        expect.objectContaining({
+          output: { type: "error-text", value: text },
+          type: "tool-result",
+        }),
+      );
+    },
+  );
+
   // A folder sent with a message is granted to the chat and told to the
   // agent by the folder changes note; the message itself prints nothing about
   // it, whatever an older build stored on the part.

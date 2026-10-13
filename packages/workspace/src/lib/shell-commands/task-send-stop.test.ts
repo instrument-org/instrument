@@ -243,6 +243,7 @@ describe("task stop", () => {
         value: {
           id: CHAT_ID,
           notice: { by: "chat", wakesChat: false },
+          reason: "chat",
           sessionId: CHILD_ID,
         },
       },
@@ -279,6 +280,7 @@ describe("task stop", () => {
         value: {
           id: CHAT_ID,
           notice: { by: "chat", wakesChat: false },
+          reason: "chat",
           sessionId: CHILD_ID,
         },
       },
@@ -287,6 +289,7 @@ describe("task stop", () => {
         value: {
           id: CHAT_ID,
           notice: { by: "chat", wakesChat: false },
+          reason: "chat",
           sessionId: second,
         },
       },

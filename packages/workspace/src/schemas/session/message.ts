@@ -33,6 +33,7 @@ import { memoryModelNote } from "../../lib/memory-model-text";
 import { messageGapModelNote } from "../../lib/message-gap-model-text";
 import { replyModelNote } from "../../lib/reply-model-text";
 import { skillChangesModelNote } from "../../lib/skill-changes-model-text";
+import { withStoppedToolCallModelText } from "../../lib/stopped-tool-call-model-text";
 import { taskEventModelNote } from "../../lib/task-event-model-text";
 import { viewContextModelNote } from "../../lib/view-context-model-text";
 import { TOOL_NAMES } from "../../tools/name";
@@ -54,6 +55,7 @@ export namespace SessionMessage {
    * chunk timeout, or nothing the session could name.
    */
   const AbortReasonSchema = z.enum([
+    "chat",
     "manual",
     "quit",
     "superseded",
@@ -367,7 +369,9 @@ export namespace SessionMessage {
             part.state === "output-available" ||
             part.state === "output-error",
         )
-        .map((part) => SessionMessagePart.toUIPart(part));
+        .map((part) =>
+          SessionMessagePart.toUIPart(withStoppedToolCallModelText(part)),
+        );
 
       let parts = [...filteredParts];
 

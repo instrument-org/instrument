@@ -86,13 +86,13 @@ export function showInFolderLabel(kind: "file" | "folder") {
   return kind === "file" ? "Show in Folder" : "Open in Files";
 }
 
-/** Shows a task's own folder, which is where what it made lands, as `showInFolder` shows any folder. */
-export async function showTaskFolder(chatId: ChatId) {
+/** Shows a chat's own folder, which is where what it and its tasks made lands, as `showInFolder` shows any folder. */
+export async function showChatFolder(chatId: ChatId) {
   const [error, hostPath] = await safe(
-    rpcClient.utils.taskFolderPath.call({ id: chatId }),
+    rpcClient.utils.chatFolderPath.call({ id: chatId }),
   );
   if (error) {
-    toast.error("Couldn't find the task's folder", { cause: error });
+    toast.error("Couldn't find the chat's folder", { cause: error });
     return;
   }
   await showInFolder(hostPath, { kind: "folder" });

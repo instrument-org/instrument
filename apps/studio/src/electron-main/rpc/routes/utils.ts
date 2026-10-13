@@ -564,8 +564,8 @@ function readWindowState(webContentsId: number) {
   };
 }
 
-/** Where a task's folder is on the computer, for the window to show it in its own folder view. */
-const taskFolderPath = base
+/** Where a chat's folder is on the computer, for the window to show it in its own folder view. */
+const chatFolderPath = base
   .input(z.object({ id: ChatIdSchema }))
   .handler(({ input }) => chatDir(input.id));
 
@@ -686,6 +686,6 @@ export const utils = {
   showFileInFolder,
   showFolderPicker,
   syncZoom,
-  taskFolderPath,
+  chatFolderPath,
   toggleMaximizeWindow,
 };

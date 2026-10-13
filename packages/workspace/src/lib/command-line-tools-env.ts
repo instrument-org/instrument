@@ -58,17 +58,31 @@ export function commandLineToolsEnv(): Record<string, string> {
   if (process.platform !== "darwin") {
     return {};
   }
+  const configured = process.env.DEVELOPER_DIR;
+  // The guard itself, set on this process by applyCommandLineToolsEnv, is a
+  // decision already made rather than a toolchain someone chose: the overlay
+  // stays whole, so a spawn site that builds its env from scratch still gets it.
+  if (configured === MISSING_DEVELOPER_DIR) {
+    return guard();
+  }
   // An explicitly configured toolchain outranks the guard, both because it is a
   // deliberate choice and because overwriting it would break a working setup.
-  if (process.env.DEVELOPER_DIR) {
+  if (configured) {
     return {};
   }
   if (hasDeveloperDirectory()) {
     return {};
   }
+  return guard();
+}
+
+function guard() {
+  const cc = process.env.CC;
   return {
     DEVELOPER_DIR: MISSING_DEVELOPER_DIR,
-    ...(process.env.CC ? {} : { CC: NOOP_COMPILER, CXX: NOOP_COMPILER }),
+    ...(cc && cc !== NOOP_COMPILER
+      ? {}
+      : { CC: NOOP_COMPILER, CXX: NOOP_COMPILER }),
   };
 }
 

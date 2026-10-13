@@ -44,6 +44,11 @@ const INHERITED = new Set(
     "HTTPS_PROXY",
     "NO_PROXY",
     "ALL_PROXY",
+    // Which developer tools macOS's /usr/bin stubs (`git`, `make`, `cc`,
+    // `install_name_tool`) run. On a Mac without them it carries the guard
+    // that fails a stub instead of opening the installer dialog
+    // (command-line-tools-env.ts), and every native command needs it.
+    "DEVELOPER_DIR",
     // Windows' own folders and how it runs programs.
     "SYSTEMROOT",
     "SYSTEMDRIVE",

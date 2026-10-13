@@ -119,6 +119,20 @@ describe("commandLineToolsEnv", () => {
     expect(execFileSync).not.toHaveBeenCalled();
   });
 
+  // applyCommandLineToolsEnv sets the guard on the process itself, and the
+  // spawn sites that build a subprocess env from scratch (uv, the shell's
+  // native commands) rely on this overlay to carry it back in.
+  it("keeps returning the whole guard once it is set on the process", async () => {
+    await expect(
+      loadCommandLineToolsEnv({
+        cc: GUARDED.CC,
+        developerDir: GUARDED.DEVELOPER_DIR,
+        platform: "darwin",
+      }),
+    ).resolves.toEqual(GUARDED);
+    expect(execFileSync).not.toHaveBeenCalled();
+  });
+
   it("still guards the stubs when $CC names another toolchain", async () => {
     await expect(
       loadCommandLineToolsEnv({

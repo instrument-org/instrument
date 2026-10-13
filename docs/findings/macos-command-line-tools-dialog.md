@@ -31,6 +31,8 @@ uv relocates the standalone CPython's dylib install name after unpacking it. Tha
 
 `commandLineToolsEnv()` in `packages/workspace/src/lib/command-line-tools-env.ts` sets it when macOS has no usable developer directory. `applyCommandLineToolsEnv()` runs from Studio's `setup-environment.ts` so every descendant process inherits it, rather than each spawn site having to remember — the gap that let the first fix cover uv and pnpm while missing the class.
 
+Inheriting it is not automatic everywhere. uv and the shell's native commands are spawned with an env built from an allowlist (`inheritedEnv` in `native-env.ts`), so `DEVELOPER_DIR` has to be on that list, and `commandLineToolsEnv()` keeps returning the guard when the variable it finds on the process is its own. When neither held, a macOS 27 VM without the tools showed the installer on a chat's first `python3`, from uv's `install_name_tool` call.
+
 The probe behind it checks that the directory `xcode-select -p` prints still exists. Exit status alone reports a path that outlives the `Xcode.app` or `CommandLineTools` directory a macOS upgrade or an uninstall removed, and the stubs resolve the directory itself.
 
 uv treats the relocation as best-effort: with `DEVELOPER_DIR` poisoned it fails, uv continues, and the interpreter runs. Every registry skill still installs.
@@ -67,7 +69,7 @@ The `shadow` and `guarded` passes run on the macOS leg of `smoke-test.yml`. Both
 
 ## What is still open
 
-Nobody has watched this on a Mac that has never installed the Command Line Tools. What is established is that resolution terminates at `DEVELOPER_DIR` before reaching the install request, that the guard engages, and that it costs nothing. A VM without the tools is what would settle it.
+The macOS VM without the tools has shown the dialog only with the guard missing from the env; the guard holding there is what remains to watch. What is established is that resolution terminates at `DEVELOPER_DIR` before reaching the install request, that the guard engages, and that it costs nothing. A VM without the tools is what would settle it.
 
 The reporter's screenshot names `install_name_tool` in the dialog title, which confirms the caller the audit identified rather than leaving it inferred.
 

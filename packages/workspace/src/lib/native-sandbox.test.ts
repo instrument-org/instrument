@@ -183,6 +183,14 @@ describe("inheritedEnv", () => {
       ...(kept && { SSH_AUTH_SOCK: "/tmp/agent" }),
     });
   });
+
+  // On a Mac without the Command Line Tools it holds the guard that keeps a
+  // /usr/bin stub (`make`, `install_name_tool`) from opening the installer.
+  it("keeps DEVELOPER_DIR", () => {
+    expect(
+      inheritedEnv({ DEVELOPER_DIR: "/nonexistent/x", TOKEN: "t" }),
+    ).toEqual({ DEVELOPER_DIR: "/nonexistent/x" });
+  });
 });
 
 describe("refusedPathIn", () => {

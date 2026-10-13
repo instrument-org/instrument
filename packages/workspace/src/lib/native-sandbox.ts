@@ -399,7 +399,7 @@ function probeSandbox(
     }
     console.warn(
       `The native sandbox probe (${path.basename(file)}) gave no answer: ${
-        failure.code ?? failure.signal ?? `exit ${failure.status}`
+        failure.code ?? failure.signal ?? `exit ${String(failure.status)}`
       } ${stderr.trim()}`.trim(),
     );
     return "failed";

@@ -96,4 +96,19 @@ describe("MicCapture", () => {
     await expect(MicCapture.open()).rejects.toBeInstanceOf(MicrophoneError);
     expect(FakeContext.instances[0]?.closed).toBe(true);
   });
+
+  it("keeps the last chunk of a recorder that stopped by itself", async () => {
+    const capture = await MicCapture.open();
+    // The track ended: the recorder reads inactive before its last chunk.
+    FakeRecorder.instances[0]?.endByItself();
+    const audio = await capture.stop();
+    expect(await audio.text()).toBe("last");
+  });
+
+  it("keeps the last chunk when stopped by hand", async () => {
+    const capture = await MicCapture.open();
+    await tick();
+    const audio = await capture.stop();
+    expect(await audio.text()).toBe("last");
+  });
 });

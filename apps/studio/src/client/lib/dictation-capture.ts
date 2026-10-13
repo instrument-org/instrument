@@ -50,6 +50,12 @@ export class MicCapture {
   private readonly chunks: Blob[] = [];
   private readonly frame: Float32Array<ArrayBuffer>;
   private startedAt: number | undefined;
+  /**
+   * Settles on the recorder's own `stop`, which comes after its last chunk.
+   * A recorder can stop by itself, when its track ends, so waiting on its
+   * state is not enough: it reads inactive before the last chunk arrives.
+   */
+  private readonly stopped: Promise<void>;
 
   private constructor(
     private readonly stream: MediaStream,
@@ -58,6 +64,15 @@ export class MicCapture {
     private readonly analyzer: AnalyserNode,
   ) {
     this.frame = new Float32Array(analyzer.fftSize);
+    this.stopped = new Promise((resolve) => {
+      recorder.addEventListener(
+        "stop",
+        () => {
+          resolve();
+        },
+        { once: true },
+      );
+    });
     recorder.addEventListener("dataavailable", (event) => {
       if (event.data.size > 0) {
         this.chunks.push(event.data);
@@ -142,17 +157,9 @@ export class MicCapture {
   /** Stops recording and hands back the whole take. */
   async stop(): Promise<Blob> {
     if (this.recorder.state !== "inactive") {
-      await new Promise<void>((resolve) => {
-        this.recorder.addEventListener(
-          "stop",
-          () => {
-            resolve();
-          },
-          { once: true },
-        );
-        this.recorder.stop();
-      });
+      this.recorder.stop();
     }
+    await this.stopped;
     this.release();
     return new Blob(this.chunks, {
       type: this.recorder.mimeType || RECORDING_MIME_TYPE,

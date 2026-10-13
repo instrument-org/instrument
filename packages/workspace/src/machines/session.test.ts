@@ -1634,6 +1634,70 @@ describe("sessionMachine", () => {
       `);
     });
 
+    // What waits behind a turn the person stops is kept but not run: a
+    // message or a wake note queued then would otherwise start the agent
+    // again the moment it winds down. One sent after the Stop runs.
+    it.each([{ after: false }, { after: true }])(
+      "holds what was queued when the person stopped the turn, and runs what came after (sent after: $after)",
+      async ({ after }) => {
+        const result = await createActorAndTask({
+          chunkSets: [readFileChunks, writeFileChunks, finishChunks],
+        });
+        result.actor.start();
+        await waitFor(
+          result.actor,
+          (state) => state.context.agentRef !== undefined,
+        );
+        const agentRef = result.actor.getSnapshot().context.agentRef;
+        if (!agentRef) {
+          throw new Error("The agent never started");
+        }
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
+
+        const messageId = StoreId.newMessageId();
+        const queued: SessionMessage.UserWithParts = {
+          id: messageId,
+          metadata: { createdAt: mockDate, sessionId: defaultSessionId },
+          parts: [
+            {
+              metadata: {
+                createdAt: mockDate,
+                id: StoreId.newPartId(),
+                messageId,
+                sessionId: defaultSessionId,
+              },
+              text: "One more thing.",
+              type: "text",
+            },
+          ],
+          role: "user",
+        };
+        const stop = () => {
+          result.actor.send({
+            notice: { by: "user", wakesChat: false },
+            type: "stop",
+          });
+        };
+        if (after) {
+          stop();
+        }
+        result.actor.send({
+          model: createMockAIGatewayModel(),
+          type: "addMessage",
+          value: queued,
+        });
+        if (!after) {
+          stop();
+        }
+
+        const session = await runTestMachine(result);
+        const shorthand = sessionToShorthand(session);
+        expect(shorthand).toContain("<text>One more thing.</text>");
+        // Answered only by a turn of its own after the stopped one.
+        expect(shorthand.includes("I'm done.")).toBe(after);
+      },
+    );
+
     // The user writing again while the conversation replies stops the reply,
     // and the call it cut short says so rather than that the user stopped it.
     it("says a call was interrupted by a newer message when that is why it stopped", async () => {

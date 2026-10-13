@@ -1,18 +1,37 @@
 import { renderInBrowser } from "@/tests/render-browser";
-import { describe, expect, it, vi } from "vitest";
+import { installWindowStubs } from "@/tests/window-stubs";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { Omnibar } from "./omnibar";
 
-// Every query stays pending: the field's own rows are what is under test.
+/** What each folder's listing answers, by its path; every other query stays pending. */
+const listings = vi.hoisted(() => new Map<string, unknown>());
+
 vi.mock("@/client/rpc/client", () => {
   const pending = () => new Promise(() => undefined);
+  const answer = (path: string[], input: unknown) => {
+    const folder =
+      path.join(".") === "workspace.computer.list" &&
+      typeof input === "object" &&
+      input !== null &&
+      "path" in input &&
+      typeof input.path === "string"
+        ? input.path
+        : undefined;
+    return folder !== undefined && listings.has(folder)
+      ? Promise.resolve(listings.get(folder))
+      : pending();
+  };
   const procedure = (path: string[]): unknown =>
     new Proxy(() => undefined, {
       apply: pending,
       get(_target, key) {
         if (key === "queryOptions" || key === "experimental_liveOptions") {
-          return () => ({ queryFn: pending, queryKey: path });
+          return (options?: { input?: unknown }) => ({
+            queryFn: () => answer(path, options?.input),
+            queryKey: [...path, options?.input],
+          });
         }
         if (key === "mutationOptions") {
           return (options: object) => ({ mutationFn: pending, ...options });
@@ -35,6 +54,11 @@ vi.mock("./context", async (importOriginal) => ({
   useWindow: () => ({ openPage: () => undefined }),
 }));
 
+afterEach(() => {
+  listings.clear();
+  installWindowStubs();
+});
+
 // What a Return on a path found is the answer to that Return alone: the
 // same words typed again later are a new ask, not the old answer.
 describe("a path the field found nothing at", () => {
@@ -54,5 +78,48 @@ describe("a path the field found nothing at", () => {
       .element(page.getByRole("option", { selected: true }))
       .toHaveTextContent("/nowhere/x");
     await expect.element(notice).not.toBeInTheDocument();
+  });
+});
+
+// Typed over home in Files, a whole path's names are in some other folder,
+// where a name home has too (Documents) would read as home's own.
+describe("a folder's names a whole path reaches", () => {
+  it.each([
+    ["C:\\Users\\Public\\Documents", "DocumentsC:\\Users\\Public"],
+    ['"C:\\Users\\Public\\Documents"', "DocumentsC:\\Users\\Public"],
+    // In the folder on screen, a name says enough on its own.
+    ["C:\\Users\\casey\\Doc", /^Documents$/],
+  ])("say where they are for %s", async (typed, row) => {
+    Object.defineProperty(window, "electron", {
+      configurable: true,
+      value: { process: { platform: "win32" } },
+    });
+    Object.defineProperty(window, "api", {
+      configurable: true,
+      value: { homeDir: "C:\\Users\\casey" },
+    });
+    for (const folder of ["C:\\Users\\Public", "C:\\Users\\casey"]) {
+      listings.set(folder, {
+        entries: [
+          {
+            kind: "folder",
+            name: "Documents",
+            path: `${folder}\\Documents`,
+          },
+        ],
+        kind: "listing",
+        path: folder,
+        truncated: false,
+      });
+    }
+    await renderInBrowser(
+      <Omnibar location={{ kind: "folder", path: "C:\\Users\\casey" }} />,
+    );
+
+    await userEvent.fill(page.getByRole("combobox"), typed);
+
+    await expect
+      .element(page.getByRole("option", { selected: true }))
+      .toHaveTextContent(row);
   });
 });

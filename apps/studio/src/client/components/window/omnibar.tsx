@@ -40,7 +40,10 @@ import {
   shownTypedPath,
   typedPathHere,
 } from "@/client/lib/locate-typed-path";
-import { type TypedPath } from "@/client/lib/typed-path";
+import {
+  type TypedPath,
+  withoutTrailingSeparators,
+} from "@/client/lib/typed-path";
 import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn, osConventions } from "@/client/lib/utils";
@@ -774,7 +777,15 @@ function useRows({
         : undefined;
     const completion = finished ? finished.name.slice(path.prefix.length) : "";
     const whole = `${typed}${completion}`;
+    // A whole path's names are in a folder other than the one on screen,
+    // which each row says, or a name the folder on screen has too (its
+    // Documents) reads as that one.
+    const elsewhere =
+      isWhole &&
+      withoutTrailingSeparators(path.folder) !==
+        withoutTrailingSeparators(here);
     const entryRow = (entry: (typeof entries)[number]): OmniRow => ({
+      ...(elsewhere ? { detail: displayHostPath(path.folder, home) } : {}),
       fill:
         entry === finished
           ? `${whole}${entry.kind === "folder" ? "/" : ""}`

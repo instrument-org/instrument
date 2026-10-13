@@ -652,7 +652,7 @@ describe.runIf(process.platform !== "win32")("outsideFolderRefusal", () => {
 
   function layoutWith(level: "allow" | "ask") {
     return buildWorkspaceFsLayout({
-      chatHostRoot: ChatDirSchema.parse(path.join(tmpDir, "chat")),
+      taskHostRoot: ChatDirSchema.parse(path.join(tmpDir, "chat")),
       rules: {
         asker: {
           chatId: ChatIdSchema.parse("outside-folder-test"),

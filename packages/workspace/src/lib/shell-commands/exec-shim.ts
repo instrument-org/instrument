@@ -1,5 +1,6 @@
 import { execa, type Options } from "execa";
 import { type Serializable } from "node:child_process";
+import path from "node:path";
 
 import {
   COMMAND_LINE_TOOLS_ARRIVED,
@@ -162,8 +163,13 @@ export async function execShim(
       : undefined;
   // A program that reached a developer tool stub on a Mac without the tools
   // fails with the stub's own error, which does not say what to do.
+  // `xcode-select --install` reports a request the sandbox refused and still
+  // exits 0, so its own output is read whatever the exit code, and it fails.
+  const installRefused =
+    path.basename(file) === "xcode-select" &&
+    `${stderr}\n${stdout}`.includes("no install could be requested");
   const missingTools =
-    result.exitCode !== 0 && commandLineToolsMissing()
+    (result.exitCode !== 0 || installRefused) && commandLineToolsMissing()
       ? commandLineToolsNote(`${stderr}\n${stdout}`)
       : undefined;
   const notes = [
@@ -177,7 +183,7 @@ export async function execShim(
       : []),
   ].join("");
   return {
-    exitCode: result.exitCode,
+    exitCode: installRefused && result.exitCode === 0 ? 1 : result.exitCode,
     // The binary that was launched, kept so a diagnostic can name the command
     // the way the agent spells it rather than by its path on this machine.
     file,

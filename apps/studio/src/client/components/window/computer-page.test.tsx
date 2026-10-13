@@ -14,7 +14,8 @@ vi.mock("sonner", async (importOriginal) => ({
 }));
 
 const { setToastDeveloperMode } = await import("@/client/lib/toast");
-const { fileActionFailed, rowPress } = await import("./computer-page");
+const { fileActionFailed, rootParentSearch, rowPress } =
+  await import("./computer-page");
 const { listingCommandOf } = await import("../extend/file-system-keys");
 
 // With Quick Look up, the arrows are handed to the listing's selected row.
@@ -30,6 +31,19 @@ it.each([
       key: "ArrowUp",
     });
     expect(listingCommandOf(rowPress(press), os)).toEqual({ type: "parent" });
+  },
+);
+
+// Up from the top of the tab's tree is a step of the tab's own, as walking
+// into a folder is, so the folder above opens in the layout on screen rather
+// than in its own or the last one chosen anywhere.
+it.each(["/Users/sam/Documents", "C:\\Users\\sam\\Documents"])(
+  "keeps the tab's layout going up from its root at %s",
+  (root) => {
+    expect(rootParentSearch(root, "list")).toMatchObject({
+      select: "Documents/",
+      view: "list",
+    });
   },
 );
 

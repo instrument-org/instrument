@@ -1197,21 +1197,12 @@ export function ComputerPage({
       to: "/files",
     });
   };
-  // Up from the top of the tab's tree (⌘↑, or Alt+↑ off the Mac): the folder
-  // the root sits in, with the root selected in it. Nothing is above a disk.
+  // Up from the top of the tab's tree (⌘↑, or Alt+↑ off the Mac).
   const leaveRoot = () => {
-    const above = rootHostPath && parentFolderOf(rootHostPath);
-    if (!rootHostPath || !above) {
-      return;
+    const search = rootParentSearch(rootHostPath, view);
+    if (search) {
+      void navigate({ search, to: "/files" });
     }
-    void navigate({
-      search: {
-        path: "",
-        root: above,
-        select: `${segmentsOf(rootHostPath).at(-1) ?? ""}/`,
-      },
-      to: "/files",
-    });
   };
 
   if (!places.data) {
@@ -2270,6 +2261,28 @@ function relativeHostPath(root: string, hostPath: string) {
   return hostPath.startsWith(base)
     ? hostPath.slice(base.length).split(separator).join("/")
     : null;
+}
+
+/**
+ * Where up from the top of a tab's tree goes: the folder the root sits in,
+ * with the root selected in it, in the layout on screen. Going up is a step
+ * of the tab's own, as walking into a folder is, so it keeps the tab's
+ * layout. Nothing is above a disk.
+ */
+export function rootParentSearch(
+  rootHostPath: string | undefined,
+  view: FileSystemView,
+) {
+  const above = rootHostPath && parentFolderOf(rootHostPath);
+  if (!rootHostPath || !above) {
+    return undefined;
+  }
+  return {
+    path: "",
+    root: above,
+    select: `${segmentsOf(rootHostPath).at(-1) ?? ""}/`,
+    view,
+  };
 }
 
 /**

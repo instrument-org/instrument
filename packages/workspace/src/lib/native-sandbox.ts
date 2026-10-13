@@ -210,6 +210,15 @@ export function seatbeltProfile(
     ...opens([DEVICES], "file-write*"),
     ...opens(toolCaches(), "file-read* file-write*"),
     ...opens(reach.readOnly, "file-read*"),
+    // Closed to changes as well, so a rule that opens a folder holding one
+    // (an Ask first place under folders-without-asking) does not open it.
+    ...reach.readOnly.flatMap((closed) =>
+      spellings(closed).map((spelled) => ({
+        depth: depthOf(closed),
+        rank: 3,
+        text: `(deny file-write* (subpath ${sbplString(spelled)}))`,
+      })),
+    ),
     ...opens(reach.readWrite, "file-read* file-write*"),
   );
   const ordered = entries.toSorted(
@@ -620,6 +629,10 @@ export function bwrapArgs(
     }
   };
   add(home, "read", -1);
+  // The folder holding what stands in for a closed file, read-only whatever
+  // opens a folder above it, so nothing can be put in its place.
+  const standIn = unreadableFile();
+  add(path.dirname(standIn), "read", 3);
   for (const rule of rules) {
     const level = levelWithoutAsking(rule.level, rule, withoutAsking);
     const access =
@@ -798,7 +811,7 @@ export function bwrapArgs(
     } else {
       // A file nobody may open, in place of the closed one, so reading it
       // is refused rather than empty.
-      args.push("--ro-bind", unreadableFile(), real);
+      args.push("--ro-bind", standIn, real);
     }
   }
   return [...args, ...remountLater];
@@ -814,6 +827,7 @@ export function bwrapArgs(
 function unreadableFile(): string {
   const file = path.join(
     path.dirname(getWorkspaceConfig().uvDataDir),
+    "sandbox",
     "closed-file",
   );
   let found: Stats | undefined;

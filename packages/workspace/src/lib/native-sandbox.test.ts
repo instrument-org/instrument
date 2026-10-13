@@ -103,6 +103,47 @@ describe("seatbeltProfile", () => {
   });
 });
 
+describe("a read-only folder inside a place that opens without asking", () => {
+  const home = "/nope/home";
+  const reach: NativeReach = {
+    readOnly: [`${home}/Library/App/uv`],
+    readWrite: [`${home}/Library/App/uv/cache`],
+    rules: {
+      home,
+      rules: [{ level: "ask", path: `${home}/Library`, source: "place" }],
+      withoutAsking: true,
+    },
+  };
+
+  it("stays closed to changes under Seatbelt, with its stores open", () => {
+    const lines = seatbeltProfile(reach)
+      .split("\n")
+      .filter((line) => line.includes("Library"));
+    expect(lines).toMatchInlineSnapshot(`
+      [
+        "(allow file-read* file-write* network-outbound (subpath "/nope/home/Library"))",
+        "(allow file-read* (subpath "/nope/home/Library/App/uv"))",
+        "(deny file-write* (subpath "/nope/home/Library/App/uv"))",
+        "(allow file-read* file-write* (subpath "/nope/home/Library/App/uv/cache"))",
+        "(allow file-read-metadata (literal "/nope/home/Library"))",
+        "(allow file-read-metadata (literal "/nope/home/Library/App"))",
+        "(allow file-read-metadata (literal "/nope/home/Library/App/uv"))",
+        "(deny file-write* (require-all (require-any (regex #"/\\.git/hooks(/|$)") (regex #"/\\.gitconfig(/|$)") (regex #"/\\.gitmodules(/|$)") (regex #"/\\.vscode(/|$)") (regex #"/\\.idea(/|$)") (regex #"/\\.envrc(/|$)") (regex #"/\\.mcp\\.json(/|$)") (regex #"/\\.claude/settings\\.json(/|$)") (regex #"/\\.claude/settings\\.local\\.json(/|$)") (regex #"/\\.claude/commands(/|$)") (regex #"/\\.claude/agents(/|$)") (regex #"/\\.codex(/|$)")) (require-not (subpath "/nope/home/Library/App/uv/cache"))))",
+        "(deny file-write-unlink (require-all (regex #"/\\.git$") (require-not (subpath "/nope/home/Library/App/uv/cache"))))",
+      ]
+    `);
+  });
+
+  it("binds the closed-file stand-in's folder read-only under bubblewrap", () => {
+    const standIn = path.join(
+      path.dirname(getWorkspaceConfig().uvDataDir),
+      "sandbox",
+    );
+    const args = bwrapArgs(reach).join(" ");
+    expect(args).toContain(`--ro-bind ${realpathSync(standIn)}`);
+  });
+});
+
 describe("the passwords place in a profile", () => {
   const home = "/nope/home";
   const socket = "/nope/agent.sock";
@@ -573,7 +614,11 @@ describe("bwrapArgs", () => {
     // and the app's own folder, which it may not.
     const planted = [
       path.join(os.tmpdir(), `instrument-closed-${process.getuid?.() ?? 0}`),
-      path.join(path.dirname(getWorkspaceConfig().uvDataDir), "closed-file"),
+      path.join(
+        path.dirname(getWorkspaceConfig().uvDataDir),
+        "sandbox",
+        "closed-file",
+      ),
     ];
     for (const link of planted) {
       mkdirSync(path.dirname(link), { recursive: true });

@@ -86,7 +86,6 @@ export {
   cdpMethodsHandled,
   isKnownCdpMethod,
 } from "./lib/cdp-methods";
-export { applyCommandLineToolsEnv } from "./lib/command-line-tools-env";
 export { installAISDKWarningLogger } from "./lib/log-ai-sdk-warnings";
 export { findAvailableName } from "./lib/find-available-name";
 export {

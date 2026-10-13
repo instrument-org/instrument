@@ -2,12 +2,7 @@ import { execa, type Options } from "execa";
 import { type Serializable } from "node:child_process";
 import path from "node:path";
 
-import {
-  COMMAND_LINE_TOOLS_ARRIVED,
-  commandLineToolsMissing,
-  commandLineToolsNote,
-  recheckCommandLineTools,
-} from "../command-line-tools-env";
+import { commandLineToolsNote } from "../command-line-tools-env";
 import { inheritedEnv } from "../native-env";
 
 import {
@@ -187,18 +182,12 @@ export async function execShim(
     path.basename(file) === "xcode-select" &&
     `${stderr}\n${stdout}`.includes("no install could be requested");
   const missingTools =
-    (result.exitCode !== 0 || installRefused) && commandLineToolsMissing()
+    result.exitCode !== 0 || installRefused
       ? commandLineToolsNote(`${stderr}\n${stdout}`)
       : undefined;
   const notes = [
     ...(refusal ? [`${refusal}\n`] : []),
-    ...(missingTools
-      ? [
-          (await recheckCommandLineTools())
-            ? missingTools
-            : COMMAND_LINE_TOOLS_ARRIVED,
-        ]
-      : []),
+    ...(missingTools ? [missingTools] : []),
   ].join("");
   return {
     exitCode: installRefused && result.exitCode === 0 ? 1 : result.exitCode,

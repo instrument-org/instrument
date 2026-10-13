@@ -1,17 +1,9 @@
 import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 
 import { execShim } from "./exec-shim";
-
-// A Mac without the Command Line Tools, where the recheck finds them still
-// missing.
-vi.mock("../command-line-tools-env", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../command-line-tools-env")>()),
-  commandLineToolsMissing: () => true,
-  recheckCommandLineTools: () => Promise.resolve(true),
-}));
 
 /** A stand-in program by `name` that prints `line` and exits 0. */
 function program(name: string, line: string): string {

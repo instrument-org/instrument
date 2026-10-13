@@ -3,7 +3,6 @@ import path from "node:path";
 import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { absolutePathJoin } from "./absolute-path-join";
-import { commandLineToolsEnv } from "./command-line-tools-env";
 import { uvToolsEnvFor } from "./tool-isolation-env";
 import { getWorkspaceConfig } from "./workspace-config";
 import { workDir } from "./work-dir";
@@ -66,11 +65,6 @@ export function uvSubprocessEnv({
   ];
 
   return {
-    // uv reaches for install_name_tool when it relocates a managed interpreter,
-    // and for a compiler if an install ever falls back to source. Both are
-    // macOS Command Line Tools stubs, which hang the tool call behind an
-    // installer dialog when the tools are absent.
-    ...commandLineToolsEnv(),
     // Redirect heavy model/data caches to an app-managed, writable dir shared
     // across tasks so big downloads land once and persist, rather than under
     // `~`, which the native sandbox keeps read-only outside the chat's

@@ -318,9 +318,8 @@ export function seatbeltProfile(
     // `python3`, `xcrun`) ask this launchd service to show the Command Line
     // Tools installer when no developer directory resolves. Closed, a stub
     // reports that no install could be requested and exits, whatever its
-    // environment: `DEVELOPER_DIR` (command-line-tools-env.ts) is only a
-    // variable, and `env -i` or a script's scrubbed env drops it. A Mac with
-    // the tools never asks, so nothing that works is lost.
+    // environment, and execShim says what to do. A Mac with the tools never
+    // asks, so nothing that works is lost.
     `(deny mach-lookup (global-name "${COMMAND_LINE_TOOLS_INSTALLER}"))`,
   );
   return ["(version 1)", "(allow default)", ...texts].join("\n");
@@ -456,11 +455,9 @@ export class NativeSandboxUnavailableError extends Error {
 
 /**
  * A program the app runs for itself, outside the rules, with only the
- * Command Line Tools installer closed to it and everything it starts: the
- * one thing of the native profile that holds for a child that clears its
- * environment of the `DEVELOPER_DIR` guard. Unwrapped where Seatbelt cannot
- * be applied. Not for a program that sandboxes itself (Chromium), since
- * Seatbelt does not nest.
+ * Command Line Tools installer closed to it and everything it starts.
+ * Unwrapped where Seatbelt cannot be applied. Not for a program that
+ * sandboxes itself (Chromium), since Seatbelt does not nest.
  */
 export function withInstallerClosed(
   file: string,

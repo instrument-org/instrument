@@ -2,7 +2,6 @@ import { execa } from "execa";
 
 import { type AbsolutePath } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
-import { commandLineToolsEnv } from "./command-line-tools-env";
 import { filterShellOutput } from "./filter-shell-output";
 import { inheritedEnv } from "./native-env";
 import { chatNativeReach } from "./chat-native-reach";
@@ -136,7 +135,6 @@ async function installManagedPython() {
     all: true,
     env: {
       ...inheritedEnv(),
-      ...commandLineToolsEnv(),
       ...uvToolsEnvFor(getWorkspaceConfig().uvDataDir),
     },
     extendEnv: false,

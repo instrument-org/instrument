@@ -769,8 +769,14 @@ export function bwrapArgs(
   // unbound folder would stay read-only with the home folder around it. So
   // is a folder the person allowed by name before it was made (a card for
   // the repository `git init` was about to make), where the folder holding
-  // it is there.
+  // it is there. So is a read-only folder inside one of ours, which would
+  // otherwise be left as writable as the folder around it.
   const ours = new Set([...caches, ...reach.readWrite]);
+  for (const closed of reach.readOnly) {
+    if ([...ours].some((folder) => hostPathWithin(folder, closed) !== null)) {
+      ours.add(closed);
+    }
+  }
   const allowedByName = new Set(
     rules
       .filter(

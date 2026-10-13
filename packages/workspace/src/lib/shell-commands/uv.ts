@@ -5,7 +5,8 @@ import { type ChatId } from "../../schemas/chat-id";
 import { ensureChatVenv } from "../ensure-chat-venv";
 import { filterShellOutput } from "../filter-shell-output";
 import { type WorkspaceFsLayout } from "../workspace-fs-layout";
-import { getUvBinPath } from "../uv";
+import { ensureManagedPython } from "../run-uv";
+import { getUvBinPath, withPythonVersionNote } from "../uv";
 import { execShim, mapStreams, shimOutput } from "./exec-shim";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 
@@ -23,6 +24,13 @@ export function createUvCommand(chatId: ChatId, _layout: WorkspaceFsLayout) {
     }
 
     const { env, taskCwd } = resolveCommandContext(chatId, ctx);
+
+    // The chat's uv may not write the managed Python, so the app installs
+    // it before the first command that could look for it.
+    const python = await ensureManagedPython();
+    if (python) {
+      return { exitCode: python.exitCode, stderr: python.output, stdout: "" };
+    }
 
     // `uv pip` requires the venv to exist (VIRTUAL_ENV points at .venv).
     // Ensure it here so `uv pip install` works even before any `python`/`pip`
@@ -85,7 +93,7 @@ export async function runUv({
   return {
     exitCode: result.exitCode ?? 1,
     ...mapStreams(shimOutput(result, UV_COMMAND.name), (text) =>
-      filterShellOutput(text),
+      withPythonVersionNote(filterShellOutput(text)),
     ),
   };
 }

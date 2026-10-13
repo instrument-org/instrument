@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
-import { chatVenvDir, chatVenvPython, uvSubprocessEnv } from "./uv";
+import {
+  chatVenvDir,
+  chatVenvPython,
+  uvSubprocessEnv,
+  withPythonVersionNote,
+} from "./uv";
 
 const isWindows = process.platform === "win32";
 const chatId = createMockChatConfig(ChatIdSchema.parse("test"));
@@ -36,10 +41,23 @@ describe("uvSubprocessEnv", () => {
     expect(env.UV_TOOL_DIR).toBe(path.join("/tmp/workspace/uv-data", "tools"));
   });
 
-  it("pins uv to managed Python and ignores host config", () => {
+  it("pins uv to managed Python, which the app installs, and ignores host config", () => {
     expect(env.UV_NO_CONFIG).toBe("1");
     expect(env.UV_PYTHON_PREFERENCE).toBe("only-managed");
-    expect(env.UV_PYTHON_DOWNLOADS).toBe("automatic");
+    expect(env.UV_PYTHON_DOWNLOADS).toBe("never");
+  });
+
+  it("says which Python there is when uv wants another version", () => {
+    expect(
+      withPythonVersionNote(
+        "error: No interpreter found for Python 3.11 in managed installations\n",
+      ),
+    ).toMatchInlineSnapshot(`
+      "error: No interpreter found for Python 3.11 in managed installations
+      Only Python 3.12 is available, and no other version can be installed. Use \`--python 3.12\`, or a project whose requires-python allows 3.12.
+      "
+    `);
+    expect(withPythonVersionNote("error: other\n")).toBe("error: other\n");
   });
 
   it("points VIRTUAL_ENV at the task venv", () => {

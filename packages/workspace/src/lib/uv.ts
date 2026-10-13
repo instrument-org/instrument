@@ -88,5 +88,20 @@ export function uvSubprocessEnv({
     U2NET_HOME: path.join(uvDataDir, "u2net"),
     VIRTUAL_ENV: venvDir,
     ...uvToolsEnvFor(uvDataDir),
+    // The managed Python is the app's to install (installManagedPython), in
+    // a folder no chat may write, so a chat's uv uses the one there and
+    // fails plainly on any other version rather than trying a download.
+    UV_PYTHON_DOWNLOADS: "never",
   };
+}
+
+/**
+ * uv's `output`, with a line saying which Python there is when it failed for
+ * want of another version (`uv venv --python 3.11`, a project that requires
+ * 3.13).
+ */
+export function withPythonVersionNote(output: string): string {
+  return /No interpreter found for .* in managed installations/.test(output)
+    ? `${output.trimEnd()}\nOnly Python ${MANAGED_PYTHON_VERSION} is available, and no other version can be installed. Use \`--python ${MANAGED_PYTHON_VERSION}\`, or a project whose requires-python allows ${MANAGED_PYTHON_VERSION}.\n`
+    : output;
 }

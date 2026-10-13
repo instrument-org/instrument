@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { type ChatId } from "../schemas/chat-id";
-import { runUvCommand } from "./run-uv";
+import { ensureManagedPython, runUvCommand } from "./run-uv";
 import { MANAGED_PYTHON_VERSION, chatVenvDir, chatVenvPython } from "./uv";
 import { workDir } from "./work-dir";
 
@@ -101,7 +101,11 @@ function hasUsableVenv(chatId: ChatId) {
   );
 }
 
-function runUvVenv(chatId: ChatId): Promise<ChatVenvError | undefined> {
+async function runUvVenv(chatId: ChatId): Promise<ChatVenvError | undefined> {
+  const python = await ensureManagedPython();
+  if (python) {
+    return python;
+  }
   // `--clear` because we only get here when the venv is missing or unusable,
   // so replacing whatever is there is the intent. Without it uv refuses to
   // touch an existing venv, which would strand a task whose interpreter went

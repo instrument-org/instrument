@@ -7,6 +7,7 @@ import { z } from "zod";
 import { CHAT_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import {
+  type BackgroundProcessInfo,
   promoteBackgroundProcess,
   startBackgroundRun,
 } from "../lib/background-processes";
@@ -48,6 +49,11 @@ import { BaseInputSchema } from "./base";
 import { setupTool } from "./create-tool";
 import { skillInstructions } from "./load-skill";
 import { workDir } from "../lib/work-dir";
+import {
+  interruptedByUser,
+  interruptibleWait,
+  type WaitInterrupt,
+} from "../lib/wait-interrupts";
 
 const DEFAULT_YIELD_MS = ms("30 seconds");
 const MIN_YIELD_MS = 250;
@@ -83,16 +89,35 @@ function formatBytes(bytes: number) {
 }
 
 /**
- * Resolves with the run's outcome, or with `"still-running"` once `yieldMs` has
- * passed. The run is never cancelled here: a command that outlives its yield
- * window is promoted rather than killed, because the work it has already done is
- * worth more than a tidy tool result.
+ * How long a command a message interrupted still gets to finish on its own
+ * before it moves to the background. Long enough for an `fg` the same message
+ * ended to answer for itself, rather than being promoted as a second process.
  */
+const MESSAGE_GRACE_MS = 1000;
+
+/**
+ * Resolves with the run's outcome, with `"still-running"` once `yieldMs` has
+ * passed, or with `"interrupted"` when `interrupt` fires first. The run is
+ * never cancelled here: a command that outlives its yield window is promoted
+ * rather than killed, because the work it has already done is worth more than
+ * a tidy tool result.
+ */
+function raceYield<T>(
+  promise: Promise<T>,
+  yieldMs: number,
+): Promise<"still-running" | T>;
+function raceYield<T>(
+  promise: Promise<T>,
+  yieldMs: number,
+  interrupt: AbortSignal,
+): Promise<"interrupted" | "still-running" | T>;
 async function raceYield<T>(
   promise: Promise<T>,
   yieldMs: number,
-): Promise<"still-running" | T> {
+  interrupt?: AbortSignal,
+): Promise<"interrupted" | "still-running" | T> {
   let timer: NodeJS.Timeout | undefined;
+  let onInterrupt: (() => void) | undefined;
   try {
     return await Promise.race([
       promise,
@@ -101,9 +126,18 @@ async function raceYield<T>(
           resolve("still-running");
         }, yieldMs);
       }),
+      new Promise<"interrupted">((resolve) => {
+        onInterrupt = () => {
+          resolve("interrupted");
+        };
+        interrupt?.addEventListener("abort", onInterrupt, { once: true });
+      }),
     ]);
   } finally {
     clearTimeout(timer);
+    if (onInterrupt) {
+      interrupt?.removeEventListener("abort", onInterrupt);
+    }
   }
 }
 
@@ -149,6 +183,11 @@ export const BashTool = setupTool({
     logFilePath: RelativePathSchema.optional(),
     logOmittedBytes: z.number().optional(),
     logWriteError: z.string().optional(),
+    /**
+     * Set when a message arriving mid-call, rather than `yieldMs`, moved the
+     * command to the background: who wrote it.
+     */
+    movedForMessageFrom: z.enum(["other", "user"]).optional(),
     /** Output dropped because a promoted command outpaced the pending buffer. */
     omittedBytes: z.number().default(0),
     output: z.string(),
@@ -220,7 +259,59 @@ export const BashTool = setupTool({
       },
     });
 
-    const outcome = await raceYield(handle.completion, yieldMs);
+    const promotedResult = (
+      info: BackgroundProcessInfo,
+      movedForMessageFrom?: WaitInterrupt["from"],
+    ) => {
+      const { omittedBytes, text } = handle.buffer.drain();
+      return ok({
+        command: input.command,
+        commands: [],
+        durationMs: Math.round(performance.now() - startedAt),
+        logFilePath: info.logFilePath,
+        logOmittedBytes: info.logOmittedBytes,
+        ...(info.logWriteError ? { logWriteError: info.logWriteError } : {}),
+        ...(movedForMessageFrom ? { movedForMessageFrom } : {}),
+        omittedBytes,
+        output: text,
+        processId: info.id,
+      });
+    };
+
+    // A message for the session is heard at the agent's next step, which a
+    // foreground command would hold back for the rest of its window. It never
+    // ends the command: the command moves to the background and keeps
+    // running, and the call returns so the message is heard now.
+    const interrupt = interruptibleWait(sessionId);
+    let outcome;
+    try {
+      outcome = await raceYield(handle.completion, yieldMs, interrupt.signal);
+    } finally {
+      interrupt.release();
+    }
+    if (outcome === "interrupted") {
+      outcome = await raceYield(handle.completion, MESSAGE_GRACE_MS);
+      if (outcome === "still-running") {
+        const promoted = promoteBackgroundProcess({
+          handle,
+          sessionId,
+          chatId,
+        });
+        if ("info" in promoted) {
+          return promotedResult(
+            promoted.info,
+            interruptedByUser(interrupt.signal) ? "user" : "other",
+          );
+        }
+        // One that cannot move to the background (the cap, a closing
+        // session) stays in the foreground for the rest of its window, as if
+        // no message had come.
+        outcome = await raceYield(
+          handle.completion,
+          Math.max(0, yieldMs - (performance.now() - startedAt)),
+        );
+      }
+    }
     const durationMs = Math.round(performance.now() - startedAt);
 
     if (outcome === "still-running") {
@@ -229,20 +320,7 @@ export const BashTool = setupTool({
         handle.abort();
         return executeError(promoted.error);
       }
-      const { omittedBytes, text } = handle.buffer.drain();
-      return ok({
-        command: input.command,
-        commands: [],
-        durationMs,
-        logFilePath: promoted.info.logFilePath,
-        logOmittedBytes: promoted.info.logOmittedBytes,
-        ...(promoted.info.logWriteError
-          ? { logWriteError: promoted.info.logWriteError }
-          : {}),
-        omittedBytes,
-        output: text,
-        processId: promoted.info.id,
-      });
+      return promotedResult(promoted.info);
     }
 
     if ("errorMessage" in outcome) {
@@ -321,10 +399,17 @@ export const BashTool = setupTool({
         : (output.logOmittedBytes ?? 0) > 0
           ? `[The bounded process log omitted ${formatBytes(output.logOmittedBytes ?? 0)}.]\n`
           : "";
+      const after = ms(output.durationMs, { long: true });
+      const why =
+        output.movedForMessageFrom === "user"
+          ? `The user sent you a message while this was running, so it moved to the background after ${after} for you to read the message. It was not stopped and is still running.`
+          : output.movedForMessageFrom === "other"
+            ? `A message arrived for you while this was running, so it moved to the background after ${after} for you to read the message. It was not stopped and is still running.`
+            : `Still running after ${after}, so it moved to the background.`;
       return {
         type: "text",
         value: [
-          `Still running after ${ms(output.durationMs, { long: true })}, so it moved to the background.`,
+          why,
           `Process id: ${output.processId}`,
           "",
           displayOutput

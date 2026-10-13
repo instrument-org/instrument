@@ -416,6 +416,90 @@ const assertReportedTheCodeOnWaking: Assertion = {
   text: "Told the user the code the command printed, after waking",
 };
 
+const MID_COMMAND_QUESTION = "unrelated, quick: what's 18% of 240?";
+
+/**
+ * The message typed while a foreground command ran moved that command to the
+ * background, rather than waiting behind it or cutting it short.
+ */
+const assertMovedForTheMessage: Assertion = {
+  check: ({ sessions }) => {
+    const moved = sessions
+      .flatMap((session) => session.messages)
+      .flatMap((message) => message.parts)
+      .filter(isBashCall)
+      .find(
+        (part) =>
+          "output" in part && part.output?.movedForMessageFrom === "user",
+      );
+    const text =
+      "The user's message moved the running command to the background";
+    return {
+      evidence: moved
+        ? `\`${String(moved.input?.command)}\` moved`
+        : `No call was moved for a message. Commands: ${describeCommands(bashCalls(sessions))}`,
+      passed: moved !== undefined,
+      text,
+    };
+  },
+  text: "The user's message moved the running command to the background",
+};
+
+/** Answered the question asked mid-command before the command ended. */
+const assertAnsweredWhileItRan: Assertion = {
+  check: ({ sessions }) => {
+    const text = replyText(sessions);
+    const passed = /\b43\.2\b/.test(text);
+    return {
+      evidence: passed
+        ? "Reply says 43.2"
+        : `Never answered: ${text.slice(0, 240) || "(no reply text)"}`,
+      passed,
+      text: "Answered the question sent while the command ran",
+    };
+  },
+  text: "Answered the question sent while the command ran",
+};
+
+/** Nobody asked to stop the command, so it was not stopped or started again. */
+const assertLeftTheCommandAlone: Assertion = {
+  check: ({ sessions }) => {
+    const calls = bashCalls(sessions);
+    const kills = calls.filter((call) =>
+      new RegExp(String.raw`(^|[\n;|&(])\s*${KILL_COMMAND.name}\b`).test(
+        call.command,
+      ),
+    );
+    const starts = calls.filter((call) => call.command.includes("setTimeout"));
+    const passed = kills.length === 0 && starts.length === 1;
+    return {
+      evidence: `kills: ${kills.length}, starts: ${starts.length}`,
+      passed,
+      text: "Neither stopped the command nor started it again",
+    };
+  },
+  text: "Neither stopped the command nor started it again",
+};
+
+/** Said the code the command printed once it ended, in the turn or a wake. */
+const assertReportedTheCode: Assertion = {
+  check: ({ sessions }) => {
+    const code = /code (\d{6})\b/.exec(toolResultText(sessions))?.[1];
+    const passed = code !== undefined && replyText(sessions).includes(code);
+    return {
+      evidence:
+        code === undefined
+          ? "No tool result held the printed code"
+          : passed
+            ? `Said ${code}`
+            : `Never said ${code}`,
+      passed,
+      text: "Told the user the code the command printed",
+    };
+  },
+  text: "Told the user the code the command printed",
+};
+
 export const BACKGROUND_PROCESS_EVALS = [
   /**
    * Discovery, with nothing in the prompt naming the mechanism. A server never
@@ -520,6 +604,32 @@ export const BACKGROUND_PROCESS_EVALS = [
     outlivesTurn: true,
     prompt:
       "Start this and don't wait around for it, it takes a while: node -e \"setTimeout(() => console.log('code ' + Math.floor(100000 + Math.random() * 900000)), 45000)\". Once it is running, tell me it has started and stop there. When it finishes, tell me the code it printed.",
+  }),
+
+  /**
+   * A message typed while a foreground command runs. The command is not cut:
+   * it moves to the background so the question is heard now, the agent
+   * answers it, and the code the command prints later still reaches the user,
+   * through `fg` in the same turn or the wake once it ends.
+   */
+  defineEval({
+    assertions: [
+      assertMovedForTheMessage,
+      assertAnsweredWhileItRan,
+      assertLeftTheCommandAlone,
+      assertReportedTheCode,
+    ],
+    followUps: [
+      {
+        duringWork: { afterToolCalls: 0, command: /setTimeout/ },
+        prompt: MID_COMMAND_QUESTION,
+      },
+    ],
+    kind: "chat",
+    name: "background-message-during-a-command",
+    outlivesTurn: true,
+    prompt:
+      "Run this and wait for it to finish, then tell me the code it printed: node -e \"setTimeout(() => console.log('code ' + Math.floor(100000 + Math.random() * 900000)), 60000)\"",
   }),
 
   /** The control: an ordinary command must not change behavior. */

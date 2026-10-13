@@ -360,8 +360,12 @@ export const sessionMachine = setup({
             });
           }
           agentRef.send({ saved, type: "steer", value: message });
-          // The next step may be minutes away inside a wait; end it.
-          interruptWaits(context.sessionId);
+          // The next step may be minutes away inside a wait, an `fg` or a
+          // foreground command; end it. The command itself keeps running in
+          // the background (tools/bash.ts).
+          interruptWaits(context.sessionId, {
+            from: typedIntoChat ? "user" : "other",
+          });
         }),
       ],
     },

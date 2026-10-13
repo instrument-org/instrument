@@ -35,7 +35,12 @@ import {
 import { setupAgent } from "../agents/create-agent";
 import { instrumentAgent } from "../agents/instrument";
 import { type AnyAgent } from "../agents/types";
+import {
+  killSessionBackgroundProcesses,
+  listBackgroundProcesses,
+} from "../lib/background-processes";
 import * as children from "../lib/chat/children";
+import * as bashEnv from "../lib/create-bash-env";
 import * as recordFolders from "../lib/record-folders";
 import { Store } from "../lib/store";
 import { getWorkspaceConfig } from "../lib/workspace-config";
@@ -2058,6 +2063,100 @@ describe("sessionMachine", () => {
         expect(shorthand.match(/<session-context/g)).toHaveLength(2);
         expect(shorthand).toContain("I'm done.</text>");
       });
+
+      // A foreground command would hold the message until it ended. It is
+      // not cut either: it moves to the background, and the message is heard
+      // at the step after.
+      it("moves a running command to the background and hears the message next", async () => {
+        answersAsChat();
+        // A command that takes five seconds, unless stopped. The shell's
+        // own commands load from disk, which the mocked filesystem hides.
+        let stopped = false;
+        vi.spyOn(bashEnv, "createBashEnv").mockResolvedValue({
+          exec: (_command, options) =>
+            new Promise((resolve, reject) => {
+              const timer = setTimeout(() => {
+                // Only the fields the bash tool reads.
+                resolve({
+                  exitCode: 0,
+                  stderr: "",
+                  stdout: "slept\n",
+                } as Awaited<ReturnType<bashEnv.BashRunner["exec"]>>);
+              }, 5000);
+              options?.signal?.addEventListener("abort", () => {
+                stopped = true;
+                clearTimeout(timer);
+                reject(new Error("aborted"));
+              });
+            }),
+        });
+        const bashChunks = [
+          { id: "test-call-bash", toolName: "bash", type: "tool-input-start" },
+          {
+            input: JSON.stringify({
+              command: "sleep 5",
+              explanation: "Waiting",
+              yieldMs: 60_000,
+            }),
+            toolCallId: "test-call-bash",
+            toolName: "bash",
+            type: "tool-call",
+          },
+        ] as const satisfies LanguageModelV4StreamPart[];
+        const result = await createActorAndTask({
+          chunkSets: [bashChunks, finishChunks],
+        });
+        result.actor.start();
+        await waitFor(
+          result.actor,
+          (state) => state.context.agentRef !== undefined,
+        );
+        const agentRef = result.actor.getSnapshot().context.agentRef;
+        if (!agentRef) {
+          throw new Error("The agent never started");
+        }
+        await waitFor(agentRef, (state) => state.matches("ExecutingToolCalls"));
+        // Past the bash call's start, so its wait is registered.
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        const started = performance.now();
+        result.actor.send({
+          model: createMockAIGatewayModel(),
+          type: "addMessage",
+          value: typed("also check the logs"),
+        });
+
+        try {
+          const session = await runTestMachine(result);
+          expect(performance.now() - started).toBeLessThan(4000);
+          const shorthand = sessionToShorthand(session);
+          expect(shorthand).not.toContain("interrupted by a newer message");
+          expect(shorthand).toContain('"movedForMessageFrom": "user"');
+          expect(shorthand).toContain('"processId": "bg_1"');
+          expect(shorthand).toContain(
+            "The user sent this while you were working on their last message.",
+          );
+          expect(shorthand.match(/<session-context/g)).toHaveLength(2);
+          expect(
+            listBackgroundProcesses(result.sessionId).map(
+              (process) => process.status,
+            ),
+          ).toEqual(["running"]);
+          // The turn is over and the command runs on to its own end.
+          await vi.waitFor(
+            () => {
+              expect(
+                listBackgroundProcesses(result.sessionId).map(
+                  (process) => process.status,
+                ),
+              ).toEqual(["exited"]);
+            },
+            { timeout: 10_000 },
+          );
+          expect(stopped).toBe(false);
+        } finally {
+          await killSessionBackgroundProcesses(result.sessionId);
+        }
+      }, 30_000);
 
       // A message that calls the work off stops it where it is, and runs
       // next as a turn of its own, with no note.

@@ -216,11 +216,14 @@ describe("background job commands", () => {
     const started = performance.now();
     const waiting = bash(`fg ${processId}`, 20_000);
     setTimeout(() => {
-      interruptWaits(sessionId);
+      interruptWaits(sessionId, { from: "user" });
     }, 300);
     const waited = await waiting;
 
     expect(performance.now() - started).toBeLessThan(5000);
+    // The `fg` call answers for itself rather than being moved to the
+    // background as a second process.
+    expect(waited.processId).toBeUndefined();
     expect(waited.output).toContain(`${processId} is still running`);
     expect(waited.output).toContain("A message arrived for you");
     expect(waited.exitCode).toBe(0);

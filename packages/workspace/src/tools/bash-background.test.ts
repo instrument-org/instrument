@@ -2,13 +2,15 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as setTimeoutPromise } from "node:timers/promises";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   killSessionBackgroundProcesses,
   listChatBackgroundProcesses,
 } from "../lib/background-processes";
 import { chatDir } from "../lib/record-folders";
+import { interruptWaits } from "../lib/wait-interrupts";
+import { publisher } from "../rpc/publisher";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
@@ -252,6 +254,61 @@ describe("bash background processes, end to end", () => {
     );
     expect(log).not.toContain("tok3n");
     expect(log).not.toContain("hunter2");
+  }, 30_000);
+
+  // A message for the session is heard at the agent's next step. It never ends
+  // the command that step is running: the command moves to the background
+  // and runs to its end, which wakes the session if the turn is over by then.
+  it("moves a foreground command to the background when a message arrives, and lets it finish", async () => {
+    const published = vi.spyOn(publisher, "publish");
+    const started = performance.now();
+    const running = bash("sleep 2; echo slept", 60_000);
+    setTimeout(() => {
+      interruptWaits(sessionId, { from: "user" });
+    }, 300);
+    const moved = await running;
+
+    expect(performance.now() - started).toBeLessThan(1800);
+    expect(moved.processId).toBeDefined();
+    expect(moved.movedForMessageFrom).toBe("user");
+    expect(moved.exitCode).toBeUndefined();
+    const processId = moved.processId ?? "";
+    expect(
+      listChatBackgroundProcesses(chatId).find(
+        (process) => process.id === processId,
+      )?.status,
+    ).toBe("running");
+
+    await vi.waitFor(
+      () => {
+        expect(
+          listChatBackgroundProcesses(chatId).find(
+            (process) => process.id === processId,
+          )?.status,
+        ).toBe("exited");
+      },
+      { timeout: 10_000 },
+    );
+    // Ended on its own, so the session's wake hears of it.
+    expect(published).toHaveBeenCalledWith("backgroundProcess.settled", {
+      id: chatId,
+      sessionId,
+    });
+    const readOutput = await read(processId, 0);
+    expect(readOutput.output).toContain("finished with exit code 0");
+    expect(readOutput.output).toContain("slept");
+  }, 30_000);
+
+  it("leaves a command that ends within the grace to answer for itself", async () => {
+    const running = bash("sleep 0.5; echo quick", 60_000);
+    setTimeout(() => {
+      interruptWaits(sessionId, { from: "user" });
+    }, 100);
+    const result = await running;
+
+    expect(result.processId).toBeUndefined();
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("quick");
   }, 30_000);
 
   it("appends final shell output when a pipeline transforms live output", async () => {

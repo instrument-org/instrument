@@ -11,6 +11,13 @@ bash(command, yieldMs = 30s)
         │
         ├── finishes within yieldMs ──────────►  exit code + output      (unchanged)
         │
+        ├── a message arrives for the session, and the command
+        │   is still running 1 s later
+        │        │
+        │        ├── promoted ──►  bg_1, saying a message moved it (who wrote it)
+        │        │
+        │        └── promote fails ──► stays in the foreground, as if no message came
+        │
         └── still running at yieldMs
                  │
                  ├── promote fails (cap, closing session, log) ──► run stopped, error text
@@ -20,7 +27,9 @@ bash(command, yieldMs = 30s)
                                         └── agent uses `jobs` / `fg` / `kill`
 ```
 
-`&`, `nohup` and `disown` are **not** how something goes to the background. They are unsupported, and outliving `yieldMs` is the only route. That is stated in the tool description at [`create-bash-env.ts:535`](../../packages/workspace/src/lib/create-bash-env.ts#L535).
+`&`, `nohup` and `disown` are **not** how something goes to the background. They are unsupported, and the agent's own route is outliving `yieldMs`. That is stated in the tool description at [`create-bash-env.ts:535`](../../packages/workspace/src/lib/create-bash-env.ts#L535).
+
+The other trigger is a message for the session arriving mid-call: the person typing into the chat's working turn, the chat writing to its task, a task's finish waking the chat. The session machine ends the session's waits ([`lib/wait-interrupts.ts`](../../packages/workspace/src/lib/wait-interrupts.ts)), and a foreground command is one: it is promoted on the spot rather than holding the message until it ends, and the call returns so the message is heard at the next step ([`lib/chat/mid-turn.ts`](../../packages/workspace/src/lib/chat/mid-turn.ts)). A message never ends the command; it runs to completion, and one that ends after the turn wakes the session like any other. The 1 s grace lets a command about to finish answer for itself, an `fg` the same message ended most of all. A message that calls the work off ("stop") stops the turn instead, and its running command with it, like the Stop button.
 
 ## What the model sees change
 

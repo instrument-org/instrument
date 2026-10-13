@@ -38,9 +38,12 @@ export default async (app, args) => {
       prompt: args.prompt,
     });
     await app.goto(`/chats/${chat}`);
-  } else if (args.prompt) {
+  } else {
+    // Also without a prompt, which reads the chat's latest turn as it stands.
     session ??= (await app.rpc("workspace.chats.session", { id: chat }))
       .sessionId;
+  }
+  if (args.chat && args.prompt) {
     await app.rpc("workspace.message.create", {
       id: chat,
       modelURI,

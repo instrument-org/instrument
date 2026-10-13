@@ -291,7 +291,7 @@ export async function openCdp(origin, { page } = {}) {
     closed = true;
     for (const entry of pending.values()) {
       entry.reject(
-        new Error(
+        new DriveError(
           "The page closed while a command was waiting on it. If it was the onboarding window, onboarding has finished: drive the app window.",
         ),
       );
@@ -303,7 +303,7 @@ export async function openCdp(origin, { page } = {}) {
     const id = ++nextId;
     return new Promise((resolve, reject) => {
       if (closed) {
-        reject(new Error("The page is closed."));
+        reject(new DriveError("The page is closed."));
         return;
       }
       pending.set(id, { reject, resolve });

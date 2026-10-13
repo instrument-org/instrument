@@ -56,6 +56,8 @@ export interface WindowContextValue {
   rowLead?: HTMLElement | null;
   /** The end of the field in the tab's row, where a screen says something about what it shows in passing; null until the row is up. */
   rowField?: HTMLElement | null;
+  /** Beside the arrows in the tab's row, where a page drawn inside a screen puts its reload; null until the row is up. */
+  rowReload?: HTMLElement | null;
   /** The tail of the tab's row, where a screen draws what it can do with what it shows; null until the row is up. */
   rowTail?: HTMLElement | null;
   /** The chat a surface is drawn inside, when it is one; absent at the top level, where `ask` opens a draft. */

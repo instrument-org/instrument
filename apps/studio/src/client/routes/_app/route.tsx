@@ -488,6 +488,7 @@ function RouteScreen({ href }: { href: string }) {
           ...appWindow,
           rowField: slots.field,
           rowLead: slots.lead,
+          rowReload: slots.reload,
           rowTail: slots.tail,
         }}
       >

@@ -3,7 +3,11 @@ import { goGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { isPageEditAddress } from "@instrument-org/shared";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { useWindow } from "./context";
+import { type PageHost, usePageHost } from "./page-hosts";
+import { useWindowTabs } from "./window-tabs";
 
 /**
  * What a page drawn inside a file tab (beside its tree) moving means for the
@@ -113,4 +117,77 @@ function sameDocument(a: string, b: string) {
     return path === hostPathOfFileUrl(b);
   }
   return a.replace(/#.*$/, "") === b.replace(/#.*$/, "");
+}
+
+/**
+ * A page drawn inside a surface rather than as a tab of its own (a file's
+ * page in its viewer, the page under Quick Look): a page tab in the
+ * surface's own group at `url`, the one tab that group keeps, drawn into the
+ * element handed to `setSlot`, and closed when `url` goes or the surface
+ * does. A tab handed to `release` outlives the surface, for a page that has
+ * gone on to be a tab of the window's.
+ *
+ * While the window's browser has not arrived (a window opening on a file),
+ * the group is left as it is, so a page kept from the last launch is taken
+ * up rather than closed and opened again.
+ */
+export function useHostedPage({
+  group,
+  host,
+  url,
+}: {
+  group: string;
+  host: Omit<PageHost, "into">;
+  url: string | undefined;
+}) {
+  const { browser } = useWindow();
+  const { allTabs, close } = useWindowTabs();
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+  const hasBrowser = browser !== null;
+  const tabIds = allTabs
+    .filter((tab) => tab.group === group)
+    .map((tab) => tab.id);
+  const tabIdsKey = tabIds.join("\n");
+  // The tabs as they stand now, for the way out: the cleanup below runs once,
+  // long after the render that set it up.
+  const tabIdsNow = useRef(tabIds);
+  useEffect(() => {
+    tabIdsNow.current = tabIdsKey.split("\n").filter(Boolean);
+  }, [tabIdsKey]);
+  // One page at a time: the one opened replaces any before it.
+  useEffect(() => {
+    if (url !== undefined && !browser) {
+      return;
+    }
+    const kept =
+      url === undefined || !browser
+        ? undefined
+        : browser.openOrFocus(url, { group });
+    for (const id of tabIdsNow.current) {
+      if (id !== kept) {
+        close(id);
+      }
+    }
+    // Once per page and group; the browser handle is stable once it exists.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url, group, hasBrowser]);
+  useEffect(
+    () => () => {
+      for (const id of tabIdsNow.current) {
+        close(id);
+      }
+    },
+    // On the way out alone.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  usePageHost(group, { ...host, into: slot });
+  return {
+    release: (tabId: string) => {
+      tabIdsNow.current = tabIdsNow.current.filter((id) => id !== tabId);
+    },
+    setSlot,
+    /** The page's tab, once the group has one. */
+    tabId: url === undefined ? undefined : tabIds[0],
+  };
 }

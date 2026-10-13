@@ -11,12 +11,10 @@ import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { osConventions } from "@/client/lib/utils";
 import { useAtom } from "jotai";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode } from "react";
 
-import { useWindow } from "./context";
 import { lookAtAtom, type LookTarget } from "./look-at";
-import { usePageHost } from "./page-hosts";
-import { useWindowTabs } from "./window-tabs";
+import { useHostedPage } from "./hosted-page";
 
 /** The group a page looked at is kept under while the panel is up, off every strip. */
 const QUICK_LOOK_GROUP = "page:quick-look";
@@ -149,44 +147,15 @@ export function WindowLook() {
  * and closed as the panel moves off it or goes.
  */
 function useLookedAtPage(url: string | undefined): ReactNode {
-  const { browser } = useWindow();
-  const { allTabs, close } = useWindowTabs();
-  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
-  const hasBrowser = browser !== null;
-  const tabIds = allTabs
-    .filter((tab) => tab.group === QUICK_LOOK_GROUP)
-    .map((tab) => tab.id)
-    .join("\n");
-  // One tab at a time: the page walked to replaces the one before it.
-  useEffect(() => {
-    const kept =
-      url === undefined || !browser
-        ? undefined
-        : browser.openOrFocus(url, { group: QUICK_LOOK_GROUP });
-    for (const id of tabIds.split("\n").filter(Boolean)) {
-      if (id !== kept) {
-        close(id);
-      }
-    }
-    // Once per page looked at; the list is read as it stands.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, hasBrowser]);
-  useEffect(
-    () => () => {
-      for (const id of tabIds.split("\n").filter(Boolean)) {
-        close(id);
-      }
+  const { setSlot } = useHostedPage({
+    group: QUICK_LOOK_GROUP,
+    host: {
+      chrome: false,
+      insideOverlay: true,
+      isActive: true,
+      layer: LOOK_GUEST_LAYER,
     },
-    // On the way out alone, with the tabs as they stood.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-  usePageHost(QUICK_LOOK_GROUP, {
-    chrome: false,
-    insideOverlay: true,
-    into: slot,
-    isActive: true,
-    layer: LOOK_GUEST_LAYER,
+    url,
   });
   return url === undefined ? undefined : (
     <div className="h-full" ref={setSlot} />

@@ -1,6 +1,6 @@
 # Plan: dictation
 
-Status: planned, not started.
+Status: in progress.
 
 ## Problem
 

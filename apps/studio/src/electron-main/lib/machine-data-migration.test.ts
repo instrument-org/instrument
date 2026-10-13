@@ -9,7 +9,7 @@ import {
   defaultWorkspacePath,
   readWorkspaceIdentity,
   type ResolvedWorkspace,
-  settleWorkspaceId,
+  settleWorkspace,
   workspaceMachineDirOf,
   writeWorkspaceIdentity,
 } from "./workspaces";
@@ -122,9 +122,10 @@ describe("moveMachineData", () => {
       name: "Default",
       settingsVersion: 2,
     });
-    expect(machineDir).toBe(
-      workspaceMachineDirOf(userDataDir, identity.id ?? ""),
-    );
+    // Named by the local id; the workspace's own id is a ULID in its record
+    // and the registry's.
+    expect(machineDir).toBe(workspaceMachineDirOf(userDataDir, "default"));
+    expect(identity.id).toMatch(/^[\dA-Z]{26}$/);
     expect(tree(machineDir)).toEqual(
       [
         "app-servers/notion/package.json",
@@ -145,12 +146,12 @@ describe("moveMachineData", () => {
         "keys/session-dev.json",
         "keys/session.json.enc",
         "keys/something-new.json.enc",
+        "owner.json",
         "permissions.json",
         "state.json",
         "window/layout.json",
         "window/view.json",
         "window/window-state.json",
-        "workspace-folder.json",
       ].map((file) => file.replaceAll("/", path.sep)),
     );
     // Moved, not made again: each secret is the file that was there.
@@ -208,17 +209,13 @@ describe("moveMachineData", () => {
     expect(done).toEqual([
       `workspace at format version 1, machine data in ${machineDir}`,
     ]);
-    expect(tree(machineDir)).toEqual(["workspace-folder.json"]);
+    expect(tree(machineDir)).toEqual(["owner.json"]);
   });
 
   it("keeps what is already at a new place and leaves the old one where it was", () => {
     seedBeta();
-    const id = settleWorkspaceId({
-      userDataDir,
-      workspacePath: defaultWorkspacePath(userDataDir),
-    });
     const kept = path.join(
-      workspaceMachineDirOf(userDataDir, id),
+      settleWorkspace({ userDataDir, workspace: workspace() }),
       "keys",
       "providers.json.enc",
     );
@@ -242,13 +239,7 @@ describe("moveMachineData", () => {
 
   it("leaves what it cannot move, and on the next boot puts it over the defaults written in its place", () => {
     seedBeta();
-    const machineDir = workspaceMachineDirOf(
-      userDataDir,
-      settleWorkspaceId({
-        userDataDir,
-        workspacePath: defaultWorkspacePath(userDataDir),
-      }),
-    );
+    const machineDir = settleWorkspace({ userDataDir, workspace: workspace() });
     // A file where the browser folder goes, so nothing can move into it.
     write(path.join(machineDir, "browser"), "in the way");
 

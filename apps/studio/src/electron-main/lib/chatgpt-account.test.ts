@@ -14,7 +14,7 @@ vi.mock("electron", () => ({
 vi.mock("@electron-toolkit/utils", () => ({ is: { dev: true } }));
 
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
-  workspaceKeysDir: () => "/machine/workspace-storage/01WORKSPACE/keys",
+  workspaceKeysDir: () => "/machine/workspaces-data/default/keys",
 }));
 
 vi.mock("@/electron-main/lib/electron-logger", () => {

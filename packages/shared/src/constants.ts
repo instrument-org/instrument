@@ -137,8 +137,8 @@ export const RELEASES_BUCKET_URL = `https://releases.${APP_DOMAIN}`;
 export const PRIVATE_FOLDER_NAME = `.instrument`;
 
 /**
- * What this computer keeps for one workspace, in a folder of its own under
- * the workspace's id and outside the workspace: what is secret, means
+ * What this computer keeps for one workspace, in a folder of its own named by
+ * the workspace's local id and outside the workspace: what is secret, means
  * something only on this computer, or is rebuilt here, so the workspace
  * folder never carries it to another one. Named here because the app and the
  * agent's package both reach into it.
@@ -154,8 +154,11 @@ export const WORKSPACE_MACHINE_ENTRIES = {
   keys: "keys",
   /** The process that has the workspace open. */
   openMark: "open.pid",
-  /** The workspace folder this one belongs to, so a copy of that folder never shares it. */
-  owner: "workspace-folder.json",
+  /**
+   * The id of the workspace this folder belongs to, so a local id another
+   * workspace had before never hands this one that one's data.
+   */
+  owner: "owner.json",
   /** Settings › Permissions, whose folder rules name this computer's paths. */
   permissions: "permissions.json",
   /** What the app remembers about the workspace on this computer. */

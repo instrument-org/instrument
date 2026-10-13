@@ -12,7 +12,7 @@ import {
   readWorkspaceIdentity,
   releaseOpenMark,
   resolveWorkspace,
-  settleWorkspaceId,
+  settleWorkspace,
   updateRegistry,
   workspaceLayoutMarks,
   workspaceMachineDirOf,
@@ -215,37 +215,55 @@ describe("the registry on disk", () => {
 });
 
 describe("workspace ids", () => {
-  it("mints an id the first time and keeps it, recording whose machine folder it is", () => {
-    const dir = defaultWorkspacePath(userDataDir);
-    const id = settleWorkspaceId({
-      newId: () => "01FIRST",
-      userDataDir,
-      workspacePath: dir,
+  const readJsonFile = (file: string): unknown =>
+    JSON.parse(fs.readFileSync(file, "utf8"));
+
+  function openDefault(newId: () => string) {
+    const { workspace } = resolveWorkspace({ pin: undefined, userDataDir });
+    return settleWorkspace({ newId, userDataDir, workspace });
+  }
+
+  it("names the machine folder by the local id, and mints the workspace's own id once", () => {
+    const machineDir = openDefault(() => "01FIRST");
+
+    expect(machineDir).toBe(workspaceMachineDirOf(userDataDir, "default"));
+    expect(readWorkspaceIdentity(defaultWorkspacePath(userDataDir)).id).toBe(
+      "01FIRST",
+    );
+    expect(readRegistry(userDataDir).workspaces).toMatchObject([
+      { id: "default", workspaceId: "01FIRST" },
+    ]);
+    expect(readJsonFile(path.join(machineDir, "owner.json"))).toEqual({
+      workspaceId: "01FIRST",
     });
-    expect(id).toBe("01FIRST");
-    expect(
-      settleWorkspaceId({
-        newId: () => "01SECOND",
-        userDataDir,
-        workspacePath: dir,
-      }),
-    ).toBe("01FIRST");
-    expect(readWorkspaceIdentity(dir).id).toBe("01FIRST");
-    // Relative to userData, as the registry stores it.
-    expect(
-      JSON.parse(
-        fs.readFileSync(
-          path.join(
-            workspaceMachineDirOf(userDataDir, "01FIRST"),
-            "workspace-folder.json",
-          ),
-          "utf8",
-        ),
-      ),
-    ).toEqual({ path: "workspace" });
+
+    expect(openDefault(() => "01SECOND")).toBe(machineDir);
+    expect(readWorkspaceIdentity(defaultWorkspacePath(userDataDir)).id).toBe(
+      "01FIRST",
+    );
   });
 
-  it("reads an id that would name a folder elsewhere as none, and mints one", () => {
+  it("keeps the id through a boot's registry update", () => {
+    openDefault(() => "01FIRST");
+    resolveWorkspace({ pin: undefined, userDataDir });
+    expect(readRegistry(userDataDir).workspaces).toMatchObject([
+      { id: "default", workspaceId: "01FIRST" },
+    ]);
+  });
+
+  it("takes the id back from the registry when the workspace's own record lost it", () => {
+    const machineDir = openDefault(() => "01FIRST");
+    const dir = defaultWorkspacePath(userDataDir);
+    writeWorkspaceIdentity(dir, {
+      ...readWorkspaceIdentity(dir),
+      id: undefined,
+    });
+
+    expect(openDefault(() => "01OTHER")).toBe(machineDir);
+    expect(readWorkspaceIdentity(dir).id).toBe("01FIRST");
+  });
+
+  it("reads an id that could name a folder elsewhere as none", () => {
     const dir = defaultWorkspacePath(userDataDir);
     fs.mkdirSync(workspacePrivateDir(dir), { recursive: true });
     fs.writeFileSync(
@@ -253,35 +271,93 @@ describe("workspace ids", () => {
       JSON.stringify({ id: "../../elsewhere", name: "Mine" }),
     );
     expect(readWorkspaceIdentity(dir).id).toBeUndefined();
+    openDefault(() => "01MINTED");
+    expect(readWorkspaceIdentity(dir)).toMatchObject({
+      id: "01MINTED",
+      name: "Mine",
+    });
+  });
+
+  it("gives a copy of a registered workspace an id of its own", () => {
+    const original = registerWorkspace("original");
+    settleWorkspace({
+      newId: () => "01ORIGINAL",
+      userDataDir,
+      workspace: { id: "original", path: original },
+    });
+    const copy = path.join(userDataDir, "elsewhere", "copy");
+    fs.cpSync(original, copy, { recursive: true });
+    const { workspace } = resolveWorkspace({ pin: copy, userDataDir });
+
+    const machineDir = settleWorkspace({
+      newId: () => "01COPY",
+      userDataDir,
+      workspace,
+    });
+
+    expect(readWorkspaceIdentity(copy).id).toBe("01COPY");
+    expect(readWorkspaceIdentity(original).id).toBe("01ORIGINAL");
+    expect(machineDir).toBe(workspaceMachineDirOf(userDataDir, "copy"));
+  });
+
+  it("keeps the local id and machine folder of a workspace whose folder moved", () => {
+    const before = path.join(userDataDir, "elsewhere", "before");
+    const first = resolveWorkspace({ pin: before, userDataDir }).workspace;
+    const machineDir = settleWorkspace({
+      newId: () => "01WANDERER",
+      userDataDir,
+      workspace: first,
+    });
+    const after = path.join(userDataDir, "elsewhere", "after");
+    fs.renameSync(before, after);
+
+    const second = resolveWorkspace({ pin: after, userDataDir }).workspace;
+
+    expect(second.id).toBe(first.id);
+    expect(settleWorkspace({ userDataDir, workspace: second })).toBe(
+      machineDir,
+    );
+    expect(readRegistry(userDataDir).workspaces).toMatchObject([
+      { id: "default" },
+      { id: first.id, path: after, workspaceId: "01WANDERER" },
+    ]);
+  });
+
+  it("sets aside a machine folder another workspace left under the same local id", () => {
+    const machineDir = openDefault(() => "01GONE");
+    fs.writeFileSync(path.join(machineDir, "keys.enc"), "the gone one's");
+    // That workspace went, outside the app, and a new one took its place.
+    fs.rmSync(defaultWorkspacePath(userDataDir), { recursive: true });
+    fs.rmSync(path.join(userDataDir, "workspaces.json"));
+
+    expect(openDefault(() => "01NEW")).toBe(machineDir);
+
+    expect(fs.readdirSync(machineDir)).toEqual(["owner.json"]);
     expect(
-      settleWorkspaceId({
-        newId: () => "01MINTED",
-        userDataDir,
-        workspacePath: dir,
-      }),
-    ).toBe("01MINTED");
-    expect(readWorkspaceIdentity(dir).name).toBe("Mine");
+      fs.readFileSync(`${machineDir}.01GONE${path.sep}keys.enc`, "utf8"),
+    ).toBe("the gone one's");
   });
 
   it("keeps a copied application-data folder's machine data its own", () => {
-    settleWorkspaceId({
-      newId: () => "01ORIGINAL",
-      userDataDir,
-      workspacePath: defaultWorkspacePath(userDataDir),
-    });
+    const machineDir = openDefault(() => "01ORIGINAL");
+    fs.writeFileSync(path.join(machineDir, "keys.enc"), "mine");
     const clone = `${userDataDir}-clone`;
     fs.cpSync(userDataDir, clone, { recursive: true });
     try {
-      expect(
-        settleWorkspaceId({
-          newId: () => "01CLONE",
-          userDataDir: clone,
-          workspacePath: defaultWorkspacePath(clone),
-        }),
-      ).toBe("01ORIGINAL");
-      expect(machineDirOwnedBy(clone, defaultWorkspacePath(clone))).toBe(
-        workspaceMachineDirOf(clone, "01ORIGINAL"),
+      const { workspace } = resolveWorkspace({
+        pin: undefined,
+        userDataDir: clone,
+      });
+      const cloned = settleWorkspace({
+        newId: () => "01CLONE",
+        userDataDir: clone,
+        workspace,
+      });
+      expect(cloned).toBe(workspaceMachineDirOf(clone, "default"));
+      expect(fs.readFileSync(path.join(cloned, "keys.enc"), "utf8")).toBe(
+        "mine",
       );
+      expect(machineDirOwnedBy(clone, workspace)).toBe(cloned);
     } finally {
       fs.rmSync(clone, { force: true, recursive: true });
     }
@@ -320,7 +396,7 @@ describe("layout marks", () => {
 
 describe("open marks", () => {
   // The machine folder a workspace is marked open in.
-  const markDir = () => workspaceMachineDirOf(userDataDir, "01WORKSPACE");
+  const markDir = () => workspaceMachineDirOf(userDataDir, "default");
 
   it("leaves a live process's mark alone", () => {
     fs.mkdirSync(markDir(), { recursive: true });

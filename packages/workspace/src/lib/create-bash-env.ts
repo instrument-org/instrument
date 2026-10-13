@@ -851,6 +851,8 @@ export async function createLocalBashEnv({
       HOME: shellPath(rules.home),
       NO_COLOR: "1",
       PATH: SHELL_PATH,
+      // Git Bash's, where /tmp is the temp folder.
+      ...(process.platform === "win32" && { TEMP: "/tmp", TMP: "/tmp" }),
       TZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
       USER: os.userInfo().username,
     },

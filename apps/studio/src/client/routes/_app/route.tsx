@@ -461,6 +461,7 @@ function RouteScreen({ href }: { href: string }) {
   // panel and its actions.
   const [rowLead, setRowLead] = useState<HTMLElement | null>(null);
   const [rowTail, setRowTail] = useState<HTMLElement | null>(null);
+  const [rowField, setRowField] = useState<HTMLElement | null>(null);
   const computerTab = computerTabOf(href);
   const isFileScreen = computerTab?.file !== undefined;
   const fromHref = screenLocation(href, {
@@ -501,6 +502,12 @@ function RouteScreen({ href }: { href: string }) {
             : {})}
           {...(isFileScreen
             ? {
+                fieldEnd: (
+                  <div
+                    className="flex shrink-0 items-center empty:hidden"
+                    ref={setRowField}
+                  />
+                ),
                 trailing: (
                   <div
                     className="flex shrink-0 items-center gap-0.5"
@@ -513,7 +520,7 @@ function RouteScreen({ href }: { href: string }) {
           location={location}
         />
       )}
-      <WindowContext value={{ ...appWindow, rowLead, rowTail }}>
+      <WindowContext value={{ ...appWindow, rowField, rowLead, rowTail }}>
         <FileOpenContext
           value={(path, options) => {
             appWindow.openPath(path, options);

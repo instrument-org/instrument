@@ -18,7 +18,15 @@ import {
 import { rpcClient } from "@/client/rpc/client";
 import { type ReferenceElement } from "@floating-ui/dom";
 import { useQuery } from "@tanstack/react-query";
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useContext,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useMarkUpdated } from "@/client/components/updated-note";
 import { toast } from "@/client/lib/toast";
 
 import { FileLoading } from "../file-loading";
@@ -373,6 +381,13 @@ function LiveTable({
     }
   });
 
+  // Off the session's own deps, so saying the file was updated never starts
+  // the editor over.
+  const markUpdated = useMarkUpdated();
+  const onUpdated = useEffectEvent(() => {
+    markUpdated();
+  });
+
   useEffect(() => {
     if (readOnlyReason(doc)) {
       return;
@@ -386,6 +401,7 @@ function LiveTable({
         setDoc(changed);
         if (cells && cells.size > 0) {
           setFlashed(cells);
+          onUpdated();
           clearTimeout(flashTimer);
           flashTimer = setTimeout(() => {
             setFlashed(NO_FLASH);

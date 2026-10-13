@@ -4,6 +4,7 @@ import {
   type WindowTab,
 } from "@/client/atoms/window";
 import { FileTypeIcon } from "@/client/components/extend/file-system";
+import { UpdatedNote, useUpdatedNote } from "@/client/components/updated-note";
 import { PageFavicon } from "@/client/components/favicon";
 import { BrowserPanel } from "@/client/components/window/browser-panel";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
@@ -708,6 +709,8 @@ export function BrowserTabs({
                 />
               ) : (
                 <FilePageReload
+                  fieldInto={fieldInto ?? null}
+                  isShown={tab.id === active?.id}
                   key={tab.id}
                   path={filePath}
                   target={targetOf(tab)}
@@ -856,12 +859,18 @@ function ComposePagePanel({
  * Keeps a page tab showing a file on this computer at the file as it is: the
  * file is watched for as long as the tab is open, and the guest reloads when
  * it is written, so an edit landing in the file shows the way it would in a
- * viewer of it rather than waiting for the person to reload.
+ * viewer of it rather than waiting for the person to reload. The address
+ * field says "Updated" for a moment after each one, since the part that
+ * changed is often off screen and the page can look the same.
  */
 function FilePageReload({
+  fieldInto,
+  isShown,
   path,
   target,
 }: {
+  fieldInto: HTMLElement | null;
+  isShown: boolean;
   path: string;
   target: BrowserTargetId;
 }) {
@@ -873,6 +882,8 @@ function FilePageReload({
   // that one, since the guest loaded the file on its own; a missing file is
   // left as it was shown, so a save that replaces the file is one reload.
   const shown = useRef<number | undefined>(undefined);
+  const updated = useUpdatedNote();
+  const { mark: markUpdated } = updated;
   useEffect(() => {
     if (modifiedAt === undefined) {
       return;
@@ -882,11 +893,21 @@ function FilePageReload({
       // come or under way, reads the file as it is. A change reported that
       // early is a cached version from an earlier visit being brought up to
       // date.
-      getGuest(target)?.reload();
+      const guest = getGuest(target);
+      if (guest) {
+        guest.reload();
+        markUpdated();
+      }
     }
     shown.current = modifiedAt;
-  }, [modifiedAt, target]);
-  return null;
+  }, [markUpdated, modifiedAt, target]);
+
+  return fieldInto && isShown
+    ? createPortal(
+        <UpdatedNote shown={updated.shown} turn={updated.turn} />,
+        fieldInto,
+      )
+    : null;
 }
 
 /** A page tab of the window's own on an HTML file, which Edit can change in place. */

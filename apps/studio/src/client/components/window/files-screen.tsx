@@ -101,7 +101,8 @@ export function FilesScreen({
   /** The layout this step of the tab's history shows the folder in; absent on a direct arrival. */
   view: FileSystemView | undefined;
 }) {
-  const { browser, openPage, openScreen, rowLead, rowTail } = useWindow();
+  const { browser, openPage, openScreen, rowField, rowLead, rowTail } =
+    useWindow();
   const { allTabs, close, moveToGroup, pageTakesOver, stepVisitOf } =
     useWindowTabs();
   // The window's tab this screen is in, when it is the tab's own route, and
@@ -489,6 +490,7 @@ export function FilesScreen({
             <div className="relative min-h-0 min-w-0 flex-1">
               <FileViewer
                 actionsInto={rowTail}
+                noteInto={rowField}
                 actionsLead={
                   hostedTabId === undefined ? (
                     askButton
@@ -541,6 +543,7 @@ export function FilesScreen({
           <LinkSurface base={folderOf(activeFile.hostPath)}>
             <FileViewer
               actionsInto={rowTail}
+              noteInto={rowField}
               actionsLead={askButton}
               className={FULL_BLEED}
               editable

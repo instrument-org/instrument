@@ -78,6 +78,7 @@ export function GroupItem({
   // at its head, the viewer's actions at its end.
   const [screenLead, setScreenLead] = useState<HTMLDivElement | null>(null);
   const [screenTail, setScreenTail] = useState<HTMLDivElement | null>(null);
+  const [screenField, setScreenField] = useState<HTMLDivElement | null>(null);
   const Frame = isFramed ? Card : Bare;
   const taskTitles = useTaskTitles();
   // What the screen up says it shows, which the row reads a folder's place off.
@@ -203,6 +204,12 @@ export function GroupItem({
             }
           : isFileScreen
             ? {
+                fieldEnd: (
+                  <div
+                    className="flex shrink-0 items-center empty:hidden"
+                    ref={setScreenField}
+                  />
+                ),
                 leading: (
                   <div
                     className="flex shrink-0 items-center empty:hidden"
@@ -303,6 +310,7 @@ export function GroupItem({
               }
               appWindow.openScreen(href, options);
             },
+            rowField: screenField,
             rowLead: screenLead,
             rowTail: screenTail,
           }}

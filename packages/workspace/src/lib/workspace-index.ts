@@ -19,7 +19,7 @@ import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
  * rebuilt from the stores as it is read: the index is derived, so it is never
  * migrated.
  */
-const INDEX_VERSION = 7;
+const INDEX_VERSION = 8;
 
 /**
  * What the index keeps, one row per session: each a value derived from that

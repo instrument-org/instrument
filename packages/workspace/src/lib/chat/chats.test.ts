@@ -1040,6 +1040,55 @@ describe("liveChatList", () => {
     stop();
   });
 
+  // The quit leaves the chat a note naming the tasks it cut off, written as a
+  // user message that starts no turn. A relaunch inside the grace a sent
+  // message gets must not read it as a turn starting: nothing would run it,
+  // and nothing re-reads the row when the grace runs out.
+  it("says a chat is idle on its first answer after a relaunch, past the note the quit left", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const chatId = await freshChat();
+      const sessionId = await session(chatId, "Groceries", 1);
+      await userSays(chatId, sessionId, "make me a grocery list", 1);
+      await agentSays(chatId, sessionId, "A task is on it.", { minute: 2 });
+      const noteId = StoreId.newMessageId();
+      const saved = await Store.saveMessageWithParts(
+        {
+          id: noteId,
+          metadata: { createdAt: at(3), sessionId },
+          parts: [
+            {
+              data: {
+                events: [
+                  {
+                    ended: "The app closed while counting",
+                    handle: "t1",
+                    sessionId: StoreId.newSessionId(),
+                    status: "done",
+                    stoppedBy: "app",
+                    title: "Count the lines",
+                  },
+                ],
+              },
+              metadata: partMetadata({ messageId: noteId, sessionId }),
+              type: "data-taskEvent",
+            },
+          ],
+          role: "user",
+        },
+        chatFor(sessionId),
+      );
+      expect(saved.isOk()).toBe(true);
+
+      vi.setSystemTime(at(3).getTime() + 5000);
+      const { first, stop } = await open();
+      expect(first?.[0]?.state).toBe("idle");
+      stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("moves a row's apps when the workspace's apps change", async () => {
     const chatId = await freshChat();
     const appsDir = path.join(getWorkspaceConfig().rootDir, "apps");

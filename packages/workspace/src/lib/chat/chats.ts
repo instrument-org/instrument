@@ -24,6 +24,7 @@ import { latestStepIn } from "./step-label";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
 import { hasPendingWake } from "./wake";
+import { isQuitNote } from "./wake-event";
 import { chatStateOf } from "./chat-state";
 import { createWriteQueue } from "../create-write-queue";
 
@@ -575,13 +576,16 @@ function digestOf(
   const lastAssistant = messages.findLast(
     (message) => message.role === "assistant",
   );
+  // The note the app's quit leaves starts no turn, so it is no sign of one
+  // starting: read as one, the relaunched chat would show as working.
   const newestTurn = messages.findLast(
     (
       message,
     ): message is
       | SessionMessage.AssistantWithParts
       | SessionMessage.UserWithParts =>
-      message.role === "user" || message.role === "assistant",
+      (message.role === "user" || message.role === "assistant") &&
+      !isQuitNote(message),
   );
   const lastUser = messages.findLast((message) => message.role === "user");
   // A wake note is written as a user message but carries only task or app

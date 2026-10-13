@@ -94,23 +94,13 @@ export const sessionMachine = setup({
 
     forceStopAgent: stopChild(({ context }) => context.agentRef ?? "agent"),
 
-    // What is queued as a stop lands is held: saved, and left unanswered
-    // rather than run, and a run asked for over the stored session is called
-    // off. Whatever arrives after the stop runs as usual.
-    holdQueued: assign({
-      heldMessageIds: ({ context }) =>
-        unique([
-          ...context.heldMessageIds,
-          ...context.queuedMessages.map((message) => message.id),
-        ]),
-      runRequested: false,
-    }),
+    holdQueued: assign(({ context }) => heldQueue(context)),
 
-    holdQueuedOnPersonsStop: enqueueActions(({ enqueue, event }) => {
-      if (event.type === "stop" && event.notice?.by === "user") {
-        enqueue("holdQueued");
-      }
-    }),
+    holdQueuedOnPersonsStop: assign(({ context, event }) =>
+      event.type === "stop" && event.notice?.by === "user"
+        ? heldQueue(context)
+        : {},
+    ),
 
     spawnAgentMachine: assign({
       agentRef: (
@@ -628,6 +618,24 @@ export const sessionMachine = setup({
 });
 
 export type SessionActorRef = ActorRefFrom<typeof sessionMachine>;
+
+/**
+ * What is queued as a stop lands is held: saved, and left unanswered rather
+ * than run, and a run asked for over the stored session is called off.
+ * Whatever arrives after the stop runs as usual.
+ */
+function heldQueue(context: {
+  heldMessageIds: StoreId.Message[];
+  queuedMessages: SessionMessage.UserWithParts[];
+}) {
+  return {
+    heldMessageIds: unique([
+      ...context.heldMessageIds,
+      ...context.queuedMessages.map((message) => message.id),
+    ]),
+    runRequested: false,
+  };
+}
 
 /**
  * A message with a note for the agent beside the user's words, as an intent

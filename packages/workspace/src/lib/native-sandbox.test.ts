@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { execa } from "execa";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   type NativeReach,
@@ -23,7 +23,15 @@ import {
   wrapNativeCommand,
 } from "./native-sandbox";
 import { inheritedEnv } from "./native-env";
+import { accountCanWrite } from "./permissions/account-can-write";
 import { type Rule } from "./permissions/rules";
+
+// The rules below hold a made-up home, which nothing on this disk lets the
+// account change; whether it could is the system's answer, set per test.
+vi.mock("./permissions/account-can-write", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./permissions/account-can-write")>()),
+  accountCanWrite: vi.fn(() => true),
+}));
 
 function reachOver(home: string, rules: Rule[]): NativeReach {
   return {
@@ -204,6 +212,19 @@ describe("refusedPathIn", () => {
       refused && refusalNote(refused, "/Users/someone"),
     ).toMatchInlineSnapshot(
       `"~/Documents/Acme/a.csv needs the person's yes first."`,
+    );
+  });
+
+  it("asks nothing for a change only an administrator could make", () => {
+    vi.mocked(accountCanWrite).mockReturnValueOnce(false);
+    const refused = refusedPathIn(
+      "Operation not permitted: '/Users/someone/Documents/Acme/a.csv'",
+      reach,
+    );
+    expect(
+      refused && refusalNote(refused, "/Users/someone"),
+    ).toMatchInlineSnapshot(
+      `"~/Documents/Acme/a.csv belongs to the system, and only an administrator can change it. Write what you need somewhere you can, or tell the person what you needed it for."`,
     );
   });
 });

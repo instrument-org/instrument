@@ -15,6 +15,10 @@ import { type MountedFolder } from "../schemas/mounted-folder";
 import { isClosedDiskRoot } from "./disk-root";
 import { ruleRefusal, rulesFs } from "./permissions/rules-fs";
 import { raiseAsk, waitingNote } from "./permissions/asks";
+import {
+  accountCanWrite,
+  systemOwnedNote,
+} from "./permissions/account-can-write";
 import { reachOf, type Rule, type Rules } from "./permissions/rules";
 import {
   type AbsolutePath,
@@ -802,9 +806,10 @@ function holdsWritable(
 /**
  * A path outside every mount that the person could allow: the nearest
  * folder on disk that holds it, asked for (never the home folder whole or
- * the disk root), and what the agent reads about it. Undefined for the system's own
- * folders, a lookup on the shell's PATH, a folder above a mount, and a
- * path nothing on disk holds.
+ * the disk root), and what the agent reads about it. A change this account
+ * could not make whatever the person said asks nothing and says why.
+ * Undefined for a read in the system's own folders, a lookup on the shell's
+ * PATH, a folder above a mount, and a path nothing on disk holds.
  */
 export function outsideFolderRefusal(
   layout: WorkspaceFsLayout,
@@ -824,14 +829,21 @@ export function outsideFolderRefusal(
     return undefined;
   }
   const hostPath = hostPathOf(path);
-  // The system's own folders are nothing to ask the person for.
-  if (SYSTEM_FOLDERS.some((system) => pathIsWithin(hostPath, system))) {
+  // The system's own folders are nothing to ask the person for a look at.
+  if (
+    op === "read" &&
+    SYSTEM_FOLDERS.some((system) => pathIsWithin(hostPath, system))
+  ) {
     return undefined;
   }
   // A folder closed by a rule, or one the person said not now to, asks
   // nothing again.
   if (reachOf(rules, hostPath, op).level === "never") {
     return ruleRefusal({ asks: false, hostPath, op, rules, spell: shellPath });
+  }
+  // Nor does one only an administrator may change, which a yes cannot open.
+  if (op === "write" && !accountCanWrite(hostPath)) {
+    return systemOwnedNote(path);
   }
   let folder = hostPath;
   if (op === "write") {

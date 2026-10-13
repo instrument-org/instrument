@@ -2,6 +2,7 @@ import { type IFileSystem } from "just-bash";
 import nodePath from "node:path";
 
 import { canonicalizeThroughMissing } from "../host-path";
+import { accountCanWrite, systemOwnedNote } from "./account-can-write";
 import { raiseAsk, waitingNote } from "./asks";
 import { isClosedDiskRoot } from "../disk-root";
 import { folderToAskFor, reachOf, type Rules } from "./rules";
@@ -40,6 +41,9 @@ export function ruleRefusal({
     return reach.rule?.level === "readOnly"
       ? `${spell(hostPath)} is read-only. Copy what you need out of it and change the copy.`
       : `${spell(hostPath)} is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.`;
+  }
+  if (op === "write" && !accountCanWrite(hostPath)) {
+    return systemOwnedNote(spell(hostPath));
   }
   const folder = folderToAskFor({
     home: rules.home,

@@ -1,7 +1,14 @@
 import { InMemoryFs } from "just-bash";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 
 import { rulesFs } from "./rules-fs";
+
+// The rules below hold a made-up home, which nothing on this disk lets the
+// account change.
+vi.mock("./account-can-write", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./account-can-write")>()),
+  accountCanWrite: () => true,
+}));
 
 it("refuses what the rules close, reports it, and leaves the rest alone", async () => {
   const delegate = new InMemoryFs({

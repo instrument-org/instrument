@@ -14,6 +14,10 @@ import { APP_NAME } from "@instrument-org/shared";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import { canonicalizeThroughMissing } from "./host-path";
+import {
+  accountCanWrite,
+  systemOwnedNote,
+} from "./permissions/account-can-write";
 import { raiseAsk, waitingNote } from "./permissions/asks";
 import { isClosedDiskRoot } from "./disk-root";
 import { DANGEROUS_NAMES, placePaths } from "./permissions/places";
@@ -562,6 +566,14 @@ const REFUSALS = [
   "Read-only file system",
 ];
 
+/** A path the rules kept a native command from, and how it was used. */
+interface Refused {
+  hostPath: string;
+  op: "read" | "write";
+  reach: Reach;
+  rules: Rules;
+}
+
 /**
  * The first path a failed command's output says it was not permitted to use
  * that the rules keep from it, so the agent is told why rather than left to
@@ -572,7 +584,7 @@ export function refusedPathIn(
   reach: NativeReach,
   /** The command's working folder, which a relative path is read against. */
   cwd?: string,
-): undefined | { hostPath: string; reach: Reach; rules: Rules } {
+): undefined | Refused {
   for (const line of output.split("\n")) {
     // Seatbelt refuses with "Operation not permitted"; bubblewrap leaves a
     // closed folder empty and a home folder read-only, so the same refusal
@@ -593,13 +605,10 @@ export function refusedPathIn(
       const hostPath = path.resolve(cwd ?? "/", named);
       // A missing file can only be a closed read; anything else may have
       // been a change.
-      const decided = reachOf(
-        reach.rules,
-        hostPath,
-        line.includes("No such file") ? "read" : "write",
-      );
+      const op = line.includes("No such file") ? "read" : "write";
+      const decided = reachOf(reach.rules, hostPath, op);
       if (decided.level !== "allow") {
-        return { hostPath, reach: decided, rules: reach.rules };
+        return { hostPath, op, reach: decided, rules: reach.rules };
       }
     }
   }
@@ -607,10 +616,7 @@ export function refusedPathIn(
 }
 
 /** What the agent reads when the rules stopped a native command. */
-export function refusalNote(
-  refused: { hostPath: string; reach: Reach; rules: Rules },
-  home = os.homedir(),
-): string {
+export function refusalNote(refused: Refused, home = os.homedir()): string {
   const shown = (shownPath: string) =>
     shownPath.startsWith(`${home}/`)
       ? `~/${shownPath.slice(home.length + 1)}`
@@ -620,6 +626,9 @@ export function refusalNote(
   }
   if (refused.reach.level === "never") {
     return `${shown(refused.hostPath)} is closed to ${APP_NAME} in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.`;
+  }
+  if (refused.op === "write" && !accountCanWrite(refused.hostPath)) {
+    return systemOwnedNote(shown(refused.hostPath));
   }
   const folder = folderToAskFor({
     home,

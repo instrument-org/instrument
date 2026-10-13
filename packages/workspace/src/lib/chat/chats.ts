@@ -32,7 +32,7 @@ import { latestStepIn } from "./step-label";
 import { excerptOf } from "./standing";
 import { listTopics } from "./topics";
 import { hasPendingWake } from "./wake";
-import { isQuitNote } from "./wake-event";
+import { isStopNote } from "./wake-event";
 import { chatStateOf } from "./chat-state";
 import { createWriteQueue } from "../create-write-queue";
 
@@ -608,8 +608,8 @@ function digestOf(
   const lastAssistant = messages.findLast(
     (message) => message.role === "assistant",
   );
-  // The note the app's quit leaves starts no turn, so it is no sign of one
-  // starting: read as one, the relaunched chat would show as working.
+  // The note a quit or the user's stop of a task leaves starts no turn, so it
+  // is no sign of one starting: read as one, the chat would show as working.
   const newestTurn = messages.findLast(
     (
       message,
@@ -617,9 +617,14 @@ function digestOf(
       | SessionMessage.AssistantWithParts
       | SessionMessage.UserWithParts =>
       (message.role === "user" || message.role === "assistant") &&
-      !isQuitNote(message),
+      !isStopNote(message),
   );
   const lastUser = messages.findLast((message) => message.role === "user");
+  // The newest message that started a turn of the chat's own: a stop note
+  // started none, so the chat's last turn is still the one before it.
+  const lastOpener = messages.findLast(
+    (message) => message.role === "user" && !isStopNote(message),
+  );
   // A wake note is written as a user message but carries only task, app,
   // or background-process news; everything else the user sent, asks on a
   // file alone included.
@@ -653,15 +658,15 @@ function digestOf(
   const lastStep = lastStepIn(messages);
   const lastMessageAt = messages.at(-1)?.metadata.createdAt.getTime();
   const lastReplyAt = replies.at(-1)?.metadata.finishedAt?.getTime();
-  // How the last thing the agent did ended, after the user's newest message.
-  // In an error: a turn that never got its reply out. On the user's Stop: its
-  // reply cut off as it was written, or a call it was making ended by the
-  // stop. A retry that went on to answer, or anything sent after, leaves
-  // either behind.
+  // How the last thing the agent did ended, after the newest message that
+  // started a turn. In an error: a turn that never got its reply out. On the
+  // user's Stop: its reply cut off as it was written, or a call it was
+  // making ended by the stop. A retry that went on to answer, or anything
+  // sent after that starts a turn, leaves either behind.
   const endsLastTurn =
     lastAssistant !== undefined &&
     messages.lastIndexOf(lastAssistant) >
-      (lastUser ? messages.lastIndexOf(lastUser) : -1);
+      (lastOpener ? messages.lastIndexOf(lastOpener) : -1);
   const aborted = lastAssistant?.metadata.error?.kind === "aborted";
   const failed =
     endsLastTurn &&

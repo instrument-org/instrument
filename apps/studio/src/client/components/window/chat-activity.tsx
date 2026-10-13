@@ -10,6 +10,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
+import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
@@ -209,6 +210,8 @@ function TaskRows({
               mark={
                 task.standing.kind === "failed" ? (
                   <XIcon className="size-3.5 text-error-700 dark:text-error-300" />
+                ) : task.stoppedBy === "user" ? (
+                  <StopCircleIcon className="size-3.5" />
                 ) : (
                   <CheckIcon className="size-3.5" />
                 )
@@ -220,11 +223,17 @@ function TaskRows({
               trailing={taskTimeLabel(task.updatedAt, now)}
             >
               {/* A task that did not finish says why, in the red the Tasks
-                  screen gives the same line. */}
-              {task.standing.kind === "failed" && (
+                  screen gives the same line; one the user stopped says so. */}
+              {task.standing.kind === "failed" ? (
                 <span className="min-w-0 truncate text-error-700 dark:text-error-300">
                   {task.standing.line}
                 </span>
+              ) : (
+                task.stoppedBy === "user" && (
+                  <span className="min-w-0 truncate">
+                    You stopped this task
+                  </span>
+                )
               )}
             </Row>
           ))}

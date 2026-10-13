@@ -99,9 +99,11 @@ const overdueReportedAt = new Map<StoreId.Session, number>();
 /**
  * Who stopped a task's working turn, and whether the chat hears of it.
  * The chat's own `task stop` is a step it took, and the user's Stop on the
- * whole chat stops the chat too, so neither wakes it. The user stopping one
- * task while the chat carries on does, so the chat knows the task did not
- * finish and leaves it stopped.
+ * whole chat stops the chat too, so the chat hears of neither. The user
+ * stopping one task while the chat carries on is written into the chat as a
+ * note, so its agent knows the task did not finish and leaves it stopped,
+ * but wakes nothing: the person who stopped it knows already, and the agent
+ * reads the note with their next message, the way a quit's note is read.
  */
 /**
  * Wakes a chat about one of its tasks with an event composed elsewhere,
@@ -498,25 +500,32 @@ async function onSessionDone(
           needs.length > 0 ? withoutNeedsFences(receipt) : receipt,
           WAKE_SUMMARY_MAX_LENGTH,
         );
-  schedule(
-    chatId,
-    {
-      activeMs: usage.activeMs,
-      ...(ending ? { ended: ending.line } : {}),
-      ...(files.length > 0 ? { files } : {}),
-      handle: task.handle,
-      ...(needs.length > 0 ? { needs } : {}),
-      ...(running.length > 0 ? { running } : {}),
-      status: ending?.failed ? "error" : "done",
-      ...(stop?.by === "user" ? { stoppedBy: stop.by } : {}),
-      summary,
-      sessionId,
-      ...(tabs.length > 0 ? { tabs } : {}),
-      title: task.title,
-      tokens: usage.inputTokens + usage.outputTokens,
-    },
-    workspaceRef,
-  );
+  const event: TaskEvent = {
+    activeMs: usage.activeMs,
+    ...(ending ? { ended: ending.line } : {}),
+    ...(files.length > 0 ? { files } : {}),
+    handle: task.handle,
+    ...(needs.length > 0 ? { needs } : {}),
+    ...(running.length > 0 ? { running } : {}),
+    status: ending?.failed ? "error" : "done",
+    ...(stop?.by === "user" ? { stoppedBy: stop.by } : {}),
+    summary,
+    sessionId,
+    ...(tabs.length > 0 ? { tabs } : {}),
+    title: task.title,
+    tokens: usage.inputTokens + usage.outputTokens,
+  };
+  if (stop?.by === "user") {
+    const chatSessionId = sessionOfChat(chatId);
+    if (chatSessionId !== undefined) {
+      await saveNote(chatId, chatSessionId, {
+        data: { events: [event] },
+        type: "data-taskEvent",
+      });
+    }
+    return;
+  }
+  schedule(chatId, event, workspaceRef);
 }
 
 function schedule(

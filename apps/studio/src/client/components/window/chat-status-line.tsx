@@ -13,8 +13,8 @@ import { type Chat } from "./chats";
 
 /**
  * What the line under a chat's title says, and in which voice. `stopped` is
- * a task that failed, beside its X; `halted` is the chat's own turn the user
- * stopped, beside a stop mark.
+ * a task that failed, beside its X; `halted` is a turn the user stopped, the
+ * chat's own or a task's, beside a stop mark.
  */
 type StatusLine = {
   text: string;
@@ -24,7 +24,7 @@ type StatusLine = {
 /** Said while the chat works and nothing has named the step yet. */
 const WORKING = "Instrument is working";
 
-/** Said once the user stopped the chat's turn, until the next one starts. */
+/** Said once the user stopped the chat's turn, until the next one starts, or a task named like the chat. */
 const HALTED = "You stopped Instrument";
 
 /**
@@ -165,6 +165,7 @@ export function statusLine({
     | {
         standing: { kind: string };
         step?: string;
+        stoppedBy?: string;
         title: string;
         updatedAt: Date;
       }[]
@@ -200,8 +201,14 @@ export function statusLine({
     text?.trim() && text.trim() !== chat.title.trim() ? text : undefined;
   if (task && (!own || task.updatedAt.getTime() >= own.at)) {
     const failed = task.standing.kind === "failed";
-    const text = differs(task.title) ?? (failed ? differs(task.step) : DONE);
-    return text ? { text, tone: failed ? "stopped" : "done" } : undefined;
+    // A task the user stopped ended no more on its own than a failed one did.
+    const halted = !failed && task.stoppedBy === "user";
+    const text =
+      differs(task.title) ??
+      (failed ? differs(task.step) : halted ? HALTED : DONE);
+    return text
+      ? { text, tone: failed ? "stopped" : halted ? "halted" : "done" }
+      : undefined;
   }
   return own ? { text: DONE, tone: "done" } : undefined;
 }

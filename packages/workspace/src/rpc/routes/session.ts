@@ -117,9 +117,9 @@ const stop = base
   )
   .handler(({ context, input }) => {
     // The user's stop, which the task's page ends on. One task stopped
-    // while the chat carries on is news to wake the chat with; the chat's
-    // own session wakes nothing, since only a task wakes its chat, and nor
-    // does a stop of the whole chat.
+    // while the chat carries on is written into the chat as a note that
+    // starts no turn; the chat's own session tells it nothing, since only a
+    // task reports to its chat, and nor does a stop of the whole chat.
     context.workspaceRef.send({
       type: "stopSessions",
       value: {

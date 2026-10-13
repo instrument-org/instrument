@@ -126,23 +126,27 @@ export function taskEventModelNote(
     `;
   }
 
+  // Written as the user stopped a task, and read with their next message,
+  // which is why it starts none.
+  if (data.events.every((event) => event.stoppedBy === "user")) {
+    return systemNote`
+      ${data.events.length === 1 ? "The user stopped a task you created:" : "The user stopped tasks you created:"}
+      ${lines.join("\n")}
+    `;
+  }
+
   const waiting = data.events.every(
     (event) => event.needs && event.needs.length > 0,
   );
-  const stopped = data.events.every((event) => event.stoppedBy === "user");
   return systemNote`
     ${
-      stopped
+      waiting
         ? data.events.length === 1
-          ? "The user stopped a task you created:"
-          : "The user stopped tasks you created:"
-        : waiting
-          ? data.events.length === 1
-            ? "A task you created is waiting on you:"
-            : "Tasks you created are waiting on you:"
-          : data.events.length === 1
-            ? "A task you created has finished:"
-            : "Tasks you created have finished:"
+          ? "A task you created is waiting on you:"
+          : "Tasks you created are waiting on you:"
+        : data.events.length === 1
+          ? "A task you created has finished:"
+          : "Tasks you created have finished:"
     }
     ${lines.join("\n")}
     Nobody typed anything; this note is why you are awake.

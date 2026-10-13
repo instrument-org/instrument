@@ -21,11 +21,12 @@ export function replacesPendingEvent(
 }
 
 /**
- * Whether a message is the note written as the app quit, naming the tasks
- * the quit cut off. It starts no turn, since nothing is left to run one, and
- * reaches the chat's agent with its next turn after relaunch.
+ * Whether a message is a note naming tasks a stop ended without waking the
+ * chat: the app's quit cut them off, or the user stopped them. It starts no
+ * turn, and reaches the chat's agent with its next one, after relaunch or
+ * with the user's next message.
  */
-export function isQuitNote(message: SessionMessage.WithParts): boolean {
+export function isStopNote(message: SessionMessage.WithParts): boolean {
   return (
     message.role === "user" &&
     message.parts.length > 0 &&
@@ -33,7 +34,9 @@ export function isQuitNote(message: SessionMessage.WithParts): boolean {
       (part) =>
         part.type === "data-taskEvent" &&
         part.data.events.length > 0 &&
-        part.data.events.every((event) => event.stoppedBy === "app"),
+        part.data.events.every(
+          (event) => event.stoppedBy === "app" || event.stoppedBy === "user",
+        ),
     )
   );
 }

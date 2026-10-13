@@ -3,9 +3,10 @@ import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 
 /**
- * The line that marks why the chat woke: a task it created finished a
- * turn, or the user stopped one. One line per task, in the muted voice of a note rather than a
- * message, since the chat's own reply is what the reader is waiting
+ * The line that marks why the chat woke, a task it created finishing a
+ * turn, or that one ended without waking it, stopped by the user or cut off
+ * by the app's quit. One line per task, in the muted voice of a note rather
+ * than a message, since the chat's own reply is what the reader is waiting
  * for.
  */
 export function TaskEventNote({

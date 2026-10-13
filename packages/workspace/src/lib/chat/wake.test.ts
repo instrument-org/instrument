@@ -6,6 +6,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
+import { type ChatId } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
@@ -84,8 +85,22 @@ function wakesOf(chatId: string) {
   });
 }
 
+/** The task events of the notes written into `chatId`'s own session. */
+async function notesIn(chatId: ChatId) {
+  const messages = await Store.getMessagesWithParts({
+    chatId,
+    sessionId: sessionOfChat(chatId) ?? StoreId.newSessionId(),
+  });
+  return messages
+    ._unsafeUnwrap()
+    .flatMap((message) => message.parts)
+    .flatMap((part) =>
+      part.type === "data-taskEvent" ? part.data.events : [],
+    );
+}
+
 describe("a stopped task", () => {
-  it("wakes the chat saying the user stopped it, and keeps who did on its row", async () => {
+  it("writes the chat a note that the user stopped it, starts no turn, and keeps who did on its row", async () => {
     const { chatId, taskSession } = await chatWithTask();
 
     publisher.publish("session.done", {
@@ -94,15 +109,18 @@ describe("a stopped task", () => {
       sessionId: taskSession,
     });
 
-    await vi.waitFor(() => {
-      expect(wakesOf(chatId)).toHaveLength(1);
+    await vi.waitFor(async () => {
+      expect(await notesIn(chatId)).toHaveLength(1);
     }, 5000);
-    expect(wakesOf(chatId)[0]).toMatchObject({
+    expect((await notesIn(chatId))[0]).toMatchObject({
       sessionId: taskSession,
       stoppedBy: "user",
       title: "Audit the vault",
     });
     expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("user");
+    // Past the debounce a wake would wait out: still no turn.
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    expect(wakesOf(chatId)).toEqual([]);
   });
 
   it("wakes nothing when the chat stopped it, and hears its next turn's end as news", async () => {

@@ -948,6 +948,73 @@ describe("listChats", () => {
     }
   });
 
+  // Stopping a task writes the chat a note and starts no turn, so the note is
+  // neither a turn starting nor something sent after the chat's own stop.
+  it("stays stopped when the user stops its task after stopping it, past the note that leaves", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const chatId = await freshChat();
+      const sessionId = await session(chatId, "Counts", 1);
+      await userSays(chatId, sessionId, "count to a million", 1);
+      const callId = StoreId.newMessageId();
+      const call = await Store.saveMessageWithParts(
+        {
+          id: callId,
+          metadata: {
+            createdAt: at(2),
+            finishReason: "tool-calls",
+            finishedAt: at(2),
+            modelId: "glm-5.3-flash",
+            providerId: "openai-compatible",
+            sessionId,
+          },
+          parts: [
+            {
+              errorText: "This action was stopped by you.",
+              input: {
+                command: "sleep 120",
+                explanation: "Waiting",
+                yieldMs: 150_000,
+              },
+              metadata: {
+                ...partMetadata({ messageId: callId, sessionId }),
+                endedAt: at(2),
+              },
+              state: "output-error",
+              toolCallId: "call_sleep",
+              type: "tool-bash",
+            },
+          ],
+          role: "assistant",
+        },
+        chatFor(sessionId),
+      );
+      expect(call.isOk()).toBe(true);
+      await noteSays(sessionId, 3, (metadata) => ({
+        data: {
+          events: [
+            {
+              ended: "Stopped while waiting",
+              handle: "t1",
+              sessionId: StoreId.newSessionId(),
+              status: "done",
+              stoppedBy: "user",
+              title: "Sleep 150 seconds",
+            },
+          ],
+        },
+        metadata,
+        type: "data-taskEvent",
+      }));
+
+      vi.setSystemTime(at(3).getTime() + 5000);
+      const [chat] = await listChats();
+      expect(chat?.state).toBe("stopped");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("says the user stopped its turn, mid-call or mid-reply, until the next one starts", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {

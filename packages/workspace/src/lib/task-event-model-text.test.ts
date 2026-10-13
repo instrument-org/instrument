@@ -236,6 +236,8 @@ describe("taskEventModelNote", () => {
     `);
   });
 
+  // Written without a wake and read with the user's next message, so it
+  // never says it is why the agent is awake.
   it("says the user stopped a task, and that it stays stopped", () => {
     const note = taskEventModelNote({
       events: [
@@ -256,7 +258,6 @@ describe("taskEventModelNote", () => {
       <instrument-system-note>
       The user stopped a task you created:
       - t1 ("Audit the vault") was stopped by the user while reading the vault and did not finish (42 seconds of work, 12K tokens so far). Leave it stopped unless they ask for it again.
-      Nobody typed anything; this note is why you are awake.
       </instrument-system-note>"
     `);
   });

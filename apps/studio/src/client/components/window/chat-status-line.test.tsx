@@ -146,6 +146,14 @@ describe("statusLine", () => {
       { text: "Stopped on an error", tone: "failed" },
     ],
     [
+      "the task the user stopped last beside a stop mark, not a check",
+      {
+        chat: at("idle", { lastStep: lastStep("Starting a task") }),
+        listed: [{ ...done(5), stoppedBy: "user" }],
+      },
+      { text: "Lisbon fares and hotels", tone: "halted" },
+    ],
+    [
       "that the user stopped it, rather than that it is done",
       {
         chat: at("stopped", {

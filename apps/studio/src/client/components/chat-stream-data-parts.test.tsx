@@ -118,8 +118,8 @@ describe("a file-changes part from before the fence", () => {
 
 /**
  * A task event in the chat is the cause of the reply that follows it, so it
- * stays a developer-mode row there; the quit's note starts no reply, so it
- * is the only word a person gets that a task was cut off.
+ * stays a developer-mode row there; the note a quit or the user's stop leaves
+ * starts no reply, so it is the only word a person gets that the task ended.
  */
 describe("a task event in the chat", () => {
   const partWith = (stoppedBy?: "app" | "user") =>
@@ -152,14 +152,14 @@ describe("a task event in the chat", () => {
       part: partWith(stoppedBy),
     });
 
-  it.each([undefined, "user"] as const)(
-    "hides one stopped by %s outside developer mode",
+  it("hides one that woke the chat outside developer mode", () => {
+    expect(rendered()).toBeNull();
+  });
+
+  it.each(["app", "user"] as const)(
+    "shows a stop by %s to everyone, since no reply follows it",
     (stoppedBy) => {
-      expect(rendered(stoppedBy)).toBeNull();
+      expect(rendered(stoppedBy)).not.toBeNull();
     },
   );
-
-  it("shows the app's quit to everyone", () => {
-    expect(rendered("app")).not.toBeNull();
-  });
 });

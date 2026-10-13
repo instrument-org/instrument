@@ -122,6 +122,21 @@ describe("ChatActivity", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  it("says the user stopped a task, rather than drawing it done", async () => {
+    listed.tasks = [
+      {
+        ...PACKING,
+        standing: { kind: "done", line: "Stopped while packing" },
+        stoppedBy: "user",
+      },
+    ];
+    await renderInBrowser(
+      <ChatActivity chatId={CHAT_ID} onOpen={vi.fn()} tasks={[]} />,
+    );
+    await userEvent.click(page.getByRole("button", { name: "1 task" }));
+    await expect.element(page.getByText("You stopped this task")).toBeVisible();
+  });
+
   it("offers the finished tasks while nothing runs", async () => {
     listed.tasks = [PACKING];
     const onOpen = vi.fn();

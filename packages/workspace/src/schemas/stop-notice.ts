@@ -6,6 +6,6 @@
 export interface StopNotice {
   /** The chat's `task stop`, the user's Stop, or the app quitting. */
   by: "app" | "chat" | "user";
-  /** Whether the chat is woken with the stopped task's news. */
+  /** Whether the chat is told the task was stopped, in a note written into it that starts no turn. */
   wakesChat: boolean;
 }

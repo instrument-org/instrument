@@ -638,21 +638,29 @@ export async function connect({
     }
   };
 
-  // A window that is covered or minimized stops drawing, so its frames never
-  // come and a wait on them never ends. Give up after a few seconds and say
-  // why, rather than hang the command.
+  // Waits for the page to draw after input, and says what happened instead
+  // when it does not, since the input itself was delivered either way. A
+  // window that is covered, minimized, or under a native dialog the input
+  // just opened stops drawing, so its frames never come; a click that
+  // finishes onboarding closes the page outright. Undefined means it drew.
   const settle = async () => {
     await sleep(150);
     const framed = evaluate(
       cdp,
       "new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))",
-    );
+    ).catch((error) => {
+      if (error instanceof DriveError) return "closed";
+      throw error;
+    });
     const timedOut = sleep(5000).then(() => false);
-    if (!(await Promise.race([framed, timedOut]))) {
-      fail(
-        "The window drew no frame for 5 seconds after the input: it is covered or minimized, so input is not landing. Bring it to the front first.",
-      );
+    const outcome = await Promise.race([framed, timedOut]);
+    if (outcome === "closed") {
+      return "The page closed after the input (onboarding finishing, a window closing).";
     }
+    if (!outcome) {
+      return "The window drew no frame for 5 seconds after the input: a native dialog it opened, or another window, is in front of it. If nothing opened, bring it to the front and look again.";
+    }
+    return undefined;
   };
 
   const drive = async (call) => {
@@ -692,10 +700,15 @@ export async function connect({
             });
           }
         }
-        await settle();
+        const afterInput = await settle();
         // Recorded because it means the page moved under the run: what was on
         // screen before this step is not what is on screen after it.
-        return { x, y, ...(rect.scrolled && { scrolledIntoView: true }) };
+        return {
+          x,
+          y,
+          ...(rect.scrolled && { scrolledIntoView: true }),
+          ...(afterInput && { afterInput }),
+        };
       });
     },
 

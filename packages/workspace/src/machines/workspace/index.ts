@@ -480,9 +480,14 @@ export const workspaceMachine = setup({
           chatsBeingTrashed: [...context.chatsBeingTrashed, event.value.id],
         });
 
+        // The user's doing, which wakes nothing: a task's turn this ends
+        // must not write into the chat being trashed or start its turn.
         enqueue.raise({
           type: "stopSessions",
-          value: { id: event.value.id },
+          value: {
+            id: event.value.id,
+            notice: { by: "user", wakesChat: false },
+          },
         });
       }),
     },

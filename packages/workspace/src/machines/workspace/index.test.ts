@@ -32,8 +32,11 @@ const stubActors = {
 
 const testMachine = workspaceMachine.provide({ actors: stubActors });
 
-function createWorkspaceActor(rootDir = "/tmp/workspace") {
-  return createActor(testMachine, {
+function createWorkspaceActor(
+  rootDir = "/tmp/workspace",
+  machine = testMachine,
+) {
+  return createActor(machine, {
     input: {
       aiGatewayApp,
       apps: createMemoryAppsConfig(),
@@ -95,6 +98,34 @@ const spawnSession = (
 };
 
 describe("workspaceMachine task trashing", () => {
+  // Trashing a chat is the user's doing, which wakes nothing: a task's turn
+  // the trash ends must not write into the chat being trashed or start its
+  // turn.
+  it("stops a trashed chat's sessions as the user's, waking nothing", () => {
+    const trashedId = ChatIdSchema.parse("2026-10-13-groceries");
+    const received: unknown[] = [];
+    const recording = workspaceMachine.provide({
+      actors: {
+        ...stubActors,
+        sessionMachine: fromCallback(({ receive }) => {
+          receive((event) => {
+            received.push(event);
+          });
+        }),
+      } as Parameters<typeof workspaceMachine.provide>[0]["actors"],
+    });
+    const actor = createWorkspaceActor(undefined, recording);
+    actor.start();
+    spawnSession(actor, trashedId);
+
+    actor.send({ type: "prepareToTrashChat", value: { id: trashedId } });
+
+    expect(received).toEqual([
+      { notice: { by: "user", wakesChat: false }, type: "stop" },
+    ]);
+    actor.stop();
+  });
+
   it("trashing a task does not stop a sibling whose id contains the trashed id", () => {
     const trashedId = ChatIdSchema.parse("2026-06-26-task");
     // Sibling id contains the trashed id as a substring (same prompt twice).

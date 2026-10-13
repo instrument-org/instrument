@@ -1,9 +1,12 @@
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   realpathSync,
   rmSync,
+  statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import net from "node:net";
@@ -29,6 +32,7 @@ import { inheritedEnv } from "./native-env";
 import { accountCanWrite } from "./permissions/account-can-write";
 import { raiseAsk } from "./permissions/asks";
 import { type Rule } from "./permissions/rules";
+import { getWorkspaceConfig } from "./workspace-config";
 
 // The rules below hold a made-up home, which nothing on this disk lets the
 // account change; whether it could is the system's answer, set per test.
@@ -555,8 +559,43 @@ describe("bwrapArgs", () => {
     );
     expect(args.endsWith(`--remount-ro ${home}/Documents`)).toBe(true);
     expect(args).toMatch(
-      new RegExp(`--ro-bind \\S*instrument-closed-\\d+ ${home}/secret.txt`),
+      new RegExp(`--ro-bind \\S*/closed-file ${home}/secret.txt`),
     );
+    rmSync(home, { force: true, recursive: true });
+  });
+
+  it("never changes a file a link in place of the closed file leads to", () => {
+    const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
+    const victim = path.join(home, "thesis.docx");
+    writeFileSync(victim, "x", { mode: 0o644 });
+    writeFileSync(path.join(home, "secret.txt"), "x");
+    // Where a sandboxed command could plant one: the system's temp folder,
+    // and the app's own folder, which it may not.
+    const planted = [
+      path.join(os.tmpdir(), `instrument-closed-${process.getuid?.() ?? 0}`),
+      path.join(path.dirname(getWorkspaceConfig().uvDataDir), "closed-file"),
+    ];
+    for (const link of planted) {
+      mkdirSync(path.dirname(link), { recursive: true });
+      rmSync(link, { force: true });
+      symlinkSync(victim, link);
+    }
+    const args = bwrapArgs(
+      reachOver(home, [
+        {
+          level: "never",
+          path: path.join(home, "secret.txt"),
+          source: "place",
+        },
+      ]),
+    );
+    const bound = args[args.indexOf(path.join(home, "secret.txt")) - 1] ?? "";
+    expect(statSync(victim).mode & 0o777).toBe(0o644);
+    expect(lstatSync(bound).isSymbolicLink()).toBe(false);
+    expect(statSync(bound).mode & 0o777).toBe(0);
+    for (const link of planted) {
+      rmSync(link, { force: true });
+    }
     rmSync(home, { force: true, recursive: true });
   });
 

@@ -1,12 +1,14 @@
 import { execFileSync } from "node:child_process";
 import {
   accessSync,
-  chmodSync,
   constants,
   type Dirent,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
+  rmSync,
+  type Stats,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -803,18 +805,35 @@ export function bwrapArgs(
 }
 
 /**
- * An empty file with no permissions, bound over a closed file. Made once in
- * the system's temp folder, which every sandboxed command already reaches.
+ * An empty file with no permissions, bound over a closed file. It lives in
+ * the app's own data folder, which no sandboxed command may change, and is
+ * looked at without following a link: anything there that is not that
+ * file is removed and the file made anew, never changed in place, so a
+ * link planted there can lead nowhere.
  */
 function unreadableFile(): string {
   const file = path.join(
-    os.tmpdir(),
-    `instrument-closed-${process.getuid?.() ?? 0}`,
+    path.dirname(getWorkspaceConfig().uvDataDir),
+    "closed-file",
   );
-  if (!existsSync(file)) {
-    writeFileSync(file, "", { mode: 0o000 });
+  let found: Stats | undefined;
+  try {
+    found = lstatSync(file);
+  } catch {
+    // Not made yet.
   }
-  chmodSync(file, 0o000);
+  if (
+    found &&
+    !(found.isFile() && found.size === 0 && (found.mode & 0o777) === 0)
+  ) {
+    rmSync(file, { force: true, recursive: true });
+    found = undefined;
+  }
+  if (!found) {
+    mkdirSync(path.dirname(file), { recursive: true });
+    // `wx` fails rather than follow anything made there meanwhile.
+    writeFileSync(file, "", { flag: "wx", mode: 0o000 });
+  }
   return file;
 }
 

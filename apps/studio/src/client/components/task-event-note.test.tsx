@@ -15,6 +15,13 @@ describe("TaskEventNote", () => {
       text: "You stopped: Audit the vault",
     },
     {
+      event: {
+        needs: ["folder: ~/Documents/Pantry, on the card in this chat"],
+        status: "done" as const,
+      },
+      text: "Waiting on you: Audit the vault",
+    },
+    {
       event: { status: "done" as const, stoppedBy: "app" as const },
       text: "Interrupted when the app closed: Audit the vault",
     },

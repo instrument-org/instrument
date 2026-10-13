@@ -89,6 +89,32 @@ export const SETTINGS_INDEX = [
     title: "Diagnostic log",
   },
   {
+    detail: "Your free trial or subscription, and changing your plan",
+    id: "plan",
+    tab: "Usage and billing",
+    title: "Plan",
+  },
+  {
+    detail: "Switch to another plan.",
+    id: "change-plan",
+    mark: "plan",
+    tab: "Usage and billing",
+    title: "Change plan",
+  },
+  {
+    detail: "Your card and invoices, and canceling your subscription, in Stripe",
+    id: "billing-portal",
+    tab: "Usage and billing",
+    title: "Payment method and invoices",
+  },
+  {
+    detail: "Your card, invoices, and subscription, in Stripe",
+    id: "manage-billing",
+    mark: "billing-portal",
+    tab: "Usage and billing",
+    title: "Manage billing",
+  },
+  {
     detail: "Bring in what another AI knows about you.",
     id: "memory-import",
     tab: "Memory",

@@ -22,6 +22,11 @@ Your account, how Instrument looks, notifications, updates, and the diagnostic l
 
 Your Instrument plan, how much of it you have used, and billing.
 
+- **Plan** (`plan`): Your free trial or subscription, and changing your plan. On it: Change plan (`change-plan`).
+- **Change plan** (`change-plan`): Switch to another plan.
+- **Payment method and invoices** (`billing-portal`): Your card and invoices, and canceling your subscription, in Stripe. On it: Manage billing (`manage-billing`).
+- **Manage billing** (`manage-billing`): Your card, invoices, and subscription, in Stripe.
+
 ### Memory (`memory`)
 
 What Instrument remembers about you, which you can search, forget, or add to from another AI.

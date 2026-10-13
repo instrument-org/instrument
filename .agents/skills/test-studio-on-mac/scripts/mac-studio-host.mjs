@@ -121,12 +121,19 @@ preview_app() {
   [ -n "$app" ] && [ -d "$app" ] || { echo "No preview is installed $1. Run install-preview first." >&2; exit 1; }
   printf '%s' "$app"
 }
+# Processes whose command line starts with a prefix, matched as plain text:
+# an app's name holds parentheses, which a pgrep pattern would read as a group.
+pids_with_prefix() {
+  ps -axo pid=,args= | awk -v prefix="$1" '{ pid = $1; sub(/^[ ]*[0-9]+[ ]+/, ""); if (index($0, prefix) == 1) print pid }'
+}
 main_pids() {
   # Processes running the app's own executable: the main process. Helpers
   # live under Contents/Frameworks and are left to exit with it.
-  pgrep -f "^$1/Contents/MacOS/" || true
+  pids_with_prefix "$1/Contents/MacOS/"
 }
-json_escape() { python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1" 2>/dev/null || printf '"%s"' "$1"; }
+# A JSON string, in plain shell: /usr/bin/python3 on a Mac without Apple's
+# developer tools raises a dialog offering to install them.
+json_escape() { printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"; }
 `;
 
 function installPreview(host, run) {
@@ -231,12 +238,12 @@ for app in /Applications/Instrument\\ Preview\\ \\(*\\).app; do
   for pid in $(main_pids "$app"); do kill -TERM "$pid" 2>/dev/null && signaled="$signaled $pid"; done
 done
 for i in $(seq 1 20); do
-  left=$(pgrep -f "^/Applications/Instrument Preview \\(" || true)
+  left=$(pids_with_prefix "/Applications/Instrument Preview (")
   [ -z "$left" ] && break
   sleep 0.5
 done
 killed=""
-for pid in $(pgrep -f "^/Applications/Instrument Preview \\(" || true); do kill -KILL "$pid" 2>/dev/null && killed="$killed $pid"; done
+for pid in $(pids_with_prefix "/Applications/Instrument Preview ("); do kill -KILL "$pid" 2>/dev/null && killed="$killed $pid"; done
 # A program a task started can outlive the app holding the CDP socket.
 holder=$(lsof -nP -iTCP:${CDP_PORT} -sTCP:LISTEN -t 2>/dev/null | head -1 || true)
 [ -n "$holder" ] && kill -KILL "$holder" 2>/dev/null && killed="$killed $holder"

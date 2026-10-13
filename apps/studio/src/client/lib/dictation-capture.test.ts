@@ -90,4 +90,10 @@ describe("MicCapture", () => {
     await MicCapture.open();
     expect(FakeRecorder.instances[0]?.options.audioBitsPerSecond).toBe(32_000);
   });
+
+  it("closes its audio context when recording fails to start", async () => {
+    FakeRecorder.failToStart = true;
+    await expect(MicCapture.open()).rejects.toBeInstanceOf(MicrophoneError);
+    expect(FakeContext.instances[0]?.closed).toBe(true);
+  });
 });

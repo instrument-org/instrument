@@ -82,6 +82,7 @@ export class MicCapture {
       throw microphoneErrorOf(error);
     }
 
+    let context: AudioContext | undefined;
     try {
       const recorder = new MediaRecorder(stream, {
         audioBitsPerSecond: RECORDING_BITS_PER_SECOND,
@@ -89,7 +90,7 @@ export class MicCapture {
           ? RECORDING_MIME_TYPE
           : undefined,
       });
-      const context = new AudioContext();
+      context = new AudioContext();
       const analyzer = context.createAnalyser();
       analyzer.fftSize = 2048;
       context.createMediaStreamSource(stream).connect(analyzer);
@@ -113,6 +114,7 @@ export class MicCapture {
       for (const track of stream.getTracks()) {
         track.stop();
       }
+      void context?.close().catch(() => undefined);
       throw microphoneErrorOf(error);
     }
   }

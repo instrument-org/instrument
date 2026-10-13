@@ -86,13 +86,17 @@ function detailOf(cause: unknown): string | undefined {
   return typeof cause === "string" && cause !== "" ? cause : undefined;
 }
 
-/** The second line of an error: the caller's words, then in developer mode the error's own. */
+/**
+ * The second line of an error: the caller's words, then in developer mode the
+ * error's own, unless they are the caller's words already, as a spoken
+ * message is.
+ */
 function errorDescription(
   description: ExternalToast["description"],
   cause: unknown,
 ): ExternalToast["description"] {
   const detail = isDeveloperMode ? detailOf(cause) : undefined;
-  if (detail === undefined) {
+  if (detail === undefined || detail === description) {
     return description;
   }
   const said: ReactNode =

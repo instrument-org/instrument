@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { runPnpmCommand } from "./run-pnpm";
-import { getWorkspaceConfig } from "./workspace-config";
+import { workDir } from "./work-dir";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 vi.mock(import("./execa-node-for-chat"));
 
@@ -29,13 +30,7 @@ describe("runPnpmCommand", () => {
       throw new Error("expected execaNodeForChat to have been called");
     }
 
-    const [passedChatId, pnpmBin, cliArgs, execaOpts, cwdArg] = firstCall as [
-      typeof chatId,
-      string,
-      string[],
-      { env?: Record<string, string> },
-      unknown,
-    ];
+    const [passedChatId, pnpmBin, cliArgs, execaOpts, cwdArg] = firstCall;
 
     expect(passedChatId).toBe(chatId);
     expect(pnpmBin).toBe(getWorkspaceConfig().pnpmBinPath);
@@ -72,6 +67,25 @@ describe("runPnpmCommand", () => {
         }),
       }),
       undefined,
+      undefined,
     );
+  });
+
+  it("holds pnpm outside a shell call to the chat's reach", async () => {
+    const { execaNodeForChat } = await import("./execa-node-for-chat");
+    vi.mocked(execaNodeForChat).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    });
+    const chatId = createMockChatConfig(ChatIdSchema.parse("skill-install"));
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({ ...config, nativeSandbox: true });
+    try {
+      await runPnpmCommand({ args: ["install"], chatId });
+      const reach = vi.mocked(execaNodeForChat).mock.lastCall?.[5];
+      expect(reach?.readWrite).toContain(workDir(chatId));
+    } finally {
+      setWorkspaceConfig(config);
+    }
   });
 });

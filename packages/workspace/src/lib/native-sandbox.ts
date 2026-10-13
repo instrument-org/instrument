@@ -92,6 +92,11 @@ export function withNativeReach<T>(reach: NativeReach, run: () => T): T {
   return reachStorage.run(reach, run);
 }
 
+/** The reach the running shell call holds its native commands to, if any. */
+export function heldNativeReach(): NativeReach | undefined {
+  return reachStorage.getStore();
+}
+
 /**
  * Where a process keeps what it writes besides files: the terminal, the
  * null device, its own descriptors. Changing a disk's device takes an
@@ -925,7 +930,7 @@ function dotEntriesIn(folder: string): string[] {
 }
 
 function currentReach(): NativeReach | undefined {
-  const held = reachStorage.getStore();
+  const held = heldNativeReach();
   if (held) {
     return held;
   }

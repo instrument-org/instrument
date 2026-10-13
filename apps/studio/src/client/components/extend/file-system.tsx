@@ -64,7 +64,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { useFileDragArea } from "@/client/hooks/use-file-drag";
 import { useFindTarget } from "@/client/hooks/use-find-target";
-import { cn, isMacOS } from "@/client/lib/utils";
+import { cn, currentOs, isMacOS } from "@/client/lib/utils";
 import {
   createFileTreeIconResolver,
   getBuiltInSpriteSheet,
@@ -2776,13 +2776,14 @@ export function FileSystem({
         if (!lead) return false;
         openEntry(lead);
         return true;
+      case "rename":
       case "return":
         if (!lead) return false;
         // Several selected are renamed one at a time or not at all.
         if (selectedPathsOf(selectionRef.current).length > 1) return true;
         if (canRename && nav.renames) {
           startRename(lead.path);
-        } else {
+        } else if (command.type === "return") {
           openEntry(lead);
         }
         return true;
@@ -2938,7 +2939,7 @@ export function FileSystem({
         ) {
           return;
         }
-        const command = listingCommandOf(event, isMacOS());
+        const command = listingCommandOf(event, currentOs());
         if (!command) return;
         // On the rows, or on the browser itself (empty space clicked, a name
         // field just put away), every key is the listing's. On the toolbar

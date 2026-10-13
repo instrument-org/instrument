@@ -5,14 +5,22 @@
  * are left alone, is the same everywhere.
  */
 
+import {
+  type Os,
+  OS_CONVENTIONS,
+  type OsConventions,
+} from "@/shared/os-conventions";
+
 export type ListingDirection = "down" | "left" | "right" | "up";
 
 export type ListingCommand =
   /** An arrow; with Shift it reaches from where the selection began. */
   | { direction: ListingDirection; extend: boolean; type: "move" }
-  /** ⌘O or ⌘↓: open what is selected. */
+  /** ⌘O or ⌘↓, or Enter where F2 renames: open what is selected. */
   | { type: "open" }
-  /** Return: rename what is selected, or open it where nothing can be renamed. */
+  /** F2 where Enter opens: rename what is selected, where it can be. */
+  | { type: "rename" }
+  /** Return on the Mac: rename what is selected, or open it where nothing can be renamed. */
   | { type: "return" }
   /** ⌘A (Ctrl+A off the Mac): every row the view is walking. */
   | { type: "select-all" }
@@ -39,38 +47,47 @@ const DIRECTIONS: Record<string, ListingDirection> = {
 };
 
 /** ⌘A, or Ctrl+A off the Mac. */
-function isSelectAllPress(press: KeyPress, isMac: boolean) {
+function isSelectAllPress(press: KeyPress, { commandKey }: OsConventions) {
   return (
     press.key.toLowerCase() === "a" &&
     !press.shiftKey &&
     !press.altKey &&
-    (isMac ? press.metaKey : press.ctrlKey)
+    press[commandKey]
   );
 }
 
 /**
- * ⌘⌫, the Finder's Move to Trash; off the Mac, Delete alone, as Explorer and
- * the Linux file managers have it. Shift+Delete there skips the Recycle Bin
- * or the Trash, which nothing here does, so it is left alone.
+ * The file manager's Move to Trash: ⌘⌫ in the Finder, and Delete alone in
+ * File Explorer and the Linux file managers. Shift+Delete there skips the
+ * Recycle Bin or the Trash, which nothing here does, so it is left alone.
  */
-function isTrashPress(press: KeyPress, isMac: boolean) {
+function isTrashPress(
+  press: KeyPress,
+  { commandKey, files: { trashKey } }: OsConventions,
+) {
   if (press.shiftKey || press.altKey) return false;
-  return isMac
-    ? press.key === "Backspace" && press.metaKey && !press.ctrlKey
-    : press.key === "Delete" && !press.metaKey && !press.ctrlKey;
+  const holds = (flag: OsConventions["commandKey"]) =>
+    trashKey.withCommandKey && commandKey === flag;
+  return (
+    press.key === trashKey.key &&
+    press.metaKey === holds("metaKey") &&
+    press.ctrlKey === holds("ctrlKey")
+  );
 }
 
 /**
  * The command a press is, or null for one the listing leaves to whoever else
  * wants it: shortcuts it does not know, and arrows with ⌘ or Ctrl other than
- * ⌘↓, which the Finder keeps for going up and down folders.
+ * ⌘↓, which the Finder keeps for going up and down folders. Which key renames
+ * and which one trashes are the system's file manager's (`os-conventions.ts`).
  */
 export function listingCommandOf(
   press: KeyPress,
-  isMac: boolean,
+  os: Os,
 ): ListingCommand | null {
-  if (isSelectAllPress(press, isMac)) return { type: "select-all" };
-  if (isTrashPress(press, isMac)) return { type: "trash" };
+  const conventions = OS_CONVENTIONS[os];
+  if (isSelectAllPress(press, conventions)) return { type: "select-all" };
+  if (isTrashPress(press, conventions)) return { type: "trash" };
   const command = press.metaKey || press.ctrlKey;
   if (command && (press.key === "o" || press.key === "ArrowDown")) {
     return { type: "open" };
@@ -80,7 +97,13 @@ export function listingCommandOf(
     return command ? null : { direction, extend: press.shiftKey, type: "move" };
   }
   if (command || press.altKey) return null;
-  if (press.key === "Enter") return { type: "return" };
+  const { renameKey } = conventions.files;
+  if (press.key === "Enter") {
+    return renameKey === "Enter" ? { type: "return" } : { type: "open" };
+  }
+  if (press.key === renameKey) {
+    return press.shiftKey ? null : { type: "rename" };
+  }
   if (press.key === " ") return { type: "space" };
   // Letters and digits only, so shortcuts and whitespace stay untouched.
   if (press.key.length === 1 && /^[\p{L}\p{N}]$/u.test(press.key)) {

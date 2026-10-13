@@ -45,35 +45,56 @@ describe("listingCommandOf", () => {
     ["-", null],
     ["Tab", null],
     ["Escape", null],
+    // The Finder renames on Return, and F2 means nothing to it.
+    ["F2", null],
   ])("reads %s on the Mac", (chord, command) => {
-    expect(listingCommandOf(press(chord), true)).toEqual(command);
+    expect(listingCommandOf(press(chord), "mac")).toEqual(command);
+  });
+
+  // File Explorer, GNOME Files and Dolphin open on Enter and rename on F2.
+  it.each(
+    (["windows", "linux"] as const).flatMap((os) =>
+      (
+        [
+          ["Enter", { type: "open" }],
+          ["F2", { type: "rename" }],
+          ["⌃F2", null],
+          ["⇧F2", null],
+          ["⌃o", { type: "open" }],
+        ] as const
+      ).map(([chord, command]) => [os, chord, command] as const),
+    ),
+  )("reads %s from %s", (os, chord, command) => {
+    expect(listingCommandOf(press(chord), os)).toEqual(command);
   });
 
   it("takes Ctrl+A, not ⌘A, for every row off the Mac", () => {
-    expect(listingCommandOf(press("⌃a"), false)).toEqual({
+    expect(listingCommandOf(press("⌃a"), "windows")).toEqual({
       type: "select-all",
     });
-    expect(listingCommandOf(press("⌘a"), false)).toBeNull();
-    expect(listingCommandOf(press("⌃a"), true)).toBeNull();
+    expect(listingCommandOf(press("⌘a"), "windows")).toBeNull();
+    expect(listingCommandOf(press("⌃a"), "mac")).toBeNull();
   });
 
   it.each([
     // The Finder's Move to Trash, and only that.
-    [true, "⌘Backspace", { type: "trash" }],
-    [true, "Backspace", null],
-    [true, "Delete", null],
-    [true, "⌘Delete", null],
-    [true, "⌥⌘Backspace", null],
-    [true, "⌃Backspace", null],
+    ["mac", "⌘Backspace", { type: "trash" }],
+    ["mac", "Backspace", null],
+    ["mac", "Delete", null],
+    ["mac", "⌘Delete", null],
+    ["mac", "⌥⌘Backspace", null],
+    ["mac", "⌃Backspace", null],
     // Explorer's and the Linux file managers' Delete; Shift+Delete skips the
     // bin, which nothing here does.
-    [false, "Delete", { type: "trash" }],
-    [false, "⇧Delete", null],
-    [false, "⌃Delete", null],
-    [false, "Backspace", null],
-    [false, "⌃Backspace", null],
-  ])("reads the trash key (Mac: %s) from %s", (isMac, chord, command) => {
-    expect(listingCommandOf(press(chord), isMac)).toEqual(command);
+    ["windows", "Delete", { type: "trash" }],
+    ["windows", "⇧Delete", null],
+    ["windows", "⌃Delete", null],
+    ["windows", "Backspace", null],
+    ["windows", "⌃Backspace", null],
+    ["linux", "Delete", { type: "trash" }],
+    ["linux", "⇧Delete", null],
+  ])("reads the trash key on %s from %s", (os, chord, command) => {
+    expect(listingCommandOf(press(chord), os)).toEqual(command);
   });
 });
 

@@ -1,7 +1,8 @@
 import { renderWithProviders } from "@/tests/render";
+import { installWindowStubs } from "@/tests/window-stubs";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   FileSystem,
@@ -500,6 +501,42 @@ describe("renaming in place", () => {
     expect(field()).toBeNull();
     await waitFor(() => expect(onFileOpen).toHaveBeenCalledTimes(1));
     expect(onFileOpen.mock.lastCall?.[0]).toMatchObject({ path: "b.txt" });
+  });
+
+  describe.each(["win32", "linux"])("on %s", (platform) => {
+    beforeEach(() => {
+      Object.defineProperty(window, "electron", {
+        configurable: true,
+        value: { process: { platform } },
+      });
+    });
+    afterEach(() => {
+      installWindowStubs();
+    });
+
+    it("opens on Enter and renames on F2, as File Explorer does", async () => {
+      const { field, onFileOpen, openField, row } = renderRenamable();
+
+      fireEvent.click(row("b.txt"));
+      fireEvent.keyDown(row("b.txt"), { key: "Enter" });
+      expect(field()).toBeNull();
+      await waitFor(() => expect(onFileOpen).toHaveBeenCalledTimes(1));
+      expect(onFileOpen.mock.lastCall?.[0]).toMatchObject({ path: "b.txt" });
+
+      fireEvent.keyDown(row("b.txt"), { key: "F2" });
+      expect(openField().value).toBe("b.txt");
+    });
+
+    it("opens nothing on F2 in the gallery, which has no name to type over", () => {
+      const { field, onFileOpen } = renderRenamable({ view: "gallery" });
+      const tile = screen.getByTitle("b.txt");
+
+      fireEvent.click(tile);
+      fireEvent.keyDown(tile, { key: "F2" });
+
+      expect(field()).toBeNull();
+      expect(onFileOpen).not.toHaveBeenCalled();
+    });
   });
 
   // Named to sort first: jsdom has no layout, so the list's virtual window

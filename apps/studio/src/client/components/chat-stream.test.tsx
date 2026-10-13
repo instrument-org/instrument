@@ -1472,3 +1472,52 @@ describe("ChatStream in the conversation, and the typing dots", () => {
     expect(screen.queryByLabelText("Typing") !== null).toBe(hasDots);
   });
 });
+
+/** A command the app's closing cut off while it ran. */
+function cutOffCommand(explanation: string) {
+  return {
+    errorText: "This action was interrupted when the app closed.",
+    input: { command: "./count.sh", explanation },
+    metadata: { ...metadata(new Date(1)), endedAt: new Date(2) },
+    state: "output-error",
+    toolCallId: StoreId.ToolCallSchema.parse(`call-c${partCounter}`),
+    type: "tool-bash",
+  };
+}
+
+describe("ChatStream and a turn the app's closing cut off", () => {
+  it("reads the cut-off call as the call it was, and its card as cut off rather than failed", () => {
+    renderParts([cutOffCommand("Writing a line a second")]);
+
+    expect(screen.queryByText("Tried to run terminal command")).toBeNull();
+    clickRow("Writing a line a second");
+
+    expect(screen.queryByText("Tool call failed")).toBeNull();
+    expect(
+      screen.getByText("This action was interrupted when the app closed."),
+    ).toBeTruthy();
+  });
+
+  it("marks the turn once the work goes on after it", () => {
+    renderMessages([
+      userMessage("Write the log"),
+      assistantMessage([cutOffCommand("Writing a line a second")]),
+      userMessage("Keep going"),
+    ]);
+
+    expect(
+      screen.getByText("The app closed before this turn finished."),
+    ).toBeTruthy();
+  });
+
+  it("leaves the mark to the page's end while the turn is still the last", () => {
+    renderMessages([
+      userMessage("Write the log"),
+      assistantMessage([cutOffCommand("Writing a line a second")]),
+    ]);
+
+    expect(
+      screen.queryByText("The app closed before this turn finished."),
+    ).toBeNull();
+  });
+});

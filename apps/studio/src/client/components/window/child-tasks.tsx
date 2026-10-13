@@ -9,6 +9,7 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/client/components/ui/message-scroller";
+import { StoppedLine } from "@/client/components/stopped-line";
 import { Spinner } from "@/client/components/ui/spinner";
 import { ChatSessionProvider } from "@/client/hooks/use-chat-session";
 import { folderLabel, isOutputFolder } from "@/client/lib/path-utils";
@@ -22,7 +23,6 @@ import {
   type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode } from "react";
@@ -111,14 +111,13 @@ export function ChildTranscript({
                 </FileOpenContext>
               </ChatSessionProvider>
               {stoppedBy && (
-                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <StopCircleIcon className="size-3.5 shrink-0" />
+                <StoppedLine>
                   {stoppedBy === "app"
                     ? "The app closed before this task finished."
                     : stoppedBy === "user"
                       ? "You stopped this task."
                       : "The chat stopped this task."}
-                </p>
+                </StoppedLine>
               )}
             </MessageScrollerContent>
           </MessageScrollerViewport>

@@ -2358,7 +2358,10 @@ function NotPermitted({
   onGranted: (hostPath: string) => void;
   refusal: ComputerRefusal;
 }) {
-  const name = segmentsOf(refusal.path).at(-1) ?? refusal.path;
+  // The folder that refused, which is one above this when the account cannot
+  // pass through it.
+  const shut = refusal.refusedBy ?? refusal.path;
+  const name = segmentsOf(shut).at(-1) ?? shut;
   const choose = useMutation({
     mutationFn: () =>
       rpcClient.utils.showFolderPicker.call({

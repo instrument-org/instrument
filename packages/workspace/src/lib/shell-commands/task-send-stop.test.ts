@@ -14,6 +14,8 @@ import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-mod
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { Store } from "../store";
 import { updateChatSettings } from "../chat-settings";
+import { listChildTasks } from "../chat/children";
+import { openAsks, recordAsk } from "../permissions/asks";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { type TaskCommandContext } from "./task/context";
 import { sendSubcommand } from "./task/send";
@@ -304,5 +306,39 @@ describe("task stop", () => {
       "
     `);
     expect(sent.events).toEqual([]);
+  });
+
+  // An answer to the card would otherwise wake the task the chat stopped.
+  it("takes a task waiting on a card off it, and marks it stopped by the chat", async () => {
+    working.value = () => false;
+    await recordAsk(
+      { chatId: CHAT_ID, sessionId: CHILD_ID },
+      "folder",
+      "/Users/me/Documents/Pantry",
+    );
+    const result = await runStop(["t1"], context);
+    expect(result.stdout.replaceAll("t1", "<id>")).toMatchInlineSnapshot(`
+      "Stopped <id>, which was waiting on the person's answer to a card; an answer no longer wakes it. \`task send\` gives it the next thing to do.
+      "
+    `);
+    expect(await openAsks(CHAT_ID)).toEqual([]);
+    const [task] = await listChildTasks(CHAT_ID);
+    expect(task?.stoppedBy).toBe("chat");
+    expect(sent.events).toEqual([]);
+  });
+
+  it("closes the cards of a working task it stops", async () => {
+    let checks = 0;
+    working.value = () => {
+      checks += 1;
+      return checks < 3;
+    };
+    await recordAsk(
+      { chatId: CHAT_ID, sessionId: CHILD_ID },
+      "folder",
+      "/Users/me/Documents/Pantry",
+    );
+    await runStop(["t1"], context);
+    expect(await openAsks(CHAT_ID)).toEqual([]);
   });
 });

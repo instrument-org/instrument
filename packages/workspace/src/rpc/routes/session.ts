@@ -179,6 +179,7 @@ const stop = base
         input.id,
         waitingOnCard,
         context.workspaceRef,
+        "user",
       ).catch(context.workspaceConfig.captureException);
     }
   });

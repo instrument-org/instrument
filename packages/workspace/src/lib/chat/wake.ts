@@ -589,18 +589,20 @@ function cardNeed(card: PermissionAsk): string {
 }
 
 /**
- * Says the person stopped a task that was waiting on a card, as the end of
- * a turn they stopped does: its row keeps that they stopped it, and its chat
- * gets the note, which starts no turn. Such a task has no turn for the stop
- * to end, so no session's end says it.
+ * Says a task that was waiting on a card was stopped, as the end of a turn
+ * stopped the same way does: its row keeps who stopped it, and when the
+ * person did, its chat gets the note, which starts no turn. The chat's own
+ * `task stop` says so in its output instead. Such a task has no turn for the
+ * stop to end, so no session's end says it.
  */
 export async function noteTaskStoppedOnCard(
   chatId: ChatId,
   sessionId: StoreId.Session,
   workspaceRef: WorkspaceActorRef,
+  by: "chat" | "user",
 ): Promise<void> {
   await onSessionDone(
-    { id: chatId, notice: { by: "user", wakesChat: true }, sessionId },
+    { id: chatId, notice: { by, wakesChat: by === "user" }, sessionId },
     workspaceRef,
   );
 }

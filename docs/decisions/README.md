@@ -10,6 +10,7 @@ Newest first. A struck-through entry has been superseded.
 
 | Date | Decision |
 | --- | --- |
+| 2026-10-12 | [The shell stays just-bash, and real programs do the rest](2026-10-12-the-shell-stays-just-bash-and-real-programs-do-the-rest.md) |
 | 2026-10-12 | [Carry the just-bash command-limit and stdin-bytes fixes as a local patch until they are released](2026-10-12-carry-the-limit-and-stdin-bytes-patch.md) |
 | 2026-10-12 | [Programs on the PATH run natively, by name, under the same rules](2026-10-12-programs-on-path-run-natively.md) |
 | 2026-10-12 | [`python` and `node` run native, and the WebAssembly runtimes are gone](2026-10-12-python-and-node-run-native.md) |

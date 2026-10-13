@@ -52,13 +52,6 @@ export function getChatPrivateDir(dir: ChatDir): AbsolutePath {
   return absolutePathJoin(dir, CHAT_FOLDER_NAMES.private);
 }
 
-// Subprocess temp dir. TMPDIR/TEMP/TMP point real interpreters here so
-// tempfile, os.tmpdir(), and mktemp land inside the task instead of the host
-// temp dir.
-export function getChatTmpDir(dir: ChatDir): AbsolutePath {
-  return absolutePathJoin(dir, CHAT_FOLDER_NAMES.tmp);
-}
-
 // Scratch: source, scripts, and intermediate files the agent writes. Holds no
 // package of its own, so what lands here resolves the task's dependencies by
 // walking up to the root like anything else in the task.

@@ -563,14 +563,6 @@ describe("agent-browser routing", () => {
     expect(env.AGENT_BROWSER_DOWNLOAD_PATH).toBe(`${taskDirPath}/downloads`);
   });
 
-  it("keeps the in-app browser's temp files inside the task", async () => {
-    const { env } = await spawnedWith(["open", "https://example.com"]);
-
-    for (const key of ["TEMP", "TMP", "TMPDIR"]) {
-      expect(env[key]).toContain(taskDirPath);
-    }
-  });
-
   it("keeps the host environment away from the in-app browser", async () => {
     vi.stubEnv("LOCALAPPDATA", String.raw`C:\Users\person\AppData\Local`);
 

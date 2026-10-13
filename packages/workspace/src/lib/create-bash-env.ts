@@ -1,4 +1,3 @@
-import { mkdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -46,10 +45,8 @@ import {
 } from "./shell-commands/ffprobe";
 import { createGitCommand, GIT_COMMAND } from "./shell-commands/git";
 import { createMemoryCommand, MEMORY_COMMAND } from "./shell-commands/memory";
-import { createMktempCommand, MKTEMP_COMMAND } from "./shell-commands/mktemp";
 import { createNodeCommand, NODE_COMMAND } from "./shell-commands/node";
 import { withNativeReach } from "./native-sandbox";
-import { CHAT_FOLDER_NAMES } from "../constants";
 import { SHELL_PATH, shellPath } from "./workspace-fs-layout";
 import { asksWritten } from "./permissions/asks";
 import { chatRules, nativeReachFor } from "./permissions/chat-rules";
@@ -188,10 +185,6 @@ function stubCommand(
 // type parameter still holds these entries to real command names.
 const BROKEN_COMMANDS: ReadonlySet<string> = new Set<CommandName>([
   "which", // searches only the shell's own PATH; replaced below
-  // Writes under /tmp rather than the chat's own `.tmp`, where the native
-  // commands' TMPDIR points. Every shell gets ours (shell-commands/mktemp.ts)
-  // instead.
-  "mktemp",
 ]);
 
 const STATIC_STUB_COMMANDS = [
@@ -417,12 +410,6 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     name: GIT_COMMAND.name,
   },
   {
-    description: MKTEMP_COMMAND.description,
-    factory: () => createMktempCommand(),
-    listInDescription: true,
-    name: MKTEMP_COMMAND.name,
-  },
-  {
     description: NODE_COMMAND.description,
     factory: ({ chatId, invokeTool }) => createNodeCommand(chatId, invokeTool),
     listInDescription: true,
@@ -634,7 +621,7 @@ export function createBashDescription() {
 
     IMPORTANT: \`${PYTHON_COMMAND.name}\` (alias \`${PYTHON3_COMMAND.name}\`) is the real interpreter in this conversation's virtualenv, and \`${NODE_COMMAND.name}\` is a real Node with this conversation's packages. Both run whatever was installed, can start processes, and read the user's folders where they sit. Packages come from \`${PIP_COMMAND.name}\`/\`${UV_COMMAND.name}\` and \`${PNPM_COMMAND.name}\` (\`npm\` is not available). If a system command is unavailable, don't keep probing for equivalent binaries -- a short script can usually do the job, and a missing command does not mean the task is impossible.
 
-    IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory, so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`) inside it. Writing outside the folders you reach fails -- use \`work/\` for scratch files, or \`${MKTEMP_COMMAND.name}\` to name one. Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
+    IMPORTANT: Not a persistent terminal -- each call starts fresh from this conversation's folder, your working directory, so \`cd .\` is always a no-op. Prefer relative paths (\`work/...\`) inside it. Scratch files go in the system's temp folder (\`$TMPDIR\`; \`mktemp\` names one there). Shell state (env vars, exported functions, cwd) does NOT carry across calls; to run somewhere else, prefix your command (\`cd subdir && ...\`) within a single call.
 
     IMPORTANT: Interactive input is not supported -- there is no terminal, so a command that waits at a prompt waits forever. Pass non-interactive flags (\`-y\`, \`--yes\`, \`--no-input\`) instead.
     A command goes to the background by outliving \`yieldMs\`, NOT by \`&\` (\`&\`, \`nohup\` and \`disown\` are unsupported). A command still running when \`yieldMs\` elapses is NOT killed: it keeps running, this call returns a process id, and \`${JOBS_COMMAND.name}\`, \`${FG_COMMAND.name}\` and \`${KILL_COMMAND.name}\` manage it from there. Start a server or watcher with a small \`yieldMs\` to get its id promptly; leave \`yieldMs\` alone for ordinary commands.
@@ -771,10 +758,6 @@ export async function createLocalBashEnv({
     createAppCommand({ chatId }),
     ...nativeCommands,
   ];
-  // The scratch folder native commands get as TMPDIR, made here so a
-  // script that writes "$TMPDIR/x" before anything else has somewhere to go.
-  const tmpDir = path.join(layout.task.hostRoot, CHAT_FOLDER_NAMES.tmp);
-  mkdirSync(tmpDir, { recursive: true });
   const bash = new Bash({
     commands: allowedCommands,
     customCommands: [
@@ -832,11 +815,10 @@ export async function createLocalBashEnv({
       HOME: shellPath(rules.home),
       NO_COLOR: "1",
       PATH: SHELL_PATH,
-      // The same scratch folder every native command gets, so a path built
-      // from it means the same thing in the shell and in a script.
-      TEMP: shellPath(tmpDir),
-      TMP: shellPath(tmpDir),
-      TMPDIR: shellPath(tmpDir),
+      // The system's temp folder, which every program it runs gets too.
+      TEMP: shellPath(os.tmpdir()),
+      TMP: shellPath(os.tmpdir()),
+      TMPDIR: shellPath(os.tmpdir()),
       TZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
       USER: os.userInfo().username,
     },

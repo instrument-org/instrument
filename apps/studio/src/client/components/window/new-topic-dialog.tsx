@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Input } from "@/client/components/ui/input";
-import { Textarea } from "@/client/components/ui/textarea";
+import { DictatedTextarea } from "@/client/components/dictation-controls";
 import {
   starterEmoji,
   TOPIC_COLORS,
@@ -582,12 +582,16 @@ function TopicForm({
           >
             Instructions
           </label>
-          <Textarea
+          <DictatedTextarea
             className="max-h-64 min-h-24 text-sm"
             id="topic-instructions"
             onChange={(event) => {
               setInstructions(event.target.value);
             }}
+            onDictated={(append) => {
+              setInstructions((current) => append(current ?? ""));
+            }}
+            surface="topic-instructions"
             placeholder={`What ${APP_NAME} should know or do in every chat filed here`}
             value={instructions}
           />

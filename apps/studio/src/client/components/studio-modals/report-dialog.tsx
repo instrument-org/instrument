@@ -11,7 +11,7 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/client/components/ui/dialog";
-import { Textarea } from "@/client/components/ui/textarea";
+import { DictatedTextarea } from "@/client/components/dictation-controls";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { toast } from "@/client/lib/toast";
@@ -169,14 +169,16 @@ function ReportDialogContent({
         <label className="text-xs font-medium" htmlFor={noteId}>
           {request.noteLabel}
         </label>
-        <Textarea
+        <DictatedTextarea
           autoFocus={request.focusNote}
           id={noteId}
           maxLength={5000}
           onChange={(event) => {
             setNote(event.target.value);
           }}
+          onDictated={setNote}
           placeholder="Optional"
+          surface="report"
           value={note}
         />
       </div>

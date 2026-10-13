@@ -11,7 +11,7 @@ import { toast } from "@/client/lib/toast";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
-import { Textarea } from "../ui/textarea";
+import { DictatedTextarea } from "../dictation-controls";
 import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";
 import { useHasLiveSession } from "./use-live-session";
 
@@ -179,7 +179,7 @@ export function QuestionCard({
         {isOpen ? (
           <>
             {isNoteOpen ? (
-              <Textarea
+              <DictatedTextarea
                 aria-label="Note"
                 autoFocus
                 className="mt-3 min-h-12"
@@ -187,7 +187,9 @@ export function QuestionCard({
                 onChange={(event) => {
                   setNote(event.target.value);
                 }}
+                onDictated={setNote}
                 placeholder="A note to go with your answer"
+                surface="question-note"
                 value={note}
               />
             ) : null}

@@ -104,14 +104,15 @@ describe("workspaceMachine task trashing", () => {
   it("stops a trashed chat's sessions as the user's, waking nothing", () => {
     const trashedId = ChatIdSchema.parse("2026-10-13-groceries");
     const received: unknown[] = [];
+    const recordingSession: AnyActorLogic = fromCallback(({ receive }) => {
+      receive((event) => {
+        received.push(event);
+      });
+    });
     const recording = workspaceMachine.provide({
       actors: {
         ...stubActors,
-        sessionMachine: fromCallback(({ receive }) => {
-          receive((event) => {
-            received.push(event);
-          });
-        }),
+        sessionMachine: recordingSession,
       } as Parameters<typeof workspaceMachine.provide>[0]["actors"],
     });
     const actor = createWorkspaceActor(undefined, recording);

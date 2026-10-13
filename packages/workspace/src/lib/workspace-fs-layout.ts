@@ -148,16 +148,42 @@ export async function buildBashFs(
     return refusal;
   };
 
-  // The rest of the disk is not mounted: the shell's own commands would find
-  // host binaries on its PATH there. A read of a folder that exists outside
-  // every mount is refused rather than missing, and says how to reach it.
+  // Outside every mount the shell reads the disk where the rules allow
+  // reading, as a native program does: the system's own folders, a folder no
+  // rule holds, a drive once allowed. A place that asks first asks, the
+  // workspace stays missing, and nothing there changes. Its listings count
+  // against the home folder's smaller budget, so `find /` stops rather than
+  // crawling the disk. Windows has no one root to read its drives from, so
+  // there a read of a folder outside every mount is refused rather than
+  // missing, and says how to reach it.
+  const disk =
+    process.platform === "win32"
+      ? undefined
+      : rulesFs({
+          delegate: new OverlayFs({
+            allowSymlinks: true,
+            maxFileReadSize,
+            mountPoint: "/",
+            readOnly: true,
+            root: "/",
+          }),
+          followsLinks: true,
+          hostRoot: "/",
+          onRefusal,
+          rules,
+          spell: shellPath,
+        });
   const fs = new MountableFs({
-    base: new ReadOnlyBaseFs(
-      (path) => (outsideFolder(path, "read") ? "refused" : undefined),
-      (path) => {
+    base: new ReadOnlyBaseFs({
+      ...(disk && {
+        disk: homeWalkBudget ? homeWalkBudget.wrap(disk, "/") : disk,
+      }),
+      onMissing: (path) =>
+        outsideFolder(path, "read") ? "refused" : undefined,
+      onWrite: (path) => {
         outsideFolder(path, "write");
       },
-    ),
+    }),
   });
 
   // just-bash seeds these into its default filesystem, but only for one it can
@@ -635,8 +661,9 @@ function taskMaskedEntries(taskHostRoot: ChatDir): MaskedEntry[] {
 }
 
 /**
- * The shell's PATH: system folders it does not mount, so a command lookup
- * falls to the shell's own commands rather than a host binary.
+ * The shell's PATH: system folders it does not mount, which it reads only
+ * once its own commands and the programs on the host's PATH have passed on
+ * a name.
  */
 export const SHELL_PATH = "/usr/local/bin:/usr/bin:/bin";
 const SHELL_PATH_DIRS = new Set(SHELL_PATH.split(":"));

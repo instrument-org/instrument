@@ -841,11 +841,8 @@ export async function createLocalBashEnv({
       denyPrivateRanges: false,
       maxResponseSize: SANDBOX_MAX_BYTES,
     },
-    // The shell's own PATH names no folder it mounts. The home folder is
-    // mounted at its real path, so the host's PATH would put a binary there
-    // (a pnpm or nvm shim under ~/Library or ~/.local) ahead of the command
-    // registered by the same name, and read it as a shell script. The host's
-    // PATH is searched only once the shell's commands pass on a name
+    // The shell's own PATH names no folder it mounts. The host's PATH is
+    // searched only once the shell's commands pass on a name
     // (`resolveExternalCommand`), and the native commands get it from
     // resolveCommandContext and the shims themselves.
     env: {

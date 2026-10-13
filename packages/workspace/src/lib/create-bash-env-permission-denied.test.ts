@@ -34,6 +34,7 @@ const workers: Worker[] = [];
 let tmpDir: string;
 let docs: string;
 let elsewhere: string;
+let closed: string;
 let chatId: ChatId;
 
 beforeAll(async () => {
@@ -41,10 +42,13 @@ beforeAll(async () => {
   const taskRoot = path.join(tmpDir, "tasks", "test");
   docs = path.join(tmpDir, "Docs");
   elsewhere = path.join(tmpDir, "Elsewhere");
+  closed = path.join(tmpDir, "Closed");
   await fs.mkdir(path.join(taskRoot, "work"), { recursive: true });
   await fs.mkdir(path.join(docs, "locked"), { recursive: true });
   await fs.writeFile(path.join(docs, "locked", "secret.txt"), "secret\n");
   await fs.mkdir(elsewhere);
+  await fs.writeFile(path.join(elsewhere, "open.txt"), "open\n");
+  await fs.mkdir(closed);
   chatId = createMockChatConfigForDir(ChatDirSchema.parse(taskRoot));
   // Settings live in the workspace's root, which the mock chats share across
   // test files, so this file keeps its own.
@@ -59,6 +63,11 @@ beforeAll(async () => {
         addedAt: new Date(),
         level: "never",
         path: AbsolutePathSchema.parse(path.join(docs, "locked")),
+      },
+      {
+        addedAt: new Date(),
+        level: "never",
+        path: AbsolutePathSchema.parse(closed),
       },
     ],
   }));
@@ -122,10 +131,11 @@ describe.each(Object.entries(shells))(
       expect(result.stderr).not.toContain("No such file or directory");
     });
 
-    it("says Permission denied for a folder outside every mount", async () => {
+    it("reads outside every mount where the rules allow, and says Permission denied where they close", async () => {
       const bash = await shell();
-      const result = await bash.exec(`ls ${elsewhere}`);
-      expect(result.stderr).toContain(`ls: ${elsewhere}: Permission denied\n`);
+      const result = await bash.exec(`cat ${elsewhere}/open.txt; ls ${closed}`);
+      expect(result.stdout).toBe("open\n");
+      expect(result.stderr).toContain(`ls: ${closed}: Permission denied\n`);
     });
 
     it("still says a missing file is missing", async () => {

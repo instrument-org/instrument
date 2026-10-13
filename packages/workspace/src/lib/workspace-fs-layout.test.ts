@@ -18,6 +18,7 @@ import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { withTurnContext } from "./turn-context";
 import { type Rule } from "./permissions/rules";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { createWalkBudget } from "./walk-budget";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 import {
   buildBashFs,
@@ -253,6 +254,63 @@ describe("buildBashFs", () => {
     const listed = result.stdout.split("\n").filter(Boolean);
     expect(listed).toContain("dev");
     expect(listed).toContain(tmpDir.split(path.sep)[1]);
+  });
+
+  describe.skipIf(process.platform === "win32")("outside every mount", () => {
+    it("reads the system's own folders and changes nothing there", async () => {
+      const bash = await makeBash();
+      const result = await bash.exec(
+        "cat /etc/hosts | head -1; file /etc/hosts; touch /etc/instrument-test",
+      );
+      const [first, described] = result.stdout.split("\n");
+      expect(first).not.toBe("");
+      expect(described).toMatch(/^\/etc\/hosts: .*text/);
+      expect(result.stderr).toContain("EROFS");
+      expect(existsSync("/etc/instrument-test")).toBe(false);
+    });
+
+    it("keeps the workspace missing", async () => {
+      const bash = await makeBash();
+      const { rootDir } = getWorkspaceConfig();
+      await fs.mkdir(rootDir, { recursive: true });
+      await fs.writeFile(path.join(rootDir, "secret.txt"), "secret");
+      const result = await bash.exec(
+        `cat ${rootDir}/secret.txt; ls ${rootDir}`,
+      );
+      await fs.rm(path.join(rootDir, "secret.txt"));
+      expect(result.stdout).not.toContain("secret");
+      expect(result.stderr).toContain("No such file or directory");
+    });
+
+    it("holds a link to the rules of where it leads", async () => {
+      const bash = await makeBash();
+      const { rootDir } = getWorkspaceConfig();
+      await fs.mkdir(rootDir, { recursive: true });
+      await fs.writeFile(path.join(rootDir, "secret.txt"), "secret");
+      await fs.symlink(
+        path.join(rootDir, "secret.txt"),
+        path.join(tmpDir, "link.txt"),
+      );
+      const result = await bash.exec(`cat ${tmpDir}/link.txt`);
+      await fs.rm(path.join(rootDir, "secret.txt"));
+      expect(result.stdout).toBe("");
+      expect(result.exitCode).not.toBe(0);
+    });
+
+    it("stops a walk of the disk at the home folder's budget", async () => {
+      const layout = buildWorkspaceFsLayout({
+        taskHostRoot: ChatDirSchema.parse(taskDir),
+      });
+      const bash = new Bash({
+        cwd: layout.task.shellRoot,
+        fs: await buildBashFs(layout, {
+          homeWalkBudget: createWalkBudget(50),
+          maxFileReadSize: 1024 * 1024,
+        }),
+      });
+      const result = await bash.exec("find /usr -name nothing-is-named-this");
+      expect(result.stderr).toContain("stopped walking / after 50 entries");
+    });
   });
 
   // A write to a path outside every mount throws rather than returning an exit

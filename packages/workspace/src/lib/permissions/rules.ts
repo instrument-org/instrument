@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { type ChatGrant } from "../../schemas/chat-settings";
 import { AbsolutePathSchema } from "../../schemas/paths";
-import { hostPathWithin } from "../host-path";
+import { canonicalizeThroughMissing, hostPathWithin } from "../host-path";
 import { readJsonRecord, updateJsonRecord } from "../json-record-file";
 import { type Asker } from "./asks";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -342,14 +342,19 @@ const compiledRules = new WeakMap<
 function compiled(rules: Rules) {
   let known = compiledRules.get(rules);
   if (!known) {
-    known = rules.rules.map((rule) => {
-      const root = fold(path.resolve(rule.path));
-      return {
-        depth: root.split(path.sep).filter(Boolean).length,
+    // A rule holds its folder by the path it names and by where that path
+    // really is, at the depth it names: a path read through a link (`/tmp`
+    // on macOS is `/private/tmp`) meets the same rule either way.
+    known = rules.rules.flatMap((rule) => {
+      const spelled = path.resolve(rule.path);
+      const depth = spelled.split(path.sep).filter(Boolean).length;
+      const real = canonicalizeThroughMissing(spelled) ?? spelled;
+      return [...new Set([fold(spelled), fold(real)])].map((root) => ({
+        depth,
         prefix: root.endsWith(path.sep) ? root : `${root}${path.sep}`,
         root,
         rule,
-      };
+      }));
     });
     compiledRules.set(rules, known);
   }

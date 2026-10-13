@@ -1,6 +1,7 @@
 import { type IFileSystem } from "just-bash";
 import nodePath from "node:path";
 
+import { canonicalizeThroughMissing } from "../host-path";
 import { raiseAsk, waitingNote } from "./asks";
 import { isClosedDiskRoot } from "../disk-root";
 import { folderToAskFor, reachOf, type Rules } from "./rules";
@@ -67,12 +68,18 @@ export function ruleRefusal({
  */
 export function rulesFs({
   delegate,
+  followsLinks = false,
   hostRoot,
   onRefusal,
   rules,
   spell,
 }: {
   delegate: IFileSystem;
+  /**
+   * Whether the delegate follows a symlink to wherever it leads, so the
+   * rules are asked of where a path really is as well as of the path.
+   */
+  followsLinks?: boolean;
   hostRoot: string;
   /**
    * Hears each refusal, since an error that crosses just-bash's sanitizer
@@ -82,39 +89,42 @@ export function rulesFs({
   rules: Rules;
   spell: (hostPath: string) => string;
 }): IFileSystem {
-  const hostOf = (mountPath: string) => nodePath.join(hostRoot, mountPath);
+  const given = (mountPath: string) => nodePath.join(hostRoot, mountPath);
+  /** The path, and where it really leads when that is somewhere else. */
+  const hostsOf = (mountPath: string): string[] => {
+    const host = given(mountPath);
+    const real = followsLinks ? canonicalizeThroughMissing(host) : null;
+    return real === null || real === host ? [host] : [host, real];
+  };
   let listings = 0;
   const isHidden = (mountPath: string) =>
-    reachOf(rules, hostOf(mountPath), "read").level === "hidden";
+    hostsOf(mountPath).some(
+      (host) => reachOf(rules, host, "read").level === "hidden",
+    );
   const check = (
     op: "read" | "write",
     syscall: string,
     mountPath: string,
     asks = true,
   ) => {
+    const shown = spell(given(mountPath));
     if (isHidden(mountPath)) {
       throw Object.assign(
-        new Error(
-          `ENOENT: no such file or directory, ${syscall} '${spell(hostOf(mountPath))}'`,
-        ),
+        new Error(`ENOENT: no such file or directory, ${syscall} '${shown}'`),
         { code: "ENOENT" },
       );
     }
-    const refusal = ruleRefusal({
-      asks,
-      hostPath: hostOf(mountPath),
-      op,
-      rules,
-      spell,
-    });
-    if (refusal) {
-      onRefusal?.(refusal);
-      throw Object.assign(
-        new Error(
-          `EACCES: permission denied, ${syscall} '${spell(hostOf(mountPath))}' -- ${refusal}`,
-        ),
-        { code: "EACCES" },
-      );
+    for (const hostPath of hostsOf(mountPath)) {
+      const refusal = ruleRefusal({ asks, hostPath, op, rules, spell });
+      if (refusal) {
+        onRefusal?.(refusal);
+        throw Object.assign(
+          new Error(
+            `EACCES: permission denied, ${syscall} '${shown}' -- ${refusal}`,
+          ),
+          { code: "EACCES" },
+        );
+      }
     }
   };
   const reads = new Set([
@@ -204,7 +214,9 @@ export function rulesFs({
             ? all.filter(
                 (entry) =>
                   typeof entry === "string" &&
-                  reachOf(rules, hostOf(entry), "read").level === "allow",
+                  hostsOf(entry).every(
+                    (host) => reachOf(rules, host, "read").level === "allow",
+                  ),
               )
             : all;
         };

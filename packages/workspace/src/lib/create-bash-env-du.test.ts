@@ -178,6 +178,18 @@ describe("du", () => {
     expect(result.stdout).toBe("2.0M\tlarge\n49K\tsmall\n");
   });
 
+  it.skipIf(process.platform === "win32")(
+    "measures a folder outside every mount on the disk",
+    async () => {
+      const outside = path.join(tmpDir, "Outside");
+      await fs.mkdir(path.join(outside, "sub"), { recursive: true });
+      await fs.writeFile(path.join(outside, "sub", "a.txt"), "a".repeat(700));
+      const result = await run(`du -sb '${outside}'`);
+      expect(result.stdout).toMatch(new RegExp(`^\\d+\t${outside}\n$`));
+      expect(Number(result.stdout.split("\t")[0])).toBeGreaterThanOrEqual(700);
+    },
+  );
+
   it("leaves a flag it does not implement to just-bash", async () => {
     const result = await run(`du --time '${homeDir}'`);
 

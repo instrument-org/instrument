@@ -26,6 +26,15 @@ const pending = new Map<
 >();
 
 /**
+ * Wakes past the debounce whose processes are already marked told, so
+ * `unreportedBackgroundProcesses` no longer names them, while the chat's
+ * model is looked up and until `wakeSessionForJobs` has run, which counts the
+ * wake as on its way from its start (`hasPendingWake`). Added in the same
+ * synchronous run as the marking, so no read falls between the two.
+ */
+const delivering = new Set<{ chatId: ChatId }>();
+
+/**
  * Sessions whose last turn was stopped by the user or by the chat. What they
  * left running ending afterward wakes nothing: Stop means stop, and the next
  * turn's own note says the process is gone.
@@ -105,42 +114,54 @@ async function deliver(
   if (stopped.has(sessionId)) {
     return;
   }
-  // A chat nobody has written in has no model to wake with.
-  if (!resolveChat(chatId) || !(await chatModelURI(chatId))) {
-    return;
-  }
-  await wakeSessionForJobs(
-    {
-      data: {
-        events: ended.map((process) => ({
-          command: process.command,
-          durationMs: process.durationMs,
-          ...(process.exitCode === undefined
-            ? {}
-            : { exitCode: process.exitCode }),
-          id: process.id,
-          logFilePath: process.logFilePath,
-          status:
-            process.status === "running"
-              ? "termination-uncertain"
-              : process.status,
-        })),
+  const onItsWay = { chatId };
+  delivering.add(onItsWay);
+  try {
+    // A chat nobody has written in has no model to wake with.
+    if (!resolveChat(chatId) || !(await chatModelURI(chatId))) {
+      return;
+    }
+    await wakeSessionForJobs(
+      {
+        data: {
+          events: ended.map((process) => ({
+            command: process.command,
+            durationMs: process.durationMs,
+            ...(process.exitCode === undefined
+              ? {}
+              : { exitCode: process.exitCode }),
+            id: process.id,
+            logFilePath: process.logFilePath,
+            status:
+              process.status === "running"
+                ? "termination-uncertain"
+                : process.status,
+          })),
+        },
+        type: "data-jobEvent",
       },
-      type: "data-jobEvent",
-    },
-    workspaceRef,
-    chatId,
-    sessionId,
-  );
+      workspaceRef,
+      chatId,
+      sessionId,
+    );
+  } finally {
+    delivering.delete(onItsWay);
+  }
 }
 
 /**
  * Whether a session of the chat has a wake waiting out the debounce that will
  * start a turn: something it left running ended unread, and no stop holds
  * the news back. The chat is still at work in that gap, the way it is while
- * a task's finish waits to wake it.
+ * a task's finish waits to wake it, and once the debounce is over it
+ * stays so until the wake is sent.
  */
 export function hasPendingJobWake(chatId: ChatId): boolean {
+  for (const entry of delivering) {
+    if (entry.chatId === chatId) {
+      return true;
+    }
+  }
   for (const [sessionId, entry] of pending) {
     if (
       entry.chatId === chatId &&

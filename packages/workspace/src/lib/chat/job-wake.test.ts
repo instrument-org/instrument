@@ -18,7 +18,7 @@ import {
   readBackgroundProcess,
   startBackgroundRun,
 } from "../background-processes";
-import { updateChatSettings } from "../chat-settings";
+import { chatModelURI, updateChatSettings } from "../chat-settings";
 import { jobEventModelNote } from "../job-event-model-text";
 import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -33,6 +33,13 @@ vi.mock(import("./activity"), async (importOriginal) => ({
   ...(await importOriginal()),
   isWorking: vi.fn(() => false),
 }));
+
+// The chat's model is looked up before a wake is sent, which a case holds
+// open to read the chat in that gap.
+vi.mock(import("../chat-settings"), async (importOriginal) => {
+  const original = await importOriginal();
+  return { ...original, chatModelURI: vi.fn(original.chatModelURI) };
+});
 
 // The chat's model is looked up to start the turn a wake writes; the turn
 // itself is the machine's, which records what it was sent.
@@ -303,6 +310,44 @@ describe("a chat with a command's wake on its way", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(hasPendingJobWake(owner.chatId)).toBe(true);
 
+    await vi.waitFor(() => {
+      expect(wakesOf(owner.sessionId)).toHaveLength(1);
+    }, 5000);
+    expect(hasPendingJobWake(owner.chatId)).toBe(false);
+  });
+
+  // Past the debounce the process is marked told, so the unread news no
+  // longer says a wake is coming, while the chat's model is still being
+  // looked up and the wake has not started.
+  it("reads as at work while the chat's model is looked up for the wake", async () => {
+    const owner = await chat();
+    const { chatModelURI: lookUp } =
+      await vi.importActual<typeof import("../chat-settings")>(
+        "../chat-settings",
+      );
+    let found = () => {};
+    const lookedUp = new Promise<void>((resolve) => {
+      vi.mocked(chatModelURI).mockImplementationOnce(async (chatId) => {
+        resolve();
+        await new Promise<void>((resume) => {
+          found = resume;
+        });
+        return lookUp(chatId);
+      });
+    });
+    vi.mocked(isWorking).mockReturnValue(true);
+    promote(owner, "pnpm build").exit(0);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    vi.mocked(isWorking).mockReturnValue(false);
+    publisher.publish("session.done", {
+      id: owner.chatId,
+      sessionId: owner.sessionId,
+    });
+
+    await lookedUp;
+    expect(hasPendingJobWake(owner.chatId)).toBe(true);
+
+    found();
     await vi.waitFor(() => {
       expect(wakesOf(owner.sessionId)).toHaveLength(1);
     }, 5000);

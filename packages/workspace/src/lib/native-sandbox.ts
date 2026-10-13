@@ -424,14 +424,17 @@ const BWRAP = "/usr/bin/bwrap";
  * it. On Linux a spawned program inherits whatever the app holds open
  * without close-on-exec (Chromium's databases, its IPC sockets, the debug
  * port), and an open descriptor reaches past every folder bubblewrap
- * closes. `-p` keeps bash from reading BASH_ENV or functions from the
- * environment, so nothing runs before the descriptors are closed. macOS
+ * closes. Nothing may run before the descriptors are closed: `-p` keeps
+ * bash from reading BASH_ENV or functions from the environment, and
+ * `--norc` from sourcing ~/.bashrc, which bash does for `-c` when stdin is
+ * a socket and SHLVL is unset, as it is under the app. macOS
  * needs none: libuv spawns there with every descriptor closed on exec.
  */
 function closingInheritedFds(): string[] {
   return existsSync("/bin/bash")
     ? [
         "/bin/bash",
+        "--norc",
         "-p",
         "-c",
         'for f in /proc/self/fd/*; do f=${f##*/}; case $f in 0|1|2|"$NODE_CHANNEL_FD") ;; *) eval "exec $f>&-" 2>/dev/null ;; esac; done; exec "$@"',

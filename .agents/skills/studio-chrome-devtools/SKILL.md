@@ -241,7 +241,7 @@ Both have a dev panel entry under the `dev` badge:
 
 The quit prompt is a native `showMessageBox`, outside the web contents. CDP cannot capture it.
 
-Dictation needs a microphone, and a real one raises the system's permission prompt in front of whoever is at the machine. Boot with `FAKE_MICROPHONE=true node $DRIVE boot …` and the app records Chromium's test tone instead, with access reported as granted. Main reads it at launch, so it takes a fresh boot.
+Dictation needs a microphone, and a real one raises the system's permission prompt in front of whoever is at the machine. Boot with `FAKE_MICROPHONE=true node $DRIVE boot …` and the app records Chromium's test tone instead, with access reported as granted. To dictate real words, set it to the path of a WAV file instead (`FAKE_MICROPHONE=/path/speech.wav`), which the fake device plays on a loop; `say -o speech.wav --data-format=LEI16@16000 "…"` makes one. Main reads it at launch, so it takes a fresh boot.
 
 ## Traps
 

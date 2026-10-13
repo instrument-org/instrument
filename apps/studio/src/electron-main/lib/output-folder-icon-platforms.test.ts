@@ -5,8 +5,13 @@ import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const execute = vi.hoisted(() =>
-  vi.fn<(...args: unknown[]) => Promise<{ stderr: string; stdout: string }>>(),
+  vi.fn<
+    (...args: unknown[]) => Promise<{ stderr: string; stdout: string }> & {
+      child?: { stdin: { end: (chunk: string) => void } };
+    }
+  >(),
 );
+const stdin = vi.hoisted(() => vi.fn<(chunk: string) => void>());
 vi.mock("node:child_process", async () => {
   const { promisify } = await import("node:util");
   return { execFile: Object.assign(vi.fn(), { [promisify.custom]: execute }) };
@@ -31,7 +36,12 @@ beforeEach(async () => {
   folder = await fs.mkdtemp(
     path.join(os.tmpdir(), "instrument-icon-platform-"),
   );
-  execute.mockReset().mockResolvedValue({ stderr: "", stdout: "" });
+  stdin.mockReset();
+  execute.mockReset().mockImplementation(() =>
+    Object.assign(Promise.resolve({ stderr: "", stdout: "" }), {
+      child: { stdin: { end: stdin } },
+    }),
+  );
 });
 afterEach(async () => {
   await fs.rm(folder, { force: true, recursive: true });
@@ -55,6 +65,18 @@ it("writes a Unicode Windows customization and sets Shell attributes", async () 
   expect(icon.readUInt16LE(4)).toBe(6);
   await applyWindowsFolderIcon(folder);
   expect(await fs.readFile(path.join(folder, "desktop.ini"))).toEqual(ini);
+});
+
+// The refresh script on PowerShell's command line holds the thread that
+// spawns it, the app's main thread, while Windows looks the command line over:
+// a third of a second, 1.7 s at a cold launch.
+it("hands the Shell refresh to PowerShell on stdin rather than its command line", async () => {
+  await applyWindowsFolderIcon(folder);
+  expect(execute.mock.calls[3]?.slice(0, 2)).toEqual([
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", "-"],
+  ]);
+  expect(stdin).toHaveBeenCalledWith(expect.stringContaining("SHChangeNotify"));
 });
 
 it("preserves preexisting Windows customization", async () => {

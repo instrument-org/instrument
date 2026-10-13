@@ -16,11 +16,15 @@
  *   catches the invocations by absolute path that PATH shadowing cannot see. A
  *   pass that still installs cleanly is a skill that needs nothing from Xcode.
  * - `guarded` makes `xcode-select -p` fail the way it does on a machine that
- *   has never installed the tools, so the product's own guard decides. This is
+ *   has never installed the tools, then sets the guard on this process with
+ *   `applyCommandLineToolsEnv`, as Studio's startup does. Every stub reached
+ *   afterwards, by the install and by a `make` run through `execShim` the way
+ *   the agent's shell runs one, must see the guard's DEVELOPER_DIR. This is
  *   the end-to-end regression test for that guard, and has to run alone.
  *
  * Exits non-zero on any failed install, unrunnable interpreter, unaccounted
- * stub, or (in `guarded`) a guard that did not engage.
+ * stub, or (in `guarded`) a guard that did not engage or a stub reached
+ * without it.
  *
  * Usage:
  *   pnpm script:clt-shim-audit                          # spreadsheet, first two passes
@@ -44,15 +48,16 @@ import { ulid } from "ulid";
 
 import { CHAT_FOLDER_NAMES } from "../src/constants";
 import {
-  commandLineToolsEnv,
+  applyCommandLineToolsEnv,
   MISSING_DEVELOPER_DIR,
 } from "../src/lib/command-line-tools-env";
 import { copySkill } from "../src/lib/copy-skill";
 import { installPythonSkill } from "../src/lib/install-python-skill";
 import { runPnpmCommand } from "../src/lib/run-pnpm";
+import { execShim } from "../src/lib/shell-commands/exec-shim";
 import { getSkillRuntime } from "../src/lib/skill-runtime";
 import { placeChat } from "../src/lib/record-folders";
-import { chatVenvPython } from "../src/lib/uv";
+import { chatVenvPython, uvSubprocessEnv } from "../src/lib/uv";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -87,6 +92,8 @@ const INSTALL_TIMEOUT_MS = 15 * 60 * 1000;
 
 interface ShimInvocation {
   args: string[];
+  /** The DEVELOPER_DIR the stub was handed, empty when it had none. */
+  developerDir: string;
   name: string;
   parent: string;
 }
@@ -106,6 +113,44 @@ function indent(text: string) {
     .join("\n");
 }
 
+/** A chat folder from the template, as initializeTask lays one down. */
+async function placeAuditChat() {
+  const chatId = ChatIdSchema.parse(ulid().toLowerCase());
+  // Put in the chat index, so every later lookup of the id finds its folder.
+  const dir = placeChat(chatId, StoreId.newSessionId());
+  await fs.mkdir(dir, { recursive: true });
+  // `work/` has to arrive from the template: its package.json and
+  // pnpm-workspace.yaml are what make the skill's own `pnpm install` a nested
+  // workspace install rather than an error.
+  await fs.cp(getWorkspaceConfig().chatTemplateDir, dir, {
+    force: false,
+    recursive: true,
+  });
+  for (const folder of [
+    CHAT_FOLDER_NAMES.attachments,
+    CHAT_FOLDER_NAMES.work,
+  ]) {
+    await fs.mkdir(path.join(dir, folder), { recursive: true });
+  }
+  return { chatId, dir };
+}
+
+/**
+ * Runs `make`, a stub, the two ways a chat's shell hands a native command its
+ * env: with the overlay the python, pip, and git commands pass, and with only
+ * what `execShim` inherits from this process, which is all a command found by
+ * PATH fall-through or a user app's process gets.
+ */
+async function probeShellStubs() {
+  const { chatId, dir } = await placeAuditChat();
+  for (const env of [uvSubprocessEnv({ chatId }), undefined]) {
+    await execShim("make", ["--version"], {
+      cwd: dir,
+      ...(env ? { env } : {}),
+    });
+  }
+}
+
 /** Runs the two installs `load_skill` runs, against a throwaway task dir. */
 async function installSkill({
   registrySkillsDir,
@@ -122,23 +167,7 @@ async function installSkill({
     throw new Error(runtime.error);
   }
 
-  const chatId = ChatIdSchema.parse(ulid().toLowerCase());
-  // Put in the chat index, so every later lookup of the id finds its folder.
-  const dir = placeChat(chatId, StoreId.newSessionId());
-  await fs.mkdir(dir, { recursive: true });
-  // The scaffold initializeTask lays down. `work/` has to arrive from the
-  // template: its package.json and pnpm-workspace.yaml are what make the
-  // skill's own `pnpm install` a nested workspace install rather than an error.
-  await fs.cp(getWorkspaceConfig().chatTemplateDir, dir, {
-    force: false,
-    recursive: true,
-  });
-  for (const folder of [
-    CHAT_FOLDER_NAMES.attachments,
-    CHAT_FOLDER_NAMES.work,
-  ]) {
-    await fs.mkdir(path.join(dir, folder), { recursive: true });
-  }
+  const { chatId, dir } = await placeAuditChat();
 
   const signal = AbortSignal.timeout(INSTALL_TIMEOUT_MS);
   const { destDir } = await copySkill({
@@ -254,8 +283,9 @@ async function readShimLog(logPath: string): Promise<ShimInvocation[]> {
     .split("\n")
     .filter((line) => line.trim() !== "")
     .map((line) => {
-      const [name = "", parent = "", ...args] = line.split("\t");
-      return { args, name, parent };
+      const [name = "", parent = "", developerDir = "", ...args] =
+        line.split("\t");
+      return { args, developerDir, name, parent };
     });
 }
 
@@ -364,7 +394,7 @@ async function writeShimStubs({
       const script = [
         "#!/bin/sh",
         "{",
-        `  printf '%s\\t%s' '${name}' "$(ps -o comm= -p "$PPID" 2>/dev/null | sed 's|.*/||')"`,
+        `  printf '%s\\t%s\\t%s' '${name}' "$(ps -o comm= -p "$PPID" 2>/dev/null | sed 's|.*/||')" "$DEVELOPER_DIR"`,
         `  for arg in "$@"; do printf '\\t%s' "$arg"; done`,
         "  printf '\\n'",
         `} >> '${logPath}'`,
@@ -444,13 +474,13 @@ for (const mode of args.modes) {
     process.stdout.write(`DEVELOPER_DIR=${MISSING_DEVELOPER_DIR}\n`);
   }
   if (mode === "guarded") {
-    // What the product decided on its own, with xcode-select reporting nothing.
-    const guard = commandLineToolsEnv();
-    if (Object.keys(guard).length > 0) {
+    // What the product decided on its own, with xcode-select reporting
+    // nothing, set where Studio sets it: on the process every spawn descends
+    // from, so the passes below see what the app's subprocesses would.
+    applyCommandLineToolsEnv();
+    if (process.env.DEVELOPER_DIR === MISSING_DEVELOPER_DIR) {
       process.stdout.write(
-        `guard engaged: ${Object.entries(guard)
-          .map(([key, value]) => `${key}=${value}`)
-          .join(" ")}\n`,
+        `guard engaged: DEVELOPER_DIR=${process.env.DEVELOPER_DIR} CC=${process.env.CC} CXX=${process.env.CXX}\n`,
       );
     } else {
       failures++;
@@ -509,6 +539,41 @@ for (const mode of args.modes) {
           `installer dialog to appear. Work out who calls it before adding it ` +
           `to EXPECTED_SHIMS.\n`,
       );
+    }
+
+    if (mode === "guarded") {
+      // Read after the install's report, so the stubs this probe reaches on
+      // purpose are not counted against EXPECTED_SHIMS.
+      await probeShellStubs();
+      const probed = (await readShimLog(logPath)).slice(invocations.length);
+      process.stdout.write(`\nshell probe (make --version via execShim):\n`);
+      process.stdout.write(`${reportShims(probed)}\n`);
+      if (probed.length < 2) {
+        failures++;
+        process.stdout.write(
+          "shell probe DID NOT REACH the make stub -- the check proved nothing\n",
+        );
+      }
+
+      // xcode-select is the guard's own probe, which runs before the guard
+      // exists and never prompts.
+      const unguarded = [...invocations, ...probed].filter(
+        ({ developerDir, name }) =>
+          name !== "xcode-select" && developerDir !== MISSING_DEVELOPER_DIR,
+      );
+      if (unguarded.length > 0) {
+        failures++;
+        process.stdout.write(
+          `\nUNGUARDED: ${unguarded
+            .map(
+              ({ developerDir, name, parent }) =>
+                `${name} from ${parent || "?"} (DEVELOPER_DIR=${developerDir || "unset"})`,
+            )
+            .join(", ")} -- on a Mac without the Command Line Tools each of ` +
+            `these opens the installer dialog. The guard is on this process, ` +
+            `so the spawn site's env dropped it.\n`,
+        );
+      }
     }
   }
 

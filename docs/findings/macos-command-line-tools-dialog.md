@@ -49,7 +49,7 @@ pnpm --silent script:clt-shim-audit -- --mode guarded
 
 - `shadow` shadows PATH with logging stubs that pass through to the real binary, so the install completes and the log names every stub reached.
 - `developer-dir` poisons `DEVELOPER_DIR` directly, catching absolute-path invocations that PATH shadowing cannot see, and shows whether the flow survives without a toolchain.
-- `guarded` makes `xcode-select -p` fail the way it does on a machine that has never installed the tools, so the product's own probe decides — the end-to-end check that the guard engages.
+- `guarded` makes `xcode-select -p` fail the way it does on a machine that has never installed the tools, so the product's own probe decides, sets the guard on the audit's process as Studio does, and fails if any stub the install or a `make` run through `execShim` reaches arrives without it: the end-to-end check that the guard engages and survives each spawn site's env.
 
 `guarded` reports what the product chose on its own, then the install result:
 

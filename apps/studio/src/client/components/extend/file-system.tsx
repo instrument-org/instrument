@@ -505,6 +505,8 @@ const FILE_KIND_LABELS: Record<string, string> = {
   docx: "Word Document",
   gif: "GIF Image",
   go: "Go Source",
+  htm: "HTML Document",
+  html: "HTML Document",
   jpeg: "JPEG Image",
   jpg: "JPEG Image",
   js: "JavaScript Source",
@@ -541,12 +543,21 @@ function entryKindLabel(entry: FileSystemEntry) {
 function shownName(entry: FileSystemEntry) {
   return entry.kind === "file" ? (entry.displayName ?? entry.name) : entry.name;
 }
+// A file's kind in words, never its MIME type: by the system's name for it,
+// then its extension, then its type, which names a file with no extension
+// (`2024`, read as text) the way a file of that type with one is named.
 function fileKindLabel(file: FileEntry) {
   if (file.typeName) return file.typeName;
   const byExtension = FILE_KIND_LABELS[fileExtension(file.name)];
   if (byExtension) return byExtension;
-  if (file.contentType?.startsWith("image/")) return "Image";
-  return file.contentType ?? "Document";
+  const type = file.contentType ?? "";
+  const byType = KIND_LABELS_BY_MIME_TYPE.get(type);
+  if (byType) return byType;
+  if (type.startsWith("image/")) return "Image";
+  if (type.startsWith("audio/")) return "Audio";
+  if (type.startsWith("video/")) return "Video";
+  if (type.startsWith("text/")) return "Text Document";
+  return "Document";
 }
 // MIME types inferred from the extension when a file carries no
 // `contentType`, so the file-type filter can classify every manifest entry.
@@ -584,6 +595,14 @@ const EXTENSION_MIME_TYPES: Record<string, string> = {
   yml: "text/yaml",
   zip: "application/zip",
 };
+const KIND_LABELS_BY_MIME_TYPE = new Map(
+  Object.entries(EXTENSION_MIME_TYPES).flatMap(
+    ([extension, mime]): [string, string][] => {
+      const label = FILE_KIND_LABELS[extension];
+      return label ? [[mime, label]] : [];
+    },
+  ),
+);
 const FALLBACK_MIME_TYPE = "application/octet-stream";
 const MIME_TYPE_LABELS: Record<string, string> = {
   "application/json": "JSON",

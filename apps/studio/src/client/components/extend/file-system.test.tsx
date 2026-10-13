@@ -2,7 +2,15 @@ import { renderWithProviders } from "@/tests/render";
 import { installWindowStubs } from "@/tests/window-stubs";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from "vitest";
 
 import {
   FileSystem,
@@ -88,6 +96,58 @@ describe("FileSystem", () => {
     renderWithProviders(<FileSystem defaultView="list" items={[]} />);
 
     expect(screen.getByText("This folder is empty")).toBeTruthy();
+  });
+
+  // A file's kind reads the same whether its extension or only its type
+  // says what it is, and never as the type itself.
+  it("names each file's kind in the list in words", () => {
+    // The list drops columns it has no room for, and nothing is laid out here.
+    const width = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(800);
+    onTestFinished(() => {
+      width.mockRestore();
+    });
+    renderWithProviders(
+      <FileSystem
+        defaultView="list"
+        items={[
+          { contentType: "text/plain", kind: "file", path: "task.txt" },
+          { contentType: "text/plain", kind: "file", path: "2024" },
+          { contentType: "text/plain", kind: "file", path: "empty", size: 0 },
+          { contentType: "text/html", kind: "file", path: "page.html" },
+          { contentType: "text/html", kind: "file", path: "a\\b.html" },
+          { contentType: "audio/mpeg", kind: "file", path: "song.mp3" },
+          { contentType: "video/mp4", kind: "file", path: "clip.mp4" },
+          {
+            contentType: "application/octet-stream",
+            kind: "file",
+            path: "blob",
+          },
+        ]}
+        listColumns={["kind"]}
+      />,
+    );
+
+    expect(
+      screen
+        .getAllByRole("option")
+        .map(
+          (row) =>
+            `${row.querySelector("[data-file-system-name]")?.textContent ?? ""}: ${row.lastElementChild?.textContent ?? ""}`,
+        ),
+    ).toMatchInlineSnapshot(`
+      [
+        "2024: Plain Text",
+        "a\\b.html: HTML Document",
+        "blob: Document",
+        "clip.mp4: Video",
+        "empty: Plain Text",
+        "page.html: HTML Document",
+        "song.mp3: Audio",
+        "task.txt: Plain Text",
+      ]
+    `);
   });
 
   describe("a folder the caller cannot list", () => {

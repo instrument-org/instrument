@@ -223,6 +223,7 @@ export function PermissionsSection() {
             ) : (
               view.folders.map((folder) => {
                 const isHome = folder.path === view.home;
+                const where = fromHome(folder.path, view.home);
                 return (
                   <PermissionRow
                     control={
@@ -238,7 +239,13 @@ export function PermissionsSection() {
                       />
                     }
                     key={folder.path}
-                    line={isHome ? undefined : fromHome(folder.path, view.home)}
+                    // A folder directly in the home folder has no more to say
+                    // than its name.
+                    line={
+                      isHome || where === lastSegment(folder.path)
+                        ? undefined
+                        : where
+                    }
                     mark={
                       isHome ? (
                         <HouseIcon className="size-4 text-muted-foreground" />

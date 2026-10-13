@@ -85,7 +85,8 @@ export function DictationButton({
 
 /**
  * Throws the recording away. Only while there is audio to lose: once it has
- * been sent there is nothing here to discard.
+ * been sent there is nothing here to discard, so it goes invisible but keeps
+ * its place, and nothing beside it moves as the words are transcribed.
  */
 export function DictationCancel({
   className,
@@ -94,12 +95,20 @@ export function DictationCancel({
   className?: string;
   dictation: Dictation;
 }) {
-  if (dictation.phase.kind !== "recording") {
+  const { phase } = dictation;
+  if (!isDictating(phase)) {
     return null;
   }
+  const spent = phase.kind === "transcribing";
   return (
     <Button
-      className={cn("shrink-0 text-muted-foreground", className)}
+      aria-hidden={spent}
+      className={cn(
+        "shrink-0 text-muted-foreground",
+        spent && "invisible",
+        className,
+      )}
+      disabled={spent}
       onClick={dictation.cancel}
       size="xs"
       variant="ghost"

@@ -104,8 +104,9 @@ const run = base
 
 /**
  * Stops a record's agents: a chat's, which is its own conversation and every
- * task it started, since Stop means all of the user's work wherever it is
- * running; or with `sessionId`, that one session alone, a task's say.
+ * task it started; or with `sessionId`, that one session alone, a task's
+ * from its row or page, or the chat's own turn from its composer, which
+ * leaves its tasks working.
  */
 const stop = base
   .input(
@@ -116,8 +117,9 @@ const stop = base
   )
   .handler(({ context, input }) => {
     // The user's stop, which the task's page ends on. One task stopped
-    // while the chat carries on is news to wake the chat with; the
-    // chat's own Stop ends the chat's turn too, and wakes nothing.
+    // while the chat carries on is news to wake the chat with; the chat's
+    // own session wakes nothing, since only a task wakes its chat, and nor
+    // does a stop of the whole chat.
     context.workspaceRef.send({
       type: "stopSessions",
       value: {

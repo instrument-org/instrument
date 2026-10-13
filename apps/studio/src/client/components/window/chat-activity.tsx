@@ -1,14 +1,17 @@
 import { PlanningDotIcon } from "@/client/components/icons/planning-dot";
+import { StopProcessButton } from "@/client/components/task/stop-process-button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { ListChecksIcon } from "@phosphor-icons/react/ListChecks";
 import { XIcon } from "@phosphor-icons/react/X";
+import { useMutation } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 
 import { useChatTasks } from "./child-tasks-query";
@@ -113,6 +116,7 @@ export function ChatTasksPopover({
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent align={align} className="w-80 p-1">
         <TaskRows
+          chatId={chatId}
           listed={listed}
           onOpen={(id) => {
             setOpen(false);
@@ -125,12 +129,18 @@ export function ChatTasksPopover({
   );
 }
 
-/** The chat's tasks under the head's activity: running, then finished, newest first in each. */
+/**
+ * The chat's tasks under the head's activity: running, then finished, newest
+ * first in each. A task at work has a stop at its row's end, once the list
+ * says whether it has an agent to stop.
+ */
 function TaskRows({
+  chatId,
   listed,
   onOpen,
   running,
 }: {
+  chatId: ChatId;
   /** The chat's tasks, once read. */
   listed: ChatTask[] | undefined;
   onOpen: (sessionId: StoreId.Session) => void;
@@ -138,15 +148,17 @@ function TaskRows({
   running: RunningTask[];
 }) {
   const now = useNow();
+  const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
   const byNewest = [...(listed ?? [])].sort(
     (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime(),
   );
-  const atWork = listed
+  const atWork: (RunningTask & { stoppable?: boolean })[] = listed
     ? byNewest.flatMap((task) =>
         task.standing.kind === "running" || task.standing.kind === "waiting"
           ? [
               {
                 id: task.id,
+                stoppable: task.stoppable,
                 title: task.title,
                 ...(task.standing.kind === "waiting"
                   ? { waiting: task.standing.line }
@@ -164,6 +176,18 @@ function TaskRows({
       {atWork.length > 0 && <Heading>Running</Heading>}
       {atWork.map((task) => (
         <Row
+          action={
+            task.stoppable && (
+              <StopProcessButton
+                className="size-6"
+                disabled={stop.isPending}
+                label="Stop this task"
+                onClick={() => {
+                  stop.mutate({ id: chatId, sessionId: task.id });
+                }}
+              />
+            )
+          }
           key={task.id}
           mark={<PlanningDotIcon className="size-3.5" />}
           onOpen={() => {
@@ -219,6 +243,7 @@ function Heading({ children }: { children: string }) {
 }
 
 function Row({
+  action,
   children,
   isQuiet = false,
   mark,
@@ -226,6 +251,8 @@ function Row({
   title,
   trailing,
 }: {
+  /** A control at the row's end, such as a working task's stop: the open button's sibling, since a button cannot hold another. */
+  action?: ReactNode;
   /** The line under the title: a running task's step, or why one failed. */
   children?: ReactNode;
   isQuiet?: boolean;
@@ -234,11 +261,12 @@ function Row({
   title: string;
   trailing?: string;
 }) {
-  return (
+  const row = (
     <button
       className={cn(
         "flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left hover:bg-accent",
         isQuiet && "text-muted-foreground",
+        action && "pr-9",
       )}
       onClick={onOpen}
       type="button"
@@ -254,6 +282,17 @@ function Row({
         <span className="shrink-0 text-[11px] tabular-nums">{trailing}</span>
       )}
     </button>
+  );
+  if (!action) {
+    return row;
+  }
+  return (
+    <div className="relative">
+      {row}
+      <span className="absolute top-1/2 right-1.5 -translate-y-1/2">
+        {action}
+      </span>
+    </div>
   );
 }
 

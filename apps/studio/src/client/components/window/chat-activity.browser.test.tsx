@@ -31,11 +31,29 @@ vi.mock("./child-tasks-query", () => ({
   useChatTasks: () => ({ data: listed.tasks }),
 }));
 
+const { stopSessions } = vi.hoisted(() => ({
+  stopSessions:
+    vi.fn<(input: { id: string; sessionId?: string }) => Promise<void>>(),
+}));
+
+vi.mock("@/client/rpc/client", () => ({
+  rpcClient: {
+    workspace: {
+      session: {
+        stop: { mutationOptions: () => ({ mutationFn: stopSessions }) },
+      },
+    },
+  },
+}));
+
 beforeEach(() => {
+  stopSessions.mockReset();
+  stopSessions.mockResolvedValue(undefined);
   listed.tasks = [
     ...RUNNING.map((task, index) => ({
       id: task.id,
       standing: { kind: "running", line: task.step },
+      stoppable: true,
       title: task.title,
       updatedAt: new Date(2026, 9, 5, 15, 10 - index),
     })),
@@ -81,6 +99,27 @@ describe("ChatActivity", () => {
     await expect.element(page.getByText("Pastel de nata shops")).toBeVisible();
     await userEvent.click(page.getByRole("button", { name: /Packing list/ }));
     expect(onOpen).toHaveBeenCalledWith(packing);
+  });
+
+  it("stops one working task from its row, and offers no stop on a finished one", async () => {
+    const onOpen = vi.fn();
+    await inHead(800, onOpen);
+    await userEvent.click(
+      page.getByRole("button", { name: "3 tasks working" }),
+    );
+    await expect
+      .element(page.getByRole("button", { name: "Stop this task" }).nth(2))
+      .toBeVisible();
+    await expect
+      .element(page.getByRole("button", { name: "Stop this task" }).nth(3))
+      .not.toBeInTheDocument();
+    await userEvent.click(
+      page.getByRole("button", { name: "Stop this task" }).first(),
+    );
+    await expect
+      .poll(() => stopSessions.mock.calls[0]?.[0])
+      .toEqual({ id: CHAT_ID, sessionId: tram });
+    expect(onOpen).not.toHaveBeenCalled();
   });
 
   it("offers the finished tasks while nothing runs", async () => {

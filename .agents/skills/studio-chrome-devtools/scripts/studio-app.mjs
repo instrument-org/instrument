@@ -645,13 +645,17 @@ export async function connect({
   // finishes onboarding closes the page outright. Undefined means it drew.
   const settle = async () => {
     await sleep(150);
-    const framed = evaluate(
-      cdp,
-      "new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))",
-    ).catch((error) => {
-      if (error instanceof DriveError) return "closed";
-      throw error;
-    });
+    const framed = (async () => {
+      try {
+        return await evaluate(
+          cdp,
+          "new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))",
+        );
+      } catch (error) {
+        if (error instanceof DriveError) return "closed";
+        throw error;
+      }
+    })();
     const timedOut = sleep(5000).then(() => false);
     const outcome = await Promise.race([framed, timedOut]);
     if (outcome === "closed") {

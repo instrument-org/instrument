@@ -872,6 +872,14 @@ export function outsideFolderRefusal(
     return undefined;
   }
   const reach = reachOf(rules, hostPath, op);
+  // Windows has no one root to read its drives from, so there a path no
+  // rule holds is asked for even to read it. Anywhere else, and wherever a
+  // rule allows the path (a place or folder set to Allowed in Settings,
+  // which the chat reaches as a folder of its own), there is nothing to ask.
+  const readsNothing = process.platform === "win32" && !reach.rule;
+  if (reach.level === "allow" && !readsNothing) {
+    return undefined;
+  }
   // A read of a path nothing on disk holds finds it missing, unless the
   // rules close where it would be.
   if (op === "read" && reach.level !== "never" && !existsSync(hostPath)) {
@@ -882,8 +890,6 @@ export function outsideFolderRefusal(
     isDirectory: existsSync(hostPath) && statSync(hostPath).isDirectory(),
     onDisk: true,
     op,
-    // Outside every folder the chat reaches, the shell reaches nothing to
-    // change, so even a path the rules let it read is asked for.
     reach: reach.level === "allow" ? { level: "ask", rule: reach.rule } : reach,
     rules,
     spell: shellPath,

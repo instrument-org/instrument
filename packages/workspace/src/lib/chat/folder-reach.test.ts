@@ -13,6 +13,7 @@ import { type Topic } from "./topics";
 
 const world = vi.hoisted(() => ({
   missing: new Set<string>(),
+  places: {} as Record<string, "allow" | "ask" | "never">,
   tagged: [] as string[],
   topics: [] as Topic[],
 }));
@@ -28,6 +29,16 @@ vi.mock(import("../store"), () => ({
 }));
 vi.mock(import("./topics"), () => ({
   listTopics: () => Promise.resolve(world.topics),
+}));
+vi.mock(import("../permissions/rules"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  readPermissionSettings: () =>
+    Promise.resolve({
+      apps: [],
+      folders: [],
+      places: world.places,
+      withoutAsking: false,
+    }),
 }));
 vi.mock(import("../path-exists"), () => ({
   pathExists: (folderPath: string) =>
@@ -67,6 +78,7 @@ function topic(name: string, folders: string[]): Topic {
 
 beforeEach(() => {
   world.missing = new Set();
+  world.places = {};
   world.topics = [];
   world.tagged = [];
 });
@@ -135,6 +147,20 @@ describe("folderReach", () => {
     const mounts = await reach(granted({ at: 1, path: other }));
 
     expect(mounts).toEqual([home, workspace, other]);
+  });
+
+  it("reaches the folders of a place of work set to Allowed, and no other place's", async () => {
+    world.places = {
+      appFiles: "allow",
+      documents: "allow",
+      passwords: "allow",
+    };
+
+    expect(await reach([])).toEqual([
+      home,
+      workspace,
+      path.join(home, "Documents"),
+    ]);
   });
 
   it("drops a topic's folders once the chat is no longer filed under it", async () => {

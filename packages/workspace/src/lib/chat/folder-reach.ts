@@ -8,6 +8,7 @@ import { WINDOW_ID } from "../../schemas/window-id";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { chatGrants } from "./grants";
+import { type PlaceId, placePaths } from "../permissions/places";
 import { readPermissionSettings } from "../permissions/rules";
 import { outputFolderPath } from "./output-folder";
 import { listTopics } from "./topics";
@@ -56,16 +57,43 @@ export async function folderReach(
       add(standingFolder(folderPath));
     }
     // Folders allowed in Settings › Permissions, for every chat, after the
-    // chat's own so a name it already uses never moves.
-    for (const folder of (await readPermissionSettings()).folders) {
-      if (folder.level === "allow" && (await pathExists(folder.path))) {
-        add(standingFolder(folder.path));
+    // chat's own so a name it already uses never moves: a folder's own
+    // rule, and the folders of a place of work set to Allowed (Documents,
+    // or the drives, which no other folder the chat reaches holds).
+    const settings = await readPermissionSettings();
+    const allowed = [
+      ...settings.folders
+        .filter((folder) => folder.level === "allow")
+        .map((folder) => folder.path),
+      ...placePaths()
+        .filter(
+          (place) =>
+            WORK_PLACES.has(place.id) && settings.places[place.id] === "allow",
+        )
+        .flatMap((place) => place.paths),
+    ];
+    for (const folderPath of allowed) {
+      if (await pathExists(folderPath)) {
+        add(standingFolder(folderPath));
       }
     }
   }
 
   return Object.fromEntries(folders.map((folder) => [folder.path, folder]));
 }
+
+/**
+ * The places that hold the person's work, which Allowed in Settings makes
+ * folders every chat reaches. Other apps' files and the sign-in folders
+ * stay reachable only through the home folder.
+ */
+const WORK_PLACES = new Set<PlaceId>([
+  "desktop",
+  "documents",
+  "downloads",
+  "drives",
+  "icloud",
+]);
 
 /**
  * A folder a chat reaches without holding it, named by its path so the same

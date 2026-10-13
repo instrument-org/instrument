@@ -659,6 +659,20 @@ describe.runIf(process.platform !== "win32")("outsideFolderRefusal", () => {
       `Waiting on the person to allow ${drives}/Backup.`,
     );
   });
+
+  it("asks nothing for a place set to Allowed, or a read no rule holds", async () => {
+    const log = path.join(tmpDir, "log", "install.log");
+    await fs.mkdir(path.dirname(log));
+    await fs.writeFile(log, "x");
+    const allowed = layoutWith("allow");
+    const photo = path.join(drives, "Backup", "photos", "2026", "a.jpg");
+    expect([
+      outsideFolderRefusal(allowed, photo, "write"),
+      outsideFolderRefusal(allowed, path.dirname(photo), "read"),
+      outsideFolderRefusal(layoutWith("ask"), log, "read"),
+    ]).toEqual([undefined, undefined, undefined]);
+    expect(raiseAsk).not.toHaveBeenCalled();
+  });
 });
 
 describe("shellPath on Windows", () => {

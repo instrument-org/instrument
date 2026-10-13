@@ -183,7 +183,13 @@ export function createNodeCommand(chatId: ChatId, invokeTool?: AppToolInvoker) {
     if (evalCode !== undefined) {
       const execResult = await execNode(
         chatId,
-        [...nodeFlags, wantsPrint ? "-p" : "-e", evalCode],
+        [
+          ...nodeFlags,
+          wantsPrint ? "-p" : "-e",
+          evalCode,
+          // The script's own arguments, in process.argv after the executable.
+          ...hostPathArgs(positionals),
+        ],
         ctx.signal,
         taskCwd,
         env,

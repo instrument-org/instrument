@@ -9,7 +9,9 @@
 //
 // `window=<text>` resolves pid and window_id from the first window whose title
 // or app name contains <text>. `el=<n>` addresses element [n] of the most
-// recent tree read on that host.
+// recent tree read on that host. `input action=key|type|click|move ...` sends
+// keyboard and pointer input through the host's own input command, where the
+// driver cannot (GNOME on Wayland).
 //
 // The driver scopes its sessions and tree snapshots to one MCP connection, so
 // a tree read in one run could not be acted on in the next if each run
@@ -83,6 +85,7 @@ async function main(argv) {
   if (tool === "describe") {
     return printDescription(await requestBroker(host, "tools/list"), rest[0]);
   }
+  if (tool === "input") return sendInput(host, parseArguments(rest));
   const call = (name, args) =>
     requestBroker(host, "tools/call", { name, arguments: args });
   const { grep, ...parsed } = parseArguments(rest);
@@ -227,8 +230,37 @@ async function readProfile(host) {
   }
 }
 
-function run(command, args) {
-  const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+/**
+ * Keyboard and pointer input through the host's own input command
+ * (`desktop.input` in its profile), for a desktop where the driver cannot
+ * deliver raw input. On GNOME Wayland that is scripts/mutter-input.py, which
+ * goes through Mutter's RemoteDesktop API with no consent prompt. The request
+ * travels as JSON on stdin, so nothing in it has to survive a shell.
+ */
+async function sendInput(host, request) {
+  const command = (await readProfile(host)).desktop?.input;
+  if (typeof command !== "string" || command === "") {
+    fail(
+      `${host} has no desktop.input in ${PROFILE_PATH}; use the driver's own key, type_text and click tools there.`,
+    );
+  }
+  if (!request.action) {
+    fail(
+      'Pass action=key keys=\'["ctrl","l"]\', action=type text=…, or action=click x= y= [button=right] [count=2].',
+    );
+  }
+  console.log(
+    (
+      await run("ssh", [...SSH_OPTIONS, host, command], JSON.stringify(request))
+    ).trim(),
+  );
+}
+
+function run(command, args, input) {
+  const child = spawn(command, args, {
+    stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
+  });
+  if (input !== undefined) child.stdin.end(input);
   let stdout = "";
   let stderr = "";
   child.stdout.on("data", (chunk) => (stdout += chunk));

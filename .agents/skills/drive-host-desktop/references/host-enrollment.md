@@ -56,6 +56,12 @@ WantedBy=graphical-session.target
 }
 ```
 
+6. For keyboard and pointer input, which the driver cannot deliver on GNOME Wayland, copy `scripts/mutter-input.py` to `~/.cua-driver/mutter-input.py` and add its command to the same `desktop` entry, with the session bus spelled out since SSH has none:
+
+```json
+"input": "env DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus XDG_RUNTIME_DIR=/run/user/<uid> python3 /home/<user>/.cua-driver/mutter-input.py"
+```
+
 `cua-driver doctor` run over SSH warns that neither `DISPLAY` nor `WAYLAND_DISPLAY` is set. That describes the SSH shell, not the daemon; `cua-driver call list_windows` is the real check.
 
 ## macOS

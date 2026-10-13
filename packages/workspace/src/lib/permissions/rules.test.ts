@@ -216,3 +216,37 @@ describe.runIf(process.platform !== "win32")("an allow above the home", () => {
     expect(reachOf(rules, target, op).level).toBe(level);
   });
 });
+
+describe("reachOf at one depth", () => {
+  const ssh = {
+    level: "ask",
+    path: `${home}/.ssh`,
+    place: "passwords",
+    source: "place",
+  } as const;
+  const hiddenEntries = {
+    dotEntries: true,
+    level: "allow",
+    path: home,
+    place: "appFiles",
+    source: "place",
+  } as const;
+
+  // The native profiles rank the two the same way, so the shell's own
+  // commands and the programs it starts agree on ~/.ssh.
+  it.each([
+    ["named first", [ssh, hiddenEntries]],
+    ["named last", [hiddenEntries, ssh]],
+  ] as const)(
+    "lets a rule naming a hidden entry outrank every hidden entry, %s",
+    (_order, rules) => {
+      expect(
+        reachOf(
+          { home, rules: [...rules], withoutAsking: false },
+          `${home}/.ssh/id_ed25519`,
+          "read",
+        ).level,
+      ).toBe("ask");
+    },
+  );
+});

@@ -23,14 +23,12 @@ import {
   reachesEveryFile,
 } from "../../lib/permissions/apps";
 import { closeAsk, openAsks } from "../../lib/permissions/asks";
-import { chatRules } from "../../lib/permissions/chat-rules";
 import { grantFolder } from "../../lib/chat/grants";
 import { setDenied } from "../../lib/permissions/denials";
 import { wakeSessionForPermission } from "../../lib/chat/wake";
 import { recordChanges } from "../../lib/record-changes";
 import { PermissionAskSchema } from "../../schemas/chat-state";
 import { distinct, liveRead } from "../live-read";
-import { reachOf } from "../../lib/permissions/rules";
 import { hostPathWithin } from "../../lib/host-path";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
@@ -182,18 +180,6 @@ const setWithoutAsking = base
     ),
   );
 
-/**
- * What the rules make of a folder for one chat, so a card can tell a folder
- * the person already closed from one they have not been asked about.
- */
-const reach = base
-  .input(z.object({ id: ChatIdSchema, path: z.string() }))
-  .output(z.object({ level: z.enum(["allow", "ask", "hidden", "never"]) }))
-  .handler(async ({ input }) => {
-    const rules = await chatRules({ chatId: input.id });
-    return { level: reachOf(rules, input.path, "read").level };
-  });
-
 /** Adds or changes an app's own rule. */
 const setApp = base
   .input(z.object({ level: LevelSchema, name: z.string().trim().min(1) }))
@@ -237,41 +223,6 @@ const removeApp = base
     ),
   );
 
-/**
- * Lets a chat control an app: what answering its card does. "Always" also
- * allows the app in Settings › Permissions, for every chat from then on.
- */
-const allowApp = base
-  .input(
-    z.object({
-      always: z.boolean().optional(),
-      app: z.string().trim().min(1),
-      id: ChatIdSchema,
-    }),
-  )
-  .output(z.void())
-  .handler(async ({ input }) => {
-    await grantApp(input.id, input.app);
-    await setDenied(input.id, "app", input.app, false);
-    if (input.always) {
-      const bundleId = await appBundleId(input.app);
-      await updatePermissionSettings((settings) => ({
-        ...settings,
-        apps: [
-          ...settings.apps.filter(
-            (app) => app.name.toLowerCase() !== input.app.toLowerCase(),
-          ),
-          {
-            addedAt: getCurrentDate(),
-            bundleId,
-            level: "allow",
-            name: input.app,
-          },
-        ],
-      }));
-    }
-  });
-
 /** What the rules make of an app for one chat, for its card. */
 const appReachRoute = base
   .input(z.object({ app: z.string(), id: ChatIdSchema }))
@@ -281,13 +232,10 @@ const appReachRoute = base
     reachesEveryFile: reachesEveryFile(input.app),
   }));
 
-/** The chat's open asks, as its cards draw them, oldest first. */
-const asks = base
-  .input(z.object({ id: ChatIdSchema }))
-  .output(PermissionAskSchema.array())
-  .handler(({ input }) => openAsks(input.id));
-
-/** The same asks, read again whenever the chat's state moves. */
+/**
+ * The chat's open asks, as its cards draw them, oldest first, read again
+ * whenever the chat's state moves.
+ */
 const liveAsks = base
   .input(z.object({ id: ChatIdSchema }))
   .output(eventIterator(PermissionAskSchema.array()))
@@ -374,15 +322,12 @@ const answer = base
   });
 
 export const permissions = {
-  allowApp,
   answer,
-  asks,
   liveAsks,
   appReach: appReachRoute,
   get,
   removeApp,
   setApp,
-  reach,
   removeFolder,
   setFolder,
   setPlace,

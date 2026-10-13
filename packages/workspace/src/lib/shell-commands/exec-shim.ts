@@ -178,6 +178,7 @@ export async function execShim(
             : undefined,
         )
       : undefined;
+  const refusal = refused && refusalNote(refused);
   // A program that reached a developer tool stub on a Mac without the tools
   // fails with the stub's own error, which does not say what to do.
   // `xcode-select --install` reports a request the sandbox refused and still
@@ -190,7 +191,7 @@ export async function execShim(
       ? commandLineToolsNote(`${stderr}\n${stdout}`)
       : undefined;
   const notes = [
-    ...(refused ? [`${refusalNote(refused)}\n`] : []),
+    ...(refusal ? [`${refusal}\n`] : []),
     ...(missingTools
       ? [
           (await recheckCommandLineTools())

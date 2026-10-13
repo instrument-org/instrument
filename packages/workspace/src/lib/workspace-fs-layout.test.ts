@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MountedFolder } from "../schemas/mounted-folder";
 import {
@@ -16,6 +16,7 @@ import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { withTurnContext } from "./turn-context";
+import { raiseAsk } from "./permissions/asks";
 import { type Rule } from "./permissions/rules";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { createWalkBudget } from "./walk-budget";
@@ -34,6 +35,11 @@ import {
   beginSkillChangeTracking,
   consumeSkillChanges,
 } from "./workspace-skill-index";
+
+vi.mock("./permissions/asks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./permissions/asks")>()),
+  raiseAsk: vi.fn(),
+}));
 
 describe("buildBashFs", () => {
   let tmpDir: string;
@@ -603,6 +609,55 @@ describe("classifyHostPath", () => {
 
   it("knows nothing of a path outside every mount", () => {
     expect(classifyHostPath(layout(), tmpDir)).toBeNull();
+  });
+});
+
+describe.runIf(process.platform !== "win32")("outsideFolderRefusal", () => {
+  let tmpDir: string;
+  let drives: string;
+
+  beforeEach(async () => {
+    vi.mocked(raiseAsk).mockClear();
+    tmpDir = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), "outside-folder-")),
+    );
+    drives = path.join(tmpDir, "Volumes");
+    await fs.mkdir(path.join(drives, "Backup", "photos", "2026"), {
+      recursive: true,
+    });
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { force: true, recursive: true });
+  });
+
+  function layoutWith(level: "allow" | "ask") {
+    return buildWorkspaceFsLayout({
+      chatHostRoot: ChatDirSchema.parse(path.join(tmpDir, "chat")),
+      rules: {
+        asker: {
+          chatId: ChatIdSchema.parse("outside-folder-test"),
+          sessionId: StoreId.newSessionId(),
+        },
+        home: path.join(tmpDir, "home"),
+        rules: [{ level, path: drives, place: "drives", source: "place" }],
+        withoutAsking: false,
+      },
+    });
+  }
+
+  it("asks for the folder one level into the place, as a mount's refusal does", () => {
+    const refusal = outsideFolderRefusal(
+      layoutWith("ask"),
+      path.join(drives, "Backup", "photos", "2026", "new.jpg"),
+      "write",
+    );
+    expect(vi.mocked(raiseAsk).mock.calls.map((call) => call[2])).toEqual([
+      path.join(drives, "Backup"),
+    ]);
+    expect(refusal).toContain(
+      `Waiting on the person to allow ${drives}/Backup.`,
+    );
   });
 });
 

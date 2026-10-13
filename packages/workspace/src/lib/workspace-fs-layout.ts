@@ -12,13 +12,7 @@ import nodePath from "node:path";
 
 import { CHAT_FOLDER_NAMES, TASKS_DIR_NAME } from "../constants";
 import { type MountedFolder } from "../schemas/mounted-folder";
-import { isClosedDiskRoot } from "./disk-root";
 import { ruleRefusal, rulesFs } from "./permissions/rules-fs";
-import { raiseAsk, waitingNote } from "./permissions/asks";
-import {
-  accountCanWrite,
-  systemOwnedNote,
-} from "./permissions/account-can-write";
 import { reachOf, type Rule, type Rules } from "./permissions/rules";
 import {
   type AbsolutePath,
@@ -839,9 +833,10 @@ function holdsWritable(
 }
 
 /**
- * A path outside every mount that the person could allow: the nearest
- * folder on disk that holds it, asked for (never the home folder whole or
- * the disk root), and what the agent reads about it. A change this account
+ * A path outside every mount that the person could allow: the folder a
+ * card names for it, or the nearest one on disk holding that, asked for
+ * (never the home folder whole or the disk root), and what the agent reads
+ * about it. A change this account
  * could not make whatever the person said asks nothing and says why.
  * Undefined for a read in the system's own folders, a lookup on the shell's
  * PATH, a folder above a mount, and a path nothing on disk holds.
@@ -876,31 +871,21 @@ export function outsideFolderRefusal(
   ) {
     return undefined;
   }
-  // A folder closed by a rule, or one the person said not now to, asks
-  // nothing again.
-  if (reachOf(rules, hostPath, op).level === "never") {
-    return ruleRefusal({ asks: false, hostPath, op, rules, spell: shellPath });
-  }
-  // Nor does one only an administrator may change, which a yes cannot open.
-  if (op === "write" && !accountCanWrite(hostPath)) {
-    return systemOwnedNote(path);
-  }
-  let folder = hostPath;
-  if (op === "write") {
-    // A file being made is not on disk yet; the folder it goes in is.
-    while (!existsSync(folder) && folder !== nodePath.dirname(folder)) {
-      folder = nodePath.dirname(folder);
-    }
-  }
-  if (!existsSync(folder)) {
+  const reach = reachOf(rules, hostPath, op);
+  // A read of a path nothing on disk holds finds it missing, unless the
+  // rules close where it would be.
+  if (op === "read" && reach.level !== "never" && !existsSync(hostPath)) {
     return undefined;
   }
-  if (!statSync(folder).isDirectory()) {
-    folder = nodePath.dirname(folder);
-  }
-  if (rules.asker && folder !== rules.home && !isClosedDiskRoot(folder)) {
-    raiseAsk(rules.asker, "folder", folder);
-    return waitingNote(shellPath(folder));
-  }
-  return `${path} is outside the folders you reach.`;
+  return ruleRefusal({
+    hostPath,
+    isDirectory: existsSync(hostPath) && statSync(hostPath).isDirectory(),
+    onDisk: true,
+    op,
+    // Outside every folder the chat reaches, the shell reaches nothing to
+    // change, so even a path the rules let it read is asked for.
+    reach: reach.level === "allow" ? { level: "ask", rule: reach.rule } : reach,
+    rules,
+    spell: shellPath,
+  });
 }

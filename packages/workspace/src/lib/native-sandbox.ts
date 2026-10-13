@@ -19,22 +19,14 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import { COMMAND_LINE_TOOLS_INSTALLER } from "./command-line-tools-env";
 import { canonicalizeThroughMissing, hostPathWithin } from "./host-path";
-import {
-  accountCanWrite,
-  systemOwnedNote,
-} from "./permissions/account-can-write";
-import { raiseAsk, waitingNote } from "./permissions/asks";
-import { closedNote } from "./permissions/rules-fs";
-import { isClosedDiskRoot } from "./disk-root";
+import { ruleRefusal } from "./permissions/rules-fs";
 import { DANGEROUS_NAMES, placePaths } from "./permissions/places";
 import {
-  folderToAskFor,
   levelWithoutAsking,
   type Reach,
   reachOf,
-  type Rule,
+  ruleRank,
   type Rules,
-  SOURCE_RANK,
 } from "./permissions/rules";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -191,7 +183,7 @@ export function seatbeltProfile(
               : rule.dotEntries
                 ? undefined
                 : spelled,
-          rank: dotEntryRank(rule),
+          rank: ruleRank(rule),
           text,
         })),
       ),
@@ -332,16 +324,6 @@ export function seatbeltProfile(
     `(deny mach-lookup (global-name "${COMMAND_LINE_TOOLS_INSTALLER}"))`,
   );
   return ["(version 1)", "(allow default)", ...texts].join("\n");
-}
-
-/**
- * A rule's rank among rules at its depth. A rule for every hidden entry in a
- * folder stands for each of them only as a fallback, so a rule naming one of
- * them at the same depth (~/.ssh in the passwords place against the hidden
- * entries of other apps' files) comes after it and wins, as `reachOf` decides.
- */
-function dotEntryRank(rule: Rule): number {
-  return SOURCE_RANK[rule.source] - (rule.dotEntries ? 0.5 : 0);
 }
 
 function depthOf(hostPath: string): number {
@@ -650,7 +632,7 @@ export function bwrapArgs(
       level === "allow" ? "write" : level === "readOnly" ? "read" : "none";
     const targets = rule.dotEntries ? dotEntriesIn(rule.path) : [rule.path];
     for (const target of targets) {
-      add(target, access, dotEntryRank(rule));
+      add(target, access, ruleRank(rule));
     }
   }
   const caches = toolCaches();
@@ -1092,31 +1074,23 @@ export function refusedPathIn(
 }
 
 /** What the agent reads when the rules stopped a native command. */
-export function refusalNote(refused: Refused, home = os.homedir()): string {
-  const shown = (shownPath: string) =>
-    shownPath.startsWith(`${home}/`)
-      ? `~/${shownPath.slice(home.length + 1)}`
-      : shownPath;
-  if (refused.reach.level === "never") {
-    return closedNote(refused.reach, shown(refused.hostPath));
-  }
-  if (refused.op === "write" && !accountCanWrite(refused.hostPath)) {
-    return systemOwnedNote(shown(refused.hostPath));
-  }
-  const folder = folderToAskFor({
-    home,
+export function refusalNote(refused: Refused): string | undefined {
+  return ruleRefusal({
+    afterAsk: "Run the command again once they allow it.",
     hostPath: refused.hostPath,
     isDirectory: refused.isDirectory,
-    rule: refused.reach.rule,
+    op: refused.op,
+    reach: refused.reach,
+    rules: refused.rules,
+    // Native commands are wrapped on macOS and Linux, where a path in the
+    // home folder is said from `~`.
+    spell: (hostPath) => {
+      const { home } = refused.rules;
+      return hostPath === home
+        ? "~"
+        : hostPath.startsWith(`${home}/`)
+          ? `~/${hostPath.slice(home.length + 1)}`
+          : hostPath;
+    },
   });
-  // The home folder or the disk whole is never the thing to ask for.
-  if (
-    !refused.rules.asker ||
-    folder === refused.rules.home ||
-    isClosedDiskRoot(folder)
-  ) {
-    return `${shown(refused.hostPath)} needs the person's yes first.`;
-  }
-  raiseAsk(refused.rules.asker, "folder", folder);
-  return `${waitingNote(shown(folder))} Run the command again once they allow it.`;
 }

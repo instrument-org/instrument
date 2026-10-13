@@ -1,4 +1,5 @@
 import { type IFileSystem } from "just-bash";
+import { existsSync } from "node:fs";
 import nodePath from "node:path";
 
 import { canonicalizeThroughMissing, hostPathWithin } from "../host-path";
@@ -8,19 +9,26 @@ import { isClosedDiskRoot } from "../disk-root";
 import { folderToAskFor, type Reach, reachOf, type Rules } from "./rules";
 
 /**
- * What the agent reads when the rules keep it from a path, spelled the way it
- * reaches things: `spell` turns a host path into the path the agent uses.
- * Undefined where the path is open, and for the app's internals, which the
- * agent meets as missing rather than refused.
+ * What the agent reads when the rules keep it from a path, and the card it
+ * raises where the person can open it: the one answer for the shell's own
+ * commands, the file tools, the commands that check their operands, and the
+ * programs the native profiles stopped. `spell` turns a host path into the
+ * path the agent uses. Undefined where the path is open, and for the app's
+ * internals, which the agent meets as missing rather than refused.
  */
 export function ruleRefusal({
+  afterAsk,
   asks = true,
   hostPath,
   isDirectory = false,
+  onDisk = false,
   op,
+  reach: decided,
   rules,
   spell,
 }: {
+  /** What to do once the card is up, said after the waiting note. */
+  afterAsk?: string;
   /**
    * Whether running into it raises a card. A walk that passes a closed
    * folder on its way is not asking for it.
@@ -32,11 +40,20 @@ export function ruleRefusal({
    * can ask for by itself even directly in the home folder.
    */
   isDirectory?: boolean;
+  /**
+   * Whether the card asks for a folder already on disk: the nearest one
+   * holding the folder it would name. A path outside every folder the shell
+   * reaches is opened by mounting what the card allows, which needs a
+   * folder to mount.
+   */
+  onDisk?: boolean;
   op: "read" | "write";
+  /** What the rules make of the path, where the caller decided it already. */
+  reach?: Reach;
   rules: Rules;
   spell: (hostPath: string) => string;
 }): string | undefined {
-  const reach = reachOf(rules, hostPath, op);
+  const reach = decided ?? reachOf(rules, hostPath, op);
   if (reach.level === "allow" || reach.level === "hidden") {
     return undefined;
   }
@@ -46,12 +63,15 @@ export function ruleRefusal({
   if (op === "write" && !accountCanWrite(hostPath)) {
     return systemOwnedNote(spell(hostPath));
   }
-  const folder = folderToAskFor({
+  let folder = folderToAskFor({
     home: rules.home,
     hostPath,
     isDirectory,
     rule: reach.rule,
   });
+  while (onDisk && !existsSync(folder) && folder !== nodePath.dirname(folder)) {
+    folder = nodePath.dirname(folder);
+  }
   // The home folder or the disk whole is never the thing to ask for.
   if (folder === rules.home || isClosedDiskRoot(folder)) {
     return `${spell(hostPath)} is directly in ${spell(folder)}, which no card can open whole. Work in this conversation's folder, or a folder the person names.`;
@@ -60,7 +80,8 @@ export function ruleRefusal({
     return `${spell(hostPath)} needs the person's yes first.`;
   }
   raiseAsk(rules.asker, "folder", folder);
-  return waitingNote(spell(folder));
+  const waiting = waitingNote(spell(folder));
+  return afterAsk ? `${waiting} ${afterAsk}` : waiting;
 }
 
 /**

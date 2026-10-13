@@ -216,12 +216,24 @@ export interface Reach {
   rule?: Rule;
 }
 
-export const SOURCE_RANK = {
+const SOURCE_RANK = {
   folder: 1,
   grant: 2,
   place: 0,
   system: 3,
 } as const;
+
+/**
+ * A rule's rank among the rules holding a path at the same depth: the app's
+ * own over a chat's grant over a folder rule over a place. A rule for every
+ * hidden entry in a folder stands for each of them only as a fallback, so a
+ * rule naming one of them at that depth (~/.ssh in the passwords place
+ * against the hidden entries of other apps' files) outranks it. `reachOf`
+ * and both native profiles order rules by it.
+ */
+export function ruleRank(rule: Rule): number {
+  return SOURCE_RANK[rule.source] - (rule.dotEntries ? 0.5 : 0);
+}
 
 /**
  * A rule's level with "Use folders without asking" applied: every Ask first
@@ -276,8 +288,7 @@ export function reachOf(
     if (
       !best ||
       held > best.depth ||
-      (held === best.depth &&
-        SOURCE_RANK[rule.source] > SOURCE_RANK[best.rule.source])
+      (held === best.depth && ruleRank(rule) > ruleRank(best.rule))
     ) {
       best = { depth: held, rule };
     }

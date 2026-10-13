@@ -276,9 +276,7 @@ describe("refusedPathIn", () => {
       "Operation not permitted: '/Users/someone/Documents/Acme/a.csv'",
       reach,
     );
-    expect(
-      refused && refusalNote(refused, "/Users/someone"),
-    ).toMatchInlineSnapshot(
+    expect(refused && refusalNote(refused)).toMatchInlineSnapshot(
       `"~/Documents/Acme/a.csv needs the person's yes first."`,
     );
   });
@@ -316,14 +314,14 @@ describe("refusedPathIn", () => {
         },
       },
     });
-    const note = refused && refusalNote(refused, "/Users/someone");
+    const note = refused && refusalNote(refused);
     expect(vi.mocked(raiseAsk).mock.calls[0]?.[2]).toBe(
       asked?.replace("~", "/Users/someone"),
     );
     expect(note).toBe(
       asked
         ? `Waiting on the person to allow ${asked}. If the rest of the job needs it, end your turn here; you'll be woken with their answer. Run the command again once they allow it.`
-        : "~/notes.txt needs the person's yes first.",
+        : "~/notes.txt is directly in ~, which no card can open whole. Work in this conversation's folder, or a folder the person names.",
     );
   });
 
@@ -333,9 +331,7 @@ describe("refusedPathIn", () => {
       "Operation not permitted: '/Users/someone/Documents/Acme/a.csv'",
       reach,
     );
-    expect(
-      refused && refusalNote(refused, "/Users/someone"),
-    ).toMatchInlineSnapshot(
+    expect(refused && refusalNote(refused)).toMatchInlineSnapshot(
       `"~/Documents/Acme/a.csv belongs to the system, and only an administrator can change it. Write what you need somewhere you can, or tell the person what you needed it for."`,
     );
   });

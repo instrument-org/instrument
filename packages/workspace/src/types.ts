@@ -154,6 +154,13 @@ export interface WorkspaceConfig {
   browser: BrowserConfig;
   captureException: CaptureExceptionFunction;
   chatTemplateDir: AbsolutePath;
+  /**
+   * What the system's file manager calls each drive, by its root (`C:\`), for
+   * the Files sidebar's Locations: "Local Disk (C:)" on Windows. A root it
+   * does not name goes by its letter. Absent off Windows, where a disk is
+   * named by the folder it is mounted at.
+   */
+  driveNames?: () => Promise<Record<string, string>>;
   /** Desktop decoration after the default output folder exists. */
   ensureOutputFolderIcon?: (folderPath: string) => Promise<void>;
   /**

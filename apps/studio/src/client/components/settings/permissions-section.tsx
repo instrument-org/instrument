@@ -17,6 +17,7 @@ import {
 } from "@/client/components/ui/select";
 import { Switch } from "@/client/components/ui/switch";
 import { PlaceIcon } from "@/client/components/window/place-icons";
+import { useComputerVolumes } from "@/client/components/window/computer-volumes";
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { isWindows } from "@/client/lib/utils";
@@ -360,6 +361,7 @@ function PlaceRow({
   place: Place;
 }) {
   const className = "size-4 text-muted-foreground";
+  const volumes = useComputerVolumes();
   const details = (() => {
     switch (place.id) {
       case "output": {
@@ -390,12 +392,18 @@ function PlaceRow({
         };
       }
       case "drives": {
-        // Windows names every drive but the system one, inside or plugged in.
+        // Windows names every drive but the system one, inside or plugged in,
+        // each the way File Explorer does.
         return isWindows()
           ? {
               line:
-                place.paths.map((root) => root.replace(/\\$/, "")).join(", ") ||
-                undefined,
+                place.paths
+                  .map(
+                    (root) =>
+                      volumes?.find((volume) => volume.path === root)?.name ??
+                      root.replace(/\\$/, ""),
+                  )
+                  .join(", ") || undefined,
               mark: <HardDriveIcon className={className} />,
               name: "Other drives",
             }

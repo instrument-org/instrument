@@ -269,6 +269,7 @@ export const workspaceMachine = setup({
       browser: BrowserConfig;
       captureException: CaptureExceptionFunction;
       chatTemplateDir: string;
+      driveNames?: WorkspaceConfig["driveNames"];
       ensureOutputFolderIcon?: WorkspaceConfig["ensureOutputFolderIcon"];
       finderEntries?: WorkspaceConfig["finderEntries"];
       resolveAlias?: WorkspaceConfig["resolveAlias"];
@@ -311,6 +312,7 @@ export const workspaceMachine = setup({
       ...(input.ensureOutputFolderIcon
         ? { ensureOutputFolderIcon: input.ensureOutputFolderIcon }
         : {}),
+      ...(input.driveNames ? { driveNames: input.driveNames } : {}),
       ...(input.finderEntries ? { finderEntries: input.finderEntries } : {}),
       ...(input.resolveAlias ? { resolveAlias: input.resolveAlias } : {}),
       ...(input.getUser ? { getUser: input.getUser } : {}),

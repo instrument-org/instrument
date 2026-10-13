@@ -53,6 +53,7 @@ import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
 import { getRegistryDir } from "./registry-dir";
 import { quitExitCode } from "./relaunch";
+import { windowsDriveNames } from "./windows-drives";
 import { getPNPMBinPath, getUvBinPath } from "./setup-bin-directory";
 
 const CHAT_TEMPLATE_DIR_NAME = "chat-template";
@@ -147,6 +148,9 @@ export function createWorkspaceActor() {
       chatTemplateDir: app.isPackaged
         ? path.join(process.resourcesPath, CHAT_TEMPLATE_DIR_NAME)
         : UNPACKAGED_CHAT_TEMPLATE_DIR,
+      ...(process.platform === "win32"
+        ? { driveNames: windowsDriveNames }
+        : {}),
       ensureOutputFolderIcon,
       finderEntries,
       resolveAlias,

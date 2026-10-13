@@ -56,22 +56,6 @@ export function collapseProgress(output: string) {
 }
 
 /**
- * The environment with no TZ on Windows. The shell names its zone the IANA
- * way (`America/Chicago`) for its own `date`, and Windows' C runtime reads
- * TZ only as `CST6CDT`, so a program there would misread the name and print
- * the wrong time; without it, the program takes the system's own zone.
- */
-function withoutWindowsTz(
-  env: Record<string, string | undefined>,
-): Record<string, string | undefined> {
-  if (process.platform !== "win32") {
-    return env;
-  }
-  const { TZ: _tz, ...rest } = env;
-  return rest;
-}
-
-/**
  * Run a real binary on behalf of a sandbox command, with the settings every
  * shim needs to behave like a shell command rather than a library call:
  *
@@ -127,10 +111,10 @@ export async function execShim(
     ...(onMessage ? { ipc: true } : {}),
     // Only what a program needs of the app's own environment, so a key or
     // token set for the app never reaches a script the agent runs.
-    env: withoutWindowsTz({
+    env: {
       ...inheritedEnv(process.env, spawned.reach),
       ...subprocessOptions.env,
-    }),
+    },
     extendEnv: false,
     all: true,
     cancelSignal: sink ? undefined : cancelSignal,

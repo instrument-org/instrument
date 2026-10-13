@@ -1,4 +1,3 @@
-import { folderNameFromPath } from "@instrument-org/shared";
 import { AsyncResource } from "node:async_hooks";
 import { ulid } from "ulid";
 
@@ -8,6 +7,7 @@ import { StoreId } from "../../schemas/store-id";
 import { readChatRecord, updateChatState } from "../chat-record";
 import { getCurrentDate } from "../get-current-date";
 import { chatDir } from "../record-folders";
+import { askTargetName } from "./ask-target";
 
 /** What raised an ask: the chat and the session that ran into the boundary. */
 export interface Asker {
@@ -127,9 +127,7 @@ export async function openAsksOf(
 
 /** What an open card waits on the user for, naming the folder or app it asks about. */
 export function cardLine(card: PermissionAsk): string {
-  const name =
-    card.kind === "folder" ? folderNameFromPath(card.target) : card.target;
-  return `Waiting for your OK to use “${name}”`;
+  return `Waiting for your OK to use ${askTargetName(card.kind, card.target)}`;
 }
 
 /** Takes an answered ask off the chat, and answers what it was. */

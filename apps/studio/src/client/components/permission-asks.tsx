@@ -5,10 +5,10 @@ import {
   nameOf,
   segmentsOf,
 } from "@/client/components/window/host-path";
-import { folderLabel } from "@/client/lib/path-utils";
 import { toast } from "@/client/lib/toast";
 import { osConventions } from "@/client/lib/utils";
 import {
+  askTargetName,
   type ChatId,
   isToolPart,
   type SessionMessage,
@@ -55,11 +55,6 @@ function useAnswer(chatId: ChatId, ask: Ask) {
       });
     },
   };
-}
-
-/** The folder as a reader names it, or the app by its own name. */
-function permissionTargetName(kind: Ask["kind"], target: string) {
-  return kind === "folder" ? folderLabel(target) : target;
 }
 
 /**
@@ -194,8 +189,7 @@ function PermissionAskCard({
   explanation: string | undefined;
 }) {
   const { isBusy, send } = useAnswer(chatId, ask);
-  const name = permissionTargetName(ask.kind, ask.target);
-  const shown = quotedTarget(ask.kind, ask.target);
+  const shown = askTargetName(ask.kind, ask.target);
   const holds = ask.kind === "folder" ? signInLine(ask.target) : undefined;
   const reach = useQuery({
     ...rpcClient.workspace.permissions.appReach.queryOptions({
@@ -218,9 +212,7 @@ function PermissionAskCard({
       <ToolCard className="mt-0 rounded-xl">
         <div className="flex items-center justify-between gap-3 px-3 py-2">
           <div className="min-w-0">
-            <p className="truncate text-sm">
-              {`Let Instrument use ${shown}?`}
-            </p>
+            <p className="truncate text-sm">{`Let Instrument use ${shown}?`}</p>
             {explanation ? (
               <p className="truncate text-xs text-muted-foreground">
                 {explanation}
@@ -256,9 +248,7 @@ function PermissionAskCard({
   return (
     <ToolCard>
       <ToolCardSection collapsedHeight={256}>
-        <p className="text-sm">
-          {`Let Instrument use ${shown}?`}
-        </p>
+        <p className="text-sm">{`Let Instrument use ${shown}?`}</p>
         {explanation ? (
           <p className="mt-1 text-sm text-muted-foreground">{explanation}</p>
         ) : null}
@@ -269,7 +259,7 @@ function PermissionAskCard({
           </p>
         ) : reach.data?.reachesEveryFile ? (
           <p className="mt-1 text-xs text-muted-foreground">
-            {`Allowing ${name} lets Instrument reach every file on your ${osConventions().computerKind}.`}
+            {`Allowing ${shown} lets Instrument reach every file on your ${osConventions().computerKind}.`}
           </p>
         ) : null}
         <div className="mt-3 flex flex-wrap gap-2">
@@ -320,22 +310,13 @@ function PermissionAskCard({
   );
 }
 
-/**
- * A folder's name in curly quotes, as a name the person chose; an app's
- * name as the app calls itself.
- */
-function quotedTarget(kind: "app" | "folder", target: string): string {
-  const name = permissionTargetName(kind, target);
-  return kind === "folder" ? `“${name}”` : name;
-}
-
 /** The line that marks why the chat woke: what the user answered to an ask. */
 export function PermissionAnswerNote({
   data,
 }: {
   data: SessionMessageDataPart.PermissionAnswerDataPart;
 }) {
-  const shown = quotedTarget(data.kind, data.target);
+  const shown = askTargetName(data.kind, data.target);
   return (
     <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
       <InstrumentGlyph className="size-3.5 shrink-0" />

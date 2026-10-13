@@ -17,6 +17,7 @@ export { getToolNameByType } from "./lib/get-tool-name-by-type";
 export { isInteractiveTool } from "./lib/is-interactive-tool";
 export * from "./lib/is-chat-id";
 export { isToolPart } from "./lib/is-tool-part";
+export { askTargetName } from "./lib/permissions/ask-target";
 export { jobEventModelNote } from "./lib/job-event-model-text";
 export { maxStepsModelNote } from "./lib/max-steps-model-text";
 export { messageGapModelNote } from "./lib/message-gap-model-text";

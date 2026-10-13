@@ -85,6 +85,8 @@ if (is.dev && fakeMicrophone) {
       "use-file-for-fake-audio-capture",
       fakeMicrophone,
     );
+    // The sandboxed audio service cannot open the file and records silence.
+    app.commandLine.appendSwitch("disable-features", "AudioServiceSandbox");
   }
 }
 

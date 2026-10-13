@@ -14,9 +14,9 @@
  * - **It hands the task the user's tab.** `task new --tab` makes the task
  *   the tab's one driver, and the tab goes back to the chat when the task
  *   finishes.
- * - **It leaves a task the user stopped alone.** Stop on t1 wakes the chat
- *   with a note saying the user stopped it; the chat says so and starts
- *   nothing again.
+ * - **It leaves a task the user stopped alone.** Stop on t1 writes the chat
+ *   a note saying the user stopped it and starts no turn, and nothing is
+ *   started again.
  * - **It leaves the work alone when asked what happened.** The user stops
  *   the chat's own turn mid-command, then its task, then asks what
  *   happened: the chat explains, and runs none of the stopped work again,

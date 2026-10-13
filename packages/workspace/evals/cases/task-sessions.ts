@@ -24,13 +24,19 @@
  *   the chat's own turn mid-command, then its task, then asks what
  *   happened: the chat explains, and runs none of the stopped work again,
  *   even when its answer tells of starting the task or ends offering to.
+ * - **It reads a task's open card as waiting, not refused.** t1 reaches
+ *   for a folder the person keeps closed until asked, which shows them a
+ *   card nobody answers: neither t1 nor the chat calls the folder refused,
+ *   and the chat tells the user the task is waiting on them.
  */
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import { STOPPED_TOOL_CALL_ERROR_TEXT } from "../../src/constants";
 import { getChatState } from "../../src/lib/chat-record";
 import { listChildTasks } from "../../src/lib/chat/children";
+import { openAsks } from "../../src/lib/permissions/asks";
 import { outputFolderPath } from "../../src/lib/chat/output-folder";
 import { chatDir } from "../../src/lib/record-folders";
 import { type Session } from "../../src/schemas/session";
@@ -452,6 +458,121 @@ const retriedOrOfferedTo: Assertion = {
   text: "picked the timed-out task up again or offered to, not as a stop",
 };
 
+/**
+ * A folder under Documents, which the person keeps closed until asked: a
+ * folder directly in the home folder raises no card.
+ */
+const PANTRY = path.join(os.homedir(), "Documents", "Pantry");
+
+function seedPantry() {
+  fs.rmSync(PANTRY, { force: true, recursive: true });
+  fs.mkdirSync(PANTRY, { recursive: true });
+  fs.writeFileSync(
+    path.join(PANTRY, "inventory.md"),
+    "# Pantry\n\n- rice: plenty\n- olive oil: almost out\n- lentils: none\n- oats: half a bag\n",
+  );
+}
+
+/**
+ * Words that tell of access refused, or given up on, rather than a card
+ * still waiting: "I can't read it yet" waits, "I couldn't read it" is over.
+ */
+const REFUSED =
+  /\b(?:refused|denied|declined|rejected|inaccessible|not permitted|(?:is|was)n't allowed|(?:is|was) not allowed|(?:couldn't|could not|was unable to) (?:access|read|open))\b/i;
+
+/** The assistant words in a set of sessions, in order. */
+function wordsIn(sessions: Session.WithMessagesAndParts[]): string {
+  return sessions
+    .flatMap((session) => session.messages)
+    .filter((message) => message.role === "assistant")
+    .flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === "text" ? [part.text] : [],
+      ),
+    )
+    .join("\n");
+}
+
+/**
+ * The setup held: t1 raised the card for the Pantry folder or a folder
+ * holding it (Documents), nobody answered it, and the chat was woken with a
+ * note saying t1 waits on it.
+ */
+const t1WaitsOnTheCard: Assertion = {
+  check: async (ctx: Context) => {
+    const text = "t1 raised the Pantry card and the chat's note says it waits";
+    const task = (await listChildTasks(ctx.chatId)).find(
+      (child) => child.handle === "t1",
+    );
+    const card = (await openAsks(ctx.chatId)).find(
+      (ask) =>
+        ask.kind === "folder" &&
+        // By its end: a report read later runs under another home.
+        /[/\\]Documents(?:[/\\]Pantry)?$/.test(ask.target) &&
+        ask.askers.some((asker) => asker.sessionId === task?.id),
+    );
+    const events = (ctx.sessions[0]?.messages ?? []).flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === "data-taskEvent" ? part.data.events : [],
+      ),
+    );
+    const waiting = events.some(
+      (event) => event.sessionId === task?.id && (event.needs?.length ?? 0) > 0,
+    );
+    return (card && waiting ? pass : fail)(
+      text,
+      `card ${card ? `open for ${card.target}` : "not open for t1"}; notes: ${events.map((event) => `${event.handle ?? event.sessionId} with ${String(event.needs?.length ?? 0)} needs`).join(", ") || "(none)"}`,
+    );
+  },
+  text: "t1 raised the Pantry card and the chat's note says it waits",
+};
+
+/** t1's own words never call the folder refused while its card is up. */
+const taskDidNotCallItRefused: Assertion = {
+  check: async (ctx: Context) => {
+    const text = "t1 did not call the folder refused";
+    const children = await ctx.childSessions();
+    const words = wordsIn(children.flatMap((child) => child.sessions));
+    const match = REFUSED.exec(words);
+    return (match ? fail : pass)(
+      text,
+      match
+        ? `said "${match[0]}": ${words.slice(Math.max(0, match.index - 120), match.index + 80)}`
+        : words.slice(-300) || "(t1 said nothing)",
+    );
+  },
+  text: "t1 did not call the folder refused",
+};
+
+/**
+ * Woken by t1's note, the chat told the user the task is waiting on them,
+ * and never that the folder was refused.
+ */
+const chatSaidItWaits: Assertion = {
+  check: (ctx: Context) => {
+    const text = "the chat said t1 waits on the user, not that it was refused";
+    const chat = ctx.sessions[0];
+    const messages = chat?.messages ?? [];
+    const woke = messages.findIndex((message) =>
+      message.parts.some((part) => part.type === "data-taskEvent"),
+    );
+    if (!chat || woke === -1) {
+      return fail(text, "no note woke the chat");
+    }
+    const reply = wordsIn([{ ...chat, messages: messages.slice(woke + 1) }]);
+    const refused = REFUSED.exec(reply);
+    const waits =
+      /\b(?:wait\w*|allow\w*|approv\w*|grant\w*|permission|access|card|ok(?:ay)?)\b/i.test(
+        reply,
+      );
+    return (waits && !refused ? pass : fail)(
+      text,
+      `${refused ? `said "${refused[0]}"; ` : ""}${reply.slice(0, 300) || "(no reply)"}`,
+    );
+  },
+  text: "the chat said t1 waits on the user, not that it was refused",
+};
+
 export const TASK_SESSION_EVALS = [
   defineEval({
     assertions: [
@@ -531,5 +652,14 @@ export const TASK_SESSION_EVALS = [
     name: "task-session-stopped-then-asked",
     prompt:
       "Start a background task that runs `sleep 150` and then tells me it finished.",
+  }),
+  defineEval({
+    assertions: [t1WaitsOnTheCard, taskDidNotCallItRefused, chatSaidItWaits],
+    kind: "chat",
+    name: "task-session-folder-card",
+    get prompt() {
+      return `Start a background task for this, please: read my pantry notes in ${PANTRY} and write a shopping list of what is running low as shopping-list.md in the workspace folder.`;
+    },
+    setup: seedPantry,
   }),
 ];

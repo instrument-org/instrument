@@ -5,7 +5,7 @@ import { canonicalizeThroughMissing, hostPathWithin } from "../host-path";
 import { accountCanWrite, systemOwnedNote } from "./account-can-write";
 import { raiseAsk, waitingNote } from "./asks";
 import { isClosedDiskRoot } from "../disk-root";
-import { folderToAskFor, reachOf, type Rules } from "./rules";
+import { folderToAskFor, type Reach, reachOf, type Rules } from "./rules";
 
 /**
  * What the agent reads when the rules keep it from a path, spelled the way it
@@ -41,12 +41,7 @@ export function ruleRefusal({
     return undefined;
   }
   if (reach.level === "never") {
-    if (reach.rule?.denied) {
-      return `${spell(hostPath)}: the person said not now to this folder in this chat. Don't look for another way in; say what you skipped without it.`;
-    }
-    return reach.rule?.level === "readOnly"
-      ? `${spell(hostPath)} is read-only. Copy what you need out of it and change the copy.`
-      : `${spell(hostPath)} is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.`;
+    return closedNote(reach, spell(hostPath));
   }
   if (op === "write" && !accountCanWrite(hostPath)) {
     return systemOwnedNote(spell(hostPath));
@@ -66,6 +61,30 @@ export function ruleRefusal({
   }
   raiseAsk(rules.asker, "folder", folder);
   return waitingNote(spell(folder));
+}
+
+/**
+ * What the agent reads about a path the rules never open to it this way,
+ * by why: the person's not now in this chat, a folder only read, a file
+ * that runs when they log in, a name that runs code when its folder is
+ * used, or a place closed in Settings. Only the last is something a
+ * setting changes, so only it sends the person there.
+ */
+export function closedNote(reach: Reach, shown: string): string {
+  const rule = reach.rule;
+  if (rule?.denied) {
+    return `${shown}: the person said not now to this folder in this chat. Don't look for another way in; say what you skipped without it.`;
+  }
+  if (rule?.level === "readOnly") {
+    return `${shown} is read-only. Copy what you need out of it and change the copy.`;
+  }
+  if (rule?.source === "system" && rule.level === "never") {
+    return `${shown} runs every time the person logs in or opens a terminal, so it is never changed for them, whatever their settings. Tell them what to add and they can add it themselves.`;
+  }
+  if (rule?.level !== "never") {
+    return `${shown} makes code run when its folder is used (a git hook, .envrc, or an editor's or coding agent's settings), so it is never changed, moved or removed outside this chat's own folder. The rest of the folder, and git commands like commit and checkout, still work.`;
+  }
+  return `${shown} is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.`;
 }
 
 /**

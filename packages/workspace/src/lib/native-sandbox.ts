@@ -13,7 +13,6 @@ import {
 import os from "node:os";
 import path from "node:path";
 
-import { APP_NAME } from "@instrument-org/shared";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import { canonicalizeThroughMissing, hostPathWithin } from "./host-path";
@@ -22,6 +21,7 @@ import {
   systemOwnedNote,
 } from "./permissions/account-can-write";
 import { raiseAsk, waitingNote } from "./permissions/asks";
+import { closedNote } from "./permissions/rules-fs";
 import { isClosedDiskRoot } from "./disk-root";
 import { DANGEROUS_NAMES, placePaths } from "./permissions/places";
 import {
@@ -927,11 +927,8 @@ export function refusalNote(refused: Refused, home = os.homedir()): string {
     shownPath.startsWith(`${home}/`)
       ? `~/${shownPath.slice(home.length + 1)}`
       : shownPath;
-  if (refused.reach.rule?.denied) {
-    return `The person said not now to ${shown(refused.hostPath)} in this chat. Don't look for another way in; say what you skipped without it.`;
-  }
   if (refused.reach.level === "never") {
-    return `${shown(refused.hostPath)} is closed to ${APP_NAME} in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.`;
+    return closedNote(refused.reach, shown(refused.hostPath));
   }
   if (refused.op === "write" && !accountCanWrite(refused.hostPath)) {
     return systemOwnedNote(shown(refused.hostPath));

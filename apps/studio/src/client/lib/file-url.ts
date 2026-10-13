@@ -1,3 +1,5 @@
+import { isWindowsPath } from "@instrument-org/shared";
+
 /**
  * A file on the computer as a page: the `file://` address a browser opens it
  * at, which is what the person's own browser would do with the file. A guest
@@ -11,9 +13,8 @@
  * Mac or Linux it is a letter a name may hold.
  */
 export function fileUrlOf(hostPath: string): string {
-  const isWindowsPath = /^(?:[a-z]:[\\/]|\\\\)/i.test(hostPath);
   const encoded = hostPath
-    .split(isWindowsPath ? /[/\\]/ : "/")
+    .split(isWindowsPath(hostPath) ? /[/\\]/ : "/")
     .filter((segment, index) => index === 0 || segment !== "")
     .map(encodeURIComponent)
     .join("/");

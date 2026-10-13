@@ -134,6 +134,35 @@ describe("ChatActivity", () => {
     await expect.element(stops.nth(1)).toBeEnabled();
   });
 
+  // Its turn ended with a card still up: no agent is at work, but it waits
+  // on the person, and its Stop takes it off the card.
+  it("lists a task waiting on a card with what it waits for, and keeps its stop", async () => {
+    listed.tasks = [
+      {
+        ...PACKING,
+        standing: {
+          kind: "waiting",
+          line: "Waiting for your OK to use “Packing”",
+        },
+        stoppable: true,
+        working: false,
+      },
+    ];
+    await renderInBrowser(
+      <ChatActivity chatId={CHAT_ID} onOpen={vi.fn()} tasks={[]} />,
+    );
+    await userEvent.click(page.getByRole("button", { name: "1 task" }));
+    await expect.element(page.getByText("Running")).toBeVisible();
+    await expect.element(page.getByText("Finished")).not.toBeInTheDocument();
+    await expect
+      .element(page.getByText("Waiting for your OK to use “Packing”"))
+      .toBeVisible();
+    await userEvent.click(page.getByRole("button", { name: "Stop this task" }));
+    await expect
+      .poll(() => stopSessions.mock.calls[0]?.[0])
+      .toEqual({ id: CHAT_ID, sessionId: packing });
+  });
+
   it("says the user stopped a task, rather than drawing it done", async () => {
     listed.tasks = [
       {

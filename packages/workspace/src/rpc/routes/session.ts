@@ -6,7 +6,8 @@ import { stopRunningProcesses } from "../../lib/background-processes";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { isWorking } from "../../lib/chat/activity";
 import { markChatStopped } from "../../lib/chat/chats";
-import { closeAsksOf } from "../../lib/permissions/asks";
+import { noteTaskStoppedOnCard } from "../../lib/chat/wake";
+import { closeAsksOf, openAsksOf } from "../../lib/permissions/asks";
 import { sessionOfChat } from "../../lib/record-folders";
 import { getSessionMarkdown } from "../../lib/session-to-markdown";
 import { Store } from "../../lib/store";
@@ -131,6 +132,15 @@ const stop = base
       chatSessionId !== undefined &&
       (input.sessionId === undefined || input.sessionId === chatSessionId) &&
       isWorking(input.id, chatSessionId);
+    // A task whose turn ended with a card still up has no turn for the stop
+    // to end, so nothing would say it stopped; read before its cards go.
+    const waitingOnCard =
+      input.sessionId !== undefined &&
+      input.sessionId !== chatSessionId &&
+      !isWorking(input.id, input.sessionId) &&
+      (await openAsksOf(input.id, input.sessionId)).length > 0
+        ? input.sessionId
+        : undefined;
     // A task the person stops ends what it runs in the background too, as
     // the agent's `task stop --all` does. A job handed to the task is the
     // task's, so this reaches it. A process can take seconds to go, so the
@@ -162,6 +172,15 @@ const stop = base
       // Stop, however far its turn had got, before it began included.
       stopsOwnTurn ? markChatStopped(input.id, pressedAt) : undefined,
     ]);
+    // Not waited on, as a turn's end is not: its note waits out the
+    // processes the stop ends.
+    if (waitingOnCard !== undefined) {
+      noteTaskStoppedOnCard(
+        input.id,
+        waitingOnCard,
+        context.workspaceRef,
+      ).catch(context.workspaceConfig.captureException);
+    }
   });
 
 const toMarkdown = base

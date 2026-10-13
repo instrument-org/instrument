@@ -16,7 +16,7 @@ export interface TaskListItem {
   line: string;
   /** Where it stands, as the list draws it. */
   standing: "done" | "failed" | "running" | "waiting";
-  /** Whether a stop has something to end: an agent at work, or a hold on its start. */
+  /** Whether a stop has something to end: an agent at work, a hold on its start, or a card it waits on. */
   stoppable: boolean;
   title: string;
   updatedAt: Date;
@@ -29,9 +29,9 @@ export interface TaskListItem {
  * the shimmer, what it waits on in amber, and how it ended otherwise. No day
  * heads, no filters, no search: a chat has a handful, and the row says
  * where each stands. A row pressed opens the task in the pane's place.
- * While a task works or is held from starting, a stop sits at its row's
- * edge, and while any listed task does, Stop all in the heading stops every
- * one of them; both cancel a held task's start as well.
+ * While a task works, waits on a card, or is held from starting, a stop sits
+ * at its row's edge, and while any listed task does, Stop all in the heading
+ * stops every one of them; both cancel a held task's start as well.
  */
 export function ChatTaskList({
   chat,

@@ -6,6 +6,7 @@ import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
 import { recordChanged } from "../record-changes";
+import { type PermissionAsk } from "../../schemas/chat-state";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -19,7 +20,9 @@ import {
 } from "../local-page-address";
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
+import { openAsksOf } from "../permissions/asks";
 import { resolveChat, sessionOfChat } from "../record-folders";
+import { shellPath } from "../workspace-fs-layout";
 import { sessionLayout } from "../session-layout";
 import { Store } from "../store";
 import { chatModelURI, recordChatActivity } from "../chat-settings";
@@ -505,8 +508,13 @@ async function onSessionDone(
   const ending = said === undefined ? await endedWithoutWords(ref) : undefined;
   // What the task cannot go on without, read the same way and listed apart
   // from its words, so a turn that ended blocked reads as waiting rather than
-  // finished and the fence is not said twice.
-  const needs = said === undefined ? [] : needsNamedIn(said);
+  // finished and the fence is not said twice. A card it ran into that is still
+  // up is one too, whatever it said; a stopped turn waits on none, since the
+  // person's Stop takes it off its cards.
+  const needs = [
+    ...(said === undefined ? [] : needsNamedIn(said)),
+    ...(stop ? [] : (await openAsksOf(chatId, sessionId)).map(cardNeed)),
+  ];
   await touchTask(chatId, sessionId, { stoppedBy: stop?.by });
   // The pages it leaves open, read while it still drives them, then given
   // back: a tab has one driver, and a finished task drives nothing.
@@ -568,6 +576,33 @@ async function onSessionDone(
     return;
   }
   schedule(chatId, event, workspaceRef);
+}
+
+/**
+ * A card a task's turn ended on, as the note lists what the task cannot go
+ * on without: the kind and what it names, in the chat's spelling of a folder,
+ * and that the person's answer wakes the task, so the chat need not.
+ */
+function cardNeed(card: PermissionAsk): string {
+  const what = card.kind === "folder" ? shellPath(card.target) : card.target;
+  return `${card.kind}: ${what}, on the card in this chat waiting for the person's answer, which wakes it`;
+}
+
+/**
+ * Says the person stopped a task that was waiting on a card, as the end of
+ * a turn they stopped does: its row keeps that they stopped it, and its chat
+ * gets the note, which starts no turn. Such a task has no turn for the stop
+ * to end, so no session's end says it.
+ */
+export async function noteTaskStoppedOnCard(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+  workspaceRef: WorkspaceActorRef,
+): Promise<void> {
+  await onSessionDone(
+    { id: chatId, notice: { by: "user", wakesChat: true }, sessionId },
+    workspaceRef,
+  );
 }
 
 function schedule(

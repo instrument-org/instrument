@@ -38,7 +38,7 @@ export function CreatedTaskCard({ chatId }: { chatId: string }) {
   // what it asks for, or how it stopped.
   const task = useChildTask(chat, id);
   const status = task && {
-    isWorking: task.stoppable,
+    isWorking: task.working,
     step: task.step,
     title: task.title,
   };

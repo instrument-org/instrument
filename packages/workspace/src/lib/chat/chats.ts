@@ -1,8 +1,4 @@
-import {
-  APP_NAME_SLUG,
-  folderNameFromPath,
-  placeholderTitle,
-} from "@instrument-org/shared";
+import { APP_NAME_SLUG, placeholderTitle } from "@instrument-org/shared";
 import { parallel, unique } from "radashi";
 import { z } from "zod";
 
@@ -17,7 +13,7 @@ import { listApps } from "../apps/store";
 import { getBrowserState } from "../browser-state";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { pathsNamedInMessage } from "../paths-named-in-message";
-import { openAsks } from "../permissions/asks";
+import { cardLine, openAsks } from "../permissions/asks";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -486,13 +482,6 @@ function bashCommandsIn(messages: SessionMessage.WithParts[]): string[] {
  */
 function behind(given: string[], made: string[]): string[] {
   return [...given.filter((item) => !made.includes(item)), ...made];
-}
-
-/** What an open card waits on the user for, naming the folder or app it asks about. */
-function cardLine(card: PermissionAsk): string {
-  const name =
-    card.kind === "folder" ? folderNameFromPath(card.target) : card.target;
-  return `Waiting for your OK to use “${name}”`;
 }
 
 async function chatFor(

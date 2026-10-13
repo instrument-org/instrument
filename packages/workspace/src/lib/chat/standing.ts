@@ -9,6 +9,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
 import { parseFilesBlock } from "../parse-files-block";
+import { cardLine, openAsksOf } from "../permissions/asks";
 import { Store } from "../store";
 import { type Derived, indexedByStore, kept, unkept } from "../workspace-index";
 import {
@@ -138,7 +139,9 @@ export function excerptOf(text: string, maxLength: number): string {
  *
  * A running task can be waiting too: its agent stays alive while an ask of
  * its own sits unanswered, and the list says what it is waiting for rather
- * than showing a step that is not moving.
+ * than showing a step that is not moving. So is one whose turn ended with a
+ * card it ran into still up, whatever it last said: the person's answer
+ * wakes it, and until they answer or stop it, it is waiting on them.
  */
 export async function taskStanding({
   isRunning,
@@ -151,6 +154,12 @@ export async function taskStanding({
     return waiting
       ? { kind: "waiting", line: waiting }
       : { kind: "running", line: step ?? "Working" };
+  }
+  // Read apart from the rest, which holds until the task's store is written:
+  // a card is in the chat's state, and goes without a write to the store.
+  const [card] = await openAsksOf(chatId, sessionId);
+  if (card) {
+    return { kind: "waiting", line: cardLine(card) };
   }
   return settledStanding(chatId, sessionId, () => standingAtRest(ref));
 }

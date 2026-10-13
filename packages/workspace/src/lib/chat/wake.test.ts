@@ -12,6 +12,7 @@ import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { updateChatSettings } from "../chat-settings";
+import { recordAsk } from "../permissions/asks";
 import { sessionOfChat } from "../record-folders";
 import { Store } from "../store";
 import { taskEventModelNote } from "../task-event-model-text";
@@ -102,6 +103,45 @@ async function notesIn(chatId: ChatId) {
     .flatMap((part) =>
       part.type === "data-taskEvent" ? part.data.events : [],
     );
+}
+
+/** A turn of the task's own that ended on words, finished at a fixed time. */
+async function saidByTask(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+  text: string,
+) {
+  const at = new Date(2026, 9, 13, 9, 0);
+  const messageId = StoreId.newMessageId();
+  const written = await Store.saveMessageWithParts(
+    {
+      id: messageId,
+      metadata: {
+        createdAt: at,
+        finishReason: "stop",
+        modelId: "glm-5.3-flash",
+        providerId: "openai-compatible",
+        sessionId,
+      },
+      parts: [
+        {
+          metadata: {
+            createdAt: at,
+            id: StoreId.newPartId(),
+            messageId,
+            sessionId,
+          },
+          text,
+          type: "text",
+        },
+      ],
+      role: "assistant",
+    },
+    chatId,
+  );
+  if (written.isErr()) {
+    throw written.error;
+  }
 }
 
 describe("a stopped task", () => {
@@ -230,6 +270,49 @@ describe("a task whose request timed out", () => {
     expect(
       await taskStanding({ chatId, isRunning: false, sessionId: taskSession }),
     ).toEqual({ kind: "failed", line: "Timed out while reading the vault" });
+  });
+});
+
+describe("a task whose turn ended on a card", () => {
+  // The card it ran into outlives its turn, and the person's answer wakes it:
+  // the chat is told the task waits on that answer rather than that it
+  // finished, and the task reads as waiting until the card goes.
+  it("wakes the chat with the card it waits on, and reads as waiting rather than done", async () => {
+    const { chatId, taskSession } = await chatWithTask();
+    await recordAsk(
+      { chatId, sessionId: taskSession },
+      "folder",
+      "/Users/me/Pantry",
+    );
+    await saidByTask(
+      chatId,
+      taskSession,
+      "I can't read /Users/me/Pantry until the person allows it.",
+    );
+
+    publisher.publish("session.done", { id: chatId, sessionId: taskSession });
+
+    await vi.waitFor(async () => {
+      expect(await notesIn(chatId)).toHaveLength(1);
+    }, 5000);
+    const events = await notesIn(chatId);
+    expect(events[0]?.needs).toEqual([
+      "folder: /Users/me/Pantry, on the card in this chat waiting for the person's answer, which wakes it",
+    ]);
+    expect(taskEventModelNote({ events })).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      A task you created is waiting on you:
+      - t1 ("Audit the vault") is waiting on you (1 second of work, 0 tokens so far). It said:
+            I can't read /Users/me/Pantry until the person allows it.
+        It cannot go on without:
+            folder: /Users/me/Pantry, on the card in this chat waiting for the person's answer, which wakes it
+      Nobody typed anything; this note is why you are awake.
+      </instrument-system-note>"
+    `);
+    expect(
+      await taskStanding({ chatId, isRunning: false, sessionId: taskSession }),
+    ).toEqual({ kind: "waiting", line: "Waiting for your OK to use “Pantry”" });
   });
 });
 

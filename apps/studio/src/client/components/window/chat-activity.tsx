@@ -132,8 +132,8 @@ export function ChatTasksPopover({
 
 /**
  * The chat's tasks under the head's activity: running, then finished, newest
- * first in each. A task at work has a stop at its row's end, once the list
- * says whether it has an agent to stop.
+ * first in each. A task at work or waiting on a card has a stop at its row's
+ * end, once the list says whether it has anything to stop.
  */
 function TaskRows({
   chatId,

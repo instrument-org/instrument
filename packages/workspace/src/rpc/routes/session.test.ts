@@ -15,7 +15,9 @@ import {
 import { updateChatSettings } from "../../lib/chat-settings";
 import { isWorking } from "../../lib/chat/activity";
 import { chatById } from "../../lib/chat/chats";
+import { childTask } from "../../lib/chat/children";
 import { hasPendingJobWake, startJobWake } from "../../lib/chat/job-wake";
+import { taskStanding } from "../../lib/chat/standing";
 import { startChatWake } from "../../lib/chat/wake";
 import { openAsks, recordAsk } from "../../lib/permissions/asks";
 import { sessionOfChat } from "../../lib/record-folders";
@@ -158,6 +160,124 @@ function running(
   }
   return promoted.info.id;
 }
+
+/** A turn of `sessionId`'s own that ended on words. */
+async function said(chatId: ChatId, sessionId: StoreId.Session, text: string) {
+  const createdAt = new Date();
+  const messageId = StoreId.newMessageId();
+  const written = await Store.saveMessageWithParts(
+    {
+      id: messageId,
+      metadata: {
+        createdAt,
+        finishReason: "stop",
+        modelId: "glm-5.3-flash",
+        providerId: "openai-compatible",
+        sessionId,
+      },
+      parts: [
+        {
+          metadata: {
+            createdAt,
+            id: StoreId.newPartId(),
+            messageId,
+            sessionId,
+          },
+          text,
+          type: "text",
+        },
+      ],
+      role: "assistant",
+    },
+    chatId,
+  );
+  if (written.isErr()) {
+    throw written.error;
+  }
+}
+
+/** Where a task with no agent at work stands. */
+function standingOf(chatId: ChatId, sessionId: StoreId.Session) {
+  return taskStanding({ chatId, isRunning: false, sessionId });
+}
+
+// A task whose turn ended with the card it ran into still up waits on the
+// person: their answer wakes it, and their Stop ends the wait.
+describe("a task waiting on a card", () => {
+  it("is woken by the answer, and then finishes like any other turn", async () => {
+    const { chatId, task } = await chatWithTask();
+    await recordAsk({ chatId, sessionId: task }, "folder", "/Users/me/Pantry");
+    await said(chatId, task, "I need the Pantry folder to go on.");
+    expect(await standingOf(chatId, task)).toEqual({
+      kind: "waiting",
+      line: "Waiting for your OK to use “Pantry”",
+    });
+
+    const sentBefore = sent.length;
+    const [card] = await openAsks(chatId);
+    await call(
+      permissions.answer,
+      { askId: card?.id ?? "", decision: "allowed", id: chatId },
+      { context: context() },
+    );
+    expect(wokenSince(sentBefore)).toEqual([task]);
+    expect(await openAsks(chatId)).toEqual([]);
+
+    // The turn the answer started ends on words of its own.
+    await said(chatId, task, "The Pantry has 12 jars of jam.");
+    publisher.publish("session.done", { id: chatId, sessionId: task });
+    await vi.waitFor(async () => {
+      expect(await notesIn(chatId)).toHaveLength(1);
+    }, 5000);
+    expect((await notesIn(chatId))[0]).toMatchObject({
+      status: "done",
+      summary: "The Pantry has 12 jars of jam.",
+    });
+    expect((await notesIn(chatId))[0]).not.toHaveProperty("needs");
+    expect(await standingOf(chatId, task)).toEqual({
+      kind: "done",
+      line: "The Pantry has 12 jars of jam.",
+    });
+  });
+
+  it("leaves its part of the card when the person stops it, and reads as stopped", async () => {
+    const { chatId, own, task } = await chatWithTask();
+    await recordAsk({ chatId, sessionId: task }, "folder", "/Users/me/Pantry");
+    await recordAsk({ chatId, sessionId: own }, "folder", "/Users/me/Pantry");
+    await said(chatId, task, "I need the Pantry folder to go on.");
+    const sentBefore = sent.length;
+
+    await call(
+      session.stop,
+      { id: chatId, sessionId: task },
+      { context: context() },
+    );
+
+    expect(
+      (await openAsks(chatId)).map((card) =>
+        card.askers.map((asker) => asker.sessionId),
+      ),
+    ).toEqual([[own]]);
+    await vi.waitFor(async () => {
+      expect((await childTask(chatId, task))?.stoppedBy).toBe("user");
+    }, 5000);
+    expect(await standingOf(chatId, task)).toEqual({
+      kind: "done",
+      line: "I need the Pantry folder to go on.",
+    });
+    // Its chat hears it was stopped with the person's next message, as it
+    // does of a task stopped mid-turn, and nothing is woken.
+    await vi.waitFor(async () => {
+      expect(await notesIn(chatId)).toHaveLength(1);
+    }, 5000);
+    expect((await notesIn(chatId))[0]).toMatchObject({
+      sessionId: task,
+      stoppedBy: "user",
+    });
+    expect((await notesIn(chatId))[0]).not.toHaveProperty("needs");
+    expect(wokenSince(sentBefore)).toEqual([]);
+  });
+});
 
 describe("session.stop", () => {
   it("ends the processes a task has running when the person stops it, and starts no turn", async () => {

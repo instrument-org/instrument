@@ -72,7 +72,13 @@ function renderFinished(standing: {
   childrenOptions.mockReturnValue({
     queryFn: () =>
       Promise.resolve([
-        { id: TASK_ID, standing, stoppable: false, title: "Lisbon hotel" },
+        {
+          id: TASK_ID,
+          standing,
+          stoppable: false,
+          title: "Lisbon hotel",
+          working: false,
+        },
       ]),
     queryKey: ["children", CHAT_ID],
   });
@@ -90,6 +96,7 @@ function renderWorking(step: string) {
           step,
           stoppable: true,
           title: "Lisbon hotel",
+          working: true,
         },
       ]),
     queryKey: ["children", CHAT_ID],

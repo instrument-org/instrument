@@ -6,6 +6,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { renameChat } from "../../lib/chat/chats";
 import { grantFolder } from "../../lib/chat/grants";
+import { recordAsk } from "../../lib/permissions/asks";
 import { sessionOfChat } from "../../lib/record-folders";
 import { Store } from "../../lib/store";
 import { setWorkspaceActorRef } from "../../lib/workspace-actor-ref";
@@ -56,6 +57,32 @@ describe("chats.tasks", () => {
         "That chat is not there any more.",
       );
     }
+  });
+
+  // Its turn ended with the card it ran into still up: no agent is at work,
+  // but it waits on the person, and a Stop takes it off the card.
+  it("lists a task waiting on a card as waiting, with a stop, though no agent is at work", async () => {
+    setWorkspaceActorRef({
+      getSnapshot: () => ({ context: { sessionRefsByChatId: new Map() } }),
+    } as never);
+    const pantry = chatFor(StoreId.newSessionId());
+    const task = await chatTaskFor(pantry, { title: "Count the jars" });
+    await recordAsk(
+      { chatId: pantry, sessionId: task },
+      "folder",
+      "/Users/me/Pantry",
+    );
+
+    expect(await call(chats.tasks, { id: pantry }, { context })).toEqual([
+      expect.objectContaining({
+        standing: {
+          kind: "waiting",
+          line: "Waiting for your OK to use “Pantry”",
+        },
+        stoppable: true,
+        working: false,
+      }),
+    ]);
   });
 });
 

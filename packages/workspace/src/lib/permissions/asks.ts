@@ -1,3 +1,4 @@
+import { folderNameFromPath } from "@instrument-org/shared";
 import { AsyncResource } from "node:async_hooks";
 import { ulid } from "ulid";
 
@@ -112,6 +113,23 @@ export async function recordAsk(
 export async function openAsks(chatId: ChatId): Promise<PermissionAsk[]> {
   const record = await readChatRecord(chatDir(chatId));
   return record.state.permissionAsks ?? [];
+}
+
+/** The chat's open asks a session is on, waiting to be woken with the answer, oldest first. */
+export async function openAsksOf(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<PermissionAsk[]> {
+  return (await openAsks(chatId)).filter((ask) =>
+    ask.askers.some((asker) => asker.sessionId === sessionId),
+  );
+}
+
+/** What an open card waits on the user for, naming the folder or app it asks about. */
+export function cardLine(card: PermissionAsk): string {
+  const name =
+    card.kind === "folder" ? folderNameFromPath(card.target) : card.target;
+  return `Waiting for your OK to use “${name}”`;
 }
 
 /** Takes an answered ask off the chat, and answers what it was. */

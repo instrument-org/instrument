@@ -519,6 +519,27 @@ export function opensInSystemApp(filename: string): boolean {
   return !RUNS_WHEN_OPENED.has(lower.slice(extensionStart + 1));
 }
 
+/** How much of a file's start {@link looksLikeText} needs to tell. */
+export const TEXT_SNIFF_BYTES = 4096;
+
+/**
+ * Whether a file's first bytes read as text: UTF-8, with no NUL among them.
+ * A binary format shows a NUL or a byte UTF-8 cannot hold well within its
+ * first few kilobytes, and text shows neither. A character cut off where the
+ * bytes end does not count against them.
+ */
+export function looksLikeText(bytes: Uint8Array): boolean {
+  if (bytes.includes(0)) {
+    return false;
+  }
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(bytes, { stream: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Whether the file is one a surface previews by showing it rather than by
  * naming it.

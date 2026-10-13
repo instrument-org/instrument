@@ -13,6 +13,21 @@ vi.mock("../hooks/use-file-open-control", () => ({
 vi.mock("./open-file-button", () => ({
   OpenFileButton: () => null,
 }));
+// The editor reads and writes the file through the main process; which
+// editor a file opens in is all that is asked of it here.
+vi.mock("./code-editor/code-file-editor", () => ({
+  CodeFileEditor: ({
+    filename,
+    variant,
+  }: {
+    filename: string;
+    variant: string;
+  }) => (
+    <p>
+      {variant} editor for {filename}
+    </p>
+  ),
+}));
 // Zoom needs browser layout; these checks exercise preview loading and failure.
 vi.mock("../hooks/use-image-panzoom", () => ({
   IMAGE_PANZOOM_VIEWPORT_CLASS: "",
@@ -170,5 +185,43 @@ describe("FileViewer Photoshop preview", () => {
 
     expect(screen.getByText("Preview unavailable in Instrument")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Save as…" })).toBeTruthy();
+  });
+});
+
+// A file with no extension says nothing of what it holds by its name, so its
+// first bytes are read: a `2024` someone wrote is text, shown as text in
+// Preview and in the tab that opens it.
+describe("FileViewer for a file with no extension", () => {
+  const file = {
+    filename: "2024",
+    hostPath: "/Users/casey/show/2024",
+    url: "instrument://computer-test/Users/casey/show/2024",
+  };
+  const serve = (body: BodyInit) => {
+    vi.stubGlobal("fetch", () => Promise.resolve(new Response(body)));
+  };
+
+  it("previews UTF-8 text as text", async () => {
+    serve("Plans for the year");
+    renderWithProviders(<FileViewer file={file} />);
+
+    expect(await screen.findByText("Plans for the year")).toBeTruthy();
+    expect(screen.queryByText("Preview unavailable in Instrument")).toBeNull();
+  });
+
+  it("opens UTF-8 text in the text editor", async () => {
+    serve("Plans for the year");
+    renderWithProviders(<FileViewer editable file={file} />);
+
+    expect(await screen.findByText("text editor for 2024")).toBeTruthy();
+  });
+
+  it("leaves a file that is not text to the fallback", async () => {
+    serve(new Uint8Array([0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x00, 0x00]));
+    renderWithProviders(<FileViewer file={file} />);
+
+    expect(
+      await screen.findByText("Preview unavailable in Instrument"),
+    ).toBeTruthy();
   });
 });

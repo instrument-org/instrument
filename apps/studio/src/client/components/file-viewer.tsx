@@ -18,7 +18,12 @@ import {
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
 import { flushFileWrites } from "@/client/lib/file-flush";
-import { type FileType, getFileType } from "@/client/lib/get-file-type";
+import {
+  type FileType,
+  getFileType,
+  looksLikeText,
+  TEXT_SNIFF_BYTES,
+} from "@/client/lib/get-file-type";
 import { UNTRUSTED_TASK_FILE_IMAGE_KINDS } from "@/client/lib/image-policy";
 import {
   hasFilesView,
@@ -289,6 +294,46 @@ function useFileText(url: string) {
     queryKey: ["file-text", url],
     retry: false, // Ensures fast failure
   });
+}
+
+/**
+ * What a file is, by its name and type, or for a file with no extension and
+ * no type given, by its first bytes: text when they read as text, as a
+ * `2024` or a `notes` someone wrote does. Undefined while those are read.
+ */
+function useFileType(file: ViewerFile): FileType | undefined {
+  const named = getFileType(file);
+  const reads =
+    named === "unknown" &&
+    file.mimeType === undefined &&
+    file.filename.lastIndexOf(".") <= 0;
+  const isText = useQuery({
+    enabled: reads,
+    // Kept through a save, which changes the URL, so the file does not blink
+    // back to loading.
+    placeholderData: keepPreviousData,
+    // The first chunk the channel sends and no more: the channel answers a
+    // range only within the file, and the file may be any size.
+    queryFn: async ({ signal }) => {
+      const response = await fetch(file.url, { signal });
+      if (!response.ok || !response.body) {
+        return false;
+      }
+      const reader = response.body.getReader();
+      const { value = new Uint8Array() } = await reader.read();
+      void reader.cancel();
+      return looksLikeText(value.subarray(0, TEXT_SNIFF_BYTES));
+    },
+    queryKey: ["file-looks-like-text", file.url],
+    retry: false,
+  });
+  if (!reads) {
+    return named;
+  }
+  if (isText.isPending) {
+    return undefined;
+  }
+  return isText.data === true ? "text" : named;
 }
 
 // Both hosts (the artifact panel and the expand modal) give the viewer the
@@ -624,6 +669,13 @@ const SOURCE_VIEWER: ViewerEntry = {
   scrolls: "container",
 };
 
+/** A file with nothing in its name to go on, while its first bytes are read. */
+const READING_VIEWER: ViewerEntry = {
+  hasToolbar: false,
+  render: () => <FileLoading />,
+  scrolls: "container",
+};
+
 function renderCode({ file, wrapLines }: ViewerContext) {
   return (
     <CodeView filename={file.filename} url={file.url} wrapLines={wrapLines} />
@@ -786,7 +838,8 @@ export function FileViewer({
   const isInRow = actionsInto !== undefined;
   const openControl = useFileOpenControl(file, { loadCandidates: !isInRow });
 
-  const fileType = getFileType(file);
+  const readType = useFileType(file);
+  const fileType = readType ?? "unknown";
   // The source is where a file with a view of its own goes to be edited as
   // its text; it is out of the way, in the menu, because the view is how the
   // file is meant to be read and edited.
@@ -866,7 +919,11 @@ export function FileViewer({
     }
   };
 
-  const viewer: ViewerEntry = showsSource ? SOURCE_VIEWER : VIEWERS[fileType];
+  const viewer: ViewerEntry = showsSource
+    ? SOURCE_VIEWER
+    : readType === undefined
+      ? READING_VIEWER
+      : VIEWERS[fileType];
   const viewerContext: ViewerContext = {
     editable,
     fallback: (

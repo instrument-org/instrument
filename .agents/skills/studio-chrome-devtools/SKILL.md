@@ -177,7 +177,7 @@ node $DRIVE wait --idle --chat <chat-id>
 node $DRIVE rpc workspace.message.list "{\"id\":\"<chat-id>\",\"sessionId\":\"$SES\"}"
 ```
 
-`scripts/chat-turn.mjs` does all of that in one `run`, and returns the turn as one short line per step (text, tool call, refusal) rather than the full `message.list`, stopping early when a card is waiting: `node $DRIVE run .agents/skills/studio-chrome-devtools/scripts/chat-turn.mjs --quiet --args '{"prompt":"…"}'`, then `{"chat":"<id>","prompt":"…"}` to follow up.
+`scripts/chat-turn.mjs` does all of that in one `run`, and returns the turn as one short line per step (text, tool call, refusal) rather than the full `message.list`, stopping early when one of the chat's own cards is waiting (`waitingOn` lists them): `node $DRIVE run .agents/skills/studio-chrome-devtools/scripts/chat-turn.mjs --quiet --args '{"prompt":"…"}'`, then `{"chat":"<id>","prompt":"…"}` to follow up, `{"chat":"<id>","answer":"allowed"}` (or `always`, `declined`) to answer its cards and read on, or just `{"chat":"<id>"}` to read the latest turn. `"wait": false` returns once the prompt is sent, for a turn that starts a long task. Cards and turns are read per chat over RPC, so several chats can be driven at once.
 
 `message.create` with `sessionId` instead of `newSessionId` sends a follow-up into the same session. Tasks the chat starts show up in `chats.tasks`; read one's transcript with `message.list` and its session. A seeded fixture workspace holds no credentials, so a live turn needs a plain `boot` against the dev workspace.
 

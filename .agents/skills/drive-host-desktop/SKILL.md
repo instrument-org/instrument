@@ -59,6 +59,7 @@ Actions go to the window in the background by default, without raising it, so th
   ```
 
   Coordinates are screen pixels; `get_desktop_state`'s note gives the factor from its image to the screen. If a consent dialog does come up, an agent cancels it, never approves it.
+
 - **UAC prompts** sit on a secure desktop that no driver can reach. The Windows driver runs elevated (see enrollment), so it can drive apps run as administrator, which also means it can do anything an administrator can.
 
 ## Host enrollment

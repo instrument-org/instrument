@@ -6,9 +6,13 @@
 //   node studio-drive.mjs run chat-turn.mjs --quiet --args '{"chat":"<id>","session":"ses_…","prompt":"…"}'
 //
 // Without `chat` it starts a new chat and opens it. `model` is a model URI
-// (`gateway.models.list`); without one it takes the first the app lists.
-// It returns when the chat has gone idle or is waiting on a card, whichever
-// comes first, with `waitingOn` naming the card.
+// (`gateway.models.list`); without one it takes Instrument's Auto.
+// It returns when the chat has gone idle or one of its own cards is waiting,
+// whichever comes first, with `waitingOn` listing the cards. `answer`
+// ("allowed", "always" or "declined") answers the chat's open cards first, as
+// the card's buttons would. `wait: false` returns as soon as the prompt is
+// sent, for a turn that starts a long task. Several chats can be driven at
+// once: everything is read per chat over RPC, nothing from the visible page.
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 const TEXT_LIMIT = 600;
@@ -22,6 +26,15 @@ export default async (app, args) => {
     throw new Error(
       'Pass --args \'{"prompt":"…"}\', with chat and session to follow up.',
     );
+  }
+  if (args.chat && args.answer) {
+    for (const ask of await openAsks(app, args.chat)) {
+      await app.rpc("workspace.permissions.answer", {
+        askId: ask.id,
+        decision: args.answer,
+        id: args.chat,
+      });
+    }
   }
   let { chat, session } = args;
   const modelURI = args.model ?? (await firstModel(app));
@@ -52,6 +65,7 @@ export default async (app, args) => {
     });
   }
 
+  if (args.wait === false) return { chat, session, sent: true };
   const waited = await waitForTurn(app, chat, args.timeoutMs ?? 240_000);
   const list = await app.rpc("workspace.message.list", {
     id: chat,
@@ -81,6 +95,10 @@ async function firstModel(app) {
   return first.uri;
 }
 
+/** The chat's open cards, oldest first, as its cards draw them. */
+const openAsks = (app, chat) =>
+  app.rpc("workspace.permissions.asks", { id: chat });
+
 /**
  * Idle has to hold for two seconds once the chat has been seen working, and
  * eight when it never was, since a chat reads idle before its turn starts. A
@@ -92,17 +110,13 @@ async function waitForTurn(app, chat, timeoutMs) {
   let idleSince = 0;
   while (Date.now() < deadline) {
     const info = await app.rpc("workspace.chats.byId", { id: chat });
-    const card = await app.eval(
-      // A card is the one place a turn offers "Not now"; its first line is
-      // the question it asks.
-      `(() => {
-        const button = Array.from(document.querySelectorAll("button")).find((b) => b.innerText.trim() === "Not now" && b.getClientRects().length > 0);
-        let card = button;
-        while (card && card.parentElement && card.innerText.split("\\n").length < 3) card = card.parentElement;
-        return card ? card.innerText.split("\\n")[0] : null;
-      })()`,
-    );
-    if (card) return { sawBusy, waitingOn: card };
+    const asks = await openAsks(app, chat);
+    if (asks.length > 0) {
+      return {
+        sawBusy,
+        waitingOn: asks.map(({ id, kind, target }) => ({ id, kind, target })),
+      };
+    }
     if (info?.state === "working") {
       sawBusy = true;
       idleSince = 0;

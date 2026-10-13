@@ -832,6 +832,7 @@ fail("The preview's CDP did not become ready on port %d within ${timeoutSeconds}
  */
 function previewStopScript() {
   return `${baseScript(PREVIEW_TARGET)}
+${cdpFunction()}
 ${previewFunction()}
 import signal
 # The main process alone gets SIGTERM, the way a person quitting would end
@@ -868,10 +869,23 @@ for pid, _ in preview_processes():
     except OSError:
         pass
 time.sleep(1)
+# A program a task started can outlive the app (reparented to the user's
+# systemd, in the desktop's scope rather than the unit) still holding the CDP
+# socket it inherited, and the next start then hangs on that port. Whatever
+# holds the preview's port now is left over from the preview, so it goes too.
+orphans = []
+owner = listener_owner(target["cdpPort"])
+if owner.get("processId"):
+    try:
+        os.kill(owner["processId"], signal.SIGKILL)
+        orphans.append({"pid": owner["processId"], "commandLine": owner.get("commandLine")})
+    except OSError:
+        pass
 subprocess.run(["systemctl", "--user", "stop", "--no-block", target["unit"]], check=False, capture_output=True, timeout=30)
 subprocess.run(["systemctl", "--user", "reset-failed", target["unit"]], check=False, capture_output=True, timeout=30)
 print(json.dumps({
     "killedAfterIgnoringTerm": killed,
+    "killedHoldingPort": orphans,
     "signaled": stopped,
     "target": "${PREVIEW_TARGET}",
 }))`;

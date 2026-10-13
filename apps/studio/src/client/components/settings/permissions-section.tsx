@@ -19,6 +19,11 @@ import { Switch } from "@/client/components/ui/switch";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useComputerVolumes } from "@/client/components/window/computer-volumes";
 import { FolderMark } from "@/client/components/window/folder-mark";
+import {
+  isInside,
+  nameOf,
+  segmentsOf,
+} from "@/client/components/window/host-path";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { isWindows } from "@/client/lib/utils";
 import { toast } from "@/client/lib/toast";
@@ -49,21 +54,12 @@ const LEVEL_LABELS = {
 
 const LEVELS = ["allow", "ask", "never"] satisfies Level[];
 
-function lastSegment(path: string) {
-  return path.split(/[\\/]/).findLast((part) => part !== "") ?? path;
-}
-
 /** A path from the home folder down, with the folder's own name left off when it is home. */
 function fromHome(path: string, home: string) {
-  const prefix = home.replace(/[\\/]+$/, "");
-  const rest =
-    path === prefix ||
-    path.startsWith(`${prefix}/`) ||
-    path.startsWith(`${prefix}\\`)
-      ? path.slice(prefix.length)
-      : path;
-  const parts = rest.split(/[\\/]/).filter((part) => part !== "");
-  return parts.join(SEPARATOR);
+  const names = segmentsOf(path);
+  return (
+    isInside(path, home) ? names.slice(segmentsOf(home).length) : names
+  ).join(SEPARATOR);
 }
 
 export function PermissionsSection() {
@@ -222,7 +218,7 @@ export function PermissionsSection() {
                   <PermissionRow
                     control={
                       <LevelSelect
-                        label={lastSegment(folder.path)}
+                        label={nameOf(folder.path)}
                         level={folder.level}
                         onRemove={() => {
                           removeFolder.mutate({ path: folder.path });
@@ -236,7 +232,7 @@ export function PermissionsSection() {
                     // A folder directly in the home folder has no more to say
                     // than its name.
                     line={
-                      isHome || where === lastSegment(folder.path)
+                      isHome || where === nameOf(folder.path)
                         ? undefined
                         : where
                     }
@@ -247,7 +243,7 @@ export function PermissionsSection() {
                         <FolderMark large path={folder.path} />
                       )
                     }
-                    name={lastSegment(folder.path)}
+                    name={nameOf(folder.path)}
                   />
                 );
               })

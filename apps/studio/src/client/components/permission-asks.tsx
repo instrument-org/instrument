@@ -1,6 +1,11 @@
 import { rpcClient } from "@/client/rpc/client";
 import { getToolExplanation } from "@/client/lib/get-tool-explanation";
-import { folderLabel, displayPath } from "@/client/lib/path-utils";
+import {
+  isInside,
+  nameOf,
+  segmentsOf,
+} from "@/client/components/window/host-path";
+import { folderLabel } from "@/client/lib/path-utils";
 import { toast } from "@/client/lib/toast";
 import { osConventions } from "@/client/lib/utils";
 import {
@@ -111,14 +116,11 @@ function explanationOf(
 /** A folder's path from the home folder down, `Documents › Clients`; the home folder is its own name. */
 function readablePath(target: string): string {
   const home = window.api.homeDir;
-  const names = displayPath(target).split(/[/\\]/).filter(Boolean);
-  const inHome = target === home || /^[/\\]/.test(target.slice(home.length));
-  return (
-    (inHome && target.startsWith(home) && names.length > 1
-      ? names.slice(1)
-      : names
-    ).join(" › ") || target
-  );
+  const names = segmentsOf(target);
+  const below = isInside(target, home)
+    ? names.slice(segmentsOf(home).length)
+    : names;
+  return below.join(" › ") || nameOf(target);
 }
 
 /**

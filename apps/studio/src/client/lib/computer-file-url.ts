@@ -1,3 +1,4 @@
+import { segmentsOf } from "@/client/components/window/host-path";
 import { safe } from "@orpc/client";
 
 import { rpcClient } from "../rpc/client";
@@ -35,14 +36,8 @@ export function getComputerFileUrl({
   // Per segment, so the separators survive and a `?` or `#` in a name does not
   // start the query or the fragment. A Windows path's separators are turned
   // into the URL's, and its drive letter becomes the first segment.
-  const encodedPath = hostPath
-    .split(/[/\\]/)
-    .filter((segment, index) => index === 0 || segment !== "")
-    .map(encodeURIComponent)
-    .join("/");
-  const url = encodedPath.startsWith("/")
-    ? `${base}${encodedPath}`
-    : `${base}/${encodedPath}`;
+  const encodedPath = segmentsOf(hostPath).map(encodeURIComponent).join("/");
+  const url = `${base}/${encodedPath}`;
   return version === undefined
     ? url
     : `${url}?version=${encodeURIComponent(version)}`;

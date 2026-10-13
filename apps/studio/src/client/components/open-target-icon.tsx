@@ -3,6 +3,7 @@ import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 
 import { FileTypeIcon } from "./extend/file-system";
 import { IconWithFallback } from "./icon-with-fallback";
+import { nameOf } from "./window/host-path";
 
 // Icon of the default app for the file, with a file-type fallback when the
 // platform can't resolve an app icon or the cached icon fails to load.
@@ -14,7 +15,7 @@ export function OpenTargetIcon({
   file: Pick<ViewerFile, "hostPath">;
 }) {
   const { iconUrl } = useFileOpenTarget(file);
-  const filename = file.hostPath.split(/[/\\]/).pop() ?? file.hostPath;
+  const filename = nameOf(file.hostPath);
 
   return (
     <IconWithFallback

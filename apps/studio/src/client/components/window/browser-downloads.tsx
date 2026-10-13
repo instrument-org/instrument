@@ -8,6 +8,7 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { Progress } from "@/client/components/ui/progress";
+import { nameOf } from "@/client/components/window/host-path";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
 import { useOpenFile } from "@/client/hooks/use-open-file";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
@@ -168,7 +169,7 @@ function DownloadRow({ download }: { download: Download }) {
               !running && !openable && "text-muted-foreground",
             )}
           >
-            {path ? path.split(/[/\\]/).at(-1) : download.filename}
+            {path ? nameOf(path) : download.filename}
           </span>
           {running && download.totalBytes > 0 && (
             <Progress

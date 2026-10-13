@@ -12,7 +12,7 @@ import { APP_NAME, OUR_PROVIDER_CONFIG } from "@instrument-org/shared";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
-import { sessionOfChat } from "../record-folders";
+import { sessionRole } from "../chat/children";
 import {
   type AIUsageEntry,
   type AIUsageKind,
@@ -56,7 +56,7 @@ export function turnPurpose(
   chatId: ChatId,
   sessionId: StoreId.Session,
 ): AIUsagePurpose {
-  return sessionOfChat(chatId) === sessionId ? "chat" : "task";
+  return sessionRole(chatId, sessionId) ?? "other";
 }
 
 /**

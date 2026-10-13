@@ -27,6 +27,7 @@ import {
   effectiveFolderAccess,
   folderHoldsWorkspace,
   hostPathOf,
+  outsideFolderRefusal,
   shellPath,
 } from "./workspace-fs-layout";
 import {
@@ -626,5 +627,23 @@ describe("shellPath on Windows", () => {
   it("keeps a network share's server and share", () => {
     expect(shellPath("\\\\nas\\media\\a.mp4")).toBe("//nas/media/a.mp4");
     expect(hostPathOf("//nas/media/a.mp4")).toBe("\\\\nas\\media\\a.mp4");
+  });
+
+  it("finds /tmp in the temp folder, as Git Bash does", () => {
+    expect(hostPathOf("/tmp")).toBe(path.win32.join(os.tmpdir()));
+    expect(hostPathOf("/tmp/a/b.txt")).toBe(
+      path.win32.join(os.tmpdir(), "a", "b.txt"),
+    );
+  });
+
+  it("refuses a path on no drive without resolving it", () => {
+    const layout = buildWorkspaceFsLayout({
+      taskHostRoot: ChatDirSchema.parse(
+        path.join(os.tmpdir(), "chats", "no-drive"),
+      ),
+    });
+    expect(outsideFolderRefusal(layout, "/etc/hosts", "write")).toBe(
+      "/etc/hosts is on no drive. On Windows a path starts with its drive, like /c/Users.",
+    );
   });
 });

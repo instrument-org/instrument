@@ -321,14 +321,28 @@ export function buildWorkspaceFsLayout({
       shellRoot: shellPath(taskHostRoot),
       readOnly: false,
     },
-    temp: (getWorkspaceConfig().tempFolders ?? tempFolders()).map(
-      (hostRoot) => ({
-        hostRoot,
-        maskedEntries: [],
-        shellRoot: shellPath(hostRoot),
-        readOnly: false,
-      }),
-    ),
+    temp: [
+      ...(getWorkspaceConfig().tempFolders ?? tempFolders()).map(
+        (hostRoot) => ({
+          hostRoot,
+          maskedEntries: [],
+          shellRoot: shellPath(hostRoot),
+          readOnly: false,
+        }),
+      ),
+      // Git Bash's `/tmp` on Windows, where no drive holds a `/tmp`.
+      ...(process.platform === "win32" &&
+      getWorkspaceConfig().tempFolders === undefined
+        ? [
+            {
+              hostRoot: AbsolutePathSchema.parse(HOST_TMPDIR),
+              maskedEntries: [],
+              shellRoot: "/tmp",
+              readOnly: false,
+            },
+          ]
+        : []),
+    ],
   };
   // Every consumer of the layout (the shell, the file tools, the native
   // sandbox) holds to the same rules, the app's own over its folders among
@@ -596,6 +610,12 @@ function allMounts(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
 }
 
 /**
+ * This process's temp folder, read once: the shell refuses a command a look
+ * at the environment, and on Windows `/tmp` leads here, as in Git Bash.
+ */
+const HOST_TMPDIR = os.tmpdir();
+
+/**
  * The system's temp folders, where any program keeps scratch files: `/tmp`
  * and `/var/tmp` on macOS and Linux, and this process's own (`TMPDIR` on
  * macOS, `%TEMP%` on Windows), each as spelled and where it really is.
@@ -708,11 +728,16 @@ export function shellPath(hostPath: string): string {
 
 /**
  * The host path a shell path names: the inverse of {@link shellPath}. The same
- * path on macOS and Linux; on Windows `/c/Users/sam` becomes `C:\Users\sam`.
+ * path on macOS and Linux; on Windows `/c/Users/sam` becomes `C:\Users\sam`,
+ * and `/tmp` is the temp folder, as in Git Bash.
  */
 export function hostPathOf(shellSpelled: string): string {
   if (process.platform !== "win32") {
     return shellSpelled;
+  }
+  const tmp = /^\/tmp(?:\/(.*))?$/.exec(shellSpelled);
+  if (tmp) {
+    return nodePath.win32.join(HOST_TMPDIR, tmp[1] ?? "");
   }
   const drive = /^\/([A-Za-z])(?:\/(.*))?$/.exec(shellSpelled);
   return drive
@@ -781,9 +806,19 @@ async function mountRoots(
   const outermost = present.toSorted(
     (a, b) => a.hostRoot.length - b.hostRoot.length,
   );
+  // A mount at a second name for its folder (`/tmp` on Windows) mounts
+  // beside the one at the folder's own path rather than inside it.
+  const aliased = (mount: WorkspaceFsMount) =>
+    mount.shellRoot !== shellPath(mount.hostRoot);
   const roots: WorkspaceFsMount[] = [];
   for (const mount of outermost) {
-    if (!roots.some((root) => hostPathWithin(root.hostRoot, mount.hostRoot))) {
+    if (
+      aliased(mount) ||
+      !roots.some(
+        (root) =>
+          !aliased(root) && hostPathWithin(root.hostRoot, mount.hostRoot),
+      )
+    ) {
       roots.push(mount);
     }
   }
@@ -827,6 +862,11 @@ export function outsideFolderRefusal(
     )
   ) {
     return undefined;
+  }
+  // On Windows a path names its drive (`/c/...`) or a share
+  // (`//server/...`); one that does neither is on no disk.
+  if (process.platform === "win32" && !/^\/(?:[A-Za-z](?:\/|$)|\/)/.test(path)) {
+    return `${path} is on no drive. On Windows a path starts with its drive, like /c/Users.`;
   }
   const hostPath = hostPathOf(path);
   // The system's own folders are nothing to ask the person for a look at.
